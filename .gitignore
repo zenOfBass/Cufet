@@ -1,0 +1,36 @@
+# Build output
+bin/
+obj/
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# JetBrains Rider
+.idea/
+
+# macOS
+.DS_Store
+
+# Vim / Emacs swap files
+*.swp
+*.swo
+*~
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+
+# Publish output
+publish/
