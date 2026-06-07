@@ -79,17 +79,12 @@ If x is 1: State "one".
 
 If x is 1: State "one". Otherwise: State "other".
 
-If x is 1:
-    State "one".
-    State "definitely one".
-Done.
-
 If x is 1: State "one".
 Otherwise if x is 2: State "two".
 Otherwise: State "other".
 ```
 
-Single-statement arms close with a period. Multi-statement arms close with `Done.`
+If-arm bodies are always exactly one statement. The statement after the colon is the body; everything after that is unconditionally outside the if, regardless of where the if appears.
 
 ### Loops
 

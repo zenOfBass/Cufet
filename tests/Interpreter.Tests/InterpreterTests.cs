@@ -248,19 +248,33 @@ public class InterpreterTests
     }
 
     [Fact]
-    public void MultiStmtBodyWithDone()
-    {
-        Assert.Equal("a\nb", Run(
-            "Define x as 1. " +
-            "If x is 1: State \"a\". State \"b\". Done."));
-    }
-
-    [Fact]
     public void NestedIf()
     {
         Assert.Equal("both", Run(
             "Define x as 1. Define y as 2. " +
             "If x is 1: If y is 2: State \"both\"."));
+    }
+
+    [Fact]
+    public void InlineIfMidBlock()
+    {
+        // Single-stmt inline if can appear anywhere in a loop body, not just last before Done.
+        Assert.Equal("1\n2\n4", Run(
+            "Define x as 0.\n" +
+            "While x is less than 4, repeat:\n" +
+            "    x becomes x + 1.\n" +
+            "    If x is 3: Skip.\n" +
+            "    State x.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void DanglingOtherwiseBindsToNearestIf()
+    {
+        // If x: (If y: a. Otherwise: b.) — Otherwise binds to innermost If.
+        Assert.Equal("b", Run(
+            "Define x as 1. Define y as 2. " +
+            "If x is 1: If y is 3: State \"a\". Otherwise: State \"b\"."));
     }
 
     // ── Word-form comparisons ─────────────────────────────────────────────
@@ -317,14 +331,16 @@ public class InterpreterTests
     // ── Control flow parse errors ─────────────────────────────────────────
 
     [Fact]
-    public void DoneWithSingleStmtThrows()
+    public void OrphanedDoneThrows()
     {
+        // Done. with no enclosing loop/block to close it is a parse error.
         Assert.Throws<ParseException>(() => Run("Define x as 1. If x is 1: State x. Done."));
     }
 
     [Fact]
-    public void MultiStmtBodyMissingDoneThrows()
+    public void OrphanedOtherwiseThrows()
     {
+        // Otherwise with no preceding if is a parse error.
         Assert.Throws<ParseException>(() => Run(
             "Define x as 1. If x is 1: State x. State x. Otherwise: State x."));
     }
@@ -789,30 +805,23 @@ public class InterpreterTests
     [Fact]
     public void ForEachStopBreaksLoop()
     {
-        // Inline "If: Stop." must be the last statement before Done. (grammar invariant).
-        // Accumulate count before the stop check so we can verify early exit.
-        Assert.Equal("2", Run(
+        Assert.Equal("1\n2", Run(
             "Define s as a series (1, 2, 3, 4).\n" +
-            "Define count as 0.\n" +
             "For each x in s, repeat:\n" +
-            "    count becomes count + 1.\n" +
-            "    If x is 2: Stop.\n" +
-            "Done.\n" +
-            "State count."));
+            "    If x is 3: Stop.\n" +
+            "    State x.\n" +
+            "Done."));
     }
 
     [Fact]
     public void ForEachSkipSkipsIteration()
     {
-        // "If: Skip. Otherwise: ..." — Otherwise is a break-inducer so the if-arm stays single-stmt.
-        Assert.Equal("12", Run(
-            "Define s as a series (1, 2, 3, 4, 5).\n" +
-            "Define total as 0.\n" +
+        Assert.Equal("1\n3", Run(
+            "Define s as a series (1, 2, 3).\n" +
             "For each x in s, repeat:\n" +
-            "    If x is 3: Skip.\n" +
-            "    Otherwise: total becomes total + x.\n" +
-            "Done.\n" +
-            "State total."));
+            "    If x is 2: Skip.\n" +
+            "    State x.\n" +
+            "Done."));
     }
 
     [Fact]

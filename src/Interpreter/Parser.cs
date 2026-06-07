@@ -143,34 +143,17 @@ public sealed class Parser
         return ParseBody();
     }
 
+    // If-arm bodies are always exactly one statement — the statement after the colon.
+    // The token immediately following that statement is unconditionally outside the if-arm,
+    // regardless of position in a block. Multi-statement if bodies do not exist; use a loop
+    // body or (future) function body if you need multiple statements under a condition.
     private IReadOnlyList<IStatement> ParseBody()
     {
-        var stmts = new List<IStatement>();
-        while (true)
-        {
-            SkipNoise();
-            if (Peek().Type is TokenType.Done or TokenType.Otherwise or TokenType.Until or TokenType.Eof) break;
-            stmts.Add(ParseStatement());
-        }
-
-        if (Peek().Type == TokenType.Done)
-        {
-            if (stmts.Count == 0)
-                throw new ParseException(Peek(), "at least one statement before Done.");
-            if (stmts.Count == 1)
-                return stmts; // This Done. belongs to an outer block; return 1 stmt without consuming it.
-            Consume(TokenType.Done);
-            Consume(TokenType.Dot);
-        }
-        else
-        {
-            if (stmts.Count == 0)
-                throw new ParseException(Peek(), "at least one statement in block body");
-            if (stmts.Count > 1)
-                throw new ParseException(Peek(), "Done. to close multi-statement block");
-        }
-
-        return stmts;
+        SkipNoise();
+        var tok = Peek();
+        if (tok.Type is TokenType.Done or TokenType.Otherwise or TokenType.Until or TokenType.Eof)
+            throw new ParseException(tok, "at least one statement in block body");
+        return new IStatement[] { ParseStatement() };
     }
 
     private WhileStatement ParseWhileStatement()
