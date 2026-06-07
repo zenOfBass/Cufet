@@ -74,17 +74,33 @@ If x is 5 or less:
 
 ### Conditionals
 
+**Inline — comma, one statement, works anywhere:**
 ```
-If x is 1: State "one".
+If x is 1, State "one".
 
-If x is 1: State "one". Otherwise: State "other".
+If x is 1, State "one". Otherwise, State "other".
 
-If x is 1: State "one".
-Otherwise if x is 2: State "two".
-Otherwise: State "other".
+If x is 1, State "one".
+Otherwise if x is 2, State "two".
+Otherwise, State "other".
 ```
 
-If-arm bodies are always exactly one statement. The statement after the colon is the body; everything after that is unconditionally outside the if, regardless of where the if appears.
+**Block — colon, Done.-closed, any number of statements:**
+```
+If x is 1:
+    State "one".
+    State "also one".
+Done.
+
+If x is 1:
+    State "one".
+Done.
+Otherwise:
+    State "other".
+Done.
+```
+
+The punctuation means exactly one thing each. Comma after the condition → inline single-statement. Colon after the condition → Done.-terminated block. The parser knows which form it's in from the comma-vs-colon, before the body is ever parsed.
 
 ### Loops
 

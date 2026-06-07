@@ -112,7 +112,7 @@ public sealed class Parser
 
         Consume(TokenType.If);
         SkipNoise();
-        arms.Add(new ConditionArm(ParseCondition(), ParseBodyAfterColon()));
+        arms.Add(new ConditionArm(ParseCondition(), ParseIfBody()));
 
         while (true)
         {
@@ -124,11 +124,11 @@ public sealed class Parser
             {
                 Consume(TokenType.If);
                 SkipNoise();
-                arms.Add(new ConditionArm(ParseCondition(), ParseBodyAfterColon()));
+                arms.Add(new ConditionArm(ParseCondition(), ParseIfBody()));
             }
             else
             {
-                elseBody = ParseBodyAfterColon();
+                elseBody = ParseIfBody();
                 break;
             }
         }
@@ -136,24 +136,21 @@ public sealed class Parser
         return new IfStatement(arms, elseBody);
     }
 
-    private IReadOnlyList<IStatement> ParseBodyAfterColon()
+    // Comma → inline single-statement (works anywhere, no Done.).
+    // Colon → Done.-terminated block (same machinery as loop bodies).
+    // The two forms are unambiguous: the parser knows which it's in from the
+    // comma-vs-colon immediately after the condition, before the body is parsed.
+    private IReadOnlyList<IStatement> ParseIfBody()
     {
         SkipNoise();
+        if (Peek().Type == TokenType.Comma)
+        {
+            Advance(); // consume ','
+            SkipNoise();
+            return new IStatement[] { ParseStatement() };
+        }
         Consume(TokenType.Colon);
-        return ParseBody();
-    }
-
-    // If-arm bodies are always exactly one statement — the statement after the colon.
-    // The token immediately following that statement is unconditionally outside the if-arm,
-    // regardless of position in a block. Multi-statement if bodies do not exist; use a loop
-    // body or (future) function body if you need multiple statements under a condition.
-    private IReadOnlyList<IStatement> ParseBody()
-    {
-        SkipNoise();
-        var tok = Peek();
-        if (tok.Type is TokenType.Done or TokenType.Otherwise or TokenType.Until or TokenType.Eof)
-            throw new ParseException(tok, "at least one statement in block body");
-        return new IStatement[] { ParseStatement() };
+        return ParseLoopBody();
     }
 
     private WhileStatement ParseWhileStatement()

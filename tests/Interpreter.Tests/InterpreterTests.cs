@@ -197,25 +197,25 @@ public class InterpreterTests
     [Fact]
     public void IfTrueSingleStmt()
     {
-        Assert.Equal("yes", Run("Define x as 1. If x is 1: State \"yes\"."));
+        Assert.Equal("yes", Run("Define x as 1. If x is 1, State \"yes\"."));
     }
 
     [Fact]
     public void IfFalseSingleStmt()
     {
-        Assert.Equal("", Run("Define x as 2. If x is 1: State \"yes\"."));
+        Assert.Equal("", Run("Define x as 2. If x is 1, State \"yes\"."));
     }
 
     [Fact]
     public void IfElseTrueBranch()
     {
-        Assert.Equal("yes", Run("Define x as 1. If x is 1: State \"yes\". Otherwise: State \"no\"."));
+        Assert.Equal("yes", Run("Define x as 1. If x is 1, State \"yes\". Otherwise, State \"no\"."));
     }
 
     [Fact]
     public void IfElseFalseBranch()
     {
-        Assert.Equal("no", Run("Define x as 2. If x is 1: State \"yes\". Otherwise: State \"no\"."));
+        Assert.Equal("no", Run("Define x as 2. If x is 1, State \"yes\". Otherwise, State \"no\"."));
     }
 
     [Fact]
@@ -223,9 +223,9 @@ public class InterpreterTests
     {
         Assert.Equal("one", Run(
             "Define x as 1. " +
-            "If x is 1: State \"one\". " +
-            "Otherwise if x is 2: State \"two\". " +
-            "Otherwise: State \"other\"."));
+            "If x is 1, State \"one\". " +
+            "Otherwise if x is 2, State \"two\". " +
+            "Otherwise, State \"other\"."));
     }
 
     [Fact]
@@ -233,9 +233,9 @@ public class InterpreterTests
     {
         Assert.Equal("two", Run(
             "Define x as 2. " +
-            "If x is 1: State \"one\". " +
-            "Otherwise if x is 2: State \"two\". " +
-            "Otherwise: State \"other\"."));
+            "If x is 1, State \"one\". " +
+            "Otherwise if x is 2, State \"two\". " +
+            "Otherwise, State \"other\"."));
     }
 
     [Fact]
@@ -243,8 +243,8 @@ public class InterpreterTests
     {
         Assert.Equal("", Run(
             "Define x as 9. " +
-            "If x is 1: State \"one\". " +
-            "Otherwise if x is 2: State \"two\"."));
+            "If x is 1, State \"one\". " +
+            "Otherwise if x is 2, State \"two\"."));
     }
 
     [Fact]
@@ -252,18 +252,44 @@ public class InterpreterTests
     {
         Assert.Equal("both", Run(
             "Define x as 1. Define y as 2. " +
-            "If x is 1: If y is 2: State \"both\"."));
+            "If x is 1, If y is 2, State \"both\"."));
+    }
+
+    [Fact]
+    public void BlockIfMultiStmt()
+    {
+        Assert.Equal("a\nb", Run(
+            "Define x as 1.\n" +
+            "If x is 1:\n" +
+            "    State \"a\".\n" +
+            "    State \"b\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void BlockIfWithOtherwise()
+    {
+        Assert.Equal("a\nb\nc", Run(
+            "Define x as 1.\n" +
+            "If x is 1:\n" +
+            "    State \"a\".\n" +
+            "    State \"b\".\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"nope\".\n" +
+            "Done.\n" +
+            "State \"c\"."));
     }
 
     [Fact]
     public void InlineIfMidBlock()
     {
-        // Single-stmt inline if can appear anywhere in a loop body, not just last before Done.
+        // Comma inline if works mid-loop-body — the original motivation for this change.
         Assert.Equal("1\n2\n4", Run(
             "Define x as 0.\n" +
             "While x is less than 4, repeat:\n" +
             "    x becomes x + 1.\n" +
-            "    If x is 3: Skip.\n" +
+            "    If x is 3, Skip.\n" +
             "    State x.\n" +
             "Done."));
     }
@@ -271,10 +297,10 @@ public class InterpreterTests
     [Fact]
     public void DanglingOtherwiseBindsToNearestIf()
     {
-        // If x: (If y: a. Otherwise: b.) — Otherwise binds to innermost If.
+        // If x, (If y, a. Otherwise, b.) — Otherwise binds to innermost If.
         Assert.Equal("b", Run(
             "Define x as 1. Define y as 2. " +
-            "If x is 1: If y is 3: State \"a\". Otherwise: State \"b\"."));
+            "If x is 1, If y is 3, State \"a\". Otherwise, State \"b\"."));
     }
 
     // ── Word-form comparisons ─────────────────────────────────────────────
@@ -282,50 +308,50 @@ public class InterpreterTests
     [Fact]
     public void WordFormIs()
     {
-        Assert.Equal("yes", Run("Define x as 5. If x is 5: State \"yes\"."));
+        Assert.Equal("yes", Run("Define x as 5. If x is 5, State \"yes\"."));
     }
 
     [Fact]
     public void WordFormIsNot()
     {
-        Assert.Equal("yes", Run("Define x as 5. If x is not 3: State \"yes\"."));
+        Assert.Equal("yes", Run("Define x as 5. If x is not 3, State \"yes\"."));
     }
 
     [Fact]
     public void WordFormIsGreaterThan()
     {
-        Assert.Equal("yes", Run("Define x as 10. If x is greater than 5: State \"yes\"."));
-        Assert.Equal("", Run("Define x as 3. If x is greater than 5: State \"yes\"."));
+        Assert.Equal("yes", Run("Define x as 10. If x is greater than 5, State \"yes\"."));
+        Assert.Equal("", Run("Define x as 3. If x is greater than 5, State \"yes\"."));
     }
 
     [Fact]
     public void WordFormIsLessThan()
     {
-        Assert.Equal("yes", Run("Define x as 2. If x is less than 5: State \"yes\"."));
-        Assert.Equal("", Run("Define x as 7. If x is less than 5: State \"yes\"."));
+        Assert.Equal("yes", Run("Define x as 2. If x is less than 5, State \"yes\"."));
+        Assert.Equal("", Run("Define x as 7. If x is less than 5, State \"yes\"."));
     }
 
     [Fact]
     public void WordFormOrMore()
     {
-        Assert.Equal("yes", Run("Define x as 5. If x is 5 or more: State \"yes\"."));
-        Assert.Equal("yes", Run("Define x as 6. If x is 5 or more: State \"yes\"."));
-        Assert.Equal("", Run("Define x as 4. If x is 5 or more: State \"yes\"."));
+        Assert.Equal("yes", Run("Define x as 5. If x is 5 or more, State \"yes\"."));
+        Assert.Equal("yes", Run("Define x as 6. If x is 5 or more, State \"yes\"."));
+        Assert.Equal("", Run("Define x as 4. If x is 5 or more, State \"yes\"."));
     }
 
     [Fact]
     public void WordFormOrLess()
     {
-        Assert.Equal("yes", Run("Define x as 5. If x is 5 or less: State \"yes\"."));
-        Assert.Equal("yes", Run("Define x as 3. If x is 5 or less: State \"yes\"."));
-        Assert.Equal("", Run("Define x as 7. If x is 5 or less: State \"yes\"."));
+        Assert.Equal("yes", Run("Define x as 5. If x is 5 or less, State \"yes\"."));
+        Assert.Equal("yes", Run("Define x as 3. If x is 5 or less, State \"yes\"."));
+        Assert.Equal("", Run("Define x as 7. If x is 5 or less, State \"yes\"."));
     }
 
     [Fact]
     public void VariableCondition()
     {
         // stored bool used directly as condition
-        Assert.Equal("yes", Run("Define flag as 1 = 1. If flag: State \"yes\"."));
+        Assert.Equal("yes", Run("Define flag as 1 = 1. If flag, State \"yes\"."));
     }
 
     // ── Control flow parse errors ─────────────────────────────────────────
@@ -334,13 +360,13 @@ public class InterpreterTests
     public void OrphanedDoneThrows()
     {
         // Done. with no enclosing loop/block to close it is a parse error.
-        Assert.Throws<ParseException>(() => Run("Define x as 1. If x is 1: State x. Done."));
+        Assert.Throws<ParseException>(() => Run("Define x as 1. If x is 1, State x. Done."));
     }
 
     [Fact]
     public void OrphanedOtherwiseThrows()
     {
-        // Otherwise with no preceding if is a parse error.
+        // Otherwise appearing where a statement is expected is a parse error.
         Assert.Throws<ParseException>(() => Run(
             "Define x as 1. If x is 1: State x. State x. Otherwise: State x."));
     }
@@ -350,7 +376,7 @@ public class InterpreterTests
     [Fact]
     public void NonBoolConditionThrows()
     {
-        Assert.Throws<RuntimeException>(() => Run("Define x as 5. If x: State x."));
+        Assert.Throws<RuntimeException>(() => Run("Define x as 5. If x, State x."));
     }
 
     // ── While loops ──────────────────────────────────────────────────────
@@ -422,7 +448,7 @@ public class InterpreterTests
             "Define x as 0. " +
             "While x is less than 10, repeat: " +
             "    x becomes x + 1. " +
-            "    If x is 3: Stop. " +
+            "    If x is 3, Stop. " +
             "Done. " +
             "State x."));
     }
@@ -430,13 +456,11 @@ public class InterpreterTests
     [Fact]
     public void SkipInWhileLoop()
     {
-        // Otherwise terminates the if arm cleanly so ParseBody sees Otherwise, not Done.
-        // When x is 2 the Skip arm fires; all other values print.
         Assert.Equal("1\n3\n4", Run(
             "Define x as 0. " +
             "While x is less than 4, repeat: " +
             "x becomes x + 1. " +
-            "If x is 2: Skip. Otherwise: State x. " +
+            "If x is 2, Skip. Otherwise, State x. " +
             "Done."));
     }
 
@@ -445,17 +469,16 @@ public class InterpreterTests
     {
         Assert.Equal("3", Run(
             "Define x as 0. " +
-            "Repeat: x becomes x + 1. If x is 3: Stop. until x is 10 or more. " +
+            "Repeat: x becomes x + 1. If x is 3, Stop. until x is 10 or more. " +
             "State x."));
     }
 
     [Fact]
     public void SkipInRepeatUntilLoop()
     {
-        // Otherwise terminates the if arm; the else body sees `until` as its natural break.
         Assert.Equal("1\n3\n4\n5", Run(
             "Define x as 0. " +
-            "Repeat: x becomes x + 1. If x is 2: Skip. Otherwise: State x. until x is 5 or more."));
+            "Repeat: x becomes x + 1. If x is 2, Skip. Otherwise, State x. until x is 5 or more."));
     }
 
     [Fact]
@@ -469,7 +492,7 @@ public class InterpreterTests
             "    inner becomes 0. " +
             "    While inner is less than 5, repeat: " +
             "        inner becomes inner + 1. " +
-            "        If inner is 2: Stop. " +
+            "        If inner is 2, Stop. " +
             "    Done. " +
             "Done. " +
             "State outer."));
@@ -492,7 +515,7 @@ public class InterpreterTests
     [Fact]
     public void StopInIfOutsideLoopThrows()
     {
-        Assert.Throws<ParseException>(() => Run("Define x as 1. If x is 1: Stop."));
+        Assert.Throws<ParseException>(() => Run("Define x as 1. If x is 1, Stop."));
     }
 
     // ── Loop runtime errors ───────────────────────────────────────────────
@@ -808,7 +831,7 @@ public class InterpreterTests
         Assert.Equal("1\n2", Run(
             "Define s as a series (1, 2, 3, 4).\n" +
             "For each x in s, repeat:\n" +
-            "    If x is 3: Stop.\n" +
+            "    If x is 3, Stop.\n" +
             "    State x.\n" +
             "Done."));
     }
@@ -819,7 +842,7 @@ public class InterpreterTests
         Assert.Equal("1\n3", Run(
             "Define s as a series (1, 2, 3).\n" +
             "For each x in s, repeat:\n" +
-            "    If x is 2: Skip.\n" +
+            "    If x is 2, Skip.\n" +
             "    State x.\n" +
             "Done."));
     }
