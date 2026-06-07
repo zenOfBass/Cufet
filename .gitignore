@@ -18,6 +18,9 @@ TestResults/
 # JetBrains Rider
 .idea/
 
+# Claude
+.claude/
+
 # macOS
 .DS_Store
 
