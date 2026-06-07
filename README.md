@@ -13,11 +13,9 @@ It is Turing complete.
 ```
 Define the scores as a series (92, 85, 71, 88).
 Define total as 0.
-Define i as 0.
 
-While i is less than the number of scores, repeat:
-    i becomes i + 1.
-    total becomes total + item i of scores.
+For each score in the scores, repeat:
+    total becomes total + score.
 Done.
 
 State total.
@@ -149,6 +147,26 @@ the last of scores becomes 100.
 
 Out-of-bounds access or assignment produces a readable runtime error.
 
+### For-each loops
+
+```
+For each score in scores, repeat:
+    State score.
+Done.
+```
+
+```
+For each in scores, repeat:
+    State it.
+Done.
+```
+
+Named form binds the current element to a new name. Bare-it form binds it to `it` — innermost loop wins when nested. Both forms restore the previous value (or remove the binding) when the loop exits.
+
+Mutating the series being iterated inside the loop is a runtime error. Use a `While` loop with an index if you need to change the series as you go.
+
+`Stop.` and `Skip.` work the same as in `While` loops.
+
 ---
 
 ## Identifiers
@@ -193,7 +211,6 @@ tests/
 
 ## What's next
 
-- `For` loops with `it` binding over series
 - Logical `and` / `or` in conditions
 - Functions / named procedures
 - Scope

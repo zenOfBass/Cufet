@@ -732,6 +732,193 @@ public class InterpreterTests
             "Define x as 5. the first of x becomes 99."));
     }
 
+    // ── For-each loop ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void ForEachNamedIterator()
+    {
+        Assert.Equal("10\n20\n30", Run(
+            "Define s as a series (10, 20, 30).\n" +
+            "For each x in s, repeat:\n" +
+            "    State x.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void ForEachBareIt()
+    {
+        Assert.Equal("1\n2\n3", Run(
+            "Define s as a series (1, 2, 3).\n" +
+            "For each in s, repeat:\n" +
+            "    State it.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void ForEachArticleBeforeSeries()
+    {
+        // "the" before series name is noise and must be skipped
+        Assert.Equal("5\n6", Run(
+            "Define nums as a series (5, 6).\n" +
+            "For each n in the nums, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void ForEachEmptySeriesRunsZeroTimes()
+    {
+        Assert.Equal("done", Run(
+            "Define s as a series ().\n" +
+            "For each x in s, repeat:\n" +
+            "    State x.\n" +
+            "Done.\n" +
+            "State \"done\"."));
+    }
+
+    [Fact]
+    public void ForEachSingleElement()
+    {
+        Assert.Equal("42", Run(
+            "Define s as a series (42).\n" +
+            "For each x in s, repeat:\n" +
+            "    State x.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void ForEachStopBreaksLoop()
+    {
+        // Inline "If: Stop." must be the last statement before Done. (grammar invariant).
+        // Accumulate count before the stop check so we can verify early exit.
+        Assert.Equal("2", Run(
+            "Define s as a series (1, 2, 3, 4).\n" +
+            "Define count as 0.\n" +
+            "For each x in s, repeat:\n" +
+            "    count becomes count + 1.\n" +
+            "    If x is 2: Stop.\n" +
+            "Done.\n" +
+            "State count."));
+    }
+
+    [Fact]
+    public void ForEachSkipSkipsIteration()
+    {
+        // "If: Skip. Otherwise: ..." — Otherwise is a break-inducer so the if-arm stays single-stmt.
+        Assert.Equal("12", Run(
+            "Define s as a series (1, 2, 3, 4, 5).\n" +
+            "Define total as 0.\n" +
+            "For each x in s, repeat:\n" +
+            "    If x is 3: Skip.\n" +
+            "    Otherwise: total becomes total + x.\n" +
+            "Done.\n" +
+            "State total."));
+    }
+
+    [Fact]
+    public void ForEachComputesSum()
+    {
+        Assert.Equal("336", Run(
+            "Define scores as a series (92, 85, 71, 88).\n" +
+            "Define total as 0.\n" +
+            "For each score in scores, repeat:\n" +
+            "    total becomes total + score.\n" +
+            "Done.\n" +
+            "State total."));
+    }
+
+    [Fact]
+    public void ForEachIteratorShadowsAndRestores()
+    {
+        // x exists before the loop; loop uses x as iterator; x is restored to 99 after
+        Assert.Equal("99\n1\n2\n3\n99", Run(
+            "Define x as 99.\n" +
+            "Define loop-vals as a series (1, 2, 3).\n" +
+            "State x.\n" +
+            "For each x in loop-vals, repeat:\n" +
+            "    State x.\n" +
+            "Done.\n" +
+            "State x."));
+    }
+
+    [Fact]
+    public void ForEachItRestoredAfterLoop()
+    {
+        // Bare-it loop; "it" was not defined before; after loop it is removed
+        Assert.Throws<RuntimeException>(() => Run(
+            "Define s as a series (1, 2).\n" +
+            "For each in s, repeat:\n" +
+            "    State it.\n" +
+            "Done.\n" +
+            "State it."));
+    }
+
+    [Fact]
+    public void ForEachNestedNamedIterators()
+    {
+        // Nested named loops; each State is its own line
+        // outer (1,2) × inner (10,100): 1+10=11, 1+100=101, 2+10=12, 2+100=102
+        Assert.Equal("11\n101\n12\n102", Run(
+            "Define outer as a series (1, 2).\n" +
+            "Define inner as a series (10, 100).\n" +
+            "For each x in outer, repeat:\n" +
+            "    For each y in inner, repeat:\n" +
+            "        State x + y.\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void ForEachNestedBareItShadowing()
+    {
+        // Inside inner loop, it = inner element.
+        // After inner Done., it = outer element again (restored).
+        // outer (1,2), inner (10,20):
+        //   pass 1: state it=1, inner prints 10,20, state it=1 again
+        //   pass 2: state it=2, inner prints 10,20, state it=2 again
+        Assert.Equal("1\n10\n20\n1\n2\n10\n20\n2", Run(
+            "Define outer-s as a series (1, 2).\n" +
+            "Define inner-s as a series (10, 20).\n" +
+            "For each in outer-s, repeat:\n" +
+            "    State it.\n" +
+            "    For each in inner-s, repeat:\n" +
+            "        State it.\n" +
+            "    Done.\n" +
+            "    State it.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void ForEachMutationDuringLoopThrows()
+    {
+        Assert.Throws<RuntimeException>(() => Run(
+            "Define s as a series (1, 2, 3).\n" +
+            "For each x in s, repeat:\n" +
+            "    Add 99 to s.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void ForEachRemoveDuringLoopThrows()
+    {
+        Assert.Throws<RuntimeException>(() => Run(
+            "Define s as a series (1, 2, 3).\n" +
+            "For each x in s, repeat:\n" +
+            "    Remove the first item from s.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void ForEachWorksOnSeriesLiteralInline()
+    {
+        // series name can be a freshly-defined variable; also testing article in "in the"
+        Assert.Equal("a\nb\nc", Run(
+            "Define letters as a series (\"a\", \"b\", \"c\").\n" +
+            "For each ch in the letters, repeat:\n" +
+            "    State ch.\n" +
+            "Done."));
+    }
+
     // ── Parse errors ──────────────────────────────────────────────────────
 
     [Fact]

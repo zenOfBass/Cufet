@@ -64,4 +64,11 @@ public sealed record RepeatUntilStatement(
 public sealed record StopStatement() : IStatement;
 public sealed record SkipStatement() : IStatement;
 
+// IteratorName == null → bare-it loop; element is bound to "it"
+public sealed record ForEachStatement(
+    string? IteratorName,
+    string SeriesName,
+    IReadOnlyList<IStatement> Body
+) : IStatement;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

@@ -130,6 +130,38 @@ public sealed class Interpreter
                 list[ResolveIndex(ss.Index, list)] = Evaluate(ss.Value);
                 break;
             }
+
+            case ForEachStatement fe:
+            {
+                var list = ExpectSeries(fe.SeriesName);
+                int startCount = list.Count;
+                string iterKey = fe.IteratorName ?? "it";
+                bool hadPrev = _env.TryGetValue(iterKey, out var prev);
+                try
+                {
+                    for (int i = 0; i < startCount; i++)
+                    {
+                        if (list.Count != startCount)
+                            throw new RuntimeException(
+                                "the series was modified during a for-each loop; use a while loop if you need to change it while looping.");
+                        _env[iterKey] = list[i];
+                        bool stopped = false;
+                        try { foreach (var s in fe.Body) Execute(s); }
+                        catch (StopException) { stopped = true; }
+                        catch (SkipException) { /* next iteration */ }
+                        if (stopped) break;
+                        if (list.Count != startCount)
+                            throw new RuntimeException(
+                                "the series was modified during a for-each loop; use a while loop if you need to change it while looping.");
+                    }
+                }
+                finally
+                {
+                    if (hadPrev) _env[iterKey] = prev!;
+                    else _env.Remove(iterKey);
+                }
+                break;
+            }
         }
     }
 

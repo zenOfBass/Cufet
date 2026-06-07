@@ -13,3 +13,4 @@ C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net1
 C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\refint\NLP.Interpreter.dll
 C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\NLP.Interpreter.pdb
 C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\ref\NLP.Interpreter.dll
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\NLP.Interpreter.sourcelink.json

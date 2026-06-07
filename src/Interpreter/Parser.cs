@@ -39,6 +39,7 @@ public sealed class Parser
             TokenType.Item       => ParseSeriesSetStatement(),
             TokenType.Add        => ParseSeriesAddStatement(),
             TokenType.Remove     => ParseSeriesRemoveStatement(),
+            TokenType.For        => ParseForEachStatement(),
             _ => throw new ParseException(tok, "statement keyword"),
         };
     }
@@ -253,6 +254,37 @@ public sealed class Parser
         Advance();
         Consume(TokenType.Dot);
         return new SkipStatement();
+    }
+
+    // ── For-each loop ─────────────────────────────────────────────────────
+
+    private ForEachStatement ParseForEachStatement()
+    {
+        Consume(TokenType.For);
+        SkipNoise();
+        Consume(TokenType.Each);
+        SkipNoise();
+
+        string? iterName = null;
+        if (Peek().Type == TokenType.Identifier)
+        {
+            iterName = Advance().Lexeme;
+            SkipNoise();
+        }
+
+        Consume(TokenType.In);
+        SkipNoise();
+        var seriesName = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+        Consume(TokenType.Comma);
+        SkipNoise();
+        Consume(TokenType.Repeat);
+        SkipNoise();
+        Consume(TokenType.Colon);
+        _loopDepth++;
+        var body = ParseLoopBody();
+        _loopDepth--;
+        return new ForEachStatement(iterName, seriesName, body);
     }
 
     // ── Series operations ─────────────────────────────────────────────────
@@ -550,6 +582,9 @@ public sealed class Parser
                 return new StringLiteral(Advance().Lexeme);
             case TokenType.Identifier:
                 return new VariableReference(Advance().Lexeme);
+            case TokenType.It:
+                Advance();
+                return new VariableReference("it");
             case TokenType.LParen:
                 Advance();
                 var inner = ParseExpression();

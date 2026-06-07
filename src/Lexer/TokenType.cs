@@ -49,6 +49,11 @@ public enum TokenType
     // ── Collections — literal ─────────────────────────────────────────────
     Series,   // "series" — signals a series literal after "as [article] series"
 
+    // ── Collections — for-each ────────────────────────────────────────────
+    For,      // "for"
+    Each,     // "each"
+    In,       // "in" — also reserved for future membership test
+
     // ── Collections — operations ──────────────────────────────────────────
     Ordinal,  // "first".."tenth" and "last" — 1-based positional keywords
     Item,     // "item" — parametric element access

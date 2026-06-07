@@ -99,3 +99,4 @@ C:\Users\kick_\Documents\My Stuff\Programming\NLP\tests\Lexer.Tests\obj\Debug\ne
 C:\Users\kick_\Documents\My Stuff\Programming\NLP\tests\Lexer.Tests\obj\Debug\net10.0\NLP.Lexer.Tests.pdb
 C:\Users\kick_\Documents\My Stuff\Programming\NLP\tests\Lexer.Tests\obj\Debug\net10.0\NLP.Lexer.Tests.genruntimeconfig.cache
 C:\Users\kick_\Documents\My Stuff\Programming\NLP\tests\Lexer.Tests\obj\Debug\net10.0\ref\NLP.Lexer.Tests.dll
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\tests\Lexer.Tests\obj\Debug\net10.0\NLP.Lexer.Tests.sourcelink.json
