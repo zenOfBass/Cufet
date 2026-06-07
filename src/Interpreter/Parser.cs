@@ -72,8 +72,18 @@ public sealed class Parser
 
     private SeriesLiteral ParseSeriesLiteralExpr()
     {
-        Advance(); // consume "series"
+        var seriesTok = Advance(); // consume "series"
         SkipNoise();
+
+        CufetType? annotation = null;
+        if (Peek().Type == TokenType.Of)
+        {
+            Advance(); // consume "of"
+            SkipNoise();
+            annotation = ParseTypeAnnotation();
+            SkipNoise();
+        }
+
         Consume(TokenType.LParen);
         var elements = new List<IExpression>();
         SkipNoise();
@@ -90,7 +100,46 @@ public sealed class Parser
             }
         }
         Consume(TokenType.RParen);
-        return new SeriesLiteral(elements);
+        return new SeriesLiteral(elements, annotation, seriesTok.Line);
+    }
+
+    // Parses the element-type annotation after "of":
+    //   type-annotation → "number" | "numbers" | "text" | "fact" | "facts"
+    //                   | "series" "of" type-annotation
+    private CufetType ParseTypeAnnotation()
+    {
+        var tok = Peek();
+
+        if (tok.Type == TokenType.NumberKw ||
+            (tok.Type == TokenType.Identifier &&
+             tok.Lexeme.Equals("numbers", StringComparison.OrdinalIgnoreCase)))
+        {
+            Advance();
+            return new NumberType();
+        }
+        if (tok.Type == TokenType.Identifier &&
+            (tok.Lexeme.Equals("text", StringComparison.OrdinalIgnoreCase) ||
+             tok.Lexeme.Equals("texts", StringComparison.OrdinalIgnoreCase)))
+        {
+            Advance();
+            return new TextType();
+        }
+        if (tok.Type == TokenType.Identifier &&
+            (tok.Lexeme.Equals("fact", StringComparison.OrdinalIgnoreCase) ||
+             tok.Lexeme.Equals("facts", StringComparison.OrdinalIgnoreCase)))
+        {
+            Advance();
+            return new FactType();
+        }
+        if (tok.Type == TokenType.Series)
+        {
+            Advance(); // consume "series"
+            SkipNoise();
+            Consume(TokenType.Of);
+            SkipNoise();
+            return new SeriesType(ParseTypeAnnotation());
+        }
+        throw new ParseException(tok, "type name (number, text, fact, or series of ...)");
     }
 
     private BecomesStatement ParseBecomesStatement()
@@ -242,7 +291,7 @@ public sealed class Parser
 
     private ForEachStatement ParseForEachStatement()
     {
-        Consume(TokenType.For);
+        var forTok = Consume(TokenType.For);
         SkipNoise();
         Consume(TokenType.Each);
         SkipNoise();
@@ -266,35 +315,35 @@ public sealed class Parser
         _loopDepth++;
         var body = ParseLoopBody();
         _loopDepth--;
-        return new ForEachStatement(iterName, seriesName, body);
+        return new ForEachStatement(iterName, seriesName, body, forTok.Line);
     }
 
     // ── Series operations ─────────────────────────────────────────────────
 
     // Parses "ORDINAL 'of' IDENTIFIER" or "'item' expr 'of' IDENTIFIER".
-    // Returns (seriesName, index) where index==null means "last element".
-    private (string name, IExpression? index) ParseAccessTarget()
+    // Returns (seriesName, index, line) where index==null means "last element".
+    private (string name, IExpression? index, int line) ParseAccessTarget()
     {
         if (Peek().Type == TokenType.Ordinal)
         {
-            var lexeme = Advance().Lexeme;
-            var index  = OrdinalToIndex(lexeme);
+            var ordTok = Advance();
+            var index  = OrdinalToIndex(ordTok.Lexeme);
             SkipNoise();
             Consume(TokenType.Of);
             SkipNoise();
             var name = Consume(TokenType.Identifier).Lexeme;
-            return (name, index);
+            return (name, index, ordTok.Line);
         }
         else
         {
-            Consume(TokenType.Item);
+            var itemTok = Consume(TokenType.Item);
             SkipNoise();
             var idx = ParseExpression();
             SkipNoise();
             Consume(TokenType.Of);
             SkipNoise();
             var name = Consume(TokenType.Identifier).Lexeme;
-            return (name, idx);
+            return (name, idx, itemTok.Line);
         }
     }
 
@@ -318,19 +367,20 @@ public sealed class Parser
 
     private SeriesSetStatement ParseSeriesSetStatement()
     {
-        var (name, idx) = ParseAccessTarget();
+        var (name, idx, line) = ParseAccessTarget();
         SkipNoise();
         Consume(TokenType.Becomes);
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new SeriesSetStatement(name, idx, value);
+        return new SeriesSetStatement(name, idx, value, line);
     }
 
     private SeriesAddStatement ParseSeriesAddStatement()
     {
-        Consume(TokenType.Add);
+        var addTok = Consume(TokenType.Add);
+        int line = addTok.Line;
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
@@ -348,14 +398,14 @@ public sealed class Parser
                 var sname = Consume(TokenType.Identifier).Lexeme;
                 SkipNoise();
                 Consume(TokenType.Dot);
-                return new SeriesAddStatement(value, sname, null, true);
+                return new SeriesAddStatement(value, sname, null, true, line);
             }
             else
             {
                 var sname = Consume(TokenType.Identifier).Lexeme;
                 SkipNoise();
                 Consume(TokenType.Dot);
-                return new SeriesAddStatement(value, sname, null, false);
+                return new SeriesAddStatement(value, sname, null, false, line);
             }
         }
         else
@@ -381,13 +431,14 @@ public sealed class Parser
             var sname = Consume(TokenType.Identifier).Lexeme;
             SkipNoise();
             Consume(TokenType.Dot);
-            return new SeriesAddStatement(value, sname, afterIdx, false);
+            return new SeriesAddStatement(value, sname, afterIdx, false, line);
         }
     }
 
     private IStatement ParseSeriesRemoveStatement()
     {
-        Consume(TokenType.Remove);
+        var removeTok = Consume(TokenType.Remove);
+        int line = removeTok.Line;
         SkipNoise();
 
         if (Peek().Type == TokenType.Ordinal)
@@ -401,7 +452,7 @@ public sealed class Parser
             var sname = Consume(TokenType.Identifier).Lexeme;
             SkipNoise();
             Consume(TokenType.Dot);
-            return new SeriesRemoveAtStatement(sname, idx);
+            return new SeriesRemoveAtStatement(sname, idx, line);
         }
         else if (Peek().Type == TokenType.Item)
         {
@@ -414,7 +465,7 @@ public sealed class Parser
             var sname = Consume(TokenType.Identifier).Lexeme;
             SkipNoise();
             Consume(TokenType.Dot);
-            return new SeriesRemoveAtStatement(sname, idx);
+            return new SeriesRemoveAtStatement(sname, idx, line);
         }
         else
         {
@@ -425,7 +476,7 @@ public sealed class Parser
             var sname = Consume(TokenType.Identifier).Lexeme;
             SkipNoise();
             Consume(TokenType.Dot);
-            return new SeriesRemoveValueStatement(sname, val);
+            return new SeriesRemoveValueStatement(sname, val, line);
         }
     }
 
@@ -579,8 +630,8 @@ public sealed class Parser
             case TokenType.Ordinal:
             case TokenType.Item:
             {
-                var (name, idx) = ParseAccessTarget();
-                return new SeriesAccess(name, idx);
+                var (name, idx, line) = ParseAccessTarget();
+                return new SeriesAccess(name, idx, line);
             }
             case TokenType.NumberKw:
             {

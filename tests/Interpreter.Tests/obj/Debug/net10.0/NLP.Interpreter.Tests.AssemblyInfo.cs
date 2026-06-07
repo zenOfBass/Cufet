@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NLP.Interpreter.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9c721cb89861c49f8badd66b8f1aabc9064da3ae")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+67f0b05cb9acef043ef746b4d0db0c047444c336")]
 [assembly: System.Reflection.AssemblyProductAttribute("NLP.Interpreter.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NLP.Interpreter.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

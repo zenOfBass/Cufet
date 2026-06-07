@@ -550,7 +550,7 @@ public class InterpreterTests
     [Fact]
     public void SeriesEmpty()
     {
-        Assert.Equal("()", Run("Define s as a series (). State s."));
+        Assert.Equal("()", Run("Define s as a series of numbers (). State s."));
     }
 
     [Fact]
@@ -634,7 +634,7 @@ public class InterpreterTests
     [Fact]
     public void SeriesLengthEmpty()
     {
-        Assert.Equal("0", Run("Define s as a series (). State the number of s."));
+        Assert.Equal("0", Run("Define s as a series of numbers (). State the number of s."));
     }
 
     [Fact]
@@ -809,7 +809,7 @@ public class InterpreterTests
     public void ForEachEmptySeriesRunsZeroTimes()
     {
         Assert.Equal("done", Run(
-            "Define s as a series ().\n" +
+            "Define s as a series of numbers ().\n" +
             "For each x in s, repeat:\n" +
             "    State x.\n" +
             "Done.\n" +
@@ -1032,11 +1032,11 @@ public class InterpreterTests
     }
 
     [Fact]
-    public void TypeCheckerSeriesPendingBypassesCheck()
+    public void TypeCheckerSeriesElementIsTypedConcretely()
     {
-        // x is SeriesPending (initialized from a series element) — becomes is unchecked in Stage 1.
-        // This is a targeted deferral, not a silent hole; Stage 3 will complete this.
-        Assert.Equal("hello", Run(
+        // Stage 3: series element access resolves to the element type (Number here).
+        // x is typed as Number, so becoming "hello" is a TypeException.
+        Assert.Throws<TypeException>(() => Run(
             "Define s as a series (1, 2, 3). " +
             "Define x as item 1 of s. " +
             "x becomes \"hello\". " +
@@ -1044,10 +1044,10 @@ public class InterpreterTests
     }
 
     [Fact]
-    public void TypeCheckerIteratorIsSeriesPending()
+    public void TypeCheckerForEachIteratorTypedAsElement()
     {
-        // Iterator (score) is SeriesPending; arithmetic with a pending operand → pending (contagion);
-        // becomes defers when either side is pending — Stage 3 resolves.
+        // Stage 3: iterator is typed as the series element type (Number).
+        // total + score is Number + Number = Number; total becomes Number — types match fully.
         Assert.Equal("336", Run(
             "Define scores as a series (92, 85, 71, 88).\n" +
             "Define total as 0.\n" +
@@ -1155,9 +1155,9 @@ public class InterpreterTests
     }
 
     [Fact]
-    public void TypeCheckerUnaryMinusOnSeriesPendingDefers()
+    public void TypeCheckerUnaryMinusOnSeriesElementNumber()
     {
-        // Unary minus on a series element → SeriesPending (same contagion as binary); no type error
+        // Stage 3: item 1 of s resolves to Number; unary minus on Number → Number. No type error.
         Assert.Equal("-5", Run(
             "Define s as a series (5, 10, 15).\n" +
             "Define neg as -(item 1 of s).\n" +
@@ -1178,6 +1178,151 @@ public class InterpreterTests
     {
         // (1 + 2) is fine (both numbers → number); = "hello" then fails (number vs text)
         Assert.Throws<TypeException>(() => Run("State (1 + 2) = \"hello\"."));
+    }
+
+    // ── Type checking Stage 3: series typing ─────────────────────────────
+
+    [Fact]
+    public void TypeCheckerSeriesLiteralInfersNumberElementType()
+    {
+        // Populated number series → scores is series of number; access resolves to number.
+        Assert.Equal("90", Run(
+            "Define scores as a series (90, 85, 70).\n" +
+            "Define top as the first of scores.\n" +
+            "State top."));
+    }
+
+    [Fact]
+    public void TypeCheckerSeriesLiteralInfersTextElementType()
+    {
+        // Populated text series → words is series of text; access resolves to text.
+        Assert.Equal("hello", Run(
+            "Define words as a series (\"hello\", \"world\").\n" +
+            "Define first-word as the first of words.\n" +
+            "State first-word."));
+    }
+
+    [Fact]
+    public void TypeCheckerSeriesMixedElementsThrows()
+    {
+        Assert.Throws<TypeException>(() => Run("Define s as a series (1, \"two\", 3)."));
+    }
+
+    [Fact]
+    public void TypeCheckerEmptySeriesWithAnnotationPasses()
+    {
+        Assert.Equal("()", Run("Define s as a series of numbers (). State s."));
+    }
+
+    [Fact]
+    public void TypeCheckerEmptySeriesWithoutAnnotationThrows()
+    {
+        Assert.Throws<TypeException>(() => Run("Define s as a series (). State s."));
+    }
+
+    [Fact]
+    public void TypeCheckerAnnotatedSeriesMatchesPasses()
+    {
+        // Redundant annotation is allowed when it agrees with the elements.
+        Assert.Equal("(90, 85)", Run("Define s as a series of numbers (90, 85). State s."));
+    }
+
+    [Fact]
+    public void TypeCheckerAnnotatedSeriesMismatchThrows()
+    {
+        Assert.Throws<TypeException>(() => Run("Define s as a series of numbers (90, \"hi\")."));
+    }
+
+    [Fact]
+    public void TypeCheckerSeriesAccessFlowsToDefine()
+    {
+        // After Stage 3, accessing a number series element types the derived variable as Number.
+        // Assigning "wrong" to it is a TypeException.
+        Assert.Throws<TypeException>(() => Run(
+            "Define s as a series (10, 20, 30).\n" +
+            "Define x as item 2 of s.\n" +
+            "x becomes \"wrong\"."));
+    }
+
+    [Fact]
+    public void TypeCheckerSeriesAddTypeMismatchThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define s as a series (1, 2, 3).\n" +
+            "Add \"text\" to s."));
+    }
+
+    [Fact]
+    public void TypeCheckerSeriesAddTypePasses()
+    {
+        Assert.Equal("4", Run(
+            "Define s as a series (1, 2, 3).\n" +
+            "Add 99 to s.\n" +
+            "State the number of s."));
+    }
+
+    [Fact]
+    public void TypeCheckerSeriesRemoveValueTypeMismatchThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define s as a series (1, 2, 3).\n" +
+            "Remove \"text\" from s."));
+    }
+
+    [Fact]
+    public void TypeCheckerSeriesSetTypeMismatchThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define s as a series (1, 2, 3).\n" +
+            "the first of s becomes \"text\"."));
+    }
+
+    [Fact]
+    public void TypeCheckerSeriesSetTypePasses()
+    {
+        Assert.Equal("99", Run(
+            "Define s as a series (1, 2, 3).\n" +
+            "the first of s becomes 99.\n" +
+            "State the first of s."));
+    }
+
+    [Fact]
+    public void TypeCheckerNonWholeNumberIndexThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define s as a series (10, 20, 30).\n" +
+            "State item 2.5 of s."));
+    }
+
+    [Fact]
+    public void TypeCheckerSeriesLengthIsNumber()
+    {
+        // the number of s resolves to Number; can be assigned to a number variable.
+        Assert.Equal("0", Run(
+            "Define s as a series (1, 2, 3).\n" +
+            "Define len as the number of s.\n" +
+            "len becomes 0.\n" +
+            "State len."));
+    }
+
+    [Fact]
+    public void TypeCheckerForEachTextIteratorTypedAsText()
+    {
+        // Iterator over a text series is typed Text; arithmetic on it should throw.
+        Assert.Throws<TypeException>(() => Run(
+            "Define words as a series (\"a\", \"b\").\n" +
+            "Define total as 0.\n" +
+            "For each w in words, repeat:\n" +
+            "    total becomes total + w.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void TypeCheckerSeriesMixedErrorContainsTypes()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("Define s as a series (1, \"two\")."));
+        Assert.Contains("number", ex.Message);
+        Assert.Contains("text", ex.Message);
     }
 
     // ── Parse errors ──────────────────────────────────────────────────────

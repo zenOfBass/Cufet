@@ -2,7 +2,18 @@ using NLP.Lexer;
 
 namespace NLP.Interpreter;
 
-public enum CufetType { Number, Text, Fact, SeriesPending }
+// CufetType is a recursive value-equality record hierarchy.
+// CufetType.Number / .Text / .Fact are canonical singletons for the three scalars.
+public abstract record CufetType
+{
+    public static readonly CufetType Number = new NumberType();
+    public static readonly CufetType Text   = new TextType();
+    public static readonly CufetType Fact   = new FactType();
+}
+public sealed record NumberType()                      : CufetType;
+public sealed record TextType()                        : CufetType;
+public sealed record FactType()                        : CufetType;
+public sealed record SeriesType(CufetType ElementType) : CufetType;
 
 public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine);
 
@@ -58,8 +69,18 @@ public sealed class TypeChecker
             case ForEachStatement forEach:
                 CheckForEach(forEach);
                 break;
-            // SeriesAddStatement, SeriesRemoveAtStatement, SeriesRemoveValueStatement,
-            // SeriesSetStatement, StopStatement, SkipStatement — no type-checking in Stage 2
+            case SeriesAddStatement add:
+                CheckSeriesAdd(add);
+                break;
+            case SeriesRemoveValueStatement removeVal:
+                CheckSeriesRemoveValue(removeVal);
+                break;
+            case SeriesSetStatement seriesSet:
+                CheckSeriesSet(seriesSet);
+                break;
+            case SeriesRemoveAtStatement removeAt:
+                CheckSeriesRemoveAt(removeAt);
+                break;
         }
     }
 
@@ -69,39 +90,36 @@ public sealed class TypeChecker
         if (type == null)
             throw new TypeException(
                 $"line {define.Line}: cannot infer the type of the value assigned to '{define.Name}'.");
-        _env[define.Name] = new TypeInfo(type.Value, define.Value, define.Line);
+        _env[define.Name] = new TypeInfo(type, define.Value, define.Line);
     }
 
     private void CheckBecomes(BecomesStatement becomes)
     {
         if (!_env.TryGetValue(becomes.Name, out var existing))
-            return; // undeclared — interpreter catches this at runtime
+            return;
 
-        if (existing.Type == CufetType.SeriesPending)
-            return; // variable is series-derived — Stage 3 completes this check
-
-        var rhsType = InferType(becomes.Value)
-            ?? throw new TypeException(
-                $"line {becomes.Line}: cannot infer the type of the value assigned to '{becomes.Name}'.");
-
-        if (rhsType == CufetType.SeriesPending)
-            return; // value is series-derived (pending contagion) — Stage 3 completes this check
+        var rhsType = InferType(becomes.Value);
+        if (rhsType == null) return;
 
         if (rhsType != existing.Type)
             throw new TypeException(
-                $"line {becomes.Line}: '{becomes.Name}' is {existing.Type.ToString().ToLower()} " +
+                $"line {becomes.Line}: '{becomes.Name}' is {FormatType(existing.Type)} " +
                 $"(established as {FormatExpr(existing.EstablishingExpr)} on line {existing.EstablishingLine}), " +
-                $"but the new value is {rhsType.ToString().ToLower()}.");
+                $"but the new value is {FormatType(rhsType)}.");
     }
 
-    // Mirrors the runtime save/restore pattern: iterator is SeriesPending during body check,
-    // previous TypeInfo (if any) is restored after.
     private void CheckForEach(ForEachStatement forEach)
     {
+        if (!_env.TryGetValue(forEach.SeriesName, out var seriesInfo))
+            return; // undeclared series — runtime catches; skip body to avoid false positives
+
+        if (seriesInfo.Type is not SeriesType seriesType)
+            throw new TypeException(
+                $"line {forEach.Line}: '{forEach.SeriesName}' is {FormatType(seriesInfo.Type)}, not a series.");
+
         var iterKey = forEach.IteratorName ?? "it";
         var hadPrev = _env.TryGetValue(iterKey, out var prev);
-        _env[iterKey] = new TypeInfo(CufetType.SeriesPending,
-            new VariableReference(forEach.SeriesName), 0);
+        _env[iterKey] = new TypeInfo(seriesType.ElementType, new VariableReference(forEach.SeriesName), forEach.Line);
         try
         {
             foreach (var s in forEach.Body)
@@ -114,31 +132,124 @@ public sealed class TypeChecker
         }
     }
 
+    private void CheckSeriesAdd(SeriesAddStatement add)
+    {
+        if (add.AfterIndex != null) CheckIndex(add.AfterIndex, add.Line);
+        if (!_env.TryGetValue(add.SeriesName, out var seriesInfo)) return;
+        if (seriesInfo.Type is not SeriesType seriesType) return;
+
+        var valueType = InferType(add.Value);
+        if (valueType != null && valueType != seriesType.ElementType)
+            throw new TypeException(
+                $"line {add.Line}: '{add.SeriesName}' holds {FormatType(seriesType.ElementType)}s " +
+                $"but the added value is {FormatType(valueType)}.");
+    }
+
+    private void CheckSeriesRemoveValue(SeriesRemoveValueStatement removeVal)
+    {
+        if (!_env.TryGetValue(removeVal.SeriesName, out var seriesInfo)) return;
+        if (seriesInfo.Type is not SeriesType seriesType) return;
+
+        var valueType = InferType(removeVal.Value);
+        if (valueType != null && valueType != seriesType.ElementType)
+            throw new TypeException(
+                $"line {removeVal.Line}: '{removeVal.SeriesName}' holds {FormatType(seriesType.ElementType)}s " +
+                $"but the removed value is {FormatType(valueType)}.");
+    }
+
+    private void CheckSeriesSet(SeriesSetStatement seriesSet)
+    {
+        if (seriesSet.Index != null) CheckIndex(seriesSet.Index, seriesSet.Line);
+        if (!_env.TryGetValue(seriesSet.SeriesName, out var seriesInfo)) return;
+        if (seriesInfo.Type is not SeriesType seriesType) return;
+
+        var valueType = InferType(seriesSet.Value);
+        if (valueType != null && valueType != seriesType.ElementType)
+            throw new TypeException(
+                $"line {seriesSet.Line}: '{seriesSet.SeriesName}' holds {FormatType(seriesType.ElementType)}s " +
+                $"but the new value is {FormatType(valueType)}.");
+    }
+
+    private void CheckSeriesRemoveAt(SeriesRemoveAtStatement removeAt)
+    {
+        if (removeAt.Index != null) CheckIndex(removeAt.Index, removeAt.Line);
+    }
+
+    private static void CheckIndex(IExpression index, int line)
+    {
+        if (index is NumberLiteral { Value: var v } && v % 1 != 0)
+            throw new TypeException(
+                $"line {line}: item positions must be whole numbers; {v} isn't one.");
+    }
+
     // Returns null for genuine inference gaps (undeclared variable, unhandled expression form).
-    // Returns SeriesPending for series-derived expressions — targeted deferral, Stage 3 resolves.
-    // Throws TypeException for operand type mismatches (arithmetic/comparison operand checking).
+    // Returns a concrete CufetType for anything we can type statically.
+    // Throws TypeException for operand type mismatches.
     private CufetType? InferType(IExpression expr) => expr switch
     {
-        NumberLiteral                                                               => CufetType.Number,
-        StringLiteral                                                               => CufetType.Text,
-        UnaryExpression unary                                                       => InferUnary(unary),
-        BinaryExpression bin                                                        => InferBinary(bin),
-        VariableReference { Name: var n } when _env.TryGetValue(n, out var ti)     => ti.Type,
-        VariableReference                                                           => null,
-        SeriesLiteral                                                               => CufetType.SeriesPending,
-        SeriesAccess                                                                => CufetType.SeriesPending,
-        SeriesLength                                                                => CufetType.SeriesPending,
-        _                                                                           => null,
+        NumberLiteral                                                           => CufetType.Number,
+        StringLiteral                                                           => CufetType.Text,
+        UnaryExpression unary                                                   => InferUnary(unary),
+        BinaryExpression bin                                                    => InferBinary(bin),
+        VariableReference { Name: var n } when _env.TryGetValue(n, out var ti) => ti.Type,
+        VariableReference                                                       => null,
+        SeriesLiteral lit                                                       => InferSeriesLiteral(lit),
+        SeriesAccess acc                                                        => InferSeriesAccess(acc),
+        SeriesLength                                                            => CufetType.Number,
+        _                                                                       => null,
     };
+
+    private CufetType InferSeriesLiteral(SeriesLiteral lit)
+    {
+        CufetType? inferred = null;
+        for (int i = 0; i < lit.Elements.Count; i++)
+        {
+            var elemType = InferType(lit.Elements[i]);
+            if (elemType == null) continue;
+            if (inferred == null)
+            {
+                inferred = elemType;
+            }
+            else if (inferred != elemType)
+            {
+                throw new TypeException(
+                    $"line {lit.Line}: every item in a series must be the same type — " +
+                    $"the first item is {FormatType(inferred)}, but item {i + 1} is {FormatType(elemType)}.");
+            }
+        }
+
+        if (lit.Annotation != null)
+        {
+            if (inferred != null && inferred != lit.Annotation)
+                throw new TypeException(
+                    $"line {lit.Line}: you said a series of {FormatType(lit.Annotation)}s, " +
+                    $"but an element is {FormatType(inferred)}.");
+            return new SeriesType(lit.Annotation);
+        }
+
+        if (inferred == null)
+            throw new TypeException(
+                $"line {lit.Line}: cannot determine the element type of this series — " +
+                $"add an annotation like 'a series of numbers ()'.");
+
+        return new SeriesType(inferred);
+    }
+
+    private CufetType? InferSeriesAccess(SeriesAccess acc)
+    {
+        if (acc.Index != null) CheckIndex(acc.Index, acc.Line);
+        if (!_env.TryGetValue(acc.SeriesName, out var seriesInfo)) return null;
+        if (seriesInfo.Type is SeriesType st) return st.ElementType;
+        return null;
+    }
 
     private CufetType? InferUnary(UnaryExpression unary)
     {
         var operand = InferType(unary.Operand);
         if (operand == null) return null;
-        if (operand == CufetType.SeriesPending) return CufetType.SeriesPending;
         if (operand == CufetType.Number) return CufetType.Number;
         throw new TypeException(
-            $"line {unary.Line}: unary minus requires a number but got {operand.Value.ToString().ToLower()}.");
+            $"line {unary.Line}: unary minus requires a number but got {FormatType(operand)}.");
     }
 
     private CufetType? InferBinary(BinaryExpression bin)
@@ -147,10 +258,9 @@ public sealed class TypeChecker
         var right = InferType(bin.Right);
 
         if (left == null || right == null) return null;
-        if (left == CufetType.SeriesPending || right == CufetType.SeriesPending) return CufetType.SeriesPending;
 
-        var l = left.Value;
-        var r = right.Value;
+        var l = left;
+        var r = right;
 
         return bin.Op switch
         {
@@ -159,22 +269,31 @@ public sealed class TypeChecker
                 => CufetType.Number,
             TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash
                 => throw new TypeException(
-                    $"line {bin.Line}: arithmetic requires numbers (got {l.ToString().ToLower()} and {r.ToString().ToLower()})."),
+                    $"line {bin.Line}: arithmetic requires numbers (got {FormatType(l)} and {FormatType(r)})."),
             TokenType.Equal or TokenType.NotEqual
                 when l == r
                 => CufetType.Fact,
             TokenType.Equal or TokenType.NotEqual
                 => throw new TypeException(
-                    $"line {bin.Line}: equality comparison requires matching types (got {l.ToString().ToLower()} and {r.ToString().ToLower()})."),
+                    $"line {bin.Line}: equality comparison requires matching types (got {FormatType(l)} and {FormatType(r)})."),
             TokenType.Lt or TokenType.Gt or TokenType.Lte or TokenType.Gte
                 when l == CufetType.Number && r == CufetType.Number
                 => CufetType.Fact,
             TokenType.Lt or TokenType.Gt or TokenType.Lte or TokenType.Gte
                 => throw new TypeException(
-                    $"line {bin.Line}: ordering requires numbers (got {l.ToString().ToLower()} and {r.ToString().ToLower()})."),
+                    $"line {bin.Line}: ordering requires numbers (got {FormatType(l)} and {FormatType(r)})."),
             _ => null
         };
     }
+
+    private static string FormatType(CufetType type) => type switch
+    {
+        NumberType                           => "number",
+        TextType                             => "text",
+        FactType                             => "fact",
+        SeriesType { ElementType: var elem } => $"series of {FormatType(elem)}",
+        _                                    => "<unknown>",
+    };
 
     private static string FormatExpr(IExpression expr) => expr switch
     {

@@ -10,10 +10,13 @@ public sealed record StringLiteral(string Value)                                
 public sealed record VariableReference(string Name)                                      : IExpression;
 public sealed record UnaryExpression(TokenType Op, IExpression Operand, int Line)                  : IExpression;
 public sealed record BinaryExpression(IExpression Left, TokenType Op, IExpression Right, int Line) : IExpression;
-public sealed record SeriesLiteral(IReadOnlyList<IExpression> Elements)                  : IExpression;
+
+// Annotation == null → infer element type from elements; must have elements.
+// Annotation != null → element type declared; elements (if any) must agree.
+public sealed record SeriesLiteral(IReadOnlyList<IExpression> Elements, CufetType? Annotation, int Line) : IExpression;
 
 // Index == null → last element
-public sealed record SeriesAccess(string SeriesName, IExpression? Index) : IExpression;
+public sealed record SeriesAccess(string SeriesName, IExpression? Index, int Line) : IExpression;
 
 // the number of <series>
 public sealed record SeriesLength(string SeriesName) : IExpression;
@@ -25,20 +28,22 @@ public sealed record SeriesAddStatement(
     IExpression Value,
     string SeriesName,
     IExpression? AfterIndex,
-    bool ToStart
+    bool ToStart,
+    int Line
 ) : IStatement;
 
 // Remove by position (Index == null → last)
-public sealed record SeriesRemoveAtStatement(string SeriesName, IExpression? Index) : IStatement;
+public sealed record SeriesRemoveAtStatement(string SeriesName, IExpression? Index, int Line) : IStatement;
 
 // Remove first occurrence by value
-public sealed record SeriesRemoveValueStatement(string SeriesName, IExpression Value) : IStatement;
+public sealed record SeriesRemoveValueStatement(string SeriesName, IExpression Value, int Line) : IStatement;
 
 // Element assignment (Index == null → last)
 public sealed record SeriesSetStatement(
     string SeriesName,
     IExpression? Index,
-    IExpression Value
+    IExpression Value,
+    int Line
 ) : IStatement;
 
 public sealed record StateStatement(IExpression Value)                        : IStatement;
@@ -68,7 +73,8 @@ public sealed record SkipStatement() : IStatement;
 public sealed record ForEachStatement(
     string? IteratorName,
     string SeriesName,
-    IReadOnlyList<IStatement> Body
+    IReadOnlyList<IStatement> Body,
+    int Line
 ) : IStatement;
 
 public sealed record Program(IReadOnlyList<IStatement> Statements);
