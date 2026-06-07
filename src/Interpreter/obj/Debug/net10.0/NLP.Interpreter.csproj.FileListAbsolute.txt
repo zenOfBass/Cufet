@@ -1,0 +1,15 @@
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\bin\Debug\net10.0\NLP.Interpreter.deps.json
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\bin\Debug\net10.0\NLP.Interpreter.dll
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\bin\Debug\net10.0\NLP.Interpreter.pdb
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\bin\Debug\net10.0\NLP.Lexer.dll
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\bin\Debug\net10.0\NLP.Lexer.pdb
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\NLP.Interpreter.csproj.AssemblyReference.cache
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\NLP.Interpreter.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\NLP.Interpreter.AssemblyInfoInputs.cache
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\NLP.Interpreter.AssemblyInfo.cs
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\NLP.Interpreter.csproj.CoreCompileInputs.cache
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\NLP.Inte.DA45D0D8.Up2Date
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\NLP.Interpreter.dll
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\refint\NLP.Interpreter.dll
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\NLP.Interpreter.pdb
+C:\Users\kick_\Documents\My Stuff\Programming\NLP\src\Interpreter\obj\Debug\net10.0\ref\NLP.Interpreter.dll

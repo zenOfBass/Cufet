@@ -1,0 +1,232 @@
+using NLP.Lexer;
+
+namespace NLP.Interpreter;
+
+public sealed class Interpreter
+{
+    private readonly TextWriter _out;
+    private readonly Dictionary<string, object> _env = new();
+
+    // Used internally to implement Stop/Skip — never escape the loop handlers.
+    private sealed class StopException : Exception { }
+    private sealed class SkipException : Exception { }
+
+    public Interpreter(TextWriter? output = null) => _out = output ?? Console.Out;
+
+    public void Execute(Program program)
+    {
+        foreach (var stmt in program.Statements)
+            Execute(stmt);
+    }
+
+    private void Execute(IStatement stmt)
+    {
+        switch (stmt)
+        {
+            case StateStatement s:
+                _out.WriteLine(Format(Evaluate(s.Value)));
+                break;
+
+            case DefineStatement d:
+                if (_env.ContainsKey(d.Name))
+                    throw new RuntimeException($"'{d.Name}' is already defined.");
+                _env[d.Name] = Evaluate(d.Value);
+                break;
+
+            case BecomesStatement b:
+                if (!_env.ContainsKey(b.Name))
+                    throw new RuntimeException($"'{b.Name}' is not defined — use Define to declare it first.");
+                _env[b.Name] = Evaluate(b.Value);
+                break;
+
+            case IfStatement ifStmt:
+            {
+                bool executed = false;
+                foreach (var arm in ifStmt.Arms)
+                {
+                    var condVal = Evaluate(arm.Condition);
+                    if (condVal is not bool b)
+                        throw new RuntimeException("If condition must evaluate to true or false.");
+                    if (b)
+                    {
+                        foreach (var s in arm.Body) Execute(s);
+                        executed = true;
+                        break;
+                    }
+                }
+                if (!executed && ifStmt.ElseBody is not null)
+                    foreach (var s in ifStmt.ElseBody) Execute(s);
+                break;
+            }
+
+            case WhileStatement ws:
+            {
+                while (true)
+                {
+                    var condVal = Evaluate(ws.Condition);
+                    if (condVal is not bool b)
+                        throw new RuntimeException("While condition must evaluate to true or false.");
+                    if (!b) break;
+                    try   { foreach (var s in ws.Body) Execute(s); }
+                    catch (StopException) { break; }
+                    catch (SkipException) { continue; }
+                }
+                break;
+            }
+
+            case RepeatUntilStatement ru:
+            {
+                while (true)
+                {
+                    try   { foreach (var s in ru.Body) Execute(s); }
+                    catch (StopException) { break; }
+                    catch (SkipException) { /* fall through to condition check */ }
+                    var condVal = Evaluate(ru.Condition);
+                    if (condVal is not bool b)
+                        throw new RuntimeException("Until condition must evaluate to true or false.");
+                    if (b) break;
+                }
+                break;
+            }
+
+            case StopStatement:
+                throw new StopException();
+
+            case SkipStatement:
+                throw new SkipException();
+
+            case SeriesAddStatement sa:
+            {
+                var list  = ExpectSeries(sa.SeriesName);
+                var value = Evaluate(sa.Value);
+                if (sa.ToStart)
+                    list.Insert(0, value);
+                else if (sa.AfterIndex == null)
+                    list.Add(value);
+                else
+                    list.Insert(ResolveIndex(sa.AfterIndex, list) + 1, value);
+                break;
+            }
+
+            case SeriesRemoveAtStatement sra:
+            {
+                var list = ExpectSeries(sra.SeriesName);
+                list.RemoveAt(ResolveIndex(sra.Index, list));
+                break;
+            }
+
+            case SeriesRemoveValueStatement srv:
+            {
+                var list  = ExpectSeries(srv.SeriesName);
+                var value = Evaluate(srv.Value);
+                if (!list.Remove(value))
+                    throw new RuntimeException("value not found in the series.");
+                break;
+            }
+
+            case SeriesSetStatement ss:
+            {
+                var list = ExpectSeries(ss.SeriesName);
+                list[ResolveIndex(ss.Index, list)] = Evaluate(ss.Value);
+                break;
+            }
+        }
+    }
+
+    private List<object> ExpectSeries(string name)
+    {
+        if (!_env.TryGetValue(name, out var val))
+            throw new RuntimeException($"'{name}' is not defined.");
+        if (val is not List<object> list)
+            throw new RuntimeException($"'{name}' is not a series.");
+        return list;
+    }
+
+    // Returns 0-based index. indexExpr==null means "last element".
+    private int ResolveIndex(IExpression? indexExpr, List<object> list)
+    {
+        if (indexExpr == null)
+        {
+            if (list.Count == 0)
+                throw new RuntimeException("Cannot access an element of an empty series.");
+            return list.Count - 1;
+        }
+        var raw = Evaluate(indexExpr);
+        if (raw is not decimal d)
+            throw new RuntimeException("Series index must be a number.");
+        var idx = (int)d;
+        if (idx < 1 || idx > list.Count)
+            throw new RuntimeException(
+                $"there is no {OrdinalSuffix(idx)} item; the series has {list.Count}");
+        return idx - 1; // convert to 0-based
+    }
+
+    private static string OrdinalSuffix(int n) => (n % 100) switch
+    {
+        11 or 12 or 13 => $"{n}th",
+        _ => (n % 10) switch
+        {
+            1 => $"{n}st",
+            2 => $"{n}nd",
+            3 => $"{n}rd",
+            _ => $"{n}th",
+        },
+    };
+
+    private object Evaluate(IExpression expr) => expr switch
+    {
+        NumberLiteral    n  => (object)n.Value,  // decimal — no floating-point surprises
+        StringLiteral    s  => s.Value,
+        VariableReference r => _env.TryGetValue(r.Name, out var val)
+                                   ? val
+                                   : throw new RuntimeException($"'{r.Name}' is not defined."),
+        UnaryExpression  u  => EvaluateUnary(u),
+        BinaryExpression b  => EvaluateBinary(b),
+        SeriesLiteral    sl => (object)sl.Elements.Select(Evaluate).ToList(),
+        SeriesAccess     sa => EvaluateSeriesAccess(sa),
+        SeriesLength     sl => (decimal)ExpectSeries(sl.SeriesName).Count,
+        _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
+    };
+
+    private object EvaluateSeriesAccess(SeriesAccess sa)
+    {
+        var list = ExpectSeries(sa.SeriesName);
+        return list[ResolveIndex(sa.Index, list)];
+    }
+
+    private object EvaluateUnary(UnaryExpression u) =>
+        (object)(-ToNumber(Evaluate(u.Operand), "unary -"));
+
+    private object EvaluateBinary(BinaryExpression b)
+    {
+        var lv = Evaluate(b.Left);
+        var rv = Evaluate(b.Right);
+        return b.Op switch
+        {
+            TokenType.Plus     => (object)(ToNumber(lv, "+") + ToNumber(rv, "+")),
+            TokenType.Minus    => (object)(ToNumber(lv, "-") - ToNumber(rv, "-")),
+            TokenType.Star     => (object)(ToNumber(lv, "*") * ToNumber(rv, "*")),
+            TokenType.Slash    => ToNumber(rv, "/") == 0
+                                      ? throw new RuntimeException("Division by zero.")
+                                      : (object)(ToNumber(lv, "/") / ToNumber(rv, "/")),
+            TokenType.Equal    => (object)lv.Equals(rv),
+            TokenType.NotEqual => (object)!lv.Equals(rv),
+            TokenType.Lt       => (object)(ToNumber(lv, "<")  < ToNumber(rv, "<")),
+            TokenType.Gt       => (object)(ToNumber(lv, ">")  > ToNumber(rv, ">")),
+            TokenType.Lte      => (object)(ToNumber(lv, "<=") <= ToNumber(rv, "<=")),
+            TokenType.Gte      => (object)(ToNumber(lv, ">=") >= ToNumber(rv, ">=")),
+            _ => throw new InvalidOperationException($"Unknown binary operator: {b.Op}"),
+        };
+    }
+
+    private static decimal ToNumber(object val, string op) =>
+        val is decimal d ? d : throw new RuntimeException($"Operator '{op}' requires a number.");
+
+    private static string Format(object val) => val switch
+    {
+        bool b           => b ? "true" : "false",
+        decimal d        => d.ToString(),
+        List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
+        _                => val.ToString()!,
+    };
+}

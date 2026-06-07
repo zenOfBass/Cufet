@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "NLP.Interpreter/1.0.0": {
+        "dependencies": {
+          "NLP.Lexer": "1.0.0"
+        },
+        "runtime": {
+          "NLP.Interpreter.dll": {}
+        }
+      },
+      "NLP.Lexer/1.0.0": {
+        "runtime": {
+          "NLP.Lexer.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "NLP.Interpreter/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "NLP.Lexer/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

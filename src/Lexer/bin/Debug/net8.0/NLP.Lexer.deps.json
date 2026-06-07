@@ -1,0 +1,23 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "NLP.Lexer/1.0.0": {
+        "runtime": {
+          "NLP.Lexer.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "NLP.Lexer/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}
