@@ -56,7 +56,7 @@ public sealed class Parser
 
     private DefineStatement ParseDefineStatement()
     {
-        Consume(TokenType.Define);
+        var line = Consume(TokenType.Define).Line;
         SkipNoise();
         var name = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
@@ -67,7 +67,7 @@ public sealed class Parser
             : ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new DefineStatement(name, value);
+        return new DefineStatement(name, value, line);
     }
 
     private SeriesLiteral ParseSeriesLiteralExpr()
@@ -95,14 +95,16 @@ public sealed class Parser
 
     private BecomesStatement ParseBecomesStatement()
     {
-        var name = Consume(TokenType.Identifier).Lexeme;
+        var tok  = Consume(TokenType.Identifier);
+        var name = tok.Lexeme;
+        var line = tok.Line;
         SkipNoise();
         Consume(TokenType.Becomes);
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new BecomesStatement(name, value);
+        return new BecomesStatement(name, value, line);
     }
 
     private IfStatement ParseIfStatement()

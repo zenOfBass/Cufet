@@ -11,6 +11,7 @@ public class InterpreterTests
     {
         var tokens  = new NlpLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
         var output  = new StringWriter();
         new Interpreter(output).Execute(program);
         return output.ToString().Replace("\r\n", "\n").TrimEnd('\n');
@@ -949,6 +950,130 @@ public class InterpreterTests
             "For each ch in the letters, repeat:\n" +
             "    State ch.\n" +
             "Done."));
+    }
+
+    // ── Type checking ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void TypeCheckerNumberMismatchThrows()
+    {
+        Assert.Throws<TypeException>(() => Run("Define x as 0. x becomes \"hello\"."));
+    }
+
+    [Fact]
+    public void TypeCheckerTextMismatchThrows()
+    {
+        Assert.Throws<TypeException>(() => Run("Define x as \"hello\". x becomes 42."));
+    }
+
+    [Fact]
+    public void TypeCheckerFactMismatchThrows()
+    {
+        Assert.Throws<TypeException>(() => Run("Define x as 1 = 1. x becomes 5."));
+    }
+
+    [Fact]
+    public void TypeCheckerNumberToNumberPasses()
+    {
+        Assert.Equal("99", Run("Define x as 0. x becomes 99. State x."));
+    }
+
+    [Fact]
+    public void TypeCheckerTextToTextPasses()
+    {
+        Assert.Equal("world", Run("Define x as \"hello\". x becomes \"world\". State x."));
+    }
+
+    [Fact]
+    public void TypeCheckerFactToFactPasses()
+    {
+        Assert.Equal("false", Run("Define x as 1 = 1. x becomes 2 = 3. State x."));
+    }
+
+    [Fact]
+    public void TypeCheckerInfersFactFromVariableCondition()
+    {
+        // flag is Fact (inferred from comparison); becomes with another comparison passes
+        Assert.Equal("false", Run("Define flag as 1 = 1. flag becomes 1 = 2. State flag."));
+    }
+
+    [Fact]
+    public void TypeCheckerMismatchInsideWhileThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define x as 0. " +
+            "While x is less than 3, repeat: x becomes \"wrong\". Done."));
+    }
+
+    [Fact]
+    public void TypeCheckerMismatchInsideIfThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define x as 0. If x is 0, x becomes \"wrong\"."));
+    }
+
+    [Fact]
+    public void TypeCheckerMismatchInsideRepeatUntilThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define x as 0. Repeat: x becomes \"wrong\". until x is 1."));
+    }
+
+    [Fact]
+    public void TypeCheckerMismatchInsideForEachThrows()
+    {
+        // total is Number; becomes "wrong" inside the loop is a type error
+        Assert.Throws<TypeException>(() => Run(
+            "Define s as a series (1, 2, 3).\n" +
+            "Define total as 0.\n" +
+            "For each x in s, repeat:\n" +
+            "    total becomes \"wrong\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void TypeCheckerSeriesPendingBypassesCheck()
+    {
+        // x is SeriesPending (initialized from a series element) — becomes is unchecked in Stage 1.
+        // This is a targeted deferral, not a silent hole; Stage 3 will complete this.
+        Assert.Equal("hello", Run(
+            "Define s as a series (1, 2, 3). " +
+            "Define x as item 1 of s. " +
+            "x becomes \"hello\". " +
+            "State x."));
+    }
+
+    [Fact]
+    public void TypeCheckerIteratorIsSeriesPending()
+    {
+        // Iterator variable (for-each) is SeriesPending; reassigning a concrete-typed variable
+        // from it via arithmetic still type-checks (arithmetic result is Number regardless of operand types in Stage 1)
+        Assert.Equal("336", Run(
+            "Define scores as a series (92, 85, 71, 88).\n" +
+            "Define total as 0.\n" +
+            "For each score in scores, repeat:\n" +
+            "    total becomes total + score.\n" +
+            "Done.\n" +
+            "State total."));
+    }
+
+    [Fact]
+    public void TypeCheckerErrorMessageContainsLineInfo()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define x as 0.\nx becomes \"hello\"."));
+        Assert.Contains("1", ex.Message);   // establishing line
+        Assert.Contains("2", ex.Message);   // reassignment line
+        Assert.Contains("number", ex.Message);
+        Assert.Contains("text", ex.Message);
+    }
+
+    [Fact]
+    public void TypeCheckerErrorMessageContainsEstablishingValue()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define score as 42. score becomes \"oops\"."));
+        Assert.Contains("42", ex.Message);
     }
 
     // ── Parse errors ──────────────────────────────────────────────────────

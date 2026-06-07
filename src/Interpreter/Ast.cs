@@ -41,9 +41,9 @@ public sealed record SeriesSetStatement(
     IExpression Value
 ) : IStatement;
 
-public sealed record StateStatement(IExpression Value)                : IStatement;
-public sealed record DefineStatement(string Name, IExpression Value)  : IStatement;
-public sealed record BecomesStatement(string Name, IExpression Value) : IStatement;
+public sealed record StateStatement(IExpression Value)                        : IStatement;
+public sealed record DefineStatement(string Name, IExpression Value, int Line)  : IStatement;
+public sealed record BecomesStatement(string Name, IExpression Value, int Line) : IStatement;
 
 public sealed record ConditionArm(IExpression Condition, IReadOnlyList<IStatement> Body);
 public sealed record IfStatement(
