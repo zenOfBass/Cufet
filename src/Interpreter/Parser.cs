@@ -444,51 +444,54 @@ public sealed class Parser
         var left = ParseAddition();
         SkipNoise();
         if (Peek().Type != TokenType.Is) return left;
-        Consume(TokenType.Is);
+        var isLine = Consume(TokenType.Is).Line;
         SkipNoise();
-        return ParseWordComparison(left);
+        return ParseWordComparison(left, isLine);
     }
 
-    private IExpression ParseWordComparison(IExpression left)
+    private IExpression ParseWordComparison(IExpression left, int isLine)
     {
         switch (Peek().Type)
         {
             case TokenType.Not:
-                Advance();
+            {
+                var line = Advance().Line;
                 SkipNoise();
-                return new BinaryExpression(left, TokenType.NotEqual, ParseAddition());
-
+                return new BinaryExpression(left, TokenType.NotEqual, ParseAddition(), line);
+            }
             case TokenType.Greater:
-                Advance();
+            {
+                var line = Advance().Line;
                 SkipNoise();
                 Consume(TokenType.Than);
                 SkipNoise();
-                return new BinaryExpression(left, TokenType.Gt, ParseAddition());
-
+                return new BinaryExpression(left, TokenType.Gt, ParseAddition(), line);
+            }
             case TokenType.Less:
-                Advance();
+            {
+                var line = Advance().Line;
                 SkipNoise();
                 Consume(TokenType.Than);
                 SkipNoise();
-                return new BinaryExpression(left, TokenType.Lt, ParseAddition());
-
+                return new BinaryExpression(left, TokenType.Lt, ParseAddition(), line);
+            }
             default:
             {
                 // "is expr" or "is expr or more/less"
                 var right = ParseAddition();
                 SkipNoise();
                 if (Peek().Type != TokenType.Or)
-                    return new BinaryExpression(left, TokenType.Equal, right);
+                    return new BinaryExpression(left, TokenType.Equal, right, isLine);
                 Consume(TokenType.Or);
                 SkipNoise();
                 switch (Peek().Type)
                 {
                     case TokenType.More:
                         Advance();
-                        return new BinaryExpression(left, TokenType.Gte, right);
+                        return new BinaryExpression(left, TokenType.Gte, right, isLine);
                     case TokenType.Less:
                         Advance();
-                        return new BinaryExpression(left, TokenType.Lte, right);
+                        return new BinaryExpression(left, TokenType.Lte, right, isLine);
                     default:
                         throw new ParseException(Peek(), "more or less");
                 }
@@ -511,9 +514,9 @@ public sealed class Parser
         while (Peek().Type is TokenType.Equal or TokenType.Lt or TokenType.Gt
                            or TokenType.Lte or TokenType.Gte)
         {
-            var op = Advance().Type;
+            var opTok = Advance();
             SkipNoise();
-            left = new BinaryExpression(left, op, ParseAddition());
+            left = new BinaryExpression(left, opTok.Type, ParseAddition(), opTok.Line);
         }
         return left;
     }
@@ -523,9 +526,9 @@ public sealed class Parser
         var left = ParseMultiplication();
         while (Peek().Type is TokenType.Plus or TokenType.Minus)
         {
-            var op = Advance().Type;
+            var opTok = Advance();
             SkipNoise();
-            left = new BinaryExpression(left, op, ParseMultiplication());
+            left = new BinaryExpression(left, opTok.Type, ParseMultiplication(), opTok.Line);
         }
         return left;
     }
@@ -535,9 +538,9 @@ public sealed class Parser
         var left = ParseUnary();
         while (Peek().Type is TokenType.Star or TokenType.Slash)
         {
-            var op = Advance().Type;
+            var opTok = Advance();
             SkipNoise();
-            left = new BinaryExpression(left, op, ParseUnary());
+            left = new BinaryExpression(left, opTok.Type, ParseUnary(), opTok.Line);
         }
         return left;
     }
@@ -546,8 +549,8 @@ public sealed class Parser
     {
         if (Peek().Type == TokenType.Minus)
         {
-            Advance();
-            return new UnaryExpression(TokenType.Minus, ParseUnary());
+            var line = Advance().Line;
+            return new UnaryExpression(TokenType.Minus, ParseUnary(), line);
         }
         return ParsePrimary();
     }

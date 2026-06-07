@@ -119,7 +119,7 @@ public class InterpreterTests
 
     [Fact]
     public void ArithmeticOnStringThrows() =>
-        Assert.Throws<RuntimeException>(() => Run("State \"hello\" + 1."));
+        Assert.Throws<TypeException>(() => Run("State \"hello\" + 1."));
 
     // ── Comparison ────────────────────────────────────────────────────────
 
@@ -1046,8 +1046,8 @@ public class InterpreterTests
     [Fact]
     public void TypeCheckerIteratorIsSeriesPending()
     {
-        // Iterator variable (for-each) is SeriesPending; reassigning a concrete-typed variable
-        // from it via arithmetic still type-checks (arithmetic result is Number regardless of operand types in Stage 1)
+        // Iterator (score) is SeriesPending; arithmetic with a pending operand → pending (contagion);
+        // becomes defers when either side is pending — Stage 3 resolves.
         Assert.Equal("336", Run(
             "Define scores as a series (92, 85, 71, 88).\n" +
             "Define total as 0.\n" +
@@ -1074,6 +1074,110 @@ public class InterpreterTests
         var ex = Assert.Throws<TypeException>(() => Run(
             "Define score as 42. score becomes \"oops\"."));
         Assert.Contains("42", ex.Message);
+    }
+
+    // ── Type checking Stage 2: typed operations ───────────────────────────
+
+    [Fact]
+    public void TypeCheckerArithmeticRejectsNumberPlusText()
+    {
+        Assert.Throws<TypeException>(() => Run("State 1 + \"hello\"."));
+    }
+
+    [Fact]
+    public void TypeCheckerArithmeticRejectsTextPlusText()
+    {
+        // + does not concatenate text in Cufet
+        Assert.Throws<TypeException>(() => Run("State \"foo\" + \"bar\"."));
+    }
+
+    [Fact]
+    public void TypeCheckerArithmeticPassesForNumbers()
+    {
+        Assert.Equal("7", Run("State 3 + 4."));
+    }
+
+    [Fact]
+    public void TypeCheckerEqualityRejectsCrossType()
+    {
+        // number = text is a type error, not false
+        Assert.Throws<TypeException>(() => Run("State 1 = \"1\"."));
+    }
+
+    [Fact]
+    public void TypeCheckerEqualityPassesNumberToNumber()
+    {
+        Assert.Equal("false", Run("State 1 = 2."));
+    }
+
+    [Fact]
+    public void TypeCheckerEqualityPassesTextToText()
+    {
+        Assert.Equal("true", Run("State \"a\" = \"a\"."));
+    }
+
+    [Fact]
+    public void TypeCheckerOrderingRejectsNonNumbers()
+    {
+        Assert.Throws<TypeException>(() => Run("State \"a\" > \"b\"."));
+    }
+
+    [Fact]
+    public void TypeCheckerOrderingPassesForNumbers()
+    {
+        Assert.Equal("true", Run("State 3 > 2."));
+    }
+
+    [Fact]
+    public void TypeCheckerComparisonResultTypedAsFact()
+    {
+        // Define infers Fact; becomes with another comparison passes
+        Assert.Equal("false", Run("Define flag as 5 > 3. flag becomes 1 = 2. State flag."));
+    }
+
+    [Fact]
+    public void TypeCheckerComparisonResultMismatchThrows()
+    {
+        // flag is Fact (inferred from ordering); assigning a Number → type error
+        Assert.Throws<TypeException>(() => Run("Define flag as 5 > 3. flag becomes 42."));
+    }
+
+    [Fact]
+    public void TypeCheckerUnaryMinusRejectsText()
+    {
+        Assert.Throws<TypeException>(() => Run("Define x as \"hello\". State -x."));
+    }
+
+    [Fact]
+    public void TypeCheckerUnaryMinusPassesForNumber()
+    {
+        Assert.Equal("-5", Run("State -5."));
+    }
+
+    [Fact]
+    public void TypeCheckerUnaryMinusOnSeriesPendingDefers()
+    {
+        // Unary minus on a series element → SeriesPending (same contagion as binary); no type error
+        Assert.Equal("-5", Run(
+            "Define s as a series (5, 10, 15).\n" +
+            "Define neg as -(item 1 of s).\n" +
+            "State neg."));
+    }
+
+    [Fact]
+    public void TypeCheckerOperationErrorContainsLineAndTypes()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("State 1 + \"hello\"."));
+        Assert.Contains("1", ex.Message);      // line number
+        Assert.Contains("number", ex.Message);
+        Assert.Contains("text", ex.Message);
+    }
+
+    [Fact]
+    public void TypeCheckerNestedSubexpressionTypeFlows()
+    {
+        // (1 + 2) is fine (both numbers → number); = "hello" then fails (number vs text)
+        Assert.Throws<TypeException>(() => Run("State (1 + 2) = \"hello\"."));
     }
 
     // ── Parse errors ──────────────────────────────────────────────────────
