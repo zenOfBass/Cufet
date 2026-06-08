@@ -1632,6 +1632,85 @@ public class InterpreterTests
             "Done."));
     }
 
+    // ── Functions as values — slice 1: functions in variables ────────────
+
+    [Fact]
+    public void FunctionStoredInVariableAndCalled()
+    {
+        Assert.Equal("1", Run(
+            "Bind number to grade, given (the number score):\n" +
+            "    if the score is 50 or more, return 1.\n" +
+            "    return 0.\n" +
+            "Done.\n" +
+            "Define operation as grade.\n" +
+            "State Cast operation on (75)."));
+    }
+
+    [Fact]
+    public void FunctionInVariableReturnValueUsedInExpression()
+    {
+        Assert.Equal("10", Run(
+            "Bind number to doubler, given (the number x):\n" +
+            "    return x * 2.\n" +
+            "Done.\n" +
+            "Define fn as doubler.\n" +
+            "State Cast fn on (5)."));
+    }
+
+    [Fact]
+    public void FunctionInVariableCalledMultipleTimes()
+    {
+        Assert.Equal("3\n6\n9", Run(
+            "Bind number to triple, given (the number x):\n" +
+            "    return x * 3.\n" +
+            "Done.\n" +
+            "Define op as triple.\n" +
+            "State Cast op on (1).\n" +
+            "State Cast op on (2).\n" +
+            "State Cast op on (3)."));
+    }
+
+    [Fact]
+    public void FunctionInVariableWithArticle()
+    {
+        Assert.Equal("42", Run(
+            "Bind number to answer, given (the number x):\n" +
+            "    return x.\n" +
+            "Done.\n" +
+            "Define the fn as answer.\n" +
+            "State Cast the fn on (42)."));
+    }
+
+    [Fact]
+    public void StateFunctionVariablePrintsMarker()
+    {
+        Assert.Equal("<function>", Run(
+            "Bind void to noop:\n" +
+            "Done.\n" +
+            "Define fn as noop.\n" +
+            "State fn."));
+    }
+
+    [Fact]
+    public void CastNonFunctionTypeError()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define x as 5.\n" +
+            "Cast x on (1)."));
+        Assert.Contains("number", ex.Message);
+        Assert.Contains("function", ex.Message);
+    }
+
+    [Fact]
+    public void CastNonFunctionVariableTypeErrorNamesVariable()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define score as 99.\n" +
+            "Cast score on (1)."));
+        Assert.Contains("score", ex.Message);
+        Assert.Contains("function", ex.Message);
+    }
+
     // ── Functions — recursion error ───────────────────────────────────────
 
     [Fact]

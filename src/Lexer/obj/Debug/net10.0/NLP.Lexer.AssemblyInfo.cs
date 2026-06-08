@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NLP.Lexer")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4180d7f895fb7b1c79ae2ba76fdfd4b8a094f4d8")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bb5a111d4a34cdf70078a09353a3c2afa09c17c6")]
 [assembly: System.Reflection.AssemblyProductAttribute("NLP.Lexer")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NLP.Lexer")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

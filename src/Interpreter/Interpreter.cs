@@ -165,7 +165,7 @@ public sealed class Interpreter
                 break; // already hoisted in Execute(Program)
 
             case CastStatement cs:
-                ExecuteCall(cs.FunctionName, cs.Args, cs.Line);
+                ExecuteCallExpr(cs.Function, cs.Args, cs.Line);
                 break;
 
             case ReturnStatement ret:
@@ -257,30 +257,38 @@ public sealed class Interpreter
         SeriesLiteral    sl   => (object)sl.Elements.Select(Evaluate).ToList(),
         SeriesAccess     sa   => EvaluateSeriesAccess(sa),
         SeriesLength     sl   => (decimal)ExpectSeries(sl.SeriesName).Count,
-        CastExpression   cast => ExecuteCall(cast.FunctionName, cast.Args, cast.Line)
+        CastExpression   cast => ExecuteCallExpr(cast.Function, cast.Args, cast.Line)
                                      ?? throw new RuntimeException(
-                                         $"'{cast.FunctionName}' gives nothing back — it can't be used as a value."),
+                                         $"{FuncDisplayName(cast.Function)} gives nothing back — it can't be used as a value."),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 
-    // Executes a function call and returns the return value (null for void).
-    // Manages call depth, argument evaluation, and scope isolation.
-    private object? ExecuteCall(string name, IReadOnlyList<IExpression> args, int line)
+    private static string FuncDisplayName(IExpression funcExpr) =>
+        funcExpr is VariableReference r ? $"'{r.Name}'" : "the function";
+
+    // Evaluates the function expression, then executes the call.
+    private object? ExecuteCallExpr(IExpression funcExpr, IReadOnlyList<IExpression> args, int line)
     {
-        if (!_env.TryGetValue(name, out var val))
-            throw new RuntimeException($"'{name}' is not defined.");
-        if (val is not FunctionValue func)
-            throw new RuntimeException($"'{name}' is not a function.");
+        var funcVal = Evaluate(funcExpr);
+        if (funcVal is not FunctionValue func)
+            throw new RuntimeException($"{FuncDisplayName(funcExpr)} is not a function.");
+        return ExecuteCall(func, FuncDisplayName(funcExpr), args, line);
+    }
+
+    // Executes a resolved function call and returns the return value (null for void).
+    // Manages call depth, argument evaluation, and scope isolation.
+    private object? ExecuteCall(FunctionValue func, string displayName, IReadOnlyList<IExpression> args, int line)
+    {
         if (args.Count != func.ParameterNames.Count)
             throw new RuntimeException(
-                $"'{name}' expects {func.ParameterNames.Count} argument(s), got {args.Count}.");
+                $"{displayName} expects {func.ParameterNames.Count} argument(s), got {args.Count}.");
 
         _callDepth++;
         if (_callDepth > _maxCallDepth)
         {
             _callDepth--;
             throw new RuntimeException(
-                $"'{name}' called itself too many times — is it missing a base case, or a case that stops the recursion?");
+                $"{displayName} called itself too many times — is it missing a base case, or a case that stops the recursion?");
         }
 
         // Evaluate args in caller scope before altering env.
@@ -361,6 +369,7 @@ public sealed class Interpreter
         bool b           => b ? "true" : "false",
         decimal d        => d.ToString(),
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
+        FunctionValue    => "<function>",
         _                => val.ToString()!,
     };
 }

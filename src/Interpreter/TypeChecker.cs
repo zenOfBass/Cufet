@@ -114,8 +114,11 @@ public sealed class TypeChecker
                 CheckBind(bind);
                 break;
             case CastStatement cs:
-                ValidateCastArgs(cs.FunctionName, cs.Args, cs.Line);
+            {
+                var (funcType, displayName, declLine) = ResolveForCast(cs.Function, cs.Line);
+                if (funcType != null) ValidateCastArgs(funcType, displayName, declLine, cs.Args, cs.Line);
                 break;
+            }
             case ReturnStatement ret:
                 CheckReturn(ret);
                 break;
@@ -227,17 +230,16 @@ public sealed class TypeChecker
         }
     }
 
-    // Validates arg count and types for a Cast. Used for both CastStatement and CastExpression.
-    private void ValidateCastArgs(string functionName, IReadOnlyList<IExpression> args, int line)
+    // Validates arg count and types against a resolved FunctionType.
+    private void ValidateCastArgs(
+        FunctionType funcType, string displayName, int declLine,
+        IReadOnlyList<IExpression> args, int callLine)
     {
-        if (!_env.TryGetValue(functionName, out var funcInfo)) return; // undeclared — runtime catches
-        if (funcInfo.Type is not FunctionType funcType) return;        // not a function
-
         if (args.Count != funcType.ParameterTypes.Count)
             throw new TypeException(FormatTypeError(
-                $"'{functionName}' expects {funcType.ParameterTypes.Count} argument(s), but you passed {args.Count}",
-                $"You declared it on line {funcInfo.EstablishingLine} with {funcType.ParameterTypes.Count} parameter(s)",
-                line,
+                $"{displayName} expects {funcType.ParameterTypes.Count} argument(s), but you passed {args.Count}",
+                $"You declared it on line {declLine} with {funcType.ParameterTypes.Count} parameter(s)",
+                callLine,
                 $"call it with {args.Count} argument(s)",
                 args.Count < funcType.ParameterTypes.Count
                     ? "Add the missing argument(s)."
@@ -248,9 +250,9 @@ public sealed class TypeChecker
             var argType = InferType(args[i]);
             if (argType == null || argType == funcType.ParameterTypes[i]) continue;
             throw new TypeException(FormatTypeError(
-                $"argument {i + 1} of '{functionName}' must be a {FormatType(funcType.ParameterTypes[i])}, but you passed a {FormatType(argType)}",
-                $"You declared '{functionName}' on line {funcInfo.EstablishingLine}, so argument {i + 1} must be a {FormatType(funcType.ParameterTypes[i])}",
-                line,
+                $"argument {i + 1} of {displayName} must be a {FormatType(funcType.ParameterTypes[i])}, but you passed a {FormatType(argType)}",
+                $"You declared {displayName} on line {declLine}, so argument {i + 1} must be a {FormatType(funcType.ParameterTypes[i])}",
+                callLine,
                 $"pass a {FormatType(argType)} as argument {i + 1}",
                 $"Change argument {i + 1} to a {FormatType(funcType.ParameterTypes[i])}."));
         }
@@ -367,20 +369,52 @@ public sealed class TypeChecker
 
     private CufetType? InferCastExpr(CastExpression cast)
     {
-        ValidateCastArgs(cast.FunctionName, cast.Args, cast.Line);
+        var (funcType, displayName, declLine) = ResolveForCast(cast.Function, cast.Line);
+        if (funcType == null) return null;
 
-        if (!_env.TryGetValue(cast.FunctionName, out var funcInfo)) return null;
-        if (funcInfo.Type is not FunctionType funcType) return null;
+        ValidateCastArgs(funcType, displayName, declLine, cast.Args, cast.Line);
 
         if (funcType.ReturnType == null)
             throw new TypeException(FormatTypeError(
-                $"'{cast.FunctionName}' gives nothing back — it can't be used as a value",
-                $"You declared it as void on line {funcInfo.EstablishingLine}",
+                $"{displayName} gives nothing back — it can't be used as a value",
+                $"You declared it as void on line {declLine}",
                 cast.Line,
                 "use its result as a value",
                 "Cast it as a statement instead, or change its return type if you need a result."));
 
         return funcType.ReturnType;
+    }
+
+    // Resolves the function expression to (FunctionType, display name, declaration line).
+    // Returns (null, ...) if the type is unknown at compile time — runtime catches it.
+    // Throws TypeException if the expression's type is known but is not a function.
+    private (FunctionType? funcType, string displayName, int declLine) ResolveForCast(
+        IExpression funcExpr, int callLine)
+    {
+        // Fast path: named variable — we have rich info from _env.
+        if (funcExpr is VariableReference vr && _env.TryGetValue(vr.Name, out var info))
+        {
+            if (info.Type is not FunctionType ft)
+                throw new TypeException(FormatTypeError(
+                    $"'{vr.Name}' holds a {FormatType(info.Type)}, not a function — you can only cast functions",
+                    null,
+                    callLine,
+                    "cast something that isn't a function",
+                    "Only functions can be cast. Make sure the name you're casting refers to a function."));
+            return (ft, $"'{vr.Name}'", info.EstablishingLine);
+        }
+
+        // General path: infer the type of the expression.
+        var exprType = InferType(funcExpr);
+        if (exprType == null) return (null, "this function", callLine);
+        if (exprType is not FunctionType funcType)
+            throw new TypeException(FormatTypeError(
+                $"this expression holds a {FormatType(exprType)}, not a function — you can only cast functions",
+                null,
+                callLine,
+                "cast something that isn't a function",
+                "Only functions can be cast."));
+        return (funcType, "this function", callLine);
     }
 
     private CufetType InferSeriesLiteral(SeriesLiteral lit)

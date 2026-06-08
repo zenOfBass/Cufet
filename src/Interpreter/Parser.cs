@@ -756,14 +756,13 @@ public sealed class Parser
         var expr = ParseCastExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new CastStatement(expr.FunctionName, expr.Args, expr.Line);
+        return new CastStatement(expr.Function, expr.Args, expr.Line);
     }
 
     private CastExpression ParseCastExpression()
     {
         var line = Consume(TokenType.Cast).Line;
-        SkipNoise();
-        var funcName = Consume(TokenType.Identifier).Lexeme;
+        var funcExpr = ParsePrimary(); // ParsePrimary handles leading articles via SkipNoise()
         SkipNoise();
 
         var args = new List<IExpression>();
@@ -788,7 +787,7 @@ public sealed class Parser
             Consume(TokenType.RParen);
         }
 
-        return new CastExpression(funcName, args, line);
+        return new CastExpression(funcExpr, args, line);
     }
 
     private ReturnStatement ParseReturnStatement()

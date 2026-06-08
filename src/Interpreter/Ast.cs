@@ -89,17 +89,17 @@ public sealed record BindStatement(
     int Line
 ) : IStatement;
 
-// Cast <FunctionName> on (<args>) — or Cast <FunctionName> with no args.
+// Cast <expr> on (<args>) — function may be a name, a variable holding a function, etc.
 // As expression: value is the return value of the function.
 public sealed record CastExpression(
-    string FunctionName,
+    IExpression Function,
     IReadOnlyList<IExpression> Args,
     int Line
 ) : IExpression;
 
 // Cast as a statement (void call, or discarded return value).
 public sealed record CastStatement(
-    string FunctionName,
+    IExpression Function,
     IReadOnlyList<IExpression> Args,
     int Line
 ) : IStatement;
