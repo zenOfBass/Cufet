@@ -1,5 +1,6 @@
 using NLP.Interpreter;
 using NLP.Lexer;
+using System.Runtime.ExceptionServices;
 using Xunit;
 using NlpLexer = NLP.Lexer.Lexer;
 
@@ -13,8 +14,20 @@ public class InterpreterTests
         var program = new Parser(tokens).Parse();
         new TypeChecker().Check(program);
         var output  = new StringWriter();
-        new Interpreter(output).Execute(program);
+        RunOnLargeStack(() => new Interpreter(output).Execute(program));
         return output.ToString().Replace("\r\n", "\n").TrimEnd('\n');
+    }
+
+    private static void RunOnLargeStack(Action action)
+    {
+        Exception? caught = null;
+        var thread = new Thread(
+            () => { try { action(); } catch (Exception e) { caught = e; } },
+            16 * 1024 * 1024);
+        thread.Start();
+        thread.Join();
+        if (caught is not null)
+            ExceptionDispatchInfo.Capture(caught).Throw();
     }
 
     // ── Keyword case-insensitivity ────────────────────────────────────────
@@ -1624,11 +1637,15 @@ public class InterpreterTests
     [Fact]
     public void InfiniteRecursionGivesFriendlyError()
     {
-        var ex = Assert.Throws<RuntimeException>(() => Run(
+        var tokens  = new NlpLexer(
             "Bind number to loop, given (the number x):\n" +
             "    return Cast loop on (x).\n" +
             "Done.\n" +
-            "State Cast loop on (1)."));
+            "State Cast loop on (1).").Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        var ex = Assert.Throws<RuntimeException>(() =>
+            RunOnLargeStack(() => new Interpreter(maxCallDepth: 5).Execute(program)));
         Assert.Contains("loop", ex.Message);
         Assert.Contains("too many times", ex.Message);
     }

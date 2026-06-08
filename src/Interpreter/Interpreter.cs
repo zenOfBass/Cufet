@@ -23,9 +23,13 @@ public sealed class Interpreter
     }
 
     private int _callDepth = 0;
-    private const int MaxCallDepth = 100; // xUnit threads have 1MB stack; stay well clear of native overflow
+    private readonly int _maxCallDepth;
 
-    public Interpreter(TextWriter? output = null) => _out = output ?? Console.Out;
+    public Interpreter(TextWriter? output = null, int maxCallDepth = 1000)
+    {
+        _out = output ?? Console.Out;
+        _maxCallDepth = maxCallDepth;
+    }
 
     public void Execute(Program program)
     {
@@ -272,7 +276,7 @@ public sealed class Interpreter
                 $"'{name}' expects {func.ParameterNames.Count} argument(s), got {args.Count}.");
 
         _callDepth++;
-        if (_callDepth > MaxCallDepth)
+        if (_callDepth > _maxCallDepth)
         {
             _callDepth--;
             throw new RuntimeException(
@@ -305,9 +309,12 @@ public sealed class Interpreter
         }
         finally
         {
-            // Restore caller env: remove all function-local bindings, restore snapshot.
-            var localKeys = _env.Keys.Where(k => _env[k] is not FunctionValue).ToList();
-            foreach (var key in localKeys) _env.Remove(key);
+            // Restore caller env: remove all function-local bindings (params + any Define'd locals),
+            // then restore snapshot. No LINQ — plain foreach avoids extra frames during unwind.
+            var toRemove = new List<string>();
+            foreach (var (k, v) in _env)
+                if (v is not FunctionValue) toRemove.Add(k);
+            foreach (var k in toRemove) _env.Remove(k);
             foreach (var (k, v) in snapshot) _env[k] = v;
             _callDepth--;
         }
