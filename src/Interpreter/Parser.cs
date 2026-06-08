@@ -727,13 +727,99 @@ public sealed class Parser
         return ParseTypeAnnotation();
     }
 
+    // Parses a named parameter in a Bind declaration:
+    //   <base-type> <name>
+    //   (<base-type> | "void") "function" <name> ["given" "(" <param-type-list> ")"]
     private (CufetType Type, string Name) ParseParameter()
     {
-        SkipNoise(); // skip articles before the type
-        var type = ParseTypeAnnotation();
         SkipNoise();
+
+        CufetType? candidateType;
+        if (Peek().Type == TokenType.Void)
+        {
+            Advance(); SkipNoise();
+            if (Peek().Type != TokenType.FunctionKw)
+                throw new ParseException(Peek(),
+                    "function — 'void' can only appear as the return type of a function-typed parameter");
+            candidateType = null;
+        }
+        else
+        {
+            candidateType = ParseTypeAnnotation();
+            SkipNoise();
+            if (Peek().Type != TokenType.FunctionKw)
+            {
+                var regularName = Consume(TokenType.Identifier).Lexeme;
+                return (candidateType, regularName);
+            }
+        }
+
+        // Function-typed parameter: <return-type> function <name> [given (<param-type-list>)]
+        Advance(); SkipNoise(); // consume 'function'
         var paramName = Consume(TokenType.Identifier).Lexeme;
-        return (type, paramName);
+        SkipNoise();
+
+        var innerParamTypes = ParseFunctionParamTypeList();
+        return (new FunctionType(innerParamTypes, candidateType), paramName);
+    }
+
+    // Parses a type inside a function-type annotation's given(...) list.
+    // Simple types have no name. Function types include a placeholder name (required by grammar,
+    // discarded after parsing — the name disambiguates the 'given' that belongs to the inner type).
+    private CufetType ParseFunctionParamType()
+    {
+        SkipNoise();
+
+        CufetType? returnType;
+        bool seenVoid = false;
+        if (Peek().Type == TokenType.Void)
+        {
+            Advance(); SkipNoise();
+            seenVoid = true;
+            returnType = null;
+        }
+        else
+        {
+            returnType = ParseTypeAnnotation();
+            SkipNoise();
+        }
+
+        if (Peek().Type == TokenType.FunctionKw)
+        {
+            Advance(); SkipNoise(); // consume 'function'
+            Consume(TokenType.Identifier); // placeholder name — consumed, not stored
+            SkipNoise();
+            return new FunctionType(ParseFunctionParamTypeList(), returnType);
+        }
+
+        if (seenVoid)
+            throw new ParseException(Peek(), "function — 'void' can only appear as a function return type");
+
+        return returnType!;
+    }
+
+    // Parses the optional "given (<param-type-list>)" trailer in a function-type annotation.
+    // Returns an empty list when 'given' is absent.
+    private List<CufetType> ParseFunctionParamTypeList()
+    {
+        var types = new List<CufetType>();
+        if (Peek().Type != TokenType.Given) return types;
+
+        Advance(); SkipNoise(); // consume 'given'
+        Consume(TokenType.LParen); SkipNoise();
+        if (Peek().Type != TokenType.RParen)
+        {
+            types.Add(ParseFunctionParamType());
+            SkipNoise();
+            while (Peek().Type == TokenType.Comma)
+            {
+                Advance(); SkipNoise();
+                types.Add(ParseFunctionParamType());
+                SkipNoise();
+            }
+        }
+        Consume(TokenType.RParen);
+        return types;
     }
 
     // Function bodies end at Done. — like loop bodies, but no empty-body restriction.

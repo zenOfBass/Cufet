@@ -294,14 +294,18 @@ public sealed class Interpreter
         // Evaluate args in caller scope before altering env.
         var argValues = args.Select(Evaluate).ToList();
 
-        // Save all non-function bindings (globals, caller locals).
-        // Function values stay in _env so callees can call other functions.
-        var snapshot = _env
-            .Where(kv => kv.Value is not FunctionValue)
-            .ToDictionary(kv => kv.Key, kv => kv.Value);
-        foreach (var key in snapshot.Keys) _env.Remove(key);
+        // Full snapshot — captures function-typed bindings too, so the finally can do a clean
+        // restore even when a parameter holds a FunctionValue.
+        var snapshot = new Dictionary<string, object>(_env);
 
-        // Bind parameters.
+        // Isolate scope: remove non-function bindings (globals, caller locals).
+        // FunctionValues stay in _env so the body can call other functions.
+        var toRemove = new List<string>();
+        foreach (var (k, v) in _env)
+            if (v is not FunctionValue) toRemove.Add(k);
+        foreach (var k in toRemove) _env.Remove(k);
+
+        // Bind parameters (including any function-typed ones).
         for (int i = 0; i < func.ParameterNames.Count; i++)
             _env[func.ParameterNames[i]] = argValues[i];
 
@@ -317,12 +321,8 @@ public sealed class Interpreter
         }
         finally
         {
-            // Restore caller env: remove all function-local bindings (params + any Define'd locals),
-            // then restore snapshot. No LINQ — plain foreach avoids extra frames during unwind.
-            var toRemove = new List<string>();
-            foreach (var (k, v) in _env)
-                if (v is not FunctionValue) toRemove.Add(k);
-            foreach (var k in toRemove) _env.Remove(k);
+            // Full restore from pre-call snapshot. No LINQ — plain ops only.
+            _env.Clear();
             foreach (var (k, v) in snapshot) _env[k] = v;
             _callDepth--;
         }

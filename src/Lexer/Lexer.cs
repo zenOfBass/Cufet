@@ -132,6 +132,7 @@ public sealed class Lexer
             "return"    => TokenType.Return,
             "void"      => TokenType.Void,
             "on"        => TokenType.On,
+            "function"  => TokenType.FunctionKw,
             _           => TokenType.Identifier,
         };
 

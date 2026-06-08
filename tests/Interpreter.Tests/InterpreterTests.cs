@@ -1728,4 +1728,140 @@ public class InterpreterTests
         Assert.Contains("loop", ex.Message);
         Assert.Contains("too many times", ex.Message);
     }
+
+    // ── Functions as values — slice 2: functions as parameters ───────────
+
+    [Fact]
+    public void FunctionAsParameter_BasicCall()
+    {
+        Assert.Equal("10", Run(
+            "Bind number to apply, given (the number n, the number function transform given (the number)):\n" +
+            "    return Cast transform on (n).\n" +
+            "Done.\n" +
+            "Bind number to double-it, given (the number x):\n" +
+            "    return x * 2.\n" +
+            "Done.\n" +
+            "State Cast apply on (5, double-it)."));
+    }
+
+    [Fact]
+    public void FunctionAsParameter_VoidFunctionParam()
+    {
+        Assert.Equal("hello", Run(
+            "Bind void to run-with, given (the text msg, the void function printer given (the text)):\n" +
+            "    Cast printer on (msg).\n" +
+            "Done.\n" +
+            "Bind void to shout, given (the text s):\n" +
+            "    State s.\n" +
+            "Done.\n" +
+            "Cast run-with on (\"hello\", shout)."));
+    }
+
+    [Fact]
+    public void FunctionAsParameter_NoParamsFunctionParam()
+    {
+        Assert.Equal("10", Run(
+            "Bind number to get-ten:\n" +
+            "    return 10.\n" +
+            "Done.\n" +
+            "Bind void to call-it, given (the number function producer):\n" +
+            "    State Cast producer on ().\n" +
+            "Done.\n" +
+            "Cast call-it on (get-ten)."));
+    }
+
+    [Fact]
+    public void FunctionAsParameter_CalledMultipleTimesInsideBody()
+    {
+        Assert.Equal("6\n7", Run(
+            "Bind void to apply-twice, given (the number x, the number function fn given (the number)):\n" +
+            "    State Cast fn on (x).\n" +
+            "    State Cast fn on (x + 1).\n" +
+            "Done.\n" +
+            "Bind number to inc, given (the number n):\n" +
+            "    return n + 1.\n" +
+            "Done.\n" +
+            "Cast apply-twice on (5, inc)."));
+    }
+
+    [Fact]
+    public void FunctionAsParameter_TwoFunctionsWithMatchingSignature()
+    {
+        // Both add1 and sub1 are "number function given (number)" — both should be accepted.
+        Assert.Equal("6\n4", Run(
+            "Bind void to apply, given (the number n, the number function transform given (the number)):\n" +
+            "    State Cast transform on (n).\n" +
+            "Done.\n" +
+            "Bind number to add1, given (the number n):\n" +
+            "    return n + 1.\n" +
+            "Done.\n" +
+            "Bind number to sub1, given (the number n):\n" +
+            "    return n - 1.\n" +
+            "Done.\n" +
+            "Cast apply on (5, add1).\n" +
+            "Cast apply on (5, sub1)."));
+    }
+
+    [Fact]
+    public void FunctionAsParameter_RecursiveFunctionType()
+    {
+        // compose takes two "number function given (number)" params — nested function type annotation.
+        Assert.Equal("11", Run(
+            "Bind number to compose, given (the number function outer given (the number), the number function inner given (the number), the number x):\n" +
+            "    return Cast outer on (Cast inner on (x)).\n" +
+            "Done.\n" +
+            "Bind number to add1, given (the number n):\n" +
+            "    return n + 1.\n" +
+            "Done.\n" +
+            "Bind number to double-it, given (the number n):\n" +
+            "    return n * 2.\n" +
+            "Done.\n" +
+            "State Cast compose on (add1, double-it, 5)."));
+    }
+
+    [Fact]
+    public void FunctionAsParameter_SignatureMismatchTypeError()
+    {
+        // 'apply' expects a number function; 'fmt' is a text function — static error.
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Bind void to apply, given (the number function transform given (the number)):\n" +
+            "    Cast transform on (5).\n" +
+            "Done.\n" +
+            "Bind text to fmt, given (the text s):\n" +
+            "    return s.\n" +
+            "Done.\n" +
+            "Cast apply on (fmt)."));
+        Assert.Contains("number", ex.Message);
+        Assert.Contains("text", ex.Message);
+        Assert.Contains("function", ex.Message);
+    }
+
+    [Fact]
+    public void FunctionAsParameter_SignatureMismatchErrorNamesParameter()
+    {
+        // Error message should name the function being called ('apply').
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Bind void to apply, given (the number function transform given (the number)):\n" +
+            "    Cast transform on (5).\n" +
+            "Done.\n" +
+            "Bind text to wrong, given (the text s):\n" +
+            "    return s.\n" +
+            "Done.\n" +
+            "Cast apply on (wrong)."));
+        Assert.Contains("apply", ex.Message);
+    }
+
+    [Fact]
+    public void FunctionAsParameter_VoidAnnotationSyntax()
+    {
+        // 'void function' annotation is valid and matches a void-returning function.
+        Assert.Equal("done", Run(
+            "Bind void to run-action, given (the text msg, the void function action given (the text)):\n" +
+            "    Cast action on (msg).\n" +
+            "Done.\n" +
+            "Bind void to print-it, given (the text s):\n" +
+            "    State s.\n" +
+            "Done.\n" +
+            "Cast run-action on (\"done\", print-it)."));
+    }
 }

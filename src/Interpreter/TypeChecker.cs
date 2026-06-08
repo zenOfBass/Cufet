@@ -2,26 +2,74 @@ using NLP.Lexer;
 
 namespace NLP.Interpreter;
 
-// CufetType is a recursive value-equality record hierarchy.
+// CufetType is a value-equality class hierarchy.
 // CufetType.Number / .Text / .Fact are canonical singletons for the three scalars.
-public abstract record CufetType
+// All == comparisons use structural / deep equality.
+public abstract class CufetType
 {
     public static readonly CufetType Number = new NumberType();
     public static readonly CufetType Text   = new TextType();
     public static readonly CufetType Fact   = new FactType();
-}
-public sealed record NumberType()                      : CufetType;
-public sealed record TextType()                        : CufetType;
-public sealed record FactType()                        : CufetType;
-public sealed record SeriesType(CufetType ElementType) : CufetType;
 
-// FunctionType uses IReadOnlyList — reference equality for the list, value equality for
-// individual element types. Fine for brick 1 where FunctionType-to-FunctionType comparison
-// isn't needed; brick 2 (functions as values) will need deep equality.
-public sealed record FunctionType(
-    IReadOnlyList<CufetType> ParameterTypes,
-    CufetType? ReturnType          // null = void
-) : CufetType;
+    public abstract override bool Equals(object? obj);
+    public abstract override int GetHashCode();
+
+    public static bool operator ==(CufetType? left, CufetType? right)
+        => left is null ? right is null : left.Equals(right);
+    public static bool operator !=(CufetType? left, CufetType? right)
+        => !(left == right);
+}
+
+public sealed class NumberType : CufetType
+{
+    public override bool Equals(object? obj) => obj is NumberType;
+    public override int GetHashCode() => typeof(NumberType).GetHashCode();
+}
+
+public sealed class TextType : CufetType
+{
+    public override bool Equals(object? obj) => obj is TextType;
+    public override int GetHashCode() => typeof(TextType).GetHashCode();
+}
+
+public sealed class FactType : CufetType
+{
+    public override bool Equals(object? obj) => obj is FactType;
+    public override int GetHashCode() => typeof(FactType).GetHashCode();
+}
+
+public sealed class SeriesType : CufetType
+{
+    public CufetType ElementType { get; }
+    public SeriesType(CufetType elementType) => ElementType = elementType;
+    public override bool Equals(object? obj) => obj is SeriesType s && ElementType == s.ElementType;
+    public override int GetHashCode() => HashCode.Combine(typeof(SeriesType), ElementType);
+}
+
+public sealed class FunctionType : CufetType
+{
+    public IReadOnlyList<CufetType> ParameterTypes { get; }
+    public CufetType? ReturnType { get; }   // null = void
+
+    public FunctionType(IReadOnlyList<CufetType> parameterTypes, CufetType? returnType)
+    {
+        ParameterTypes = parameterTypes;
+        ReturnType = returnType;
+    }
+
+    public override bool Equals(object? obj) =>
+        obj is FunctionType ft &&
+        ReturnType == ft.ReturnType &&
+        ParameterTypes.SequenceEqual(ft.ParameterTypes);
+
+    public override int GetHashCode()
+    {
+        var h = HashCode.Combine(typeof(FunctionType), ReturnType);
+        foreach (var pt in ParameterTypes)
+            h = HashCode.Combine(h, pt);
+        return h;
+    }
+}
 
 public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine);
 
@@ -564,9 +612,18 @@ public sealed class TypeChecker
         TextType                             => "text",
         FactType                             => "fact",
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
-        FunctionType                         => "function",
+        FunctionType ft                      => FormatFunctionType(ft),
         _                                    => "<unknown>",
     };
+
+    private static string FormatFunctionType(FunctionType ft)
+    {
+        var ret = ft.ReturnType == null ? "void" : FormatType(ft.ReturnType);
+        if (ft.ParameterTypes.Count == 0)
+            return $"{ret} function";
+        var paramTypes = string.Join(", ", ft.ParameterTypes.Select(FormatType));
+        return $"{ret} function given ({paramTypes})";
+    }
 
     private static string FormatTypePlural(CufetType type) => type switch
     {
