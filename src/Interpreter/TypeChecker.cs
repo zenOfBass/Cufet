@@ -15,6 +15,14 @@ public sealed record TextType()                        : CufetType;
 public sealed record FactType()                        : CufetType;
 public sealed record SeriesType(CufetType ElementType) : CufetType;
 
+// FunctionType uses IReadOnlyList — reference equality for the list, value equality for
+// individual element types. Fine for brick 1 where FunctionType-to-FunctionType comparison
+// isn't needed; brick 2 (functions as values) will need deep equality.
+public sealed record FunctionType(
+    IReadOnlyList<CufetType> ParameterTypes,
+    CufetType? ReturnType          // null = void
+) : CufetType;
+
 public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine);
 
 public sealed class TypeException : Exception
@@ -26,10 +34,31 @@ public sealed class TypeChecker
 {
     private readonly Dictionary<string, TypeInfo> _env = new();
 
+    // Return context — set when entering a Bind body.
+    private bool       _inFunction             = false;
+    private CufetType? _expectedReturnType     = null; // null = void function
+    private int        _functionDeclarationLine = 0;
+
     public void Check(Program program)
     {
+        Pass1Hoist(program);
         foreach (var stmt in program.Statements)
             CheckStatement(stmt);
+    }
+
+    // Pass 1: register all top-level Bind signatures before checking any body.
+    // This enables forward references and self-/mutual-recursion.
+    private void Pass1Hoist(Program program)
+    {
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is not BindStatement bind) continue;
+            var paramTypes = bind.Parameters.Select(p => p.Type).ToList();
+            _env[bind.Name] = new TypeInfo(
+                new FunctionType(paramTypes, bind.ReturnType),
+                new VariableReference(bind.Name),
+                bind.Line);
+        }
     }
 
     private void CheckStatement(IStatement stmt)
@@ -81,6 +110,15 @@ public sealed class TypeChecker
             case SeriesRemoveAtStatement removeAt:
                 CheckSeriesRemoveAt(removeAt);
                 break;
+            case BindStatement bind:
+                CheckBind(bind);
+                break;
+            case CastStatement cs:
+                ValidateCastArgs(cs.FunctionName, cs.Args, cs.Line);
+                break;
+            case ReturnStatement ret:
+                CheckReturn(ret);
+                break;
         }
     }
 
@@ -112,6 +150,110 @@ public sealed class TypeChecker
                 becomes.Line,
                 $"give it a {FormatType(rhsType)} value",
                 $"Variables keep their type for life. If you need a {FormatType(rhsType)} value here, define a new name for it instead."));
+    }
+
+    private void CheckBind(BindStatement bind)
+    {
+        // Build function body env: only function signatures + parameters (no globals).
+        // This mirrors runtime scoping — functions cannot see the caller's variables.
+        var snapshot = new Dictionary<string, TypeInfo>(_env);
+        _env.Clear();
+        foreach (var (k, v) in snapshot.Where(kv => kv.Value.Type is FunctionType))
+            _env[k] = v;
+        foreach (var (type, name) in bind.Parameters)
+            _env[name] = new TypeInfo(type, new VariableReference(name), bind.Line);
+
+        var prevInFunction        = _inFunction;
+        var prevReturnType        = _expectedReturnType;
+        var prevFunctionLine      = _functionDeclarationLine;
+        _inFunction               = true;
+        _expectedReturnType       = bind.ReturnType;
+        _functionDeclarationLine  = bind.Line;
+
+        try
+        {
+            foreach (var stmt in bind.Body)
+                CheckStatement(stmt);
+        }
+        finally
+        {
+            _inFunction               = prevInFunction;
+            _expectedReturnType       = prevReturnType;
+            _functionDeclarationLine  = prevFunctionLine;
+            _env.Clear();
+            foreach (var (k, v) in snapshot) _env[k] = v;
+        }
+
+        if (bind.ReturnType != null && !DefinitelyReturns(bind.Body))
+            throw new TypeException(FormatTypeError(
+                $"'{bind.Name}' is declared to give back a {FormatType(bind.ReturnType)}, but it can reach its end without returning one",
+                null,
+                bind.Line,
+                "define a function that might not return a value",
+                "Make sure every path through the function ends with a return statement."));
+    }
+
+    private void CheckReturn(ReturnStatement ret)
+    {
+        if (_expectedReturnType == null) // void function (or _inFunction guard is parser-level)
+        {
+            if (ret.Value != null)
+                throw new TypeException(FormatTypeError(
+                    "this function is declared void — it gives nothing back",
+                    null,
+                    ret.Line,
+                    "return a value from a void function",
+                    "Remove the value, or change the function's return type if you need to produce a result."));
+            // bare return in void → ok
+        }
+        else // non-void function
+        {
+            if (ret.Value == null)
+                throw new TypeException(FormatTypeError(
+                    $"this function is declared to give back a {FormatType(_expectedReturnType)}",
+                    $"You declared the return type as {FormatType(_expectedReturnType)} on line {_functionDeclarationLine}",
+                    ret.Line,
+                    "return without a value",
+                    $"Provide a {FormatType(_expectedReturnType)} value to return."));
+
+            var returnType = InferType(ret.Value);
+            if (returnType != null && returnType != _expectedReturnType)
+                throw new TypeException(FormatTypeError(
+                    $"this function is declared to give back a {FormatType(_expectedReturnType)}",
+                    $"You declared the return type as {FormatType(_expectedReturnType)} on line {_functionDeclarationLine}",
+                    ret.Line,
+                    $"return a {FormatType(returnType)} value",
+                    $"Change the returned value to a {FormatType(_expectedReturnType)}."));
+        }
+    }
+
+    // Validates arg count and types for a Cast. Used for both CastStatement and CastExpression.
+    private void ValidateCastArgs(string functionName, IReadOnlyList<IExpression> args, int line)
+    {
+        if (!_env.TryGetValue(functionName, out var funcInfo)) return; // undeclared — runtime catches
+        if (funcInfo.Type is not FunctionType funcType) return;        // not a function
+
+        if (args.Count != funcType.ParameterTypes.Count)
+            throw new TypeException(FormatTypeError(
+                $"'{functionName}' expects {funcType.ParameterTypes.Count} argument(s), but you passed {args.Count}",
+                $"You declared it on line {funcInfo.EstablishingLine} with {funcType.ParameterTypes.Count} parameter(s)",
+                line,
+                $"call it with {args.Count} argument(s)",
+                args.Count < funcType.ParameterTypes.Count
+                    ? "Add the missing argument(s)."
+                    : "Remove the extra argument(s)."));
+
+        for (int i = 0; i < args.Count; i++)
+        {
+            var argType = InferType(args[i]);
+            if (argType == null || argType == funcType.ParameterTypes[i]) continue;
+            throw new TypeException(FormatTypeError(
+                $"argument {i + 1} of '{functionName}' must be a {FormatType(funcType.ParameterTypes[i])}, but you passed a {FormatType(argType)}",
+                $"You declared '{functionName}' on line {funcInfo.EstablishingLine}, so argument {i + 1} must be a {FormatType(funcType.ParameterTypes[i])}",
+                line,
+                $"pass a {FormatType(argType)} as argument {i + 1}",
+                $"Change argument {i + 1} to a {FormatType(funcType.ParameterTypes[i])}."));
+        }
     }
 
     private void CheckForEach(ForEachStatement forEach)
@@ -219,8 +361,27 @@ public sealed class TypeChecker
         SeriesLiteral lit                                                       => InferSeriesLiteral(lit),
         SeriesAccess acc                                                        => InferSeriesAccess(acc),
         SeriesLength                                                            => CufetType.Number,
+        CastExpression cast                                                     => InferCastExpr(cast),
         _                                                                       => null,
     };
+
+    private CufetType? InferCastExpr(CastExpression cast)
+    {
+        ValidateCastArgs(cast.FunctionName, cast.Args, cast.Line);
+
+        if (!_env.TryGetValue(cast.FunctionName, out var funcInfo)) return null;
+        if (funcInfo.Type is not FunctionType funcType) return null;
+
+        if (funcType.ReturnType == null)
+            throw new TypeException(FormatTypeError(
+                $"'{cast.FunctionName}' gives nothing back — it can't be used as a value",
+                $"You declared it as void on line {funcInfo.EstablishingLine}",
+                cast.Line,
+                "use its result as a value",
+                "Cast it as a statement instead, or change its return type if you need a result."));
+
+        return funcType.ReturnType;
+    }
 
     private CufetType InferSeriesLiteral(SeriesLiteral lit)
     {
@@ -334,6 +495,24 @@ public sealed class TypeChecker
         };
     }
 
+    // Scans a statement list for definite return paths.
+    // Returns true only when every execution path through stmts ends at a return.
+    private static bool DefinitelyReturns(IReadOnlyList<IStatement> stmts)
+    {
+        foreach (var stmt in stmts)
+        {
+            if (stmt is ReturnStatement) return true;
+            if (stmt is IfStatement ifStmt && ifStmt.ElseBody != null)
+            {
+                bool allArmsReturn = ifStmt.Arms.All(a => DefinitelyReturns(a.Body));
+                if (allArmsReturn && DefinitelyReturns(ifStmt.ElseBody)) return true;
+            }
+            // Loops are not counted: while/for-each may execute zero times,
+            // repeat-until exits after one iteration without requiring a return.
+        }
+        return false;
+    }
+
     private static string FormatTypeError(
         string context,
         string? established,
@@ -351,6 +530,7 @@ public sealed class TypeChecker
         TextType                             => "text",
         FactType                             => "fact",
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
+        FunctionType                         => "function",
         _                                    => "<unknown>",
     };
 
@@ -360,6 +540,7 @@ public sealed class TypeChecker
         TextType                             => "text",
         FactType                             => "facts",
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
+        FunctionType                         => "functions",
         _                                    => "<unknown>",
     };
 

@@ -126,6 +126,12 @@ public sealed class Lexer
             "after"     => TokenType.After,
             "remove"    => TokenType.Remove,
             "from"      => TokenType.From,
+            "bind"      => TokenType.Bind,
+            "cast"      => TokenType.Cast,
+            "given"     => TokenType.Given,
+            "return"    => TokenType.Return,
+            "void"      => TokenType.Void,
+            "on"        => TokenType.On,
             _           => TokenType.Identifier,
         };
 

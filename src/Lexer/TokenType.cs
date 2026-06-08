@@ -66,6 +66,14 @@ public enum TokenType
     Remove,   // "remove" — series mutation keyword
     From,     // "from" — in "remove X from series"
 
+    // ── Functions ─────────────────────────────────────────────────────────
+    Bind,     // "bind"   — declares a named function
+    Cast,     // "cast"   — calls a function
+    Given,    // "given"  — introduces the parameter list in a Bind
+    Return,   // "return" — returns a value (or exits early) from a function
+    Void,     // "void"   — marks a function that returns no value
+    On,       // "on"     — separates function name from argument list in Cast
+
     // ── Semantic (parser-generated, never emitted by lexer) ───────────────
     NotEqual, // produced by "is not"; used in BinaryExpression only
 

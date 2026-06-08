@@ -7,6 +7,8 @@ public sealed class Parser
     private readonly IReadOnlyList<Token> _tokens;
     private int _pos;
     private int _loopDepth;
+    private int _nestDepth;     // any block depth — used to enforce Bind top-level only
+    private int _functionDepth; // incremented inside a Bind body — for return validation
 
     public Parser(IReadOnlyList<Token> tokens) => _tokens = tokens;
 
@@ -40,6 +42,9 @@ public sealed class Parser
             TokenType.Add        => ParseSeriesAddStatement(),
             TokenType.Remove     => ParseSeriesRemoveStatement(),
             TokenType.For        => ParseForEachStatement(),
+            TokenType.Bind       => ParseBindStatement(),
+            TokenType.Cast       => ParseCastStatementWrapper(),
+            TokenType.Return     => ParseReturnStatement(),
             _ => throw new ParseException(tok, "statement keyword"),
         };
     }
@@ -198,10 +203,16 @@ public sealed class Parser
         {
             Advance(); // consume ','
             SkipNoise();
-            return new IStatement[] { ParseStatement() };
+            _nestDepth++;
+            var stmt = ParseStatement();
+            _nestDepth--;
+            return new IStatement[] { stmt };
         }
         Consume(TokenType.Colon);
-        return ParseLoopBody();
+        _nestDepth++;
+        var result = ParseLoopBody();
+        _nestDepth--;
+        return result;
     }
 
     private WhileStatement ParseWhileStatement()
@@ -216,7 +227,9 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Colon);
         _loopDepth++;
+        _nestDepth++;
         var body = ParseLoopBody();
+        _nestDepth--;
         _loopDepth--;
         return new WhileStatement(condition, body);
     }
@@ -245,7 +258,9 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Colon);
         _loopDepth++;
+        _nestDepth++;
         var body = ParseRepeatUntilBody();
+        _nestDepth--;
         _loopDepth--;
         Consume(TokenType.Until);
         SkipNoise();
@@ -313,7 +328,9 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Colon);
         _loopDepth++;
+        _nestDepth++;
         var body = ParseLoopBody();
+        _nestDepth--;
         _loopDepth--;
         return new ForEachStatement(iterName, seriesName, body, forTok.Line);
     }
@@ -642,9 +659,153 @@ public sealed class Parser
                 var name = Consume(TokenType.Identifier).Lexeme;
                 return new SeriesLength(name);
             }
+            case TokenType.Cast:
+                return ParseCastExpression();
             default:
                 throw new ParseException(tok, "expression");
         }
+    }
+
+    // ── Functions ─────────────────────────────────────────────────────────
+
+    private BindStatement ParseBindStatement()
+    {
+        var bindTok = Consume(TokenType.Bind);
+        if (_nestDepth > 0)
+            throw new ParseException(bindTok, "Functions can only be declared at the top level, not inside a block");
+        SkipNoise();
+        var returnType = ParseReturnType();
+        SkipNoise();
+        Consume(TokenType.To);
+        SkipNoise();
+        var name = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+
+        var parameters = new List<(CufetType Type, string Name)>();
+        if (Peek().Type == TokenType.Comma)
+        {
+            Advance(); // consume ','
+            SkipNoise();
+            Consume(TokenType.Given);
+            SkipNoise();
+            Consume(TokenType.LParen);
+            SkipNoise();
+            if (Peek().Type != TokenType.RParen)
+            {
+                parameters.Add(ParseParameter());
+                SkipNoise();
+                while (Peek().Type == TokenType.Comma)
+                {
+                    Advance();
+                    SkipNoise();
+                    parameters.Add(ParseParameter());
+                    SkipNoise();
+                }
+            }
+            Consume(TokenType.RParen);
+            SkipNoise();
+        }
+
+        Consume(TokenType.Colon);
+        _functionDepth++;
+        _nestDepth++;
+        var body = ParseFunctionBody();
+        _nestDepth--;
+        _functionDepth--;
+
+        return new BindStatement(name, returnType, parameters, body, bindTok.Line);
+    }
+
+    // null return → void
+    private CufetType? ParseReturnType()
+    {
+        if (Peek().Type == TokenType.Void)
+        {
+            Advance();
+            return null;
+        }
+        return ParseTypeAnnotation();
+    }
+
+    private (CufetType Type, string Name) ParseParameter()
+    {
+        SkipNoise(); // skip articles before the type
+        var type = ParseTypeAnnotation();
+        SkipNoise();
+        var paramName = Consume(TokenType.Identifier).Lexeme;
+        return (type, paramName);
+    }
+
+    // Function bodies end at Done. — like loop bodies, but no empty-body restriction.
+    private IReadOnlyList<IStatement> ParseFunctionBody()
+    {
+        var stmts = new List<IStatement>();
+        while (true)
+        {
+            SkipNoise();
+            if (Peek().Type is TokenType.Done or TokenType.Eof) break;
+            stmts.Add(ParseStatement());
+        }
+        Consume(TokenType.Done);
+        Consume(TokenType.Dot);
+        return stmts;
+    }
+
+    private CastStatement ParseCastStatementWrapper()
+    {
+        var expr = ParseCastExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new CastStatement(expr.FunctionName, expr.Args, expr.Line);
+    }
+
+    private CastExpression ParseCastExpression()
+    {
+        var line = Consume(TokenType.Cast).Line;
+        SkipNoise();
+        var funcName = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+
+        var args = new List<IExpression>();
+        if (Peek().Type == TokenType.On)
+        {
+            Advance(); // consume 'on'
+            SkipNoise();
+            Consume(TokenType.LParen);
+            SkipNoise();
+            if (Peek().Type != TokenType.RParen)
+            {
+                args.Add(ParseExpression());
+                SkipNoise();
+                while (Peek().Type == TokenType.Comma)
+                {
+                    Advance();
+                    SkipNoise();
+                    args.Add(ParseExpression());
+                    SkipNoise();
+                }
+            }
+            Consume(TokenType.RParen);
+        }
+
+        return new CastExpression(funcName, args, line);
+    }
+
+    private ReturnStatement ParseReturnStatement()
+    {
+        var line = Consume(TokenType.Return).Line;
+        if (_functionDepth == 0)
+            throw new ParseException(_tokens[_pos - 1], "'return' used outside a function");
+        SkipNoise();
+        if (Peek().Type == TokenType.Dot)
+        {
+            Consume(TokenType.Dot);
+            return new ReturnStatement(null, line); // bare return — void early exit
+        }
+        var value = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new ReturnStatement(value, line);
     }
 
     private void SkipNoise()

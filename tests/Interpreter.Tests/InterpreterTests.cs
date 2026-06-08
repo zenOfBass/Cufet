@@ -1339,4 +1339,297 @@ public class InterpreterTests
         // Uppercase-initial non-keywords are caught at the lexer, not the parser
         Assert.Throws<LexerException>(() => Run("Print 5."));
     }
+
+    // ── Functions — basic ─────────────────────────────────────────────────
+
+    [Fact]
+    public void VoidFunctionDeclareAndCall()
+    {
+        Assert.Equal("hello", Run(
+            "Bind void to greet:\n" +
+            "    State \"hello\".\n" +
+            "Done.\n" +
+            "Cast greet."));
+    }
+
+    [Fact]
+    public void FunctionReturnsValue()
+    {
+        Assert.Equal("10", Run(
+            "Bind number to double, given (the number x):\n" +
+            "    return x * 2.\n" +
+            "Done.\n" +
+            "State Cast double on (5)."));
+    }
+
+    [Fact]
+    public void FunctionResultInExpression()
+    {
+        Assert.Equal("15", Run(
+            "Bind number to double, given (the number x):\n" +
+            "    return x * 2.\n" +
+            "Done.\n" +
+            "State Cast double on (5) + 5."));
+    }
+
+    [Fact]
+    public void FunctionResultAssignedToVariable()
+    {
+        Assert.Equal("6", Run(
+            "Bind number to triple, given (the number n):\n" +
+            "    return n * 3.\n" +
+            "Done.\n" +
+            "Define result as Cast triple on (2).\n" +
+            "State result."));
+    }
+
+    [Fact]
+    public void FunctionMultipleParameters()
+    {
+        Assert.Equal("13", Run(
+            "Bind number to sumTwo, given (the number x, the number y):\n" +
+            "    return x + y.\n" +
+            "Done.\n" +
+            "State Cast sumTwo on (5, 8)."));
+    }
+
+    [Fact]
+    public void FunctionNoParametersNoReturn()
+    {
+        Assert.Equal("done", Run(
+            "Bind void to doNothing:\n" +
+            "Done.\n" +
+            "Cast doNothing.\n" +
+            "State \"done\"."));
+    }
+
+    [Fact]
+    public void FunctionWithIfBranches()
+    {
+        Assert.Equal("positive", Run(
+            "Bind text to sign, given (the number n):\n" +
+            "    If n is greater than 0:\n" +
+            "        return \"positive\".\n" +
+            "    Done.\n" +
+            "    Otherwise:\n" +
+            "        return \"non-positive\".\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "State Cast sign on (5)."));
+    }
+
+    [Fact]
+    public void FunctionForwardReference()
+    {
+        // Call appears before the Bind declaration in source order.
+        Assert.Equal("7", Run(
+            "State Cast addOne on (6).\n" +
+            "Bind number to addOne, given (the number x):\n" +
+            "    return x + 1.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void FunctionDoesNotSeeGlobalVariables()
+    {
+        // x is a global; the function cannot access it and should throw.
+        Assert.Throws<RuntimeException>(() => Run(
+            "Define x as 99.\n" +
+            "Bind number to getX:\n" +
+            "    return x.\n" +
+            "Done.\n" +
+            "State Cast getX."));
+    }
+
+    [Fact]
+    public void FunctionCanCallOtherFunction()
+    {
+        Assert.Equal("20", Run(
+            "Bind number to double, given (the number x):\n" +
+            "    return x * 2.\n" +
+            "Done.\n" +
+            "Bind number to quadruple, given (the number x):\n" +
+            "    return Cast double on (Cast double on (x)).\n" +
+            "Done.\n" +
+            "State Cast quadruple on (5)."));
+    }
+
+    [Fact]
+    public void FunctionSelfRecursion()
+    {
+        Assert.Equal("120", Run(
+            "Bind number to factorial, given (the number n):\n" +
+            "    If n is 1:\n" +
+            "        return 1.\n" +
+            "    Done.\n" +
+            "    return n * Cast factorial on (n - 1).\n" +
+            "Done.\n" +
+            "State Cast factorial on (5)."));
+    }
+
+    [Fact]
+    public void FunctionLocalVariablesIsolated()
+    {
+        // Two consecutive calls — local vars should not persist between calls.
+        Assert.Equal("3\n5", Run(
+            "Bind number to addTwo, given (the number x):\n" +
+            "    Define result as x + 2.\n" +
+            "    return result.\n" +
+            "Done.\n" +
+            "State Cast addTwo on (1).\n" +
+            "State Cast addTwo on (3)."));
+    }
+
+    [Fact]
+    public void VoidFunctionEarlyReturn()
+    {
+        Assert.Equal("before", Run(
+            "Bind void to earlyExit, given (the number x):\n" +
+            "    If x is 0:\n" +
+            "        return.\n" +
+            "    Done.\n" +
+            "    State \"after\".\n" +
+            "Done.\n" +
+            "State \"before\".\n" +
+            "Cast earlyExit on (0)."));
+    }
+
+    [Fact]
+    public void FunctionCalledMultipleTimes()
+    {
+        Assert.Equal("2\n4\n6", Run(
+            "Bind number to double, given (the number x):\n" +
+            "    return x * 2.\n" +
+            "Done.\n" +
+            "State Cast double on (1).\n" +
+            "State Cast double on (2).\n" +
+            "State Cast double on (3)."));
+    }
+
+    [Fact]
+    public void FunctionWithTextReturn()
+    {
+        Assert.Equal("yes", Run(
+            "Bind text to answer, given (the fact f):\n" +
+            "    If f:\n" +
+            "        return \"yes\".\n" +
+            "    Done.\n" +
+            "    return \"no\".\n" +
+            "Done.\n" +
+            "State Cast answer on (1 = 1)."));
+    }
+
+    // ── Functions — type errors ───────────────────────────────────────────
+
+    [Fact]
+    public void FunctionArgCountMismatchThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number to sumTwo, given (the number p, the number q):\n" +
+            "    return p + q.\n" +
+            "Done.\n" +
+            "State Cast sumTwo on (1)."));
+    }
+
+    [Fact]
+    public void FunctionArgTypeMismatchThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number to double, given (the number x):\n" +
+            "    return x * 2.\n" +
+            "Done.\n" +
+            "State Cast double on (\"hello\")."));
+    }
+
+    [Fact]
+    public void FunctionWrongReturnTypeThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number to bad:\n" +
+            "    return \"text\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void VoidFunctionUsedAsValueThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind void to greet:\n" +
+            "    State \"hi\".\n" +
+            "Done.\n" +
+            "State Cast greet."));
+    }
+
+    [Fact]
+    public void FunctionMissingReturnThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number to bad:\n" +
+            "    State \"no return here\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void FunctionMissingReturnOnOneBranchThrows()
+    {
+        // The otherwise branch returns, but the if-without-else path falls off.
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number to bad, given (the number x):\n" +
+            "    If x is 1:\n" +
+            "        return 1.\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void VoidFunctionWithValueReturnThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind void to bad:\n" +
+            "    return 5.\n" +
+            "Done."));
+    }
+
+    // ── Functions — parse errors ──────────────────────────────────────────
+
+    [Fact]
+    public void ReturnOutsideFunctionThrows()
+    {
+        Assert.Throws<ParseException>(() => Run("return 5."));
+    }
+
+    [Fact]
+    public void NestedBindThrows()
+    {
+        Assert.Throws<ParseException>(() => Run(
+            "Bind void to outer:\n" +
+            "    Bind void to inner:\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void BindInsideLoopThrows()
+    {
+        Assert.Throws<ParseException>(() => Run(
+            "Define x as 0.\n" +
+            "While x is 0, repeat:\n" +
+            "    Bind void to bad:\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    // ── Functions — recursion error ───────────────────────────────────────
+
+    [Fact]
+    public void InfiniteRecursionGivesFriendlyError()
+    {
+        var ex = Assert.Throws<RuntimeException>(() => Run(
+            "Bind number to loop, given (the number x):\n" +
+            "    return Cast loop on (x).\n" +
+            "Done.\n" +
+            "State Cast loop on (1)."));
+        Assert.Contains("loop", ex.Message);
+        Assert.Contains("too many times", ex.Message);
+    }
 }

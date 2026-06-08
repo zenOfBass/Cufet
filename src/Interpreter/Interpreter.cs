@@ -8,13 +8,39 @@ public sealed class Interpreter
     private readonly Dictionary<string, object> _env = new();
 
     // Used internally to implement Stop/Skip — never escape the loop handlers.
-    private sealed class StopException : Exception { }
-    private sealed class SkipException : Exception { }
+    private sealed class StopException  : Exception { }
+    private sealed class SkipException  : Exception { }
+    private sealed class ReturnException : Exception
+    {
+        public object? Value { get; }
+        public ReturnException(object? value) { Value = value; }
+    }
+
+    private sealed class FunctionValue
+    {
+        public required IReadOnlyList<string>     ParameterNames { get; init; }
+        public required IReadOnlyList<IStatement> Body           { get; init; }
+    }
+
+    private int _callDepth = 0;
+    private const int MaxCallDepth = 100; // xUnit threads have 1MB stack; stay well clear of native overflow
 
     public Interpreter(TextWriter? output = null) => _out = output ?? Console.Out;
 
     public void Execute(Program program)
     {
+        // Hoist all function definitions before executing any statement,
+        // enabling forward references and mutual recursion.
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is BindStatement bind)
+                _env[bind.Name] = new FunctionValue
+                {
+                    ParameterNames = bind.Parameters.Select(p => p.Name).ToList(),
+                    Body           = bind.Body,
+                };
+        }
+
         foreach (var stmt in program.Statements)
             Execute(stmt);
     }
@@ -131,6 +157,16 @@ public sealed class Interpreter
                 break;
             }
 
+            case BindStatement:
+                break; // already hoisted in Execute(Program)
+
+            case CastStatement cs:
+                ExecuteCall(cs.FunctionName, cs.Args, cs.Line);
+                break;
+
+            case ReturnStatement ret:
+                throw new ReturnException(ret.Value != null ? Evaluate(ret.Value) : null);
+
             case ForEachStatement fe:
             {
                 var list = ExpectSeries(fe.SeriesName);
@@ -207,18 +243,77 @@ public sealed class Interpreter
 
     private object Evaluate(IExpression expr) => expr switch
     {
-        NumberLiteral    n  => (object)n.Value,  // decimal — no floating-point surprises
-        StringLiteral    s  => s.Value,
-        VariableReference r => _env.TryGetValue(r.Name, out var val)
-                                   ? val
-                                   : throw new RuntimeException($"'{r.Name}' is not defined."),
-        UnaryExpression  u  => EvaluateUnary(u),
-        BinaryExpression b  => EvaluateBinary(b),
-        SeriesLiteral    sl => (object)sl.Elements.Select(Evaluate).ToList(),
-        SeriesAccess     sa => EvaluateSeriesAccess(sa),
-        SeriesLength     sl => (decimal)ExpectSeries(sl.SeriesName).Count,
+        NumberLiteral    n    => (object)n.Value,  // decimal — no floating-point surprises
+        StringLiteral    s    => s.Value,
+        VariableReference r   => _env.TryGetValue(r.Name, out var val)
+                                     ? val
+                                     : throw new RuntimeException($"'{r.Name}' is not defined."),
+        UnaryExpression  u    => EvaluateUnary(u),
+        BinaryExpression b    => EvaluateBinary(b),
+        SeriesLiteral    sl   => (object)sl.Elements.Select(Evaluate).ToList(),
+        SeriesAccess     sa   => EvaluateSeriesAccess(sa),
+        SeriesLength     sl   => (decimal)ExpectSeries(sl.SeriesName).Count,
+        CastExpression   cast => ExecuteCall(cast.FunctionName, cast.Args, cast.Line)
+                                     ?? throw new RuntimeException(
+                                         $"'{cast.FunctionName}' gives nothing back — it can't be used as a value."),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
+
+    // Executes a function call and returns the return value (null for void).
+    // Manages call depth, argument evaluation, and scope isolation.
+    private object? ExecuteCall(string name, IReadOnlyList<IExpression> args, int line)
+    {
+        if (!_env.TryGetValue(name, out var val))
+            throw new RuntimeException($"'{name}' is not defined.");
+        if (val is not FunctionValue func)
+            throw new RuntimeException($"'{name}' is not a function.");
+        if (args.Count != func.ParameterNames.Count)
+            throw new RuntimeException(
+                $"'{name}' expects {func.ParameterNames.Count} argument(s), got {args.Count}.");
+
+        _callDepth++;
+        if (_callDepth > MaxCallDepth)
+        {
+            _callDepth--;
+            throw new RuntimeException(
+                $"'{name}' called itself too many times — is it missing a base case, or a case that stops the recursion?");
+        }
+
+        // Evaluate args in caller scope before altering env.
+        var argValues = args.Select(Evaluate).ToList();
+
+        // Save all non-function bindings (globals, caller locals).
+        // Function values stay in _env so callees can call other functions.
+        var snapshot = _env
+            .Where(kv => kv.Value is not FunctionValue)
+            .ToDictionary(kv => kv.Key, kv => kv.Value);
+        foreach (var key in snapshot.Keys) _env.Remove(key);
+
+        // Bind parameters.
+        for (int i = 0; i < func.ParameterNames.Count; i++)
+            _env[func.ParameterNames[i]] = argValues[i];
+
+        object? returnValue = null;
+        try
+        {
+            foreach (var stmt in func.Body)
+                Execute(stmt);
+        }
+        catch (ReturnException re)
+        {
+            returnValue = re.Value;
+        }
+        finally
+        {
+            // Restore caller env: remove all function-local bindings, restore snapshot.
+            var localKeys = _env.Keys.Where(k => _env[k] is not FunctionValue).ToList();
+            foreach (var key in localKeys) _env.Remove(key);
+            foreach (var (k, v) in snapshot) _env[k] = v;
+            _callDepth--;
+        }
+
+        return returnValue;
+    }
 
     private object EvaluateSeriesAccess(SeriesAccess sa)
     {

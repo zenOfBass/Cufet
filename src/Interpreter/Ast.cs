@@ -77,4 +77,35 @@ public sealed record ForEachStatement(
     int Line
 ) : IStatement;
 
+// Bind <ReturnType|void> to <Name>[, given (<Type Name>, ...)]:
+//   ...body...
+// Done.
+// ReturnType == null means void.
+public sealed record BindStatement(
+    string Name,
+    CufetType? ReturnType,
+    IReadOnlyList<(CufetType Type, string Name)> Parameters,
+    IReadOnlyList<IStatement> Body,
+    int Line
+) : IStatement;
+
+// Cast <FunctionName> on (<args>) — or Cast <FunctionName> with no args.
+// As expression: value is the return value of the function.
+public sealed record CastExpression(
+    string FunctionName,
+    IReadOnlyList<IExpression> Args,
+    int Line
+) : IExpression;
+
+// Cast as a statement (void call, or discarded return value).
+public sealed record CastStatement(
+    string FunctionName,
+    IReadOnlyList<IExpression> Args,
+    int Line
+) : IStatement;
+
+// return <value>.  or  return.  (bare, for void early exit)
+// Value == null means bare return.
+public sealed record ReturnStatement(IExpression? Value, int Line) : IStatement;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);
