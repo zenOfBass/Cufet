@@ -551,38 +551,38 @@ public class InterpreterTests
     [Fact]
     public void DefineAndStateSeries()
     {
-        Assert.Equal("(90, 85, 70)", Run("Define scores as a series (90, 85, 70). State scores."));
+        Assert.Equal("(90, 85, 70)", Run("Define scores as a series with (90, 85, 70). State scores."));
     }
 
     [Fact]
     public void SeriesSingleElement()
     {
-        Assert.Equal("(42)", Run("Define s as a series (42). State s."));
+        Assert.Equal("(42)", Run("Define s as a series with (42). State s."));
     }
 
     [Fact]
     public void SeriesEmpty()
     {
-        Assert.Equal("()", Run("Define s as a series of numbers (). State s."));
+        Assert.Equal("()", Run("Define s as a series of numbers with (). State s."));
     }
 
     [Fact]
     public void SeriesWithExpressions()
     {
-        Assert.Equal("(3, 12)", Run("Define s as a series (1 + 2, 3 * 4). State s."));
+        Assert.Equal("(3, 12)", Run("Define s as a series with (1 + 2, 3 * 4). State s."));
     }
 
     [Fact]
     public void SeriesWithVariables()
     {
-        Assert.Equal("(5, 6)", Run("Define x as 5. Define s as a series (x, x + 1). State s."));
+        Assert.Equal("(5, 6)", Run("Define x as 5. Define s as a series with (x, x + 1). State s."));
     }
 
     [Fact]
     public void SeriesNoArticle()
     {
         // "a" before series is an Article (noise) — omitting it is valid
-        Assert.Equal("(1, 2, 3)", Run("Define s as series (1, 2, 3). State s."));
+        Assert.Equal("(1, 2, 3)", Run("Define s as series with (1, 2, 3). State s."));
     }
 
     [Fact]
@@ -597,43 +597,43 @@ public class InterpreterTests
     [Fact]
     public void SeriesAccessFirst()
     {
-        Assert.Equal("10", Run("Define s as a series (10, 20, 30). State the first of s."));
+        Assert.Equal("10", Run("Define s as a series with (10, 20, 30). State the first of s."));
     }
 
     [Fact]
     public void SeriesAccessSecond()
     {
-        Assert.Equal("20", Run("Define s as a series (10, 20, 30). State the second of s."));
+        Assert.Equal("20", Run("Define s as a series with (10, 20, 30). State the second of s."));
     }
 
     [Fact]
     public void SeriesAccessLast()
     {
-        Assert.Equal("30", Run("Define s as a series (10, 20, 30). State the last of s."));
+        Assert.Equal("30", Run("Define s as a series with (10, 20, 30). State the last of s."));
     }
 
     [Fact]
     public void SeriesAccessParametric()
     {
-        Assert.Equal("20", Run("Define s as a series (10, 20, 30). State item 2 of s."));
+        Assert.Equal("20", Run("Define s as a series with (10, 20, 30). State item 2 of s."));
     }
 
     [Fact]
     public void SeriesAccessParametricVariable()
     {
-        Assert.Equal("30", Run("Define s as a series (10, 20, 30). Define n as 3. State item n of s."));
+        Assert.Equal("30", Run("Define s as a series with (10, 20, 30). Define n as 3. State item n of s."));
     }
 
     [Fact]
     public void SeriesAccessParametricExpression()
     {
-        Assert.Equal("20", Run("Define s as a series (10, 20, 30). State item 1 + 1 of s."));
+        Assert.Equal("20", Run("Define s as a series with (10, 20, 30). State item 1 + 1 of s."));
     }
 
     [Fact]
     public void SeriesAccessOutOfBoundsThrows()
     {
-        Assert.Throws<RuntimeException>(() => Run("Define s as a series (10, 20). State item 5 of s."));
+        Assert.Throws<RuntimeException>(() => Run("Define s as a series with (10, 20). State item 5 of s."));
     }
 
     // ── Series length ─────────────────────────────────────────────────────
@@ -641,13 +641,13 @@ public class InterpreterTests
     [Fact]
     public void SeriesLength()
     {
-        Assert.Equal("3", Run("Define s as a series (10, 20, 30). State the number of s."));
+        Assert.Equal("3", Run("Define s as a series with (10, 20, 30). State the number of s."));
     }
 
     [Fact]
     public void SeriesLengthEmpty()
     {
-        Assert.Equal("0", Run("Define s as a series of numbers (). State the number of s."));
+        Assert.Equal("0", Run("Define s as a series of numbers with (). State the number of s."));
     }
 
     [Fact]
@@ -655,7 +655,7 @@ public class InterpreterTests
     {
         // Iterates over a series using a while loop driven by its length.
         Assert.Equal("10\n20\n30", Run(
-            "Define s as a series (10, 20, 30). " +
+            "Define s as a series with (10, 20, 30). " +
             "Define i as 0. " +
             "While i is less than the number of s, repeat: " +
             "i becomes i + 1. State item i of s. " +
@@ -668,7 +668,7 @@ public class InterpreterTests
     public void SeriesAddAppend()
     {
         Assert.Equal("4", Run(
-            "Define s as a series (1, 2, 3). " +
+            "Define s as a series with (1, 2, 3). " +
             "Add 4 to s. " +
             "State the number of s. State the last of s.").Split('\n')[0]);
     }
@@ -677,7 +677,7 @@ public class InterpreterTests
     public void SeriesAddToStart()
     {
         Assert.Equal("0", Run(
-            "Define s as a series (1, 2, 3). " +
+            "Define s as a series with (1, 2, 3). " +
             "Add 0 to the start of s. " +
             "State the first of s."));
     }
@@ -687,7 +687,7 @@ public class InterpreterTests
     {
         // Insert 99 after position 2 → (10, 20, 99, 30)
         Assert.Equal("10\n20\n99\n30", Run(
-            "Define s as a series (10, 20, 30). " +
+            "Define s as a series with (10, 20, 30). " +
             "Add 99 after the second item of s. " +
             "State item 1 of s. State item 2 of s. State item 3 of s. State item 4 of s."));
     }
@@ -696,7 +696,7 @@ public class InterpreterTests
     public void SeriesAddAfterParametric()
     {
         Assert.Equal("10\n99\n20\n30", Run(
-            "Define s as a series (10, 20, 30). " +
+            "Define s as a series with (10, 20, 30). " +
             "Define n as 1. " +
             "Add 99 after item n of s. " +
             "State item 1 of s. State item 2 of s. State item 3 of s. State item 4 of s."));
@@ -709,7 +709,7 @@ public class InterpreterTests
     {
         // Remove first item → (20, 30)
         Assert.Equal("2\n20", Run(
-            "Define s as a series (10, 20, 30). " +
+            "Define s as a series with (10, 20, 30). " +
             "Remove the first item from s. " +
             "State the number of s. State the first of s."));
     }
@@ -719,7 +719,7 @@ public class InterpreterTests
     {
         // Remove item 2 → (10, 30)
         Assert.Equal("10\n30", Run(
-            "Define s as a series (10, 20, 30). " +
+            "Define s as a series with (10, 20, 30). " +
             "Remove item 2 from s. " +
             "State item 1 of s. State item 2 of s."));
     }
@@ -729,7 +729,7 @@ public class InterpreterTests
     {
         // Remove first occurrence of 20 → (10, 30)
         Assert.Equal("2", Run(
-            "Define s as a series (10, 20, 30). " +
+            "Define s as a series with (10, 20, 30). " +
             "Remove 20 from s. " +
             "State the number of s."));
     }
@@ -738,7 +738,7 @@ public class InterpreterTests
     public void SeriesRemoveByValueNotFoundThrows()
     {
         Assert.Throws<RuntimeException>(() => Run(
-            "Define s as a series (10, 20, 30). Remove 99 from s."));
+            "Define s as a series with (10, 20, 30). Remove 99 from s."));
     }
 
     // ── Series element assignment ─────────────────────────────────────────
@@ -747,7 +747,7 @@ public class InterpreterTests
     public void SeriesSetByOrdinal()
     {
         Assert.Equal("99", Run(
-            "Define s as a series (10, 20, 30). " +
+            "Define s as a series with (10, 20, 30). " +
             "the second of s becomes 99. " +
             "State item 2 of s."));
     }
@@ -756,7 +756,7 @@ public class InterpreterTests
     public void SeriesSetByParametric()
     {
         Assert.Equal("99", Run(
-            "Define s as a series (10, 20, 30). " +
+            "Define s as a series with (10, 20, 30). " +
             "Define n as 3. " +
             "item n of s becomes 99. " +
             "State the last of s."));
@@ -766,7 +766,7 @@ public class InterpreterTests
     public void SeriesSetLast()
     {
         Assert.Equal("99", Run(
-            "Define s as a series (10, 20, 30). " +
+            "Define s as a series with (10, 20, 30). " +
             "the last of s becomes 99. " +
             "State item 3 of s."));
     }
@@ -775,7 +775,7 @@ public class InterpreterTests
     public void SeriesSetOutOfBoundsThrows()
     {
         Assert.Throws<RuntimeException>(() => Run(
-            "Define s as a series (10, 20). item 5 of s becomes 99."));
+            "Define s as a series with (10, 20). item 5 of s becomes 99."));
     }
 
     [Fact]
@@ -791,7 +791,7 @@ public class InterpreterTests
     public void ForEachNamedIterator()
     {
         Assert.Equal("10\n20\n30", Run(
-            "Define s as a series (10, 20, 30).\n" +
+            "Define s as a series with (10, 20, 30).\n" +
             "For each x in s, repeat:\n" +
             "    State x.\n" +
             "Done."));
@@ -801,7 +801,7 @@ public class InterpreterTests
     public void ForEachBareIt()
     {
         Assert.Equal("1\n2\n3", Run(
-            "Define s as a series (1, 2, 3).\n" +
+            "Define s as a series with (1, 2, 3).\n" +
             "For each in s, repeat:\n" +
             "    State it.\n" +
             "Done."));
@@ -812,7 +812,7 @@ public class InterpreterTests
     {
         // "the" before series name is noise and must be skipped
         Assert.Equal("5\n6", Run(
-            "Define nums as a series (5, 6).\n" +
+            "Define nums as a series with (5, 6).\n" +
             "For each n in the nums, repeat:\n" +
             "    State n.\n" +
             "Done."));
@@ -822,7 +822,7 @@ public class InterpreterTests
     public void ForEachEmptySeriesRunsZeroTimes()
     {
         Assert.Equal("done", Run(
-            "Define s as a series of numbers ().\n" +
+            "Define s as a series of numbers with ().\n" +
             "For each x in s, repeat:\n" +
             "    State x.\n" +
             "Done.\n" +
@@ -833,7 +833,7 @@ public class InterpreterTests
     public void ForEachSingleElement()
     {
         Assert.Equal("42", Run(
-            "Define s as a series (42).\n" +
+            "Define s as a series with (42).\n" +
             "For each x in s, repeat:\n" +
             "    State x.\n" +
             "Done."));
@@ -843,7 +843,7 @@ public class InterpreterTests
     public void ForEachStopBreaksLoop()
     {
         Assert.Equal("1\n2", Run(
-            "Define s as a series (1, 2, 3, 4).\n" +
+            "Define s as a series with (1, 2, 3, 4).\n" +
             "For each x in s, repeat:\n" +
             "    If x is 3, Stop.\n" +
             "    State x.\n" +
@@ -854,7 +854,7 @@ public class InterpreterTests
     public void ForEachSkipSkipsIteration()
     {
         Assert.Equal("1\n3", Run(
-            "Define s as a series (1, 2, 3).\n" +
+            "Define s as a series with (1, 2, 3).\n" +
             "For each x in s, repeat:\n" +
             "    If x is 2, Skip.\n" +
             "    State x.\n" +
@@ -865,7 +865,7 @@ public class InterpreterTests
     public void ForEachComputesSum()
     {
         Assert.Equal("336", Run(
-            "Define scores as a series (92, 85, 71, 88).\n" +
+            "Define scores as a series with (92, 85, 71, 88).\n" +
             "Define total as 0.\n" +
             "For each score in scores, repeat:\n" +
             "    total becomes total + score.\n" +
@@ -879,7 +879,7 @@ public class InterpreterTests
         // x exists before the loop; loop uses x as iterator; x is restored to 99 after
         Assert.Equal("99\n1\n2\n3\n99", Run(
             "Define x as 99.\n" +
-            "Define loop-vals as a series (1, 2, 3).\n" +
+            "Define loop-vals as a series with (1, 2, 3).\n" +
             "State x.\n" +
             "For each x in loop-vals, repeat:\n" +
             "    State x.\n" +
@@ -892,7 +892,7 @@ public class InterpreterTests
     {
         // Bare-it loop; "it" was not defined before; after loop it is removed
         Assert.Throws<RuntimeException>(() => Run(
-            "Define s as a series (1, 2).\n" +
+            "Define s as a series with (1, 2).\n" +
             "For each in s, repeat:\n" +
             "    State it.\n" +
             "Done.\n" +
@@ -905,8 +905,8 @@ public class InterpreterTests
         // Nested named loops; each State is its own line
         // outer (1,2) × inner (10,100): 1+10=11, 1+100=101, 2+10=12, 2+100=102
         Assert.Equal("11\n101\n12\n102", Run(
-            "Define outer as a series (1, 2).\n" +
-            "Define inner as a series (10, 100).\n" +
+            "Define outer as a series with (1, 2).\n" +
+            "Define inner as a series with (10, 100).\n" +
             "For each x in outer, repeat:\n" +
             "    For each y in inner, repeat:\n" +
             "        State x + y.\n" +
@@ -923,8 +923,8 @@ public class InterpreterTests
         //   pass 1: state it=1, inner prints 10,20, state it=1 again
         //   pass 2: state it=2, inner prints 10,20, state it=2 again
         Assert.Equal("1\n10\n20\n1\n2\n10\n20\n2", Run(
-            "Define outer-s as a series (1, 2).\n" +
-            "Define inner-s as a series (10, 20).\n" +
+            "Define outer-s as a series with (1, 2).\n" +
+            "Define inner-s as a series with (10, 20).\n" +
             "For each in outer-s, repeat:\n" +
             "    State it.\n" +
             "    For each in inner-s, repeat:\n" +
@@ -938,7 +938,7 @@ public class InterpreterTests
     public void ForEachMutationDuringLoopThrows()
     {
         Assert.Throws<RuntimeException>(() => Run(
-            "Define s as a series (1, 2, 3).\n" +
+            "Define s as a series with (1, 2, 3).\n" +
             "For each x in s, repeat:\n" +
             "    Add 99 to s.\n" +
             "Done."));
@@ -948,7 +948,7 @@ public class InterpreterTests
     public void ForEachRemoveDuringLoopThrows()
     {
         Assert.Throws<RuntimeException>(() => Run(
-            "Define s as a series (1, 2, 3).\n" +
+            "Define s as a series with (1, 2, 3).\n" +
             "For each x in s, repeat:\n" +
             "    Remove the first item from s.\n" +
             "Done."));
@@ -959,7 +959,7 @@ public class InterpreterTests
     {
         // series name can be a freshly-defined variable; also testing article in "in the"
         Assert.Equal("a\nb\nc", Run(
-            "Define letters as a series (\"a\", \"b\", \"c\").\n" +
+            "Define letters as a series with (\"a\", \"b\", \"c\").\n" +
             "For each ch in the letters, repeat:\n" +
             "    State ch.\n" +
             "Done."));
@@ -1037,7 +1037,7 @@ public class InterpreterTests
     {
         // total is Number; becomes "wrong" inside the loop is a type error
         Assert.Throws<TypeException>(() => Run(
-            "Define s as a series (1, 2, 3).\n" +
+            "Define s as a series with (1, 2, 3).\n" +
             "Define total as 0.\n" +
             "For each x in s, repeat:\n" +
             "    total becomes \"wrong\".\n" +
@@ -1050,7 +1050,7 @@ public class InterpreterTests
         // Stage 3: series element access resolves to the element type (Number here).
         // x is typed as Number, so becoming "hello" is a TypeException.
         Assert.Throws<TypeException>(() => Run(
-            "Define s as a series (1, 2, 3). " +
+            "Define s as a series with (1, 2, 3). " +
             "Define x as item 1 of s. " +
             "x becomes \"hello\". " +
             "State x."));
@@ -1062,7 +1062,7 @@ public class InterpreterTests
         // Stage 3: iterator is typed as the series element type (Number).
         // total + score is Number + Number = Number; total becomes Number — types match fully.
         Assert.Equal("336", Run(
-            "Define scores as a series (92, 85, 71, 88).\n" +
+            "Define scores as a series with (92, 85, 71, 88).\n" +
             "Define total as 0.\n" +
             "For each score in scores, repeat:\n" +
             "    total becomes total + score.\n" +
@@ -1172,7 +1172,7 @@ public class InterpreterTests
     {
         // Stage 3: item 1 of s resolves to Number; unary minus on Number → Number. No type error.
         Assert.Equal("-5", Run(
-            "Define s as a series (5, 10, 15).\n" +
+            "Define s as a series with (5, 10, 15).\n" +
             "Define neg as -(item 1 of s).\n" +
             "State neg."));
     }
@@ -1200,7 +1200,7 @@ public class InterpreterTests
     {
         // Populated number series → scores is series of number; access resolves to number.
         Assert.Equal("90", Run(
-            "Define scores as a series (90, 85, 70).\n" +
+            "Define scores as a series with (90, 85, 70).\n" +
             "Define top as the first of scores.\n" +
             "State top."));
     }
@@ -1210,7 +1210,7 @@ public class InterpreterTests
     {
         // Populated text series → words is series of text; access resolves to text.
         Assert.Equal("hello", Run(
-            "Define words as a series (\"hello\", \"world\").\n" +
+            "Define words as a series with (\"hello\", \"world\").\n" +
             "Define first-word as the first of words.\n" +
             "State first-word."));
     }
@@ -1218,32 +1218,32 @@ public class InterpreterTests
     [Fact]
     public void TypeCheckerSeriesMixedElementsThrows()
     {
-        Assert.Throws<TypeException>(() => Run("Define s as a series (1, \"two\", 3)."));
+        Assert.Throws<TypeException>(() => Run("Define s as a series with (1, \"two\", 3)."));
     }
 
     [Fact]
     public void TypeCheckerEmptySeriesWithAnnotationPasses()
     {
-        Assert.Equal("()", Run("Define s as a series of numbers (). State s."));
+        Assert.Equal("()", Run("Define s as a series of numbers with (). State s."));
     }
 
     [Fact]
     public void TypeCheckerEmptySeriesWithoutAnnotationThrows()
     {
-        Assert.Throws<TypeException>(() => Run("Define s as a series (). State s."));
+        Assert.Throws<TypeException>(() => Run("Define s as a series with (). State s."));
     }
 
     [Fact]
     public void TypeCheckerAnnotatedSeriesMatchesPasses()
     {
         // Redundant annotation is allowed when it agrees with the elements.
-        Assert.Equal("(90, 85)", Run("Define s as a series of numbers (90, 85). State s."));
+        Assert.Equal("(90, 85)", Run("Define s as a series of numbers with (90, 85). State s."));
     }
 
     [Fact]
     public void TypeCheckerAnnotatedSeriesMismatchThrows()
     {
-        Assert.Throws<TypeException>(() => Run("Define s as a series of numbers (90, \"hi\")."));
+        Assert.Throws<TypeException>(() => Run("Define s as a series of numbers with (90, \"hi\")."));
     }
 
     [Fact]
@@ -1252,7 +1252,7 @@ public class InterpreterTests
         // After Stage 3, accessing a number series element types the derived variable as Number.
         // Assigning "wrong" to it is a TypeException.
         Assert.Throws<TypeException>(() => Run(
-            "Define s as a series (10, 20, 30).\n" +
+            "Define s as a series with (10, 20, 30).\n" +
             "Define x as item 2 of s.\n" +
             "x becomes \"wrong\"."));
     }
@@ -1261,7 +1261,7 @@ public class InterpreterTests
     public void TypeCheckerSeriesAddTypeMismatchThrows()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Define s as a series (1, 2, 3).\n" +
+            "Define s as a series with (1, 2, 3).\n" +
             "Add \"text\" to s."));
     }
 
@@ -1269,7 +1269,7 @@ public class InterpreterTests
     public void TypeCheckerSeriesAddTypePasses()
     {
         Assert.Equal("4", Run(
-            "Define s as a series (1, 2, 3).\n" +
+            "Define s as a series with (1, 2, 3).\n" +
             "Add 99 to s.\n" +
             "State the number of s."));
     }
@@ -1278,7 +1278,7 @@ public class InterpreterTests
     public void TypeCheckerSeriesRemoveValueTypeMismatchThrows()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Define s as a series (1, 2, 3).\n" +
+            "Define s as a series with (1, 2, 3).\n" +
             "Remove \"text\" from s."));
     }
 
@@ -1286,7 +1286,7 @@ public class InterpreterTests
     public void TypeCheckerSeriesSetTypeMismatchThrows()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Define s as a series (1, 2, 3).\n" +
+            "Define s as a series with (1, 2, 3).\n" +
             "the first of s becomes \"text\"."));
     }
 
@@ -1294,7 +1294,7 @@ public class InterpreterTests
     public void TypeCheckerSeriesSetTypePasses()
     {
         Assert.Equal("99", Run(
-            "Define s as a series (1, 2, 3).\n" +
+            "Define s as a series with (1, 2, 3).\n" +
             "the first of s becomes 99.\n" +
             "State the first of s."));
     }
@@ -1303,7 +1303,7 @@ public class InterpreterTests
     public void TypeCheckerNonWholeNumberIndexThrows()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Define s as a series (10, 20, 30).\n" +
+            "Define s as a series with (10, 20, 30).\n" +
             "State item 2.5 of s."));
     }
 
@@ -1312,7 +1312,7 @@ public class InterpreterTests
     {
         // the number of s resolves to Number; can be assigned to a number variable.
         Assert.Equal("0", Run(
-            "Define s as a series (1, 2, 3).\n" +
+            "Define s as a series with (1, 2, 3).\n" +
             "Define len as the number of s.\n" +
             "len becomes 0.\n" +
             "State len."));
@@ -1323,7 +1323,7 @@ public class InterpreterTests
     {
         // Iterator over a text series is typed Text; arithmetic on it should throw.
         Assert.Throws<TypeException>(() => Run(
-            "Define words as a series (\"a\", \"b\").\n" +
+            "Define words as a series with (\"a\", \"b\").\n" +
             "Define total as 0.\n" +
             "For each w in words, repeat:\n" +
             "    total becomes total + w.\n" +
@@ -1333,7 +1333,7 @@ public class InterpreterTests
     [Fact]
     public void TypeCheckerSeriesMixedErrorContainsTypes()
     {
-        var ex = Assert.Throws<TypeException>(() => Run("Define s as a series (1, \"two\")."));
+        var ex = Assert.Throws<TypeException>(() => Run("Define s as a series with (1, \"two\")."));
         Assert.Contains("number", ex.Message);
         Assert.Contains("text", ex.Message);
     }

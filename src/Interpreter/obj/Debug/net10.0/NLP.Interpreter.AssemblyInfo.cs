@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NLP.Interpreter")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+dfabdb85504298bf97bdcfee05430c717927ecd9")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d20fc0fc74e50352e690d0c61f33871a8ecbe258")]
 [assembly: System.Reflection.AssemblyProductAttribute("NLP.Interpreter")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NLP.Interpreter")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

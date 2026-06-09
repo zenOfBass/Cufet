@@ -89,6 +89,7 @@ public sealed class Parser
             SkipNoise();
         }
 
+        Consume(TokenType.With); SkipNoise();
         Consume(TokenType.LParen);
         var elements = new List<IExpression>();
         SkipNoise();

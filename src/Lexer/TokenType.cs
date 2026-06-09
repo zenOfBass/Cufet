@@ -48,6 +48,7 @@ public enum TokenType
 
     // ── Collections — literal ─────────────────────────────────────────────
     Series,   // "series" — signals a series literal after "as [article] series"
+    With,     // "with"   — delimits element-type annotation from contents: "series [of T] with (...)"
 
     // ── Collections — for-each ────────────────────────────────────────────
     For,      // "for"

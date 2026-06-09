@@ -103,6 +103,7 @@ public sealed class Lexer
             "stop"      => TokenType.Stop,
             "skip"      => TokenType.Skip,
             "series"    => TokenType.Series,
+            "with"      => TokenType.With,
             "for"       => TokenType.For,
             "each"      => TokenType.Each,
             "in"        => TokenType.In,
