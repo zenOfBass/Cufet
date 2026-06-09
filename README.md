@@ -351,6 +351,6 @@ tests/
 
 ---
 
-*Built in C# / .NET 10. Named for the Muskogee trickster rabbit who—like all good languages—promises to make something very powerful feel surprisingly natural.*
+*Built in C# / .NET 10. Named for the Muskogee trickster, rabbit who—like all good languages—promises to make something very powerful feel surprisingly natural.*
 
 
