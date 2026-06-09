@@ -716,15 +716,24 @@ public sealed class Parser
         return new BindStatement(name, returnType, parameters, body, bindTok.Line);
     }
 
-    // null return → void
+    // null return → void (this function returns nothing)
+    // FunctionType return → this function returns a function
     private CufetType? ParseReturnType()
     {
         if (Peek().Type == TokenType.Void)
         {
-            Advance();
-            return null;
+            Advance(); SkipNoise();
+            if (Peek().Type != TokenType.FunctionKw)
+                return null; // bare void — this function returns nothing
+            Advance(); SkipNoise(); // consume 'function'
+            return new FunctionType(ParseFunctionParamTypeList(), null);
         }
-        return ParseTypeAnnotation();
+        var baseType = ParseTypeAnnotation();
+        SkipNoise();
+        if (Peek().Type != TokenType.FunctionKw)
+            return baseType;
+        Advance(); SkipNoise(); // consume 'function'
+        return new FunctionType(ParseFunctionParamTypeList(), baseType);
     }
 
     // Parses a named parameter in a Bind declaration:

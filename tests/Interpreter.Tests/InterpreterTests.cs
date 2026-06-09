@@ -1864,4 +1864,113 @@ public class InterpreterTests
             "Done.\n" +
             "Cast run-action on (\"done\", print-it)."));
     }
+
+    // ── Functions as values — slice 3: functions as return values ─────────
+
+    [Fact]
+    public void FunctionAsReturnValue_Basic()
+    {
+        // get-doubler returns a top-level function by name; result is called on 5.
+        Assert.Equal("10", Run(
+            "Bind number to double, given (the number x):\n" +
+            "    return x * 2.\n" +
+            "Done.\n" +
+            "Bind number function given (the number) to get-doubler:\n" +
+            "    return double.\n" +
+            "Done.\n" +
+            "Define op as Cast get-doubler on ().\n" +
+            "State Cast op on (5)."));
+    }
+
+    [Fact]
+    public void FunctionAsReturnValue_TwoGivenCase()
+    {
+        // Two 'given' clauses in one Bind: first is the returned function's signature,
+        // second is this function's own parameter list.
+        Assert.Equal("6", Run(
+            "Bind number to double, given (the number n):\n" +
+            "    return n * 2.\n" +
+            "Done.\n" +
+            "Bind number function given (the number) to make-fn, given (the number x):\n" +
+            "    return double.\n" +
+            "Done.\n" +
+            "Define fn as Cast make-fn on (3).\n" +
+            "State Cast fn on (3)."));
+    }
+
+    [Fact]
+    public void FunctionAsReturnValue_NoParamReturnedFunction()
+    {
+        // Returning a zero-param function: 'number function' with no 'given'.
+        Assert.Equal("10", Run(
+            "Bind number to get-ten:\n" +
+            "    return 10.\n" +
+            "Done.\n" +
+            "Bind number function to make-getter:\n" +
+            "    return get-ten.\n" +
+            "Done.\n" +
+            "Define getter as Cast make-getter on ().\n" +
+            "State Cast getter on ()."));
+    }
+
+    [Fact]
+    public void FunctionAsReturnValue_VoidReturnedFunction()
+    {
+        // Returning a void-returning function.
+        Assert.Equal("hello", Run(
+            "Bind void to announce, given (the text s):\n" +
+            "    State s.\n" +
+            "Done.\n" +
+            "Bind void function given (the text) to get-printer:\n" +
+            "    return announce.\n" +
+            "Done.\n" +
+            "Define printer as Cast get-printer on ().\n" +
+            "Cast printer on (\"hello\")."));
+    }
+
+    [Fact]
+    public void FunctionAsReturnValue_ReturnedFunctionPassedAsArgument()
+    {
+        // Returned function stored in a variable and then passed to a higher-order function.
+        Assert.Equal("10", Run(
+            "Bind number to double, given (the number x):\n" +
+            "    return x * 2.\n" +
+            "Done.\n" +
+            "Bind number function given (the number) to get-double:\n" +
+            "    return double.\n" +
+            "Done.\n" +
+            "Bind number to apply, given (the number n, the number function f given (the number)):\n" +
+            "    return Cast f on (n).\n" +
+            "Done.\n" +
+            "Define fn as Cast get-double on ().\n" +
+            "State Cast apply on (5, fn)."));
+    }
+
+    [Fact]
+    public void FunctionAsReturnValue_SignatureMismatchTypeError()
+    {
+        // Returning a 'text function given (text)' where 'number function given (number)' is expected.
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Bind text to fmt, given (the text s):\n" +
+            "    return s.\n" +
+            "Done.\n" +
+            "Bind number function given (the number) to get-fn:\n" +
+            "    return fmt.\n" +
+            "Done."));
+        Assert.Contains("number function", ex.Message);
+        Assert.Contains("text function", ex.Message);
+    }
+
+    [Fact]
+    public void FunctionAsReturnValue_MissingReturnChecked()
+    {
+        // A function with a function return type still needs a definite return on every path.
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number to double, given (the number x):\n" +
+            "    return x * 2.\n" +
+            "Done.\n" +
+            "Bind number function given (the number) to get-fn, given (the number flag):\n" +
+            "    If flag is greater than 0, return double.\n" +
+            "Done."));
+    }
 }
