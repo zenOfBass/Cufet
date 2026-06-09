@@ -83,29 +83,44 @@ public sealed class Parser
         CufetType? annotation = null;
         if (Peek().Type == TokenType.Of)
         {
-            Advance(); // consume "of"
-            SkipNoise();
-            annotation = ParseTypeAnnotation();
+            Advance(); SkipNoise(); // consume "of"
+            if (Peek().Type == TokenType.Void)
+            {
+                Advance(); SkipNoise(); // consume 'void'
+                Consume(TokenType.FunctionKw); SkipNoise();
+                annotation = new FunctionType(ParseFunctionParamTypeList(), null);
+            }
+            else
+            {
+                annotation = ParseTypeAnnotation();
+                SkipNoise();
+                if (Peek().Type == TokenType.FunctionKw)
+                {
+                    Advance(); SkipNoise(); // consume 'function'
+                    annotation = new FunctionType(ParseFunctionParamTypeList(), annotation);
+                }
+            }
             SkipNoise();
         }
 
-        Consume(TokenType.With); SkipNoise();
-        Consume(TokenType.LParen);
         var elements = new List<IExpression>();
-        SkipNoise();
-        if (Peek().Type != TokenType.RParen)
+        if (Peek().Type == TokenType.With)
         {
-            elements.Add(ParseExpression());
-            SkipNoise();
-            while (Peek().Type == TokenType.Comma)
+            Advance(); SkipNoise(); // consume 'with'
+            Consume(TokenType.LParen); SkipNoise();
+            if (Peek().Type != TokenType.RParen)
             {
-                Advance();
-                SkipNoise();
                 elements.Add(ParseExpression());
                 SkipNoise();
+                while (Peek().Type == TokenType.Comma)
+                {
+                    Advance(); SkipNoise();
+                    elements.Add(ParseExpression());
+                    SkipNoise();
+                }
             }
+            Consume(TokenType.RParen);
         }
-        Consume(TokenType.RParen);
         return new SeriesLiteral(elements, annotation, seriesTok.Line);
     }
 

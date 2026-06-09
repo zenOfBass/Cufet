@@ -1973,4 +1973,77 @@ public class InterpreterTests
             "    If flag is greater than 0, return double.\n" +
             "Done."));
     }
+
+    // ── Functions as values — slice 4: series of functions ──────────────────
+
+    [Fact]
+    public void FunctionSeries_PopulatedAndAccess()
+    {
+        Assert.Equal("10", Run(
+            "Bind number to double, given (the number x): return x * 2. Done.\n" +
+            "Bind number to triple, given (the number x): return x * 3. Done.\n" +
+            "Define ops as a series of number function given (the number) with (double, triple).\n" +
+            "State Cast the first of ops on (5)."));
+    }
+
+    [Fact]
+    public void FunctionSeries_Empty()
+    {
+        Assert.Equal("0", Run(
+            "Bind number to double, given (the number x): return x * 2. Done.\n" +
+            "Define ops as a series of number function given (the number).\n" +
+            "State the number of ops."));
+    }
+
+    [Fact]
+    public void FunctionSeries_ForEachAndCast()
+    {
+        Assert.Equal("10\n15", Run(
+            "Bind number to double, given (the number x): return x * 2. Done.\n" +
+            "Bind number to triple, given (the number x): return x * 3. Done.\n" +
+            "Define ops as a series of number function given (the number) with (double, triple).\n" +
+            "For each op in ops, repeat: State Cast op on (5). Done."));
+    }
+
+    [Fact]
+    public void FunctionSeries_AddFunction()
+    {
+        Assert.Equal("2\n6", Run(
+            "Bind number to double, given (the number x): return x * 2. Done.\n" +
+            "Bind number to triple, given (the number x): return x * 3. Done.\n" +
+            "Define ops as a series of number function given (the number) with (double).\n" +
+            "Add triple to ops.\n" +
+            "State Cast the first of ops on (1).\n" +
+            "State Cast the second of ops on (2)."));
+    }
+
+    [Fact]
+    public void FunctionSeries_InferredFromElements()
+    {
+        Assert.Equal("10", Run(
+            "Bind number to double, given (the number x): return x * 2. Done.\n" +
+            "Define ops as a series with (double).\n" +
+            "State Cast the first of ops on (5)."));
+    }
+
+    [Fact]
+    public void FunctionSeries_ElementSignatureMismatch()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Bind number to double, given (the number x): return x * 2. Done.\n" +
+            "Bind text to shout, given (the text s): return s. Done.\n" +
+            "Define ops as a series of number function given (the number) with (double, shout)."));
+        Assert.Contains("number function", ex.Message);
+    }
+
+    [Fact]
+    public void FunctionSeries_AddWrongSignature()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Bind number to double, given (the number x): return x * 2. Done.\n" +
+            "Bind text to shout, given (the text s): return s. Done.\n" +
+            "Define ops as a series of number function given (the number) with (double).\n" +
+            "Add shout to ops."));
+        Assert.Contains("number function", ex.Message);
+    }
 }
