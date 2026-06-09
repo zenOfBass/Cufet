@@ -32,11 +32,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Interpreter\\Cufet.Interpreter.csproj",
+      "projectUniqueName": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\Cufet.Interpreter.csproj",
       "projectName": "Cufet.Interpreter",
-      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Interpreter\\Cufet.Interpreter.csproj",
+      "projectPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\Cufet.Interpreter.csproj",
       "packagesPath": "C:\\Users\\kick_\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Interpreter\\obj\\",
+      "outputPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\kick_\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -52,8 +52,8 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {
-            "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Lexer\\Cufet.Lexer.csproj": {
-              "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Lexer\\Cufet.Lexer.csproj"
+            "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj": {
+              "projectPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj"
             }
           }
         }

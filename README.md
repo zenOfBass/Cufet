@@ -24,10 +24,10 @@ State total.
 ```
 Bind number to factorial, given (the number n):
     If n is less than 2, return 1.
-    return n * Cast factorial on (n - 1).
+    return n * cast factorial on (n - 1).
 Done.
 
-State Cast factorial on (10).
+State cast factorial on (10).
 ```
 
 ```
@@ -37,7 +37,7 @@ Bind number to triple, given (the number x): return x * 3. Done.
 Define ops as a series of number function given (the number) with (double, triple).
 
 For each op in ops, repeat:
-    State Cast op on (5).
+    State cast op on (5).
 Done.
 ```
 
@@ -216,7 +216,7 @@ Done.
 
 **Calling:**
 ```
-State Cast add on (3, 4).          ← in expression position
+State cast add on (3, 4).          ← in expression position
 Cast greet on ("hello").           ← as a statement (void or discarded result)
 ```
 
@@ -231,7 +231,7 @@ return.          ← void early exit
 **Functions are first-class values:**
 ```
 Define op as add.
-State Cast op on (3, 4).           → 7
+State cast op on (3, 4).           → 7
 ```
 
 A function assigned to a variable carries its full type. The type checker catches calling the wrong signature through any alias.
@@ -239,12 +239,12 @@ A function assigned to a variable carries its full type. The type checker catche
 **Function-typed parameters:**
 ```
 Bind number to apply, given (the number x, the number function f given (the number)):
-    return Cast f on (x).
+    return cast f on (x).
 Done.
 
 Bind number to double, given (the number x): return x * 2. Done.
 
-State Cast apply on (5, double).   → 10
+State cast apply on (5, double).   → 10
 ```
 
 The parameter type `the number function f given (the number)` declares that `f` must be a function taking a number and returning a number. Passing the wrong signature is a static type error.
@@ -255,8 +255,8 @@ Bind number function given (the number) to get-doubler:
     return double.
 Done.
 
-Define fn as Cast get-doubler on ().
-State Cast fn on (5).              → 10
+Define fn as cast get-doubler on ().
+State cast fn on (5).              → 10
 ```
 
 The return type `number function given (the number)` declares that this function returns a function. Only top-level named functions can be returned — closures are not yet supported.
@@ -265,10 +265,10 @@ The return type `number function given (the number)` declares that this function
 ```
 Define ops as a series of number function given (the number) with (double, triple).
 
-State Cast the first of ops on (5).          → 10
+State cast the first of ops on (5).          → 10
 
 For each op in ops, repeat:
-    State Cast op on (5).
+    State cast op on (5).
 Done.
 ```
 
