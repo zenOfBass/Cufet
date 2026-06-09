@@ -426,14 +426,14 @@
           "build/netcoreapp3.1/xunit.runner.visualstudio.props": {}
         }
       },
-      "Cofet.Lexer/1.0.0": {
+      "Cufet.Lexer/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "compile": {
-          "bin/placeholder/Cofet.Lexer.dll": {}
+          "bin/placeholder/Cufet.Lexer.dll": {}
         },
         "runtime": {
-          "bin/placeholder/Cofet.Lexer.dll": {}
+          "bin/placeholder/Cufet.Lexer.dll": {}
         }
       }
     }
@@ -916,15 +916,15 @@
         "xunit.runner.visualstudio.nuspec"
       ]
     },
-    "Cofet.Lexer/1.0.0": {
+    "Cufet.Lexer/1.0.0": {
       "type": "project",
-      "path": "../../src/Lexer/Cofet.Lexer.csproj",
-      "msbuildProject": "../../src/Lexer/Cofet.Lexer.csproj"
+      "path": "../../src/Lexer/Cufet.Lexer.csproj",
+      "msbuildProject": "../../src/Lexer/Cufet.Lexer.csproj"
     }
   },
   "projectFileDependencyGroups": {
     "net10.0": [
-      "Cofet.Lexer >= 1.0.0",
+      "Cufet.Lexer >= 1.0.0",
       "Microsoft.NET.Test.Sdk >= 17.6.0",
       "xunit >= 2.4.2",
       "xunit.runner.visualstudio >= 2.4.5"
@@ -936,11 +936,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\tests\\Lexer.Tests\\Cofet.Lexer.Tests.csproj",
-      "projectName": "Cofet.Lexer.Tests",
-      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\tests\\Lexer.Tests\\Cofet.Lexer.Tests.csproj",
+      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\tests\\Lexer.Tests\\Cufet.Lexer.Tests.csproj",
+      "projectName": "Cufet.Lexer.Tests",
+      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\tests\\Lexer.Tests\\Cufet.Lexer.Tests.csproj",
       "packagesPath": "C:\\Users\\kick_\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\tests\\Lexer.Tests\\obj\\",
+      "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\tests\\Lexer.Tests\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\kick_\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -956,8 +956,8 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {
-            "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Lexer\\Cofet.Lexer.csproj": {
-              "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Lexer\\Cofet.Lexer.csproj"
+            "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Lexer\\Cufet.Lexer.csproj": {
+              "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Lexer\\Cufet.Lexer.csproj"
             }
           }
         }

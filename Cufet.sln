@@ -1,16 +1,16 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cofet.Lexer", "src\Lexer\Cofet.Lexer.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cufet.Lexer", "src\Lexer\Cufet.Lexer.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cofet.Interpreter", "src\Interpreter\Cofet.Interpreter.csproj", "{C3D4E5F6-A7B8-9012-CDEF-123456789012}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cufet.Interpreter", "src\Interpreter\Cufet.Interpreter.csproj", "{C3D4E5F6-A7B8-9012-CDEF-123456789012}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cofet.App", "src\App\Cofet.App.csproj", "{D4E5F6A7-B8C9-0123-DEF0-234567890123}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cufet.App", "src\App\Cufet.App.csproj", "{D4E5F6A7-B8C9-0123-DEF0-234567890123}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cofet.Lexer.Tests", "tests\Lexer.Tests\Cofet.Lexer.Tests.csproj", "{B2C3D4E5-F6A7-8901-BCDE-F12345678901}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cufet.Lexer.Tests", "tests\Lexer.Tests\Cufet.Lexer.Tests.csproj", "{B2C3D4E5-F6A7-8901-BCDE-F12345678901}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cofet.Interpreter.Tests", "tests\Interpreter.Tests\Cofet.Interpreter.Tests.csproj", "{E5F6A7B8-C9D0-1234-EF01-345678901234}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cufet.Interpreter.Tests", "tests\Interpreter.Tests\Cufet.Interpreter.Tests.csproj", "{E5F6A7B8-C9D0-1234-EF01-345678901234}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

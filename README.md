@@ -1,4 +1,4 @@
-# Cufet
+﻿# Cufet
 
 *From the Muskogee word for rabbit — the trickster who brings fire to mankind.*
 
@@ -318,13 +318,13 @@ Requires [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```
 # Run all tests
-dotnet test Cofet.sln
+dotnet test Cufet.sln
 
 # Run a Cufet program
-dotnet run --project src\App\Cofet.App.csproj -- myprogram.cufe
+dotnet run --project src\App\Cufet.App.csproj -- myprogram.cufe
 
 # Or pipe from stdin
-echo "State 1 + 1." | dotnet run --project src\App\Cofet.App.csproj
+echo "State 1 + 1." | dotnet run --project src\App\Cufet.App.csproj
 ```
 
 ---
@@ -333,9 +333,9 @@ echo "State 1 + 1." | dotnet run --project src\App\Cofet.App.csproj
 
 ```
 src/
-  Lexer/           Cofet.Lexer        — tokenizer
-  Interpreter/     Cofet.Interpreter  — AST, parser, type checker, tree-walking interpreter
-  App/             Cofet.App          — thin console entry point
+  Lexer/           Cufet.Lexer        — tokenizer
+  Interpreter/     Cufet.Interpreter  — AST, parser, type checker, tree-walking interpreter
+  App/             Cufet.App          — thin console entry point
 tests/
   Lexer.Tests/
   Interpreter.Tests/

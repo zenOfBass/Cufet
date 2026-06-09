@@ -1,7 +1,7 @@
-﻿using Cofet.Lexer;
+﻿using Cufet.Lexer;
 using Xunit;
 
-namespace Cofet.Lexer.Tests;
+namespace Cufet.Lexer.Tests;
 
 public class LexerTests
 {
@@ -262,7 +262,7 @@ public class LexerTests
     [Fact]
     public void StringWithDoubledQuoteEscape()
     {
-        // Cofet source: "say ""hi"""  →  decoded: say "hi"
+        // Cufet source: "say ""hi"""  →  decoded: say "hi"
         var tokens = LexTokens("\"say \"\"hi\"\"\"");
         Assert.Single(tokens);
         Assert.Equal("say \"hi\"", tokens[0].Lexeme);

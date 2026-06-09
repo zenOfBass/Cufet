@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Interpreter\Cofet.Interpreter.csproj" />
+    <ProjectReference Include="..\..\src\Interpreter\Cufet.Interpreter.csproj" />
   </ItemGroup>
 
 </Project>

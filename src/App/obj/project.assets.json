@@ -2,46 +2,46 @@
   "version": 4,
   "targets": {
     "net10.0": {
-      "Cofet.Interpreter/1.0.0": {
+      "Cufet.Interpreter/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "dependencies": {
-          "Cofet.Lexer": "1.0.0"
+          "Cufet.Lexer": "1.0.0"
         },
         "compile": {
-          "bin/placeholder/Cofet.Interpreter.dll": {}
+          "bin/placeholder/Cufet.Interpreter.dll": {}
         },
         "runtime": {
-          "bin/placeholder/Cofet.Interpreter.dll": {}
+          "bin/placeholder/Cufet.Interpreter.dll": {}
         }
       },
-      "Cofet.Lexer/1.0.0": {
+      "Cufet.Lexer/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "compile": {
-          "bin/placeholder/Cofet.Lexer.dll": {}
+          "bin/placeholder/Cufet.Lexer.dll": {}
         },
         "runtime": {
-          "bin/placeholder/Cofet.Lexer.dll": {}
+          "bin/placeholder/Cufet.Lexer.dll": {}
         }
       }
     }
   },
   "libraries": {
-    "Cofet.Interpreter/1.0.0": {
+    "Cufet.Interpreter/1.0.0": {
       "type": "project",
-      "path": "../Interpreter/Cofet.Interpreter.csproj",
-      "msbuildProject": "../Interpreter/Cofet.Interpreter.csproj"
+      "path": "../Interpreter/Cufet.Interpreter.csproj",
+      "msbuildProject": "../Interpreter/Cufet.Interpreter.csproj"
     },
-    "Cofet.Lexer/1.0.0": {
+    "Cufet.Lexer/1.0.0": {
       "type": "project",
-      "path": "../Lexer/Cofet.Lexer.csproj",
-      "msbuildProject": "../Lexer/Cofet.Lexer.csproj"
+      "path": "../Lexer/Cufet.Lexer.csproj",
+      "msbuildProject": "../Lexer/Cufet.Lexer.csproj"
     }
   },
   "projectFileDependencyGroups": {
     "net10.0": [
-      "Cofet.Interpreter >= 1.0.0"
+      "Cufet.Interpreter >= 1.0.0"
     ]
   },
   "packageFolders": {
@@ -50,11 +50,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\App\\Cofet.App.csproj",
-      "projectName": "Cofet.App",
-      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\App\\Cofet.App.csproj",
+      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\App\\Cufet.App.csproj",
+      "projectName": "Cufet.App",
+      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\App\\Cufet.App.csproj",
       "packagesPath": "C:\\Users\\kick_\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\App\\obj\\",
+      "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\App\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\kick_\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -70,8 +70,8 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {
-            "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Interpreter\\Cofet.Interpreter.csproj": {
-              "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Interpreter\\Cofet.Interpreter.csproj"
+            "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Interpreter\\Cufet.Interpreter.csproj": {
+              "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Interpreter\\Cufet.Interpreter.csproj"
             }
           }
         }

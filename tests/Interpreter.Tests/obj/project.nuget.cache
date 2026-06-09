@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "EX4v3Xn/67A=",
+  "dgSpecHash": "bGpiT4z2EUE=",
   "success": true,
-  "projectFilePath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\tests\\Interpreter.Tests\\Cofet.Interpreter.Tests.csproj",
+  "projectFilePath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\tests\\Interpreter.Tests\\Cufet.Interpreter.Tests.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\kick_\\.nuget\\packages\\microsoft.codecoverage\\17.6.0\\microsoft.codecoverage.17.6.0.nupkg.sha512",
     "C:\\Users\\kick_\\.nuget\\packages\\microsoft.net.test.sdk\\17.6.0\\microsoft.net.test.sdk.17.6.0.nupkg.sha512",

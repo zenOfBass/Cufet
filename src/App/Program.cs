@@ -1,5 +1,5 @@
-﻿using Cofet.Lexer;
-using Cofet.Interpreter;
+﻿using Cufet.Lexer;
+using Cufet.Interpreter;
 using System.Runtime.ExceptionServices;
 
 var source = args.Length > 0

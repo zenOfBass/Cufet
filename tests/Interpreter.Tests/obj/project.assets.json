@@ -426,27 +426,27 @@
           "build/netcoreapp3.1/xunit.runner.visualstudio.props": {}
         }
       },
-      "Cofet.Interpreter/1.0.0": {
+      "Cufet.Interpreter/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "dependencies": {
-          "Cofet.Lexer": "1.0.0"
+          "Cufet.Lexer": "1.0.0"
         },
         "compile": {
-          "bin/placeholder/Cofet.Interpreter.dll": {}
+          "bin/placeholder/Cufet.Interpreter.dll": {}
         },
         "runtime": {
-          "bin/placeholder/Cofet.Interpreter.dll": {}
+          "bin/placeholder/Cufet.Interpreter.dll": {}
         }
       },
-      "Cofet.Lexer/1.0.0": {
+      "Cufet.Lexer/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "compile": {
-          "bin/placeholder/Cofet.Lexer.dll": {}
+          "bin/placeholder/Cufet.Lexer.dll": {}
         },
         "runtime": {
-          "bin/placeholder/Cofet.Lexer.dll": {}
+          "bin/placeholder/Cufet.Lexer.dll": {}
         }
       }
     }
@@ -929,20 +929,20 @@
         "xunit.runner.visualstudio.nuspec"
       ]
     },
-    "Cofet.Interpreter/1.0.0": {
+    "Cufet.Interpreter/1.0.0": {
       "type": "project",
-      "path": "../../src/Interpreter/Cofet.Interpreter.csproj",
-      "msbuildProject": "../../src/Interpreter/Cofet.Interpreter.csproj"
+      "path": "../../src/Interpreter/Cufet.Interpreter.csproj",
+      "msbuildProject": "../../src/Interpreter/Cufet.Interpreter.csproj"
     },
-    "Cofet.Lexer/1.0.0": {
+    "Cufet.Lexer/1.0.0": {
       "type": "project",
-      "path": "../../src/Lexer/Cofet.Lexer.csproj",
-      "msbuildProject": "../../src/Lexer/Cofet.Lexer.csproj"
+      "path": "../../src/Lexer/Cufet.Lexer.csproj",
+      "msbuildProject": "../../src/Lexer/Cufet.Lexer.csproj"
     }
   },
   "projectFileDependencyGroups": {
     "net10.0": [
-      "Cofet.Interpreter >= 1.0.0",
+      "Cufet.Interpreter >= 1.0.0",
       "Microsoft.NET.Test.Sdk >= 17.6.0",
       "xunit >= 2.4.2",
       "xunit.runner.visualstudio >= 2.4.5"
@@ -954,11 +954,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\tests\\Interpreter.Tests\\Cofet.Interpreter.Tests.csproj",
-      "projectName": "Cofet.Interpreter.Tests",
-      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\tests\\Interpreter.Tests\\Cofet.Interpreter.Tests.csproj",
+      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\tests\\Interpreter.Tests\\Cufet.Interpreter.Tests.csproj",
+      "projectName": "Cufet.Interpreter.Tests",
+      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\tests\\Interpreter.Tests\\Cufet.Interpreter.Tests.csproj",
       "packagesPath": "C:\\Users\\kick_\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\tests\\Interpreter.Tests\\obj\\",
+      "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\tests\\Interpreter.Tests\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\kick_\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -974,8 +974,8 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {
-            "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Interpreter\\Cofet.Interpreter.csproj": {
-              "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Interpreter\\Cofet.Interpreter.csproj"
+            "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Interpreter\\Cufet.Interpreter.csproj": {
+              "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Interpreter\\Cufet.Interpreter.csproj"
             }
           }
         }

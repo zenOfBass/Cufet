@@ -1,6 +1,6 @@
-﻿using Cofet.Lexer;
+﻿using Cufet.Lexer;
 
-namespace Cofet.Interpreter;
+namespace Cufet.Interpreter;
 
 public sealed class ParseException : Exception
 {

@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Lexer\Cofet.Lexer.csproj" />
+    <ProjectReference Include="..\..\src\Lexer\Cufet.Lexer.csproj" />
   </ItemGroup>
 
 </Project>

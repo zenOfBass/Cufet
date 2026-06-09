@@ -1,4 +1,4 @@
-﻿namespace Cofet.Interpreter;
+﻿namespace Cufet.Interpreter;
 
 public sealed class RuntimeException : Exception
 {

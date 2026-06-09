@@ -1,16 +1,16 @@
-﻿using Cofet.Interpreter;
-using Cofet.Lexer;
+﻿using Cufet.Interpreter;
+using Cufet.Lexer;
 using System.Runtime.ExceptionServices;
 using Xunit;
-using CofetLexer = Cofet.Lexer.Lexer;
+using CufetLexer = Cufet.Lexer.Lexer;
 
-namespace Cofet.Interpreter.Tests;
+namespace Cufet.Interpreter.Tests;
 
 public class InterpreterTests
 {
     private static string Run(string source)
     {
-        var tokens  = new CofetLexer(source).Tokenize();
+        var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
         new TypeChecker().Check(program);
         var output  = new StringWriter();
@@ -1716,7 +1716,7 @@ public class InterpreterTests
     [Fact]
     public void InfiniteRecursionGivesFriendlyError()
     {
-        var tokens  = new CofetLexer(
+        var tokens  = new CufetLexer(
             "Bind number to loop, given (the number x):\n" +
             "    return Cast loop on (x).\n" +
             "Done.\n" +

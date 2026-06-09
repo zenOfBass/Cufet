@@ -13,11 +13,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Lexer\\Cofet.Lexer.csproj",
-      "projectName": "Cofet.Lexer",
-      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Lexer\\Cofet.Lexer.csproj",
+      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Lexer\\Cufet.Lexer.csproj",
+      "projectName": "Cufet.Lexer",
+      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Lexer\\Cufet.Lexer.csproj",
       "packagesPath": "C:\\Users\\kick_\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Lexer\\obj\\",
+      "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cofet\\src\\Lexer\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\kick_\\AppData\\Roaming\\NuGet\\NuGet.Config"

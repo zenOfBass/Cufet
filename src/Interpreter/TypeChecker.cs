@@ -1,6 +1,6 @@
-﻿using Cofet.Lexer;
+﻿using Cufet.Lexer;
 
-namespace Cofet.Interpreter;
+namespace Cufet.Interpreter;
 
 // CufetType is a value-equality class hierarchy.
 // CufetType.Number / .Text / .Fact are canonical singletons for the three scalars.

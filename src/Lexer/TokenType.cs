@@ -1,4 +1,4 @@
-﻿namespace Cofet.Lexer;
+﻿namespace Cufet.Lexer;
 
 public enum TokenType
 {

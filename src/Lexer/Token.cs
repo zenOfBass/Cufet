@@ -1,4 +1,4 @@
-﻿namespace Cofet.Lexer;
+﻿namespace Cufet.Lexer;
 
 public sealed record Token(TokenType Type, string Lexeme, int Line)
 {

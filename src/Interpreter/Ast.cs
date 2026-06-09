@@ -1,6 +1,6 @@
-﻿using Cofet.Lexer;
+﻿using Cufet.Lexer;
 
-namespace Cofet.Interpreter;
+namespace Cufet.Interpreter;
 
 public interface IExpression { }
 public interface IStatement  { }

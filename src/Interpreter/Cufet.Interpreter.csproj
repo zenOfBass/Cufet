@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Lexer\Cofet.Lexer.csproj" />
+    <ProjectReference Include="..\Lexer\Cufet.Lexer.csproj" />
   </ItemGroup>
 
 </Project>
