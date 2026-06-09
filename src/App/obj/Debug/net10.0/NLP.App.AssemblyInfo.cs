@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NLP.App")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+dfabdb85504298bf97bdcfee05430c717927ecd9")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a508e6b64388337ffc536ef059e8bce19ef1b63c")]
 [assembly: System.Reflection.AssemblyProductAttribute("NLP.App")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NLP.App")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

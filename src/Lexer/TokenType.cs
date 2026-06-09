@@ -1,4 +1,4 @@
-namespace NLP.Lexer;
+﻿namespace Cofet.Lexer;
 
 public enum TokenType
 {

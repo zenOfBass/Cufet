@@ -1,5 +1,5 @@
-using NLP.Lexer;
-using NLP.Interpreter;
+﻿using Cofet.Lexer;
+using Cofet.Interpreter;
 using System.Runtime.ExceptionServices;
 
 var source = args.Length > 0

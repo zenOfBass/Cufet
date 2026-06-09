@@ -2,46 +2,46 @@
   "version": 4,
   "targets": {
     "net10.0": {
-      "NLP.Interpreter/1.0.0": {
+      "Cofet.Interpreter/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "dependencies": {
-          "NLP.Lexer": "1.0.0"
+          "Cofet.Lexer": "1.0.0"
         },
         "compile": {
-          "bin/placeholder/NLP.Interpreter.dll": {}
+          "bin/placeholder/Cofet.Interpreter.dll": {}
         },
         "runtime": {
-          "bin/placeholder/NLP.Interpreter.dll": {}
+          "bin/placeholder/Cofet.Interpreter.dll": {}
         }
       },
-      "NLP.Lexer/1.0.0": {
+      "Cofet.Lexer/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "compile": {
-          "bin/placeholder/NLP.Lexer.dll": {}
+          "bin/placeholder/Cofet.Lexer.dll": {}
         },
         "runtime": {
-          "bin/placeholder/NLP.Lexer.dll": {}
+          "bin/placeholder/Cofet.Lexer.dll": {}
         }
       }
     }
   },
   "libraries": {
-    "NLP.Interpreter/1.0.0": {
+    "Cofet.Interpreter/1.0.0": {
       "type": "project",
-      "path": "../Interpreter/NLP.Interpreter.csproj",
-      "msbuildProject": "../Interpreter/NLP.Interpreter.csproj"
+      "path": "../Interpreter/Cofet.Interpreter.csproj",
+      "msbuildProject": "../Interpreter/Cofet.Interpreter.csproj"
     },
-    "NLP.Lexer/1.0.0": {
+    "Cofet.Lexer/1.0.0": {
       "type": "project",
-      "path": "../Lexer/NLP.Lexer.csproj",
-      "msbuildProject": "../Lexer/NLP.Lexer.csproj"
+      "path": "../Lexer/Cofet.Lexer.csproj",
+      "msbuildProject": "../Lexer/Cofet.Lexer.csproj"
     }
   },
   "projectFileDependencyGroups": {
     "net10.0": [
-      "NLP.Interpreter >= 1.0.0"
+      "Cofet.Interpreter >= 1.0.0"
     ]
   },
   "packageFolders": {
@@ -50,9 +50,9 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\App\\NLP.App.csproj",
-      "projectName": "NLP.App",
-      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\App\\NLP.App.csproj",
+      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\App\\Cofet.App.csproj",
+      "projectName": "Cofet.App",
+      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\App\\Cofet.App.csproj",
       "packagesPath": "C:\\Users\\kick_\\.nuget\\packages\\",
       "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\App\\obj\\",
       "projectStyle": "PackageReference",
@@ -70,8 +70,8 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {
-            "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Interpreter\\NLP.Interpreter.csproj": {
-              "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Interpreter\\NLP.Interpreter.csproj"
+            "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Interpreter\\Cofet.Interpreter.csproj": {
+              "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Interpreter\\Cofet.Interpreter.csproj"
             }
           }
         }

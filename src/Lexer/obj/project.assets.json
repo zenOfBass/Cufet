@@ -13,9 +13,9 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Lexer\\NLP.Lexer.csproj",
-      "projectName": "NLP.Lexer",
-      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Lexer\\NLP.Lexer.csproj",
+      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Lexer\\Cofet.Lexer.csproj",
+      "projectName": "Cofet.Lexer",
+      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Lexer\\Cofet.Lexer.csproj",
       "packagesPath": "C:\\Users\\kick_\\.nuget\\packages\\",
       "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\NLP\\src\\Lexer\\obj\\",
       "projectStyle": "PackageReference",

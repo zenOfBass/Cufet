@@ -1,16 +1,16 @@
-using NLP.Interpreter;
-using NLP.Lexer;
+﻿using Cofet.Interpreter;
+using Cofet.Lexer;
 using System.Runtime.ExceptionServices;
 using Xunit;
-using NlpLexer = NLP.Lexer.Lexer;
+using CofetLexer = Cofet.Lexer.Lexer;
 
-namespace NLP.Interpreter.Tests;
+namespace Cofet.Interpreter.Tests;
 
 public class InterpreterTests
 {
     private static string Run(string source)
     {
-        var tokens  = new NlpLexer(source).Tokenize();
+        var tokens  = new CofetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
         new TypeChecker().Check(program);
         var output  = new StringWriter();
@@ -1716,7 +1716,7 @@ public class InterpreterTests
     [Fact]
     public void InfiniteRecursionGivesFriendlyError()
     {
-        var tokens  = new NlpLexer(
+        var tokens  = new CofetLexer(
             "Bind number to loop, given (the number x):\n" +
             "    return Cast loop on (x).\n" +
             "Done.\n" +

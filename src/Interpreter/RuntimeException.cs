@@ -1,4 +1,4 @@
-namespace NLP.Interpreter;
+﻿namespace Cofet.Interpreter;
 
 public sealed class RuntimeException : Exception
 {

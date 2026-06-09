@@ -1,6 +1,6 @@
-using NLP.Lexer;
+﻿using Cofet.Lexer;
 
-namespace NLP.Interpreter;
+namespace Cofet.Interpreter;
 
 public interface IExpression { }
 public interface IStatement  { }
