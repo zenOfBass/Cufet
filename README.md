@@ -1,6 +1,6 @@
 ﻿# Cufet
 
-*From the Muskogee word for rabbit — the trickster who brings fire to mankind.*
+*From the Muskogee word for rabbit—the trickster who brings fire to mankind.*
 
 Cufet is a natural-language programming language. It borrows English's surface while keeping formal structure visible. Every keyword reads like prose; every control-flow boundary is explicit. No hidden scoping, no ambiguous syntax, no semicolons.
 
@@ -351,4 +351,6 @@ tests/
 
 ---
 
-*Built in C# / .NET 10. Named for the Muskogee trickster rabbit who — like all good languages — promises to make something very powerful feel surprisingly natural.*
+*Built in C# / .NET 10. Named for the Muskogee trickster rabbit who—like all good languages—promises to make something very powerful feel surprisingly natural.*
+
+
