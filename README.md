@@ -1,4 +1,4 @@
-﻿# Cufet
+﻿# Cufet `0.1.0`
 
 *From the Muskogee word for rabbit—the trickster who brings fire to mankind.*
 
