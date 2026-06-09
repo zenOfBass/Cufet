@@ -15,7 +15,7 @@ Define the scores as a series with (92, 85, 71, 88).
 Define total as 0.
 
 For each score in the scores, repeat:
-    total becomes total + score.
+    The total becomes the total + the score.
 Done.
 
 State total.
@@ -24,7 +24,7 @@ State total.
 ```
 Bind number to factorial, given (the number n):
     If n is less than 2, return 1.
-    return n * cast factorial on (n - 1).
+    Return n * cast factorial on (n - 1).
 Done.
 
 State cast factorial on (10).
@@ -86,13 +86,13 @@ If x is 5 or less:
 
 **Inline — comma, one statement, works anywhere:**
 ```
-If x is 1, State "one".
+If x is 1, state "one".
 
-If x is 1, State "one". Otherwise, State "other".
+If x is 1, state "one". otherwise, state "other".
 
-If x is 1, State "one".
-Otherwise if x is 2, State "two".
-Otherwise, State "other".
+If x is 1, state "one".
+Otherwise if x is 2, state "two".
+Otherwise, state "other".
 ```
 
 **Block — colon, Done.-closed, any number of statements:**
@@ -179,7 +179,7 @@ Out-of-bounds access or assignment produces a readable runtime error.
 
 ```
 For each score in scores, repeat:
-    State score.
+    State the score.
 Done.
 ```
 
@@ -200,7 +200,7 @@ Mutating the series being iterated is a runtime error. Use `While` with an index
 **Declaration:**
 ```
 Bind number to add, given (the number a, the number b):
-    return a + b.
+    Return a + b.
 Done.
 
 Bind void to greet, given (the text name):
@@ -208,7 +208,7 @@ Bind void to greet, given (the text name):
 Done.
 
 Bind number to get-ten:
-    return 10.
+    Return 10.
 Done.
 ```
 
@@ -239,7 +239,7 @@ A function assigned to a variable carries its full type. The type checker catche
 **Function-typed parameters:**
 ```
 Bind number to apply, given (the number x, the number function f given (the number)):
-    return cast f on (x).
+    Return cast f on (x).
 Done.
 
 Bind number to double, given (the number x): return x * 2. Done.
@@ -252,7 +252,7 @@ The parameter type `the number function f given (the number)` declares that `f` 
 **Functions as return values:**
 ```
 Bind number function given (the number) to get-doubler:
-    return double.
+    Return double.
 Done.
 
 Define fn as cast get-doubler on ().
