@@ -11,7 +11,7 @@ It is Turing complete.
 ## Quick look
 
 ```
-Define the scores as a series (92, 85, 71, 88).
+Define the scores as a series with (92, 85, 71, 88).
 Define total as 0.
 
 For each score in the scores, repeat:
@@ -22,14 +22,22 @@ State total.
 ```
 
 ```
-Define fib-a as 0.
-Define fib-b as 1.
+Bind number to factorial, given (the number n):
+    If n is less than 2, return 1.
+    return n * Cast factorial on (n - 1).
+Done.
 
-While fib-a is less than 1000, repeat:
-    State fib-a.
-    Define temp as fib-b.
-    fib-b becomes fib-a + fib-b.
-    fib-a becomes temp.
+State Cast factorial on (10).
+```
+
+```
+Bind number to double, given (the number x): return x * 2. Done.
+Bind number to triple, given (the number x): return x * 3. Done.
+
+Define ops as a series of number function given (the number) with (double, triple).
+
+For each op in ops, repeat:
+    State Cast op on (5).
 Done.
 ```
 
@@ -72,6 +80,8 @@ If x is 5 or more:
 If x is 5 or less:
 ```
 
+`=` is equality only — assignment is `becomes`, declaration is `Define`.
+
 ### Conditionals
 
 **Inline — comma, one statement, works anywhere:**
@@ -100,7 +110,7 @@ Otherwise:
 Done.
 ```
 
-The punctuation means exactly one thing each. Comma after the condition → inline single-statement. Colon after the condition → Done.-terminated block. The parser knows which form it's in from the comma-vs-colon, before the body is ever parsed.
+Comma after the condition → inline single-statement. Colon after the condition → `Done.`-terminated block.
 
 ### Loops
 
@@ -120,7 +130,14 @@ until x is 10 or more.
 
 **Literal:**
 ```
-Define scores as a series (90, 85, 70).
+Define scores as a series with (90, 85, 70).
+Define names  as a series of text with ("alice", "bob").
+Define ops    as a series of number function given (the number) with (double, triple).
+```
+
+The element type is inferred from the elements, or can be declared explicitly after `of`. Empty series require an explicit annotation:
+```
+Define log as a series of text.
 ```
 
 **Access:**
@@ -172,11 +189,116 @@ For each in scores, repeat:
 Done.
 ```
 
-Named form binds the current element to a new name. Bare-it form binds it to `it` — innermost loop wins when nested. Both forms restore the previous value (or remove the binding) when the loop exits.
+Named form binds the current element to a new name. Bare-it form binds it to `it` — innermost loop wins when nested. Both restore the previous binding when the loop exits.
 
-Mutating the series being iterated inside the loop is a runtime error. Use a `While` loop with an index if you need to change the series as you go.
+Mutating the series being iterated is a runtime error. Use `While` with an index if you need to change the series as you go.
 
 `Stop.` and `Skip.` work the same as in `While` loops.
+
+### Functions
+
+**Declaration:**
+```
+Bind number to add, given (the number a, the number b):
+    return a + b.
+Done.
+
+Bind void to greet, given (the text name):
+    State name.
+Done.
+
+Bind number to get-ten:
+    return 10.
+Done.
+```
+
+`Bind` declares a named function. The return type comes first (`number`, `void`, or a function type — see below). Parameters follow `given`. Functions with no parameters omit `given` entirely.
+
+**Calling:**
+```
+State Cast add on (3, 4).          ← in expression position
+Cast greet on ("hello").           ← as a statement (void or discarded result)
+```
+
+`Cast` works on any expression that evaluates to a function — a name, a variable, or a series element.
+
+**Early exit:**
+```
+return value.    ← return a value
+return.          ← void early exit
+```
+
+**Functions are first-class values:**
+```
+Define op as add.
+State Cast op on (3, 4).           → 7
+```
+
+A function assigned to a variable carries its full type. The type checker catches calling the wrong signature through any alias.
+
+**Function-typed parameters:**
+```
+Bind number to apply, given (the number x, the number function f given (the number)):
+    return Cast f on (x).
+Done.
+
+Bind number to double, given (the number x): return x * 2. Done.
+
+State Cast apply on (5, double).   → 10
+```
+
+The parameter type `the number function f given (the number)` declares that `f` must be a function taking a number and returning a number. Passing the wrong signature is a static type error.
+
+**Functions as return values:**
+```
+Bind number function given (the number) to get-doubler:
+    return double.
+Done.
+
+Define fn as Cast get-doubler on ().
+State Cast fn on (5).              → 10
+```
+
+The return type `number function given (the number)` declares that this function returns a function. Only top-level named functions can be returned — closures are not yet supported.
+
+**Series of functions:**
+```
+Define ops as a series of number function given (the number) with (double, triple).
+
+State Cast the first of ops on (5).          → 10
+
+For each op in ops, repeat:
+    State Cast op on (5).
+Done.
+```
+
+A series whose element type is a function type. All the usual series operations apply — access, add, remove, for-each — and any accessed element can be `Cast` directly.
+
+---
+
+## Type system
+
+Cufet has a static type checker that runs before execution. It catches:
+
+- Arithmetic on non-numbers
+- Comparing values of different types
+- Assigning a value of the wrong type to a variable
+- Passing the wrong argument types to a function
+- Passing a function with the wrong signature
+- Returning the wrong type from a function
+- Functions that might not return on every path
+- Accessing a non-series with series operations
+- Adding or removing the wrong element type from a typed series
+
+Type errors name the violation, the line, and the fix:
+
+```
+That doesn't work: 'scores' holds numbers.
+You defined it on line 1 as a series of numbers, so it can only accept numbers.
+Here on line 4, you're trying to add a text value to it.
+
+Change the value to a number, or define a separate series that holds text.
+```
 
 ---
 
@@ -186,6 +308,7 @@ Mutating the series being iterated inside the loop is a runtime error. Use a `Wh
 - Internal dashes allowed: `receipt-total` is one identifier
 - `Total` (uppercase-initial) is a lexer error — uppercase-initial is reserved for keywords
 - Binary `-` requires surrounding whitespace: `a - b` is subtraction; `a-b` is an identifier
+- `a`, `an`, `the` are reserved as noise (articles) and cannot be used as identifiers
 
 ---
 
@@ -195,13 +318,13 @@ Requires [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```
 # Run all tests
-dotnet test NLP.sln
+dotnet test Cofet.sln
 
 # Run a Cufet program
-dotnet run --project src\App\NLP.App.csproj -- myprogram.cufet
+dotnet run --project src\App\Cofet.App.csproj -- myprogram.cufe
 
 # Or pipe from stdin
-echo "State 1 + 1." | dotnet run --project src\App\NLP.App.csproj
+echo "State 1 + 1." | dotnet run --project src\App\Cofet.App.csproj
 ```
 
 ---
@@ -210,9 +333,9 @@ echo "State 1 + 1." | dotnet run --project src\App\NLP.App.csproj
 
 ```
 src/
-  Lexer/           NLP.Lexer        — tokenizer
-  Interpreter/     NLP.Interpreter  — AST, parser, tree-walking interpreter
-  App/             NLP.App          — thin console entry point
+  Lexer/           Cofet.Lexer        — tokenizer
+  Interpreter/     Cofet.Interpreter  — AST, parser, type checker, tree-walking interpreter
+  App/             Cofet.App          — thin console entry point
 tests/
   Lexer.Tests/
   Interpreter.Tests/
@@ -223,8 +346,8 @@ tests/
 ## What's next
 
 - Logical `and` / `or` in conditions
-- Functions / named procedures
-- Scope
+- Closures (functions that capture their enclosing scope)
+- String operations
 
 ---
 
