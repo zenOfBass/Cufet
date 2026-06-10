@@ -1,0 +1,7 @@
+Bind number to fibonacci, given (the number n):
+    If n is 0, return 0.
+    If n is 1, return 1.
+    Return cast fibonacci on (n - 1) + cast fibonacci on (n - 2).
+Done.
+
+State cast fibonacci on (10).
