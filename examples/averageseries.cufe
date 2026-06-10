@@ -1,0 +1,10 @@
+Define the scores as a series with (10, 20, 30, 40, 50).
+Define sum as 0.
+
+For each score in the scores, repeat:
+    The sum becomes the sum + the score.
+Done.
+
+Define average as the sum / the number of scores.
+
+State the average.
