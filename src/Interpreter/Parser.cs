@@ -527,6 +527,9 @@ public sealed class Parser
         SkipNoise();
         var left = ParseAddition();
         SkipNoise();
+        if (Peek().Type == TokenType.Equal)
+            throw new ParseException(Peek().Line,
+                "you used '=' in a condition — in Cufet, conditions use 'is' (for example, 'If n is 0'). Did you mean 'is'?");
         if (Peek().Type != TokenType.Is) return left;
         var isLine = Consume(TokenType.Is).Line;
         SkipNoise();
@@ -650,10 +653,9 @@ public sealed class Parser
             case TokenType.String:
                 return new StringLiteral(Advance().Lexeme);
             case TokenType.Identifier:
-                return new VariableReference(Advance().Lexeme);
+                { var t = Advance(); return new VariableReference(t.Lexeme, t.Line); }
             case TokenType.It:
-                Advance();
-                return new VariableReference("it");
+                { var t = Advance(); return new VariableReference("it", t.Line); }
             case TokenType.LParen:
                 Advance();
                 var inner = ParseExpression();

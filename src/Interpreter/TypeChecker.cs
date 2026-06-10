@@ -104,7 +104,7 @@ public sealed class TypeChecker
             var paramTypes = bind.Parameters.Select(p => p.Type).ToList();
             _env[bind.Name] = new TypeInfo(
                 new FunctionType(paramTypes, bind.ReturnType),
-                new VariableReference(bind.Name),
+                new VariableReference(bind.Name, 0),
                 bind.Line);
         }
     }
@@ -212,7 +212,7 @@ public sealed class TypeChecker
         foreach (var (k, v) in snapshot.Where(kv => kv.Value.Type is FunctionType))
             _env[k] = v;
         foreach (var (type, name) in bind.Parameters)
-            _env[name] = new TypeInfo(type, new VariableReference(name), bind.Line);
+            _env[name] = new TypeInfo(type, new VariableReference(name, 0), bind.Line);
 
         var prevInFunction        = _inFunction;
         var prevReturnType        = _expectedReturnType;
@@ -321,7 +321,7 @@ public sealed class TypeChecker
 
         var iterKey = forEach.IteratorName ?? "it";
         var hadPrev = _env.TryGetValue(iterKey, out var prev);
-        _env[iterKey] = new TypeInfo(seriesType.ElementType, new VariableReference(forEach.SeriesName), forEach.Line);
+        _env[iterKey] = new TypeInfo(seriesType.ElementType, new VariableReference(forEach.SeriesName, 0), forEach.Line);
         try
         {
             foreach (var s in forEach.Body)

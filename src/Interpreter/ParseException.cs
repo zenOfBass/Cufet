@@ -11,4 +11,9 @@ public sealed class ParseException : Exception
     {
         Line = got.Line;
     }
+
+    public ParseException(int line, string message) : base($"Line {line}: {message}")
+    {
+        Line = line;
+    }
 }

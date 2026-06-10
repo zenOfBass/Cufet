@@ -7,7 +7,7 @@ public interface IStatement  { }
 
 public sealed record NumberLiteral(decimal Value)                                        : IExpression;
 public sealed record StringLiteral(string Value)                                         : IExpression;
-public sealed record VariableReference(string Name)                                      : IExpression;
+public sealed record VariableReference(string Name, int Line)                            : IExpression;
 public sealed record UnaryExpression(TokenType Op, IExpression Operand, int Line)                  : IExpression;
 public sealed record BinaryExpression(IExpression Left, TokenType Op, IExpression Right, int Line) : IExpression;
 
