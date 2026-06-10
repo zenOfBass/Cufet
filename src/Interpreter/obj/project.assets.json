@@ -2,7 +2,7 @@
   "version": 4,
   "targets": {
     "net10.0": {
-      "Cufet.Lexer/1.0.0": {
+      "Cufet.Lexer/0.1.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "compile": {
@@ -15,7 +15,7 @@
     }
   },
   "libraries": {
-    "Cufet.Lexer/1.0.0": {
+    "Cufet.Lexer/0.1.0": {
       "type": "project",
       "path": "../Lexer/Cufet.Lexer.csproj",
       "msbuildProject": "../Lexer/Cufet.Lexer.csproj"
@@ -23,20 +23,20 @@
   },
   "projectFileDependencyGroups": {
     "net10.0": [
-      "Cufet.Lexer >= 1.0.0"
+      "Cufet.Lexer >= 0.1.0"
     ]
   },
   "packageFolders": {
     "C:\\Users\\kick_\\.nuget\\packages\\": {}
   },
   "project": {
-    "version": "1.0.0",
+    "version": "0.1.0",
     "restore": {
-      "projectUniqueName": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\Cufet.Interpreter.csproj",
+      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\Cufet.Interpreter.csproj",
       "projectName": "Cufet.Interpreter",
-      "projectPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\Cufet.Interpreter.csproj",
+      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\Cufet.Interpreter.csproj",
       "packagesPath": "C:\\Users\\kick_\\.nuget\\packages\\",
-      "outputPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\obj\\",
+      "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\kick_\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -52,8 +52,8 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {
-            "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj": {
-              "projectPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj"
+            "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj": {
+              "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj"
             }
           }
         }

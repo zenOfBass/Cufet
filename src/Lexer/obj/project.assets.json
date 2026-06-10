@@ -11,13 +11,13 @@
     "C:\\Users\\kick_\\.nuget\\packages\\": {}
   },
   "project": {
-    "version": "1.0.0",
+    "version": "0.1.0",
     "restore": {
-      "projectUniqueName": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj",
+      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj",
       "projectName": "Cufet.Lexer",
-      "projectPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj",
+      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj",
       "packagesPath": "C:\\Users\\kick_\\.nuget\\packages\\",
-      "outputPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\obj\\",
+      "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\kick_\\AppData\\Roaming\\NuGet\\NuGet.Config"
