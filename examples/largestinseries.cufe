@@ -1,0 +1,8 @@
+Define the scores as a series with (10, 20, 50, 40, 30).
+Define the largest as the first of scores.
+
+For each score in the scores, repeat:
+    If the score is greater than the largest, the largest becomes the score.
+Done.
+
+State the largest.
