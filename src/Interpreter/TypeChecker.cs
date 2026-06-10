@@ -543,10 +543,10 @@ public sealed class TypeChecker
 
         return bin.Op switch
         {
-            TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash
+            TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or TokenType.Percent
                 when l == CufetType.Number && r == CufetType.Number
                 => CufetType.Number,
-            TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash
+            TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or TokenType.Percent
                 => throw new TypeException(FormatTypeError(
                     "arithmetic requires numbers on both sides",
                     null,
@@ -648,7 +648,8 @@ public sealed class TypeChecker
         TokenType.Plus  => "+",
         TokenType.Minus => "-",
         TokenType.Star  => "*",
-        TokenType.Slash => "/",
+        TokenType.Slash   => "/",
+        TokenType.Percent => "%",
         _               => op.ToString().ToLower(),
     };
 }

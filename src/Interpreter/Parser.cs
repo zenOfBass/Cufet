@@ -620,7 +620,7 @@ public sealed class Parser
     private IExpression ParseMultiplication()
     {
         var left = ParseUnary();
-        while (Peek().Type is TokenType.Star or TokenType.Slash)
+        while (Peek().Type is TokenType.Star or TokenType.Slash or TokenType.Percent)
         {
             var opTok = Advance();
             SkipNoise();

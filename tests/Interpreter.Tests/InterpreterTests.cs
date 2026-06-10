@@ -2046,4 +2046,51 @@ public class InterpreterTests
             "Add shout to ops."));
         Assert.Contains("number function", ex.Message);
     }
+
+    // ── Modulo ───────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Modulo_BasicRemainder()
+        => Assert.Equal("2", Run("State 12 % 5."));
+
+    [Fact]
+    public void Modulo_ZeroRemainder()
+        => Assert.Equal("0", Run("State 10 % 5."));
+
+    [Fact]
+    public void Modulo_DecimalRemainder()
+        => Assert.Equal("0.5", Run("State 12.5 % 3."));
+
+    [Fact]
+    public void Modulo_NegativeDividend()
+        => Assert.Equal("-2", Run("State -12 % 5."));
+
+    [Fact]
+    public void Modulo_PrecedenceWithAddition()
+        => Assert.Equal("3", Run("State 1 + 10 % 4."));
+
+    [Fact]
+    public void Modulo_LeftAssociative()
+        => Assert.Equal("1", Run("State 10 % 3 % 2."));
+
+    [Fact]
+    public void Modulo_InFizzBuzz()
+        => Assert.Equal("FizzBuzz", Run("""
+            Define n as 15.
+            If n % 15 is 0, State "FizzBuzz".
+            """));
+
+    [Fact]
+    public void Modulo_ByZeroThrows()
+        => Assert.Throws<RuntimeException>(() => Run("State 5 % 0."));
+
+    [Fact]
+    public void Modulo_NonNumberThrows()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define s as "hello".
+            State s % 2.
+            """));
+        Assert.Contains("%", ex.Message);
+    }
 }

@@ -20,7 +20,7 @@ public enum TokenType
     Done,      // "Done" — closes a multi-statement block
 
     // ── Arithmetic ────────────────────────────────────────────────────────
-    Plus, Minus, Star, Slash,
+    Plus, Minus, Star, Slash, Percent,
     LParen, RParen,
 
     // ── Comparison (symbol, expression context) ───────────────────────────

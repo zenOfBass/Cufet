@@ -30,7 +30,7 @@ public sealed class Lexer
                 tokens.Add(ReadNumber());
             else if (c == '"')
                 tokens.Add(ReadString());
-            else if (c is '+' or '-' or '*' or '/' or '(' or ')' or '=' or '<' or '>' or ':' or ',')
+            else if (c is '+' or '-' or '*' or '/' or '%' or '(' or ')' or '=' or '<' or '>' or ':' or ',')
                 tokens.Add(ReadSymbol());
             // DECIDED, DEFERRED:
             //   <<...>> — verbatim strings with distinct open/close delimiters; nestable by depth-counting <</>>.
@@ -153,8 +153,9 @@ public sealed class Lexer
         {
             case '+': return new Token(TokenType.Plus,   "+", _line);
             case '-': return new Token(TokenType.Minus,  "-", _line);
-            case '*': return new Token(TokenType.Star,   "*", _line);
+            case '*': return new Token(TokenType.Star,    "*", _line);
             case '/': return new Token(TokenType.Slash,  "/", _line);
+            case '%': return new Token(TokenType.Percent, "%", _line);
             case '(': return new Token(TokenType.LParen, "(", _line);
             case ')': return new Token(TokenType.RParen, ")", _line);
             case '=': return new Token(TokenType.Equal, "=", _line);

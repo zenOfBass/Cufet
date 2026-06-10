@@ -351,6 +351,9 @@ public sealed class Interpreter
             TokenType.Slash    => ToNumber(rv, "/") == 0
                                       ? throw new RuntimeException("Division by zero.")
                                       : (object)(ToNumber(lv, "/") / ToNumber(rv, "/")),
+            TokenType.Percent  => ToNumber(rv, "%") == 0
+                                      ? throw new RuntimeException("Modulo by zero.")
+                                      : (object)(ToNumber(lv, "%") % ToNumber(rv, "%")),
             TokenType.Equal    => (object)lv.Equals(rv),
             TokenType.NotEqual => (object)!lv.Equals(rv),
             TokenType.Lt       => (object)(ToNumber(lv, "<")  < ToNumber(rv, "<")),
