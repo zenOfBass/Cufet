@@ -2262,4 +2262,129 @@ public class InterpreterTests
             """));
         Assert.Contains("or", ex.Message);
     }
+
+    // ── Logical not ───────────────────────────────────────────────────────
+
+    [Fact]
+    public void Not_NegatesTrue_GivesFalse()
+    {
+        var output = Run("""
+            Define flag as 1 = 1.
+            State not flag.
+            """);
+        Assert.Equal("false", output.Trim());
+    }
+
+    [Fact]
+    public void Not_NegatesFalse_GivesTrue()
+    {
+        var output = Run("""
+            Define flag as 1 = 2.
+            State not flag.
+            """);
+        Assert.Equal("true", output.Trim());
+    }
+
+    [Fact]
+    public void Not_ConditionContext_WhenEqual_RunsElse()
+    {
+        // x is 5; not x is 5 → false → else branch
+        var output = Run("""
+            Define x as 5.
+            If not x is 5, State "wrong".
+            Otherwise, State "right".
+            """);
+        Assert.Equal("right", output.Trim());
+    }
+
+    [Fact]
+    public void Not_ConditionContext_WhenNotEqual_RunsIf()
+    {
+        // x is 3; not x is 5 → true → if branch
+        var output = Run("""
+            Define x as 3.
+            If not x is 5, State "right".
+            Otherwise, State "wrong".
+            """);
+        Assert.Equal("right", output.Trim());
+    }
+
+    [Fact]
+    public void Not_InExpressionContext()
+    {
+        var output = Run("""
+            Define flag as 1 = 2.
+            Define result as not flag.
+            State result.
+            """);
+        Assert.Equal("true", output.Trim());
+    }
+
+    [Fact]
+    public void Not_DoubleNegation_RestoresOriginal()
+    {
+        var output = Run("""
+            Define flag as 1 = 1.
+            State not not flag.
+            """);
+        Assert.Equal("true", output.Trim());
+    }
+
+    [Fact]
+    public void Not_PrecedenceWithAnd_NegatesLeftOperandOnly()
+    {
+        // not p and q = (not p) and q; p=true, q=false → false and false → false
+        var output = Run("""
+            Define p as 1 = 1.
+            Define q as 1 = 2.
+            State not p and q.
+            """);
+        Assert.Equal("false", output.Trim());
+    }
+
+    [Fact]
+    public void Not_ParensOverrideAndPrecedence()
+    {
+        // not (p and q); p=true, q=false → not false → true
+        var output = Run("""
+            Define p as 1 = 1.
+            Define q as 1 = 2.
+            State not (p and q).
+            """);
+        Assert.Equal("true", output.Trim());
+    }
+
+    [Fact]
+    public void Not_PrecedenceWithOr_NegatesLeftOperandOnly()
+    {
+        // not p or q = (not p) or q; p=true, q=true → false or true → true
+        var output = Run("""
+            Define p as 1 = 1.
+            Define q as 1 = 1.
+            State not p or q.
+            """);
+        Assert.Equal("true", output.Trim());
+    }
+
+    [Fact]
+    public void Not_ParensOverrideOrPrecedence()
+    {
+        // not (p or q); p=true, q=true → not true → false
+        var output = Run("""
+            Define p as 1 = 1.
+            Define q as 1 = 1.
+            State not (p or q).
+            """);
+        Assert.Equal("false", output.Trim());
+    }
+
+    [Fact]
+    public void Not_NonFact_ThrowsTypeError()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define x as 5.
+            State not x.
+            """));
+        Assert.Contains("not", ex.Message);
+    }
 }

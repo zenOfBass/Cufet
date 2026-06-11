@@ -347,8 +347,17 @@ public sealed class Interpreter
         return list[ResolveIndex(sa.Index, list, sa.SeriesName, sa.Line)];
     }
 
-    private object EvaluateUnary(UnaryExpression u) =>
-        (object)(-ToNumber(Evaluate(u.Operand), "unary -"));
+    private object EvaluateUnary(UnaryExpression u)
+    {
+        if (u.Op == TokenType.Not)
+        {
+            var val = Evaluate(u.Operand);
+            if (val is not bool b)
+                throw new RuntimeException($"'not' requires a true-or-false value (line {u.Line}).");
+            return (object)!b;
+        }
+        return (object)(-ToNumber(Evaluate(u.Operand), "unary -"));
+    }
 
     private object EvaluateBinary(BinaryExpression b)
     {

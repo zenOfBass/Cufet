@@ -516,7 +516,8 @@ public sealed class Parser
     // Condition grammar (conditional context — after If / Otherwise if):
     //   condition        → logical-or
     //   logical-or       → logical-and ( "or" logical-and )*
-    //   logical-and      → single-condition ( "and" single-condition )*
+    //   logical-and      → cond-not ( "and" cond-not )*
+    //   cond-not         → "not" cond-not | single-condition
     //   single-condition → addition ( is-comparison )?
     //   is-comparison    → "is" "not" addition
     //                    | "is" "greater" "than" addition
@@ -526,6 +527,8 @@ public sealed class Parser
     // "or" after "is N" is disambiguated by peeking one token ahead:
     //   next is "more"/"less" → comparison tail (or more / or less)
     //   anything else         → logical-or; the "or" is left unconsumed for this level
+    // "not" is unambiguous: after "is" it's consumed inside ParseWordComparison as "is not";
+    //   at the start of a condition it's prefix negation via ParseCondNot.
     // Symbol comparisons (= < > <= >=) are expression context only.
 
     private IExpression ParseCondition() => ParseLogicalOr();
@@ -545,15 +548,26 @@ public sealed class Parser
 
     private IExpression ParseLogicalAnd()
     {
-        var left = ParseSingleCondition();
+        var left = ParseCondNot();
         while (Peek().Type == TokenType.And)
         {
             var line = Advance().Line;
             SkipNoise();
-            var right = ParseSingleCondition();
+            var right = ParseCondNot();
             left = new BinaryExpression(left, TokenType.And, right, line);
         }
         return left;
+    }
+
+    private IExpression ParseCondNot()
+    {
+        if (Peek().Type == TokenType.Not)
+        {
+            var line = Advance().Line;
+            SkipNoise();
+            return new UnaryExpression(TokenType.Not, ParseCondNot(), line);
+        }
+        return ParseSingleCondition();
     }
 
     private IExpression ParseSingleCondition()
@@ -627,10 +641,11 @@ public sealed class Parser
     //   multiplication→ unary  ( ( "*" | "/" | "%" ) unary  )*
     //   addition      → multiplication ( ( "+" | "-" ) multiplication )*
     //   comparison    → addition ( ( "=" | "<" | ">" | "<=" | ">=" ) addition )*
-    //   expr-and      → comparison ( "and" comparison )*
+    //   expr-not      → "not" expr-not | comparison
+    //   expr-and      → expr-not  ( "and" expr-not  )*
     //   expr-or       → expr-and  ( "or"  expr-and  )*
-    // and/or are included here so that parenthesised grouping works in condition context
-    // (e.g. (flag or other) and third) — same precedence as in the condition grammar.
+    // not/and/or included here so parenthesised grouping works in condition context
+    // (e.g. not (flag or other)) — same precedence as the condition grammar.
 
     private IExpression ParseExpression() => ParseExprOr();
 
@@ -648,14 +663,25 @@ public sealed class Parser
 
     private IExpression ParseExprAnd()
     {
-        var left = ParseComparison();
+        var left = ParseExprNot();
         while (Peek().Type == TokenType.And)
         {
             var line = Advance().Line;
             SkipNoise();
-            left = new BinaryExpression(left, TokenType.And, ParseComparison(), line);
+            left = new BinaryExpression(left, TokenType.And, ParseExprNot(), line);
         }
         return left;
+    }
+
+    private IExpression ParseExprNot()
+    {
+        if (Peek().Type == TokenType.Not)
+        {
+            var line = Advance().Line;
+            SkipNoise();
+            return new UnaryExpression(TokenType.Not, ParseExprNot(), line);
+        }
+        return ParseComparison();
     }
 
     private IExpression ParseComparison()

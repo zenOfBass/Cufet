@@ -522,6 +522,17 @@ public sealed class TypeChecker
     {
         var operand = InferType(unary.Operand);
         if (operand == null) return null;
+        if (unary.Op == TokenType.Not)
+        {
+            if (operand == CufetType.Fact) return CufetType.Fact;
+            throw new TypeException(FormatTypeError(
+                "'not' works on true-or-false values only",
+                null,
+                unary.Line,
+                $"negate a {FormatType(operand)} value",
+                "Make sure the value you're negating is a fact (a true or false value). Write a comparison like 'x is 5' if you need one."));
+        }
+        // unary minus
         if (operand == CufetType.Number) return CufetType.Number;
         throw new TypeException(FormatTypeError(
             "unary minus works on numbers only",
