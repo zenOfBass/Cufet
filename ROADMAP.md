@@ -10,13 +10,13 @@ grouped by kind, roughly ordered within each group, but not strictly sequenced.
 
 ### Language
 
-- **Logical `and` / `or` in conditions** — combine comparisons (`if x is more than 0 and x is less than 10`). Reserve `or` carefully: it already appears as a fixed tail in the `or more` / `or less` comparison forms, so logical `or` must not collide with those.
-
 - **Text operations** — Cufet has `text` values but no way to join or manipulate them. `+` is deliberately *not* overloaded for concatenation, so text-joining needs its own construct (a word, e.g. `join`, or a `followed by` form). To design.
 
 - **Text and general ordering via a `by` modifier** — ordering comparisons currently work on numbers only. Extend ordering to text (and other dimensions) with an explicit basis modifier rather than new operators or a hidden default: `is less than X by length`, `is greater than X by character code`. The basis is always stated, which avoids undefined-collation problems (case / locale / Unicode become named bases, not silent assumptions). Generalizes past text to any orderable dimension (e.g. a series `by size`). Undesigned in detail; this is the intended shape.
 
 - **Constant declarations** — Cufet is mutable-by-default (a `Define`d value can be reassigned with `becomes`). Add an optional, explicit way to declare a value that cannot change, for the cases that deserve protection. Backward-compatible to add. Form undecided.
+
+- **Range** — a way to produce a series of consecutive numbers without building it by hand (e.g. 1 to 100), so for each n in 1 to 100 works. Hit when writing iteration over a numeric span. Small; likely sugar that produces a normal series.
 
 ### Types and data structures
 
@@ -55,6 +55,8 @@ grouped by kind, roughly ordered within each group, but not strictly sequenced.
 - **The type checker is single-pass and will need to become multi-pass when use-before-declaration is allowed for functions.** Currently functions are top-level and hoisted in a static pass-1 scan, which already supports forward references and recursion. If/when nested functions, or any genuinely forward-referencing construct beyond the current hoist, are added, the checker converts to multi-pass. **The right multi-pass shape depends on a design choice:** because Cufet signatures have *explicitly declared* parameter and return types (not inferred-across-calls), the conversion is a clean "gather signatures, then check bodies" two-pass — *not* Hindley-Milner unification. Preserve explicit signature types to keep this cheap.
 
 - **Recursion depth (`MaxCallDepth`) vs. native stack** — the language enforces a graceful recursion limit (default 1000) that fires a kind "missing base case?" error before the native stack overflows. The interpreter runs on a dedicated large-stack thread (16 MB) so that limit is reachable gracefully; the test harness does the same via `RunOnLargeStack`. Keep the *language* recursion limit decoupled from any host/test stack size — a test environment's stack must never silently dictate the language's recursion ceiling (this caused a false-positive recursion error early on).
+
+- **Possible static-coverage gap in ToNumber** — The runtime ToNumber check fires for non-number arithmetic — verify whether the type checker should catch all such cases statically, or whether this is a genuine runtime backstop for SeriesPending/unresolved paths. Currently flagged with a code comment; investigate whether the static checker has a hole here. 
 
 ---
 
