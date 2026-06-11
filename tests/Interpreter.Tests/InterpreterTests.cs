@@ -2093,4 +2093,173 @@ public class InterpreterTests
             """));
         Assert.Contains("%", ex.Message);
     }
+
+    // ── Logical and / or ──────────────────────────────────────────────────
+
+    [Fact]
+    public void And_BothTrue()
+        => Assert.Equal("yes", Run("Define x as 1 = 1. Define y as 2 = 2. If x and y, State \"yes\". Otherwise, State \"no\"."));
+
+    [Fact]
+    public void And_LeftFalse()
+        => Assert.Equal("no", Run("Define x as 1 = 2. Define y as 2 = 2. If x and y, State \"yes\". Otherwise, State \"no\"."));
+
+    [Fact]
+    public void And_RightFalse()
+        => Assert.Equal("no", Run("Define x as 1 = 1. Define y as 2 = 3. If x and y, State \"yes\". Otherwise, State \"no\"."));
+
+    [Fact]
+    public void And_BothFalse()
+        => Assert.Equal("no", Run("Define x as 1 = 2. Define y as 2 = 3. If x and y, State \"yes\". Otherwise, State \"no\"."));
+
+    [Fact]
+    public void Or_BothFalse()
+        => Assert.Equal("no", Run("Define x as 1 = 2. Define y as 2 = 3. If x or y, State \"yes\". Otherwise, State \"no\"."));
+
+    [Fact]
+    public void Or_LeftTrue()
+        => Assert.Equal("yes", Run("Define x as 1 = 1. Define y as 2 = 3. If x or y, State \"yes\". Otherwise, State \"no\"."));
+
+    [Fact]
+    public void Or_RightTrue()
+        => Assert.Equal("yes", Run("Define x as 1 = 2. Define y as 2 = 2. If x or y, State \"yes\". Otherwise, State \"no\"."));
+
+    [Fact]
+    public void Or_BothTrue()
+        => Assert.Equal("yes", Run("Define x as 1 = 1. Define y as 2 = 2. If x or y, State \"yes\". Otherwise, State \"no\"."));
+
+    [Fact]
+    public void And_ShortCircuit_SkipsRight_WhenLeftFalse()
+    {
+        // 'undefined' is not in env — type checker returns null (unknown), so it passes.
+        // If short-circuit works, 'undefined' is never evaluated → no RuntimeException.
+        // If eager, 'undefined' would throw → this test would fail with RuntimeException.
+        Assert.Equal("", Run("""
+            Define flag as 1 = 2.
+            If flag and undefined is 0, State "oops".
+            """));
+    }
+
+    [Fact]
+    public void Or_ShortCircuit_SkipsRight_WhenLeftTrue()
+    {
+        // Same pattern: 'undefined' passes type check (null), throws at runtime if evaluated.
+        Assert.Equal("ok", Run("""
+            Define flag as 1 = 1.
+            If flag or undefined is 0, State "ok".
+            """));
+    }
+
+    [Fact]
+    public void And_HigherPrecedence_ThanOr()
+    {
+        // true or (false and false) = true or false = true  → "yes"  (correct)
+        // (true or false) and false = true and false = false → "no"   (wrong parse)
+        Assert.Equal("yes", Run("""
+            Define p as 1 = 1.
+            Define q as 1 = 2.
+            Define r as 1 = 2.
+            If p or q and r, State "yes". Otherwise, State "no".
+            """));
+    }
+
+    [Fact]
+    public void And_LeftAssociative()
+    {
+        // (true and true) and false = false
+        Assert.Equal("no", Run("""
+            Define p as 1 = 1.
+            Define q as 1 = 1.
+            Define r as 1 = 2.
+            If p and q and r, State "yes". Otherwise, State "no".
+            """));
+    }
+
+    [Fact]
+    public void Or_LeftAssociative()
+    {
+        // (false or false) or true = true
+        Assert.Equal("yes", Run("""
+            Define p as 1 = 2.
+            Define q as 1 = 2.
+            Define r as 1 = 1.
+            If p or q or r, State "yes". Otherwise, State "no".
+            """));
+    }
+
+    [Fact]
+    public void OrMore_StillWorks()
+        => Assert.Equal("yes", Run("Define n as 5. If n is 5 or more, State \"yes\". Otherwise, State \"no\"."));
+
+    [Fact]
+    public void OrLess_StillWorks()
+        => Assert.Equal("yes", Run("Define n as 3. If n is 5 or less, State \"yes\". Otherwise, State \"no\"."));
+
+    [Fact]
+    public void LogicalOr_WithOrMore_Coexist()
+    {
+        // "x is 10 or more" comparison tail and logical "or" in the same condition
+        Assert.Equal("yes", Run("""
+            Define x as 10.
+            Define y as 3.
+            If x is 10 or more or y is 10 or more, State "yes". Otherwise, State "no".
+            """));
+    }
+
+    [Fact]
+    public void Combined_WithComparisons()
+        => Assert.Equal("yes", Run("""
+            Define x as 0.
+            Define y as 1.
+            If x is 0 and y is 1, State "yes". Otherwise, State "no".
+            """));
+
+    [Fact]
+    public void Parens_Override_Precedence()
+    {
+        // (false or true) and false = true and false = false
+        Assert.Equal("no", Run("""
+            Define p as 1 = 2.
+            Define q as 1 = 1.
+            Define r as 1 = 2.
+            If (p or q) and r, State "yes". Otherwise, State "no".
+            """));
+    }
+
+    [Fact]
+    public void LogicalAnd_InWhileCondition()
+    {
+        // Both counters increment together; loop runs while both < 3; ends at n=3, m=3.
+        Assert.Equal("3", Run("""
+            Define n as 0.
+            Define m as 0.
+            While n is less than 3 and m is less than 3, repeat:
+                n becomes n + 1.
+                m becomes m + 1.
+            Done.
+            State n.
+            """));
+    }
+
+    [Fact]
+    public void And_NonFact_ThrowsTypeError()
+    {
+        // n is a number — 'and' requires facts on both sides
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define n as 5.
+            If n and n is 0, State "oops".
+            """));
+        Assert.Contains("and", ex.Message);
+    }
+
+    [Fact]
+    public void Or_NonFact_ThrowsTypeError()
+    {
+        // n is a number — 'or' requires facts on both sides
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define n as 5.
+            If n is 0 or n, State "oops".
+            """));
+        Assert.Contains("or", ex.Message);
+    }
 }

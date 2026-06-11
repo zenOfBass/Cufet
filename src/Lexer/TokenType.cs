@@ -35,7 +35,8 @@ public enum TokenType
     Greater,  // "greater" — in "is greater than"
     Less,     // "less"  — in "is less than" and "or less"
     Than,     // "than"  — in "is greater/less than"
-    Or,       // "or"    — in "or more" / "or less"; reserved distinct from a future logical or
+    Or,       // "or"    — logical-or, and comparison tail in "or more" / "or less"
+    And,      // "and"   — logical-and
     More,     // "more"  — in "or more"
 
     // ── Loops ─────────────────────────────────────────────────────────────

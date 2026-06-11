@@ -573,6 +573,16 @@ public sealed class TypeChecker
                     bin.Line,
                     $"order a {FormatType(l)} and a {FormatType(r)}",
                     "Ordering comparisons (>, <, >=, <=) require both sides to be numbers.")),
+            TokenType.And or TokenType.Or
+                when l == CufetType.Fact && r == CufetType.Fact
+                => CufetType.Fact,
+            TokenType.And or TokenType.Or
+                => throw new TypeException(FormatTypeError(
+                    $"'{FormatOp(bin.Op)}' requires true-or-false values on both sides",
+                    null,
+                    bin.Line,
+                    $"use '{FormatOp(bin.Op)}' with {FormatType(l)} and {FormatType(r)}",
+                    $"Both sides of '{FormatOp(bin.Op)}' must be a fact (a true or false value). Did you mean to write a comparison like 'x is 0' rather than just 'x'?")),
             _ => null
         };
     }
@@ -645,11 +655,13 @@ public sealed class TypeChecker
 
     private static string FormatOp(TokenType op) => op switch
     {
-        TokenType.Plus  => "+",
-        TokenType.Minus => "-",
-        TokenType.Star  => "*",
+        TokenType.Plus    => "+",
+        TokenType.Minus   => "-",
+        TokenType.Star    => "*",
         TokenType.Slash   => "/",
         TokenType.Percent => "%",
-        _               => op.ToString().ToLower(),
+        TokenType.And     => "and",
+        TokenType.Or      => "or",
+        _                 => op.ToString().ToLower(),
     };
 }

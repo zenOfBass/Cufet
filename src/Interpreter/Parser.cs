@@ -514,15 +514,49 @@ public sealed class Parser
     }
 
     // Condition grammar (conditional context — after If / Otherwise if):
-    //   condition     → addition ( is-comparison )?
-    //   is-comparison → "is" "not" addition
-    //                 | "is" "greater" "than" addition
-    //                 | "is" "less" "than" addition
-    //                 | "is" addition "or" ( "more" | "less" )
-    //                 | "is" addition
+    //   condition        → logical-or
+    //   logical-or       → logical-and ( "or" logical-and )*
+    //   logical-and      → single-condition ( "and" single-condition )*
+    //   single-condition → addition ( is-comparison )?
+    //   is-comparison    → "is" "not" addition
+    //                    | "is" "greater" "than" addition
+    //                    | "is" "less" "than" addition
+    //                    | "is" addition "or" ( "more" | "less" )
+    //                    | "is" addition
+    // "or" after "is N" is disambiguated by peeking one token ahead:
+    //   next is "more"/"less" → comparison tail (or more / or less)
+    //   anything else         → logical-or; the "or" is left unconsumed for this level
     // Symbol comparisons (= < > <= >=) are expression context only.
 
-    private IExpression ParseCondition()
+    private IExpression ParseCondition() => ParseLogicalOr();
+
+    private IExpression ParseLogicalOr()
+    {
+        var left = ParseLogicalAnd();
+        while (Peek().Type == TokenType.Or)
+        {
+            var line = Advance().Line;
+            SkipNoise();
+            var right = ParseLogicalAnd();
+            left = new BinaryExpression(left, TokenType.Or, right, line);
+        }
+        return left;
+    }
+
+    private IExpression ParseLogicalAnd()
+    {
+        var left = ParseSingleCondition();
+        while (Peek().Type == TokenType.And)
+        {
+            var line = Advance().Line;
+            SkipNoise();
+            var right = ParseSingleCondition();
+            left = new BinaryExpression(left, TokenType.And, right, line);
+        }
+        return left;
+    }
+
+    private IExpression ParseSingleCondition()
     {
         SkipNoise();
         var left = ParseAddition();
@@ -565,35 +599,64 @@ public sealed class Parser
             default:
             {
                 // "is expr" or "is expr or more/less"
+                // Peek past 'or' before consuming: if followed by more/less it's a comparison
+                // tail; otherwise it's logical-or and we leave it for ParseLogicalOr to handle.
                 var right = ParseAddition();
                 SkipNoise();
-                if (Peek().Type != TokenType.Or)
-                    return new BinaryExpression(left, TokenType.Equal, right, isLine);
-                Consume(TokenType.Or);
-                SkipNoise();
-                switch (Peek().Type)
+                if (Peek().Type == TokenType.Or &&
+                    PeekAfterCurrent() is TokenType.More or TokenType.Less)
                 {
-                    case TokenType.More:
+                    Consume(TokenType.Or);
+                    SkipNoise();
+                    if (Peek().Type == TokenType.More)
+                    {
                         Advance();
                         return new BinaryExpression(left, TokenType.Gte, right, isLine);
-                    case TokenType.Less:
-                        Advance();
-                        return new BinaryExpression(left, TokenType.Lte, right, isLine);
-                    default:
-                        throw new ParseException(Peek(), "more or less");
+                    }
+                    Advance(); // Less
+                    return new BinaryExpression(left, TokenType.Lte, right, isLine);
                 }
+                return new BinaryExpression(left, TokenType.Equal, right, isLine);
             }
         }
     }
 
-    // Expression grammar (expression context — right side of Define/becomes/State):
+    // Expression grammar (expression context — right side of Define/becomes/State, and inside parens):
     //   primary       → NUMBER | STRING | IDENTIFIER | "(" expression ")"
     //   unary         → "-" unary | primary
-    //   multiplication→ unary  ( ( "*" | "/" ) unary  )*
+    //   multiplication→ unary  ( ( "*" | "/" | "%" ) unary  )*
     //   addition      → multiplication ( ( "+" | "-" ) multiplication )*
     //   comparison    → addition ( ( "=" | "<" | ">" | "<=" | ">=" ) addition )*
+    //   expr-and      → comparison ( "and" comparison )*
+    //   expr-or       → expr-and  ( "or"  expr-and  )*
+    // and/or are included here so that parenthesised grouping works in condition context
+    // (e.g. (flag or other) and third) — same precedence as in the condition grammar.
 
-    private IExpression ParseExpression() => ParseComparison();
+    private IExpression ParseExpression() => ParseExprOr();
+
+    private IExpression ParseExprOr()
+    {
+        var left = ParseExprAnd();
+        while (Peek().Type == TokenType.Or)
+        {
+            var line = Advance().Line;
+            SkipNoise();
+            left = new BinaryExpression(left, TokenType.Or, ParseExprAnd(), line);
+        }
+        return left;
+    }
+
+    private IExpression ParseExprAnd()
+    {
+        var left = ParseComparison();
+        while (Peek().Type == TokenType.And)
+        {
+            var line = Advance().Line;
+            SkipNoise();
+            left = new BinaryExpression(left, TokenType.And, ParseComparison(), line);
+        }
+        return left;
+    }
 
     private IExpression ParseComparison()
     {
@@ -935,4 +998,12 @@ public sealed class Parser
 
     private Token Advance() => _tokens[_pos++];
     private Token Peek()    => _tokens[_pos];
+
+    // Returns the type of the first non-noise token after the current position.
+    private TokenType PeekAfterCurrent()
+    {
+        int i = _pos + 1;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count ? _tokens[i].Type : TokenType.Eof;
+    }
 }

@@ -352,25 +352,40 @@ public sealed class Interpreter
 
     private object EvaluateBinary(BinaryExpression b)
     {
-        var lv = Evaluate(b.Left);
-        var rv = Evaluate(b.Right);
+        // Short-circuit: evaluate right only when the left doesn't decide the result.
+        if (b.Op is TokenType.And or TokenType.Or)
+        {
+            var opName = b.Op == TokenType.And ? "and" : "or";
+            var lv = Evaluate(b.Left);
+            if (lv is not bool lb)
+                throw new RuntimeException($"'{opName}' requires true-or-false values on both sides (line {b.Line}).");
+            if (b.Op == TokenType.And && !lb) return (object)false;
+            if (b.Op == TokenType.Or  &&  lb) return (object)true;
+            var rv = Evaluate(b.Right);
+            if (rv is not bool)
+                throw new RuntimeException($"'{opName}' requires true-or-false values on both sides (line {b.Line}).");
+            return rv;
+        }
+
+        var lv2 = Evaluate(b.Left);
+        var rv2 = Evaluate(b.Right);
         return b.Op switch
         {
-            TokenType.Plus     => (object)(ToNumber(lv, "+") + ToNumber(rv, "+")),
-            TokenType.Minus    => (object)(ToNumber(lv, "-") - ToNumber(rv, "-")),
-            TokenType.Star     => (object)(ToNumber(lv, "*") * ToNumber(rv, "*")),
-            TokenType.Slash    => ToNumber(rv, "/") == 0
+            TokenType.Plus     => (object)(ToNumber(lv2, "+") + ToNumber(rv2, "+")),
+            TokenType.Minus    => (object)(ToNumber(lv2, "-") - ToNumber(rv2, "-")),
+            TokenType.Star     => (object)(ToNumber(lv2, "*") * ToNumber(rv2, "*")),
+            TokenType.Slash    => ToNumber(rv2, "/") == 0
                                       ? throw new RuntimeException($"Division by zero on line {b.Line}.")
-                                      : (object)(ToNumber(lv, "/") / ToNumber(rv, "/")),
-            TokenType.Percent  => ToNumber(rv, "%") == 0
+                                      : (object)(ToNumber(lv2, "/") / ToNumber(rv2, "/")),
+            TokenType.Percent  => ToNumber(rv2, "%") == 0
                                       ? throw new RuntimeException($"Modulo by zero on line {b.Line}.")
-                                      : (object)(ToNumber(lv, "%") % ToNumber(rv, "%")),
-            TokenType.Equal    => (object)lv.Equals(rv),
-            TokenType.NotEqual => (object)!lv.Equals(rv),
-            TokenType.Lt       => (object)(ToNumber(lv, "<")  < ToNumber(rv, "<")),
-            TokenType.Gt       => (object)(ToNumber(lv, ">")  > ToNumber(rv, ">")),
-            TokenType.Lte      => (object)(ToNumber(lv, "<=") <= ToNumber(rv, "<=")),
-            TokenType.Gte      => (object)(ToNumber(lv, ">=") >= ToNumber(rv, ">=")),
+                                      : (object)(ToNumber(lv2, "%") % ToNumber(rv2, "%")),
+            TokenType.Equal    => (object)lv2.Equals(rv2),
+            TokenType.NotEqual => (object)!lv2.Equals(rv2),
+            TokenType.Lt       => (object)(ToNumber(lv2, "<")  < ToNumber(rv2, "<")),
+            TokenType.Gt       => (object)(ToNumber(lv2, ">")  > ToNumber(rv2, ">")),
+            TokenType.Lte      => (object)(ToNumber(lv2, "<=") <= ToNumber(rv2, "<=")),
+            TokenType.Gte      => (object)(ToNumber(lv2, ">=") >= ToNumber(rv2, ">=")),
             _ => throw new InvalidOperationException($"Unknown binary operator: {b.Op}"),
         };
     }
