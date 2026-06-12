@@ -2647,4 +2647,116 @@ public class InterpreterTests
             "Define r as a record with (10, 20).\n" +
             "the fifth of r becomes 99."));
     }
+
+    // ── Records — slice 2: value semantics (deep-copy on assignment) ──────
+
+    [Fact]
+    public void Record_ValueSemantics_DefineDoesNotShare()
+    {
+        Assert.Equal("Norman", Run(
+            "Define alice as a record with (\"Alice\", 30, the city \"Norman\").\n" +
+            "Define bob as alice.\n" +
+            "the city of bob becomes \"Tulsa\".\n" +
+            "State the city of alice."));
+    }
+
+    [Fact]
+    public void Record_ValueSemantics_BecomesDoesNotShare()
+    {
+        Assert.Equal("Tulsa", Run(
+            "Define alice as a record with (the city \"Norman\").\n" +
+            "Define other as a record with (the city \"Tulsa\").\n" +
+            "alice becomes other.\n" +
+            "the city of other becomes \"Chicago\".\n" +
+            "State the city of alice."));
+    }
+
+    // ── Records — slice 3: record shapes in function annotations ─────────
+
+    [Fact]
+    public void Record_FunctionParam_MatchingRecord()
+    {
+        Assert.Equal("Norman", Run(
+            "Bind text to city-of, given (the record person with (text, the text city)):\n" +
+            "    return the city of person.\n" +
+            "Done.\n" +
+            "Define alice as a record with (\"Alice\", the city \"Norman\").\n" +
+            "State Cast city-of on (alice)."));
+    }
+
+    [Fact]
+    public void Record_FunctionParam_ShapeMismatchThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind text to city-of, given (the record person with (text, the text city)):\n" +
+            "    return the city of person.\n" +
+            "Done.\n" +
+            "Define r as a record with (42, the city \"Norman\").\n" +
+            "Cast city-of on (r)."));
+    }
+
+    [Fact]
+    public void Record_FunctionParam_NamedFieldOnly()
+    {
+        Assert.Equal("95", Run(
+            "Bind number to get-score, given (the record p with (the number score)):\n" +
+            "    return the score of p.\n" +
+            "Done.\n" +
+            "Define alice as a record with (the score 95).\n" +
+            "State Cast get-score on (alice)."));
+    }
+
+    [Fact]
+    public void Record_FunctionParam_MultipleParams()
+    {
+        Assert.Equal("100", Run(
+            "Bind number to add-score, given (the record person with (the number score), the number bonus):\n" +
+            "    return the score of person + bonus.\n" +
+            "Done.\n" +
+            "Define alice as a record with (the score 95).\n" +
+            "State Cast add-score on (alice, 5)."));
+    }
+
+    [Fact]
+    public void Record_FunctionReturnAnnotation_ReturnsRecord()
+    {
+        Assert.Equal("95", Run(
+            "Bind the record result with (the number score) to make-result:\n" +
+            "    return a record with (the score 95).\n" +
+            "Done.\n" +
+            "Define r as Cast make-result.\n" +
+            "State the score of r."));
+    }
+
+    [Fact]
+    public void Record_FunctionReturnAnnotation_NoLabelRequired()
+    {
+        Assert.Equal("Alice", Run(
+            "Bind the record with (text) to make-person:\n" +
+            "    return a record with (\"Alice\").\n" +
+            "Done.\n" +
+            "Define r as Cast make-person.\n" +
+            "State the first of r."));
+    }
+
+    [Fact]
+    public void Record_FunctionReturnAnnotation_ShapeMismatchThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind the record result with (the text city) to make-city:\n" +
+            "    return a record with (42).\n" +
+            "Done.\n" +
+            "Cast make-city."));
+    }
+
+    [Fact]
+    public void Record_FunctionAnnotation_MatchedByStructuralEquality()
+    {
+        Assert.Equal("true", Run(
+            "Bind fact to matches, given (the record p with (text, the number score)):\n" +
+            "    return the score of p > 90.\n" +
+            "Done.\n" +
+            "Define alice as a record with (\"Alice\", the score 95).\n" +
+            "State Cast matches on (alice)."));
+    }
 }

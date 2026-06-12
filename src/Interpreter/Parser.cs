@@ -164,6 +164,58 @@ public sealed class Parser
         throw new ParseException(tok, "type name (number, text, fact, or series of ...)");
     }
 
+    // Parses: with (<positional-types>, the <type> <field-name>, ...)
+    // Positional types are bare type keywords; named fields start with 'the'.
+    // Positionals must come before named fields — parser error otherwise.
+    private RecordType ParseRecordShapeAnnotation()
+    {
+        Consume(TokenType.With); SkipNoise();
+        Consume(TokenType.LParen);
+        // No SkipNoise here — preserve leading 'the' that signals a named field.
+
+        var positionalTypes = new List<CufetType>();
+        var namedFields     = new List<(string Name, CufetType Type)>();
+        bool seenNamed      = false;
+
+        if (Peek().Type != TokenType.RParen)
+        {
+            ParseOneRecordShapeField(positionalTypes, namedFields, ref seenNamed);
+            SkipNoise(); // safe: after a field, next is comma or RParen
+            while (Peek().Type == TokenType.Comma)
+            {
+                Advance();
+                // No SkipNoise — preserve leading 'the' for named field detection.
+                ParseOneRecordShapeField(positionalTypes, namedFields, ref seenNamed);
+                SkipNoise(); // safe: after a field, next is comma or RParen
+            }
+        }
+        Consume(TokenType.RParen);
+        return new RecordType(positionalTypes, namedFields);
+    }
+
+    private void ParseOneRecordShapeField(
+        List<CufetType> positionalTypes,
+        List<(string Name, CufetType Type)> namedFields,
+        ref bool seenNamed)
+    {
+        if (Peek().Type == TokenType.Article) // named: the <type> <name>
+        {
+            Advance(); SkipNoise();
+            var fieldType = ParseTypeAnnotation(); SkipNoise();
+            var fieldName = Consume(TokenType.Identifier).Lexeme;
+            seenNamed = true;
+            namedFields.Add((fieldName, fieldType));
+        }
+        else
+        {
+            if (seenNamed)
+                throw new ParseException(Peek(),
+                    "type — positional fields must come before named fields in a record shape");
+            var fieldType = ParseTypeAnnotation();
+            positionalTypes.Add(fieldType);
+        }
+    }
+
     private BecomesStatement ParseBecomesStatement()
     {
         var tok  = Consume(TokenType.Identifier);
@@ -999,6 +1051,7 @@ public sealed class Parser
 
     // null return → void (this function returns nothing)
     // FunctionType return → this function returns a function
+    // RecordType return → this function returns a record (optional label consumed and discarded)
     private CufetType? ParseReturnType()
     {
         if (Peek().Type == TokenType.Void)
@@ -1008,6 +1061,12 @@ public sealed class Parser
                 return null; // bare void — this function returns nothing
             Advance(); SkipNoise(); // consume 'function'
             return new FunctionType(ParseFunctionParamTypeList(), null);
+        }
+        if (Peek().Type == TokenType.Record)
+        {
+            Advance(); SkipNoise(); // consume 'record'
+            if (Peek().Type == TokenType.Identifier) { Advance(); SkipNoise(); } // optional label, discarded
+            return ParseRecordShapeAnnotation();
         }
         var baseType = ParseTypeAnnotation();
         SkipNoise();
@@ -1020,9 +1079,18 @@ public sealed class Parser
     // Parses a named parameter in a Bind declaration:
     //   <base-type> <name>
     //   (<base-type> | "void") "function" <name> ["given" "(" <param-type-list> ")"]
+    //   "record" <name> "with" "(" <record-shape> ")"
     private (CufetType Type, string Name) ParseParameter()
     {
         SkipNoise();
+
+        if (Peek().Type == TokenType.Record)
+        {
+            Advance(); SkipNoise(); // consume 'record'
+            var recParamName = Consume(TokenType.Identifier).Lexeme; SkipNoise();
+            var rt = ParseRecordShapeAnnotation();
+            return (rt, recParamName);
+        }
 
         CufetType? candidateType;
         if (Peek().Type == TokenType.Void)

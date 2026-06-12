@@ -34,6 +34,13 @@ public sealed class Interpreter
             PositionalFields = positionalFields.ToList();
             NamedFields      = namedFields.ToList();
         }
+
+        public RecordValue DeepCopy() => new RecordValue(
+            PositionalFields.Select(DeepCopyValue),
+            NamedFields.Select(f => (f.Name, DeepCopyValue(f.Value))));
+
+        private static object DeepCopyValue(object v) =>
+            v is RecordValue rv ? rv.DeepCopy() : v;
     }
 
     private int _callDepth = 0;
@@ -74,8 +81,11 @@ public sealed class Interpreter
             case DefineStatement d:
                 if (_env.ContainsKey(d.Name))
                     throw new RuntimeException($"'{d.Name}' is already defined on line {d.Line}.");
-                _env[d.Name] = Evaluate(d.Value);
+            {
+                var val = Evaluate(d.Value);
+                _env[d.Name] = val is RecordValue rv ? rv.DeepCopy() : val;
                 break;
+            }
 
             case BecomesStatement b:
                 if (!_env.ContainsKey(b.Name))
@@ -85,8 +95,11 @@ public sealed class Interpreter
                     if (suggestion != null) msg += $" Did you mean '{suggestion}'?";
                     throw new RuntimeException(msg);
                 }
-                _env[b.Name] = Evaluate(b.Value);
+            {
+                var val = Evaluate(b.Value);
+                _env[b.Name] = val is RecordValue rv ? rv.DeepCopy() : val;
                 break;
+            }
 
             case IfStatement ifStmt:
             {
