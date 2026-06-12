@@ -30,9 +30,13 @@ grouped by kind, roughly ordered within each group, but not strictly sequenced.
 
 - **Anonymous / inline functions (lambdas)** — function literals written inline rather than declared at top level with `Bind`. Tied to closures (an inline function that references its surroundings captures them).
 
-### Possible, further out
+### Objects (partially complete)
 
-- **Objects** — only noted because it would be the point at which the type system might need **variance / subtyping** in function-signature matching (currently exact-match only, which was chosen deliberately and is sufficient without a type hierarchy). Not committed; flagged so the exact-match decision is understood as expandable if a hierarchy ever arrives.
+Objects with nominal typing, possessive field access (`alice's name`), and method dispatch (`Cast greet on alice` / `Cast alice's greet`) are implemented. Remaining:
+
+- **Field mutation** — objects are currently value-typed and immutable from outside; there is no syntax yet for changing a field after construction (by contrast, records support `the city of alice becomes "Tulsa"`). Design needed: methods that return modified copies, or direct field assignment, or something else.
+- **Object equality** — no `=` / `is` comparison between two object values is currently defined.
+- **Richer method dispatch** — methods with parameters, method-return-value chaining.
 
 ### Tooling
 

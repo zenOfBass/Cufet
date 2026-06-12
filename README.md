@@ -260,6 +260,52 @@ Add a record with (the name "Carol", the age 28) to roster.
 
 Populated series infer their shape from the elements. Empty series declare it with `like (...)`. Either way, `add` enforces structural matching.
 
+### Objects
+
+**Definition:**
+```
+Define object person with (the text name, the number age).
+```
+
+With methods:
+```
+Define object person with (the text name, the number age):
+    Bind void to greet:
+        State one's name.
+    Done.
+Done.
+```
+
+Inside a method body, `one` refers to the receiver object.
+
+**Instantiation:**
+```
+Define alice as a new person { the name "Alice", the age 30 }.
+```
+
+**Access:**
+```
+State alice's name.             ← possessive: "Alice"
+State the name of alice.        ← named: "Alice"
+State the first of alice.       ← positional: "Alice"
+```
+
+**Method dispatch:**
+```
+Cast greet on alice.            ← verb-first
+Cast alice's greet.             ← possessive
+```
+
+**Nominal typing:**
+
+Two objects with the same fields but different names are different types. Unlike records, shape alone is not identity — the type name is.
+
+**Value semantics:**
+
+Objects copy on assignment, the same as records.
+
+---
+
 ### Functions
 
 **Declaration:**
@@ -360,6 +406,8 @@ Cufet has a static type checker that runs before execution. It catches:
 
 Records use structural typing — shape is identity, not name. Two records with the same fields and types are the same type regardless of where they were declared.
 
+Objects use nominal typing — type name is identity. Two objects with identical fields but different names are different types.
+
 Type errors name the violation, the line, and the fix:
 
 ```
@@ -415,8 +463,9 @@ tests/
 
 ## What's next
 
+- Object field mutation and equality
 - Closures (functions that capture their enclosing scope)
-- String operations
+- Text / string operations
 
 ---
 
