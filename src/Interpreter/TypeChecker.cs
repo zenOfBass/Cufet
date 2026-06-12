@@ -194,6 +194,9 @@ public sealed class TypeChecker
             case SeriesSetStatement seriesSet:
                 CheckSeriesSet(seriesSet);
                 break;
+            case RecordNamedSetStatement recordSet:
+                CheckRecordNamedSet(recordSet);
+                break;
             case SeriesRemoveAtStatement removeAt:
                 CheckSeriesRemoveAt(removeAt);
                 break;
@@ -408,16 +411,88 @@ public sealed class TypeChecker
     {
         if (seriesSet.Index != null) CheckIndex(seriesSet.Index, seriesSet.Line);
         if (!_env.TryGetValue(seriesSet.SeriesName, out var seriesInfo)) return;
-        if (seriesInfo.Type is not SeriesType seriesType) return;
 
-        var valueType = InferType(seriesSet.Value);
-        if (valueType != null && valueType != seriesType.ElementType)
+        if (seriesInfo.Type is SeriesType seriesType)
+        {
+            var valueType = InferType(seriesSet.Value);
+            if (valueType != null && valueType != seriesType.ElementType)
+                throw new TypeException(FormatTypeError(
+                    $"'{seriesSet.SeriesName}' holds {FormatTypePlural(seriesType.ElementType)}",
+                    $"You defined it on line {seriesInfo.EstablishingLine} as a series of {FormatTypePlural(seriesType.ElementType)}, so its items can only be set to {FormatTypePlural(seriesType.ElementType)}",
+                    seriesSet.Line,
+                    $"set an item to a {FormatType(valueType)} value",
+                    $"Change the new value to a {FormatType(seriesType.ElementType)}."));
+            return;
+        }
+
+        if (seriesInfo.Type is RecordType rt)
+        {
+            if (seriesSet.Index == null)
+                throw new TypeException(FormatTypeError(
+                    "'last' doesn't work on records",
+                    null, seriesSet.Line,
+                    "use 'last' on a record",
+                    "Use a position like 'the first of ...' or a field name like 'the city of ...'."));
+
+            if (seriesSet.Index is NumberLiteral { Value: var v })
+            {
+                var idx = (int)v;
+                var display = $"'{seriesSet.SeriesName}'";
+                if (idx < 1 || idx > rt.PositionalTypes.Count)
+                    throw new TypeException(FormatTypeError(
+                        rt.PositionalTypes.Count == 0
+                            ? $"{display} has no positional fields"
+                            : $"{display} has {rt.PositionalTypes.Count} positional field(s) — there is no position {idx}",
+                        null, seriesSet.Line,
+                        $"set position {idx}",
+                        rt.PositionalTypes.Count == 0
+                            ? "This record has no positional fields."
+                            : $"Positions run 1 through {rt.PositionalTypes.Count}."));
+
+                var fieldType = rt.PositionalTypes[idx - 1];
+                var valueType = InferType(seriesSet.Value);
+                if (valueType != null && valueType != fieldType)
+                    throw new TypeException(FormatTypeError(
+                        $"position {idx} of {display} holds a {FormatType(fieldType)}, not a {FormatType(valueType)}",
+                        null, seriesSet.Line,
+                        $"set position {idx} to a {FormatType(valueType)}",
+                        $"Position {idx} has type {FormatType(fieldType)}."));
+            }
+        }
+    }
+
+    private void CheckRecordNamedSet(RecordNamedSetStatement stmt)
+    {
+        var recordType = InferType(stmt.Record);
+        if (recordType == null) return;
+
+        if (recordType is not RecordType rt)
             throw new TypeException(FormatTypeError(
-                $"'{seriesSet.SeriesName}' holds {FormatTypePlural(seriesType.ElementType)}",
-                $"You defined it on line {seriesInfo.EstablishingLine} as a series of {FormatTypePlural(seriesType.ElementType)}, so its items can only be set to {FormatTypePlural(seriesType.ElementType)}",
-                seriesSet.Line,
-                $"set an item to a {FormatType(valueType)} value",
-                $"Change the new value to a {FormatType(seriesType.ElementType)}."));
+                $"you're trying to set field '{stmt.FieldName}' on something that isn't a record",
+                null, stmt.Line,
+                $"set a named field on a {FormatType(recordType)}",
+                "Only records have named fields."));
+
+        var field = rt.NamedFields.FirstOrDefault(f => f.Name == stmt.FieldName);
+        if (field == default)
+        {
+            var hint = rt.NamedFields.Count > 0
+                ? $"Available named fields: {string.Join(", ", rt.NamedFields.Select(f => f.Name))}."
+                : "This record has no named fields.";
+            throw new TypeException(FormatTypeError(
+                $"this record has no field named '{stmt.FieldName}'",
+                null, stmt.Line,
+                $"set field '{stmt.FieldName}'",
+                hint));
+        }
+
+        var valueType = InferType(stmt.Value);
+        if (valueType != null && valueType != field.Type)
+            throw new TypeException(FormatTypeError(
+                $"field '{stmt.FieldName}' holds a {FormatType(field.Type)}, not a {FormatType(valueType)}",
+                null, stmt.Line,
+                $"set field '{stmt.FieldName}' to a {FormatType(valueType)}",
+                $"Field '{stmt.FieldName}' has type {FormatType(field.Type)}."));
     }
 
     private void CheckSeriesRemoveAt(SeriesRemoveAtStatement removeAt)

@@ -32,6 +32,7 @@ public sealed class Parser
             TokenType.State      => ParseStateStatement(),
             TokenType.Define     => ParseDefineStatement(),
             TokenType.Identifier => ParseBecomesStatement(),
+            TokenType.Article    => ParseRecordNamedSetStatement(),
             TokenType.If         => ParseIfStatement(),
             TokenType.While      => ParseWhileStatement(),
             TokenType.Repeat     => ParseRepeatUntilStatement(),
@@ -397,6 +398,27 @@ public sealed class Parser
             "last"    => null,
             _         => throw new InvalidOperationException($"Unknown ordinal: {lexeme}"),
         };
+
+    // 'the <name> of <record-expr> becomes <value>.'
+    // SkipNoise in the Parse() loop stopped at 'the' because IsNamedAccessPattern() returned true.
+    // No SkipNoise between 'the' and field name — same rule as named-access in expressions.
+    private RecordNamedSetStatement ParseRecordNamedSetStatement()
+    {
+        Consume(TokenType.Article); // 'the'
+        var fieldTok = Advance();   // field name immediately follows
+        var line = fieldTok.Line;
+        SkipNoise();
+        Consume(TokenType.Of);
+        SkipNoise();
+        var record = ParsePrimary();
+        SkipNoise();
+        Consume(TokenType.Becomes);
+        SkipNoise();
+        var value = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new RecordNamedSetStatement(fieldTok.Lexeme, record, value, line);
+    }
 
     private SeriesSetStatement ParseSeriesSetStatement()
     {

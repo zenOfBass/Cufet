@@ -2556,4 +2556,95 @@ public class InterpreterTests
             "Define r as a record with (the active 1 = 1).\n" +
             "State not the active of r."));
     }
+
+    // ── Records — slice 2: field mutation ────────────────────────────────
+
+    [Fact]
+    public void Record_SetNamedField()
+    {
+        Assert.Equal("Tulsa", Run(
+            "Define alice as a record with (\"Alice\", 30, the city \"Norman\", the score 95).\n" +
+            "the city of alice becomes \"Tulsa\".\n" +
+            "State the city of alice."));
+    }
+
+    [Fact]
+    public void Record_SetPositionalField()
+    {
+        Assert.Equal("31", Run(
+            "Define alice as a record with (\"Alice\", 30, the city \"Norman\").\n" +
+            "the second of alice becomes 31.\n" +
+            "State the second of alice."));
+    }
+
+    [Fact]
+    public void Record_SetByParametric()
+    {
+        Assert.Equal("99", Run(
+            "Define r as a record with (10, 20, 30).\n" +
+            "Define n as 2.\n" +
+            "item n of r becomes 99.\n" +
+            "State the second of r."));
+    }
+
+    [Fact]
+    public void Record_SetPreservesOtherFields()
+    {
+        Assert.Equal("95", Run(
+            "Define r as a record with (\"Alice\", 30, the city \"Norman\", the score 95).\n" +
+            "the city of r becomes \"Tulsa\".\n" +
+            "State the score of r."));
+    }
+
+    [Fact]
+    public void Record_MultipleFieldMutations()
+    {
+        Assert.Equal("Tulsa\n31", Run(
+            "Define alice as a record with (\"Alice\", 30, the city \"Norman\", the score 95).\n" +
+            "the city of alice becomes \"Tulsa\".\n" +
+            "the second of alice becomes 31.\n" +
+            "State the city of alice.\n" +
+            "State the second of alice."));
+    }
+
+    [Fact]
+    public void Record_ChainedNamedSet()
+    {
+        Assert.Equal("Tulsa", Run(
+            "Define alice as a record with (the home a record with (the city \"Norman\")).\n" +
+            "the city of the home of alice becomes \"Tulsa\".\n" +
+            "State the city of the home of alice."));
+    }
+
+    [Fact]
+    public void Record_SetNamedFieldTypeMismatchThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define r as a record with (the score 95).\n" +
+            "the score of r becomes \"bad\"."));
+    }
+
+    [Fact]
+    public void Record_SetPositionalFieldTypeMismatchThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define r as a record with (10, 20).\n" +
+            "the first of r becomes \"bad\"."));
+    }
+
+    [Fact]
+    public void Record_SetNonexistentNamedFieldThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define r as a record with (the score 95).\n" +
+            "the name of r becomes \"Bob\"."));
+    }
+
+    [Fact]
+    public void Record_SetPositionalOutOfBoundsThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define r as a record with (10, 20).\n" +
+            "the fifth of r becomes 99."));
+    }
 }

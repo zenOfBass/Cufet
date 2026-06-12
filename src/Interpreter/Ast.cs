@@ -58,6 +58,14 @@ public sealed record RecordLiteral(
 // the <name> of <record-expr>  — named field access; chains: the city of the home of person
 public sealed record RecordNamedAccess(string FieldName, IExpression Record, int Line) : IExpression;
 
+// the <name> of <record-expr> becomes <value>  — named field assignment
+public sealed record RecordNamedSetStatement(
+    string FieldName,
+    IExpression Record,
+    IExpression Value,
+    int Line
+) : IStatement;
+
 public sealed record StateStatement(IExpression Value)                        : IStatement;
 public sealed record DefineStatement(string Name, IExpression Value, int Line)  : IStatement;
 public sealed record BecomesStatement(string Name, IExpression Value, int Line) : IStatement;

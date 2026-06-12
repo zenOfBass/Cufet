@@ -24,15 +24,15 @@ public sealed class Interpreter
 
     private sealed class RecordValue
     {
-        public IReadOnlyList<object>              PositionalFields { get; }
-        public IReadOnlyList<(string Name, object Value)> NamedFields { get; }
+        public List<object>              PositionalFields { get; }
+        public List<(string Name, object Value)> NamedFields { get; }
 
         public RecordValue(
-            IReadOnlyList<object> positionalFields,
-            IReadOnlyList<(string Name, object Value)> namedFields)
+            IEnumerable<object> positionalFields,
+            IEnumerable<(string Name, object Value)> namedFields)
         {
-            PositionalFields = positionalFields;
-            NamedFields      = namedFields;
+            PositionalFields = positionalFields.ToList();
+            NamedFields      = namedFields.ToList();
         }
     }
 
@@ -175,8 +175,34 @@ public sealed class Interpreter
 
             case SeriesSetStatement ss:
             {
+                if (_env.TryGetValue(ss.SeriesName, out var envVal) && envVal is RecordValue rrv)
+                {
+                    if (ss.Index == null)
+                        throw new RuntimeException($"'last' is not supported for records on line {ss.Line}.");
+                    if (Evaluate(ss.Index) is not decimal d)
+                        throw new RuntimeException($"Record position must be a number on line {ss.Line}.");
+                    var idx = (int)d;
+                    if (idx < 1 || idx > rrv.PositionalFields.Count)
+                        throw new RuntimeException(rrv.PositionalFields.Count == 0
+                            ? $"This record has no positional fields (line {ss.Line})."
+                            : $"This record has {rrv.PositionalFields.Count} positional field(s); there is no position {idx} (line {ss.Line}).");
+                    rrv.PositionalFields[idx - 1] = Evaluate(ss.Value);
+                    break;
+                }
                 var list = ExpectSeries(ss.SeriesName, ss.Line);
                 list[ResolveIndex(ss.Index, list, ss.SeriesName, ss.Line)] = Evaluate(ss.Value);
+                break;
+            }
+
+            case RecordNamedSetStatement rnss:
+            {
+                var recordVal = Evaluate(rnss.Record);
+                if (recordVal is not RecordValue rv)
+                    throw new RuntimeException($"Expected a record for field assignment on line {rnss.Line}.");
+                var fieldIdx = rv.NamedFields.FindIndex(f => f.Name == rnss.FieldName);
+                if (fieldIdx < 0)
+                    throw new RuntimeException($"This record has no field named '{rnss.FieldName}' (line {rnss.Line}).");
+                rv.NamedFields[fieldIdx] = (rnss.FieldName, Evaluate(rnss.Value));
                 break;
             }
 
