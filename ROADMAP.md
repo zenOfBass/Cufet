@@ -56,6 +56,8 @@ grouped by kind, roughly ordered within each group, but not strictly sequenced.
 
 - **Possible static-coverage gap in ToNumber** — The runtime ToNumber check fires for non-number arithmetic — verify whether the type checker should catch all such cases statically, or whether this is a genuine runtime backstop for SeriesPending/unresolved paths. Currently flagged with a code comment; investigate whether the static checker has a hole here. 
 
+- **Compound-type assignment semantics (intentional split)** — Records are value-typed (copy on assignment); series are reference-typed (share on assignment). This split is deliberate and principled — records are bounded "one thing with parts," series are unbounded "collections that grow," and developers intuit copy-vs-share differently for each. Not a bug; do not "unify" them.
+
 ---
 
 ## Long-term direction (north stars)
