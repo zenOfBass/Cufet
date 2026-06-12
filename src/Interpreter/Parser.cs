@@ -9,6 +9,7 @@ public sealed class Parser
     private int _loopDepth;
     private int _nestDepth;     // any block depth — used to enforce Bind top-level only
     private int _functionDepth; // incremented inside a Bind body — for return validation
+    private bool _inObjectDef;  // bypasses _nestDepth guard for Bind inside object method blocks
 
     public Parser(IReadOnlyList<Token> tokens) => _tokens = tokens;
 
@@ -60,10 +61,12 @@ public sealed class Parser
         return new StateStatement(value);
     }
 
-    private DefineStatement ParseDefineStatement()
+    private IStatement ParseDefineStatement()
     {
         var line = Consume(TokenType.Define).Line;
         SkipNoise();
+        if (Peek().Type == TokenType.Object)
+            return ParseObjectDefinition(line);
         var name = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
         Consume(TokenType.As);
@@ -74,6 +77,75 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Dot);
         return new DefineStatement(name, value, line);
+    }
+
+    // Define object <name> with (<fields>) [: <bind-stmts> Done.].
+    private ObjectDefinition ParseObjectDefinition(int line)
+    {
+        Consume(TokenType.Object);
+        SkipNoise();
+        var name = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+        var shape = ParseRecordShapeAnnotation(); // consumes "with (...)"
+        SkipNoise();
+
+        var methods = new List<BindStatement>();
+        if (Peek().Type == TokenType.Colon)
+        {
+            Advance(); // consume ':'
+            _inObjectDef = true;
+            _nestDepth++;
+            while (true)
+            {
+                SkipNoise();
+                if (Peek().Type is TokenType.Done or TokenType.Eof) break;
+                if (Peek().Type != TokenType.Bind)
+                    throw new ParseException(Peek(),
+                        "Bind — only method definitions are allowed inside an object body");
+                methods.Add(ParseBindStatement());
+            }
+            _nestDepth--;
+            _inObjectDef = false;
+            Consume(TokenType.Done);
+            Consume(TokenType.Dot);
+        }
+        else
+        {
+            Consume(TokenType.Dot);
+        }
+
+        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, line);
+    }
+
+    // new <typeName> { [fields] }
+    private ObjectLiteral ParseObjectLiteralExpr()
+    {
+        var line = Advance().Line; // consume 'new'
+        SkipNoise();
+        var typeName = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+        Consume(TokenType.LBrace);
+        // No SkipNoise — preserve leading 'the' for IsNamedFieldStart
+
+        var positionals = new List<IExpression>();
+        var namedFields = new List<(string Name, IExpression Value)>();
+        bool namedStarted = false;
+
+        if (Peek().Type != TokenType.RBrace)
+        {
+            ParseOneRecordField(positionals, namedFields, ref namedStarted);
+            SkipNoise();
+            while (Peek().Type == TokenType.Comma)
+            {
+                Advance();
+                // No SkipNoise — preserve leading 'the'
+                ParseOneRecordField(positionals, namedFields, ref namedStarted);
+                SkipNoise();
+            }
+        }
+
+        Consume(TokenType.RBrace);
+        return new ObjectLiteral(typeName, positionals, namedFields, line);
     }
 
     private SeriesLiteral ParseSeriesLiteralExpr()
@@ -841,22 +913,42 @@ public sealed class Parser
 
         SkipNoise(); // articles are noise before any value
         var tok = Peek();
+        IExpression baseExpr;
         switch (tok.Type)
         {
             case TokenType.Number:
-                return new NumberLiteral(decimal.Parse(Advance().Lexeme));
+                baseExpr = new NumberLiteral(decimal.Parse(Advance().Lexeme));
+                break;
             case TokenType.String:
-                return new StringLiteral(Advance().Lexeme);
+                baseExpr = new StringLiteral(Advance().Lexeme);
+                break;
             case TokenType.Identifier:
-                { var t = Advance(); return new VariableReference(t.Lexeme, t.Line); }
+            {
+                var t = Advance();
+                baseExpr = new VariableReference(t.Lexeme, t.Line);
+                break;
+            }
             case TokenType.It:
-                { var t = Advance(); return new VariableReference("it", t.Line); }
+            {
+                var t = Advance();
+                baseExpr = new VariableReference("it", t.Line);
+                break;
+            }
+            case TokenType.One:
+            {
+                var t = Advance();
+                baseExpr = new VariableReference("one", t.Line);
+                break;
+            }
             case TokenType.LParen:
+            {
                 Advance();
                 var inner = ParseExpression();
                 SkipNoise();
                 Consume(TokenType.RParen);
-                return inner;
+                baseExpr = inner;
+                break;
+            }
             case TokenType.Ordinal:
             {
                 // Inline ordinal access: 'first of <target-expr>' where target is parsed as
@@ -867,7 +959,8 @@ public sealed class Parser
                 Consume(TokenType.Of);
                 SkipNoise();
                 var target = ParsePrimary();
-                return new SeriesAccess(target, index, ordTok.Line);
+                baseExpr = new SeriesAccess(target, index, ordTok.Line);
+                break;
             }
             case TokenType.Item:
             {
@@ -878,7 +971,8 @@ public sealed class Parser
                 Consume(TokenType.Of);
                 SkipNoise();
                 var target = ParsePrimary();
-                return new SeriesAccess(target, idx, itemTok.Line);
+                baseExpr = new SeriesAccess(target, idx, itemTok.Line);
+                break;
             }
             case TokenType.NumberKw:
             {
@@ -887,15 +981,34 @@ public sealed class Parser
                 Consume(TokenType.Of);
                 SkipNoise();
                 var name = Consume(TokenType.Identifier).Lexeme;
-                return new SeriesLength(name);
+                baseExpr = new SeriesLength(name);
+                break;
             }
             case TokenType.Cast:
-                return ParseCastExpression();
+                baseExpr = ParseCastExpression();
+                break;
             case TokenType.Record:
-                return ParseRecordLiteralExpr();
+                baseExpr = ParseRecordLiteralExpr();
+                break;
+            case TokenType.New:
+                baseExpr = ParseObjectLiteralExpr();
+                break;
             default:
                 throw new ParseException(tok, "expression");
         }
+
+        // Possessive postfix: alice's name, one's field, alice's friend's name
+        SkipNoise();
+        while (Peek().Type == TokenType.Possessive)
+        {
+            var possTok = Advance(); // consume "'s"
+            SkipNoise();
+            var memberTok = Advance(); // member name — any word token
+            baseExpr = new PossessiveAccess(baseExpr, memberTok.Lexeme, possTok.Line);
+            SkipNoise();
+        }
+
+        return baseExpr;
     }
 
     // ── Records ───────────────────────────────────────────────────────────
@@ -1019,8 +1132,10 @@ public sealed class Parser
     private BindStatement ParseBindStatement()
     {
         var bindTok = Consume(TokenType.Bind);
-        if (_nestDepth > 0)
+        if (_nestDepth > 0 && !_inObjectDef)
             throw new ParseException(bindTok, "Functions can only be declared at the top level, not inside a block");
+        var savedInObjectDef = _inObjectDef;
+        _inObjectDef = false; // method body must not allow nested Binds
         SkipNoise();
         var returnType = ParseReturnType();
         SkipNoise();
@@ -1060,6 +1175,7 @@ public sealed class Parser
         var body = ParseFunctionBody();
         _nestDepth--;
         _functionDepth--;
+        _inObjectDef = savedInObjectDef;
 
         return new BindStatement(name, returnType, parameters, body, bindTok.Line);
     }
@@ -1210,27 +1326,45 @@ public sealed class Parser
         return stmts;
     }
 
-    private CastStatement ParseCastStatementWrapper()
+    private IStatement ParseCastStatementWrapper()
     {
         var expr = ParseCastExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new CastStatement(expr.Function, expr.Args, expr.Line);
+        return expr switch
+        {
+            MethodCallExpression mc => new MethodCallStatement(mc.MethodName, mc.Receiver, mc.Line),
+            CastExpression ce       => new CastStatement(ce.Function, ce.Args, ce.Line),
+            _ => throw new InvalidOperationException($"Unexpected cast expression type: {expr.GetType().Name}"),
+        };
     }
 
-    private CastExpression ParseCastExpression()
+    // Returns CastExpression (function call) or MethodCallExpression (method dispatch).
+    private IExpression ParseCastExpression()
     {
         var line = Consume(TokenType.Cast).Line;
-        var funcExpr = ParsePrimary(); // ParsePrimary handles leading articles via SkipNoise()
+        var funcExpr = ParsePrimary(); // handles leading articles and possessive postfix
         SkipNoise();
 
-        var args = new List<IExpression>();
         if (Peek().Type == TokenType.On)
         {
             Advance(); // consume 'on'
             SkipNoise();
+
+            if (Peek().Type != TokenType.LParen)
+            {
+                // Method dispatch: Cast greet on alice (no parens → receiver, not arg list)
+                if (funcExpr is not VariableReference mr)
+                    throw new ParseException(line,
+                        "identifier — method name must be a plain identifier in 'Cast method on receiver'");
+                var receiver = ParsePrimary();
+                return new MethodCallExpression(mr.Name, receiver, line);
+            }
+
+            // Function call: Cast func on (<args>)
             Consume(TokenType.LParen);
             SkipNoise();
+            var args = new List<IExpression>();
             if (Peek().Type != TokenType.RParen)
             {
                 args.Add(ParseExpression());
@@ -1244,9 +1378,10 @@ public sealed class Parser
                 }
             }
             Consume(TokenType.RParen);
+            return new CastExpression(funcExpr, args, line);
         }
 
-        return new CastExpression(funcExpr, args, line);
+        return new CastExpression(funcExpr, [], line);
     }
 
     private ReturnStatement ParseReturnStatement()

@@ -128,4 +128,33 @@ public sealed record CastStatement(
 // Value == null means bare return.
 public sealed record ReturnStatement(IExpression? Value, int Line) : IStatement;
 
+// ── Objects ───────────────────────────────────────────────────────────────────
+
+// Define object <name> with (<fields>) [: <methods> Done.]
+// Methods == [] when defined without a body (slice 1 objects).
+public sealed record ObjectDefinition(
+    string Name,
+    IReadOnlyList<CufetType> PositionalTypes,
+    IReadOnlyList<(string FieldName, CufetType FieldType)> NamedFields,
+    IReadOnlyList<BindStatement> Methods,
+    int Line
+) : IStatement;
+
+// a new <TypeName> {<fields>}
+public sealed record ObjectLiteral(
+    string TypeName,
+    IReadOnlyList<IExpression> PositionalValues,
+    IReadOnlyList<(string Name, IExpression Value)> NamedValues,
+    int Line
+) : IExpression;
+
+// alice's greet  /  one's name  — possessive field or method reference
+public sealed record PossessiveAccess(IExpression Target, string Member, int Line) : IExpression;
+
+// Cast greet on alice  — method dispatch (no parens; alice is receiver, not argument)
+public sealed record MethodCallExpression(string MethodName, IExpression Receiver, int Line) : IExpression;
+
+// Cast greet on alice.  — method dispatch as a statement
+public sealed record MethodCallStatement(string MethodName, IExpression Receiver, int Line) : IStatement;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

@@ -30,8 +30,10 @@ public sealed class Lexer
                 tokens.Add(ReadNumber());
             else if (c == '"')
                 tokens.Add(ReadString());
-            else if (c is '+' or '-' or '*' or '/' or '%' or '(' or ')' or '=' or '<' or '>' or ':' or ',')
+            else if (c is '+' or '-' or '*' or '/' or '%' or '(' or ')' or '=' or '<' or '>' or ':' or ',' or '{' or '}')
                 tokens.Add(ReadSymbol());
+            else if (c == '\'')
+                tokens.Add(ReadPossessive());
             // DECIDED, DEFERRED:
             //   <<...>> — verbatim strings with distinct open/close delimiters; nestable by depth-counting <</>>.
             //   exactly — raw modifier (exactly "..." / exactly <<...>>) that suppresses interpretation.
@@ -107,6 +109,9 @@ public sealed class Lexer
             "record"    => TokenType.Record,
             "with"      => TokenType.With,
             "like"      => TokenType.Like,
+            "object"    => TokenType.Object,
+            "new"       => TokenType.New,
+            "one"       => TokenType.One,
             "for"       => TokenType.For,
             "each"      => TokenType.Each,
             "in"        => TokenType.In,
@@ -164,6 +169,8 @@ public sealed class Lexer
             case '=': return new Token(TokenType.Equal, "=", _line);
             case ':': return new Token(TokenType.Colon,  ":", _line);
             case ',': return new Token(TokenType.Comma,  ",", _line);
+            case '{': return new Token(TokenType.LBrace, "{", _line);
+            case '}': return new Token(TokenType.RBrace, "}", _line);
             case '<':
                 if (!AtEnd() && Peek() == '=') { Advance(); return new Token(TokenType.Lte, "<=", _line); }
                 return new Token(TokenType.Lt, "<", _line);
@@ -173,6 +180,17 @@ public sealed class Lexer
             default:
                 throw new InvalidOperationException($"ReadSymbol called on non-symbol '{c}'");
         }
+    }
+
+    private Token ReadPossessive()
+    {
+        Advance(); // consume '\''
+        if (!AtEnd() && Peek() == 's')
+        {
+            Advance(); // consume 's'
+            return new Token(TokenType.Possessive, "'s", _line);
+        }
+        throw new LexerException(_line, '\'');
     }
 
     private Token ReadNumber()

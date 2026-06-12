@@ -53,6 +53,14 @@ public enum TokenType
     With,     // "with"   — delimits element-type annotation from contents: "series [of T] with (...)"
     Like,     // "like"   — introduces record shape in empty series: "series of records like (...)"
 
+    // ── Objects ───────────────────────────────────────────────────────────
+    Object,     // "object"   — in "Define object <name> with (...)"
+    New,        // "new"      — in "a new <type> {fields}"
+    One,        // "one"      — reserved self-reference keyword inside method bodies
+    Possessive, // "'s"       — possessive marker: alice's name, one's field
+    LBrace,     // "{"        — opens object literal fields
+    RBrace,     // "}"        — closes object literal fields
+
     // ── Collections — for-each ────────────────────────────────────────────
     For,      // "for"
     Each,     // "each"

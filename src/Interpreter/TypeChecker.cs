@@ -110,6 +110,30 @@ public sealed class FunctionType : CufetType
     }
 }
 
+// Nominal type — equality by name only. Fields/methods carried for lookup; not part of equality.
+public sealed class ObjectType : CufetType
+{
+    public string Name { get; }
+    public IReadOnlyList<CufetType> PositionalTypes { get; }
+    public IReadOnlyList<(string FieldName, CufetType FieldType)> NamedFields { get; }
+    public IReadOnlyList<(string MethodName, FunctionType Signature)> Methods { get; }
+
+    public ObjectType(
+        string name,
+        IReadOnlyList<CufetType> positionalTypes,
+        IReadOnlyList<(string FieldName, CufetType FieldType)> namedFields,
+        IReadOnlyList<(string MethodName, FunctionType Signature)> methods)
+    {
+        Name           = name;
+        PositionalTypes = positionalTypes;
+        NamedFields     = namedFields.OrderBy(f => f.FieldName, StringComparer.Ordinal).ToList();
+        Methods         = methods;
+    }
+
+    public override bool Equals(object? obj) => obj is ObjectType o && o.Name == Name;
+    public override int GetHashCode() => HashCode.Combine(typeof(ObjectType), Name);
+}
+
 public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine);
 
 public sealed class TypeException : Exception
@@ -119,9 +143,10 @@ public sealed class TypeException : Exception
 
 public sealed class TypeChecker
 {
-    private readonly Dictionary<string, TypeInfo> _env = new();
+    private readonly Dictionary<string, TypeInfo>      _env        = new();
+    private readonly Dictionary<string, ObjectType>    _objectDefs = new();
 
-    // Return context — set when entering a Bind body.
+    // Return context — set when entering a Bind or method body.
     private bool       _inFunction             = false;
     private CufetType? _expectedReturnType     = null; // null = void function
     private int        _functionDeclarationLine = 0;
@@ -133,10 +158,19 @@ public sealed class TypeChecker
             CheckStatement(stmt);
     }
 
-    // Pass 1: register all top-level Bind signatures before checking any body.
-    // This enables forward references and self-/mutual-recursion.
+    // Pass 1: register object types (sub-pass 1a) then function signatures (sub-pass 1b).
+    // Object types first so method signatures can reference them.
     private void Pass1Hoist(Program program)
     {
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is not ObjectDefinition od) continue;
+            var methodSigs = od.Methods
+                .Select(m => (m.Name, new FunctionType(m.Parameters.Select(p => p.Type).ToList(), m.ReturnType)))
+                .ToList();
+            _objectDefs[od.Name] = new ObjectType(od.Name, od.PositionalTypes, od.NamedFields, methodSigs);
+        }
+
         foreach (var stmt in program.Statements)
         {
             if (stmt is not BindStatement bind) continue;
@@ -211,6 +245,12 @@ public sealed class TypeChecker
             }
             case ReturnStatement ret:
                 CheckReturn(ret);
+                break;
+            case ObjectDefinition od:
+                CheckObjectDefinition(od);
+                break;
+            case MethodCallStatement mc:
+                _ = InferMethodCallExpression(new MethodCallExpression(mc.MethodName, mc.Receiver, mc.Line));
                 break;
         }
     }
@@ -528,6 +568,9 @@ public sealed class TypeChecker
         CastExpression cast                                                     => InferCastExpr(cast),
         RecordLiteral lit                                                       => InferRecordLiteral(lit),
         RecordNamedAccess rna                                                   => InferRecordNamedAccess(rna),
+        ObjectLiteral lit                                                       => InferObjectLiteral(lit),
+        PossessiveAccess poss                                                   => InferPossessiveAccess(poss),
+        MethodCallExpression mc                                                 => InferMethodCallExpression(mc),
         _                                                                       => null,
     };
 
@@ -662,6 +705,32 @@ public sealed class TypeChecker
             return null;
         }
 
+        if (targetType is ObjectType ot)
+        {
+            if (acc.Index == null)
+                throw new TypeException(FormatTypeError(
+                    $"'last' doesn't work on objects",
+                    null, acc.Line,
+                    "use 'last' on an object",
+                    "Use a position like 'the first of ...' or a field name like 'the city of ...'."));
+            if (acc.Index is NumberLiteral { Value: var v })
+            {
+                var idx = (int)v;
+                if (idx < 1 || idx > ot.PositionalTypes.Count)
+                    throw new TypeException(FormatTypeError(
+                        ot.PositionalTypes.Count == 0
+                            ? $"'{ot.Name}' has no positional fields"
+                            : $"'{ot.Name}' has {ot.PositionalTypes.Count} positional field(s) — there is no position {idx}",
+                        null, acc.Line,
+                        $"access position {idx}",
+                        ot.PositionalTypes.Count == 0
+                            ? $"'{ot.Name}' has no positional fields. Access fields by name instead."
+                            : $"Positions run 1 through {ot.PositionalTypes.Count}."));
+                return ot.PositionalTypes[idx - 1];
+            }
+            return null;
+        }
+
         return null;
     }
 
@@ -718,12 +787,27 @@ public sealed class TypeChecker
         var recordType = InferType(rna.Record);
         if (recordType == null) return null;
 
+        // Named field access also works on objects (the <name> of <object>).
+        if (recordType is ObjectType ot)
+        {
+            var objField = ot.NamedFields.FirstOrDefault(f => f.FieldName == rna.FieldName);
+            if (objField == default)
+                throw new TypeException(FormatTypeError(
+                    $"'{ot.Name}' has no field named '{rna.FieldName}'",
+                    null, rna.Line,
+                    $"access field '{rna.FieldName}'",
+                    ot.NamedFields.Count > 0
+                        ? $"Available fields: {string.Join(", ", ot.NamedFields.Select(f => $"'{f.FieldName}'"))}."
+                        : $"'{ot.Name}' has no named fields."));
+            return objField.FieldType;
+        }
+
         if (recordType is not RecordType rt)
             throw new TypeException(FormatTypeError(
-                $"you're trying to access field '{rna.FieldName}' on something that isn't a record",
+                $"you're trying to access field '{rna.FieldName}' on something that isn't a record or object",
                 null, rna.Line,
                 $"access a named field of a {FormatType(recordType)}",
-                "Only records have named fields."));
+                "Only records and objects have named fields."));
 
         var field = rt.NamedFields.FirstOrDefault(f => f.Name == rna.FieldName);
         if (field == default)
@@ -748,6 +832,169 @@ public sealed class TypeChecker
         }
 
         return field.Type;
+    }
+
+    // ── Objects ───────────────────────────────────────────────────────────────
+
+    private void CheckObjectDefinition(ObjectDefinition od)
+    {
+        if (!_objectDefs.TryGetValue(od.Name, out var objType)) return;
+
+        foreach (var method in od.Methods)
+        {
+            var snapshot = new Dictionary<string, TypeInfo>(_env);
+            _env.Clear();
+
+            // Method scope: functions + object functions visible, plus 'one' (self) + parameters.
+            foreach (var (k, v) in snapshot.Where(kv => kv.Value.Type is FunctionType))
+                _env[k] = v;
+            _env["one"] = new TypeInfo(objType, new VariableReference("one", 0), od.Line);
+            foreach (var (type, name) in method.Parameters)
+                _env[name] = new TypeInfo(type, new VariableReference(name, 0), method.Line);
+
+            var prevInFunction       = _inFunction;
+            var prevReturnType       = _expectedReturnType;
+            var prevFunctionLine     = _functionDeclarationLine;
+            _inFunction              = true;
+            _expectedReturnType      = method.ReturnType;
+            _functionDeclarationLine = method.Line;
+
+            try
+            {
+                foreach (var stmt in method.Body)
+                    CheckStatement(stmt);
+
+                if (method.ReturnType != null && !DefinitelyReturns(method.Body))
+                    throw new TypeException(FormatTypeError(
+                        $"method '{method.Name}' is declared to give back a {FormatType(method.ReturnType)}, but it can reach its end without returning one",
+                        null, method.Line,
+                        "define a method that might not return a value",
+                        "Make sure every path through the method ends with a return statement."));
+            }
+            finally
+            {
+                _inFunction              = prevInFunction;
+                _expectedReturnType      = prevReturnType;
+                _functionDeclarationLine = prevFunctionLine;
+                _env.Clear();
+                foreach (var (k, v) in snapshot) _env[k] = v;
+            }
+        }
+    }
+
+    private ObjectType InferObjectLiteral(ObjectLiteral lit)
+    {
+        if (!_objectDefs.TryGetValue(lit.TypeName, out var objType))
+            throw new TypeException(FormatTypeError(
+                $"'{lit.TypeName}' is not a defined object type",
+                null, lit.Line,
+                $"create a new {lit.TypeName} object",
+                $"Define the object type first: Define object {lit.TypeName} with (...)."));
+
+        // Check positional field count and types.
+        if (lit.PositionalValues.Count != objType.PositionalTypes.Count)
+            throw new TypeException(FormatTypeError(
+                $"'{lit.TypeName}' expects {objType.PositionalTypes.Count} positional field(s), but you provided {lit.PositionalValues.Count}",
+                null, lit.Line,
+                $"provide {lit.PositionalValues.Count} positional field(s)",
+                $"'{lit.TypeName}' requires exactly {objType.PositionalTypes.Count} positional field(s)."));
+
+        for (int i = 0; i < lit.PositionalValues.Count; i++)
+        {
+            var valType = InferType(lit.PositionalValues[i]);
+            if (valType != null && valType != objType.PositionalTypes[i])
+                throw new TypeException(FormatTypeError(
+                    $"positional field {i + 1} of '{lit.TypeName}' must be a {FormatType(objType.PositionalTypes[i])}",
+                    null, lit.Line,
+                    $"provide a {FormatType(valType)} for positional field {i + 1}",
+                    $"Change the value to a {FormatType(objType.PositionalTypes[i])}."));
+        }
+
+        // Check all required named fields are present.
+        foreach (var required in objType.NamedFields)
+        {
+            if (!lit.NamedValues.Any(nv => nv.Name == required.FieldName))
+                throw new TypeException(FormatTypeError(
+                    $"field '{required.FieldName}' of '{lit.TypeName}' is missing",
+                    null, lit.Line,
+                    $"create a {lit.TypeName} without field '{required.FieldName}'",
+                    $"Add 'the {required.FieldName} <value>' to the object literal."));
+        }
+
+        // Check named field types and that no extra/unknown fields are provided.
+        foreach (var (name, expr) in lit.NamedValues)
+        {
+            var fieldDef = objType.NamedFields.FirstOrDefault(f => f.FieldName == name);
+            if (fieldDef == default)
+                throw new TypeException(FormatTypeError(
+                    $"'{lit.TypeName}' has no field named '{name}'",
+                    null, lit.Line,
+                    $"set unknown field '{name}'",
+                    $"Available named fields: {string.Join(", ", objType.NamedFields.Select(f => $"'{f.FieldName}'"))}."));
+            var valType = InferType(expr);
+            if (valType != null && valType != fieldDef.FieldType)
+                throw new TypeException(FormatTypeError(
+                    $"field '{name}' of '{lit.TypeName}' must be a {FormatType(fieldDef.FieldType)}",
+                    null, lit.Line,
+                    $"provide a {FormatType(valType)} for field '{name}'",
+                    $"Change the value to a {FormatType(fieldDef.FieldType)}."));
+        }
+
+        return objType;
+    }
+
+    private CufetType? InferPossessiveAccess(PossessiveAccess poss)
+    {
+        var targetType = InferType(poss.Target);
+        if (targetType == null) return null;
+
+        if (targetType is not ObjectType ot)
+            throw new TypeException(FormatTypeError(
+                $"possessive access ('s) requires an object, but got a {FormatType(targetType)}",
+                null, poss.Line,
+                $"use 's on a {FormatType(targetType)}",
+                "Only objects support the possessive 's syntax."));
+
+        // Methods take priority over fields (both shouldn't share a name, but safety).
+        var method = ot.Methods.FirstOrDefault(m => m.MethodName == poss.Member);
+        if (method != default) return method.Signature;
+
+        var field = ot.NamedFields.FirstOrDefault(f => f.FieldName == poss.Member);
+        if (field != default) return field.FieldType;
+
+        var available = string.Join(", ",
+            ot.NamedFields.Select(f => $"'{f.FieldName}'")
+            .Concat(ot.Methods.Select(m => $"'{m.MethodName}' (method)")));
+        throw new TypeException(FormatTypeError(
+            $"'{ot.Name}' has no field or method named '{poss.Member}'",
+            null, poss.Line,
+            $"access '{poss.Member}' on a {ot.Name}",
+            available.Length > 0 ? $"Available: {available}." : $"'{ot.Name}' has no fields or methods."));
+    }
+
+    private CufetType? InferMethodCallExpression(MethodCallExpression mc)
+    {
+        var receiverType = InferType(mc.Receiver);
+        if (receiverType == null) return null;
+
+        if (receiverType is not ObjectType ot)
+            throw new TypeException(FormatTypeError(
+                $"'Cast {mc.MethodName} on X' requires an object, but got a {FormatType(receiverType)}",
+                null, mc.Line,
+                $"dispatch method '{mc.MethodName}' on a {FormatType(receiverType)}",
+                "Method dispatch requires an object. Use 'Cast fn on (args)' for regular function calls."));
+
+        var method = ot.Methods.FirstOrDefault(m => m.MethodName == mc.MethodName);
+        if (method == default)
+            throw new TypeException(FormatTypeError(
+                $"'{ot.Name}' has no method named '{mc.MethodName}'",
+                null, mc.Line,
+                $"call method '{mc.MethodName}' on a {ot.Name}",
+                ot.Methods.Count > 0
+                    ? $"Available methods: {string.Join(", ", ot.Methods.Select(m => $"'{m.MethodName}'"))}."
+                    : $"'{ot.Name}' has no methods."));
+
+        return method.Signature.ReturnType;
     }
 
     private static int Levenshtein(string a, string b)
@@ -880,6 +1127,7 @@ public sealed class TypeChecker
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
         FunctionType ft                      => FormatFunctionType(ft),
         RecordType rt                        => FormatRecordType(rt),
+        ObjectType ot                        => ot.Name,
         _                                    => "<unknown>",
     };
 
@@ -908,6 +1156,7 @@ public sealed class TypeChecker
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
         FunctionType                         => "functions",
         RecordType rt                        => FormatRecordType(rt),
+        ObjectType ot                        => $"{ot.Name} objects",
         _                                    => "<unknown>",
     };
 

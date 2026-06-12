@@ -22,6 +22,32 @@ public sealed class Interpreter
         public required IReadOnlyList<IStatement> Body           { get; init; }
     }
 
+    private sealed class ObjectValue
+    {
+        public string TypeName { get; }
+        public List<object>              PositionalFields { get; }
+        public List<(string Name, object Value)> NamedFields { get; }
+
+        public ObjectValue(
+            string typeName,
+            IEnumerable<object> positionalFields,
+            IEnumerable<(string Name, object Value)> namedFields)
+        {
+            TypeName         = typeName;
+            PositionalFields = positionalFields.ToList();
+            NamedFields      = namedFields.ToList();
+        }
+
+        public ObjectValue DeepCopy() => new ObjectValue(
+            TypeName,
+            PositionalFields.Select(DeepCopyValue),
+            NamedFields.Select(f => (f.Name, DeepCopyValue(f.Value))));
+
+        private static object DeepCopyValue(object v) =>
+            v is ObjectValue ov ? ov.DeepCopy() :
+            v is RecordValue rv ? rv.DeepCopy() : v;
+    }
+
     private sealed class RecordValue
     {
         public List<object>              PositionalFields { get; }
@@ -40,8 +66,11 @@ public sealed class Interpreter
             NamedFields.Select(f => (f.Name, DeepCopyValue(f.Value))));
 
         private static object DeepCopyValue(object v) =>
-            v is RecordValue rv ? rv.DeepCopy() : v;
+            v is RecordValue rv ? rv.DeepCopy() :
+            v is ObjectValue ov ? ov.DeepCopy() : v;
     }
+
+    private readonly Dictionary<string, ObjectDefinition> _objectDefs = new();
 
     private int _callDepth = 0;
     private readonly int _maxCallDepth;
@@ -54,8 +83,14 @@ public sealed class Interpreter
 
     public void Execute(Program program)
     {
-        // Hoist all function definitions before executing any statement,
-        // enabling forward references and mutual recursion.
+        // Hoist object definitions (before functions, so method bodies can reference them).
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is ObjectDefinition od)
+                _objectDefs[od.Name] = od;
+        }
+
+        // Hoist top-level function definitions.
         foreach (var stmt in program.Statements)
         {
             if (stmt is BindStatement bind)
@@ -83,7 +118,8 @@ public sealed class Interpreter
                     throw new RuntimeException($"'{d.Name}' is already defined on line {d.Line}.");
             {
                 var val = Evaluate(d.Value);
-                _env[d.Name] = val is RecordValue rv ? rv.DeepCopy() : val;
+                _env[d.Name] = val is RecordValue rv ? rv.DeepCopy() :
+                               val is ObjectValue ov ? ov.DeepCopy() : val;
                 break;
             }
 
@@ -97,7 +133,8 @@ public sealed class Interpreter
                 }
             {
                 var val = Evaluate(b.Value);
-                _env[b.Name] = val is RecordValue rv ? rv.DeepCopy() : val;
+                _env[b.Name] = val is RecordValue rv ? rv.DeepCopy() :
+                               val is ObjectValue ov ? ov.DeepCopy() : val;
                 break;
             }
 
@@ -220,7 +257,12 @@ public sealed class Interpreter
             }
 
             case BindStatement:
+            case ObjectDefinition:
                 break; // already hoisted in Execute(Program)
+
+            case MethodCallStatement mc:
+                DispatchMethod(mc.MethodName, Evaluate(mc.Receiver), [], mc.Line);
+                break;
 
             case CastStatement cs:
                 ExecuteCallExpr(cs.Function, cs.Args, cs.Line);
@@ -325,6 +367,11 @@ public sealed class Interpreter
                                      rl.PositionalFields.Select(Evaluate).ToList(),
                                      rl.NamedFields.Select(f => (f.Name, Evaluate(f.Value))).ToList()),
         RecordNamedAccess rna => EvaluateRecordNamedAccess(rna),
+        ObjectLiteral    ol   => EvaluateObjectLiteral(ol),
+        PossessiveAccess pa   => EvaluatePossessiveAccess(pa),
+        MethodCallExpression mc => DispatchMethod(mc.MethodName, Evaluate(mc.Receiver), [], mc.Line)
+                                     ?? throw new RuntimeException(
+                                         $"'{mc.MethodName}' gives nothing back — it can't be used as a value (line {mc.Line})."),
         CastExpression   cast => ExecuteCallExpr(cast.Function, cast.Args, cast.Line)
                                      ?? throw new RuntimeException(
                                          $"{FuncDisplayName(cast.Function)} gives nothing back — it can't be used as a value (line {cast.Line})."),
@@ -337,6 +384,11 @@ public sealed class Interpreter
     // Evaluates the function expression, then executes the call.
     private object? ExecuteCallExpr(IExpression funcExpr, IReadOnlyList<IExpression> args, int line)
     {
+        if (funcExpr is PossessiveAccess pa)
+        {
+            var target = Evaluate(pa.Target);
+            return DispatchMethod(pa.Member, target, args, line);
+        }
         var funcVal = Evaluate(funcExpr);
         if (funcVal is not FunctionValue func)
             throw new RuntimeException($"{FuncDisplayName(funcExpr)} is not a function (line {line}).");
@@ -416,6 +468,20 @@ public sealed class Interpreter
             return rv.PositionalFields[idx - 1];
         }
 
+        if (val is ObjectValue ov)
+        {
+            if (sa.Index == null)
+                throw new RuntimeException($"'last' is not supported for objects on line {sa.Line}.");
+            if (Evaluate(sa.Index) is not decimal od)
+                throw new RuntimeException($"Object position must be a number on line {sa.Line}.");
+            var oidx = (int)od;
+            if (oidx < 1 || oidx > ov.PositionalFields.Count)
+                throw new RuntimeException(ov.PositionalFields.Count == 0
+                    ? $"This object has no positional fields (line {sa.Line})."
+                    : $"This object has {ov.PositionalFields.Count} positional field(s); there is no position {oidx} (line {sa.Line}).");
+            return ov.PositionalFields[oidx - 1];
+        }
+
         if (val is not List<object> list)
             throw new RuntimeException($"Expected a series on line {sa.Line}.");
         var sname = sa.Target is VariableReference vr ? vr.Name : "this expression";
@@ -424,8 +490,18 @@ public sealed class Interpreter
 
     private object EvaluateRecordNamedAccess(RecordNamedAccess rna)
     {
-        var recordVal = Evaluate(rna.Record);
-        if (recordVal is not RecordValue rv)
+        var target = Evaluate(rna.Record);
+
+        if (target is ObjectValue ov)
+        {
+            var objField = ov.NamedFields.FirstOrDefault(f => f.Name == rna.FieldName);
+            if (objField == default)
+                throw new RuntimeException(
+                    $"Object of type '{ov.TypeName}' has no field named '{rna.FieldName}' (line {rna.Line}).");
+            return objField.Value;
+        }
+
+        if (target is not RecordValue rv)
             throw new RuntimeException(
                 $"You're trying to access field '{rna.FieldName}' on something that isn't a record (line {rna.Line}).");
         var field = rv.NamedFields.FirstOrDefault(f => f.Name == rna.FieldName);
@@ -530,6 +606,85 @@ public sealed class Interpreter
         return d[a.Length, b.Length];
     }
 
+    private object EvaluateObjectLiteral(ObjectLiteral ol) =>
+        new ObjectValue(
+            ol.TypeName,
+            ol.PositionalValues.Select(Evaluate),
+            ol.NamedValues.Select(f => (f.Name, Evaluate(f.Value))));
+
+    private object EvaluatePossessiveAccess(PossessiveAccess pa)
+    {
+        var target = Evaluate(pa.Target);
+        if (target is not ObjectValue ov)
+            throw new RuntimeException(
+                $"You're trying to access '{pa.Member}' on something that isn't an object (line {pa.Line}).");
+        var field = ov.NamedFields.FirstOrDefault(f => f.Name == pa.Member);
+        if (field != default)
+            return field.Value;
+        throw new RuntimeException(
+            $"Object of type '{ov.TypeName}' has no field named '{pa.Member}' (line {pa.Line}).");
+    }
+
+    private object? DispatchMethod(string methodName, object receiver, IReadOnlyList<IExpression> args, int line)
+    {
+        if (receiver is ObjectValue ov &&
+            _objectDefs.TryGetValue(ov.TypeName, out var def))
+        {
+            var method = def.Methods.FirstOrDefault(m => m.Name == methodName);
+            if (method != null)
+                return ExecuteMethod(ov, method, args, line);
+        }
+        var typeName = receiver is ObjectValue o2 ? $"'{o2.TypeName}'" : "this value";
+        throw new RuntimeException($"'{methodName}' is not a method on {typeName} (line {line}).");
+    }
+
+    private object? ExecuteMethod(ObjectValue receiver, BindStatement method, IReadOnlyList<IExpression> args, int line)
+    {
+        _callDepth++;
+        if (_callDepth > _maxCallDepth)
+        {
+            _callDepth--;
+            throw new RuntimeException(
+                $"'{method.Name}' called itself too many times (line {line}) — is it missing a base case?");
+        }
+
+        var paramNames = method.Parameters.Select(p => p.Name).ToList();
+        if (args.Count != paramNames.Count)
+            throw new RuntimeException(
+                $"'{method.Name}' expects {paramNames.Count} argument(s), got {args.Count} (line {line}).");
+
+        var argValues = args.Select(Evaluate).ToList();
+        var snapshot  = new Dictionary<string, object>(_env);
+
+        var toRemove = new List<string>();
+        foreach (var (k, v) in _env)
+            if (v is not FunctionValue) toRemove.Add(k);
+        foreach (var k in toRemove) _env.Remove(k);
+
+        for (int i = 0; i < paramNames.Count; i++)
+            _env[paramNames[i]] = argValues[i];
+        _env["one"] = receiver;
+
+        object? returnValue = null;
+        try
+        {
+            foreach (var stmt in method.Body)
+                Execute(stmt);
+        }
+        catch (ReturnException re)
+        {
+            returnValue = re.Value;
+        }
+        finally
+        {
+            _env.Clear();
+            foreach (var (k, v) in snapshot) _env[k] = v;
+            _callDepth--;
+        }
+
+        return returnValue;
+    }
+
     private static string Format(object val) => val switch
     {
         bool b           => b ? "true" : "false",
@@ -537,6 +692,7 @@ public sealed class Interpreter
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
         FunctionValue    => "<function>",
         RecordValue rv   => FormatRecord(rv),
+        ObjectValue ov   => FormatObject(ov),
         _                => val.ToString()!,
     };
 
@@ -546,5 +702,13 @@ public sealed class Interpreter
         foreach (var v in rv.PositionalFields)       parts.Add(Format(v));
         foreach (var (name, v) in rv.NamedFields)    parts.Add($"{name}: {Format(v)}");
         return "record(" + string.Join(", ", parts) + ")";
+    }
+
+    private static string FormatObject(ObjectValue ov)
+    {
+        var parts = new List<string>();
+        foreach (var v in ov.PositionalFields)       parts.Add(Format(v));
+        foreach (var (name, v) in ov.NamedFields)    parts.Add($"{name}: {Format(v)}");
+        return $"{ov.TypeName}(" + string.Join(", ", parts) + ")";
     }
 }

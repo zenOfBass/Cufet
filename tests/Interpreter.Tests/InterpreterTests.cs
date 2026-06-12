@@ -2825,4 +2825,275 @@ public class InterpreterTests
             "Define nums as a series with (a record with (10), a record with (20)).\n" +
             "State the first of the first of nums."));
     }
+
+    // ── Objects — slice 1: definitions and instances ──────────────────────────
+
+    [Fact]
+    public void Object_DefineAndPossessiveFieldAccess()
+    {
+        Assert.Equal("Alice", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "State alice's name."));
+    }
+
+    [Fact]
+    public void Object_NamedFieldViaTheOfSyntax()
+    {
+        Assert.Equal("30", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "State the age of alice."));
+    }
+
+    [Fact]
+    public void Object_PositionalFieldAccess()
+    {
+        Assert.Equal("Alice", Run(
+            "Define object person with (text, number).\n" +
+            "Define alice as a new person { \"Alice\", 30 }.\n" +
+            "State the first of alice."));
+    }
+
+    [Fact]
+    public void Object_StateFormatsCorrectly()
+    {
+        Assert.Equal("person(Alice, 30)", Run(
+            "Define object person with (text, number).\n" +
+            "Define alice as a new person { \"Alice\", 30 }.\n" +
+            "State alice."));
+    }
+
+    [Fact]
+    public void Object_NamedFieldsStateFormat()
+    {
+        Assert.Equal("person(name: Alice, score: 95)", Run(
+            "Define object person with (the text name, the number score).\n" +
+            "Define alice as a new person { the name \"Alice\", the score 95 }.\n" +
+            "State alice."));
+    }
+
+    [Fact]
+    public void Object_ValueSemantics_DefineDoesNotShare()
+    {
+        // Defining bob as alice creates a deep copy — mutating alice's positional field
+        // via a record-set won't exist for objects yet, so test via becomes with different literal.
+        Assert.Equal("Alice", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "Define bob as alice.\n" +
+            "bob becomes a new person { the name \"Bob\", the age 25 }.\n" +
+            "State alice's name."));
+    }
+
+    [Fact]
+    public void Object_ValueSemantics_BecomesDoesNotShare()
+    {
+        Assert.Equal("Alice", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "Define other as a new person { the name \"Other\", the age 0 }.\n" +
+            "other becomes alice.\n" +
+            "alice becomes a new person { the name \"Changed\", the age 99 }.\n" +
+            "State other's name."));
+    }
+
+    [Fact]
+    public void Object_InSeries()
+    {
+        Assert.Equal("Alice\nBob", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define people as a series with (\n" +
+            "    a new person { the name \"Alice\", the age 30 },\n" +
+            "    a new person { the name \"Bob\", the age 25 }\n" +
+            ").\n" +
+            "State the name of the first of people.\n" +
+            "State the name of the second of people."));
+    }
+
+    [Fact]
+    public void Object_UnknownTypeThrowsTypeError()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define alice as a new ghost { the name \"Alice\" }."));
+        Assert.Contains("ghost", ex.Message);
+    }
+
+    [Fact]
+    public void Object_WrongFieldTypeThrowsTypeError()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define alice as a new person { the name 42, the age 30 }."));
+        Assert.Contains("name", ex.Message);
+    }
+
+    [Fact]
+    public void Object_MissingRequiredFieldThrowsTypeError()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define alice as a new person { the name \"Alice\" }."));
+        Assert.Contains("age", ex.Message);
+    }
+
+    [Fact]
+    public void Object_ExtraFieldThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name).\n" +
+            "Define alice as a new person { the name \"Alice\", the score 99 }."));
+    }
+
+    [Fact]
+    public void Object_FieldInArithmetic()
+    {
+        Assert.Equal("40", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "State alice's age + 10."));
+    }
+
+    [Fact]
+    public void Object_NominalTyping_SameShapeDifferentNameThrowsTypeError()
+    {
+        // Two objects with identical shapes but different names are distinct types.
+        Assert.Throws<TypeException>(() => Run(
+            "Define object cat with (the text name).\n" +
+            "Define object dog with (the text name).\n" +
+            "Define felix as a new cat { the name \"Felix\" }.\n" +
+            "felix becomes a new dog { the name \"Rex\" }."));
+    }
+
+    // ── Objects — slice 2: methods ────────────────────────────────────────────
+
+    [Fact]
+    public void Object_Method_DispatchWithCastOn()
+    {
+        Assert.Equal("Alice", Run(
+            "Define object person with (the text name):\n" +
+            "    Bind void to greet:\n" +
+            "        State one's name.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Cast greet on alice."));
+    }
+
+    [Fact]
+    public void Object_Method_PossessiveDispatch()
+    {
+        Assert.Equal("Bob", Run(
+            "Define object person with (the text name):\n" +
+            "    Bind void to greet:\n" +
+            "        State one's name.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define bob as a new person { the name \"Bob\" }.\n" +
+            "Cast bob's greet."));
+    }
+
+    [Fact]
+    public void Object_Method_ReturnValue()
+    {
+        Assert.Equal("Alice", Run(
+            "Define object person with (the text name):\n" +
+            "    Bind text to get-name:\n" +
+            "        return one's name.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "State Cast get-name on alice."));
+    }
+
+    [Fact]
+    public void Object_Method_PossessiveDispatchWithReturnValue()
+    {
+        Assert.Equal("Alice", Run(
+            "Define object person with (the text name):\n" +
+            "    Bind text to get-name:\n" +
+            "        return one's name.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "State Cast alice's get-name."));
+    }
+
+    [Fact]
+    public void Object_Method_ReturnValueInExpression()
+    {
+        Assert.Equal("50", Run(
+            "Define object account with (the number balance):\n" +
+            "    Bind number to get-balance:\n" +
+            "        return one's balance.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define acct as a new account { the balance 40 }.\n" +
+            "State Cast get-balance on acct + 10."));
+    }
+
+    [Fact]
+    public void Object_Method_TwoObjects_DispatchesToCorrectReceiver()
+    {
+        Assert.Equal("Alice\nBob", Run(
+            "Define object person with (the text name):\n" +
+            "    Bind void to greet:\n" +
+            "        State one's name.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Define bob as a new person { the name \"Bob\" }.\n" +
+            "Cast greet on alice.\n" +
+            "Cast greet on bob."));
+    }
+
+    [Fact]
+    public void Object_Method_DoesNotMutateReceiver()
+    {
+        // Both State calls should produce "Alice" — method reads one's name, original unchanged.
+        Assert.Equal("Alice\nAlice", Run(
+            "Define object person with (the text name):\n" +
+            "    Bind void to check:\n" +
+            "        State one's name.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Cast check on alice.\n" +
+            "State alice's name."));
+    }
+
+    [Fact]
+    public void Object_Method_UnknownMethodThrowsTypeError()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name).\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Cast fly on alice."));
+        Assert.Contains("fly", ex.Message);
+    }
+
+    [Fact]
+    public void Object_Method_PossessiveUnknownMethodThrowsTypeError()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name).\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Cast alice's fly."));
+        Assert.Contains("fly", ex.Message);
+    }
+
+    [Fact]
+    public void Object_Method_VoidUsedAsValueThrowsRuntimeException()
+    {
+        // Void method dispatch in expression context: type checker allows null (unknown return),
+        // interpreter throws when the void result is used as a value.
+        Assert.Throws<RuntimeException>(() => Run(
+            "Define object person with (the text name):\n" +
+            "    Bind void to greet:\n" +
+            "        State one's name.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "State Cast greet on alice."));
+    }
 }
