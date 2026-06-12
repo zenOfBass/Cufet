@@ -42,12 +42,12 @@ Done.
 ```
 
 ```
-Define alice as a record with ("Alice", the city "Norman", the score 95).
-State the city of alice.            → Norman
-State the first of alice.           → Alice
+Define car as a record with ("hatchback", the make "Honda", the year 2021).
+State the make of car.              → Honda
+State the first of car.             → hatchback
 
-the city of alice becomes "Tulsa".
-State the city of alice.            → Tulsa
+the make of car becomes "Toyota".
+State the make of car.              → Toyota
 ```
 
 ---
@@ -140,7 +140,7 @@ until x is 10 or more.
 **Literal:**
 ```
 Define scores as a series with (90, 85, 70).
-Define names  as a series of text with ("alice", "bob").
+Define tags   as a series of text with ("sedan", "coupe").
 Define ops    as a series of number function given (the number) with (double, triple).
 ```
 
@@ -148,7 +148,7 @@ The element type is inferred from the elements, or can be declared explicitly af
 ```
 Define log    as a series of text.
 Define counts as a series of numbers.
-Define party  as a series of records like (the text name, the number age).
+Define fleet  as a series of records like (the text make, the number year).
 ```
 
 **Access:**
@@ -210,23 +210,23 @@ Mutating the series being iterated is a runtime error. Use `While` with an index
 
 **Construction:**
 ```
-Define alice as a record with ("Alice", the city "Norman", the score 95).
+Define car as a record with ("hatchback", the make "Honda", the year 2021).
 ```
 
 Positional fields come first; named fields (introduced with `the`) come after. Mixed order is a parse error.
 
 **Access:**
 ```
-State the first of alice.           ← positional: "Alice"
-State the city of alice.            ← named: "Norman"
-State the city of the home of alice.← chained named access
+State the first of car.             ← positional: "hatchback"
+State the make of car.              ← named: "Honda"
+State the make of the spare of car. ← chained named access
 ```
 
 **Mutation:**
 ```
-the city of alice becomes "Tulsa".        ← named field
-the first of alice becomes "Al".          ← positional ordinal
-item n of alice becomes "Al".             ← positional parametric
+the make of car becomes "Toyota".         ← named field
+the first of car becomes "coupe".         ← positional ordinal
+item n of car becomes "coupe".            ← positional parametric
 ```
 
 Assigning the wrong type to a field is a static type error.
@@ -236,26 +236,26 @@ Assigning the wrong type to a field is a static type error.
 Records copy on assignment — assigning a record to a new name gives you an independent copy.
 
 ```
-Define bob as alice.
-the city of bob becomes "Tulsa".
-State the city of alice.            → Norman   (unchanged)
+Define truck as car.
+the make of truck becomes "Toyota".
+State the make of car.              → Honda    (unchanged)
 ```
 
 **Records in function annotations:**
 ```
-Bind text to city-of, given (the record person with (text, the text city)):
-    Return the city of person.
+Bind text to make-of, given (the record vehicle with (text, the text make)):
+    Return the make of vehicle.
 Done.
 ```
 
 **Series of records:**
 ```
-Define party as a series with (
-    a record with (the name "Alice", the age 30),
-    a record with (the name "Bob",   the age 25)).
+Define fleet as a series with (
+    a record with (the make "Honda",  the year 2021),
+    a record with (the make "Toyota", the year 2019)).
 
-Define roster as a series of records like (the text name, the number age).
-Add a record with (the name "Carol", the age 28) to roster.
+Define inventory as a series of records like (the text make, the number year).
+Add a record with (the make "Ford", the year 2022) to inventory.
 ```
 
 Populated series infer their shape from the elements. Empty series declare it with `like (...)`. Either way, `add` enforces structural matching.
@@ -264,14 +264,14 @@ Populated series infer their shape from the elements. Empty series declare it wi
 
 **Definition:**
 ```
-Define object person with (the text name, the number age).
+Define object vehicle with (the text make, the number year).
 ```
 
 With methods:
 ```
-Define object person with (the text name, the number age):
-    Bind void to greet:
-        State one's name.
+Define object vehicle with (the text make, the number year):
+    Bind void to describe:
+        State one's make.
     Done.
 Done.
 ```
@@ -280,20 +280,20 @@ Inside a method body, `one` refers to the receiver object.
 
 **Instantiation:**
 ```
-Define alice as a new person { the name "Alice", the age 30 }.
+Define car as a new vehicle { the make "Honda", the year 2021 }.
 ```
 
 **Access:**
 ```
-State alice's name.             ← possessive: "Alice"
-State the name of alice.        ← named: "Alice"
-State the first of alice.       ← positional: "Alice"
+State car's make.               ← possessive: "Honda"
+State the make of car.          ← named: "Honda"
+State the first of car.         ← positional: "Honda"
 ```
 
 **Method dispatch:**
 ```
-Cast greet on alice.            ← verb-first
-Cast alice's greet.             ← possessive
+Cast describe on car.           ← verb-first
+Cast car's describe.            ← possessive
 ```
 
 **Nominal typing:**
