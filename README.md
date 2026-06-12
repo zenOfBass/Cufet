@@ -41,6 +41,15 @@ For each op in ops, repeat:
 Done.
 ```
 
+```
+Define alice as a record with ("Alice", the city "Norman", the score 95).
+State the city of alice.            → Norman
+State the first of alice.           → Alice
+
+the city of alice becomes "Tulsa".
+State the city of alice.            → Tulsa
+```
+
 ---
 
 ## Language reference
@@ -137,7 +146,9 @@ Define ops    as a series of number function given (the number) with (double, tr
 
 The element type is inferred from the elements, or can be declared explicitly after `of`. Empty series require an explicit annotation:
 ```
-Define log as a series of text.
+Define log    as a series of text.
+Define counts as a series of numbers.
+Define party  as a series of records like (the text name, the number age).
 ```
 
 **Access:**
@@ -194,6 +205,60 @@ Named form binds the current element to a new name. Bare-it form binds it to `it
 Mutating the series being iterated is a runtime error. Use `While` with an index if you need to change the series as you go.
 
 `Stop.` and `Skip.` work the same as in `While` loops.
+
+### Records
+
+**Construction:**
+```
+Define alice as a record with ("Alice", the city "Norman", the score 95).
+```
+
+Positional fields come first; named fields (introduced with `the`) come after. Mixed order is a parse error.
+
+**Access:**
+```
+State the first of alice.           ← positional: "Alice"
+State the city of alice.            ← named: "Norman"
+State the city of the home of alice.← chained named access
+```
+
+**Mutation:**
+```
+the city of alice becomes "Tulsa".        ← named field
+the first of alice becomes "Al".          ← positional ordinal
+item n of alice becomes "Al".             ← positional parametric
+```
+
+Assigning the wrong type to a field is a static type error.
+
+**Value semantics:**
+
+Records copy on assignment — assigning a record to a new name gives you an independent copy.
+
+```
+Define bob as alice.
+the city of bob becomes "Tulsa".
+State the city of alice.            → Norman   (unchanged)
+```
+
+**Records in function annotations:**
+```
+Bind text to city-of, given (the record person with (text, the text city)):
+    Return the city of person.
+Done.
+```
+
+**Series of records:**
+```
+Define party as a series with (
+    a record with (the name "Alice", the age 30),
+    a record with (the name "Bob",   the age 25)).
+
+Define roster as a series of records like (the text name, the number age).
+Add a record with (the name "Carol", the age 28) to roster.
+```
+
+Populated series infer their shape from the elements. Empty series declare it with `like (...)`. Either way, `add` enforces structural matching.
 
 ### Functions
 
@@ -289,6 +354,11 @@ Cufet has a static type checker that runs before execution. It catches:
 - Functions that might not return on every path
 - Accessing a non-series with series operations
 - Adding or removing the wrong element type from a typed series
+- Assigning the wrong type to a record field
+- Passing a record that doesn't match the declared shape
+- Adding a record to a series whose shape it doesn't match
+
+Records use structural typing — shape is identity, not name. Two records with the same fields and types are the same type regardless of where they were declared.
 
 Type errors name the violation, the line, and the fix:
 
@@ -345,7 +415,6 @@ tests/
 
 ## What's next
 
-- Logical `and` / `or` in conditions
 - Closures (functions that capture their enclosing scope)
 - String operations
 
