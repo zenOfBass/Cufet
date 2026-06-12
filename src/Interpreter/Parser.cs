@@ -33,6 +33,7 @@ public sealed class Parser
             TokenType.State      => ParseStateStatement(),
             TokenType.Define     => ParseDefineStatement(),
             TokenType.Identifier => ParseBecomesStatement(),
+            TokenType.One        => ParseOneStatement(),
             TokenType.Article    => ParseRecordNamedSetStatement(),
             TokenType.If         => ParseIfStatement(),
             TokenType.While      => ParseWhileStatement(),
@@ -303,18 +304,42 @@ public sealed class Parser
         }
     }
 
-    private BecomesStatement ParseBecomesStatement()
+    private IStatement ParseBecomesStatement()
     {
         var tok  = Consume(TokenType.Identifier);
         var name = tok.Lexeme;
         var line = tok.Line;
         SkipNoise();
+        if (Peek().Type == TokenType.Possessive)
+            return ParsePossessiveSetStatement(new VariableReference(name, line));
         Consume(TokenType.Becomes);
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
         return new BecomesStatement(name, value, line);
+    }
+
+    private IStatement ParseOneStatement()
+    {
+        var tok = Consume(TokenType.One);
+        SkipNoise();
+        return ParsePossessiveSetStatement(new VariableReference("one", tok.Line));
+    }
+
+    private PossessiveSetStatement ParsePossessiveSetStatement(IExpression baseExpr)
+    {
+        var possTok = Consume(TokenType.Possessive);
+        SkipNoise();
+        var memberTok = Advance(); // field name — any word token
+        var line = possTok.Line;
+        SkipNoise();
+        Consume(TokenType.Becomes);
+        SkipNoise();
+        var value = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new PossessiveSetStatement(baseExpr, memberTok.Lexeme, value, line);
     }
 
     private IfStatement ParseIfStatement()

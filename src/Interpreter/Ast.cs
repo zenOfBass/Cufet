@@ -157,4 +157,7 @@ public sealed record MethodCallExpression(string MethodName, IExpression Receive
 // Cast greet on alice.  — method dispatch as a statement
 public sealed record MethodCallStatement(string MethodName, IExpression Receiver, int Line) : IStatement;
 
+// alice's age becomes X  /  one's age becomes X  — possessive field mutation
+public sealed record PossessiveSetStatement(IExpression Target, string Member, IExpression Value, int Line) : IStatement;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

@@ -225,19 +225,36 @@ public sealed class Interpreter
 
             case SeriesSetStatement ss:
             {
-                if (_env.TryGetValue(ss.SeriesName, out var envVal) && envVal is RecordValue rrv)
+                if (_env.TryGetValue(ss.SeriesName, out var ssEnvVal))
                 {
-                    if (ss.Index == null)
-                        throw new RuntimeException($"'last' is not supported for records on line {ss.Line}.");
-                    if (Evaluate(ss.Index) is not decimal d)
-                        throw new RuntimeException($"Record position must be a number on line {ss.Line}.");
-                    var idx = (int)d;
-                    if (idx < 1 || idx > rrv.PositionalFields.Count)
-                        throw new RuntimeException(rrv.PositionalFields.Count == 0
-                            ? $"This record has no positional fields (line {ss.Line})."
-                            : $"This record has {rrv.PositionalFields.Count} positional field(s); there is no position {idx} (line {ss.Line}).");
-                    rrv.PositionalFields[idx - 1] = Evaluate(ss.Value);
-                    break;
+                    if (ssEnvVal is ObjectValue ssOv)
+                    {
+                        if (ss.Index == null)
+                            throw new RuntimeException($"'last' is not supported for objects on line {ss.Line}.");
+                        if (Evaluate(ss.Index) is not decimal ssD)
+                            throw new RuntimeException($"Object position must be a number on line {ss.Line}.");
+                        var ssIdx = (int)ssD;
+                        if (ssIdx < 1 || ssIdx > ssOv.PositionalFields.Count)
+                            throw new RuntimeException(ssOv.PositionalFields.Count == 0
+                                ? $"Object '{ssOv.TypeName}' has no positional fields (line {ss.Line})."
+                                : $"Object '{ssOv.TypeName}' has {ssOv.PositionalFields.Count} positional field(s); there is no position {ssIdx} (line {ss.Line}).");
+                        ssOv.PositionalFields[ssIdx - 1] = Evaluate(ss.Value);
+                        break;
+                    }
+                    if (ssEnvVal is RecordValue ssRrv)
+                    {
+                        if (ss.Index == null)
+                            throw new RuntimeException($"'last' is not supported for records on line {ss.Line}.");
+                        if (Evaluate(ss.Index) is not decimal ssD)
+                            throw new RuntimeException($"Record position must be a number on line {ss.Line}.");
+                        var ssIdx = (int)ssD;
+                        if (ssIdx < 1 || ssIdx > ssRrv.PositionalFields.Count)
+                            throw new RuntimeException(ssRrv.PositionalFields.Count == 0
+                                ? $"This record has no positional fields (line {ss.Line})."
+                                : $"This record has {ssRrv.PositionalFields.Count} positional field(s); there is no position {ssIdx} (line {ss.Line}).");
+                        ssRrv.PositionalFields[ssIdx - 1] = Evaluate(ss.Value);
+                        break;
+                    }
                 }
                 var list = ExpectSeries(ss.SeriesName, ss.Line);
                 list[ResolveIndex(ss.Index, list, ss.SeriesName, ss.Line)] = Evaluate(ss.Value);
@@ -247,12 +264,32 @@ public sealed class Interpreter
             case RecordNamedSetStatement rnss:
             {
                 var recordVal = Evaluate(rnss.Record);
+                if (recordVal is ObjectValue rnssOv)
+                {
+                    var fi = rnssOv.NamedFields.FindIndex(f => f.Name == rnss.FieldName);
+                    if (fi < 0)
+                        throw new RuntimeException($"Object of type '{rnssOv.TypeName}' has no field named '{rnss.FieldName}' (line {rnss.Line}).");
+                    rnssOv.NamedFields[fi] = (rnss.FieldName, Evaluate(rnss.Value));
+                    break;
+                }
                 if (recordVal is not RecordValue rv)
                     throw new RuntimeException($"Expected a record for field assignment on line {rnss.Line}.");
                 var fieldIdx = rv.NamedFields.FindIndex(f => f.Name == rnss.FieldName);
                 if (fieldIdx < 0)
                     throw new RuntimeException($"This record has no field named '{rnss.FieldName}' (line {rnss.Line}).");
                 rv.NamedFields[fieldIdx] = (rnss.FieldName, Evaluate(rnss.Value));
+                break;
+            }
+
+            case PossessiveSetStatement pss:
+            {
+                var target = Evaluate(pss.Target);
+                if (target is not ObjectValue pssOv)
+                    throw new RuntimeException($"Possessive assignment requires an object (line {pss.Line}).");
+                var fi = pssOv.NamedFields.FindIndex(f => f.Name == pss.Member);
+                if (fi < 0)
+                    throw new RuntimeException($"Object of type '{pssOv.TypeName}' has no field named '{pss.Member}' (line {pss.Line}).");
+                pssOv.NamedFields[fi] = (pss.Member, Evaluate(pss.Value));
                 break;
             }
 

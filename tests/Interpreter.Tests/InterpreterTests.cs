@@ -3096,4 +3096,107 @@ public class InterpreterTests
             "Define alice as a new person { the name \"Alice\" }.\n" +
             "State Cast greet on alice."));
     }
+
+    // ── Objects Slice 3: field mutation ──────────────────────────────────────
+
+    [Fact]
+    public void Object_Mutation_DirectNamedField()
+    {
+        Assert.Equal("31", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "the age of alice becomes 31.\n" +
+            "State the age of alice."));
+    }
+
+    [Fact]
+    public void Object_Mutation_PossessiveSet()
+    {
+        Assert.Equal("31", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "alice's age becomes 31.\n" +
+            "State alice's age."));
+    }
+
+    [Fact]
+    public void Object_Mutation_PositionalField()
+    {
+        // person has one positional (text) and one named (number age)
+        Assert.Equal("Bob", Run(
+            "Define object person with (text, the number age).\n" +
+            "Define alice as a new person { \"Alice\", the age 30 }.\n" +
+            "the first of alice becomes \"Bob\".\n" +
+            "State the first of alice."));
+    }
+
+    [Fact]
+    public void Object_Mutation_ValueSemanticsPreserved()
+    {
+        // Mutating the original does not affect a prior copy.
+        Assert.Equal("Alice\n30", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "Define bob as alice.\n" +
+            "the age of alice becomes 99.\n" +
+            "State bob's name.\n" +
+            "State bob's age."));
+    }
+
+    [Fact]
+    public void Object_Mutation_MethodMutatesReceiver()
+    {
+        Assert.Equal("31", Run(
+            "Define object person with (the text name, the number age):\n" +
+            "    Bind void to birthday:\n" +
+            "        one's age becomes one's age + 1.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "Cast birthday on alice.\n" +
+            "State the age of alice."));
+    }
+
+    [Fact]
+    public void Object_Mutation_MethodDoesNotAffectCopy()
+    {
+        // A prior copy is unaffected by a method that mutates the original.
+        Assert.Equal("30", Run(
+            "Define object person with (the text name, the number age):\n" +
+            "    Bind void to birthday:\n" +
+            "        one's age becomes one's age + 1.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "Define bob as alice.\n" +
+            "Cast birthday on alice.\n" +
+            "State bob's age."));
+    }
+
+    [Fact]
+    public void Object_Mutation_WrongTypeThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "the age of alice becomes \"old\"."));
+    }
+
+    [Fact]
+    public void Object_Mutation_UnknownFieldThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "the city of alice becomes \"Norman\"."));
+    }
+
+    [Fact]
+    public void Object_Mutation_PossessiveSet_WrongTypeThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "alice's age becomes \"old\"."));
+    }
 }

@@ -231,6 +231,9 @@ public sealed class TypeChecker
             case RecordNamedSetStatement recordSet:
                 CheckRecordNamedSet(recordSet);
                 break;
+            case PossessiveSetStatement pss:
+                CheckPossessiveSet(pss);
+                break;
             case SeriesRemoveAtStatement removeAt:
                 CheckSeriesRemoveAt(removeAt);
                 break;
@@ -465,6 +468,42 @@ public sealed class TypeChecker
             return;
         }
 
+        if (seriesInfo.Type is ObjectType ot)
+        {
+            if (seriesSet.Index == null)
+                throw new TypeException(FormatTypeError(
+                    "'last' doesn't work on objects",
+                    null, seriesSet.Line,
+                    "use 'last' on an object",
+                    "Use a position like 'the first of ...' or a field name like 'alice's name'."));
+
+            if (seriesSet.Index is NumberLiteral { Value: var ov })
+            {
+                var idx = (int)ov;
+                var display = $"'{seriesSet.SeriesName}'";
+                if (idx < 1 || idx > ot.PositionalTypes.Count)
+                    throw new TypeException(FormatTypeError(
+                        ot.PositionalTypes.Count == 0
+                            ? $"{display} has no positional fields"
+                            : $"{display} has {ot.PositionalTypes.Count} positional field(s) — there is no position {idx}",
+                        null, seriesSet.Line,
+                        $"set position {idx}",
+                        ot.PositionalTypes.Count == 0
+                            ? $"Object '{ot.Name}' has no positional fields."
+                            : $"Positions run 1 through {ot.PositionalTypes.Count}."));
+
+                var fieldType = ot.PositionalTypes[idx - 1];
+                var valueType = InferType(seriesSet.Value);
+                if (valueType != null && valueType != fieldType)
+                    throw new TypeException(FormatTypeError(
+                        $"position {idx} of {display} holds a {FormatType(fieldType)}, not a {FormatType(valueType)}",
+                        null, seriesSet.Line,
+                        $"set position {idx} to a {FormatType(valueType)}",
+                        $"Position {idx} has type {FormatType(fieldType)}."));
+            }
+            return;
+        }
+
         if (seriesInfo.Type is RecordType rt)
         {
             if (seriesSet.Index == null)
@@ -506,12 +545,18 @@ public sealed class TypeChecker
         var recordType = InferType(stmt.Record);
         if (recordType == null) return;
 
+        if (recordType is ObjectType ot)
+        {
+            CheckObjectNamedSet(ot, stmt.FieldName, stmt.Value, stmt.Line);
+            return;
+        }
+
         if (recordType is not RecordType rt)
             throw new TypeException(FormatTypeError(
-                $"you're trying to set field '{stmt.FieldName}' on something that isn't a record",
+                $"you're trying to set field '{stmt.FieldName}' on something that isn't a record or object",
                 null, stmt.Line,
                 $"set a named field on a {FormatType(recordType)}",
-                "Only records have named fields."));
+                "Only records and objects have named fields."));
 
         var field = rt.NamedFields.FirstOrDefault(f => f.Name == stmt.FieldName);
         if (field == default)
@@ -533,6 +578,42 @@ public sealed class TypeChecker
                 null, stmt.Line,
                 $"set field '{stmt.FieldName}' to a {FormatType(valueType)}",
                 $"Field '{stmt.FieldName}' has type {FormatType(field.Type)}."));
+    }
+
+    private void CheckPossessiveSet(PossessiveSetStatement stmt)
+    {
+        var targetType = InferType(stmt.Target);
+        if (targetType == null) return;
+        if (targetType is not ObjectType ot)
+            throw new TypeException(FormatTypeError(
+                $"possessive assignment requires an object, but got a {FormatType(targetType)}",
+                null, stmt.Line,
+                $"set '{stmt.Member}' on a {FormatType(targetType)}",
+                "Only objects support possessive field assignment (alice's field becomes X)."));
+        CheckObjectNamedSet(ot, stmt.Member, stmt.Value, stmt.Line);
+    }
+
+    private void CheckObjectNamedSet(ObjectType ot, string fieldName, IExpression value, int line)
+    {
+        var field = ot.NamedFields.FirstOrDefault(f => f.FieldName == fieldName);
+        if (field == default)
+        {
+            var hint = ot.NamedFields.Count > 0
+                ? $"Available named fields: {string.Join(", ", ot.NamedFields.Select(f => f.FieldName))}."
+                : $"Object '{ot.Name}' has no named fields.";
+            throw new TypeException(FormatTypeError(
+                $"object '{ot.Name}' has no field named '{fieldName}'",
+                null, line,
+                $"set field '{fieldName}'",
+                hint));
+        }
+        var valueType = InferType(value);
+        if (valueType != null && valueType != field.FieldType)
+            throw new TypeException(FormatTypeError(
+                $"field '{fieldName}' holds a {FormatType(field.FieldType)}, not a {FormatType(valueType)}",
+                null, line,
+                $"set field '{fieldName}' to a {FormatType(valueType)}",
+                $"Field '{fieldName}' has type {FormatType(field.FieldType)}."));
     }
 
     private void CheckSeriesRemoveAt(SeriesRemoveAtStatement removeAt)
