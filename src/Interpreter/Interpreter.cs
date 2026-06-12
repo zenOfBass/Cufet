@@ -22,6 +22,20 @@ public sealed class Interpreter
         public required IReadOnlyList<IStatement> Body           { get; init; }
     }
 
+    private sealed class RecordValue
+    {
+        public IReadOnlyList<object>              PositionalFields { get; }
+        public IReadOnlyList<(string Name, object Value)> NamedFields { get; }
+
+        public RecordValue(
+            IReadOnlyList<object> positionalFields,
+            IReadOnlyList<(string Name, object Value)> namedFields)
+        {
+            PositionalFields = positionalFields;
+            NamedFields      = namedFields;
+        }
+    }
+
     private int _callDepth = 0;
     private readonly int _maxCallDepth;
 
@@ -268,6 +282,10 @@ public sealed class Interpreter
         SeriesLiteral    sl   => (object)sl.Elements.Select(Evaluate).ToList(),
         SeriesAccess     sa   => EvaluateSeriesAccess(sa),
         SeriesLength     sl   => (decimal)ExpectSeries(sl.SeriesName).Count,
+        RecordLiteral    rl   => (object)new RecordValue(
+                                     rl.PositionalFields.Select(Evaluate).ToList(),
+                                     rl.NamedFields.Select(f => (f.Name, Evaluate(f.Value))).ToList()),
+        RecordNamedAccess rna => EvaluateRecordNamedAccess(rna),
         CastExpression   cast => ExecuteCallExpr(cast.Function, cast.Args, cast.Line)
                                      ?? throw new RuntimeException(
                                          $"{FuncDisplayName(cast.Function)} gives nothing back — it can't be used as a value (line {cast.Line})."),
@@ -343,8 +361,39 @@ public sealed class Interpreter
 
     private object EvaluateSeriesAccess(SeriesAccess sa)
     {
-        var list = ExpectSeries(sa.SeriesName, sa.Line);
-        return list[ResolveIndex(sa.Index, list, sa.SeriesName, sa.Line)];
+        var val = Evaluate(sa.Target);
+
+        if (val is RecordValue rv)
+        {
+            if (sa.Index == null)
+                throw new RuntimeException($"'last' is not supported for records on line {sa.Line}.");
+            if (Evaluate(sa.Index) is not decimal d)
+                throw new RuntimeException($"Record position must be a number on line {sa.Line}.");
+            var idx = (int)d;
+            if (idx < 1 || idx > rv.PositionalFields.Count)
+                throw new RuntimeException(rv.PositionalFields.Count == 0
+                    ? $"This record has no positional fields (line {sa.Line})."
+                    : $"This record has {rv.PositionalFields.Count} positional field(s); there is no position {idx} (line {sa.Line}).");
+            return rv.PositionalFields[idx - 1];
+        }
+
+        if (val is not List<object> list)
+            throw new RuntimeException($"Expected a series on line {sa.Line}.");
+        var sname = sa.Target is VariableReference vr ? vr.Name : "this expression";
+        return list[ResolveIndex(sa.Index, list, sname, sa.Line)];
+    }
+
+    private object EvaluateRecordNamedAccess(RecordNamedAccess rna)
+    {
+        var recordVal = Evaluate(rna.Record);
+        if (recordVal is not RecordValue rv)
+            throw new RuntimeException(
+                $"You're trying to access field '{rna.FieldName}' on something that isn't a record (line {rna.Line}).");
+        var field = rv.NamedFields.FirstOrDefault(f => f.Name == rna.FieldName);
+        if (field == default)
+            throw new RuntimeException(
+                $"This record has no field named '{rna.FieldName}' (line {rna.Line}).");
+        return field.Value;
     }
 
     private object EvaluateUnary(UnaryExpression u)
@@ -448,6 +497,15 @@ public sealed class Interpreter
         decimal d        => d.ToString(),
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
         FunctionValue    => "<function>",
+        RecordValue rv   => FormatRecord(rv),
         _                => val.ToString()!,
     };
+
+    private static string FormatRecord(RecordValue rv)
+    {
+        var parts = new List<string>();
+        foreach (var v in rv.PositionalFields)       parts.Add(Format(v));
+        foreach (var (name, v) in rv.NamedFields)    parts.Add($"{name}: {Format(v)}");
+        return "record(" + string.Join(", ", parts) + ")";
+    }
 }

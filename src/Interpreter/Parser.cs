@@ -733,6 +733,23 @@ public sealed class Parser
 
     private IExpression ParsePrimary()
     {
+        // 'the <name> of <expr>' → named record field access.
+        // Checked BEFORE SkipNoise so we can still see the leading 'the'.
+        // 'the first of s', 'the number of s' are not named access: the token immediately
+        // after 'the' is Ordinal/NumberKw, not Identifier/Article, so IsNamedAccessPattern returns false.
+        // No SkipNoise between 'the' and the field name — 'a'/'an' may be field names.
+        if (Peek().Type == TokenType.Article &&
+            Peek().Lexeme.Equals("the", StringComparison.OrdinalIgnoreCase) &&
+            IsNamedAccessPattern())
+        {
+            Advance(); // consume 'the'
+            var identTok = Advance(); // field name immediately follows — no SkipNoise
+            SkipNoise();
+            Advance(); // consume 'of'
+            SkipNoise();
+            return new RecordNamedAccess(identTok.Lexeme, ParsePrimary(), identTok.Line);
+        }
+
         SkipNoise(); // articles are noise before any value
         var tok = Peek();
         switch (tok.Type)
@@ -752,10 +769,27 @@ public sealed class Parser
                 Consume(TokenType.RParen);
                 return inner;
             case TokenType.Ordinal:
+            {
+                // Inline ordinal access: 'first of <target-expr>' where target is parsed as
+                // a primary expression, enabling chains like 'the first of the first of s'.
+                var ordTok = Advance();
+                var index = OrdinalToIndex(ordTok.Lexeme);
+                SkipNoise();
+                Consume(TokenType.Of);
+                SkipNoise();
+                var target = ParsePrimary();
+                return new SeriesAccess(target, index, ordTok.Line);
+            }
             case TokenType.Item:
             {
-                var (name, idx, line) = ParseAccessTarget();
-                return new SeriesAccess(name, idx, line);
+                var itemTok = Advance();
+                SkipNoise();
+                var idx = ParseExpression();
+                SkipNoise();
+                Consume(TokenType.Of);
+                SkipNoise();
+                var target = ParsePrimary();
+                return new SeriesAccess(target, idx, itemTok.Line);
             }
             case TokenType.NumberKw:
             {
@@ -768,9 +802,127 @@ public sealed class Parser
             }
             case TokenType.Cast:
                 return ParseCastExpression();
+            case TokenType.Record:
+                return ParseRecordLiteralExpr();
             default:
                 throw new ParseException(tok, "expression");
         }
+    }
+
+    // ── Records ───────────────────────────────────────────────────────────
+
+    // record with (<positional>, ..., the <name> <value>, ...)
+    // The leading article ('a record', 'the record') has already been consumed as noise.
+    private RecordLiteral ParseRecordLiteralExpr()
+    {
+        var recordTok = Consume(TokenType.Record);
+        SkipNoise();
+        Consume(TokenType.With);
+        SkipNoise();
+        Consume(TokenType.LParen);
+        // No SkipNoise here — IsNamedFieldStart must see a leading 'the'.
+
+        var positionals  = new List<IExpression>();
+        var namedFields  = new List<(string Name, IExpression Value)>();
+        bool namedStarted = false;
+
+        if (Peek().Type != TokenType.RParen)
+        {
+            ParseOneRecordField(positionals, namedFields, ref namedStarted);
+            SkipNoise(); // safe: after a field value, before comma check
+            while (Peek().Type == TokenType.Comma)
+            {
+                Advance(); // consume ','
+                // No SkipNoise — preserve leading 'the' for IsNamedFieldStart.
+                ParseOneRecordField(positionals, namedFields, ref namedStarted);
+                SkipNoise(); // safe: after a field value
+            }
+        }
+
+        Consume(TokenType.RParen);
+        return new RecordLiteral(positionals, namedFields, recordTok.Line);
+    }
+
+    private void ParseOneRecordField(
+        List<IExpression> positionals,
+        List<(string Name, IExpression Value)> namedFields,
+        ref bool namedStarted)
+    {
+        if (IsNamedFieldStart())
+        {
+            namedStarted = true;
+            Advance(); // consume 'the'
+            // No SkipNoise here — field name immediately follows 'the' and may itself be an
+            // Article token (e.g., 'the a 1' where 'a' is the field name, not filler).
+            var name = Advance().Lexeme;
+            SkipNoise();
+            namedFields.Add((name, ParseExpression()));
+        }
+        else
+        {
+            if (namedStarted)
+                throw new ParseException(Peek(),
+                    "positional fields must come before named fields — move all 'the name value' fields to the end");
+            positionals.Add(ParseExpression());
+        }
+    }
+
+    // Returns true when the current position starts a named field: 'the' <name> <non-of>.
+    // No noise-skip between 'the' and the name — 'a'/'an' are valid field names and Article
+    // tokens would be wrongly consumed. Any word token (including keywords) is a valid name.
+    private bool IsNamedFieldStart()
+    {
+        int i = _pos;
+        if (i >= _tokens.Count ||
+            _tokens[i].Type != TokenType.Article ||
+            !_tokens[i].Lexeme.Equals("the", StringComparison.OrdinalIgnoreCase))
+            return false;
+        i++; // directly at the field-name token
+        if (i >= _tokens.Count || !IsFieldNameToken(_tokens[i], forAccess: false)) return false;
+        i++;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count && _tokens[i].Type != TokenType.Of;
+    }
+
+    // Returns true when the current position starts a named record access: 'the' <name> 'of'.
+    // Ordinal and NumberKw are excluded so 'the first of s' and 'the number of s' still parse
+    // as series operations. All other word tokens (including keywords like State) are valid names.
+    private bool IsNamedAccessPattern()
+    {
+        int i = _pos; // at 'the'
+        i++; // directly at the field-name token — no noise-skip
+        if (i >= _tokens.Count || !IsFieldNameToken(_tokens[i], forAccess: true)) return false;
+        i++;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count && _tokens[i].Type == TokenType.Of;
+    }
+
+    // Decides whether a token can serve as a record field name.
+    // forAccess=true: also excludes Ordinal and NumberKw to keep 'the first/number of s' as series ops.
+    // forAccess=false: allows Ordinal/NumberKw (in a field literal the value comes after, not 'of').
+    private static bool IsFieldNameToken(Token tok, bool forAccess)
+    {
+        // Exclude structural delimiters, operators, and value literals.
+        if (tok.Type is TokenType.Of or TokenType.Dot or TokenType.Colon or
+                        TokenType.LParen or TokenType.RParen or TokenType.Comma or
+                        TokenType.Number or TokenType.String or
+                        TokenType.Plus or TokenType.Minus or TokenType.Star or
+                        TokenType.Slash or TokenType.Percent or
+                        TokenType.Equal or TokenType.Lt or TokenType.Gt or
+                        TokenType.Lte or TokenType.Gte or TokenType.NotEqual or
+                        TokenType.Eof)
+            return false;
+        // Exclude "the" — avoids 'the the name ...' being treated as a field.
+        if (tok.Type == TokenType.Article &&
+            tok.Lexeme.Equals("the", StringComparison.OrdinalIgnoreCase))
+            return false;
+        // For access patterns, exclude keywords that carry special meaning in 'the X of s' series syntax:
+        //   Ordinal → 'the first of s' (positional access)
+        //   NumberKw → 'the number of s' (series length)
+        //   Start → 'to the start of s' (add-to-start)
+        if (forAccess && tok.Type is TokenType.Ordinal or TokenType.NumberKw or TokenType.Start)
+            return false;
+        return true;
     }
 
     // ── Functions ─────────────────────────────────────────────────────────
@@ -1011,7 +1163,16 @@ public sealed class Parser
 
     private void SkipNoise()
     {
-        while (Peek().IsNoise) Advance();
+        while (Peek().IsNoise)
+        {
+            // Preserve 'the' when it opens a named record access ('the <name> of <record>').
+            // Without this guard, 'state the city of alice.' would have 'the' eaten before
+            // ParsePrimary's named-access check could see it.
+            if (Peek().Lexeme.Equals("the", StringComparison.OrdinalIgnoreCase) &&
+                IsNamedAccessPattern())
+                break;
+            Advance();
+        }
     }
 
     private Token Consume(TokenType expected)

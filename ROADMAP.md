@@ -20,8 +20,6 @@ grouped by kind, roughly ordered within each group, but not strictly sequenced.
 
 ### Types and data structures
 
-- **Records** — named, typed fields grouped together (e.g. `a person with a name (text) and an age (number)`). This is the primary intended way to hold heterogeneous data — fields are named and individually typed, so it stays fully statically typed (no `any`-shaped hole). Solves "different types together" without weakening the type system. Likely the next major type after the core.
-
 - **Maps** — typed key→value collections (e.g. a map from text to numbers). The natural structure for lookups like word→frequency. Fully typeable (keys one type, values one type).
 
 - **Heterogeneous data is served by records and maps, not by heterogeneous series.** Series stay homogeneous. An anonymous, mixed-type ("any") collection is intentionally *not* planned — records and maps cover the real needs without breaking static, strong typing.

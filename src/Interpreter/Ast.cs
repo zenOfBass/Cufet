@@ -15,8 +15,9 @@ public sealed record BinaryExpression(IExpression Left, TokenType Op, IExpressio
 // Annotation != null → element type declared; elements (if any) must agree.
 public sealed record SeriesLiteral(IReadOnlyList<IExpression> Elements, CufetType? Annotation, int Line) : IExpression;
 
-// Index == null → last element
-public sealed record SeriesAccess(string SeriesName, IExpression? Index, int Line) : IExpression;
+// Index == null → last element; Target is typically VariableReference but can be any expression
+// (e.g., nested ordinal access for chained 'the first of the first of s').
+public sealed record SeriesAccess(IExpression Target, IExpression? Index, int Line) : IExpression;
 
 // the number of <series>
 public sealed record SeriesLength(string SeriesName) : IExpression;
@@ -45,6 +46,17 @@ public sealed record SeriesSetStatement(
     IExpression Value,
     int Line
 ) : IStatement;
+
+// Record literal: a record with (positional, ..., the name value, ...)
+// PositionalFields come first, NamedFields come after (enforced by parser).
+public sealed record RecordLiteral(
+    IReadOnlyList<IExpression> PositionalFields,
+    IReadOnlyList<(string Name, IExpression Value)> NamedFields,
+    int Line
+) : IExpression;
+
+// the <name> of <record-expr>  — named field access; chains: the city of the home of person
+public sealed record RecordNamedAccess(string FieldName, IExpression Record, int Line) : IExpression;
 
 public sealed record StateStatement(IExpression Value)                        : IStatement;
 public sealed record DefineStatement(string Name, IExpression Value, int Line)  : IStatement;

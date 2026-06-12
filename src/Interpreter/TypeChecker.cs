@@ -46,6 +46,45 @@ public sealed class SeriesType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(SeriesType), ElementType);
 }
 
+public sealed class RecordType : CufetType
+{
+    // Positional fields: order-sensitive (position is identity).
+    public IReadOnlyList<CufetType> PositionalTypes { get; }
+    // Named fields: stored sorted by name for order-insensitive structural equality.
+    public IReadOnlyList<(string Name, CufetType Type)> NamedFields { get; }
+
+    public RecordType(
+        IReadOnlyList<CufetType> positionalTypes,
+        IReadOnlyList<(string Name, CufetType Type)> namedFields)
+    {
+        PositionalTypes = positionalTypes;
+        NamedFields     = namedFields.OrderBy(f => f.Name, StringComparer.Ordinal).ToList();
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is not RecordType other) return false;
+        if (PositionalTypes.Count != other.PositionalTypes.Count) return false;
+        if (NamedFields.Count     != other.NamedFields.Count)     return false;
+        for (int i = 0; i < PositionalTypes.Count; i++)
+            if (PositionalTypes[i] != other.PositionalTypes[i]) return false;
+        for (int i = 0; i < NamedFields.Count; i++)
+            if (NamedFields[i].Name != other.NamedFields[i].Name ||
+                NamedFields[i].Type != other.NamedFields[i].Type) return false;
+        return true;
+    }
+
+    public override int GetHashCode()
+    {
+        var h = typeof(RecordType).GetHashCode();
+        foreach (var t in PositionalTypes)
+            h = HashCode.Combine(h, t);
+        foreach (var (name, type) in NamedFields)
+            h = HashCode.Combine(h, name, type);
+        return h;
+    }
+}
+
 public sealed class FunctionType : CufetType
 {
     public IReadOnlyList<CufetType> ParameterTypes { get; }
@@ -410,8 +449,10 @@ public sealed class TypeChecker
         VariableReference                                                       => null,
         SeriesLiteral lit                                                       => InferSeriesLiteral(lit),
         SeriesAccess acc                                                        => InferSeriesAccess(acc),
-        SeriesLength                                                            => CufetType.Number,
+        SeriesLength sl                                                         => InferSeriesLength(sl),
         CastExpression cast                                                     => InferCastExpr(cast),
+        RecordLiteral lit                                                       => InferRecordLiteral(lit),
+        RecordNamedAccess rna                                                   => InferRecordNamedAccess(rna),
         _                                                                       => null,
     };
 
@@ -513,9 +554,138 @@ public sealed class TypeChecker
     private CufetType? InferSeriesAccess(SeriesAccess acc)
     {
         if (acc.Index != null) CheckIndex(acc.Index, acc.Line);
-        if (!_env.TryGetValue(acc.SeriesName, out var seriesInfo)) return null;
-        if (seriesInfo.Type is SeriesType st) return st.ElementType;
+        var targetType = InferType(acc.Target);
+        if (targetType == null) return null;
+
+        if (targetType is SeriesType st) return st.ElementType;
+
+        if (targetType is RecordType rt)
+        {
+            if (acc.Index == null) // "last" — not meaningful for records
+                throw new TypeException(FormatTypeError(
+                    $"'last' doesn't work on records",
+                    null, acc.Line,
+                    "use 'last' on a record",
+                    "Use a position like 'the first of ...' or a field name like 'the city of ...'."));
+            if (acc.Index is NumberLiteral { Value: var v })
+            {
+                var idx = (int)v;
+                var displayName = acc.Target is VariableReference vr ? $"'{vr.Name}'" : "this record";
+                if (idx < 1 || idx > rt.PositionalTypes.Count)
+                    throw new TypeException(FormatTypeError(
+                        rt.PositionalTypes.Count == 0
+                            ? $"{displayName} has no positional fields"
+                            : $"{displayName} has {rt.PositionalTypes.Count} positional field(s) — there is no position {idx}",
+                        null, acc.Line,
+                        $"access position {idx}",
+                        rt.PositionalTypes.Count == 0
+                            ? "This record has no positional fields. Access fields by name instead."
+                            : $"Positions run 1 through {rt.PositionalTypes.Count}."));
+                return rt.PositionalTypes[idx - 1];
+            }
+            // Dynamic index — can't check statically; runtime handles it.
+            return null;
+        }
+
         return null;
+    }
+
+    private CufetType InferSeriesLength(SeriesLength sl)
+    {
+        if (_env.TryGetValue(sl.SeriesName, out var info) && info.Type is RecordType)
+            throw new TypeException(FormatTypeError(
+                $"'the number of' works on series, not records",
+                null, 0,
+                $"get the number of items in '{sl.SeriesName}' (a record)",
+                "Records don't have a length. Access individual fields by name or position."));
+        return CufetType.Number;
+    }
+
+    private RecordType InferRecordLiteral(RecordLiteral lit)
+    {
+        var positionalTypes = new List<CufetType>();
+        foreach (var field in lit.PositionalFields)
+        {
+            var t = InferType(field);
+            if (t == null)
+                throw new TypeException(FormatTypeError(
+                    "the type of a positional record field can't be determined",
+                    null, lit.Line,
+                    "use an expression whose type can't be inferred as a record field",
+                    "Start with a literal value or a defined variable so the field type is clear."));
+            positionalTypes.Add(t);
+        }
+
+        var namedFields = new List<(string Name, CufetType Type)>();
+        foreach (var (name, valueExpr) in lit.NamedFields)
+        {
+            if (namedFields.Any(f => f.Name == name))
+                throw new TypeException(FormatTypeError(
+                    $"the record has two fields both named '{name}'",
+                    null, lit.Line,
+                    $"define a record with duplicate field name '{name}'",
+                    "Each named field must have a unique name."));
+            var t = InferType(valueExpr);
+            if (t == null)
+                throw new TypeException(FormatTypeError(
+                    $"the type of field '{name}' can't be determined",
+                    null, lit.Line,
+                    "use an expression whose type can't be inferred as a record field",
+                    "Start with a literal value or a defined variable so the field type is clear."));
+            namedFields.Add((name, t));
+        }
+
+        return new RecordType(positionalTypes, namedFields);
+    }
+
+    private CufetType? InferRecordNamedAccess(RecordNamedAccess rna)
+    {
+        var recordType = InferType(rna.Record);
+        if (recordType == null) return null;
+
+        if (recordType is not RecordType rt)
+            throw new TypeException(FormatTypeError(
+                $"you're trying to access field '{rna.FieldName}' on something that isn't a record",
+                null, rna.Line,
+                $"access a named field of a {FormatType(recordType)}",
+                "Only records have named fields."));
+
+        var field = rt.NamedFields.FirstOrDefault(f => f.Name == rna.FieldName);
+        if (field == default)
+        {
+            var suggestion = rt.NamedFields
+                .Select(f => (f.Name, dist: Levenshtein(f.Name, rna.FieldName)))
+                .Where(p => p.dist <= 2)
+                .OrderBy(p => p.dist)
+                .Select(p => p.Name)
+                .FirstOrDefault();
+            var available = rt.NamedFields.Count > 0
+                ? $" Named fields: {string.Join(", ", rt.NamedFields.Select(f => $"'{f.Name}'"))}."
+                : " This record has no named fields.";
+            var fix = suggestion != null
+                ? $"Did you mean '{suggestion}'?{available}"
+                : available;
+            throw new TypeException(FormatTypeError(
+                $"this record has no field named '{rna.FieldName}'",
+                null, rna.Line,
+                $"access field '{rna.FieldName}'",
+                fix));
+        }
+
+        return field.Type;
+    }
+
+    private static int Levenshtein(string a, string b)
+    {
+        var d = new int[a.Length + 1, b.Length + 1];
+        for (int i = 0; i <= a.Length; i++) d[i, 0] = i;
+        for (int j = 0; j <= b.Length; j++) d[0, j] = j;
+        for (int i = 1; i <= a.Length; i++)
+            for (int j = 1; j <= b.Length; j++)
+                d[i, j] = a[i - 1] == b[j - 1]
+                    ? d[i - 1, j - 1]
+                    : 1 + Math.Min(d[i - 1, j - 1], Math.Min(d[i - 1, j], d[i, j - 1]));
+        return d[a.Length, b.Length];
     }
 
     private CufetType? InferUnary(UnaryExpression unary)
@@ -634,8 +804,17 @@ public sealed class TypeChecker
         FactType                             => "fact",
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
         FunctionType ft                      => FormatFunctionType(ft),
+        RecordType rt                        => FormatRecordType(rt),
         _                                    => "<unknown>",
     };
+
+    private static string FormatRecordType(RecordType rt)
+    {
+        var parts = new List<string>();
+        foreach (var t in rt.PositionalTypes)         parts.Add(FormatType(t));
+        foreach (var (name, t) in rt.NamedFields)     parts.Add($"{name}: {FormatType(t)}");
+        return parts.Count == 0 ? "record ()" : $"record ({string.Join(", ", parts)})";
+    }
 
     private static string FormatFunctionType(FunctionType ft)
     {
@@ -653,6 +832,7 @@ public sealed class TypeChecker
         FactType                             => "facts",
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
         FunctionType                         => "functions",
+        RecordType rt                        => FormatRecordType(rt),
         _                                    => "<unknown>",
     };
 

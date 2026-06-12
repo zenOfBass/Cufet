@@ -2387,4 +2387,173 @@ public class InterpreterTests
             """));
         Assert.Contains("not", ex.Message);
     }
+
+    // ── Records — slice 1: anonymous literals and field access ─────────────
+
+    [Fact]
+    public void Record_StatePositionalsOnly()
+    {
+        Assert.Equal("record(Alice, 30)", Run(
+            "Define p as a record with (\"Alice\", 30).\n" +
+            "State p."));
+    }
+
+    [Fact]
+    public void Record_StateNamedOnly()
+    {
+        Assert.Equal("record(city: Norman)", Run(
+            "Define r as a record with (the city \"Norman\").\n" +
+            "State r."));
+    }
+
+    [Fact]
+    public void Record_StateMixed()
+    {
+        // named fields sorted alphabetically in RecordType, but RecordValue preserves literal order
+        Assert.Equal("record(Alice, 30, city: Norman, score: 95)", Run(
+            "Define alice as a record with (\"Alice\", 30, the city \"Norman\", the score 95).\n" +
+            "State alice."));
+    }
+
+    [Fact]
+    public void Record_PositionalFirstAccess()
+    {
+        Assert.Equal("Alice", Run(
+            "Define p as a record with (\"Alice\", 30).\n" +
+            "State the first of p."));
+    }
+
+    [Fact]
+    public void Record_PositionalSecondAccess()
+    {
+        Assert.Equal("30", Run(
+            "Define p as a record with (\"Alice\", 30).\n" +
+            "State the second of p."));
+    }
+
+    [Fact]
+    public void Record_NamedFieldAccess()
+    {
+        Assert.Equal("Norman", Run(
+            "Define alice as a record with (\"Alice\", 30, the city \"Norman\").\n" +
+            "State the city of alice."));
+    }
+
+    [Fact]
+    public void Record_NamedFieldUsedInArithmetic()
+    {
+        Assert.Equal("105", Run(
+            "Define student as a record with (the score 95).\n" +
+            "State the score of student + 10."));
+    }
+
+    [Fact]
+    public void Record_NamedFieldInCondition()
+    {
+        Assert.Equal("pass", Run(
+            "Define student as a record with (the score 95).\n" +
+            "If the score of student is greater than 90, State \"pass\".\n" +
+            "Otherwise, State \"fail\"."));
+    }
+
+    [Fact]
+    public void Record_NestedLiteralAndAccess()
+    {
+        Assert.Equal("Norman", Run(
+            "Define person as a record with (\"Alice\", the home a record with (the city \"Norman\")).\n" +
+            "State the city of the home of person."));
+    }
+
+    [Fact]
+    public void Record_ChainedNamedAccess()
+    {
+        // the city of the home of person — two-hop chain
+        Assert.Equal("OK", Run(
+            "Define person as a record with (\n" +
+            "    the home a record with (the city \"Norman\", the state \"OK\")\n" +
+            ").\n" +
+            "State the state of the home of person."));
+    }
+
+    [Fact]
+    public void Record_StructuralEqualityAllowsReassign()
+    {
+        // Both records have same shape (text, number); reassignment must pass type check.
+        Assert.Equal("Bob", Run(
+            "Define p as a record with (\"Alice\", 30).\n" +
+            "p becomes a record with (\"Bob\", 25).\n" +
+            "State the first of p."));
+    }
+
+    [Fact]
+    public void Record_NamedFieldOrderInsensitiveEquality()
+    {
+        // {the b 2, the a 1} and {the a 1, the b 2} must be the same structural type.
+        Assert.Equal("ok", Run(
+            "Define r as a record with (the b 2, the a 1).\n" +
+            "r becomes a record with (the a 1, the b 2).\n" +
+            "State \"ok\"."));
+    }
+
+    [Fact]
+    public void Record_InSeries()
+    {
+        // Series of records — all same structural type.
+        Assert.Equal("Alice\nBob", Run(
+            "Define people as a series with (\n" +
+            "    a record with (\"Alice\", 30),\n" +
+            "    a record with (\"Bob\", 25)\n" +
+            ").\n" +
+            "State the first of the first of people.\n" +
+            "State the first of the second of people."));
+    }
+
+    [Fact]
+    public void Record_WrongNamedFieldThrowsTypeError()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define r as a record with (the city \"Norman\").\n" +
+            "State the score of r."));
+        Assert.Contains("score", ex.Message);
+    }
+
+    [Fact]
+    public void Record_PositionalOutOfBoundsThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define r as a record with (\"Alice\", 30).\n" +
+            "State the third of r."));
+    }
+
+    [Fact]
+    public void Record_PositionalAfterNamedThrowsParseError()
+    {
+        Assert.Throws<ParseException>(() => Run(
+            "Define r as a record with (the city \"Norman\", 30)."));
+    }
+
+    [Fact]
+    public void Record_DuplicateNamedFieldThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define r as a record with (the score 90, the score 100)."));
+    }
+
+    [Fact]
+    public void Record_TypeMismatchOnReassignThrowsTypeError()
+    {
+        // Different shapes → different types → type error on becomes.
+        Assert.Throws<TypeException>(() => Run(
+            "Define r as a record with (the score 90).\n" +
+            "r becomes a record with (the city \"Norman\")."));
+    }
+
+    [Fact]
+    public void Record_FieldFactUsedWithNot()
+    {
+        // Named field is a fact; 'not' on it should work.
+        Assert.Equal("false", Run(
+            "Define r as a record with (the active 1 = 1).\n" +
+            "State not the active of r."));
+    }
 }
