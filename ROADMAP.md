@@ -58,4 +58,82 @@ grouped by kind, roughly ordered within each group, but not strictly sequenced.
 
 ---
 
+## Long-term direction (north stars)
+
+These are not planned features with a place in the queue — they are directions
+that orient nearer decisions. They are far off and may require Cufet to grow
+into new categories. Their main present value is revealing which nearer roadmap
+items are load-bearing for where Cufet might someday go.
+
+### Cufet as a shell / scripting language
+
+The vision: Cufet used not only for pure computation but to orchestrate the
+system — running programs, reading and writing files, looping over directories,
+branching on results. A language you script real tasks in, possibly even a
+login shell.
+
+This is a *different category* from what Cufet is today. Cufet is currently a
+**pure computation language**: it has no way to reach outside itself — no file
+I/O, no process execution, no filesystem or network access, no clock. That
+sealed-ness is currently a strength (it keeps the type system clean, keeps
+everything deterministic, is part of why there is no null). A shell is defined
+by the opposite — its whole job is interacting with a messy, untyped outside
+world.
+
+Reaching this would require Cufet to gain an entire outside-world dimension.
+The load-bearing prerequisites (each a real feature in its own right):
+
+- **I/O and process execution** — reading/writing files, running external
+  programs, capturing their output, exit codes, environment variables. An
+  entirely new domain; Cufet has none of it today.
+- **Error *handling* (recovery, not just halting)** — today an error halts the
+  program. A shell must *recover* ("that command failed — do something else").
+  Cufet has no recoverable-error mechanism (no try/catch, no Result type). This
+  is the feature a shell most forces into existence, and the shell vision is the
+  strongest argument for prioritizing it.
+- **An "or nothing" type** — `read the file "x"` must express "the contents, or
+  nothing (it didn't exist)" without reintroducing null. This type is *also*
+  needed for recursive data structures (linked lists, trees), so it is
+  doubly-motivated. Designing it well (an explicit optional/maybe, not a null
+  hole) is the open question.
+- **Text operations** — already on the roadmap, but a shell makes them clearly
+  foundational rather than nice-to-have: a shell is almost entirely text
+  manipulation (parsing command output, building paths).
+- **Possibly streaming / pipes and a concurrency model** — real shells pipe
+  output between commands as it is produced. Cufet has no concept of this.
+
+**How this reorganizes the nearer roadmap:** holding this north star reveals that
+**error-handling**, an **"or nothing" type**, and **text operations** are not
+merely optional conveniences — they are the load-bearing pieces of a possible
+future direction, which raises their priority above other deferred items.
+
+The rough order this vision would impose: pure-language maturity first (records,
+objects, a fleshed-out type system) → then the outside-world layer (I/O,
+recoverable errors, "or nothing", processes) → then shell-specific features
+(pipes, an interactive prompt).
+
+### REPL (the bridge)
+
+A read-eval-print loop: run `cufet` with no file, get a prompt, type a line, see
+it evaluated, repeat — with the environment persisting between lines. This is the
+*modest, near* version of "interactive Cufet," and it is **step one of the shell
+vision** — the shell is, loosely, the REPL plus the whole outside world.
+
+Unlike the shell itself, this is *close*: the full pipeline (lexer → parser →
+type checker → interpreter) already exists, and a REPL is a thin loop around the
+evaluator that keeps `_env` alive between inputs rather than discarding it. The
+real design questions are tractable and fun: must each line be a complete
+statement, how are multi-line constructs (a `Bind` block, an `if:`/`Done.`)
+handled at a prompt, and should a bare expression auto-print its value (type
+`1 + 1`, see `2`, without `State`).
+
+Worth considering *sooner* than its far-future cousin, because it is a
+**use-and-joy multiplier**: it makes trying things in Cufet frictionless (no
+file, no `dotnet run`), which accelerates the use-driven development loop that
+has been surfacing the best design insights. And thematically, an interactive
+back-and-forth suits a language built to read like natural language — the rabbit
+talking back, one line at a time.
+
+---
+
 *Cufet is pre-1.0. The language may still change. Versioning is semantic: features bump the minor version, and 1.0.0 will mark the point at which the language is considered stable.*
