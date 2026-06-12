@@ -2759,4 +2759,70 @@ public class InterpreterTests
             "Define alice as a record with (\"Alice\", the score 95).\n" +
             "State Cast matches on (alice)."));
     }
+
+    // ── Records Slice 4 — empty series of records ─────────────────────────────
+
+    [Fact]
+    public void Record_EmptySeries_DefineAndAddAndAccess()
+    {
+        Assert.Equal("Norman", Run(
+            "Define party as a series of records like (the text name, the number age).\n" +
+            "Add a record with (the name \"Norman\", the age 30) to party.\n" +
+            "State the name of the first of party."));
+    }
+
+    [Fact]
+    public void Record_EmptySeries_PluralRecords()
+    {
+        Assert.Equal("42", Run(
+            "Define scores as a series of records like (the number value).\n" +
+            "Add a record with (the value 42) to scores.\n" +
+            "State the value of the first of scores."));
+    }
+
+    [Fact]
+    public void Record_EmptySeries_AddTypeMismatchThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define party as a series of records like (the text name).\n" +
+            "Add a record with (the name 99) to party."));
+    }
+
+    [Fact]
+    public void Record_EmptySeries_AddShapeMismatchThrowsTypeError()
+    {
+        // Series expects (the text name); adding a record with a different field name → shape mismatch
+        Assert.Throws<TypeException>(() => Run(
+            "Define party as a series of records like (the text name).\n" +
+            "Add a record with (the score 99) to party."));
+    }
+
+    [Fact]
+    public void Record_EmptySeries_ForEachIterates()
+    {
+        Assert.Equal("Alice\nBob", Run(
+            "Define roster as a series of records like (the text name).\n" +
+            "Add a record with (the name \"Alice\") to roster.\n" +
+            "Add a record with (the name \"Bob\") to roster.\n" +
+            "For each member in roster, repeat:\n" +
+            "    State the name of member.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Record_EmptySeries_PositionalShape()
+    {
+        Assert.Equal("5", Run(
+            "Define pairs as a series of records like (number, text).\n" +
+            "Add a record with (5, \"five\") to pairs.\n" +
+            "State the first of the first of pairs."));
+    }
+
+    [Fact]
+    public void Record_EmptySeries_PopulatedSeriesStillInfers()
+    {
+        Assert.Equal("10", Run(
+            "Define nums as a series with (a record with (10), a record with (20)).\n" +
+            "State the first of the first of nums."));
+    }
 }

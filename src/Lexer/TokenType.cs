@@ -51,6 +51,7 @@ public enum TokenType
     Series,   // "series" — signals a series literal after "as [article] series"
     Record,   // "record" — signals a record literal after "[article] record with (...)"
     With,     // "with"   — delimits element-type annotation from contents: "series [of T] with (...)"
+    Like,     // "like"   — introduces record shape in empty series: "series of records like (...)"
 
     // ── Collections — for-each ────────────────────────────────────────────
     For,      // "for"

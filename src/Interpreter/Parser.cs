@@ -85,7 +85,15 @@ public sealed class Parser
         if (Peek().Type == TokenType.Of)
         {
             Advance(); SkipNoise(); // consume "of"
-            if (Peek().Type == TokenType.Void)
+            if (Peek().Type == TokenType.Record ||
+                (Peek().Type == TokenType.Identifier &&
+                 Peek().Lexeme.Equals("records", StringComparison.OrdinalIgnoreCase)))
+            {
+                Advance(); SkipNoise(); // consume 'record'/'records'
+                Consume(TokenType.Like); SkipNoise();
+                annotation = ParseRecordShapeBody();
+            }
+            else if (Peek().Type == TokenType.Void)
             {
                 Advance(); SkipNoise(); // consume 'void'
                 Consume(TokenType.FunctionKw); SkipNoise();
@@ -170,6 +178,13 @@ public sealed class Parser
     private RecordType ParseRecordShapeAnnotation()
     {
         Consume(TokenType.With); SkipNoise();
+        return ParseRecordShapeBody();
+    }
+
+    // Parses: (<positional-types>, the <type> <field-name>, ...)
+    // Called by both ParseRecordShapeAnnotation (after 'with') and the 'series of records like (...)' path.
+    private RecordType ParseRecordShapeBody()
+    {
         Consume(TokenType.LParen);
         // No SkipNoise here — preserve leading 'the' that signals a named field.
 

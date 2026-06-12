@@ -106,6 +106,7 @@ public sealed class Lexer
             "series"    => TokenType.Series,
             "record"    => TokenType.Record,
             "with"      => TokenType.With,
+            "like"      => TokenType.Like,
             "for"       => TokenType.For,
             "each"      => TokenType.Each,
             "in"        => TokenType.In,
