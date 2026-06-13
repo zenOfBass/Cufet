@@ -219,9 +219,9 @@ Remove 85 from scores.                     ← by value (first occurrence)
 
 **Element assignment:**
 ```
-the first of scores becomes 100.
-item n of scores becomes 100.
-the last of scores becomes 100.
+The first of scores becomes 100.
+The item n of scores becomes 100.
+The last of scores becomes 100.
 ```
 
 Out-of-bounds access or assignment produces a readable runtime error.
@@ -253,9 +253,9 @@ State the make of the spare of car. ← chained / nested access
 
 **Mutation:**
 ```
-the make of car becomes "Toyota".         ← named field
-the first of car becomes "coupe".         ← positional ordinal
-item n of car becomes "coupe".            ← positional parametric
+The make of car becomes "Toyota".         ← named field
+The first of car becomes "coupe".         ← positional ordinal
+The item n of car becomes "coupe".        ← positional parametric
 ```
 
 Assigning the wrong type to a field is a static type error.
@@ -264,7 +264,7 @@ Assigning the wrong type to a field is a static type error.
 name gives an independent copy:
 ```
 Define truck as car.
-the make of truck becomes "Toyota".
+The make of truck becomes "Toyota".
 State the make of car.              → Honda    (unchanged)
 ```
 
@@ -278,8 +278,8 @@ Done.
 **Series of records:**
 ```
 Define fleet as a series with (
-    a record with (the make "Honda",  the year 2021),
-    a record with (the make "Toyota", the year 2019)).
+    A record with (the make "Honda",  the year 2021),
+    A record with (the make "Toyota", the year 2019)).
 
 Define inventory as a series of records like (the text make, the number year).
 Add a record with (the make "Ford", the year 2022) to inventory.
@@ -337,7 +337,7 @@ argument in `on (...)`, with the method's declared parameters following.
 **Mutation** — value-on-assignment, mutable-in-place (the same "struct model" as
 records):
 ```
-the year of car becomes 2022.           ← direct
+The year of car becomes 2022.           ← direct
 ```
 Inside a mutating method, `one's year becomes ...` changes the actual instance
 the method was called on. Assigning a value to a copy leaves the original
@@ -368,9 +368,9 @@ Construction is **flat** — the object's own fields and all promoted fields are
 supplied together in one `{...}`:
 ```
 Define alice as a new customer {
-    the balance 100,
-    the name "Alice",
-    the age 30
+    The balance 100,
+    The name "Alice",
+    The age 30
 }.
 ```
 
@@ -388,9 +388,9 @@ It provides polymorphism without a hierarchy.
 
 ```
 Define driver as an interface for {
-    the void function steer, given (the number angle),
-    the void function brake,
-    the void function accelerate, given (the number amount)
+    The void function steer, given (the number angle),
+    The void function brake,
+    The void function accelerate, given (the number amount)
 }.
 ```
 
@@ -451,8 +451,8 @@ a series element, or a method.
 
 **Early exit:**
 ```
-return value.    ← return a value
-return.          ← void early exit
+Return value.    ← return a value
+Return.          ← void early exit
 ```
 
 A non-`void` function must return a value on every path; one that can fall off
