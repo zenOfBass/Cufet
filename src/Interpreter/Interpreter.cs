@@ -608,14 +608,63 @@ public sealed class Interpreter
             TokenType.Percent  => ToNumber(rv2, "%") == 0
                                       ? throw new RuntimeException($"Modulo by zero on line {b.Line}.")
                                       : (object)(ToNumber(lv2, "%") % ToNumber(rv2, "%")),
-            TokenType.Equal    => (object)lv2.Equals(rv2),
-            TokenType.NotEqual => (object)!lv2.Equals(rv2),
+            TokenType.Equal    => (object)ValuesEqual(lv2, rv2),
+            TokenType.NotEqual => (object)!ValuesEqual(lv2, rv2),
             TokenType.Lt       => (object)(ToNumber(lv2, "<")  < ToNumber(rv2, "<")),
             TokenType.Gt       => (object)(ToNumber(lv2, ">")  > ToNumber(rv2, ">")),
             TokenType.Lte      => (object)(ToNumber(lv2, "<=") <= ToNumber(rv2, "<=")),
             TokenType.Gte      => (object)(ToNumber(lv2, ">=") >= ToNumber(rv2, ">=")),
             _ => throw new InvalidOperationException($"Unknown binary operator: {b.Op}"),
         };
+    }
+
+    // Deep value equality: same semantics as the spec's "is" / "is not" for records and objects.
+    // Scalars use object.Equals; series compare element-wise; records compare structurally
+    // (positionals in order, named fields sorted by name); objects compare nominally then
+    // field-by-field (including the embedded-object chain recursively).
+    private static bool ValuesEqual(object? a, object? b)
+    {
+        if (a is null && b is null) return true;
+        if (a is null || b is null) return false;
+
+        if (a is List<object> la && b is List<object> lb)
+        {
+            if (la.Count != lb.Count) return false;
+            for (int i = 0; i < la.Count; i++)
+                if (!ValuesEqual(la[i], lb[i])) return false;
+            return true;
+        }
+
+        if (a is RecordValue ra && b is RecordValue rb)
+        {
+            if (ra.PositionalFields.Count != rb.PositionalFields.Count) return false;
+            for (int i = 0; i < ra.PositionalFields.Count; i++)
+                if (!ValuesEqual(ra.PositionalFields[i], rb.PositionalFields[i])) return false;
+            var aNamed = ra.NamedFields.OrderBy(f => f.Name, StringComparer.Ordinal).ToList();
+            var bNamed = rb.NamedFields.OrderBy(f => f.Name, StringComparer.Ordinal).ToList();
+            if (aNamed.Count != bNamed.Count) return false;
+            for (int i = 0; i < aNamed.Count; i++)
+                if (aNamed[i].Name != bNamed[i].Name || !ValuesEqual(aNamed[i].Value, bNamed[i].Value))
+                    return false;
+            return true;
+        }
+
+        if (a is ObjectValue oa && b is ObjectValue ob)
+        {
+            if (oa.TypeName != ob.TypeName) return false;
+            if (oa.PositionalFields.Count != ob.PositionalFields.Count) return false;
+            for (int i = 0; i < oa.PositionalFields.Count; i++)
+                if (!ValuesEqual(oa.PositionalFields[i], ob.PositionalFields[i])) return false;
+            var aNamed = oa.NamedFields.OrderBy(f => f.Name, StringComparer.Ordinal).ToList();
+            var bNamed = ob.NamedFields.OrderBy(f => f.Name, StringComparer.Ordinal).ToList();
+            if (aNamed.Count != bNamed.Count) return false;
+            for (int i = 0; i < aNamed.Count; i++)
+                if (aNamed[i].Name != bNamed[i].Name || !ValuesEqual(aNamed[i].Value, bNamed[i].Value))
+                    return false;
+            return ValuesEqual(oa.EmbeddedObject, ob.EmbeddedObject);
+        }
+
+        return a.Equals(b);
     }
 
     // Backstop: fires only if a non-number reaches an arithmetic operator at runtime.

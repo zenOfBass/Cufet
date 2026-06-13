@@ -3737,4 +3737,156 @@ public class InterpreterTests
             "Define racer as a new car { the model \"speedster\" }.\n" +
             "Cast steer on (racer, \"ninety\")."));
     }
+
+    // ── Equality — Records & Objects ─────────────────────────────────────────
+
+    [Fact]
+    public void Equality_Records_SameShapeAndValueAreEqual()
+    {
+        Assert.Equal("equal", Run(
+            "Define rec1 as a record with (the make \"Honda\", the year 2021).\n" +
+            "Define rec2 as a record with (the make \"Honda\", the year 2021).\n" +
+            "If rec1 is rec2, state \"equal\". Otherwise, state \"not equal\"."));
+    }
+
+    [Fact]
+    public void Equality_Records_SameShapeDifferentValueNotEqual()
+    {
+        Assert.Equal("not equal", Run(
+            "Define rec1 as a record with (the make \"Honda\", the year 2021).\n" +
+            "Define rec2 as a record with (the make \"Toyota\", the year 2021).\n" +
+            "If rec1 is rec2, state \"equal\". Otherwise, state \"not equal\"."));
+    }
+
+    [Fact]
+    public void Equality_Records_IsNotWorks()
+    {
+        Assert.Equal("different", Run(
+            "Define rec1 as a record with (the make \"Honda\", the year 2021).\n" +
+            "Define rec2 as a record with (the make \"Toyota\", the year 2019).\n" +
+            "If rec1 is not rec2, state \"different\". Otherwise, state \"same\"."));
+    }
+
+    [Fact]
+    public void Equality_Records_NamedFieldsComparedOrderInsensitively()
+    {
+        // Construction order of named fields doesn't affect equality.
+        Assert.Equal("equal", Run(
+            "Define rec1 as a record with (the make \"Honda\", the year 2021).\n" +
+            "Define rec2 as a record with (the year 2021, the make \"Honda\").\n" +
+            "If rec1 is rec2, state \"equal\". Otherwise, state \"not equal\"."));
+    }
+
+    [Fact]
+    public void Equality_Records_DifferentShapeThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define rec1 as a record with (the make \"Honda\", the year 2021).\n" +
+            "Define rec2 as a record with (the city \"Tulsa\").\n" +
+            "If rec1 is rec2, state \"equal\"."));
+    }
+
+    [Fact]
+    public void Equality_Objects_SameTypeAndValuesAreEqual()
+    {
+        Assert.Equal("same", Run(
+            "Define object vehicle with (the text make, the number year).\n" +
+            "Define car1 as a new vehicle { the make \"Honda\", the year 2021 }.\n" +
+            "Define car2 as a new vehicle { the make \"Honda\", the year 2021 }.\n" +
+            "If car1 is car2, state \"same\". Otherwise, state \"different\"."));
+    }
+
+    [Fact]
+    public void Equality_Objects_SameTypeDifferentValueNotEqual()
+    {
+        Assert.Equal("different", Run(
+            "Define object vehicle with (the text make, the number year).\n" +
+            "Define car1 as a new vehicle { the make \"Honda\", the year 2021 }.\n" +
+            "Define car2 as a new vehicle { the make \"Toyota\", the year 2021 }.\n" +
+            "If car1 is car2, state \"same\". Otherwise, state \"different\"."));
+    }
+
+    [Fact]
+    public void Equality_Objects_IsNotWorks()
+    {
+        Assert.Equal("different", Run(
+            "Define object vehicle with (the text make, the number year).\n" +
+            "Define car1 as a new vehicle { the make \"Honda\", the year 2021 }.\n" +
+            "Define car2 as a new vehicle { the make \"Toyota\", the year 2019 }.\n" +
+            "If car1 is not car2, state \"different\". Otherwise, state \"same\"."));
+    }
+
+    [Fact]
+    public void Equality_Objects_DifferentTypeThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object vehicle with (the text make).\n" +
+            "Define object animal with (the text name).\n" +
+            "Define car as a new vehicle { the make \"Honda\" }.\n" +
+            "Define dog as a new animal { the name \"Rex\" }.\n" +
+            "If car is dog, state \"same\"."));
+    }
+
+    [Fact]
+    public void Equality_Objects_WithEmbeddedEqualWhenAllMatch()
+    {
+        Assert.Equal("same", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define object customer with (the number balance) and as a person.\n" +
+            "Define cust1 as a new customer { the balance 100, the name \"Alice\", the age 30 }.\n" +
+            "Define cust2 as a new customer { the balance 100, the name \"Alice\", the age 30 }.\n" +
+            "If cust1 is cust2, state \"same\". Otherwise, state \"different\"."));
+    }
+
+    [Fact]
+    public void Equality_Objects_WithEmbeddedNotEqualWhenEmbeddedDiffers()
+    {
+        Assert.Equal("different", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Define object customer with (the number balance) and as a person.\n" +
+            "Define cust1 as a new customer { the balance 100, the name \"Alice\", the age 30 }.\n" +
+            "Define cust2 as a new customer { the balance 100, the name \"Bob\", the age 25 }.\n" +
+            "If cust1 is cust2, state \"same\". Otherwise, state \"different\"."));
+    }
+
+    [Fact]
+    public void Equality_Deep_NestedRecordsComparedRecursively()
+    {
+        // A record whose named field is itself a record.
+        Assert.Equal("equal\nnot equal", Run(
+            "Define inner1 as a record with (the city \"Tulsa\").\n" +
+            "Define inner2 as a record with (the city \"Tulsa\").\n" +
+            "Define inner3 as a record with (the city \"Denver\").\n" +
+            "Define outer1 as a record with (the location inner1).\n" +
+            "Define outer2 as a record with (the location inner2).\n" +
+            "Define outer3 as a record with (the location inner3).\n" +
+            "If outer1 is outer2, state \"equal\". Otherwise, state \"not equal\".\n" +
+            "If outer1 is outer3, state \"equal\". Otherwise, state \"not equal\"."));
+    }
+
+    [Fact]
+    public void Equality_SeriesField_ComparedElementWise()
+    {
+        // A record with a series field: equal when elements match.
+        Assert.Equal("equal\nnot equal", Run(
+            "Define s1 as a series with (1, 2, 3).\n" +
+            "Define s2 as a series with (1, 2, 3).\n" +
+            "Define s3 as a series with (1, 2, 9).\n" +
+            "Define rec1 as a record with (the scores s1).\n" +
+            "Define rec2 as a record with (the scores s2).\n" +
+            "Define rec3 as a record with (the scores s3).\n" +
+            "If rec1 is rec2, state \"equal\". Otherwise, state \"not equal\".\n" +
+            "If rec1 is rec3, state \"equal\". Otherwise, state \"not equal\"."));
+    }
+
+    [Fact]
+    public void Equality_SeriesField_NotEqualWhenLengthDiffers()
+    {
+        Assert.Equal("not equal", Run(
+            "Define s1 as a series with (1, 2, 3).\n" +
+            "Define s2 as a series with (1, 2).\n" +
+            "Define rec1 as a record with (the scores s1).\n" +
+            "Define rec2 as a record with (the scores s2).\n" +
+            "If rec1 is rec2, state \"equal\". Otherwise, state \"not equal\"."));
+    }
 }
