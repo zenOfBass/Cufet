@@ -288,6 +288,16 @@ Add a record with (the make "Ford", the year 2022) to inventory.
 A populated series infers its shape from the elements; an empty one declares it
 with `like (...)`. Either way, `add` enforces structural matching.
 
+**Equality:**
+```
+If rec1 is rec2, state "same".
+If rec1 is not rec2, state "different".
+```
+Two records are equal iff all fields are equal by value — named fields compared
+by name (order-insensitive), positional fields by position, recursively. Records
+of different shapes can't be compared: a compile-time type error. Series fields
+compare element-wise by value.
+
 ---
 
 ## Objects
@@ -347,6 +357,16 @@ unchanged.
 different types. Unlike records, shape alone is not identity; the type name is.
 
 **Value semantics** — objects copy on assignment, the same as records.
+
+**Equality:**
+```
+If car1 is car2, state "same car".
+If alice is not bob, state "different people".
+```
+Two objects are equal iff they are the same type and all fields are equal by
+value — including all promoted (embedded) fields, compared recursively through
+the embedding chain. Objects of different types can't be compared: a
+compile-time type error.
 
 ### Embedding (composition)
 
@@ -532,6 +552,7 @@ Cufet has a static type checker that runs before execution. It catches:
 - Passing a record that doesn't match the declared shape
 - Adding a record to a series whose shape it doesn't match
 - An object that claims an interface but doesn't satisfy its contract
+- Comparing records of incompatible shapes, or objects of different types, with `is`
 
 **Records use structural typing** — shape is identity. Two records with the same
 fields and types are the same type regardless of where they were declared. Named

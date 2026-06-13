@@ -70,6 +70,13 @@ Define car as a new vehicle { the make "Honda", the year 2021 }.
 Cast describe on car.
 ```
 
+**Value equality for records and objects:**
+```
+Define car1 as a new vehicle { the make "Honda", the year 2021 }.
+Define car2 as a new vehicle { the make "Honda", the year 2021 }.
+If car1 is car2, state "same car".
+```
+
 For the complete language — every statement, the type system, records,
 objects, functions, collections, and the rules behind them — see
 **[REFERENCE.md](REFERENCE.md)**.
