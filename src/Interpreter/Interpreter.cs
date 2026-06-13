@@ -27,21 +27,26 @@ public sealed class Interpreter
         public string TypeName { get; }
         public List<object>              PositionalFields { get; }
         public List<(string Name, object Value)> NamedFields { get; }
+        // Slice 4 — embedding: null means no embedded object.
+        public ObjectValue? EmbeddedObject { get; }
 
         public ObjectValue(
             string typeName,
             IEnumerable<object> positionalFields,
-            IEnumerable<(string Name, object Value)> namedFields)
+            IEnumerable<(string Name, object Value)> namedFields,
+            ObjectValue? embeddedObject = null)
         {
             TypeName         = typeName;
             PositionalFields = positionalFields.ToList();
             NamedFields      = namedFields.ToList();
+            EmbeddedObject   = embeddedObject;
         }
 
         public ObjectValue DeepCopy() => new ObjectValue(
             TypeName,
             PositionalFields.Select(DeepCopyValue),
-            NamedFields.Select(f => (f.Name, DeepCopyValue(f.Value))));
+            NamedFields.Select(f => (f.Name, DeepCopyValue(f.Value))),
+            EmbeddedObject?.DeepCopy());
 
         private static object DeepCopyValue(object v) =>
             v is ObjectValue ov ? ov.DeepCopy() :
@@ -234,11 +239,10 @@ public sealed class Interpreter
                         if (Evaluate(ss.Index) is not decimal ssD)
                             throw new RuntimeException($"Object position must be a number on line {ss.Line}.");
                         var ssIdx = (int)ssD;
-                        if (ssIdx < 1 || ssIdx > ssOv.PositionalFields.Count)
-                            throw new RuntimeException(ssOv.PositionalFields.Count == 0
-                                ? $"Object '{ssOv.TypeName}' has no positional fields (line {ss.Line})."
-                                : $"Object '{ssOv.TypeName}' has {ssOv.PositionalFields.Count} positional field(s); there is no position {ssIdx} (line {ss.Line}).");
-                        ssOv.PositionalFields[ssIdx - 1] = Evaluate(ss.Value);
+                        var ssOwner = FindOwnerForPositional(ssOv, ssIdx);
+                        if (ssOwner == null)
+                            throw new RuntimeException($"Object '{ssOv.TypeName}' has no positional field at position {ssIdx} (line {ss.Line}).");
+                        ssOwner.Value.owner.PositionalFields[ssOwner.Value.idx] = Evaluate(ss.Value);
                         break;
                     }
                     if (ssEnvVal is RecordValue ssRrv)
@@ -266,10 +270,11 @@ public sealed class Interpreter
                 var recordVal = Evaluate(rnss.Record);
                 if (recordVal is ObjectValue rnssOv)
                 {
-                    var fi = rnssOv.NamedFields.FindIndex(f => f.Name == rnss.FieldName);
-                    if (fi < 0)
+                    var owner = FindOwnerForNamedField(rnssOv, rnss.FieldName);
+                    if (owner == null)
                         throw new RuntimeException($"Object of type '{rnssOv.TypeName}' has no field named '{rnss.FieldName}' (line {rnss.Line}).");
-                    rnssOv.NamedFields[fi] = (rnss.FieldName, Evaluate(rnss.Value));
+                    var fi = owner.NamedFields.FindIndex(f => f.Name == rnss.FieldName);
+                    owner.NamedFields[fi] = (rnss.FieldName, Evaluate(rnss.Value));
                     break;
                 }
                 if (recordVal is not RecordValue rv)
@@ -286,10 +291,11 @@ public sealed class Interpreter
                 var target = Evaluate(pss.Target);
                 if (target is not ObjectValue pssOv)
                     throw new RuntimeException($"Possessive assignment requires an object (line {pss.Line}).");
-                var fi = pssOv.NamedFields.FindIndex(f => f.Name == pss.Member);
-                if (fi < 0)
+                var owner = FindOwnerForNamedField(pssOv, pss.Member);
+                if (owner == null)
                     throw new RuntimeException($"Object of type '{pssOv.TypeName}' has no field named '{pss.Member}' (line {pss.Line}).");
-                pssOv.NamedFields[fi] = (pss.Member, Evaluate(pss.Value));
+                var fi = owner.NamedFields.FindIndex(f => f.Name == pss.Member);
+                owner.NamedFields[fi] = (pss.Member, Evaluate(pss.Value));
                 break;
             }
 
@@ -512,11 +518,10 @@ public sealed class Interpreter
             if (Evaluate(sa.Index) is not decimal od)
                 throw new RuntimeException($"Object position must be a number on line {sa.Line}.");
             var oidx = (int)od;
-            if (oidx < 1 || oidx > ov.PositionalFields.Count)
-                throw new RuntimeException(ov.PositionalFields.Count == 0
-                    ? $"This object has no positional fields (line {sa.Line})."
-                    : $"This object has {ov.PositionalFields.Count} positional field(s); there is no position {oidx} (line {sa.Line}).");
-            return ov.PositionalFields[oidx - 1];
+            var owner = FindOwnerForPositional(ov, oidx);
+            if (owner == null)
+                throw new RuntimeException($"Object '{ov.TypeName}' has no positional field at position {oidx} (line {sa.Line}).");
+            return owner.Value.owner.PositionalFields[owner.Value.idx];
         }
 
         if (val is not List<object> list)
@@ -531,11 +536,9 @@ public sealed class Interpreter
 
         if (target is ObjectValue ov)
         {
-            var objField = ov.NamedFields.FirstOrDefault(f => f.Name == rna.FieldName);
-            if (objField == default)
-                throw new RuntimeException(
-                    $"Object of type '{ov.TypeName}' has no field named '{rna.FieldName}' (line {rna.Line}).");
-            return objField.Value;
+            if (TryFindNamedFieldValue(ov, rna.FieldName, out var found)) return found;
+            throw new RuntimeException(
+                $"Object of type '{ov.TypeName}' has no field named '{rna.FieldName}' (line {rna.Line}).");
         }
 
         if (target is not RecordValue rv)
@@ -643,11 +646,88 @@ public sealed class Interpreter
         return d[a.Length, b.Length];
     }
 
-    private object EvaluateObjectLiteral(ObjectLiteral ol) =>
-        new ObjectValue(
-            ol.TypeName,
-            ol.PositionalValues.Select(Evaluate),
-            ol.NamedValues.Select(f => (f.Name, Evaluate(f.Value))));
+    // ── Embedding helpers (Slice 4) ───────────────────────────────────────────
+
+    // Finds the field value in ov or any embedded object, including the embed handle.
+    private bool TryFindNamedFieldValue(ObjectValue ov, string fieldName, out object value)
+    {
+        // Embed handle: "the person of customer" returns the embedded ObjectValue itself.
+        if (ov.EmbeddedObject != null && fieldName == ov.EmbeddedObject.TypeName)
+        {
+            value = ov.EmbeddedObject;
+            return true;
+        }
+        var fi = ov.NamedFields.FindIndex(f => f.Name == fieldName);
+        if (fi >= 0) { value = ov.NamedFields[fi].Value; return true; }
+        if (ov.EmbeddedObject != null) return TryFindNamedFieldValue(ov.EmbeddedObject, fieldName, out value);
+        value = null!;
+        return false;
+    }
+
+    // Returns the ObjectValue that directly owns the named field (for in-place mutation).
+    private ObjectValue? FindOwnerForNamedField(ObjectValue ov, string fieldName)
+    {
+        if (ov.NamedFields.FindIndex(f => f.Name == fieldName) >= 0) return ov;
+        if (ov.EmbeddedObject != null) return FindOwnerForNamedField(ov.EmbeddedObject, fieldName);
+        return null;
+    }
+
+    // Returns (owner, zeroBasedIndex) for a positional field, traversing the embed chain.
+    private (ObjectValue owner, int idx)? FindOwnerForPositional(ObjectValue ov, int oneBasedIdx)
+    {
+        if (oneBasedIdx >= 1 && oneBasedIdx <= ov.PositionalFields.Count)
+            return (ov, oneBasedIdx - 1);
+        if (ov.EmbeddedObject != null)
+            return FindOwnerForPositional(ov.EmbeddedObject, oneBasedIdx - ov.PositionalFields.Count);
+        return null;
+    }
+
+    // Builds an ObjectValue from a flat field list, routing fields to the right level.
+    private ObjectValue BuildObjectValue(
+        ObjectDefinition def,
+        IReadOnlyList<IExpression> allPositionals,
+        IReadOnlyList<(string Name, IExpression Value)> allNamed,
+        int line)
+    {
+        int ownPosCount = def.PositionalTypes.Count;
+
+        var ownPosValues = new List<object>(ownPosCount);
+        for (int i = 0; i < ownPosCount; i++)
+            ownPosValues.Add(Evaluate(allPositionals[i]));
+
+        var ownFieldNames  = new HashSet<string>(def.NamedFields.Select(f => f.FieldName));
+        var ownNamedValues = new List<(string Name, object Value)>();
+        var remaining      = new List<(string Name, IExpression Value)>();
+        foreach (var (name, expr) in allNamed)
+        {
+            if (ownFieldNames.Contains(name)) ownNamedValues.Add((name, Evaluate(expr)));
+            else remaining.Add((name, expr));
+        }
+
+        ObjectValue? embeddedObject = null;
+        if (def.EmbeddedTypeName != null)
+        {
+            if (!_objectDefs.TryGetValue(def.EmbeddedTypeName, out var embedDef))
+                throw new RuntimeException(
+                    $"Object '{def.Name}' embeds '{def.EmbeddedTypeName}', which is not defined (line {line}).");
+
+            var remainingPos = new List<IExpression>();
+            for (int i = ownPosCount; i < allPositionals.Count; i++)
+                remainingPos.Add(allPositionals[i]);
+
+            embeddedObject = BuildObjectValue(embedDef, remainingPos, remaining, line);
+        }
+
+        return new ObjectValue(def.Name, ownPosValues, ownNamedValues, embeddedObject);
+    }
+
+    private object EvaluateObjectLiteral(ObjectLiteral ol)
+    {
+        if (!_objectDefs.TryGetValue(ol.TypeName, out var def))
+            throw new RuntimeException(
+                $"'{ol.TypeName}' is not a defined object type (line {ol.Line}).");
+        return BuildObjectValue(def, ol.PositionalValues, ol.NamedValues, ol.Line);
+    }
 
     private object EvaluatePossessiveAccess(PossessiveAccess pa)
     {
@@ -655,24 +735,30 @@ public sealed class Interpreter
         if (target is not ObjectValue ov)
             throw new RuntimeException(
                 $"You're trying to access '{pa.Member}' on something that isn't an object (line {pa.Line}).");
-        var field = ov.NamedFields.FirstOrDefault(f => f.Name == pa.Member);
-        if (field != default)
-            return field.Value;
+        if (TryFindNamedFieldValue(ov, pa.Member, out var found)) return found;
         throw new RuntimeException(
             $"Object of type '{ov.TypeName}' has no field named '{pa.Member}' (line {pa.Line}).");
     }
 
     private object? DispatchMethod(string methodName, object receiver, IReadOnlyList<IExpression> args, int line)
     {
-        if (receiver is ObjectValue ov &&
-            _objectDefs.TryGetValue(ov.TypeName, out var def))
+        if (receiver is ObjectValue ov)
         {
-            var method = def.Methods.FirstOrDefault(m => m.Name == methodName);
-            if (method != null)
-                return ExecuteMethod(ov, method, args, line);
+            // Walk own object first, then embedded chain.
+            var current = ov;
+            while (current != null)
+            {
+                if (_objectDefs.TryGetValue(current.TypeName, out var def))
+                {
+                    var method = def.Methods.FirstOrDefault(m => m.Name == methodName);
+                    if (method != null)
+                        return ExecuteMethod(current, method, args, line);
+                }
+                current = current.EmbeddedObject;
+            }
+            throw new RuntimeException($"'{methodName}' is not a method on '{ov.TypeName}' (line {line}).");
         }
-        var typeName = receiver is ObjectValue o2 ? $"'{o2.TypeName}'" : "this value";
-        throw new RuntimeException($"'{methodName}' is not a method on {typeName} (line {line}).");
+        throw new RuntimeException($"'{methodName}' is not a method on this value (line {line}).");
     }
 
     private object? ExecuteMethod(ObjectValue receiver, BindStatement method, IReadOnlyList<IExpression> args, int line)
@@ -746,6 +832,7 @@ public sealed class Interpreter
         var parts = new List<string>();
         foreach (var v in ov.PositionalFields)       parts.Add(Format(v));
         foreach (var (name, v) in ov.NamedFields)    parts.Add($"{name}: {Format(v)}");
+        if (ov.EmbeddedObject != null)               parts.Add(Format(ov.EmbeddedObject));
         return $"{ov.TypeName}(" + string.Join(", ", parts) + ")";
     }
 }

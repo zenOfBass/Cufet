@@ -130,13 +130,15 @@ public sealed record ReturnStatement(IExpression? Value, int Line) : IStatement;
 
 // ── Objects ───────────────────────────────────────────────────────────────────
 
-// Define object <name> with (<fields>) [: <methods> Done.]
-// Methods == [] when defined without a body (slice 1 objects).
+// Define object <name> with (<fields>) [and as a <type>] [: <methods> Done.]
+// EmbeddedTypeName != null → embedding (Slice 4); null = no embed.
+// Methods == [] when defined without a body.
 public sealed record ObjectDefinition(
     string Name,
     IReadOnlyList<CufetType> PositionalTypes,
     IReadOnlyList<(string FieldName, CufetType FieldType)> NamedFields,
     IReadOnlyList<BindStatement> Methods,
+    string? EmbeddedTypeName,
     int Line
 ) : IStatement;
 

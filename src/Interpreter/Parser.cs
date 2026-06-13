@@ -90,6 +90,18 @@ public sealed class Parser
         var shape = ParseRecordShapeAnnotation(); // consumes "with (...)"
         SkipNoise();
 
+        // Optional embedding clause: and as a <type-name>
+        string? embeddedTypeName = null;
+        if (Peek().Type == TokenType.And)
+        {
+            Advance(); // consume 'and'
+            SkipNoise();
+            Consume(TokenType.As);
+            SkipNoise(); // skips the article 'a'/'an'
+            embeddedTypeName = Consume(TokenType.Identifier).Lexeme;
+            SkipNoise();
+        }
+
         var methods = new List<BindStatement>();
         if (Peek().Type == TokenType.Colon)
         {
@@ -115,7 +127,7 @@ public sealed class Parser
             Consume(TokenType.Dot);
         }
 
-        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, line);
+        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, embeddedTypeName, line);
     }
 
     // new <typeName> { [fields] }

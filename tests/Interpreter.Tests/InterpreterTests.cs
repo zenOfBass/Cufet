@@ -3199,4 +3199,157 @@ public class InterpreterTests
             "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
             "alice's age becomes \"old\"."));
     }
+
+    // ── Objects — Slice 4: Embedding ─────────────────────────────────────────
+
+    [Fact]
+    public void Object_Embedding_BasicFieldAccessViaTheOf()
+    {
+        Assert.Equal("Alice\n100",
+            Run(
+                "Define object person with (the text name, the number age).\n" +
+                "Define object customer with (the number balance) and as a person.\n" +
+                "Define alice as a new customer { the balance 100, the name \"Alice\", the age 30 }.\n" +
+                "State the name of alice.\n" +
+                "State the balance of alice."));
+    }
+
+    [Fact]
+    public void Object_Embedding_PossessiveFieldAccess()
+    {
+        Assert.Equal("Alice",
+            Run(
+                "Define object person with (the text name).\n" +
+                "Define object customer with (the number balance) and as a person.\n" +
+                "Define alice as a new customer { the balance 100, the name \"Alice\" }.\n" +
+                "State alice's name."));
+    }
+
+    [Fact]
+    public void Object_Embedding_EscapeHatch()
+    {
+        Assert.Equal("Alice",
+            Run(
+                "Define object person with (the text name).\n" +
+                "Define object customer with (the number balance) and as a person.\n" +
+                "Define alice as a new customer { the balance 100, the name \"Alice\" }.\n" +
+                "State the name of the person of alice."));
+    }
+
+    [Fact]
+    public void Object_Embedding_MethodPromotion()
+    {
+        Assert.Equal("Alice",
+            Run(
+                "Define object person with (the text name):\n" +
+                "    Bind void to greet:\n" +
+                "        State one's name.\n" +
+                "    Done.\n" +
+                "Done.\n" +
+                "Define object customer with (the number balance) and as a person.\n" +
+                "Define alice as a new customer { the balance 100, the name \"Alice\" }.\n" +
+                "Cast greet on alice."));
+    }
+
+    [Fact]
+    public void Object_Embedding_PossessiveMethodDispatch()
+    {
+        Assert.Equal("Alice",
+            Run(
+                "Define object person with (the text name):\n" +
+                "    Bind void to greet:\n" +
+                "        State one's name.\n" +
+                "    Done.\n" +
+                "Done.\n" +
+                "Define object customer with (the number balance) and as a person.\n" +
+                "Define alice as a new customer { the balance 100, the name \"Alice\" }.\n" +
+                "Cast alice's greet."));
+    }
+
+    [Fact]
+    public void Object_Embedding_TransitiveFieldAccess()
+    {
+        Assert.Equal("Springfield",
+            Run(
+                "Define object address with (the text city).\n" +
+                "Define object person with (the text name) and as an address.\n" +
+                "Define object customer with (the number balance) and as a person.\n" +
+                "Define alice as a new customer { the balance 100, the name \"Alice\", the city \"Springfield\" }.\n" +
+                "State the city of alice."));
+    }
+
+    [Fact]
+    public void Object_Embedding_ValueSemanticsDeepCopy()
+    {
+        Assert.Equal("Bob\nAlice",
+            Run(
+                "Define object person with (the text name).\n" +
+                "Define object customer with (the number balance) and as a person.\n" +
+                "Define alice as a new customer { the balance 100, the name \"Alice\" }.\n" +
+                "Define copy as alice.\n" +
+                "the name of alice becomes \"Bob\".\n" +
+                "State the name of alice.\n" +
+                "State the name of copy."));
+    }
+
+    [Fact]
+    public void Object_Embedding_MutatePromotedField()
+    {
+        Assert.Equal("Bob",
+            Run(
+                "Define object person with (the text name).\n" +
+                "Define object customer with (the number balance) and as a person.\n" +
+                "Define alice as a new customer { the balance 100, the name \"Alice\" }.\n" +
+                "the name of alice becomes \"Bob\".\n" +
+                "State the name of alice."));
+    }
+
+    [Fact]
+    public void Object_Embedding_MutatePromotedFieldPossessive()
+    {
+        Assert.Equal("Bob",
+            Run(
+                "Define object person with (the text name).\n" +
+                "Define object customer with (the number balance) and as a person.\n" +
+                "Define alice as a new customer { the balance 100, the name \"Alice\" }.\n" +
+                "alice's name becomes \"Bob\".\n" +
+                "State alice's name."));
+    }
+
+    [Fact]
+    public void Object_Embedding_CollisionThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name).\n" +
+            "Define object customer with (the text name, the number balance) and as a person."));
+    }
+
+    [Fact]
+    public void Object_Embedding_NoSubtypingThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name).\n" +
+            "Define object customer with (the number balance) and as a person.\n" +
+            "Define p as a new person { the name \"Bob\" }.\n" +
+            "Define c as a new customer { the balance 100, the name \"Alice\" }.\n" +
+            "p becomes c."));
+    }
+
+    [Fact]
+    public void Object_Embedding_UnknownEmbedTypeThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object customer with (the number balance) and as a ghost."));
+    }
+
+    [Fact]
+    public void Object_Embedding_Format()
+    {
+        Assert.Equal("customer(balance: 100, person(name: Alice))",
+            Run(
+                "Define object person with (the text name).\n" +
+                "Define object customer with (the number balance) and as a person.\n" +
+                "Define alice as a new customer { the balance 100, the name \"Alice\" }.\n" +
+                "State alice."));
+    }
 }
