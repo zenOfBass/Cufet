@@ -71,7 +71,9 @@ public sealed class Parser
         var name = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
         Consume(TokenType.As);
-        SkipNoise();
+        SkipNoise(); // skips article 'an' before 'interface'
+        if (Peek().Type == TokenType.Interface)
+            return ParseInterfaceDefinitionBody(name, line);
         IExpression value = Peek().Type == TokenType.Series
             ? ParseSeriesLiteralExpr()
             : ParseExpression();
@@ -90,15 +92,25 @@ public sealed class Parser
         var shape = ParseRecordShapeAnnotation(); // consumes "with (...)"
         SkipNoise();
 
-        // Optional embedding clause: and as a <type-name>
+        // Optional trailing 'and' clauses:
+        //   and as a <type-name>   — embedding (at most one)
+        //   and <interface-name>   — conformance (repeatable)
         string? embeddedTypeName = null;
-        if (Peek().Type == TokenType.And)
+        var conformedInterfaces = new List<string>();
+        while (Peek().Type == TokenType.And)
         {
             Advance(); // consume 'and'
             SkipNoise();
-            Consume(TokenType.As);
-            SkipNoise(); // skips the article 'a'/'an'
-            embeddedTypeName = Consume(TokenType.Identifier).Lexeme;
+            if (Peek().Type == TokenType.As)
+            {
+                Consume(TokenType.As);
+                SkipNoise(); // skips the article 'a'/'an'
+                embeddedTypeName = Consume(TokenType.Identifier).Lexeme;
+            }
+            else
+            {
+                conformedInterfaces.Add(Consume(TokenType.Identifier).Lexeme);
+            }
             SkipNoise();
         }
 
@@ -127,7 +139,85 @@ public sealed class Parser
             Consume(TokenType.Dot);
         }
 
-        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, embeddedTypeName, line);
+        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, embeddedTypeName, conformedInterfaces, line);
+    }
+
+    // Define <name> as an interface for { <method-sigs> } / single method without {}
+    // Called after consuming "Define <name> as an" and seeing the Interface token.
+    private InterfaceDefinition ParseInterfaceDefinitionBody(string name, int line)
+    {
+        Consume(TokenType.Interface); SkipNoise();
+        Consume(TokenType.For);      SkipNoise();
+
+        var methods = new List<(string MethodName, CufetType? ReturnType, IReadOnlyList<CufetType> ParamTypes)>();
+
+        if (Peek().Type == TokenType.LBrace)
+        {
+            // Braced form: { method-sig, method-sig, ... }
+            Advance(); SkipNoise(); // consume '{'
+            methods.Add(ParseInterfaceMethodSig());
+            SkipNoise();
+            while (Peek().Type == TokenType.Comma)
+            {
+                Advance(); SkipNoise(); // consume inter-method ','
+                methods.Add(ParseInterfaceMethodSig());
+                SkipNoise();
+            }
+            Consume(TokenType.RBrace);
+        }
+        else
+        {
+            // Brace-less single-method form
+            methods.Add(ParseInterfaceMethodSig());
+        }
+
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new InterfaceDefinition(name, methods, line);
+    }
+
+    // Parses one interface method signature:
+    //   the <return-type> function <name> [, given (<type name>, ...)]
+    // Returns (methodName, returnType, paramTypes).
+    private (string MethodName, CufetType? ReturnType, IReadOnlyList<CufetType> ParamTypes) ParseInterfaceMethodSig()
+    {
+        SkipNoise(); // skip 'the' article before return type
+
+        CufetType? returnType;
+        if (Peek().Type == TokenType.Void)
+        {
+            Advance(); SkipNoise();
+            returnType = null;
+        }
+        else
+        {
+            returnType = ParseTypeAnnotation(); SkipNoise();
+        }
+
+        Consume(TokenType.FunctionKw); SkipNoise();
+        var methodName = Consume(TokenType.Identifier).Lexeme; SkipNoise();
+
+        // Optional ", given (<named-params>)" — disambiguated from inter-method ',' by peeking for 'given'
+        var paramTypes = new List<CufetType>();
+        if (Peek().Type == TokenType.Comma &&
+            _pos + 1 < _tokens.Count && _tokens[_pos + 1].Type == TokenType.Given)
+        {
+            Advance(); SkipNoise(); // consume ','
+            Consume(TokenType.Given); SkipNoise();
+            Consume(TokenType.LParen); SkipNoise();
+            if (Peek().Type != TokenType.RParen)
+            {
+                paramTypes.Add(ParseParameter().Type); SkipNoise();
+                while (Peek().Type == TokenType.Comma)
+                {
+                    Advance(); SkipNoise();
+                    paramTypes.Add(ParseParameter().Type); SkipNoise();
+                }
+            }
+            Consume(TokenType.RParen); SkipNoise();
+        }
+
+        return (methodName, returnType, paramTypes);
     }
 
     // new <typeName> { [fields] }
@@ -254,7 +344,13 @@ public sealed class Parser
             SkipNoise();
             return new SeriesType(ParseTypeAnnotation());
         }
-        throw new ParseException(tok, "type name (number, text, fact, or series of ...)");
+        // Named type: object or interface name — resolved by TypeChecker.
+        if (tok.Type == TokenType.Identifier)
+        {
+            Advance();
+            return new ObjectType(tok.Lexeme, [], [], []);
+        }
+        throw new ParseException(tok, "type name (number, text, fact, series of ..., or a defined type name)");
     }
 
     // Parses: with (<positional-types>, the <type> <field-name>, ...)

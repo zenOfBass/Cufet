@@ -301,7 +301,8 @@ public sealed class Interpreter
 
             case BindStatement:
             case ObjectDefinition:
-                break; // already hoisted in Execute(Program)
+            case InterfaceDefinition:
+                break; // already hoisted / no runtime action
 
             case MethodCallStatement mc:
                 DispatchMethod(mc.MethodName, Evaluate(mc.Receiver), [], mc.Line);

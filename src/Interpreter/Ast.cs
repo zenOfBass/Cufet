@@ -130,8 +130,17 @@ public sealed record ReturnStatement(IExpression? Value, int Line) : IStatement;
 
 // ── Objects ───────────────────────────────────────────────────────────────────
 
-// Define object <name> with (<fields>) [and as a <type>] [: <methods> Done.]
+// Define <name> as an interface for { <method-sig>, ... } / single method without {}
+// Methods hold the full signature (return type + param types); no implementation.
+public sealed record InterfaceDefinition(
+    string Name,
+    IReadOnlyList<(string MethodName, CufetType? ReturnType, IReadOnlyList<CufetType> ParamTypes)> Methods,
+    int Line
+) : IStatement;
+
+// Define object <name> with (<fields>) [and as a <type>] [and <interface> ...] [: <methods> Done.]
 // EmbeddedTypeName != null → embedding (Slice 4); null = no embed.
+// ConformedInterfaces — interface names declared with "and <interface>" clauses (Slice 5).
 // Methods == [] when defined without a body.
 public sealed record ObjectDefinition(
     string Name,
@@ -139,6 +148,7 @@ public sealed record ObjectDefinition(
     IReadOnlyList<(string FieldName, CufetType FieldType)> NamedFields,
     IReadOnlyList<BindStatement> Methods,
     string? EmbeddedTypeName,
+    IReadOnlyList<string> ConformedInterfaces,
     int Line
 ) : IStatement;
 

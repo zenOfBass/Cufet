@@ -110,6 +110,7 @@ public sealed class Lexer
             "with"      => TokenType.With,
             "like"      => TokenType.Like,
             "object"    => TokenType.Object,
+            "interface" => TokenType.Interface,
             "new"       => TokenType.New,
             "one"       => TokenType.One,
             "for"       => TokenType.For,

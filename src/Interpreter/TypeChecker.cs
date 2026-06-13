@@ -119,23 +119,36 @@ public sealed class ObjectType : CufetType
     public IReadOnlyList<(string MethodName, FunctionType Signature)> Methods { get; }
     // Slice 4 — embedding: null means no embed; non-null is the embedded type name (handle).
     public string? EmbeddedTypeName { get; }
+    // Slice 5 — conformance: interface names declared with "and <interface>" clauses.
+    public IReadOnlyList<string> ConformedInterfaces { get; }
 
     public ObjectType(
         string name,
         IReadOnlyList<CufetType> positionalTypes,
         IReadOnlyList<(string FieldName, CufetType FieldType)> namedFields,
         IReadOnlyList<(string MethodName, FunctionType Signature)> methods,
-        string? embeddedTypeName = null)
+        string? embeddedTypeName = null,
+        IReadOnlyList<string>? conformedInterfaces = null)
     {
-        Name             = name;
-        PositionalTypes  = positionalTypes;
-        NamedFields      = namedFields.OrderBy(f => f.FieldName, StringComparer.Ordinal).ToList();
-        Methods          = methods;
-        EmbeddedTypeName = embeddedTypeName;
+        Name               = name;
+        PositionalTypes    = positionalTypes;
+        NamedFields        = namedFields.OrderBy(f => f.FieldName, StringComparer.Ordinal).ToList();
+        Methods            = methods;
+        EmbeddedTypeName   = embeddedTypeName;
+        ConformedInterfaces = conformedInterfaces ?? [];
     }
 
     public override bool Equals(object? obj) => obj is ObjectType o && o.Name == Name;
     public override int GetHashCode() => HashCode.Combine(typeof(ObjectType), Name);
+}
+
+// Nominal interface type — equality by name only. Used as parameter/return type in annotations.
+public sealed class InterfaceType : CufetType
+{
+    public string Name { get; }
+    public InterfaceType(string name) => Name = name;
+    public override bool Equals(object? obj) => obj is InterfaceType i && i.Name == Name;
+    public override int GetHashCode() => HashCode.Combine(typeof(InterfaceType), Name);
 }
 
 public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine);
@@ -147,8 +160,9 @@ public sealed class TypeException : Exception
 
 public sealed class TypeChecker
 {
-    private readonly Dictionary<string, TypeInfo>      _env        = new();
-    private readonly Dictionary<string, ObjectType>    _objectDefs = new();
+    private readonly Dictionary<string, TypeInfo>           _env           = new();
+    private readonly Dictionary<string, ObjectType>         _objectDefs    = new();
+    private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new();
 
     // Return context — set when entering a Bind or method body.
     private bool       _inFunction             = false;
@@ -162,17 +176,25 @@ public sealed class TypeChecker
             CheckStatement(stmt);
     }
 
-    // Pass 1: register object types (sub-pass 1a) then function signatures (sub-pass 1b).
-    // Object types first so method signatures can reference them.
+    // Pass 1: register interfaces (1a), then object types (1b), then function signatures (1c).
+    // Interfaces registered first so object conformance declarations can be validated against them.
     private void Pass1Hoist(Program program)
     {
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is not InterfaceDefinition ifd) continue;
+            _interfaceDefs[ifd.Name] = ifd;
+        }
+
         foreach (var stmt in program.Statements)
         {
             if (stmt is not ObjectDefinition od) continue;
             var methodSigs = od.Methods
                 .Select(m => (m.Name, new FunctionType(m.Parameters.Select(p => p.Type).ToList(), m.ReturnType)))
                 .ToList();
-            _objectDefs[od.Name] = new ObjectType(od.Name, od.PositionalTypes, od.NamedFields, methodSigs, od.EmbeddedTypeName);
+            _objectDefs[od.Name] = new ObjectType(
+                od.Name, od.PositionalTypes, od.NamedFields, methodSigs,
+                od.EmbeddedTypeName, od.ConformedInterfaces);
         }
 
         foreach (var stmt in program.Statements)
@@ -256,6 +278,8 @@ public sealed class TypeChecker
             case ObjectDefinition od:
                 CheckObjectDefinition(od);
                 break;
+            case InterfaceDefinition:
+                break; // already hoisted in Pass1
             case MethodCallStatement mc:
                 _ = InferMethodCallExpression(new MethodCallExpression(mc.MethodName, mc.Receiver, mc.Line));
                 break;
@@ -301,7 +325,7 @@ public sealed class TypeChecker
         foreach (var (k, v) in snapshot.Where(kv => kv.Value.Type is FunctionType))
             _env[k] = v;
         foreach (var (type, name) in bind.Parameters)
-            _env[name] = new TypeInfo(type, new VariableReference(name, 0), bind.Line);
+            _env[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), bind.Line);
 
         var prevInFunction        = _inFunction;
         var prevReturnType        = _expectedReturnType;
@@ -384,14 +408,39 @@ public sealed class TypeChecker
 
         for (int i = 0; i < args.Count; i++)
         {
-            var argType = InferType(args[i]);
-            if (argType == null || argType == funcType.ParameterTypes[i]) continue;
+            var argType  = InferType(args[i]);
+            if (argType == null) continue;
+
+            // Resolve shell ObjectType params to InterfaceType or full ObjectType as needed.
+            var formalType = ResolveParamType(funcType.ParameterTypes[i]);
+
+            if (formalType is InterfaceType ifaceT)
+            {
+                // Conformance check: argument must be an object type that conforms to the interface.
+                if (argType is not ObjectType actualOt ||
+                    !_objectDefs.TryGetValue(actualOt.Name, out var actualObjDef) ||
+                    !actualObjDef.ConformedInterfaces.Contains(ifaceT.Name))
+                {
+                    var hint = argType is ObjectType nonConforming
+                        ? $"'{nonConforming.Name}' does not declare conformance to '{ifaceT.Name}'. Add 'and {ifaceT.Name}' to its definition."
+                        : $"Only objects that conform to '{ifaceT.Name}' can be passed here.";
+                    throw new TypeException(FormatTypeError(
+                        $"argument {i + 1} of {displayName} must satisfy the '{ifaceT.Name}' interface, but you passed a {FormatType(argType)}",
+                        $"You declared {displayName} on line {declLine} with a '{ifaceT.Name}' parameter",
+                        callLine,
+                        $"pass a {FormatType(argType)} where a '{ifaceT.Name}' is required",
+                        hint));
+                }
+                continue;
+            }
+
+            if (argType == formalType) continue;
             throw new TypeException(FormatTypeError(
-                $"argument {i + 1} of {displayName} must be a {FormatType(funcType.ParameterTypes[i])}, but you passed a {FormatType(argType)}",
-                $"You declared {displayName} on line {declLine}, so argument {i + 1} must be a {FormatType(funcType.ParameterTypes[i])}",
+                $"argument {i + 1} of {displayName} must be a {FormatType(formalType)}, but you passed a {FormatType(argType)}",
+                $"You declared {displayName} on line {declLine}, so argument {i + 1} must be a {FormatType(formalType)}",
                 callLine,
                 $"pass a {FormatType(argType)} as argument {i + 1}",
-                $"Change argument {i + 1} to a {FormatType(funcType.ParameterTypes[i])}."));
+                $"Change argument {i + 1} to a {FormatType(formalType)}."));
         }
     }
 
@@ -1036,11 +1085,60 @@ public sealed class TypeChecker
         }
     }
 
+    // Resolves ObjectType shells (produced by ParseTypeAnnotation for identifiers) to their
+    // proper type: InterfaceType if the name is in _interfaceDefs, full ObjectType if in _objectDefs.
+    // Returns the type unchanged if it's already a resolved type or not a named-object shell.
+    private CufetType ResolveParamType(CufetType type) => type switch
+    {
+        ObjectType { PositionalTypes.Count: 0, NamedFields.Count: 0, Methods.Count: 0,
+                     EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
+            when _interfaceDefs.ContainsKey(ot.Name) => new InterfaceType(ot.Name),
+        ObjectType { PositionalTypes.Count: 0, NamedFields.Count: 0, Methods.Count: 0,
+                     EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
+            when _objectDefs.ContainsKey(ot.Name) => _objectDefs[ot.Name],
+        _ => type
+    };
+
+    // Validates all conformance declarations for an object: the interface must exist and the
+    // object must implement every method with a matching signature (return type + param types).
+    private void ValidateObjectConformance(ObjectDefinition od, ObjectType objType)
+    {
+        foreach (var ifaceName in od.ConformedInterfaces)
+        {
+            if (!_interfaceDefs.TryGetValue(ifaceName, out var iface))
+                throw new TypeException(FormatTypeError(
+                    $"'{od.Name}' claims to satisfy '{ifaceName}', but no such interface is defined",
+                    null, od.Line,
+                    $"conform to '{ifaceName}'",
+                    $"Define the interface first: Define {ifaceName} as an interface for {{...}}."));
+
+            foreach (var (methodName, returnType, paramTypes) in iface.Methods)
+            {
+                var sig = FindMethodInOtOrPromoted(objType, methodName);
+                if (sig == null)
+                    throw new TypeException(FormatTypeError(
+                        $"'{od.Name}' claims to satisfy '{ifaceName}' but has no method '{methodName}'",
+                        null, od.Line,
+                        $"conform to interface '{ifaceName}'",
+                        $"Add a method '{methodName}' to '{od.Name}' (or embed an object that provides it)."));
+
+                if (sig.ReturnType != returnType || !sig.ParameterTypes.SequenceEqual(paramTypes))
+                    throw new TypeException(FormatTypeError(
+                        $"'{od.Name}'.'{methodName}' has the wrong signature for interface '{ifaceName}'",
+                        null, od.Line,
+                        $"conform to '{ifaceName}' with a mismatched '{methodName}'",
+                        $"Interface '{ifaceName}' requires '{methodName}' to have signature: " +
+                        $"{FormatFunctionType(new FunctionType(paramTypes, returnType))}."));
+            }
+        }
+    }
+
     private void CheckObjectDefinition(ObjectDefinition od)
     {
         if (!_objectDefs.TryGetValue(od.Name, out var objType)) return;
 
         ValidateObjectEmbedding(od, objType);
+        ValidateObjectConformance(od, objType);
 
         foreach (var method in od.Methods)
         {
@@ -1052,7 +1150,7 @@ public sealed class TypeChecker
                 _env[k] = v;
             _env["one"] = new TypeInfo(objType, new VariableReference("one", 0), od.Line);
             foreach (var (type, name) in method.Parameters)
-                _env[name] = new TypeInfo(type, new VariableReference(name, 0), method.Line);
+                _env[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), method.Line);
 
             var prevInFunction       = _inFunction;
             var prevReturnType       = _expectedReturnType;
@@ -1156,6 +1254,23 @@ public sealed class TypeChecker
         var targetType = InferType(poss.Target);
         if (targetType == null) return null;
 
+        // Interface-typed variable: 's can only reach interface methods.
+        if (targetType is InterfaceType ifaceT)
+        {
+            if (!_interfaceDefs.TryGetValue(ifaceT.Name, out var ifaceDef))
+                return null;
+            var ifaceSig = ifaceDef.Methods.FirstOrDefault(m => m.MethodName == poss.Member);
+            if (ifaceSig == default)
+                throw new TypeException(FormatTypeError(
+                    $"interface '{ifaceT.Name}' has no method named '{poss.Member}'",
+                    null, poss.Line,
+                    $"use 's to access '{poss.Member}' through interface '{ifaceT.Name}'",
+                    ifaceDef.Methods.Count > 0
+                        ? $"Available methods: {string.Join(", ", ifaceDef.Methods.Select(m => $"'{m.MethodName}'"))}."
+                        : $"Interface '{ifaceT.Name}' declares no methods."));
+            return new FunctionType(ifaceSig.ParamTypes, ifaceSig.ReturnType);
+        }
+
         if (targetType is not ObjectType ot)
             throw new TypeException(FormatTypeError(
                 $"possessive access ('s) requires an object, but got a {FormatType(targetType)}",
@@ -1185,6 +1300,23 @@ public sealed class TypeChecker
     {
         var receiverType = InferType(mc.Receiver);
         if (receiverType == null) return null;
+
+        // Interface-typed parameter: look up the method in the interface signature.
+        if (receiverType is InterfaceType ifaceT)
+        {
+            if (!_interfaceDefs.TryGetValue(ifaceT.Name, out var ifaceDef))
+                return null; // unknown interface — runtime catches
+            var ifaceSig = ifaceDef.Methods.FirstOrDefault(m => m.MethodName == mc.MethodName);
+            if (ifaceSig == default)
+                throw new TypeException(FormatTypeError(
+                    $"interface '{ifaceT.Name}' has no method named '{mc.MethodName}'",
+                    null, mc.Line,
+                    $"call method '{mc.MethodName}' through interface '{ifaceT.Name}'",
+                    ifaceDef.Methods.Count > 0
+                        ? $"Available methods: {string.Join(", ", ifaceDef.Methods.Select(m => $"'{m.MethodName}'"))}."
+                        : $"Interface '{ifaceT.Name}' declares no methods."));
+            return ifaceSig.ReturnType;
+        }
 
         if (receiverType is not ObjectType ot)
             throw new TypeException(FormatTypeError(
@@ -1337,6 +1469,7 @@ public sealed class TypeChecker
         FunctionType ft                      => FormatFunctionType(ft),
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => ot.Name,
+        InterfaceType it                     => it.Name,
         _                                    => "<unknown>",
     };
 
@@ -1366,6 +1499,7 @@ public sealed class TypeChecker
         FunctionType                         => "functions",
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => $"{ot.Name} objects",
+        InterfaceType it                     => $"{it.Name} values",
         _                                    => "<unknown>",
     };
 

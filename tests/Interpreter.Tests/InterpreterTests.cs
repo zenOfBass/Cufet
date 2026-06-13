@@ -3352,4 +3352,229 @@ public class InterpreterTests
                 "Define alice as a new customer { the balance 100, the name \"Alice\" }.\n" +
                 "State alice."));
     }
+
+    // ── Objects — Slice 5: interfaces ─────────────────────────────────────────
+
+    [Fact]
+    public void Interface_Declaration_SingleMethod_NoBraces()
+    {
+        Assert.Equal("Alice",
+            Run(
+                "Define greeter as an interface for the void function greet.\n" +
+                "Define object person with (the text name) and greeter:\n" +
+                "    Bind void to greet:\n" +
+                "        State one's name.\n" +
+                "    Done.\n" +
+                "Done.\n" +
+                "Define alice as a new person { the name \"Alice\" }.\n" +
+                "Cast greet on alice."));
+    }
+
+    [Fact]
+    public void Interface_Declaration_MultiMethod_Braces()
+    {
+        Assert.Equal("Alice\n30",
+            Run(
+                "Define describable as an interface for {\n" +
+                "    the void function show-name,\n" +
+                "    the void function show-age\n" +
+                "}.\n" +
+                "Define object person with (the text name, the number age) and describable:\n" +
+                "    Bind void to show-name:\n" +
+                "        State one's name.\n" +
+                "    Done.\n" +
+                "    Bind void to show-age:\n" +
+                "        State one's age.\n" +
+                "    Done.\n" +
+                "Done.\n" +
+                "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+                "Cast show-name on alice.\n" +
+                "Cast show-age on alice."));
+    }
+
+    [Fact]
+    public void Interface_Polymorphic_Dispatch_DifferentConformingTypes()
+    {
+        Assert.Equal("Alice\nRex",
+            Run(
+                "Define greeter as an interface for the void function greet.\n" +
+                "Define object person with (the text name) and greeter:\n" +
+                "    Bind void to greet:\n" +
+                "        State one's name.\n" +
+                "    Done.\n" +
+                "Done.\n" +
+                "Define object dog with (the text name) and greeter:\n" +
+                "    Bind void to greet:\n" +
+                "        State one's name.\n" +
+                "    Done.\n" +
+                "Done.\n" +
+                "Bind void to do-greet, given (the greeter g):\n" +
+                "    Cast greet on g.\n" +
+                "Done.\n" +
+                "Define alice as a new person { the name \"Alice\" }.\n" +
+                "Define rex as a new dog { the name \"Rex\" }.\n" +
+                "Cast do-greet on (alice).\n" +
+                "Cast do-greet on (rex)."));
+    }
+
+    [Fact]
+    public void Interface_Polymorphic_Dispatch_ReturnsValue()
+    {
+        Assert.Equal("Hello from Alice",
+            Run(
+                "Define namer as an interface for the text function get-name.\n" +
+                "Define object person with (the text name) and namer:\n" +
+                "    Bind text to get-name:\n" +
+                "        Return one's name.\n" +
+                "    Done.\n" +
+                "Done.\n" +
+                "Bind void to announce, given (the namer n):\n" +
+                "    State Cast get-name on n.\n" +
+                "Done.\n" +
+                "Define alice as a new person { the name \"Hello from Alice\" }.\n" +
+                "Cast announce on (alice)."));
+    }
+
+    [Fact]
+    public void Interface_ConformanceWithParamTypes_StaticCheckPasses()
+    {
+        // Interface declares a parameterized method; conforming object must match param types.
+        Assert.Equal("done",
+            Run(
+                "Define transformer as an interface for the void function transform, given (the number x).\n" +
+                "Define object doubler with (the number factor) and transformer:\n" +
+                "    Bind void to transform, given (the number x):\n" +
+                "        State one's factor.\n" +
+                "    Done.\n" +
+                "Done.\n" +
+                "State \"done\"."));
+    }
+
+    [Fact]
+    public void Interface_MultiConformance()
+    {
+        Assert.Equal("Alice\n30",
+            Run(
+                "Define namer as an interface for the void function show-name.\n" +
+                "Define ager as an interface for the void function show-age.\n" +
+                "Define object person with (the text name, the number age) and namer and ager:\n" +
+                "    Bind void to show-name:\n" +
+                "        State one's name.\n" +
+                "    Done.\n" +
+                "    Bind void to show-age:\n" +
+                "        State one's age.\n" +
+                "    Done.\n" +
+                "Done.\n" +
+                "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+                "Cast show-name on alice.\n" +
+                "Cast show-age on alice."));
+    }
+
+    [Fact]
+    public void Interface_EmbeddingPlusConformance()
+    {
+        Assert.Equal("Alice",
+            Run(
+                "Define greeter as an interface for the void function greet.\n" +
+                "Define object base-entity with (the text label).\n" +
+                "Define object person with (the text name) and as a base-entity and greeter:\n" +
+                "    Bind void to greet:\n" +
+                "        State one's name.\n" +
+                "    Done.\n" +
+                "Done.\n" +
+                "Bind void to do-greet, given (the greeter g):\n" +
+                "    Cast greet on g.\n" +
+                "Done.\n" +
+                "Define alice as a new person { the name \"Alice\", the label \"entity\" }.\n" +
+                "Cast do-greet on (alice)."));
+    }
+
+    [Fact]
+    public void Interface_ConformanceViaEmbedding()
+    {
+        Assert.Equal("Hi!",
+            Run(
+                "Define greeter as an interface for the void function greet.\n" +
+                "Define object person with (the text name) and greeter:\n" +
+                "    Bind void to greet:\n" +
+                "        State \"Hi!\".\n" +
+                "    Done.\n" +
+                "Done.\n" +
+                "Define object employee with (the number id) and as a person and greeter.\n" +
+                "Bind void to do-greet, given (the greeter g):\n" +
+                "    Cast greet on g.\n" +
+                "Done.\n" +
+                "Define e as a new employee { the id 42, the name \"Alice\" }.\n" +
+                "Cast do-greet on (e)."));
+    }
+
+    [Fact]
+    public void Interface_Error_MissingMethod_ThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define greeter as an interface for the void function greet.\n" +
+            "Define object person with (the text name) and greeter.\n"));
+    }
+
+    [Fact]
+    public void Interface_Error_WrongReturnType_ThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define greeter as an interface for the text function greet.\n" +
+            "Define object person with (the text name) and greeter:\n" +
+            "    Bind void to greet:\n" +
+            "        State one's name.\n" +
+            "    Done.\n" +
+            "Done.\n"));
+    }
+
+    [Fact]
+    public void Interface_Error_WrongParamType_ThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define adder as an interface for the number function add-to, given (the number x).\n" +
+            "Define object accumulator with (the number base-val) and adder:\n" +
+            "    Bind number to add-to, given (the text x):\n" +
+            "        Return one's base-val.\n" +
+            "    Done.\n" +
+            "Done.\n"));
+    }
+
+    [Fact]
+    public void Interface_Error_UnknownInterface_ThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name) and greeter.\n"));
+    }
+
+    [Fact]
+    public void Interface_Error_NonConformingArgument_ThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define greeter as an interface for the void function greet.\n" +
+            "Define object person with (the text name).\n" +
+            "Bind void to do-greet, given (the greeter g):\n" +
+            "    Cast greet on g.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Cast do-greet on (alice)."));
+    }
+
+    [Fact]
+    public void Interface_InterfaceMethod_NoSubtypingForConcreteParams()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define greeter as an interface for the void function greet.\n" +
+            "Define object person with (the text name) and greeter:\n" +
+            "    Bind void to greet:\n" +
+            "        State one's name.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define object employee with (the number id) and as a person.\n" +
+            "Bind void to greet-person, given (the person p):\n" +
+            "    Cast greet on p.\n" +
+            "Done.\n" +
+            "Define e as a new employee { the id 1, the name \"Alice\" }.\n" +
+            "Cast greet-person on (e)."));
+    }
 }
