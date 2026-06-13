@@ -89,11 +89,9 @@ language is considered stable.
 
 ### Language
 
-- **Text operations** — `text` exists but cannot yet be joined or manipulated.
-  `+` is deliberately *not* overloaded for concatenation, so text-joining needs
-  its own construct (a word, e.g. `joined with`, or a `followed by` form).
-  To design. *Wanted: this gap has been reached for repeatedly in practice —
-  high priority.*
+- **Text operations** — `text` can joined via `joined to`, length can be found with
+  `the  length`, but cannot yet be manipulated futher. `+` is deliberately *not*
+  overloaded for concatenation.
 
 - **Text and general ordering via a `by` modifier** — ordering currently works
   on numbers only. Extend it with an explicit basis modifier rather than new
