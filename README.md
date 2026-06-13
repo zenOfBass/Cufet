@@ -1,6 +1,6 @@
 ﻿# Cufet `0.2.0`
 
-*From the Mvskoke (Muskogee) word for rabbit — the trickster who steals fire and brings it to the people.*
+*From the Mvskoke (Muskogee) word for rabbit—the trickster who brings the gift of fire to humankind.*
 
 Cufet is a statically-typed, natural-language programming language. It borrows
 English's surface while keeping formal structure visible. Every keyword reads
