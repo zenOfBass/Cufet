@@ -163,6 +163,17 @@ public sealed record ObjectLiteral(
 // alice's greet  /  one's name  — possessive field or method reference
 public sealed record PossessiveAccess(IExpression Target, string Member, int Line) : IExpression;
 
+// ── Text operations (Slice 1) ─────────────────────────────────────────────────
+
+// "hello" joined to " world" — text concatenation; both sides must be text
+public sealed record TextJoin(IExpression Left, IExpression Right, int Line) : IExpression;
+
+// score converted to text — explicit value → text (number, fact, or text no-op)
+public sealed record TextConvert(IExpression Value, int Line) : IExpression;
+
+// the length of greeting — character count of a text value; result is number
+public sealed record TextLength(IExpression Target, int Line) : IExpression;
+
 // alice's age becomes X  /  one's age becomes X  — possessive field mutation
 public sealed record PossessiveSetStatement(IExpression Target, string Member, IExpression Value, int Line) : IStatement;
 

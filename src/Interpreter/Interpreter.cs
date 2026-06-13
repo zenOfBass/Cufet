@@ -412,6 +412,9 @@ public sealed class Interpreter
         CastExpression   cast => ExecuteCallExpr(cast.Function, cast.Args, cast.Line)
                                      ?? throw new RuntimeException(
                                          $"{FuncDisplayName(cast.Function)} gives nothing back — it can't be used as a value (line {cast.Line})."),
+        TextJoin   tj => EvaluateTextJoin(tj),
+        TextConvert tc => (object)Format(Evaluate(tc.Value)),
+        TextLength  tl => (object)(decimal)((string)Evaluate(tl.Target)).Length,
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 
@@ -564,6 +567,17 @@ public sealed class Interpreter
             throw new RuntimeException(
                 $"This record has no field named '{rna.FieldName}' (line {rna.Line}).");
         return field.Value;
+    }
+
+    private object EvaluateTextJoin(TextJoin tj)
+    {
+        var l = Evaluate(tj.Left);
+        var r = Evaluate(tj.Right);
+        if (l is not string ls)
+            throw new RuntimeException($"'joined to' requires text on the left side (line {tj.Line}).");
+        if (r is not string rs)
+            throw new RuntimeException($"'joined to' requires text on the right side (line {tj.Line}).");
+        return (object)(ls + rs);
     }
 
     private object EvaluateUnary(UnaryExpression u)

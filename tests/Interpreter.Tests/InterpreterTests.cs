@@ -3889,4 +3889,163 @@ public class InterpreterTests
             "Define rec2 as a record with (the scores s2).\n" +
             "If rec1 is rec2, state \"equal\". Otherwise, state \"not equal\"."));
     }
+
+    // ── Text Operations — Slice 1: joining, conversion, length ───────────────
+
+    [Fact]
+    public void TextJoin_BasicConcatenation()
+    {
+        Assert.Equal("hello world", Run("State \"hello\" joined to \" world\"."));
+    }
+
+    [Fact]
+    public void TextJoin_ChainIsLeftAssociative()
+    {
+        Assert.Equal("abc", Run("State \"a\" joined to \"b\" joined to \"c\"."));
+    }
+
+    [Fact]
+    public void TextJoin_WithVariables()
+    {
+        Assert.Equal("hello world", Run(
+            "Define greeting as \"hello\".\n" +
+            "State greeting joined to \" world\"."));
+    }
+
+    [Fact]
+    public void TextJoin_InCondition()
+    {
+        Assert.Equal("yes", Run(
+            "Define prefix as \"he\".\n" +
+            "Define suffix as \"llo\".\n" +
+            "If prefix joined to suffix is \"hello\", state \"yes\". Otherwise, state \"no\"."));
+    }
+
+    [Fact]
+    public void TextConvert_NumberToText()
+    {
+        Assert.Equal("95", Run("State 95 converted to text."));
+    }
+
+    [Fact]
+    public void TextConvert_DecimalNumberToText()
+    {
+        Assert.Equal("2.5", Run("State 2.5 converted to text."));
+    }
+
+    [Fact]
+    public void TextConvert_FactTrueToText()
+    {
+        Assert.Equal("true", Run("State (1 = 1) converted to text."));
+    }
+
+    [Fact]
+    public void TextConvert_FactFalseToText()
+    {
+        Assert.Equal("false", Run("State (1 = 2) converted to text."));
+    }
+
+    [Fact]
+    public void TextConvert_TextIsNoOp()
+    {
+        Assert.Equal("hello", Run("State \"hello\" converted to text."));
+    }
+
+    [Fact]
+    public void TextConvert_MatchesStateRendering()
+    {
+        // converted to text must produce the same string as State would print
+        Assert.Equal(Run("State 42."), Run("State 42 converted to text."));
+    }
+
+    [Fact]
+    public void TextJoin_WithConvertedNumber_BindingOrder()
+    {
+        // "Player: " joined to score converted to text
+        // must parse as "Player: " joined to (score converted to text), NOT
+        // ("Player: " joined to score) converted to text
+        Assert.Equal("Player: 95", Run(
+            "Define score as 95.\n" +
+            "State \"Player: \" joined to score converted to text."));
+    }
+
+    [Fact]
+    public void TextJoin_BuildsFullLabel()
+    {
+        Assert.Equal("The total is 42", Run(
+            "Define total as 42.\n" +
+            "State \"The total is \" joined to total converted to text."));
+    }
+
+    [Fact]
+    public void TextLength_OfLiteral()
+    {
+        Assert.Equal("5", Run("State the length of \"hello\"."));
+    }
+
+    [Fact]
+    public void TextLength_OfVariable()
+    {
+        Assert.Equal("3", Run(
+            "Define word as \"cat\".\n" +
+            "State the length of word."));
+    }
+
+    [Fact]
+    public void TextLength_OfEmptyString()
+    {
+        Assert.Equal("0", Run("State the length of \"\"."));
+    }
+
+    [Fact]
+    public void TextLength_ResultIsNumber()
+    {
+        // result is a number — can be used in arithmetic
+        Assert.Equal("10", Run(
+            "Define word as \"hello\".\n" +
+            "State the length of word * 2."));
+    }
+
+    [Fact]
+    public void TextLength_DoesNotAffectSeriesLength()
+    {
+        // the number of <series> must still work unchanged
+        Assert.Equal("3", Run(
+            "Define scores as a series with (1, 2, 3).\n" +
+            "State the number of scores."));
+    }
+
+    [Fact]
+    public void TextJoin_TypeErrorOnNumber()
+    {
+        Assert.Throws<TypeException>(() => Run("State 1 joined to \"hello\"."));
+    }
+
+    [Fact]
+    public void TextJoin_TypeErrorOnFact()
+    {
+        Assert.Throws<TypeException>(() => Run("State \"hello\" joined to (1 = 1)."));
+    }
+
+    [Fact]
+    public void TextLength_TypeErrorOnNumber()
+    {
+        Assert.Throws<TypeException>(() => Run("State the length of 5."));
+    }
+
+    [Fact]
+    public void TextLength_TypeErrorOnSeries()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define scores as a series with (1, 2, 3).\n" +
+            "State the length of scores."));
+    }
+
+    [Fact]
+    public void TextConvert_TypeErrorOnSeries()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define scores as a series with (1, 2, 3).\n" +
+            "State scores converted to text."));
+    }
 }

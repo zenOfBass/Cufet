@@ -867,7 +867,7 @@ public sealed class Parser
     private IExpression ParseSingleCondition()
     {
         SkipNoise();
-        var left = ParseAddition();
+        var left = ParseJoinedTo();
         SkipNoise();
         if (Peek().Type == TokenType.Equal)
             throw new ParseException(Peek().Line,
@@ -886,7 +886,7 @@ public sealed class Parser
             {
                 var line = Advance().Line;
                 SkipNoise();
-                return new BinaryExpression(left, TokenType.NotEqual, ParseAddition(), line);
+                return new BinaryExpression(left, TokenType.NotEqual, ParseJoinedTo(), line);
             }
             case TokenType.Greater:
             {
@@ -894,7 +894,7 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.Than);
                 SkipNoise();
-                return new BinaryExpression(left, TokenType.Gt, ParseAddition(), line);
+                return new BinaryExpression(left, TokenType.Gt, ParseJoinedTo(), line);
             }
             case TokenType.Less:
             {
@@ -902,14 +902,14 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.Than);
                 SkipNoise();
-                return new BinaryExpression(left, TokenType.Lt, ParseAddition(), line);
+                return new BinaryExpression(left, TokenType.Lt, ParseJoinedTo(), line);
             }
             default:
             {
                 // "is expr" or "is expr or more/less"
                 // Peek past 'or' before consuming: if followed by more/less it's a comparison
                 // tail; otherwise it's logical-or and we leave it for ParseLogicalOr to handle.
-                var right = ParseAddition();
+                var right = ParseJoinedTo();
                 SkipNoise();
                 if (Peek().Type == TokenType.Or &&
                     PeekAfterCurrent() is TokenType.More or TokenType.Less)
@@ -980,13 +980,32 @@ public sealed class Parser
 
     private IExpression ParseComparison()
     {
-        var left = ParseAddition();
+        var left = ParseJoinedTo();
         while (Peek().Type is TokenType.Equal or TokenType.Lt or TokenType.Gt
                            or TokenType.Lte or TokenType.Gte)
         {
             var opTok = Advance();
             SkipNoise();
-            left = new BinaryExpression(left, opTok.Type, ParseAddition(), opTok.Line);
+            left = new BinaryExpression(left, opTok.Type, ParseJoinedTo(), opTok.Line);
+        }
+        return left;
+    }
+
+    // '<text> joined to <text>' — left-associative text concatenation.
+    // Sits above ParseAddition so that arithmetic binds tighter than joining;
+    // sits below ParseComparison so you can compare joined results: 'If x joined to y is z'.
+    private IExpression ParseJoinedTo()
+    {
+        var left = ParseAddition();
+        SkipNoise();
+        while (Peek().Type == TokenType.Joined)
+        {
+            var line = Advance().Line; // consume 'joined'
+            SkipNoise();
+            Consume(TokenType.To);
+            SkipNoise();
+            left = new TextJoin(left, ParseAddition(), line);
+            SkipNoise();
         }
         return left;
     }
@@ -1117,6 +1136,15 @@ public sealed class Parser
                 baseExpr = new SeriesLength(name);
                 break;
             }
+            case TokenType.LengthKw:
+            {
+                var line = Advance().Line;
+                SkipNoise();
+                Consume(TokenType.Of);
+                SkipNoise();
+                baseExpr = new TextLength(ParsePrimary(), line);
+                break;
+            }
             case TokenType.Cast:
                 baseExpr = ParseCastExpression();
                 break;
@@ -1138,6 +1166,23 @@ public sealed class Parser
             SkipNoise();
             var memberTok = Advance(); // member name — any word token
             baseExpr = new PossessiveAccess(baseExpr, memberTok.Lexeme, possTok.Line);
+            SkipNoise();
+        }
+
+        // 'converted to text' postfix — binds tighter than 'joined to' (parsed here at primary level).
+        // Handles: score converted to text, car's year converted to text, (x+1) converted to text.
+        while (Peek().Type == TokenType.Converted)
+        {
+            var line = Advance().Line; // consume 'converted'
+            SkipNoise();
+            Consume(TokenType.To);
+            SkipNoise();
+            var textTok = Peek();
+            if (textTok.Type != TokenType.Identifier ||
+                !textTok.Lexeme.Equals("text", StringComparison.OrdinalIgnoreCase))
+                throw new ParseException(textTok, "text — expected after 'converted to'");
+            Advance(); // consume 'text'
+            baseExpr = new TextConvert(baseExpr, line);
             SkipNoise();
         }
 
@@ -1255,7 +1300,7 @@ public sealed class Parser
         //   Ordinal → 'the first of s' (positional access)
         //   NumberKw → 'the number of s' (series length)
         //   Start → 'to the start of s' (add-to-start)
-        if (forAccess && tok.Type is TokenType.Ordinal or TokenType.NumberKw or TokenType.Start)
+        if (forAccess && tok.Type is TokenType.Ordinal or TokenType.NumberKw or TokenType.Start or TokenType.LengthKw)
             return false;
         return true;
     }

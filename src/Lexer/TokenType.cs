@@ -88,6 +88,11 @@ public enum TokenType
     On,          // "on"       — separates function name from argument list in Cast
     FunctionKw,  // "function" — type keyword in function-type parameter annotations
 
+    // ── Text operations ───────────────────────────────────────────────────
+    LengthKw,  // "length"    — in "the length of <text>"
+    Joined,    // "joined"    — in "<text> joined to <text>"
+    Converted, // "converted" — in "<value> converted to text"
+
     // ── Semantic (parser-generated, never emitted by lexer) ───────────────
     NotEqual, // produced by "is not"; used in BinaryExpression only
 

@@ -936,11 +936,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\tests\\Lexer.Tests\\Cufet.Lexer.Tests.csproj",
+      "projectUniqueName": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\tests\\Lexer.Tests\\Cufet.Lexer.Tests.csproj",
       "projectName": "Cufet.Lexer.Tests",
-      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\tests\\Lexer.Tests\\Cufet.Lexer.Tests.csproj",
+      "projectPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\tests\\Lexer.Tests\\Cufet.Lexer.Tests.csproj",
       "packagesPath": "C:\\Users\\kick_\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\tests\\Lexer.Tests\\obj\\",
+      "outputPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\tests\\Lexer.Tests\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\kick_\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -956,8 +956,8 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {
-            "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj": {
-              "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj"
+            "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj": {
+              "projectPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Lexer\\Cufet.Lexer.csproj"
             }
           }
         }
