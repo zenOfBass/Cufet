@@ -268,8 +268,8 @@ public sealed class TypeChecker
                 break;
             case CastStatement cs:
             {
-                var (funcType, displayName, declLine) = ResolveForCast(cs.Function, cs.Line);
-                if (funcType != null) ValidateCastArgs(funcType, displayName, declLine, cs.Args, cs.Line);
+                var (funcType, displayName, declLine, argsToValidate) = ResolveForCast(cs.Function, cs.Args, cs.Line);
+                if (funcType != null) ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cs.Line);
                 break;
             }
             case ReturnStatement ret:
@@ -280,9 +280,6 @@ public sealed class TypeChecker
                 break;
             case InterfaceDefinition:
                 break; // already hoisted in Pass1
-            case MethodCallStatement mc:
-                _ = InferMethodCallExpression(new MethodCallExpression(mc.MethodName, mc.Receiver, mc.Line));
-                break;
         }
     }
 
@@ -714,16 +711,15 @@ public sealed class TypeChecker
         RecordNamedAccess rna                                                   => InferRecordNamedAccess(rna),
         ObjectLiteral lit                                                       => InferObjectLiteral(lit),
         PossessiveAccess poss                                                   => InferPossessiveAccess(poss),
-        MethodCallExpression mc                                                 => InferMethodCallExpression(mc),
         _                                                                       => null,
     };
 
     private CufetType? InferCastExpr(CastExpression cast)
     {
-        var (funcType, displayName, declLine) = ResolveForCast(cast.Function, cast.Line);
+        var (funcType, displayName, declLine, argsToValidate) = ResolveForCast(cast.Function, cast.Args, cast.Line);
         if (funcType == null) return null;
 
-        ValidateCastArgs(funcType, displayName, declLine, cast.Args, cast.Line);
+        ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cast.Line);
 
         if (funcType.ReturnType == null)
             throw new TypeException(FormatTypeError(
@@ -736,28 +732,78 @@ public sealed class TypeChecker
         return funcType.ReturnType;
     }
 
-    // Resolves the function expression to (FunctionType, display name, declaration line).
+    // Resolves the function expression to (funcType, displayName, declLine, argsToValidate).
+    // When method dispatch is detected, argsToValidate is args[1..] (receiver already consumed).
     // Returns (null, ...) if the type is unknown at compile time — runtime catches it.
-    // Throws TypeException if the expression's type is known but is not a function.
-    private (FunctionType? funcType, string displayName, int declLine) ResolveForCast(
-        IExpression funcExpr, int callLine)
+    // Throws TypeException for known-bad: non-function type, or method/free-function ambiguity.
+    private (FunctionType? funcType, string displayName, int declLine, IReadOnlyList<IExpression> argsToValidate)
+        ResolveForCast(IExpression funcExpr, IReadOnlyList<IExpression> args, int callLine)
     {
-        // Fast path: named variable — we have rich info from _env.
-        if (funcExpr is VariableReference vr && _env.TryGetValue(vr.Name, out var info))
+        if (funcExpr is VariableReference vr)
         {
-            if (info.Type is not FunctionType ft)
+            var md    = TryMethodDispatch(vr.Name, args, callLine);
+            bool inEnv = _env.TryGetValue(vr.Name, out var info);
+
+            if (md.HasValue && inEnv && info!.Type is FunctionType)
                 throw new TypeException(FormatTypeError(
-                    $"'{vr.Name}' holds a {FormatType(info.Type)}, not a function — you can only cast functions",
+                    $"'{vr.Name}' is both a method and a free function — this is ambiguous",
                     null,
                     callLine,
-                    "cast something that isn't a function",
-                    "Only functions can be cast. Make sure the name you're casting refers to a function."));
-            return (ft, $"'{vr.Name}'", info.EstablishingLine);
+                    $"call '{vr.Name}' ambiguously",
+                    $"Use the possessive form to call the method explicitly: Cast <object>'s {vr.Name} on (args)."));
+
+            if (md.HasValue)
+                return (md.Value.funcType, md.Value.displayName, md.Value.declLine, args.Skip(1).ToList());
+
+            if (inEnv)
+            {
+                if (info!.Type is not FunctionType ft)
+                    throw new TypeException(FormatTypeError(
+                        $"'{vr.Name}' holds a {FormatType(info.Type)}, not a function — you can only cast functions",
+                        null,
+                        callLine,
+                        "cast something that isn't a function",
+                        "Only functions can be cast. Make sure the name you're casting refers to a function."));
+                return (ft, $"'{vr.Name}'", info.EstablishingLine, args);
+            }
+
+            // Not in env and not a method.
+            // If first arg is an object/interface, this must be an attempted method call — error now.
+            if (args.Count > 0)
+            {
+                var firstArgType = InferType(args[0]);
+                if (firstArgType is ObjectType ot2)
+                {
+                    var avail = ot2.Methods.Count > 0
+                        ? $"Available methods: {string.Join(", ", ot2.Methods.Select(m => $"'{m.MethodName}'"))}."
+                        : $"'{ot2.Name}' has no methods.";
+                    throw new TypeException(FormatTypeError(
+                        $"'{ot2.Name}' has no method named '{vr.Name}'",
+                        null, callLine,
+                        $"call method '{vr.Name}' on a {ot2.Name}",
+                        avail));
+                }
+                if (firstArgType is InterfaceType ifaceT2 &&
+                    _interfaceDefs.TryGetValue(ifaceT2.Name, out var ifaceDef2))
+                {
+                    var avail = ifaceDef2.Methods.Count > 0
+                        ? $"Available methods: {string.Join(", ", ifaceDef2.Methods.Select(m => $"'{m.MethodName}'"))}."
+                        : $"Interface '{ifaceT2.Name}' declares no methods.";
+                    throw new TypeException(FormatTypeError(
+                        $"interface '{ifaceT2.Name}' has no method named '{vr.Name}'",
+                        null, callLine,
+                        $"call method '{vr.Name}' through interface '{ifaceT2.Name}'",
+                        avail));
+                }
+            }
+
+            // Unknown identifier with non-object first arg (or no args) — runtime catches it.
+            return (null, $"'{vr.Name}'", callLine, args);
         }
 
-        // General path: infer the type of the expression.
+        // General path: PossessiveAccess → FunctionType for method ref, etc.
         var exprType = InferType(funcExpr);
-        if (exprType == null) return (null, "this function", callLine);
+        if (exprType == null) return (null, "this function", callLine, args);
         if (exprType is not FunctionType funcType)
             throw new TypeException(FormatTypeError(
                 $"this expression holds a {FormatType(exprType)}, not a function — you can only cast functions",
@@ -765,7 +811,37 @@ public sealed class TypeChecker
                 callLine,
                 "cast something that isn't a function",
                 "Only functions can be cast."));
-        return (funcType, "this function", callLine);
+        return (funcType, "this function", callLine, args);
+    }
+
+    // Returns method's FunctionType (params only, no receiver) and display info when the
+    // first arg's type is an object or interface that declares a method with the given name.
+    // Returns null if no such method is found.
+    private (FunctionType funcType, string displayName, int declLine)? TryMethodDispatch(
+        string name, IReadOnlyList<IExpression> args, int callLine)
+    {
+        if (args.Count == 0) return null;
+
+        var firstArgType = InferType(args[0]);
+        if (firstArgType == null) return null;
+
+        if (firstArgType is ObjectType ot)
+        {
+            var sig = FindMethodInOtOrPromoted(ot, name);
+            if (sig == null) return null;
+            return (sig, $"method '{name}' on '{ot.Name}'", callLine);
+        }
+
+        if (firstArgType is InterfaceType ifaceT &&
+            _interfaceDefs.TryGetValue(ifaceT.Name, out var ifaceDef))
+        {
+            var ifaceSig = ifaceDef.Methods.FirstOrDefault(m => m.MethodName == name);
+            if (ifaceSig == default) return null;
+            return (new FunctionType(ifaceSig.ParamTypes, ifaceSig.ReturnType),
+                    $"method '{name}' on interface '{ifaceT.Name}'", callLine);
+        }
+
+        return null;
     }
 
     private CufetType InferSeriesLiteral(SeriesLiteral lit)
@@ -1294,48 +1370,6 @@ public sealed class TypeChecker
             null, poss.Line,
             $"access '{poss.Member}' on a {ot.Name}",
             available.Length > 0 ? $"Available: {available}." : $"'{ot.Name}' has no fields or methods."));
-    }
-
-    private CufetType? InferMethodCallExpression(MethodCallExpression mc)
-    {
-        var receiverType = InferType(mc.Receiver);
-        if (receiverType == null) return null;
-
-        // Interface-typed parameter: look up the method in the interface signature.
-        if (receiverType is InterfaceType ifaceT)
-        {
-            if (!_interfaceDefs.TryGetValue(ifaceT.Name, out var ifaceDef))
-                return null; // unknown interface — runtime catches
-            var ifaceSig = ifaceDef.Methods.FirstOrDefault(m => m.MethodName == mc.MethodName);
-            if (ifaceSig == default)
-                throw new TypeException(FormatTypeError(
-                    $"interface '{ifaceT.Name}' has no method named '{mc.MethodName}'",
-                    null, mc.Line,
-                    $"call method '{mc.MethodName}' through interface '{ifaceT.Name}'",
-                    ifaceDef.Methods.Count > 0
-                        ? $"Available methods: {string.Join(", ", ifaceDef.Methods.Select(m => $"'{m.MethodName}'"))}."
-                        : $"Interface '{ifaceT.Name}' declares no methods."));
-            return ifaceSig.ReturnType;
-        }
-
-        if (receiverType is not ObjectType ot)
-            throw new TypeException(FormatTypeError(
-                $"'Cast {mc.MethodName} on X' requires an object, but got a {FormatType(receiverType)}",
-                null, mc.Line,
-                $"dispatch method '{mc.MethodName}' on a {FormatType(receiverType)}",
-                "Method dispatch requires an object. Use 'Cast fn on (args)' for regular function calls."));
-
-        var sig = FindMethodInOtOrPromoted(ot, mc.MethodName);
-        if (sig == null)
-            throw new TypeException(FormatTypeError(
-                $"'{ot.Name}' has no method named '{mc.MethodName}'",
-                null, mc.Line,
-                $"call method '{mc.MethodName}' on a {ot.Name}",
-                ot.Methods.Count > 0
-                    ? $"Available methods: {string.Join(", ", ot.Methods.Select(m => $"'{m.MethodName}'"))}."
-                    : $"'{ot.Name}' has no methods."));
-
-        return sig.ReturnType;
     }
 
     private static int Levenshtein(string a, string b)

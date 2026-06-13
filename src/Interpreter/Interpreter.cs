@@ -304,10 +304,6 @@ public sealed class Interpreter
             case InterfaceDefinition:
                 break; // already hoisted / no runtime action
 
-            case MethodCallStatement mc:
-                DispatchMethod(mc.MethodName, Evaluate(mc.Receiver), [], mc.Line);
-                break;
-
             case CastStatement cs:
                 ExecuteCallExpr(cs.Function, cs.Args, cs.Line);
                 break;
@@ -413,9 +409,6 @@ public sealed class Interpreter
         RecordNamedAccess rna => EvaluateRecordNamedAccess(rna),
         ObjectLiteral    ol   => EvaluateObjectLiteral(ol),
         PossessiveAccess pa   => EvaluatePossessiveAccess(pa),
-        MethodCallExpression mc => DispatchMethod(mc.MethodName, Evaluate(mc.Receiver), [], mc.Line)
-                                     ?? throw new RuntimeException(
-                                         $"'{mc.MethodName}' gives nothing back — it can't be used as a value (line {mc.Line})."),
         CastExpression   cast => ExecuteCallExpr(cast.Function, cast.Args, cast.Line)
                                      ?? throw new RuntimeException(
                                          $"{FuncDisplayName(cast.Function)} gives nothing back — it can't be used as a value (line {cast.Line})."),
@@ -426,6 +419,11 @@ public sealed class Interpreter
         funcExpr is VariableReference r ? $"'{r.Name}'" : "the function";
 
     // Evaluates the function expression, then executes the call.
+    // Three dispatch forms:
+    //   Cast racer's steer on (90)     → PossessiveAccess → DispatchMethod(steer, racer, [90])
+    //   Cast steer on (racer, 90)      → VarRef not in env → DispatchMethod(steer, racer, [90])
+    //   Cast greet on alice            → VarRef not in env → DispatchMethod(greet, alice, [])
+    //   Cast add on (3, 4)             → VarRef in env as FunctionValue → ExecuteCall
     private object? ExecuteCallExpr(IExpression funcExpr, IReadOnlyList<IExpression> args, int line)
     {
         if (funcExpr is PossessiveAccess pa)
@@ -433,10 +431,26 @@ public sealed class Interpreter
             var target = Evaluate(pa.Target);
             return DispatchMethod(pa.Member, target, args, line);
         }
+
+        if (funcExpr is VariableReference vr)
+        {
+            if (!_env.TryGetValue(vr.Name, out var val))
+            {
+                // Not a free function — first arg is the receiver, remaining args are params.
+                if (args.Count == 0)
+                    throw new RuntimeException($"'{vr.Name}' is not defined (line {line}).");
+                var receiver = Evaluate(args[0]);
+                return DispatchMethod(vr.Name, receiver, args.Skip(1).ToList(), line);
+            }
+            if (val is not FunctionValue func)
+                throw new RuntimeException($"'{vr.Name}' is not a function (line {line}).");
+            return ExecuteCall(func, $"'{vr.Name}'", args, line);
+        }
+
         var funcVal = Evaluate(funcExpr);
-        if (funcVal is not FunctionValue func)
+        if (funcVal is not FunctionValue f)
             throw new RuntimeException($"{FuncDisplayName(funcExpr)} is not a function (line {line}).");
-        return ExecuteCall(func, FuncDisplayName(funcExpr), args, line);
+        return ExecuteCall(f, FuncDisplayName(funcExpr), args, line);
     }
 
     // Executes a resolved function call and returns the return value (null for void).

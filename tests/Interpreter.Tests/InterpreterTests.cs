@@ -3083,11 +3083,9 @@ public class InterpreterTests
     }
 
     [Fact]
-    public void Object_Method_VoidUsedAsValueThrowsRuntimeException()
+    public void Object_Method_VoidUsedAsValueThrowsTypeError()
     {
-        // Void method dispatch in expression context: type checker allows null (unknown return),
-        // interpreter throws when the void result is used as a value.
-        Assert.Throws<RuntimeException>(() => Run(
+        Assert.Throws<TypeException>(() => Run(
             "Define object person with (the text name):\n" +
             "    Bind void to greet:\n" +
             "        State one's name.\n" +
@@ -3576,5 +3574,167 @@ public class InterpreterTests
             "Done.\n" +
             "Define e as a new employee { the id 1, the name \"Alice\" }.\n" +
             "Cast greet-person on (e)."));
+    }
+
+    // ── Objects Slice 6: method calls with arguments ──────────────────────
+
+    [Fact]
+    public void MethodArgs_NoParenAndParenFormsEquivalent()
+    {
+        // Cast greet on alice  and  Cast greet on (alice)  should produce the same result.
+        const string setup =
+            "Define object person with (the text name):\n" +
+            "    Bind void to greet:\n" +
+            "        State one's name.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n";
+        Assert.Equal("Alice", Run(setup + "Cast greet on alice."));
+        Assert.Equal("Alice", Run(setup + "Cast greet on (alice)."));
+    }
+
+    [Fact]
+    public void MethodArgs_SingleArgDispatch()
+    {
+        // Cast steer on (racer, 90) — method with one extra arg.
+        Assert.Equal("90", Run(
+            "Define object car with (the text model):\n" +
+            "    Bind void to steer, given (the number angle):\n" +
+            "        State angle.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define racer as a new car { the model \"speedster\" }.\n" +
+            "Cast steer on (racer, 90)."));
+    }
+
+    [Fact]
+    public void MethodArgs_MultipleArgsDispatch()
+    {
+        // Cast move on (racer, 90, 5) — method with two extra args.
+        Assert.Equal("95", Run(
+            "Define object car with (the text model):\n" +
+            "    Bind void to move, given (the number angle, the number speed):\n" +
+            "        State angle + speed.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define racer as a new car { the model \"speedster\" }.\n" +
+            "Cast move on (racer, 90, 5)."));
+    }
+
+    [Fact]
+    public void MethodArgs_PossessiveFormWithArg()
+    {
+        // Cast racer's steer on (90) — possessive form with args.
+        Assert.Equal("90", Run(
+            "Define object car with (the text model):\n" +
+            "    Bind void to steer, given (the number angle):\n" +
+            "        State angle.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define racer as a new car { the model \"speedster\" }.\n" +
+            "Cast racer's steer on (90)."));
+    }
+
+    [Fact]
+    public void MethodArgs_SelfCallWithOne()
+    {
+        // Inside a method, Call steer on (one, 45) — self as first arg.
+        Assert.Equal("45", Run(
+            "Define object car with (the text model):\n" +
+            "    Bind void to steer, given (the number angle):\n" +
+            "        State angle.\n" +
+            "    Done.\n" +
+            "    Bind void to maneuver:\n" +
+            "        Cast steer on (one, 45).\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define racer as a new car { the model \"speedster\" }.\n" +
+            "Cast maneuver on racer."));
+    }
+
+    [Fact]
+    public void MethodArgs_InterfaceDispatchWithArg()
+    {
+        // Cast steer on (racer, 90) where racer's static type is interface-typed.
+        Assert.Equal("90", Run(
+            "Define driver as an interface for the void function steer, given (the number angle).\n" +
+            "Define object car with (the text model) and driver:\n" +
+            "    Bind void to steer, given (the number angle):\n" +
+            "        State angle.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Bind void to race, given (the driver d):\n" +
+            "    Cast steer on (d, 90).\n" +
+            "Done.\n" +
+            "Define racer as a new car { the model \"speedster\" }.\n" +
+            "Cast race on (racer)."));
+    }
+
+    [Fact]
+    public void MethodArgs_ReturnsValue()
+    {
+        // Method with args that returns a value; result used in expression.
+        Assert.Equal("10", Run(
+            "Define object calc with (the number offset):\n" +
+            "    Bind number to plus, given (the number x):\n" +
+            "        return one's offset + x.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define c as a new calc { the offset 7 }.\n" +
+            "State Cast plus on (c, 3)."));
+    }
+
+    [Fact]
+    public void MethodArgs_AmbiguousNameThrowsTypeError()
+    {
+        // Same name used as both a free function and a method → ambiguity error.
+        Assert.Throws<TypeException>(() => Run(
+            "Define object box with (the number value):\n" +
+            "    Bind void to push, given (the number x):\n" +
+            "        State x.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Bind void to push, given (the number x):\n" +
+            "    State x.\n" +
+            "Done.\n" +
+            "Define b as a new box { the value 1 }.\n" +
+            "Cast push on (b, 5)."));
+    }
+
+    [Fact]
+    public void MethodArgs_UnknownMethodThrowsTypeError()
+    {
+        // Method name not on the object.
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define object car with (the text model).\n" +
+            "Define racer as a new car { the model \"speedster\" }.\n" +
+            "Cast fly on (racer, 90)."));
+        Assert.Contains("fly", ex.Message);
+    }
+
+    [Fact]
+    public void MethodArgs_WrongArgCountThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object car with (the text model):\n" +
+            "    Bind void to steer, given (the number angle):\n" +
+            "        State angle.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define racer as a new car { the model \"speedster\" }.\n" +
+            "Cast steer on (racer, 90, 5)."));
+    }
+
+    [Fact]
+    public void MethodArgs_WrongArgTypeThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object car with (the text model):\n" +
+            "    Bind void to steer, given (the number angle):\n" +
+            "        State angle.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define racer as a new car { the model \"speedster\" }.\n" +
+            "Cast steer on (racer, \"ninety\")."));
     }
 }

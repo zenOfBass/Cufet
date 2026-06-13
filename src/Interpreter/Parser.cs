@@ -1461,18 +1461,16 @@ public sealed class Parser
 
     private IStatement ParseCastStatementWrapper()
     {
-        var expr = ParseCastExpression();
+        var cast = (CastExpression)ParseCastExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return expr switch
-        {
-            MethodCallExpression mc => new MethodCallStatement(mc.MethodName, mc.Receiver, mc.Line),
-            CastExpression ce       => new CastStatement(ce.Function, ce.Args, ce.Line),
-            _ => throw new InvalidOperationException($"Unexpected cast expression type: {expr.GetType().Name}"),
-        };
+        return new CastStatement(cast.Function, cast.Args, cast.Line);
     }
 
-    // Returns CastExpression (function call) or MethodCallExpression (method dispatch).
+    // Returns a CastExpression for both free-function calls and method dispatch.
+    // Cast greet on alice (no parens) → CastExpression(VarRef("greet"), [alice], line).
+    // Cast steer on (racer, 90)         → CastExpression(VarRef("steer"), [racer, 90], line).
+    // Cast racer's steer on (90)        → CastExpression(PossessiveAccess(racer, steer), [90], line).
     private IExpression ParseCastExpression()
     {
         var line = Consume(TokenType.Cast).Line;
@@ -1486,12 +1484,12 @@ public sealed class Parser
 
             if (Peek().Type != TokenType.LParen)
             {
-                // Method dispatch: Cast greet on alice (no parens → receiver, not arg list)
-                if (funcExpr is not VariableReference mr)
+                // No-paren form: Cast greet on alice — normalizes to CastExpression with one arg.
+                if (funcExpr is not VariableReference)
                     throw new ParseException(line,
                         "identifier — method name must be a plain identifier in 'Cast method on receiver'");
                 var receiver = ParsePrimary();
-                return new MethodCallExpression(mr.Name, receiver, line);
+                return new CastExpression(funcExpr, new IExpression[] { receiver }, line);
             }
 
             // Function call: Cast func on (<args>)
