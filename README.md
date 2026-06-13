@@ -110,6 +110,6 @@ decisions behind the language.
 
 ---
 
-*Built in C# / .NET 10. Named for the Mvskoke trickster, rabbit who — like all
-good languages — promises to make something very powerful feel surprisingly
+*Built in C# / .NET 10. Named for the Mvskoke trickster, rabbit who—like all
+good languages—promises to make something very powerful feel surprisingly
 natural.*
