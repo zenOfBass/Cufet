@@ -2,11 +2,11 @@
   "version": 4,
   "targets": {
     "net10.0": {
-      "Cufet.Interpreter/0.1.0": {
+      "Cufet.Interpreter/0.2.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "dependencies": {
-          "Cufet.Lexer": "0.1.0"
+          "Cufet.Lexer": "0.2.0"
         },
         "compile": {
           "bin/placeholder/Cufet.Interpreter.dll": {}
@@ -15,7 +15,7 @@
           "bin/placeholder/Cufet.Interpreter.dll": {}
         }
       },
-      "Cufet.Lexer/0.1.0": {
+      "Cufet.Lexer/0.2.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "compile": {
@@ -28,12 +28,12 @@
     }
   },
   "libraries": {
-    "Cufet.Interpreter/0.1.0": {
+    "Cufet.Interpreter/0.2.0": {
       "type": "project",
       "path": "../Interpreter/Cufet.Interpreter.csproj",
       "msbuildProject": "../Interpreter/Cufet.Interpreter.csproj"
     },
-    "Cufet.Lexer/0.1.0": {
+    "Cufet.Lexer/0.2.0": {
       "type": "project",
       "path": "../Lexer/Cufet.Lexer.csproj",
       "msbuildProject": "../Lexer/Cufet.Lexer.csproj"
@@ -41,14 +41,14 @@
   },
   "projectFileDependencyGroups": {
     "net10.0": [
-      "Cufet.Interpreter >= 0.1.0"
+      "Cufet.Interpreter >= 0.2.0"
     ]
   },
   "packageFolders": {
     "C:\\Users\\kick_\\.nuget\\packages\\": {}
   },
   "project": {
-    "version": "0.1.0",
+    "version": "0.2.0",
     "restore": {
       "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\App\\Cufet.App.csproj",
       "projectName": "Cufet.App",
