@@ -2,7 +2,7 @@ using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
 
-public sealed class Interpreter
+public sealed partial class Interpreter
 {
     private readonly TextWriter _out;
     private readonly Dictionary<string, object> _env = new();
@@ -287,17 +287,8 @@ public sealed class Interpreter
             }
 
             case PossessiveSetStatement pss:
-            {
-                var target = Evaluate(pss.Target);
-                if (target is not ObjectValue pssOv)
-                    throw new RuntimeException($"Possessive assignment requires an object (line {pss.Line}).");
-                var owner = FindOwnerForNamedField(pssOv, pss.Member);
-                if (owner == null)
-                    throw new RuntimeException($"Object of type '{pssOv.TypeName}' has no field named '{pss.Member}' (line {pss.Line}).");
-                var fi = owner.NamedFields.FindIndex(f => f.Name == pss.Member);
-                owner.NamedFields[fi] = (pss.Member, Evaluate(pss.Value));
+                ExecutePossessiveSet(pss);
                 break;
-            }
 
             case BindStatement:
             case ObjectDefinition:
@@ -421,99 +412,6 @@ public sealed class Interpreter
         RangeExpression re => EvaluateRangeExpr(re),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
-
-    private static string FuncDisplayName(IExpression funcExpr) =>
-        funcExpr is VariableReference r ? $"'{r.Name}'" : "the function";
-
-    // Evaluates the function expression, then executes the call.
-    // Three dispatch forms:
-    //   Cast racer's steer on (90)     → PossessiveAccess → DispatchMethod(steer, racer, [90])
-    //   Cast steer on (racer, 90)      → VarRef not in env → DispatchMethod(steer, racer, [90])
-    //   Cast greet on alice            → VarRef not in env → DispatchMethod(greet, alice, [])
-    //   Cast add on (3, 4)             → VarRef in env as FunctionValue → ExecuteCall
-    private object? ExecuteCallExpr(IExpression funcExpr, IReadOnlyList<IExpression> args, int line)
-    {
-        if (funcExpr is PossessiveAccess pa)
-        {
-            var target = Evaluate(pa.Target);
-            return DispatchMethod(pa.Member, target, args, line);
-        }
-
-        if (funcExpr is VariableReference vr)
-        {
-            if (!_env.TryGetValue(vr.Name, out var val))
-            {
-                // Not a free function — first arg is the receiver, remaining args are params.
-                if (args.Count == 0)
-                    throw new RuntimeException($"'{vr.Name}' is not defined (line {line}).");
-                var receiver = Evaluate(args[0]);
-                return DispatchMethod(vr.Name, receiver, args.Skip(1).ToList(), line);
-            }
-            if (val is not FunctionValue func)
-                throw new RuntimeException($"'{vr.Name}' is not a function (line {line}).");
-            return ExecuteCall(func, $"'{vr.Name}'", args, line);
-        }
-
-        var funcVal = Evaluate(funcExpr);
-        if (funcVal is not FunctionValue f)
-            throw new RuntimeException($"{FuncDisplayName(funcExpr)} is not a function (line {line}).");
-        return ExecuteCall(f, FuncDisplayName(funcExpr), args, line);
-    }
-
-    // Executes a resolved function call and returns the return value (null for void).
-    // Manages call depth, argument evaluation, and scope isolation.
-    private object? ExecuteCall(FunctionValue func, string displayName, IReadOnlyList<IExpression> args, int line)
-    {
-        if (args.Count != func.ParameterNames.Count)
-            throw new RuntimeException(
-                $"{displayName} expects {func.ParameterNames.Count} argument(s), got {args.Count} (line {line}).");
-
-        _callDepth++;
-        if (_callDepth > _maxCallDepth)
-        {
-            _callDepth--;
-            throw new RuntimeException(
-                $"{displayName} called itself too many times (line {line}) — is it missing a base case, or a case that stops the recursion?");
-        }
-
-        // Evaluate args in caller scope before altering env.
-        var argValues = args.Select(Evaluate).ToList();
-
-        // Full snapshot — captures function-typed bindings too, so the finally can do a clean
-        // restore even when a parameter holds a FunctionValue.
-        var snapshot = new Dictionary<string, object>(_env);
-
-        // Isolate scope: remove non-function bindings (globals, caller locals).
-        // FunctionValues stay in _env so the body can call other functions.
-        var toRemove = new List<string>();
-        foreach (var (k, v) in _env)
-            if (v is not FunctionValue) toRemove.Add(k);
-        foreach (var k in toRemove) _env.Remove(k);
-
-        // Bind parameters (including any function-typed ones).
-        for (int i = 0; i < func.ParameterNames.Count; i++)
-            _env[func.ParameterNames[i]] = argValues[i];
-
-        object? returnValue = null;
-        try
-        {
-            foreach (var stmt in func.Body)
-                Execute(stmt);
-        }
-        catch (ReturnException re)
-        {
-            returnValue = re.Value;
-        }
-        finally
-        {
-            // Full restore from pre-call snapshot. No LINQ — plain ops only.
-            _env.Clear();
-            foreach (var (k, v) in snapshot) _env[k] = v;
-            _callDepth--;
-        }
-
-        return returnValue;
-    }
 
     private object EvaluateSeriesAccess(SeriesAccess sa)
     {
@@ -744,168 +642,6 @@ public sealed class Interpreter
                     ? d[i - 1, j - 1]
                     : 1 + Math.Min(d[i - 1, j - 1], Math.Min(d[i - 1, j], d[i, j - 1]));
         return d[a.Length, b.Length];
-    }
-
-    // ── Embedding helpers (Slice 4) ───────────────────────────────────────────
-
-    // Finds the field value in ov or any embedded object, including the embed handle.
-    private bool TryFindNamedFieldValue(ObjectValue ov, string fieldName, out object value)
-    {
-        // Embed handle: "the person of customer" returns the embedded ObjectValue itself.
-        if (ov.EmbeddedObject != null && fieldName == ov.EmbeddedObject.TypeName)
-        {
-            value = ov.EmbeddedObject;
-            return true;
-        }
-        var fi = ov.NamedFields.FindIndex(f => f.Name == fieldName);
-        if (fi >= 0) { value = ov.NamedFields[fi].Value; return true; }
-        if (ov.EmbeddedObject != null) return TryFindNamedFieldValue(ov.EmbeddedObject, fieldName, out value);
-        value = null!;
-        return false;
-    }
-
-    // Returns the ObjectValue that directly owns the named field (for in-place mutation).
-    private ObjectValue? FindOwnerForNamedField(ObjectValue ov, string fieldName)
-    {
-        if (ov.NamedFields.FindIndex(f => f.Name == fieldName) >= 0) return ov;
-        if (ov.EmbeddedObject != null) return FindOwnerForNamedField(ov.EmbeddedObject, fieldName);
-        return null;
-    }
-
-    // Returns (owner, zeroBasedIndex) for a positional field, traversing the embed chain.
-    private (ObjectValue owner, int idx)? FindOwnerForPositional(ObjectValue ov, int oneBasedIdx)
-    {
-        if (oneBasedIdx >= 1 && oneBasedIdx <= ov.PositionalFields.Count)
-            return (ov, oneBasedIdx - 1);
-        if (ov.EmbeddedObject != null)
-            return FindOwnerForPositional(ov.EmbeddedObject, oneBasedIdx - ov.PositionalFields.Count);
-        return null;
-    }
-
-    // Builds an ObjectValue from a flat field list, routing fields to the right level.
-    private ObjectValue BuildObjectValue(
-        ObjectDefinition def,
-        IReadOnlyList<IExpression> allPositionals,
-        IReadOnlyList<(string Name, IExpression Value)> allNamed,
-        int line)
-    {
-        int ownPosCount = def.PositionalTypes.Count;
-
-        var ownPosValues = new List<object>(ownPosCount);
-        for (int i = 0; i < ownPosCount; i++)
-            ownPosValues.Add(Evaluate(allPositionals[i]));
-
-        var ownFieldNames  = new HashSet<string>(def.NamedFields.Select(f => f.FieldName));
-        var ownNamedValues = new List<(string Name, object Value)>();
-        var remaining      = new List<(string Name, IExpression Value)>();
-        foreach (var (name, expr) in allNamed)
-        {
-            if (ownFieldNames.Contains(name)) ownNamedValues.Add((name, Evaluate(expr)));
-            else remaining.Add((name, expr));
-        }
-
-        ObjectValue? embeddedObject = null;
-        if (def.EmbeddedTypeName != null)
-        {
-            if (!_objectDefs.TryGetValue(def.EmbeddedTypeName, out var embedDef))
-                throw new RuntimeException(
-                    $"Object '{def.Name}' embeds '{def.EmbeddedTypeName}', which is not defined (line {line}).");
-
-            var remainingPos = new List<IExpression>();
-            for (int i = ownPosCount; i < allPositionals.Count; i++)
-                remainingPos.Add(allPositionals[i]);
-
-            embeddedObject = BuildObjectValue(embedDef, remainingPos, remaining, line);
-        }
-
-        return new ObjectValue(def.Name, ownPosValues, ownNamedValues, embeddedObject);
-    }
-
-    private object EvaluateObjectLiteral(ObjectLiteral ol)
-    {
-        if (!_objectDefs.TryGetValue(ol.TypeName, out var def))
-            throw new RuntimeException(
-                $"'{ol.TypeName}' is not a defined object type (line {ol.Line}).");
-        return BuildObjectValue(def, ol.PositionalValues, ol.NamedValues, ol.Line);
-    }
-
-    private object EvaluatePossessiveAccess(PossessiveAccess pa)
-    {
-        var target = Evaluate(pa.Target);
-        if (target is not ObjectValue ov)
-            throw new RuntimeException(
-                $"You're trying to access '{pa.Member}' on something that isn't an object (line {pa.Line}).");
-        if (TryFindNamedFieldValue(ov, pa.Member, out var found)) return found;
-        throw new RuntimeException(
-            $"Object of type '{ov.TypeName}' has no field named '{pa.Member}' (line {pa.Line}).");
-    }
-
-    private object? DispatchMethod(string methodName, object receiver, IReadOnlyList<IExpression> args, int line)
-    {
-        if (receiver is ObjectValue ov)
-        {
-            // Walk own object first, then embedded chain.
-            var current = ov;
-            while (current != null)
-            {
-                if (_objectDefs.TryGetValue(current.TypeName, out var def))
-                {
-                    var method = def.Methods.FirstOrDefault(m => m.Name == methodName);
-                    if (method != null)
-                        return ExecuteMethod(current, method, args, line);
-                }
-                current = current.EmbeddedObject;
-            }
-            throw new RuntimeException($"'{methodName}' is not a method on '{ov.TypeName}' (line {line}).");
-        }
-        throw new RuntimeException($"'{methodName}' is not a method on this value (line {line}).");
-    }
-
-    private object? ExecuteMethod(ObjectValue receiver, BindStatement method, IReadOnlyList<IExpression> args, int line)
-    {
-        _callDepth++;
-        if (_callDepth > _maxCallDepth)
-        {
-            _callDepth--;
-            throw new RuntimeException(
-                $"'{method.Name}' called itself too many times (line {line}) — is it missing a base case?");
-        }
-
-        var paramNames = method.Parameters.Select(p => p.Name).ToList();
-        if (args.Count != paramNames.Count)
-            throw new RuntimeException(
-                $"'{method.Name}' expects {paramNames.Count} argument(s), got {args.Count} (line {line}).");
-
-        var argValues = args.Select(Evaluate).ToList();
-        var snapshot  = new Dictionary<string, object>(_env);
-
-        var toRemove = new List<string>();
-        foreach (var (k, v) in _env)
-            if (v is not FunctionValue) toRemove.Add(k);
-        foreach (var k in toRemove) _env.Remove(k);
-
-        for (int i = 0; i < paramNames.Count; i++)
-            _env[paramNames[i]] = argValues[i];
-        _env["one"] = receiver;
-
-        object? returnValue = null;
-        try
-        {
-            foreach (var stmt in method.Body)
-                Execute(stmt);
-        }
-        catch (ReturnException re)
-        {
-            returnValue = re.Value;
-        }
-        finally
-        {
-            _env.Clear();
-            foreach (var (k, v) in snapshot) _env[k] = v;
-            _callDepth--;
-        }
-
-        return returnValue;
     }
 
     private static string Format(object val) => val switch
