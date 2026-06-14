@@ -609,7 +609,7 @@ public sealed class Parser
 
         Consume(TokenType.In);
         SkipNoise();
-        var seriesName = Consume(TokenType.Identifier).Lexeme;
+        var seriesExpr = ParseExpression();
         SkipNoise();
         Consume(TokenType.Comma);
         SkipNoise();
@@ -621,7 +621,7 @@ public sealed class Parser
         var body = ParseLoopBody();
         _nestDepth--;
         _loopDepth--;
-        return new ForEachStatement(iterName, seriesName, body, forTok.Line);
+        return new ForEachStatement(iterName, seriesExpr, body, forTok.Line);
     }
 
     // ── Series operations ─────────────────────────────────────────────────
@@ -1143,6 +1143,18 @@ public sealed class Parser
                 Consume(TokenType.Of);
                 SkipNoise();
                 baseExpr = new TextLength(ParsePrimary(), line);
+                break;
+            }
+            case TokenType.Range:
+            {
+                var line = Advance().Line; // consume 'range'
+                SkipNoise();
+                var start = ParseExpression();
+                SkipNoise();
+                Consume(TokenType.To);
+                SkipNoise();
+                var end = ParseExpression();
+                baseExpr = new RangeExpression(start, end, line);
                 break;
             }
             case TokenType.Cast:

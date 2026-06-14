@@ -954,11 +954,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\tests\\Interpreter.Tests\\Cufet.Interpreter.Tests.csproj",
+      "projectUniqueName": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\tests\\Interpreter.Tests\\Cufet.Interpreter.Tests.csproj",
       "projectName": "Cufet.Interpreter.Tests",
-      "projectPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\tests\\Interpreter.Tests\\Cufet.Interpreter.Tests.csproj",
+      "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\tests\\Interpreter.Tests\\Cufet.Interpreter.Tests.csproj",
       "packagesPath": "C:\\Users\\kick_\\.nuget\\packages\\",
-      "outputPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\tests\\Interpreter.Tests\\obj\\",
+      "outputPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\tests\\Interpreter.Tests\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\kick_\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -974,8 +974,8 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {
-            "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\Cufet.Interpreter.csproj": {
-              "projectPath": "c:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\Cufet.Interpreter.csproj"
+            "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\Cufet.Interpreter.csproj": {
+              "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\Cufet.Interpreter.csproj"
             }
           }
         }

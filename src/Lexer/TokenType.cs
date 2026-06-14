@@ -93,6 +93,9 @@ public enum TokenType
     Joined,    // "joined"    — in "<text> joined to <text>"
     Converted, // "converted" — in "<value> converted to text"
 
+    // ── Range ─────────────────────────────────────────────────────────────────
+    Range,     // "range"     — in "range <start> to <end>"; To already exists
+
     // ── Semantic (parser-generated, never emitted by lexer) ───────────────
     NotEqual, // produced by "is not"; used in BinaryExpression only
 

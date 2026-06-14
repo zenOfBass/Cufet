@@ -443,20 +443,21 @@ public sealed class TypeChecker
 
     private void CheckForEach(ForEachStatement forEach)
     {
-        if (!_env.TryGetValue(forEach.SeriesName, out var seriesInfo))
-            return; // undeclared series — runtime catches; skip body to avoid false positives
+        var inferred = InferType(forEach.Series);
+        if (inferred == null)
+            return; // unknown type — runtime catches; skip body to avoid cascading false positives
 
-        if (seriesInfo.Type is not SeriesType seriesType)
+        if (inferred is not SeriesType seriesType)
             throw new TypeException(FormatTypeError(
-                $"'{forEach.SeriesName}' holds {FormatTypePlural(seriesInfo.Type)}",
-                $"You set it to {FormatExpr(seriesInfo.EstablishingExpr)} on line {seriesInfo.EstablishingLine}, so it can only ever hold {FormatTypePlural(seriesInfo.Type)}",
+                $"{FormatExpr(forEach.Series)} holds {FormatTypePlural(inferred)}",
+                $"It evaluates to {FormatTypePlural(inferred)}, not a series",
                 forEach.Line,
                 "loop over it as if it were a series",
                 "Only series can be looped over. Define a series if that's what you need."));
 
         var iterKey = forEach.IteratorName ?? "it";
         var hadPrev = _env.TryGetValue(iterKey, out var prev);
-        _env[iterKey] = new TypeInfo(seriesType.ElementType, new VariableReference(forEach.SeriesName, 0), forEach.Line);
+        _env[iterKey] = new TypeInfo(seriesType.ElementType, forEach.Series, forEach.Line);
         try
         {
             foreach (var s in forEach.Body)
@@ -714,6 +715,7 @@ public sealed class TypeChecker
         TextJoin tj                                                             => InferTextJoin(tj),
         TextConvert tc                                                          => InferTextConvert(tc),
         TextLength tl                                                           => InferTextLength(tl),
+        RangeExpression re                                                      => InferRangeExpr(re),
         _                                                                       => null,
     };
 
@@ -1439,6 +1441,30 @@ public sealed class TypeChecker
             tl.Line,
             $"get the length of a {FormatType(operand)}",
             "Only text values have a character length. For series, use 'the number of series'."));
+    }
+
+    private CufetType InferRangeExpr(RangeExpression re)
+    {
+        var startType = InferType(re.Start);
+        var endType   = InferType(re.End);
+
+        if (startType != null && startType != CufetType.Number)
+            throw new TypeException(FormatTypeError(
+                "range start must be a number",
+                null,
+                re.Line,
+                $"use a {FormatType(startType)} as the start of a range",
+                "Both ends of a range must be numbers. For example: range 1 to 100."));
+
+        if (endType != null && endType != CufetType.Number)
+            throw new TypeException(FormatTypeError(
+                "range end must be a number",
+                null,
+                re.Line,
+                $"use a {FormatType(endType)} as the end of a range",
+                "Both ends of a range must be numbers. For example: range 1 to 100."));
+
+        return new SeriesType(CufetType.Number);
     }
 
     private CufetType? InferUnary(UnaryExpression unary)

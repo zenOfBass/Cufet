@@ -965,6 +965,110 @@ public class InterpreterTests
             "Done."));
     }
 
+    // ── Range ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void RangeAscendingProducesCorrectElements()
+    {
+        Assert.Equal("1\n2\n3\n4\n5", Run(
+            "For each n in range 1 to 5, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeDescendingProducesCorrectElements()
+    {
+        Assert.Equal("5\n4\n3\n2\n1", Run(
+            "For each n in range 5 to 1, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeSingleElementWhenStartEqualsEnd()
+    {
+        Assert.Equal("7", Run(
+            "For each n in range 7 to 7, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeIsInclusiveOnBothEnds()
+    {
+        Assert.Equal("3\n4\n5", Run(
+            "For each n in range 3 to 5, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeStoredInVariableAndIterated()
+    {
+        Assert.Equal("10\n11\n12", Run(
+            "Define r as range 10 to 12.\n" +
+            "For each n in r, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeWithVariableEnd()
+    {
+        Assert.Equal("1\n2\n3", Run(
+            "Define limit as 3.\n" +
+            "For each n in range 1 to limit, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeProducesSeriesOfNumberLength()
+    {
+        Assert.Equal("5", Run(
+            "Define r as range 1 to 5.\n" +
+            "State the number of r."));
+    }
+
+    [Fact]
+    public void RangeArticleIsOptional()
+    {
+        Assert.Equal("1\n2\n3", Run(
+            "For each n in the range 1 to 3, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeComputesSum()
+    {
+        Assert.Equal("55", Run(
+            "Define total as 0.\n" +
+            "For each n in range 1 to 10, repeat:\n" +
+            "    total becomes total + n.\n" +
+            "Done.\n" +
+            "State total."));
+    }
+
+    [Fact]
+    public void TypeCheckerRangeNonNumberStartThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "For each n in range \"a\" to 5, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void TypeCheckerRangeNonNumberEndThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "For each n in range 1 to \"z\", repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
     // ── Type checking ─────────────────────────────────────────────────────
 
     [Fact]

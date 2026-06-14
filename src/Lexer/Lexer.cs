@@ -146,6 +146,7 @@ public sealed class Lexer
             "length"    => TokenType.LengthKw,
             "joined"    => TokenType.Joined,
             "converted" => TokenType.Converted,
+            "range"     => TokenType.Range,
             _           => TokenType.Identifier,
         };
 

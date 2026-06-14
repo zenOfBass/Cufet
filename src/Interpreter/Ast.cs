@@ -90,9 +90,10 @@ public sealed record StopStatement() : IStatement;
 public sealed record SkipStatement() : IStatement;
 
 // IteratorName == null → bare-it loop; element is bound to "it"
+// Series is any expression that evaluates to a series (variable ref, range, literal, etc.)
 public sealed record ForEachStatement(
     string? IteratorName,
-    string SeriesName,
+    IExpression Series,
     IReadOnlyList<IStatement> Body,
     int Line
 ) : IStatement;
@@ -173,6 +174,12 @@ public sealed record TextConvert(IExpression Value, int Line) : IExpression;
 
 // the length of greeting — character count of a text value; result is number
 public sealed record TextLength(IExpression Target, int Line) : IExpression;
+
+// ── Range (Slice 1) ───────────────────────────────────────────────────────────
+
+// range <start> to <end> — materializes an inclusive series of number;
+// descending when start > end; single-element when start == end.
+public sealed record RangeExpression(IExpression Start, IExpression End, int Line) : IExpression;
 
 // alice's age becomes X  /  one's age becomes X  — possessive field mutation
 public sealed record PossessiveSetStatement(IExpression Target, string Member, IExpression Value, int Line) : IStatement;

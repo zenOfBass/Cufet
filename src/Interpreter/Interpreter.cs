@@ -313,7 +313,10 @@ public sealed class Interpreter
 
             case ForEachStatement fe:
             {
-                var list = ExpectSeries(fe.SeriesName, fe.Line);
+                var seriesVal = Evaluate(fe.Series);
+                if (seriesVal is not List<object> list)
+                    throw new RuntimeException($"Expected a series for 'for each' loop on line {fe.Line}.");
+                string seriesDisplay = fe.Series is VariableReference fvr ? $"'{fvr.Name}'" : "The series";
                 int startCount = list.Count;
                 string iterKey = fe.IteratorName ?? "it";
                 bool hadPrev = _env.TryGetValue(iterKey, out var prev);
@@ -323,7 +326,7 @@ public sealed class Interpreter
                     {
                         if (list.Count != startCount)
                             throw new RuntimeException(
-                                $"'{fe.SeriesName}' was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
+                                $"{seriesDisplay} was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
                         _env[iterKey] = list[i];
                         bool stopped = false;
                         try { foreach (var s in fe.Body) Execute(s); }
@@ -332,7 +335,7 @@ public sealed class Interpreter
                         if (stopped) break;
                         if (list.Count != startCount)
                             throw new RuntimeException(
-                                $"'{fe.SeriesName}' was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
+                                $"{seriesDisplay} was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
                     }
                 }
                 finally
@@ -415,6 +418,7 @@ public sealed class Interpreter
         TextJoin   tj => EvaluateTextJoin(tj),
         TextConvert tc => (object)Format(Evaluate(tc.Value)),
         TextLength  tl => (object)(decimal)((string)Evaluate(tl.Target)).Length,
+        RangeExpression re => EvaluateRangeExpr(re),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 
@@ -578,6 +582,24 @@ public sealed class Interpreter
         if (r is not string rs)
             throw new RuntimeException($"'joined to' requires text on the right side (line {tj.Line}).");
         return (object)(ls + rs);
+    }
+
+    private object EvaluateRangeExpr(RangeExpression re)
+    {
+        var startVal = Evaluate(re.Start);
+        var endVal   = Evaluate(re.End);
+        if (startVal is not decimal start)
+            throw new RuntimeException($"range start must be a number (line {re.Line}).");
+        if (endVal is not decimal end)
+            throw new RuntimeException($"range end must be a number (line {re.Line}).");
+        var list = new List<object>();
+        if (start <= end)
+            for (decimal n = start; n <= end; n++)
+                list.Add(n);
+        else
+            for (decimal n = start; n >= end; n--)
+                list.Add(n);
+        return (object)list;
     }
 
     private object EvaluateUnary(UnaryExpression u)
