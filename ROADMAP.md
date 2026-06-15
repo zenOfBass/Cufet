@@ -36,6 +36,26 @@ language is considered stable.
   parametric (`item N of`), length (`the number of`), full mutation
   (`Add`/`Remove`, prepend/insert/by-position/by-value), element assignment.
   Literals use `with (...)`.
+- Range: `range 1 to 100` — sugar producing a materialized `series of number`.
+  Inclusive of both ends; counts down when start > end. With `for each` it covers
+  every use of a C-style counter loop, so no separate index-loop construct exists.
+- Maps: `a map from text to number` — homogeneous typed key→value. Keys `number`
+  or `text`. Lookup (`the entry for K in M`) returns `voidable V`; set via
+  `becomes`; `has a key for` / `has an entry for`; `remove`; `the size of`;
+  iterate gives `mapping`s (`the key of` / `the value of`). Reference-typed.
+
+**Text**
+- `joined to` (concatenation, text-to-text only, chains), `converted to text`
+  (explicit number/fact → text — no hidden coercion), `the length of` (character
+  count). `+` is deliberately not concatenation.
+
+**Voidable values**
+- `void` is a first-class, holdable empty value; `voidable T` is "a T, or void".
+  A plain `T` widens to `voidable T`; `voidable T` does not collapse to `T`
+  (static error unless handled). `is void` / `is not void`; variable-level
+  narrowing inside checked branches; `but void is <default>` inline fallback.
+  This is Cufet's answer to "or nothing" — no null, absence is explicit and
+  checked.
 
 **Functions**
 - `Bind <return-type|void> to <name>, given (<params>): ... return value.`
@@ -89,10 +109,6 @@ language is considered stable.
 
 ### Language
 
-- **Text operations** — `text` can joined via `joined to`, length can be found with
-  `the  length`, but cannot yet be manipulated futher. `+` is deliberately *not*
-  overloaded for concatenation.
-
 - **Text and general ordering via a `by` modifier** — ordering currently works
   on numbers only. Extend it with an explicit basis modifier rather than new
   operators or a hidden default: `is less than X by length`,
@@ -101,24 +117,41 @@ language is considered stable.
   bases, not silent assumptions). Generalizes to any orderable dimension
   (e.g. a series `by size`). Intended shape; undesigned in detail.
 
+- **Further text operations** — joining, conversion, and length exist. Substring
+  / slicing, contains / find, split, replace, case-change, and trim do not yet.
+  A later text slice.
+
+- **Text → number conversion** — the reverse of `converted to text`. It can
+  *fail* (`"hello"` has no number), so it returns a `voidable number` — now
+  expressible, since the voidable type exists. Unblocked; not yet built.
+
 - **Constant declarations** — Cufet is mutable-by-default. Add an optional,
   explicit way to declare a value that cannot change. Backward-compatible. Form
   undecided.
 
-- **Range** — produce a series of consecutive numbers without building it by
-  hand (e.g. `1 to 100`), so `for each n in 1 to 100` works. Small; likely
-  sugar producing a normal series.
-
 ### Types and data structures
 
-- **Maps** — typed key→value collections (e.g. a map from text to numbers). The
-  natural structure for lookups like word→frequency. Fully typeable.
+- **Recursive data structures (linked lists, trees)** — now expressible, since
+  the voidable type provides the "or nothing" terminator a recursive structure
+  needs (a node's `next` is `a voidable node`). Unblocked by the voidable type;
+  not yet built out or documented as a pattern.
 
-- **Heterogeneous data is served by records, objects, and maps — not by
-  heterogeneous series.** Series stay homogeneous. An anonymous, mixed-type
-  ("any") collection is intentionally *not* planned.
+- **Voidable-valued maps** (`a map from text to voidable number`) — deferred.
+  Opens a nested-voidable case (`voidable voidable T`) that needs a flattening
+  rule. When added, `has a key for` and `has an entry for` (currently aliased,
+  since a value can't be void) diverge meaningfully.
+
+- **Heterogeneous collections (`atlas`)** — a mixed-type map/series. Deliberately
+  *not* built, because it would require **tagged unions / sum types** (so the
+  heterogeneity is *typed*, not an `any` hole that breaks static checking). A
+  major type-system feature, far future. The name `atlas` is reserved for it.
+  Until then, records, objects, and maps cover the real needs; series stay
+  homogeneous.
 
 ### Functions
+
+*Closures + lambdas are the next major frontier — the largest remaining
+language feature, comparable in scope to the objects arc.*
 
 - **Closures** — functions that capture variables from an enclosing scope.
   Currently a passed/returned function can only be a top-level function by name
@@ -126,18 +159,31 @@ language is considered stable.
   is not yet expressible. Closures are forced only by **nested function
   declarations** or **anonymous/inline function literals**, neither of which
   exists yet — adding either brings closures into play. Closures are what make
-  function-return genuinely powerful.
+  function-return genuinely powerful. The real design fork: capture by reference
+  vs. by value (entangled with the value/reference split), and lifetime (a
+  returned closure outlives its defining scope).
 
 - **Anonymous / inline functions (lambdas)** — function literals written inline
-  rather than declared at top level. Tied to closures.
+  rather than declared at top level. Tied to closures (one arc, not two).
 
-### Objects (extensions to the complete core)
+- **Built-in functions / standard library** — Cufet has no built-in functions
+  yet; every function is user-declared. Conversions, math, and (eventually) I/O
+  will want them. Introduce *deliberately* as its own feature — not smuggled in
+  as a side effect of one construct. (Surfaced when designing `converted to
+  text`, which was kept a primitive construct rather than a built-in.)
 
-- **Object equality** — comparison (`=` / `is`) between two object values.
-  *Verify current status before designing — may be partially handled.* If
-  added, decide identity-equality vs. field-equality given nominal typing.
-- **Reference-semantics opt-in** — objects are value-typed; an explicit way to
-  ask for shared/reference semantics (Rust-style) is deferred. Separate design.
+### Objects and voidable (extensions to the complete core)
+
+- **Expression-level flow-narrowing ("Slice B")** — narrowing currently works on
+  *variables* (`if maybe-x is not void: use maybe-x`). Narrowing a value produced
+  by an *expression* (e.g. re-accessing `the entry for "alice" in ages` inside a
+  checked branch, without naming it) is deferred. It needs the checker to track
+  which expression was checked and invalidate on mutation — harder, and unsound
+  against mutable reference maps unless done carefully. The variable-narrowing +
+  "name your lookups" path covers the need for now.
+- **Reference-semantics opt-in** — objects (and maps' values) are value-typed; an
+  explicit way to ask for shared/reference semantics (Rust-style) is deferred.
+  Separate design.
 - **Methods defined outside the object body** — currently methods are nested in
   the definition only. Defining them externally (associated by naming the type)
   is deferred.
@@ -171,7 +217,26 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   by design; facts being first-class storable values does not destabilize it.
 
 - **No null.** Every value is initialized; absence is expressed structurally,
-  never by a null value.
+  never by a null value. Absence has one principled mechanism: the voidable type.
+
+- **`void` is a first-class value; absence is one unified concept.** Rather than
+  separate vocabulary for "function returns nothing" and "lookup found nothing,"
+  `void` is a single, holdable empty value used for both — the Rust `Unit` model.
+  `voidable T` is "a T, or void." This unifies absence under one word, keeps the
+  keyword dictionary small, and dissolved the old special "void result used as a
+  value" error into ordinary type-mismatch (a `void`/`voidable` used where a
+  concrete type is required is just a type error). The voidable type is the
+  single load-bearing answer to "or nothing" — it unblocks text→number,
+  recursive data structures, and (eventually) file I/O for the shell.
+
+- **Narrowing is variable-level, not expression-level.** A voidable narrows to
+  its plain type inside a branch that checked it — but keyed on a *variable*, not
+  an arbitrary expression. The principled reason (not just simplicity): a literal
+  buried in an inline lookup is a magic-value smell that should be named anyway,
+  so the language narrows the *named binding* rather than contorting the checker
+  to track inline expressions and their possible mutation. The clean path (name
+  it) and the supported path (narrowing) coincide. Expression-level narrowing is
+  deferred (and unsound against mutable maps unless done carefully).
 
 - **Records are structural; objects are nominal.** Two records are the same type
   iff they have the same shape; two objects are the same type iff they have the
@@ -227,6 +292,13 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
 
 ## Known minor issues
 
+- **`converted to text` precedence in named-access position** — `the value of
+  person converted to text` parses as `the value of (person converted to text)`,
+  because the named-access path's inner expression parse absorbs the postfix
+  `converted to text`. Workaround: name the access first (`Define v as the value
+  of person. State v converted to text.`). Pre-existing; consistent with the
+  "name your values" guidance, so acceptable. Revisit if it bites in practice.
+
 - **Nested-function-type parameter placeholder names** — in a function-type
   annotation, a nested function-type parameter requires a placeholder name that
   is parsed and discarded. Minor syntax wart. Acceptable; revisit only if nested
@@ -261,6 +333,17 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   fires for non-number arithmetic. Verify whether the type checker should catch
   all such cases statically, or whether this is a genuine runtime backstop for
   `SeriesPending` / unresolved paths. Currently flagged with a code comment.
+
+- **Big files are split by concern via `partial class`; the file boundaries are
+  the navigation.** `TypeChecker` is split into `Core` + per-feature files
+  (`.Functions`, `.Series`, `.Records`, `.Objects`, `.Text`, `.Maps`);
+  `Interpreter` similarly (`Core`, `.Functions`, `.Objects`, `.Maps`). A typical
+  feature task loads `Core` + the one relevant feature file instead of the whole
+  file. The parser is deliberately *not* split — its precedence chain is linear,
+  so splitting would scatter coupled code. **Do not maintain a line-number index
+  doc** — one was tried and abandoned: keeping line numbers accurate cost more
+  than the reading it saved, and a stale line-map is worse than none. The
+  self-maintaining file/section boundaries are the index.
 
 ---
 
@@ -297,23 +380,26 @@ Load-bearing prerequisites (each a real feature):
   codes, environment variables. An entirely new domain.
 - **Error *handling* (recovery, not just halting)** — today an error halts; a
   shell must recover ("that failed — do something else"). No recoverable-error
-  mechanism exists yet. The shell vision is the strongest argument for it.
-- **An "or nothing" type** — `read the file "x"` must express "contents, or
-  nothing" without reintroducing null. Doubly-motivated: also needed for
-  recursive data structures (linked lists, trees). Design it as an explicit
-  optional/maybe, not a null hole.
-- **Text operations** — already planned; a shell makes them foundational (a shell
-  is almost entirely text manipulation).
+  mechanism exists yet. The shell vision is the strongest argument for it. (The
+  voidable type is the *absence* half of this; *recovery from failure* is still
+  open.)
+- **An "or nothing" type** — ✅ **built.** The voidable type (`voidable T`,
+  `void`) expresses "a value, or nothing" with no null. This was the most
+  load-bearing deferred prerequisite, and it now exists — also unblocking
+  text→number and recursive data structures.
+- **Text operations** — joining, conversion, and length exist; a shell wants the
+  fuller set (split, replace, slice, find), since it is almost entirely text
+  manipulation.
 - **Possibly streaming / pipes and a concurrency model** — Cufet has no concept
   of this today.
 
-**How this reorganizes the nearer roadmap:** this star reveals that
-**error-handling**, an **"or nothing" type**, and **text operations** are not
-mere conveniences — they are load-bearing for a possible future, which raises
-their priority. Rough order the vision imposes: pure-language maturity first
-(records and objects — done; maps, closures, text-ops next) → then the
-outside-world layer (I/O, recoverable errors, "or nothing", processes) → then
-shell-specific features (pipes, the interactive prompt).
+**How this reorganizes the nearer roadmap:** the most load-bearing prerequisite,
+the **"or nothing" type, is now built** (voidable). What remains load-bearing for
+the shell direction is **recoverable error handling** and the **fuller text
+operations**. Rough order the vision imposes: pure-language maturity first
+(records, objects, maps, voidable, text basics — done; **closures/lambdas next**)
+→ then the outside-world layer (I/O, recoverable errors, processes) → then
+shell-specific features (pipes, the interactive prompt / REPL).
 
 ---
 
