@@ -205,9 +205,12 @@ public sealed partial class TypeChecker
     private readonly Dictionary<string, CufetType>           _narrowedVars  = new();
 
     // Return context — set when entering a Bind or method body.
-    private bool       _inFunction             = false;
-    private CufetType? _expectedReturnType     = null; // null = void function
-    private int        _functionDeclarationLine = 0;
+    private bool       _inFunction              = false;
+    private CufetType? _expectedReturnType      = null; // null = void function
+    private int        _functionDeclarationLine  = 0;
+    // When true, the first Return statement encountered sets _expectedReturnType
+    // instead of validating against it. Used during lambda return-type inference.
+    private bool       _inferringLambdaReturn   = false;
 
     public void Check(Program program)
     {
@@ -387,6 +390,14 @@ public sealed partial class TypeChecker
 
     private void CheckReturn(ReturnStatement ret)
     {
+        if (_inferringLambdaReturn)
+        {
+            // First return in a lambda body: set the inferred return type.
+            _expectedReturnType    = ret.Value != null ? InferType(ret.Value) : null;
+            _inferringLambdaReturn = false;
+            return;
+        }
+
         if (_expectedReturnType == null) // void function (or _inFunction guard is parser-level)
         {
             if (ret.Value != null)
@@ -461,6 +472,7 @@ public sealed partial class TypeChecker
         MapHasKey  mhk                                                                                   => InferMapHasKey(mhk),
         MapHasEntry mhe                                                                                  => InferMapHasEntry(mhe),
         MapSize    ms                                                                                    => InferMapSize(ms),
+        LambdaLiteral lambda                                                                             => InferLambdaLiteral(lambda),
         _                                                                                                => null,
     };
 

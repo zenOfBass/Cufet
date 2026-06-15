@@ -1311,6 +1311,43 @@ public sealed class Parser
                 baseExpr = new MapSize(ParsePrimary(), sizeLine);
                 break;
             }
+            case TokenType.FunctionKw:
+            {
+                // "a function given (<params>): <body>" — anonymous lambda literal.
+                // The leading article 'a'/'an' was already consumed by SkipNoise above.
+                var lambdaLine = Advance().Line; // consume 'function'
+                SkipNoise();
+                var lambdaParams = new List<(CufetType Type, string Name)>();
+                if (Peek().Type == TokenType.Given)
+                {
+                    Advance(); SkipNoise(); // consume 'given'
+                    Consume(TokenType.LParen); SkipNoise();
+                    if (Peek().Type != TokenType.RParen)
+                    {
+                        lambdaParams.Add(ParseParameter());
+                        SkipNoise();
+                        while (Peek().Type == TokenType.Comma)
+                        {
+                            Advance(); SkipNoise();
+                            lambdaParams.Add(ParseParameter());
+                            SkipNoise();
+                        }
+                    }
+                    Consume(TokenType.RParen);
+                    SkipNoise();
+                }
+                Consume(TokenType.Colon);
+                var savedInFreeFunctionL = _inFreeFunction;
+                _inFreeFunction = true;
+                _functionDepth++;
+                _nestDepth++;
+                var lambdaBody = ParseLambdaBody();
+                _nestDepth--;
+                _functionDepth--;
+                _inFreeFunction = savedInFreeFunctionL;
+                baseExpr = new LambdaLiteral(lambdaParams, lambdaBody, lambdaLine);
+                break;
+            }
             default:
                 throw new ParseException(tok, "expression");
         }
@@ -1735,6 +1772,24 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Dot);
         return new ReturnStatement(value, line);
+    }
+
+    // Lambda body: same as ParseFunctionBody but does NOT consume the trailing '.'
+    // after Done — that '.' is owned by the enclosing statement or argument context.
+    // Writers use: "a function given (x): Return x + 1. Done." where the outer
+    // statement's '.' immediately follows Done.
+    private IReadOnlyList<IStatement> ParseLambdaBody()
+    {
+        var stmts = new List<IStatement>();
+        while (true)
+        {
+            SkipNoise();
+            if (Peek().Type is TokenType.Done or TokenType.Eof) break;
+            stmts.Add(ParseStatement());
+        }
+        Consume(TokenType.Done);
+        // Trailing '.' is consumed by the enclosing context, not us.
+        return stmts;
     }
 
     private void SkipNoise()

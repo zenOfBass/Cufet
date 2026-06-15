@@ -220,4 +220,12 @@ public sealed record MapSize(IExpression Map, int Line) : IExpression;
 // in <map>, the entry for <key> becomes <value>.
 public sealed record MapSetStatement(IExpression Map, IExpression Key, IExpression Value, int Line) : IStatement;
 
+// a function given (<params>): <body> — anonymous function literal; return type inferred from body.
+// Body is inline (single stmt) or block (Done.-terminated); parsed by ParseLambdaBody.
+public sealed record LambdaLiteral(
+    IReadOnlyList<(CufetType Type, string Name)> Parameters,
+    IReadOnlyList<IStatement> Body,
+    int Line
+) : IExpression;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

@@ -494,7 +494,15 @@ public sealed partial class Interpreter
         MapHasKey      mhk    => EvaluateMapHasKey(mhk),
         MapHasEntry    mhe    => EvaluateMapHasEntry(mhe),
         MapSize        ms     => EvaluateMapSize(ms),
+        LambdaLiteral  lam    => EvaluateLambda(lam),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
+    };
+
+    private object EvaluateLambda(LambdaLiteral lam) => new FunctionValue
+    {
+        ParameterNames = lam.Parameters.Select(p => p.Name).ToList(),
+        Body           = lam.Body,
+        CapturedEnv    = CaptureClosure(),
     };
 
     private object EvaluateButVoidDefault(ButVoidDefault bvd)

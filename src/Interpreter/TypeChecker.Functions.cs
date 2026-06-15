@@ -51,6 +51,62 @@ public sealed partial class TypeChecker
                 "Make sure every path through the function ends with a return statement."));
     }
 
+    // Infers and type-checks a lambda literal in one pass.
+    // _inferringLambdaReturn = true causes CheckReturn to set _expectedReturnType on the
+    // first return encountered (rather than validating), so locals defined before the
+    // first return are already in _env when the type is determined.
+    // Subsequent returns validate against the inferred type normally.
+    private FunctionType InferLambdaLiteral(LambdaLiteral lambda)
+    {
+        var snapshot  = new Dictionary<string, TypeInfo>(_env);
+        bool isNested = _inFunction;
+        _env.Clear();
+        if (isNested)
+            foreach (var (k, v) in snapshot) _env[k] = v;
+        else
+            foreach (var (k, v) in snapshot.Where(kv => kv.Value.Type is FunctionType))
+                _env[k] = v;
+        foreach (var (type, name) in lambda.Parameters)
+            _env[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), lambda.Line);
+
+        var prevInFunction       = _inFunction;
+        var prevReturnType       = _expectedReturnType;
+        var prevFunctionLine     = _functionDeclarationLine;
+        var prevInferring        = _inferringLambdaReturn;
+        _inFunction              = true;
+        _expectedReturnType      = null; // set by first Return via CheckReturn
+        _functionDeclarationLine = lambda.Line;
+        _inferringLambdaReturn   = true;
+
+        CufetType? inferredReturn = null;
+        try
+        {
+            foreach (var stmt in lambda.Body)
+                CheckStatement(stmt);
+        }
+        finally
+        {
+            _inFunction              = prevInFunction;
+            _functionDeclarationLine = prevFunctionLine;
+            _inferringLambdaReturn   = prevInferring;
+            inferredReturn           = _expectedReturnType; // capture before restoring
+            _expectedReturnType      = prevReturnType;
+            _env.Clear();
+            foreach (var (k, v) in snapshot) _env[k] = v;
+        }
+
+        if (inferredReturn != null && !DefinitelyReturns(lambda.Body))
+            throw new TypeException(FormatTypeError(
+                $"this lambda is inferred to give back a {FormatType(inferredReturn)}, but it can reach its end without returning one",
+                null,
+                lambda.Line,
+                "write a lambda that might not return a value",
+                "Make sure every path through the lambda ends with a return statement."));
+
+        var paramTypes = lambda.Parameters.Select(p => (CufetType)ResolveParamType(p.Type)).ToList();
+        return new FunctionType(paramTypes, inferredReturn);
+    }
+
     // Validates arg count and types against a resolved FunctionType.
     private void ValidateCastArgs(
         FunctionType funcType, string displayName, int declLine,

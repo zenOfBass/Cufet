@@ -4787,6 +4787,146 @@ public class InterpreterTests
             "Done."));
     }
 
+    // ── Lambdas ───────────────────────────────────────────────────────────
+
+    // Lambda syntax: "a function given (<params>): <stmts> Done"
+    // The `Done` terminates the lambda body; the trailing '.' belongs to the
+    // enclosing statement (Define/Return/etc.) or argument list context.
+    //
+    // Examples:
+    //   Define fn as a function given (the number x): Return x + 1. Done.
+    //   Cast apply on (10, a function given (the number x): Return x * 2. Done.)
+    //   Return a function given (the number x): Return x + n. Done.
+
+    [Fact]
+    public void Lambda_BasicAssignAndCall()
+    {
+        Assert.Equal("8", Run(
+            "Define add5 as a function given (the number x): Return x + 5. Done.\n" +
+            "State cast add5 on (3)."));
+    }
+
+    [Fact]
+    public void Lambda_NoParams()
+    {
+        Assert.Equal("42", Run(
+            "Define answer as a function: Return 42. Done.\n" +
+            "State cast answer on ()."));
+    }
+
+    [Fact]
+    public void Lambda_AsArgument()
+    {
+        Assert.Equal("20", Run(
+            "Bind number to apply, given (the number v, the number function fn given (the number)):\n" +
+            "    return cast fn on (v).\n" +
+            "Done.\n" +
+            "State cast apply on (10, a function given (the number x): Return x * 2. Done)."));
+    }
+
+    [Fact]
+    public void Lambda_CapturesEnclosingVariable_MakeAdder()
+    {
+        Assert.Equal("15", Run(
+            "Bind number function given (the number) to make-adder, given (the number n):\n" +
+            "    Return a function given (the number x): Return x + n. Done.\n" +
+            "Done.\n" +
+            "Define adder as cast make-adder on (10).\n" +
+            "State cast adder on (5)."));
+    }
+
+    [Fact]
+    public void Lambda_TwoIndependentCaptures()
+    {
+        Assert.Equal("13\n22", Run(
+            "Bind number function given (the number) to make-adder, given (the number n):\n" +
+            "    Return a function given (the number x): Return x + n. Done.\n" +
+            "Done.\n" +
+            "Define add10 as cast make-adder on (10).\n" +
+            "Define add20 as cast make-adder on (20).\n" +
+            "State cast add10 on (3).\n" +
+            "State cast add20 on (2)."));
+    }
+
+    [Fact]
+    public void Lambda_BlockForm()
+    {
+        Assert.Equal("11", Run(
+            "Define fn as a function given (the number x):\n" +
+            "    Define y as x + 1.\n" +
+            "    Return y.\n" +
+            "Done.\n" +
+            "State cast fn on (10)."));
+    }
+
+    [Fact]
+    public void Lambda_VoidBody()
+    {
+        Assert.Equal("hello", Run(
+            "Define greet as a function given (the text msg): State msg. Done.\n" +
+            "Cast greet on (\"hello\")."));
+    }
+
+    [Fact]
+    public void Lambda_ReturnedFromFunction()
+    {
+        Assert.Equal("7", Run(
+            "Bind number function given (the number) to make-adder, given (the number n):\n" +
+            "    Return a function given (the number x): Return x + n. Done.\n" +
+            "Done.\n" +
+            "Define add3 as cast make-adder on (3).\n" +
+            "State cast add3 on (4)."));
+    }
+
+    [Fact]
+    public void Lambda_InSeries_CalledLater()
+    {
+        Assert.Equal("6", Run(
+            "Define fns as a series of number function given (the number) with (\n" +
+            "    a function given (the number x): Return x + 1. Done,\n" +
+            "    a function given (the number x): Return x * 2. Done\n" +
+            ").\n" +
+            "State cast the second of fns on (3)."));
+    }
+
+    [Fact]
+    public void Lambda_PassedThroughTwoLayers()
+    {
+        Assert.Equal("9", Run(
+            "Bind number to apply-twice, given (the number v, the number function fn given (the number)):\n" +
+            "    return cast fn on (cast fn on (v)).\n" +
+            "Done.\n" +
+            "State cast apply-twice on (3, a function given (the number x): Return x + 3. Done)."));
+    }
+
+    [Fact]
+    public void Lambda_StatesPrintedValueDirectly()
+    {
+        Assert.Equal("<function>", Run(
+            "Define fn as a function given (the number x): Return x + 1. Done.\n" +
+            "State fn."));
+    }
+
+    [Fact]
+    public void Lambda_TypeError_MismatchedReturns()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define fn as a function given (the number x):\n" +
+            "    If x is 0, return \"zero\".\n" +
+            "    Return x + 1.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Lambda_TypeError_WrongArgType()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number to apply, given (the number v, the number function fn given (the number)):\n" +
+            "    return cast fn on (v).\n" +
+            "Done.\n" +
+            "State cast apply on (10, a function given (the text x): Return 0. Done)."));
+    }
+
     [Fact]
     public void Closure_ParseError_NestedBindInMethodBody()
     {
