@@ -1,6 +1,6 @@
 # Cufet Language Reference
 
-The complete reference for Cufet `0.2.0`. For a quick introduction and taste of
+The complete reference for Cufet `0.3.0`. For a quick introduction and taste of
 the language, see [README.md](README.md). For what's planned and the reasoning
 behind the design, see [ROADMAP.md](ROADMAP.md).
 
@@ -18,11 +18,15 @@ behind the design, see [ROADMAP.md](ROADMAP.md).
   - [Loops](#loops)
     - [For-each loops](#for-each-loops)
   - [Series (collections)](#series-collections)
+  - [Text](#text)
+  - [Range](#range)
   - [Records](#records)
   - [Objects](#objects)
     - [Embedding (composition)](#embedding-composition)
     - [Interfaces (polymorphism)](#interfaces-polymorphism)
   - [Functions](#functions)
+  - [Voidable values (`void` and `voidable T`)](#voidable-values-void-and-voidable-t)
+  - [Maps](#maps)
   - [Type system](#type-system)
   - [Identifiers](#identifiers)
 
@@ -229,6 +233,67 @@ Out-of-bounds access or assignment produces a readable runtime error.
 Series are **reference-typed** — assigning a series to a new name shares it
 (in contrast to records and objects, which copy). See
 [Type system](#type-system).
+
+---
+
+## Text
+
+`text` values are joined, measured, and built from other values with explicit
+constructs. `+` is **not** overloaded for concatenation — joining has its own
+word, and converting a non-text value to text is always explicit (no hidden
+coercion).
+
+**Joining** — `joined to`, left-associative, chains:
+```
+Define greeting as "hello" joined to " world".          → "hello world"
+Define full-name as first joined to " " joined to last.
+```
+Both sides must be `text`. Joining a non-text value directly is a static type
+error — convert it first.
+
+**Converting to text** — `converted to text`, a postfix construct:
+```
+State "Player: " joined to score converted to text.     → "Player: 95"
+Define label as score converted to text.                → "95"
+```
+Works on numbers and facts (both total — every number and fact has a text form).
+It binds tighter than `joined to`, so `"x: " joined to n converted to text`
+reads as `"x: " joined to (n converted to text)`.
+
+> **Note (precedence quirk):** in a named-access position, `the value of person
+> converted to text` parses as `the value of (person converted to text)`. If you
+> need the conversion to apply to the *result* of the access, extract it first:
+> `Define v as the value of person. State v converted to text.`
+
+**Length** — `the length of`, the character count:
+```
+State the length of "hello".          → 5
+Define n as the length of greeting.
+```
+
+---
+
+## Range
+
+`range <start> to <end>` produces a materialized `series of number` — sugar so
+you don't build a numeric span by hand:
+```
+For each n in range 1 to 100, repeat:
+    State n.
+Done.
+
+Define hundred as range 1 to 100.        ← also valid anywhere a series goes
+```
+
+- `start` and `end` are number expressions (`range 1 to n`, `range x to y`).
+- The optional article reads naturally: `range 1 to 100` or `the range 1 to 100`.
+- **Inclusive of both ends:** `range 1 to 100` is `1, 2, ..., 100`.
+- **Counts down when start > end:** `range 100 to 1` is `100, 99, ..., 1`.
+- It produces an ordinary `series of number` — all series operations apply.
+
+A range plus `for each` covers everything a C-style counter loop would: there is
+no separate index-loop construct, because iterating `range 1 to 100` is the same
+thing, read more plainly.
 
 ---
 
@@ -533,6 +598,120 @@ directly.
 
 ---
 
+## Voidable values (`void` and `voidable T`)
+
+Cufet has no null. Absence is expressed with a first-class empty value, `void`,
+and a type that admits it, `voidable T`. This is how "a value, or nothing" is
+said — explicitly, and checked.
+
+**`void`** is a real, holdable value (it prints as `void`). A `void`-returning
+function produces it; a map lookup that misses produces it.
+
+**`voidable T`** is "a `T`, or `void`":
+```
+Define maybe-score as 95.        ← a number is a valid voidable number (present case)
+Define maybe-score as void.      ← the absent case
+```
+Usable in any annotation position — parameters, return types, series elements,
+record/object fields:
+```
+Bind voidable number to find-score, given (the text name):
+    ...
+Done.
+```
+
+**Type rules:**
+- A plain `T` widens to `voidable T` automatically (a `number` is accepted where
+  a `voidable number` is wanted) — one-way.
+- `void` is the empty case of any `voidable T`.
+- A `voidable T` does **not** collapse to `T`. Using one where a plain `T` is
+  required is a static type error — you must handle the void case first.
+
+**Testing and handling:**
+
+`is void` / `is not void` — a boolean test:
+```
+If maybe-score is not void:
+    State maybe-score.            ← narrowed to a plain number here, safe to use directly
+Otherwise:
+    State "no score".
+Done.
+```
+Inside a branch that has checked a **variable** is not void, the checker narrows
+that variable to its plain `T`, so it can be used directly. Narrowing is keyed on
+the variable and is cleared if the variable is reassigned within the branch.
+
+> To narrow a value produced by an expression (like a map lookup), name it first
+> — `Define s as the entry for "alice" in ages.` then check `s`. A bare literal
+> buried inside a lookup is a value worth naming anyway; narrowing follows the
+> named binding.
+
+`but void is <default>` — an inline fallback that always yields a plain `T`:
+```
+Define n as (the entry for "alice" in ages but void is 0).
+```
+
+---
+
+## Maps
+
+Typed key→value collections. Keys are one type, values are one type
+(homogeneous, like series).
+
+**Type:** `a map from text to number` — text keys, number values. Keys are
+`number` or `text`.
+
+**Construction:**
+```
+Define ages as a map with ("alice" : 30, "bob" : 25).     ← populated, key : value pairs
+Define ages as a new map from text to number.             ← empty, typed
+```
+
+**Lookup** — returns `voidable <value-type>` (the key might be absent):
+```
+Define alice-age as the entry for "alice" in ages.        ← a voidable number
+Define alice-age as from ages, the entry for "alice".     ← leading-from form
+```
+
+**Set** — reuses `becomes`:
+```
+In ages, the entry for "alice" becomes 30.
+```
+
+**Presence:**
+```
+If ages has a key for "alice", ...        ← is the key present?
+If ages has an entry for "alice", ...     ← is the value present (not void)?
+```
+
+**Remove and size:**
+```
+Remove "alice" from ages.
+State the size of ages.
+```
+
+**Iterate** — each element is a `mapping` (a key/value pair):
+```
+For each mapping in ages, repeat:
+    State the key of mapping.
+    State the value of mapping.
+Done.
+```
+
+Maps are **reference-typed** (like series).
+
+**The canonical lookup pattern** — name the lookup, check it, use it:
+```
+Define alice-age as the entry for "alice" in ages.
+If alice-age is not void:
+    State alice-age.
+Otherwise:
+    State "Sorry, no entry.".
+Done.
+```
+
+---
+
 ## Type system
 
 Cufet has a static type checker that runs before execution. It catches:
@@ -544,7 +723,8 @@ Cufet has a static type checker that runs before execution. It catches:
 - Passing a function with the wrong signature
 - Returning the wrong type from a function
 - Functions that might not return on every path
-- Using a `void` result as a value
+- Using a `voidable` value where a plain (non-void) value is required without
+  handling the void case
 - Calling a method that doesn't exist on an object
 - Accessing a non-series with series operations
 - Adding or removing the wrong element type from a typed series
@@ -553,6 +733,8 @@ Cufet has a static type checker that runs before execution. It catches:
 - Adding a record to a series whose shape it doesn't match
 - An object that claims an interface but doesn't satisfy its contract
 - Comparing records of incompatible shapes, or objects of different types, with `is`
+- Joining a non-text value with `joined to`, or using the wrong key/value types
+  with a map
 
 **Records use structural typing** — shape is identity. Two records with the same
 fields and types are the same type regardless of where they were declared. Named
