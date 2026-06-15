@@ -4,12 +4,20 @@ public sealed partial class TypeChecker
 {
     private void CheckBind(BindStatement bind)
     {
-        // Build function body env: only function signatures + parameters (no globals).
-        // This mirrors runtime scoping — functions cannot see the caller's variables.
-        var snapshot = new Dictionary<string, TypeInfo>(_env);
+        var snapshot  = new Dictionary<string, TypeInfo>(_env);
+        bool isNested = _inFunction; // true when we're already inside a function (closure case)
         _env.Clear();
-        foreach (var (k, v) in snapshot.Where(kv => kv.Value.Type is FunctionType))
-            _env[k] = v;
+        if (isNested)
+        {
+            // Nested function body sees the full enclosing scope so captured variables type-check.
+            foreach (var (k, v) in snapshot) _env[k] = v;
+        }
+        else
+        {
+            // Top-level function body: only function signatures visible — no caller/global locals.
+            foreach (var (k, v) in snapshot.Where(kv => kv.Value.Type is FunctionType))
+                _env[k] = v;
+        }
         foreach (var (type, name) in bind.Parameters)
             _env[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), bind.Line);
 

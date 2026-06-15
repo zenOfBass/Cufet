@@ -322,6 +322,17 @@ public sealed partial class TypeChecker
                 CheckSeriesRemoveAt(removeAt);
                 break;
             case BindStatement bind:
+                // Nested Bind: register type in enclosing scope before checking body
+                // so it can be returned/passed and so the body can recurse on itself.
+                // Top-level Bind: already hoisted by Pass1 — no env update needed.
+                if (_inFunction)
+                {
+                    var paramTypes = bind.Parameters.Select(p => p.Type).ToList();
+                    _env[bind.Name] = new TypeInfo(
+                        new FunctionType(paramTypes, bind.ReturnType),
+                        new VariableReference(bind.Name, 0),
+                        bind.Line);
+                }
                 CheckBind(bind);
                 break;
             case CastStatement cs:

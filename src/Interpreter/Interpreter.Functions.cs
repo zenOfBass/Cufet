@@ -63,12 +63,21 @@ public sealed partial class Interpreter
         // restore even when a parameter holds a FunctionValue.
         var snapshot = new Dictionary<string, object>(_env);
 
-        // Isolate scope: remove non-function bindings (globals, caller locals).
-        // FunctionValues stay in _env so the body can call other functions.
-        var toRemove = new List<string>();
-        foreach (var (k, v) in _env)
-            if (v is not FunctionValue) toRemove.Add(k);
-        foreach (var k in toRemove) _env.Remove(k);
+        if (func.CapturedEnv != null)
+        {
+            // Closure: restore the captured environment (outer locals + visible functions).
+            _env.Clear();
+            foreach (var (k, v) in func.CapturedEnv)
+                _env[k] = v;
+        }
+        else
+        {
+            // Top-level function: isolate to function-typed bindings only.
+            var toRemove = new List<string>();
+            foreach (var (k, v) in _env)
+                if (v is not FunctionValue) toRemove.Add(k);
+            foreach (var k in toRemove) _env.Remove(k);
+        }
 
         // Bind parameters (including any function-typed ones).
         for (int i = 0; i < func.ParameterNames.Count; i++)

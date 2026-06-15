@@ -28,6 +28,8 @@ public sealed partial class Interpreter
     {
         public required IReadOnlyList<string>     ParameterNames { get; init; }
         public required IReadOnlyList<IStatement> Body           { get; init; }
+        // null for top-level functions; non-null for closures (captured at creation time).
+        public Dictionary<string, object>?        CapturedEnv    { get; init; }
     }
 
     private sealed class ObjectValue
@@ -309,10 +311,27 @@ public sealed partial class Interpreter
                 ExecutePossessiveSet(pss);
                 break;
 
-            case BindStatement:
             case ObjectDefinition:
             case InterfaceDefinition:
                 break; // already hoisted / no runtime action
+
+            case BindStatement bind:
+                if (_callDepth > 0)
+                {
+                    // Inside a function body: create a closure carrying the current environment.
+                    // Capture before setting the name so we can add self-reference for recursion.
+                    var capturedEnv = CaptureClosure();
+                    var closureFn = new FunctionValue
+                    {
+                        ParameterNames = bind.Parameters.Select(p => p.Name).ToList(),
+                        Body           = bind.Body,
+                        CapturedEnv    = capturedEnv,
+                    };
+                    _env[bind.Name]        = closureFn;
+                    capturedEnv[bind.Name] = closureFn; // self-reference enables inner recursion
+                }
+                // else: top-level Bind, already hoisted — no action.
+                break;
 
             case CastStatement cs:
                 ExecuteCallExpr(cs.Function, cs.Args, cs.Line);
@@ -384,6 +403,17 @@ public sealed partial class Interpreter
                 break;
             }
         }
+    }
+
+    // Snapshots the current env for a closure: deep-copies value-typed objects (records, objects)
+    // so they're independent; shares reference-typed collections (series, maps) as-is.
+    private Dictionary<string, object> CaptureClosure()
+    {
+        var captured = new Dictionary<string, object>();
+        foreach (var (k, v) in _env)
+            captured[k] = v is RecordValue rv ? rv.DeepCopy() :
+                          v is ObjectValue ov ? ov.DeepCopy() : v;
+        return captured;
     }
 
     private List<object> ExpectSeries(string name, int line = 0)

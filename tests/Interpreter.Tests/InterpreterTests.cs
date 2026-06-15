@@ -1716,13 +1716,15 @@ public class InterpreterTests
     }
 
     [Fact]
-    public void NestedBindThrows()
+    public void NestedBindIsAllowedInsideFunction()
     {
-        Assert.Throws<ParseException>(() => Run(
-            "Bind void to outer:\n" +
-            "    Bind void to inner:\n" +
-            "    Done.\n" +
-            "Done."));
+        // Nested Bind inside a function body creates a local closure — valid since closures slice.
+        Assert.Equal("42", Run(
+            "Bind number to outer:\n" +
+            "    Bind number to inner: Return 42. Done.\n" +
+            "    Return cast inner on ().\n" +
+            "Done.\n" +
+            "State cast outer on ()."));
     }
 
     [Fact]
@@ -4572,6 +4574,229 @@ public class InterpreterTests
             "Done.\n" +
             "Otherwise:\n" +
             "    State result.\n" +
+            "Done."));
+    }
+
+    // ── Closures ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Closure_Canonical_MakeAdder()
+    {
+        Assert.Equal("15", Run(
+            "Bind number function given (the number) to make-adder, given (the number n):\n" +
+            "    Bind number to adder, given (the number x):\n" +
+            "        Return x + n.\n" +
+            "    Done.\n" +
+            "    Return adder.\n" +
+            "Done.\n" +
+            "Define add5 as cast make-adder on (5).\n" +
+            "State cast add5 on (10)."));
+    }
+
+    [Fact]
+    public void Closure_TwoIndependentCaptures()
+    {
+        Assert.Equal("15\n110", Run(
+            "Bind number function given (the number) to make-adder, given (the number n):\n" +
+            "    Bind number to adder, given (the number x):\n" +
+            "        Return x + n.\n" +
+            "    Done.\n" +
+            "    Return adder.\n" +
+            "Done.\n" +
+            "Define add5   as cast make-adder on (5).\n" +
+            "Define add100 as cast make-adder on (100).\n" +
+            "State cast add5 on (10).\n" +
+            "State cast add100 on (10)."));
+    }
+
+    [Fact]
+    public void Closure_ValueType_Snapshot()
+    {
+        // Changing n inside the outer function after creating the closure does not affect the closure.
+        Assert.Equal("15", Run(
+            "Bind number function given (the number) to make-adder, given (the number n):\n" +
+            "    Bind number to adder, given (the number x):\n" +
+            "        Return x + n.\n" +
+            "    Done.\n" +
+            "    n becomes n + 100.\n" +
+            "    Return adder.\n" +
+            "Done.\n" +
+            "Define f as cast make-adder on (5).\n" +
+            "State cast f on (10)."));
+    }
+
+    [Fact]
+    public void Closure_ReferenceType_SeriesShared()
+    {
+        // A captured series is shared: mutations through the closure are visible in the outer scope.
+        Assert.Equal("2", Run(
+            "Bind void to outer:\n" +
+            "    Define shared as a series of numbers.\n" +
+            "    Bind void to push, given (the number x):\n" +
+            "        Add x to shared.\n" +
+            "    Done.\n" +
+            "    Cast push on (1).\n" +
+            "    Cast push on (2).\n" +
+            "    State the number of shared.\n" +
+            "Done.\n" +
+            "Cast outer on ()."));
+    }
+
+    [Fact]
+    public void Closure_ForEach_EachCapturesOwnValue()
+    {
+        // Each call to make-adder(n) produces an independent closure (value-type snapshot).
+        Assert.Equal("11\n12\n13", Run(
+            "Bind number function given (the number) to make-adder, given (the number n):\n" +
+            "    Bind number to adder, given (the number x):\n" +
+            "        Return x + n.\n" +
+            "    Done.\n" +
+            "    Return adder.\n" +
+            "Done.\n" +
+            "Define ops as a series of number function given (the number).\n" +
+            "For each n in range 1 to 3, repeat:\n" +
+            "    Add cast make-adder on (n) to ops.\n" +
+            "Done.\n" +
+            "State cast (the first of ops) on (10).\n" +
+            "State cast (the second of ops) on (10).\n" +
+            "State cast (the third of ops) on (10)."));
+    }
+
+    [Fact]
+    public void Closure_NestedFunctionUsableInSameScope()
+    {
+        // After Bind inside a function, the new function can be called in the same body.
+        Assert.Equal("7", Run(
+            "Bind number to run:\n" +
+            "    Bind number to combine, given (the number p, the number q):\n" +
+            "        Return p + q.\n" +
+            "    Done.\n" +
+            "    Return cast combine on (3, 4).\n" +
+            "Done.\n" +
+            "State cast run on ()."));
+    }
+
+    [Fact]
+    public void Closure_InnerRecursion()
+    {
+        Assert.Equal("120", Run(
+            "Bind number function given (the number) to make-factorial:\n" +
+            "    Bind number to fact, given (the number n):\n" +
+            "        If n is less than 2, return 1.\n" +
+            "        Return n * cast fact on (n - 1).\n" +
+            "    Done.\n" +
+            "    Return fact.\n" +
+            "Done.\n" +
+            "Define f as cast make-factorial on ().\n" +
+            "State cast f on (5)."));
+    }
+
+    [Fact]
+    public void Closure_VoidInner()
+    {
+        Assert.Equal("hello from closure", Run(
+            "Bind void function to make-greeter, given (the text msg):\n" +
+            "    Bind void to greeter:\n" +
+            "        State msg.\n" +
+            "    Done.\n" +
+            "    Return greeter.\n" +
+            "Done.\n" +
+            "Define say-hello as cast make-greeter on (\"hello from closure\").\n" +
+            "Cast say-hello on ()."));
+    }
+
+    [Fact]
+    public void Closure_PassedAsArgument()
+    {
+        Assert.Equal("15", Run(
+            "Bind number to apply, given (the number x, the number function f given (the number)):\n" +
+            "    Return cast f on (x).\n" +
+            "Done.\n" +
+            "Bind number function given (the number) to make-adder, given (the number n):\n" +
+            "    Bind number to adder, given (the number x):\n" +
+            "        Return x + n.\n" +
+            "    Done.\n" +
+            "    Return adder.\n" +
+            "Done.\n" +
+            "Define add5 as cast make-adder on (5).\n" +
+            "State cast apply on (10, add5)."));
+    }
+
+    [Fact]
+    public void Closure_StoredInSeries_CalledLater()
+    {
+        Assert.Equal("10\n20", Run(
+            "Bind number function given (the number) to make-multiplier, given (the number factor):\n" +
+            "    Bind number to mul, given (the number x):\n" +
+            "        Return x * factor.\n" +
+            "    Done.\n" +
+            "    Return mul.\n" +
+            "Done.\n" +
+            "Define ops as a series of number function given (the number) with (cast make-multiplier on (2), cast make-multiplier on (4)).\n" +
+            "State cast (the first of ops) on (5).\n" +
+            "State cast (the second of ops) on (5)."));
+    }
+
+    [Fact]
+    public void Closure_OuterParamAndLocalBothCaptured()
+    {
+        // base=4, offset=base+2=6, x=5 → 5+4+6=15
+        Assert.Equal("15", Run(
+            "Bind number function given (the number) to build, given (the number base):\n" +
+            "    Define offset as base + 2.\n" +
+            "    Bind number to fn, given (the number x):\n" +
+            "        Return x + base + offset.\n" +
+            "    Done.\n" +
+            "    Return fn.\n" +
+            "Done.\n" +
+            "Define f as cast build on (4).\n" +
+            "State cast f on (5)."));
+    }
+
+    [Fact]
+    public void Closure_TypeError_InnerWrongReturnType()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number function given (the number) to make-adder, given (the number n):\n" +
+            "    Bind text to adder, given (the number x):\n" +
+            "        Return \"oops\".\n" +
+            "    Done.\n" +
+            "    Return adder.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Closure_TypeError_OuterVariableWrongType()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number function given (the number) to bad, given (the number n):\n" +
+            "    Bind number to fn, given (the number x):\n" +
+            "        Return x + n converted to text.\n" +
+            "    Done.\n" +
+            "    Return fn.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Closure_ParseError_NestedBindInTopLevelIf()
+    {
+        // Bind inside an if-block at the top level (not inside any function) is a parse error.
+        Assert.Throws<ParseException>(() => Run(
+            "If 1 = 1:\n" +
+            "    Bind number to f: Return 1. Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Closure_ParseError_NestedBindInMethodBody()
+    {
+        // Nested Bind inside an object method body is not supported (methods are not free functions).
+        Assert.Throws<ParseException>(() => Run(
+            "Define object box with (the number v):\n" +
+            "    Bind number to get:\n" +
+            "        Bind number to helper: Return 1. Done.\n" +
+            "        Return cast helper on ().\n" +
+            "    Done.\n" +
             "Done."));
     }
 }

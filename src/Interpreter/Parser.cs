@@ -7,9 +7,10 @@ public sealed class Parser
     private readonly IReadOnlyList<Token> _tokens;
     private int _pos;
     private int _loopDepth;
-    private int _nestDepth;     // any block depth — used to enforce Bind top-level only
-    private int _functionDepth; // incremented inside a Bind body — for return validation
-    private bool _inObjectDef;  // bypasses _nestDepth guard for Bind inside object method blocks
+    private int _nestDepth;       // any block depth — used to enforce Bind top-level only
+    private int _functionDepth;   // incremented inside a Bind body — for return validation
+    private bool _inObjectDef;    // bypasses _nestDepth guard for Bind inside object method blocks
+    private bool _inFreeFunction; // true inside a top-level (non-method) Bind body; allows nested Bind
 
     public Parser(IReadOnlyList<Token> tokens) => _tokens = tokens;
 
@@ -1466,10 +1467,12 @@ public sealed class Parser
     private BindStatement ParseBindStatement()
     {
         var bindTok = Consume(TokenType.Bind);
-        if (_nestDepth > 0 && !_inObjectDef)
-            throw new ParseException(bindTok, "Functions can only be declared at the top level, not inside a block");
-        var savedInObjectDef = _inObjectDef;
-        _inObjectDef = false; // method body must not allow nested Binds
+        if (_nestDepth > 0 && !_inObjectDef && !_inFreeFunction)
+            throw new ParseException(bindTok, "Functions can only be declared at the top level or inside another function, not inside a block");
+        var savedInObjectDef   = _inObjectDef;
+        var savedInFreeFunction = _inFreeFunction;
+        _inObjectDef    = false;               // method body must not allow nested Binds
+        _inFreeFunction = !savedInObjectDef;   // true for free functions, false for method bodies
         SkipNoise();
         var returnType = ParseReturnType();
         SkipNoise();
@@ -1509,7 +1512,8 @@ public sealed class Parser
         var body = ParseFunctionBody();
         _nestDepth--;
         _functionDepth--;
-        _inObjectDef = savedInObjectDef;
+        _inObjectDef    = savedInObjectDef;
+        _inFreeFunction = savedInFreeFunction;
 
         return new BindStatement(name, returnType, parameters, body, bindTok.Line);
     }
