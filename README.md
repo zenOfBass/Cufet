@@ -1,4 +1,4 @@
-﻿# Cufet `0.2.0`
+﻿# Cufet `0.3.0`
 
 *From the Mvskoke (Muskogee) word for rabbit—the trickster who brings the gift of fire to humankind.*
 
@@ -75,6 +75,18 @@ Cast describe on car.
 Define car1 as a new vehicle { the make "Honda", the year 2021 }.
 Define car2 as a new vehicle { the make "Honda", the year 2021 }.
 If car1 is car2, state "same car".
+```
+
+**Maps, and absence without null:**
+```
+Define ages as a map with ("alice" : 30, "bob" : 25).
+
+Define alice-age as the entry for "alice" in ages.
+If alice-age is not void:
+    State alice-age.
+Otherwise:
+    State "no entry for alice".
+Done.
 ```
 
 For the complete language — every statement, the type system, records,
