@@ -633,6 +633,7 @@ Done.
 ```
 If maybe-score is not void:
     State maybe-score.            ← narrowed to a plain number here, safe to use directly
+Done.
 Otherwise:
     State "no score".
 Done.
@@ -705,6 +706,7 @@ Maps are **reference-typed** (like series).
 Define alice-age as the entry for "alice" in ages.
 If alice-age is not void:
     State alice-age.
+Done.
 Otherwise:
     State "Sorry, no entry.".
 Done.

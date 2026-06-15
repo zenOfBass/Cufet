@@ -84,6 +84,7 @@ Define ages as a map with ("alice" : 30, "bob" : 25).
 Define alice-age as the entry for "alice" in ages.
 If alice-age is not void:
     State alice-age.
+Done.
 Otherwise:
     State "no entry for alice".
 Done.
