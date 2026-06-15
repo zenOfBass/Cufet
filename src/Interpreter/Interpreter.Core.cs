@@ -229,6 +229,13 @@ public sealed partial class Interpreter
 
             case SeriesRemoveValueStatement srv:
             {
+                if (_env.TryGetValue(srv.SeriesName, out var srvEnvVal) && srvEnvVal is Dictionary<object, object> srvDict)
+                {
+                    var key = Evaluate(srv.Value);
+                    if (!srvDict.Remove(key))
+                        throw new RuntimeException($"Key not found in '{srv.SeriesName}' on line {srv.Line}.");
+                    break;
+                }
                 var list  = ExpectSeries(srv.SeriesName, srv.Line);
                 var value = Evaluate(srv.Value);
                 if (!list.Remove(value))
@@ -294,6 +301,10 @@ public sealed partial class Interpreter
                 break;
             }
 
+            case MapSetStatement mapSet:
+                ExecuteMapSet(mapSet);
+                break;
+
             case PossessiveSetStatement pss:
                 ExecutePossessiveSet(pss);
                 break;
@@ -313,12 +324,40 @@ public sealed partial class Interpreter
             case ForEachStatement fe:
             {
                 var seriesVal = Evaluate(fe.Series);
-                if (seriesVal is not List<object> list)
-                    throw new RuntimeException($"Expected a series for 'for each' loop on line {fe.Line}.");
-                string seriesDisplay = fe.Series is VariableReference fvr ? $"'{fvr.Name}'" : "The series";
-                int startCount = list.Count;
                 string iterKey = fe.IteratorName ?? "it";
                 bool hadPrev = _env.TryGetValue(iterKey, out var prev);
+
+                if (seriesVal is Dictionary<object, object> dict)
+                {
+                    // Snapshot keys so mutation during iteration gives a clear error.
+                    var snapshot = dict.ToList();
+                    try
+                    {
+                        foreach (var kvp in snapshot)
+                        {
+                            if (dict.Count != snapshot.Count)
+                                throw new RuntimeException(
+                                    $"The map was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
+                            _env[iterKey] = new MappingValue(kvp.Key, kvp.Value);
+                            bool stopped = false;
+                            try { foreach (var s in fe.Body) Execute(s); }
+                            catch (StopException) { stopped = true; }
+                            catch (SkipException) { /* next iteration */ }
+                            if (stopped) break;
+                        }
+                    }
+                    finally
+                    {
+                        if (hadPrev) _env[iterKey] = prev!;
+                        else _env.Remove(iterKey);
+                    }
+                    break;
+                }
+
+                if (seriesVal is not List<object> list)
+                    throw new RuntimeException($"Expected a series or map for 'for each' loop on line {fe.Line}.");
+                string seriesDisplay = fe.Series is VariableReference fvr ? $"'{fvr.Name}'" : "The series";
+                int startCount = list.Count;
                 try
                 {
                     for (int i = 0; i < startCount; i++)
@@ -420,6 +459,11 @@ public sealed partial class Interpreter
         RangeExpression re  => EvaluateRangeExpr(re),
         VoidLiteral        _  => VoidValue.Instance,
         ButVoidDefault bvd    => EvaluateButVoidDefault(bvd),
+        MapLiteral     ml     => EvaluateMapLiteral(ml),
+        MapLookup      mlu    => EvaluateMapLookup(mlu),
+        MapHasKey      mhk    => EvaluateMapHasKey(mhk),
+        MapHasEntry    mhe    => EvaluateMapHasEntry(mhe),
+        MapSize        ms     => EvaluateMapSize(ms),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 
@@ -469,6 +513,17 @@ public sealed partial class Interpreter
     private object EvaluateRecordNamedAccess(RecordNamedAccess rna)
     {
         var target = Evaluate(rna.Record);
+
+        if (target is MappingValue mv)
+        {
+            return rna.FieldName switch
+            {
+                "key"   => mv.Key,
+                "value" => mv.Value,
+                _ => throw new RuntimeException(
+                    $"A mapping only has 'key' and 'value' fields (line {rna.Line}).")
+            };
+        }
 
         if (target is ObjectValue ov)
         {
@@ -671,6 +726,9 @@ public sealed partial class Interpreter
         FunctionValue    => "<function>",
         RecordValue rv   => FormatRecord(rv),
         ObjectValue ov   => FormatObject(ov),
+        Dictionary<object, object> dict =>
+            "map {" + string.Join(", ", dict.Select(kvp => $"{Format(kvp.Key)}: {Format(kvp.Value)}")) + "}",
+        MappingValue mv  => $"mapping({Format(mv.Key)}: {Format(mv.Value)})",
         _                => val.ToString()!,
     };
 

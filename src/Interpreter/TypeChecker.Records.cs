@@ -84,6 +84,21 @@ public sealed partial class TypeChecker
         var recordType = InferType(rna.Record);
         if (recordType == null) return null;
 
+        // Map iteration variable: "the key of mapping" / "the value of mapping".
+        if (recordType is MappingType mt)
+        {
+            return rna.FieldName switch
+            {
+                "key"   => mt.KeyType,
+                "value" => mt.ValueType,
+                _ => throw new TypeException(FormatTypeError(
+                    $"a mapping only has 'key' and 'value' fields",
+                    null, rna.Line,
+                    $"access field '{rna.FieldName}' on a mapping",
+                    "Use 'the key of mapping' or 'the value of mapping'."))
+            };
+        }
+
         // Named field access also works on objects (the <name> of <object>).
         // Includes promoted fields from embedded types and the embed handle itself.
         if (recordType is ObjectType ot)

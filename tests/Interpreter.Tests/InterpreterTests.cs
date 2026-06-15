@@ -4345,4 +4345,233 @@ public class InterpreterTests
             "Define result as Cast get on () but void is \"fallback\".\n" +
             "State result."));
     }
+
+    // ── Maps ──────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Map_Empty_Construction()
+    {
+        Assert.Equal("0", Run(
+            "Define ages as a new map from text to number.\n" +
+            "State the size of ages."));
+    }
+
+    [Fact]
+    public void Map_Populated_Construction()
+    {
+        Assert.Equal("2", Run(
+            "Define ages as a map with (\"alice\" : 30, \"bob\" : 25).\n" +
+            "State the size of ages."));
+    }
+
+    [Fact]
+    public void Map_Lookup_Present()
+    {
+        Assert.Equal("30", Run(
+            "Define ages as a map with (\"alice\" : 30, \"bob\" : 25).\n" +
+            "Define result as the entry for \"alice\" in ages.\n" +
+            "If result is void, State \"missing\". Otherwise, State result."));
+    }
+
+    [Fact]
+    public void Map_Lookup_Absent_ReturnsVoid()
+    {
+        Assert.Equal("missing", Run(
+            "Define ages as a map with (\"alice\" : 30).\n" +
+            "Define result as the entry for \"carol\" in ages.\n" +
+            "If result is void, State \"missing\". Otherwise, State result."));
+    }
+
+    [Fact]
+    public void Map_Lookup_ButVoidDefault()
+    {
+        Assert.Equal("0", Run(
+            "Define ages as a map with (\"alice\" : 30).\n" +
+            "State the entry for \"carol\" in ages but void is 0."));
+    }
+
+    [Fact]
+    public void Map_Set_AddEntry()
+    {
+        Assert.Equal("42", Run(
+            "Define scores as a new map from text to number.\n" +
+            "In scores, the entry for \"x\" becomes 42.\n" +
+            "State the entry for \"x\" in scores but void is 0."));
+    }
+
+    [Fact]
+    public void Map_Set_UpdateEntry()
+    {
+        Assert.Equal("99", Run(
+            "Define scores as a map with (\"x\" : 1).\n" +
+            "In scores, the entry for \"x\" becomes 99.\n" +
+            "State the entry for \"x\" in scores but void is 0."));
+    }
+
+    [Fact]
+    public void Map_HasKey_True()
+    {
+        Assert.Equal("true", Run(
+            "Define m as a map with (\"a\" : 1).\n" +
+            "State m has a key for \"a\"."));
+    }
+
+    [Fact]
+    public void Map_HasKey_False()
+    {
+        Assert.Equal("false", Run(
+            "Define m as a map with (\"a\" : 1).\n" +
+            "State m has a key for \"b\"."));
+    }
+
+    [Fact]
+    public void Map_HasEntry_True()
+    {
+        Assert.Equal("true", Run(
+            "Define m as a map with (\"a\" : 1).\n" +
+            "State m has an entry for \"a\"."));
+    }
+
+    [Fact]
+    public void Map_HasEntry_False()
+    {
+        Assert.Equal("false", Run(
+            "Define m as a map with (\"a\" : 1).\n" +
+            "State m has an entry for \"z\"."));
+    }
+
+    [Fact]
+    public void Map_Remove_Key()
+    {
+        Assert.Equal("1", Run(
+            "Define m as a map with (\"a\" : 1, \"b\" : 2).\n" +
+            "Remove \"b\" from m.\n" +
+            "State the size of m."));
+    }
+
+    [Fact]
+    public void Map_Remove_MakesKeyAbsent()
+    {
+        Assert.Equal("missing", Run(
+            "Define m as a map with (\"a\" : 1).\n" +
+            "Remove \"a\" from m.\n" +
+            "Define result as the entry for \"a\" in m.\n" +
+            "If result is void, State \"missing\". Otherwise, State result."));
+    }
+
+    [Fact]
+    public void Map_Size_Empty()
+    {
+        Assert.Equal("0", Run(
+            "Define m as a new map from number to text.\n" +
+            "State the size of m."));
+    }
+
+    [Fact]
+    public void Map_Size_AfterSet()
+    {
+        Assert.Equal("3", Run(
+            "Define m as a map with (1 : \"a\", 2 : \"b\").\n" +
+            "In m, the entry for 3 becomes \"c\".\n" +
+            "State the size of m."));
+    }
+
+    [Fact]
+    public void Map_ForEach_KeyAndValue()
+    {
+        // Only one entry so output is deterministic.
+        // Use intermediate variables because 'the value of person converted to text' mis-parses
+        // (the inner ParsePrimary for the record greedily eats 'converted to text').
+        Assert.Equal("alice=30", Run(
+            "Define ages as a map with (\"alice\" : 30).\n" +
+            "For each person in ages, Repeat:\n" +
+            "    Define k as the key of person.\n" +
+            "    Define v as the value of person.\n" +
+            "    State k joined to \"=\" joined to v converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Map_ForEach_Stop()
+    {
+        // Single-entry map — Stop exits immediately; just verify it doesn't crash.
+        Assert.Equal("stopped", Run(
+            "Define m as a map with (\"x\" : 1).\n" +
+            "For each pair in m, Repeat:\n" +
+            "    Stop.\n" +
+            "Done.\n" +
+            "State \"stopped\"."));
+    }
+
+    [Fact]
+    public void Map_NumberKey_Lookup()
+    {
+        Assert.Equal("hello", Run(
+            "Define m as a map with (1 : \"hello\", 2 : \"world\").\n" +
+            "State the entry for 1 in m but void is \"\"."));
+    }
+
+    [Fact]
+    public void Map_ReferenceSemantics()
+    {
+        // Assigning a map to a new variable — both names see mutations.
+        Assert.Equal("true", Run(
+            "Define m as a new map from text to number.\n" +
+            "Define n as m.\n" +
+            "In m, the entry for \"x\" becomes 7.\n" +
+            "State n has a key for \"x\"."));
+    }
+
+    [Fact]
+    public void Map_HasKey_InCondition()
+    {
+        Assert.Equal("found", Run(
+            "Define m as a map with (\"a\" : 1).\n" +
+            "If m has a key for \"a\", State \"found\". Otherwise, State \"not found\"."));
+    }
+
+    [Fact]
+    public void Map_TypeError_WrongKeyType()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define m as a map with (\"a\" : 1).\n" +
+            "State m has a key for 42."));
+    }
+
+    [Fact]
+    public void Map_TypeError_WrongValueTypeInLiteral()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define m as a map with (\"a\" : 1, \"b\" : \"oops\")."));
+    }
+
+    [Fact]
+    public void Map_TypeError_SetWrongValueType()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define m as a map with (\"a\" : 1).\n" +
+            "In m, the entry for \"b\" becomes \"wrong\"."));
+    }
+
+    [Fact]
+    public void Map_TypeError_LookupNonMap()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define x as 42.\n" +
+            "State the entry for 1 in x."));
+    }
+
+    [Fact]
+    public void Map_CanonicalPattern_NarrowAfterLookup()
+    {
+        Assert.Equal("30", Run(
+            "Define ages as a map with (\"alice\" : 30).\n" +
+            "Define result as the entry for \"alice\" in ages.\n" +
+            "If result is void:\n" +
+            "    State \"not found\".\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State result.\n" +
+            "Done."));
+    }
 }

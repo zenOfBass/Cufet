@@ -149,6 +149,11 @@ public sealed class Lexer
             "range"     => TokenType.Range,
             "voidable"  => TokenType.Voidable,
             "but"       => TokenType.But,
+            "map"       => TokenType.Map,
+            "has"       => TokenType.Has,
+            "key"       => TokenType.Key,
+            "entry"     => TokenType.Entry,
+            "size"      => TokenType.Size,
             _           => TokenType.Identifier,
         };
 

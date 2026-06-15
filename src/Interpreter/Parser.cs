@@ -48,6 +48,7 @@ public sealed class Parser
             TokenType.Bind       => ParseBindStatement(),
             TokenType.Cast       => ParseCastStatementWrapper(),
             TokenType.Return     => ParseReturnStatement(),
+            TokenType.In         => ParseMapSetStatement(),
             _ => throw new ParseException(tok, "statement keyword"),
         };
     }
@@ -220,37 +221,6 @@ public sealed class Parser
         return (methodName, returnType, paramTypes);
     }
 
-    // new <typeName> { [fields] }
-    private ObjectLiteral ParseObjectLiteralExpr()
-    {
-        var line = Advance().Line; // consume 'new'
-        SkipNoise();
-        var typeName = Consume(TokenType.Identifier).Lexeme;
-        SkipNoise();
-        Consume(TokenType.LBrace);
-        // No SkipNoise — preserve leading 'the' for IsNamedFieldStart
-
-        var positionals = new List<IExpression>();
-        var namedFields = new List<(string Name, IExpression Value)>();
-        bool namedStarted = false;
-
-        if (Peek().Type != TokenType.RBrace)
-        {
-            ParseOneRecordField(positionals, namedFields, ref namedStarted);
-            SkipNoise();
-            while (Peek().Type == TokenType.Comma)
-            {
-                Advance();
-                // No SkipNoise — preserve leading 'the'
-                ParseOneRecordField(positionals, namedFields, ref namedStarted);
-                SkipNoise();
-            }
-        }
-
-        Consume(TokenType.RBrace);
-        return new ObjectLiteral(typeName, positionals, namedFields, line);
-    }
-
     private SeriesLiteral ParseSeriesLiteralExpr()
     {
         var seriesTok = Advance(); // consume "series"
@@ -320,6 +290,17 @@ public sealed class Parser
         {
             Advance(); SkipNoise();
             return new VoidableType(ParseTypeAnnotation());
+        }
+
+        // map from K to V — homogeneous map type
+        if (tok.Type == TokenType.Map)
+        {
+            Advance(); SkipNoise();
+            Consume(TokenType.From); SkipNoise();
+            var keyType = ParseTypeAnnotation(); SkipNoise();
+            Consume(TokenType.To); SkipNoise();
+            var valueType = ParseTypeAnnotation();
+            return new MapType(keyType, valueType);
         }
 
         if (tok.Type == TokenType.NumberKw ||
@@ -814,6 +795,31 @@ public sealed class Parser
         }
     }
 
+    // ── Maps ──────────────────────────────────────────────────────────────────
+
+    // "in <map>, the entry for <key> becomes <value>."
+    private IStatement ParseMapSetStatement()
+    {
+        var line = Consume(TokenType.In).Line;
+        SkipNoise();
+        var mapExpr = ParsePrimary();
+        SkipNoise();
+        Consume(TokenType.Comma);
+        SkipNoise(); // eats 'the' article
+        Consume(TokenType.Entry);
+        SkipNoise();
+        Consume(TokenType.For);
+        SkipNoise();
+        var keyExpr = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Becomes);
+        SkipNoise();
+        var valueExpr = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new MapSetStatement(mapExpr, keyExpr, valueExpr, line);
+    }
+
     // Condition grammar (conditional context — after If / Otherwise if):
     //   condition        → logical-or
     //   logical-or       → logical-and ( "or" logical-and )*
@@ -1010,12 +1016,36 @@ public sealed class Parser
         return left;
     }
 
+    // '<map> has a key/entry for <key>' — postfix; returns fact.
+    // Sits between ParseJoinedTo and ParseAddition so "has" binds tighter than "joined to"
+    // but looser than arithmetic, and works naturally in both expression and condition context.
+    private IExpression ParseHasCheck()
+    {
+        var left = ParseAddition();
+        SkipNoise();
+        if (Peek().Type != TokenType.Has) return left;
+        var line = Advance().Line; // consume 'has'
+        SkipNoise(); // eats 'a' or 'an' article
+        bool isEntry = Peek().Type == TokenType.Entry;
+        bool isKey   = Peek().Type == TokenType.Key;
+        if (!isEntry && !isKey)
+            throw new ParseException(Peek(), "'key' or 'entry' after 'has'");
+        Advance(); // consume Key or Entry
+        SkipNoise();
+        Consume(TokenType.For);
+        SkipNoise();
+        var keyExpr = ParseAddition();
+        return isEntry
+            ? (IExpression)new MapHasEntry(left, keyExpr, line)
+            : new MapHasKey(left, keyExpr, line);
+    }
+
     // '<text> joined to <text>' — left-associative text concatenation.
     // Sits above ParseAddition so that arithmetic binds tighter than joining;
     // sits below ParseComparison so you can compare joined results: 'If x joined to y is z'.
     private IExpression ParseJoinedTo()
     {
-        var left = ParseAddition();
+        var left = ParseHasCheck(); // has-check sits between joined-to and addition
         SkipNoise();
         while (Peek().Type == TokenType.Joined)
         {
@@ -1189,8 +1219,97 @@ public sealed class Parser
                 baseExpr = ParseRecordLiteralExpr();
                 break;
             case TokenType.New:
-                baseExpr = ParseObjectLiteralExpr();
+            {
+                var newLine = Advance().Line; // consume 'new'
+                SkipNoise();
+                if (Peek().Type == TokenType.Map)
+                {
+                    // "a new map from K to V" — empty map with explicit type annotation
+                    Advance(); SkipNoise(); // consume 'map'
+                    Consume(TokenType.From); SkipNoise();
+                    var keyType = ParseTypeAnnotation(); SkipNoise();
+                    Consume(TokenType.To); SkipNoise();
+                    var valueType = ParseTypeAnnotation();
+                    baseExpr = new MapLiteral(keyType, valueType, [], newLine);
+                    break;
+                }
+                // "a new TypeName { fields }" — object literal
+                var typeName = Consume(TokenType.Identifier).Lexeme;
+                SkipNoise();
+                Consume(TokenType.LBrace);
+                var positionals2 = new List<IExpression>();
+                var namedFields2 = new List<(string Name, IExpression Value)>();
+                bool namedStarted2 = false;
+                if (Peek().Type != TokenType.RBrace)
+                {
+                    ParseOneRecordField(positionals2, namedFields2, ref namedStarted2);
+                    SkipNoise();
+                    while (Peek().Type == TokenType.Comma)
+                    {
+                        Advance();
+                        ParseOneRecordField(positionals2, namedFields2, ref namedStarted2);
+                        SkipNoise();
+                    }
+                }
+                Consume(TokenType.RBrace);
+                baseExpr = new ObjectLiteral(typeName, positionals2, namedFields2, newLine);
                 break;
+            }
+            case TokenType.Map:
+            {
+                // "a map with ("k" : v, ...)" — populated map literal
+                var mapLine = Advance().Line; // consume 'map'
+                SkipNoise();
+                Consume(TokenType.With);
+                SkipNoise();
+                Consume(TokenType.LParen);
+                SkipNoise();
+                var pairs = new List<(IExpression Key, IExpression Value)>();
+                if (Peek().Type != TokenType.RParen)
+                {
+                    var k = ParseExpression(); SkipNoise();
+                    Consume(TokenType.Colon); SkipNoise();
+                    var v = ParseExpression();
+                    pairs.Add((k, v));
+                    SkipNoise();
+                    while (Peek().Type == TokenType.Comma)
+                    {
+                        Advance(); SkipNoise();
+                        var k2 = ParseExpression(); SkipNoise();
+                        Consume(TokenType.Colon); SkipNoise();
+                        var v2 = ParseExpression();
+                        pairs.Add((k2, v2));
+                        SkipNoise();
+                    }
+                }
+                Consume(TokenType.RParen);
+                baseExpr = new MapLiteral(null, null, pairs, mapLine);
+                break;
+            }
+            case TokenType.Entry:
+            {
+                // "the entry for <key> in <map>"
+                var entryLine = Advance().Line; // consume 'entry'
+                SkipNoise();
+                Consume(TokenType.For);
+                SkipNoise();
+                var keyExpr = ParseExpression();
+                SkipNoise();
+                Consume(TokenType.In);
+                SkipNoise();
+                baseExpr = new MapLookup(ParsePrimary(), keyExpr, entryLine);
+                break;
+            }
+            case TokenType.Size:
+            {
+                // "the size of <map>"
+                var sizeLine = Advance().Line; // consume 'size'
+                SkipNoise();
+                Consume(TokenType.Of);
+                SkipNoise();
+                baseExpr = new MapSize(ParsePrimary(), sizeLine);
+                break;
+            }
             default:
                 throw new ParseException(tok, "expression");
         }
@@ -1337,7 +1456,7 @@ public sealed class Parser
         //   Ordinal → 'the first of s' (positional access)
         //   NumberKw → 'the number of s' (series length)
         //   Start → 'to the start of s' (add-to-start)
-        if (forAccess && tok.Type is TokenType.Ordinal or TokenType.NumberKw or TokenType.Start or TokenType.LengthKw)
+        if (forAccess && tok.Type is TokenType.Ordinal or TokenType.NumberKw or TokenType.Start or TokenType.LengthKw or TokenType.Size)
             return false;
         return true;
     }

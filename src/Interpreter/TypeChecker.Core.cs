@@ -169,6 +169,26 @@ public sealed class VoidableType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(VoidableType), Inner);
 }
 
+// map from K to V — homogeneous, reference-typed. Keys must be number or text.
+public sealed class MapType : CufetType
+{
+    public CufetType KeyType   { get; }
+    public CufetType ValueType { get; }
+    public MapType(CufetType keyType, CufetType valueType) { KeyType = keyType; ValueType = valueType; }
+    public override bool Equals(object? obj) => obj is MapType m && KeyType == m.KeyType && ValueType == m.ValueType;
+    public override int GetHashCode() => HashCode.Combine(typeof(MapType), KeyType, ValueType);
+}
+
+// Type of the iterator variable in "for each X in map" — pseudo-record with 'key' and 'value' fields.
+public sealed class MappingType : CufetType
+{
+    public CufetType KeyType   { get; }
+    public CufetType ValueType { get; }
+    public MappingType(CufetType keyType, CufetType valueType) { KeyType = keyType; ValueType = valueType; }
+    public override bool Equals(object? obj) => obj is MappingType m && KeyType == m.KeyType && ValueType == m.ValueType;
+    public override int GetHashCode() => HashCode.Combine(typeof(MappingType), KeyType, ValueType);
+}
+
 public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine);
 
 public sealed class TypeException : Exception
@@ -294,6 +314,9 @@ public sealed partial class TypeChecker
                 break;
             case PossessiveSetStatement pss:
                 CheckPossessiveSet(pss);
+                break;
+            case MapSetStatement mapSet:
+                CheckMapSet(mapSet);
                 break;
             case SeriesRemoveAtStatement removeAt:
                 CheckSeriesRemoveAt(removeAt);
@@ -422,6 +445,11 @@ public sealed partial class TypeChecker
         TextLength tl                                                                                    => InferTextLength(tl),
         RangeExpression re                                                                               => InferRangeExpr(re),
         ButVoidDefault bvd                                                                               => InferButVoidDefault(bvd),
+        MapLiteral ml                                                                                    => InferMapLiteral(ml),
+        MapLookup  mlu                                                                                   => InferMapLookup(mlu),
+        MapHasKey  mhk                                                                                   => InferMapHasKey(mhk),
+        MapHasEntry mhe                                                                                  => InferMapHasEntry(mhe),
+        MapSize    ms                                                                                    => InferMapSize(ms),
         _                                                                                                => null,
     };
 
@@ -607,6 +635,8 @@ public sealed partial class TypeChecker
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => ot.Name,
         InterfaceType it                     => it.Name,
+        MapType mt                           => $"map from {FormatType(mt.KeyType)} to {FormatType(mt.ValueType)}",
+        MappingType                          => "mapping",
         _                                    => "<unknown>",
     };
 
@@ -639,6 +669,8 @@ public sealed partial class TypeChecker
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => $"{ot.Name} objects",
         InterfaceType it                     => $"{it.Name} values",
+        MapType mt                           => $"maps from {FormatType(mt.KeyType)} to {FormatType(mt.ValueType)}",
+        MappingType                          => "mappings",
         _                                    => "<unknown>",
     };
 

@@ -100,6 +100,13 @@ public enum TokenType
     Voidable,  // "voidable"  — in "a voidable number" type annotation
     But,       // "but"       — in "<expr> but void is <default>"
 
+    // ── Maps ──────────────────────────────────────────────────────────────────
+    Map,    // "map"   — type annotation and literal
+    Has,    // "has"   — in "map has a key/entry for X"
+    Key,    // "key"   — in "has a key for X"; NOT excluded from field names (used in "the key of mapping")
+    Entry,  // "entry" — in "the entry for X in map", "in map, the entry for X becomes V"
+    Size,   // "size"  — in "the size of map"; excluded from IsFieldNameToken(forAccess: true)
+
     // ── Semantic (parser-generated, never emitted by lexer) ───────────────
     NotEqual, // produced by "is not"; used in BinaryExpression only
 

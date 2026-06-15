@@ -194,4 +194,30 @@ public sealed record ButVoidDefault(IExpression Voidable, IExpression Default, i
 // alice's age becomes X  /  one's age becomes X  — possessive field mutation
 public sealed record PossessiveSetStatement(IExpression Target, string Member, IExpression Value, int Line) : IStatement;
 
+// ── Maps ──────────────────────────────────────────────────────────────────────
+
+// a map with ("k":v, ...) — populated; KeyType/ValueType null (infer from pairs)
+// a new map from K to V   — empty; KeyType/ValueType explicit; Pairs is empty
+public sealed record MapLiteral(
+    CufetType? KeyType,
+    CufetType? ValueType,
+    IReadOnlyList<(IExpression Key, IExpression Value)> Pairs,
+    int Line
+) : IExpression;
+
+// the entry for <key> in <map>  →  voidable V (void when key absent)
+public sealed record MapLookup(IExpression Map, IExpression Key, int Line) : IExpression;
+
+// map has a key for <key>   →  fact (true when the key is present)
+public sealed record MapHasKey(IExpression Map, IExpression Key, int Line) : IExpression;
+
+// map has an entry for <key>  →  fact (alias for HasKey this slice)
+public sealed record MapHasEntry(IExpression Map, IExpression Key, int Line) : IExpression;
+
+// the size of <map>  →  number (entry count)
+public sealed record MapSize(IExpression Map, int Line) : IExpression;
+
+// in <map>, the entry for <key> becomes <value>.
+public sealed record MapSetStatement(IExpression Map, IExpression Key, IExpression Value, int Line) : IStatement;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

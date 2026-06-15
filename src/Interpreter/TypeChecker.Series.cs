@@ -8,17 +8,32 @@ public sealed partial class TypeChecker
         if (inferred == null)
             return; // unknown type — runtime catches; skip body to avoid cascading false positives
 
+        // Map iteration: bind iterator to MappingType pseudo-record (key/value fields).
+        if (inferred is MapType mapType)
+        {
+            var iterKey = forEach.IteratorName ?? "it";
+            var hadPrev = _env.TryGetValue(iterKey, out var prev);
+            _env[iterKey] = new TypeInfo(new MappingType(mapType.KeyType, mapType.ValueType), forEach.Series, forEach.Line);
+            try { foreach (var s in forEach.Body) CheckStatement(s); }
+            finally
+            {
+                if (hadPrev) _env[iterKey] = prev!;
+                else _env.Remove(iterKey);
+            }
+            return;
+        }
+
         if (inferred is not SeriesType seriesType)
             throw new TypeException(FormatTypeError(
                 $"{FormatExpr(forEach.Series)} holds {FormatTypePlural(inferred)}",
                 $"It evaluates to {FormatTypePlural(inferred)}, not a series",
                 forEach.Line,
                 "loop over it as if it were a series",
-                "Only series can be looped over. Define a series if that's what you need."));
+                "Only series and maps can be looped over. Define a series if that's what you need."));
 
-        var iterKey = forEach.IteratorName ?? "it";
-        var hadPrev = _env.TryGetValue(iterKey, out var prev);
-        _env[iterKey] = new TypeInfo(seriesType.ElementType, forEach.Series, forEach.Line);
+        var iterKey2 = forEach.IteratorName ?? "it";
+        var hadPrev2 = _env.TryGetValue(iterKey2, out var prev2);
+        _env[iterKey2] = new TypeInfo(seriesType.ElementType, forEach.Series, forEach.Line);
         try
         {
             foreach (var s in forEach.Body)
@@ -26,8 +41,8 @@ public sealed partial class TypeChecker
         }
         finally
         {
-            if (hadPrev) _env[iterKey] = prev!;
-            else _env.Remove(iterKey);
+            if (hadPrev2) _env[iterKey2] = prev2!;
+            else _env.Remove(iterKey2);
         }
     }
 
@@ -50,6 +65,21 @@ public sealed partial class TypeChecker
     private void CheckSeriesRemoveValue(SeriesRemoveValueStatement removeVal)
     {
         if (!_env.TryGetValue(removeVal.SeriesName, out var seriesInfo)) return;
+
+        // Map remove: "remove key from map" — key must match map's key type.
+        if (seriesInfo.Type is MapType mapType)
+        {
+            var keyType = InferType(removeVal.Value);
+            if (keyType != null && !IsAssignable(mapType.KeyType, keyType))
+                throw new TypeException(FormatTypeError(
+                    $"'{removeVal.SeriesName}' uses {FormatType(mapType.KeyType)} keys",
+                    $"You defined it on line {seriesInfo.EstablishingLine} as a map from {FormatType(mapType.KeyType)} to {FormatType(mapType.ValueType)}",
+                    removeVal.Line,
+                    $"remove using a {FormatType(keyType)} key",
+                    $"Keys in this map are {FormatTypePlural(mapType.KeyType)}."));
+            return;
+        }
+
         if (seriesInfo.Type is not SeriesType seriesType) return;
 
         var valueType = InferType(removeVal.Value);
