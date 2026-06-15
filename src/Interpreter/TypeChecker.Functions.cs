@@ -86,7 +86,7 @@ public sealed partial class TypeChecker
                 continue;
             }
 
-            if (argType == formalType) continue;
+            if (IsAssignable(formalType, argType)) continue;
             throw new TypeException(FormatTypeError(
                 $"argument {i + 1} of {displayName} must be a {FormatType(formalType)}, but you passed a {FormatType(argType)}",
                 $"You declared {displayName} on line {declLine}, so argument {i + 1} must be a {FormatType(formalType)}",

@@ -315,6 +315,13 @@ public sealed class Parser
     {
         var tok = Peek();
 
+        // voidable T — wraps any inner type
+        if (tok.Type == TokenType.Voidable)
+        {
+            Advance(); SkipNoise();
+            return new VoidableType(ParseTypeAnnotation());
+        }
+
         if (tok.Type == TokenType.NumberKw ||
             (tok.Type == TokenType.Identifier &&
              tok.Lexeme.Equals("numbers", StringComparison.OrdinalIgnoreCase)))
@@ -941,7 +948,19 @@ public sealed class Parser
     // not/and/or included here so parenthesised grouping works in condition context
     // (e.g. not (flag or other)) — same precedence as the condition grammar.
 
-    private IExpression ParseExpression() => ParseExprOr();
+    private IExpression ParseExpression()
+    {
+        var left = ParseExprOr();
+        SkipNoise();
+        if (Peek().Type != TokenType.But) return left;
+        var line = Advance().Line; // consume 'but'
+        SkipNoise();
+        Consume(TokenType.Void);
+        SkipNoise();
+        Consume(TokenType.Is);
+        SkipNoise();
+        return new ButVoidDefault(left, ParseExprOr(), line);
+    }
 
     private IExpression ParseExprOr()
     {
@@ -1155,6 +1174,12 @@ public sealed class Parser
                 SkipNoise();
                 var end = ParseExpression();
                 baseExpr = new RangeExpression(start, end, line);
+                break;
+            }
+            case TokenType.Void:
+            {
+                var line = Advance().Line;
+                baseExpr = new VoidLiteral(line);
                 break;
             }
             case TokenType.Cast:

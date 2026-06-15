@@ -4152,4 +4152,197 @@ public class InterpreterTests
             "Define scores as a series with (1, 2, 3).\n" +
             "State scores converted to text."));
     }
+
+    // ── Voidable type + narrowing ─────────────────────────────────────────────
+
+    [Fact]
+    public void Void_LiteralStates()
+    {
+        Assert.Equal("void", Run("State void."));
+    }
+
+    [Fact]
+    public void Void_IsVoidTrue()
+    {
+        Assert.Equal("yes", Run(
+            "Define x as void.\n" +
+            "If x is void, State \"yes\". Otherwise, State \"no\"."));
+    }
+
+    [Fact]
+    public void Void_IsVoidFalse()
+    {
+        // A concrete number stored in a voidable var is not void.
+        Assert.Equal("no", Run(
+            "Bind voidable number to maybe, given (the number n):\n" +
+            "    return n.\n" +
+            "Done.\n" +
+            "Define result as Cast maybe on (5).\n" +
+            "If result is void, State \"yes\". Otherwise, State \"no\"."));
+    }
+
+    [Fact]
+    public void Void_IsNotVoidTrue()
+    {
+        Assert.Equal("yes", Run(
+            "Bind voidable number to maybe, given (the number n):\n" +
+            "    return n.\n" +
+            "Done.\n" +
+            "Define result as Cast maybe on (7).\n" +
+            "If result is not void, State \"yes\". Otherwise, State \"no\"."));
+    }
+
+    [Fact]
+    public void Void_FunctionReturnsVoidable_AbsentCase()
+    {
+        Assert.Equal("void", Run(
+            "Bind voidable number to find-score:\n" +
+            "    return void.\n" +
+            "Done.\n" +
+            "Define result as Cast find-score on ().\n" +
+            "State result."));
+    }
+
+    [Fact]
+    public void Void_FunctionReturnsVoidable_PresentCase()
+    {
+        Assert.Equal("42", Run(
+            "Bind voidable number to find-score:\n" +
+            "    return 42.\n" +
+            "Done.\n" +
+            "Define result as Cast find-score on ().\n" +
+            "State result."));
+    }
+
+    [Fact]
+    public void Void_Narrowing_UsesValueInBranch()
+    {
+        Assert.Equal("42", Run(
+            "Bind voidable number to maybe-score:\n" +
+            "    return 42.\n" +
+            "Done.\n" +
+            "Define score as Cast maybe-score on ().\n" +
+            "If score is not void:\n" +
+            "    State score.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"none\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Void_Narrowing_ElseBranchWhenVoid()
+    {
+        Assert.Equal("none", Run(
+            "Bind voidable number to maybe-score:\n" +
+            "    return void.\n" +
+            "Done.\n" +
+            "Define score as Cast maybe-score on ().\n" +
+            "If score is not void:\n" +
+            "    State score.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"none\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Void_Narrowing_InvalidatedByReassignment()
+    {
+        // After reassignment inside the branch, the variable is no longer narrowed.
+        // The checker should allow reassigning a voidable var to void inside the branch.
+        Assert.Equal("reset", Run(
+            "Bind voidable number to get-val:\n" +
+            "    return 10.\n" +
+            "Done.\n" +
+            "Define val as Cast get-val on ().\n" +
+            "If val is not void:\n" +
+            "    val becomes void.\n" +
+            "Done.\n" +
+            "If val is void:\n" +
+            "    State \"reset\".\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"not reset\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Void_ButVoidIs_PresentCase()
+    {
+        Assert.Equal("42", Run(
+            "Bind voidable number to maybe-score:\n" +
+            "    return 42.\n" +
+            "Done.\n" +
+            "Define result as Cast maybe-score on () but void is 0.\n" +
+            "State result."));
+    }
+
+    [Fact]
+    public void Void_ButVoidIs_AbsentCase()
+    {
+        Assert.Equal("0", Run(
+            "Bind voidable number to maybe-score:\n" +
+            "    return void.\n" +
+            "Done.\n" +
+            "Define result as Cast maybe-score on () but void is 0.\n" +
+            "State result."));
+    }
+
+    [Fact]
+    public void Void_Widening_NumberAssignableToVoidableNumber()
+    {
+        // A plain number is accepted where voidable number is expected (widening).
+        Assert.Equal("5", Run(
+            "Bind voidable number to wrap, given (the number n):\n" +
+            "    return n.\n" +
+            "Done.\n" +
+            "Define result as Cast wrap on (5).\n" +
+            "State result."));
+    }
+
+    [Fact]
+    public void Void_VoidableParam_AcceptsVoid()
+    {
+        Assert.Equal("none", Run(
+            "Bind void to display, given (the voidable number n):\n" +
+            "    If n is void, State \"none\". Otherwise, State n.\n" +
+            "Done.\n" +
+            "Cast display on (void)."));
+    }
+
+    [Fact]
+    public void Void_VoidableParam_AcceptsNumber()
+    {
+        Assert.Equal("7", Run(
+            "Bind void to display, given (the voidable number n):\n" +
+            "    If n is void, State \"none\". Otherwise, State n.\n" +
+            "Done.\n" +
+            "Cast display on (7)."));
+    }
+
+    [Fact]
+    public void Void_TypeError_VoidableUsedWhereConcreteRequired()
+    {
+        // Using a voidable number where a plain number is expected is a static error.
+        Assert.Throws<TypeException>(() => Run(
+            "Bind voidable number to get:\n" +
+            "    return 1.\n" +
+            "Done.\n" +
+            "Bind void to use, given (the number n):\n" +
+            "    State n.\n" +
+            "Done.\n" +
+            "Cast use on (Cast get on ())."));
+    }
+
+    [Fact]
+    public void Void_TypeError_ButVoidIs_WrongDefaultType()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind voidable number to get:\n" +
+            "    return void.\n" +
+            "Done.\n" +
+            "Define result as Cast get on () but void is \"fallback\".\n" +
+            "State result."));
+    }
 }

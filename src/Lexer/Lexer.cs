@@ -147,6 +147,8 @@ public sealed class Lexer
             "joined"    => TokenType.Joined,
             "converted" => TokenType.Converted,
             "range"     => TokenType.Range,
+            "voidable"  => TokenType.Voidable,
+            "but"       => TokenType.But,
             _           => TokenType.Identifier,
         };
 

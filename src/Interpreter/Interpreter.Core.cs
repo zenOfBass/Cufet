@@ -16,6 +16,14 @@ public sealed partial class Interpreter
         public ReturnException(object? value) { Value = value; }
     }
 
+    // The singleton runtime representation of the void value (the absent case of any voidable T).
+    // Distinct from C# null, which means "this function returned nothing" in the call machinery.
+    private sealed class VoidValue
+    {
+        public static readonly VoidValue Instance = new();
+        private VoidValue() { }
+    }
+
     private sealed class FunctionValue
     {
         public required IReadOnlyList<string>     ParameterNames { get; init; }
@@ -409,9 +417,17 @@ public sealed partial class Interpreter
         TextJoin   tj => EvaluateTextJoin(tj),
         TextConvert tc => (object)Format(Evaluate(tc.Value)),
         TextLength  tl => (object)(decimal)((string)Evaluate(tl.Target)).Length,
-        RangeExpression re => EvaluateRangeExpr(re),
+        RangeExpression re  => EvaluateRangeExpr(re),
+        VoidLiteral        _  => VoidValue.Instance,
+        ButVoidDefault bvd    => EvaluateButVoidDefault(bvd),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
+
+    private object EvaluateButVoidDefault(ButVoidDefault bvd)
+    {
+        var v = Evaluate(bvd.Voidable);
+        return v is VoidValue ? Evaluate(bvd.Default) : v;
+    }
 
     private object EvaluateSeriesAccess(SeriesAccess sa)
     {
@@ -560,6 +576,8 @@ public sealed partial class Interpreter
     {
         if (a is null && b is null) return true;
         if (a is null || b is null) return false;
+        if (a is VoidValue && b is VoidValue) return true;
+        if (a is VoidValue || b is VoidValue) return false;
 
         if (a is List<object> la && b is List<object> lb)
         {
@@ -646,6 +664,7 @@ public sealed partial class Interpreter
 
     private static string Format(object val) => val switch
     {
+        VoidValue        => "void",
         bool b           => b ? "true" : "false",
         decimal d        => d.ToString(),
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",

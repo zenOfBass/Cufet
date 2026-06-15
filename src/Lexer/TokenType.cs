@@ -96,6 +96,10 @@ public enum TokenType
     // ── Range ─────────────────────────────────────────────────────────────────
     Range,     // "range"     — in "range <start> to <end>"; To already exists
 
+    // ── Voidable ──────────────────────────────────────────────────────────────
+    Voidable,  // "voidable"  — in "a voidable number" type annotation
+    But,       // "but"       — in "<expr> but void is <default>"
+
     // ── Semantic (parser-generated, never emitted by lexer) ───────────────
     NotEqual, // produced by "is not"; used in BinaryExpression only
 

@@ -181,6 +181,16 @@ public sealed record TextLength(IExpression Target, int Line) : IExpression;
 // descending when start > end; single-element when start == end.
 public sealed record RangeExpression(IExpression Start, IExpression End, int Line) : IExpression;
 
+// ── Void / Voidable ───────────────────────────────────────────────────────────
+
+// The literal value void — the absent case of any voidable T.
+// Used in: Define x as void. / x becomes void. / If x is not void: ...
+public sealed record VoidLiteral(int Line) : IExpression;
+
+// <voidable-expr> but void is <default-expr>
+// Produces plain T: returns the value if present, otherwise the default.
+public sealed record ButVoidDefault(IExpression Voidable, IExpression Default, int Line) : IExpression;
+
 // alice's age becomes X  /  one's age becomes X  — possessive field mutation
 public sealed record PossessiveSetStatement(IExpression Target, string Member, IExpression Value, int Line) : IStatement;
 

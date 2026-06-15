@@ -10,6 +10,7 @@ public abstract class CufetType
     public static readonly CufetType Number = new NumberType();
     public static readonly CufetType Text   = new TextType();
     public static readonly CufetType Fact   = new FactType();
+    public static readonly CufetType Void   = new VoidType();
 
     public abstract override bool Equals(object? obj);
     public abstract override int GetHashCode();
@@ -151,6 +152,23 @@ public sealed class InterfaceType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(InterfaceType), Name);
 }
 
+// The type of the literal void value. void widens to voidable T for any T.
+public sealed class VoidType : CufetType
+{
+    public override bool Equals(object? obj) => obj is VoidType;
+    public override int GetHashCode() => typeof(VoidType).GetHashCode();
+}
+
+// a voidable T — holds T, or void. T widens to voidable T; void widens to voidable T.
+// voidable T does NOT collapse to T without a checked narrowing branch.
+public sealed class VoidableType : CufetType
+{
+    public CufetType Inner { get; }
+    public VoidableType(CufetType inner) => Inner = inner;
+    public override bool Equals(object? obj) => obj is VoidableType v && Inner == v.Inner;
+    public override int GetHashCode() => HashCode.Combine(typeof(VoidableType), Inner);
+}
+
 public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine);
 
 public sealed class TypeException : Exception
@@ -163,6 +181,8 @@ public sealed partial class TypeChecker
     private readonly Dictionary<string, TypeInfo>            _env           = new();
     private readonly Dictionary<string, ObjectType>          _objectDefs    = new();
     private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new();
+    // Active narrowings: variable name → narrowed type (set inside checked branches).
+    private readonly Dictionary<string, CufetType>           _narrowedVars  = new();
 
     // Return context — set when entering a Bind or method body.
     private bool       _inFunction             = false;
@@ -225,8 +245,23 @@ public sealed partial class TypeChecker
                 foreach (var arm in ifStmt.Arms)
                 {
                     _ = InferType(arm.Condition);
+                    // If condition is "X is not void", narrow X to its inner type within this arm.
+                    string? narrowedVar = null;
+                    CufetType? savedNarrowed = null;
+                    if (TryGetNotVoidNarrowing(arm.Condition, out var narrowTarget, out var narrowedTo))
+                    {
+                        narrowedVar = narrowTarget;
+                        _narrowedVars.TryGetValue(narrowTarget!, out savedNarrowed);
+                        _narrowedVars[narrowTarget!] = narrowedTo!;
+                    }
                     foreach (var s in arm.Body)
                         CheckStatement(s);
+                    // Restore narrowing state after the arm body.
+                    if (narrowedVar != null)
+                    {
+                        if (savedNarrowed != null) _narrowedVars[narrowedVar] = savedNarrowed;
+                        else _narrowedVars.Remove(narrowedVar);
+                    }
                 }
                 if (ifStmt.ElseBody != null)
                     foreach (var s in ifStmt.ElseBody)
@@ -298,13 +333,16 @@ public sealed partial class TypeChecker
 
     private void CheckBecomes(BecomesStatement becomes)
     {
+        // Reassignment invalidates any active narrowing on this variable.
+        _narrowedVars.Remove(becomes.Name);
+
         if (!_env.TryGetValue(becomes.Name, out var existing))
             return;
 
         var rhsType = InferType(becomes.Value);
         if (rhsType == null) return;
 
-        if (rhsType != existing.Type)
+        if (!IsAssignable(existing.Type, rhsType))
             throw new TypeException(FormatTypeError(
                 $"'{becomes.Name}' holds {FormatTypePlural(existing.Type)}",
                 $"You set it to {FormatExpr(existing.EstablishingExpr)} on line {existing.EstablishingLine}, so it can only ever hold {FormatTypePlural(existing.Type)}",
@@ -337,13 +375,13 @@ public sealed partial class TypeChecker
                     $"Provide a {FormatType(_expectedReturnType)} value to return."));
 
             var returnType = InferType(ret.Value);
-            if (returnType != null && returnType != _expectedReturnType)
+            if (returnType != null && !IsAssignable(_expectedReturnType!, returnType))
                 throw new TypeException(FormatTypeError(
-                    $"this function is declared to give back a {FormatType(_expectedReturnType)}",
-                    $"You declared the return type as {FormatType(_expectedReturnType)} on line {_functionDeclarationLine}",
+                    $"this function is declared to give back a {FormatType(_expectedReturnType!)}",
+                    $"You declared the return type as {FormatType(_expectedReturnType!)} on line {_functionDeclarationLine}",
                     ret.Line,
                     $"return a {FormatType(returnType)} value",
-                    $"Change the returned value to a {FormatType(_expectedReturnType)}."));
+                    $"Change the returned value to a {FormatType(_expectedReturnType!)}."));
         }
     }
 
@@ -363,25 +401,28 @@ public sealed partial class TypeChecker
     // Throws TypeException for operand type mismatches.
     private CufetType? InferType(IExpression expr) => expr switch
     {
-        NumberLiteral                                                           => CufetType.Number,
-        StringLiteral                                                           => CufetType.Text,
-        UnaryExpression unary                                                   => InferUnary(unary),
-        BinaryExpression bin                                                    => InferBinary(bin),
-        VariableReference { Name: var n } when _env.TryGetValue(n, out var ti) => ti.Type,
-        VariableReference                                                       => null,
-        SeriesLiteral lit                                                       => InferSeriesLiteral(lit),
-        SeriesAccess acc                                                        => InferSeriesAccess(acc),
-        SeriesLength sl                                                         => InferSeriesLength(sl),
-        CastExpression cast                                                     => InferCastExpr(cast),
-        RecordLiteral lit                                                       => InferRecordLiteral(lit),
-        RecordNamedAccess rna                                                   => InferRecordNamedAccess(rna),
-        ObjectLiteral lit                                                       => InferObjectLiteral(lit),
-        PossessiveAccess poss                                                   => InferPossessiveAccess(poss),
-        TextJoin tj                                                             => InferTextJoin(tj),
-        TextConvert tc                                                          => InferTextConvert(tc),
-        TextLength tl                                                           => InferTextLength(tl),
-        RangeExpression re                                                      => InferRangeExpr(re),
-        _                                                                       => null,
+        NumberLiteral                                                                                    => CufetType.Number,
+        StringLiteral                                                                                    => CufetType.Text,
+        VoidLiteral                                                                                      => CufetType.Void,
+        UnaryExpression unary                                                                            => InferUnary(unary),
+        BinaryExpression bin                                                                             => InferBinary(bin),
+        VariableReference { Name: var n } when _narrowedVars.TryGetValue(n, out var narrowed)           => narrowed,
+        VariableReference { Name: var n } when _env.TryGetValue(n, out var ti)                          => ti.Type,
+        VariableReference                                                                                => null,
+        SeriesLiteral lit                                                                                => InferSeriesLiteral(lit),
+        SeriesAccess acc                                                                                 => InferSeriesAccess(acc),
+        SeriesLength sl                                                                                  => InferSeriesLength(sl),
+        CastExpression cast                                                                              => InferCastExpr(cast),
+        RecordLiteral lit                                                                                => InferRecordLiteral(lit),
+        RecordNamedAccess rna                                                                            => InferRecordNamedAccess(rna),
+        ObjectLiteral lit                                                                                => InferObjectLiteral(lit),
+        PossessiveAccess poss                                                                            => InferPossessiveAccess(poss),
+        TextJoin tj                                                                                      => InferTextJoin(tj),
+        TextConvert tc                                                                                   => InferTextConvert(tc),
+        TextLength tl                                                                                    => InferTextLength(tl),
+        RangeExpression re                                                                               => InferRangeExpr(re),
+        ButVoidDefault bvd                                                                               => InferButVoidDefault(bvd),
+        _                                                                                                => null,
     };
 
     private CufetType? InferUnary(UnaryExpression unary)
@@ -430,6 +471,10 @@ public sealed partial class TypeChecker
                     bin.Line,
                     $"use {FormatOp(bin.Op)} with {FormatType(l)} and {FormatType(r)}",
                     "If you meant arithmetic, both sides need to be numbers.\nIf you meant to join text, use 'joined to': \"hello\" joined to \" world\".")),
+            // is void / is not void: voidable T compared to void
+            TokenType.Equal or TokenType.NotEqual
+                when (l is VoidableType && r is VoidType) || (l is VoidType && r is VoidableType)
+                => CufetType.Fact,
             TokenType.Equal or TokenType.NotEqual
                 when l == r
                 => CufetType.Fact,
@@ -462,6 +507,63 @@ public sealed partial class TypeChecker
                     $"Both sides of '{FormatOp(bin.Op)}' must be a fact (a true or false value). Did you mean to write a comparison like 'x is 0' rather than just 'x'?")),
             _ => null
         };
+    }
+
+    // T is assignable to target when:
+    //   target == source (same type)
+    //   target is voidable T and source == T (widening)
+    //   target is voidable T and source is void (void is the absent case of any voidable T)
+    private static bool IsAssignable(CufetType target, CufetType source)
+    {
+        if (target == source) return true;
+        if (target is VoidableType v)
+            return source == v.Inner || source is VoidType;
+        return false;
+    }
+
+    // "X but void is Y" → plain T.
+    // Checks that X is voidable T and Y is assignable to T; returns T.
+    private CufetType? InferButVoidDefault(ButVoidDefault bvd)
+    {
+        var leftType    = InferType(bvd.Voidable);
+        var defaultType = InferType(bvd.Default);
+
+        if (leftType is VoidableType v)
+        {
+            if (defaultType != null && !IsAssignable(v.Inner, defaultType))
+                throw new TypeException(FormatTypeError(
+                    $"the default value is a {FormatType(defaultType)}, but the voidable holds {FormatTypePlural(v.Inner)}",
+                    null, bvd.Line,
+                    $"use a {FormatType(defaultType)} as the default for a voidable {FormatType(v.Inner)}",
+                    $"The default after 'but void is' must be a {FormatType(v.Inner)}."));
+            return v.Inner;
+        }
+        if (leftType is VoidType)
+            return defaultType; // always-void: result is always the default
+        if (leftType != null)
+            throw new TypeException(FormatTypeError(
+                $"'{FormatType(leftType)}' can never be void",
+                null, bvd.Line,
+                $"use 'but void is' on a {FormatType(leftType)} value",
+                "Only voidable values can be void. 'but void is' is only needed for voidable values."));
+        return null;
+    }
+
+    // Returns the variable name and its narrowed inner type when the condition is "X is not void"
+    // and X is currently typed as voidable T in _env. Returns false otherwise.
+    private bool TryGetNotVoidNarrowing(
+        IExpression condition, out string? varName, out CufetType? narrowedTo)
+    {
+        varName    = null;
+        narrowedTo = null;
+        if (condition is not BinaryExpression { Op: TokenType.NotEqual, Right: VoidLiteral } bin)
+            return false;
+        if (bin.Left is not VariableReference vr) return false;
+        if (!_env.TryGetValue(vr.Name, out var info)) return false;
+        if (info.Type is not VoidableType vt) return false;
+        varName    = vr.Name;
+        narrowedTo = vt.Inner;
+        return true;
     }
 
     // Scans a statement list for definite return paths.
@@ -498,6 +600,8 @@ public sealed partial class TypeChecker
         NumberType                           => "number",
         TextType                             => "text",
         FactType                             => "fact",
+        VoidType                             => "void",
+        VoidableType { Inner: var inner }    => $"voidable {FormatType(inner)}",
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
         FunctionType ft                      => FormatFunctionType(ft),
         RecordType rt                        => FormatRecordType(rt),
@@ -528,6 +632,8 @@ public sealed partial class TypeChecker
         NumberType                           => "numbers",
         TextType                             => "text",
         FactType                             => "facts",
+        VoidType                             => "void values",
+        VoidableType { Inner: var inner }    => $"voidable {FormatTypePlural(inner)}",
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
         FunctionType                         => "functions",
         RecordType rt                        => FormatRecordType(rt),
