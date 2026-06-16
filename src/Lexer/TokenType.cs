@@ -13,6 +13,7 @@ public enum TokenType
     Becomes,  // keyword — reassign an existing name
     Dot,      // "." — statement terminator
     Colon,    // ":" — opens a block body
+    Permanently, // "permanently" — trailing adverb on Define; binding can't be reassigned
 
     // ── Control flow ──────────────────────────────────────────────────────
     If,        // "If"

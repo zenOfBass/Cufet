@@ -5165,4 +5165,101 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run("State 95 converted to number."));
     }
+
+    // ── Constants — 'permanently' ───────────────────────────────────────────
+
+    [Fact]
+    public void Permanent_DefineAndReadWorks()
+    {
+        Assert.Equal("3.14159", Run("Define pi as 3.14159 permanently.\nState pi."));
+    }
+
+    [Fact]
+    public void Permanent_ReassignIsStaticError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define x as 5 permanently.\n" +
+            "x becomes 6."));
+    }
+
+    [Fact]
+    public void Permanent_ComplexValueExpressionParses()
+    {
+        Assert.Equal("100", Run("Define max-score as 90 + 10 permanently.\nState max-score."));
+    }
+
+    [Fact]
+    public void Permanent_NonPermanentStillReassignable()
+    {
+        Assert.Equal("6", Run(
+            "Define x as 5.\n" +
+            "x becomes 6.\n" +
+            "State x."));
+    }
+
+    [Fact]
+    public void Permanent_MapEntryMutationStillAllowed()
+    {
+        Assert.Equal("31", Run(
+            "Define ages as a map with (\"alice\" : 30) permanently.\n" +
+            "In ages, the entry for \"alice\" becomes 31.\n" +
+            "State the entry for \"alice\" in ages but void is 0."));
+    }
+
+    [Fact]
+    public void Permanent_MapRebindIsStaticError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define ages as a map with (\"alice\" : 30) permanently.\n" +
+            "ages becomes a map with (\"bob\" : 25)."));
+    }
+
+    [Fact]
+    public void Permanent_RecordFieldMutationStillAllowed()
+    {
+        Assert.Equal("2022", Run(
+            "Define car as a record with (the year 2021) permanently.\n" +
+            "The year of car becomes 2022.\n" +
+            "State the year of car."));
+    }
+
+    [Fact]
+    public void Permanent_RecordRebindIsStaticError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define car as a record with (the year 2021) permanently.\n" +
+            "car becomes a record with (the year 2022)."));
+    }
+
+    [Fact]
+    public void Permanent_SeriesAddStillAllowed()
+    {
+        Assert.Equal("90\n85\n70", Run(
+            "Define scores as a series with (90, 85) permanently.\n" +
+            "Add 70 to scores.\n" +
+            "For each s in scores, repeat:\n" +
+            "    State s.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Permanent_SeriesElementAssignmentStillAllowed()
+    {
+        Assert.Equal("100", Run(
+            "Define scores as a series with (90, 85) permanently.\n" +
+            "The first of scores becomes 100.\n" +
+            "State the first of scores."));
+    }
+
+    [Fact]
+    public void Permanent_ErrorMessageNamesDeclarationLine()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define x as 5 permanently.\n" +
+            "State 1.\n" +
+            "x becomes 6."));
+        Assert.Contains("permanent", ex.Message);
+        Assert.Contains("line 1", ex.Message);
+        Assert.Contains("line 3", ex.Message);
+    }
 }

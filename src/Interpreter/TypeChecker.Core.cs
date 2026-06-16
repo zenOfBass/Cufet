@@ -189,7 +189,7 @@ public sealed class MappingType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(MappingType), KeyType, ValueType);
 }
 
-public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine);
+public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false);
 
 public sealed class TypeException : Exception
 {
@@ -365,7 +365,7 @@ public sealed partial class TypeChecker
                 define.Line,
                 "define a variable without a clear starting type",
                 "Start with a literal value or a defined variable so the type is clear from the beginning."));
-        _env[define.Name] = new TypeInfo(type, define.Value, define.Line);
+        _env[define.Name] = new TypeInfo(type, define.Value, define.Line, define.Permanent);
     }
 
     private void CheckBecomes(BecomesStatement becomes)
@@ -375,6 +375,14 @@ public sealed partial class TypeChecker
 
         if (!_env.TryGetValue(becomes.Name, out var existing))
             return;
+
+        if (existing.Permanent)
+            throw new TypeException(FormatTypeError(
+                $"'{becomes.Name}' is permanent",
+                $"It was fixed with a value on line {existing.EstablishingLine} and can't be reassigned",
+                becomes.Line,
+                "reassign it",
+                "If it needs to change, define it without 'permanently'."));
 
         var rhsType = InferType(becomes.Value);
         if (rhsType == null) return;

@@ -80,8 +80,15 @@ public sealed class Parser
             ? ParseSeriesLiteralExpr()
             : ParseExpression();
         SkipNoise();
+        bool permanent = false;
+        if (Peek().Type == TokenType.Permanently)
+        {
+            Advance(); // consume 'permanently'
+            permanent = true;
+            SkipNoise();
+        }
         Consume(TokenType.Dot);
-        return new DefineStatement(name, value, line);
+        return new DefineStatement(name, value, permanent, line);
     }
 
     // Define object <name> with (<fields>) [: <bind-stmts> Done.].

@@ -149,6 +149,7 @@ public sealed class Lexer
             "range"     => TokenType.Range,
             "counting"  => TokenType.Counting,
             "by"        => TokenType.By,
+            "permanently" => TokenType.Permanently,
             "voidable"  => TokenType.Voidable,
             "but"       => TokenType.But,
             "map"       => TokenType.Map,

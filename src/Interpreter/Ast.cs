@@ -67,7 +67,9 @@ public sealed record RecordNamedSetStatement(
 ) : IStatement;
 
 public sealed record StateStatement(IExpression Value)                        : IStatement;
-public sealed record DefineStatement(string Name, IExpression Value, int Line)  : IStatement;
+// Permanent: true when declared with the trailing 'permanently' adverb — the binding
+// (not its contents) can never be reassigned with 'becomes'.
+public sealed record DefineStatement(string Name, IExpression Value, bool Permanent, int Line) : IStatement;
 public sealed record BecomesStatement(string Name, IExpression Value, int Line) : IStatement;
 
 public sealed record ConditionArm(IExpression Condition, IReadOnlyList<IStatement> Body);
