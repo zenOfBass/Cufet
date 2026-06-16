@@ -6006,4 +6006,251 @@ public class InterpreterTests
             "    Done.\n" +
             "Done."));
     }
+
+    // ── Failures ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Failure_ButOnFailure_TakesDefault()
+    {
+        Assert.Equal("0", Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return a failure \"bad input\".\n" +
+            "Done.\n" +
+            "Define result as Cast parse on (\"x\") but on failure 0.\n" +
+            "State result."));
+    }
+
+    [Fact]
+    public void Failure_ButOnFailure_TakesSuccessValue()
+    {
+        Assert.Equal("42", Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return 42.\n" +
+            "Done.\n" +
+            "Define result as Cast parse on (\"42\") but on failure 0.\n" +
+            "State result."));
+    }
+
+    [Fact]
+    public void Failure_TryBlock_BodySucceeds()
+    {
+        Assert.Equal("42", Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return 42.\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define result as Cast parse on (\"42\").\n" +
+            "    State result.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State 0.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Failure_TryBlock_BodyFails_HandlerRuns()
+    {
+        Assert.Equal("0", Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return a failure \"bad\".\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define result as Cast parse on (\"x\").\n" +
+            "    State result.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State 0.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Failure_TryBlock_TheFailureBindingExposesMessage()
+    {
+        Assert.Equal("bad input", Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return a failure \"bad input\".\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define result as Cast parse on (\"x\").\n" +
+            "    State result.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State the message of the failure.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Failure_TryBlock_CategoryPresentAndAccessible()
+    {
+        Assert.Equal("bad-input", Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return a failure \"bad\" of category \"bad-input\".\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define result as Cast parse on (\"x\").\n" +
+            "    State result.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State the category of the failure but void is \"none\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Failure_TryBlock_CategoryAbsentIsVoid()
+    {
+        Assert.Equal("none", Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return a failure \"bad\".\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define result as Cast parse on (\"x\").\n" +
+            "    State result.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State the category of the failure but void is \"none\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Failure_Propagate_ReturnsSuccessValueToOuterCaller()
+    {
+        Assert.Equal("42", Run(
+            "Bind number or failure to inner, given (the text s):\n" +
+            "    Return 42.\n" +
+            "Done.\n" +
+            "Bind number or failure to outer, given (the text s):\n" +
+            "    Return Cast inner on (s) or pass the failure off.\n" +
+            "Done.\n" +
+            "Define result as Cast outer on (\"42\") but on failure 0.\n" +
+            "State result."));
+    }
+
+    [Fact]
+    public void Failure_Propagate_PropagatesFailureToOuterCaller()
+    {
+        Assert.Equal("propagated", Run(
+            "Bind number or failure to inner, given (the text s):\n" +
+            "    Return a failure \"propagated\".\n" +
+            "Done.\n" +
+            "Bind number or failure to outer, given (the text s):\n" +
+            "    Return Cast inner on (s) or pass the failure off.\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define result as Cast outer on (\"x\").\n" +
+            "    State result.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State the message of the failure.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Failure_TypeChecker_NonFallibleCannotUseButOnFailure()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number to get-num:\n" +
+            "    Return 42.\n" +
+            "Done.\n" +
+            "Define result as Cast get-num on () but on failure 0."));
+    }
+
+    [Fact]
+    public void Failure_TypeChecker_PropagateFromNonFallibleThrows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number or failure to inner, given (the text s):\n" +
+            "    Return a failure \"bad\".\n" +
+            "Done.\n" +
+            "Bind number to outer:\n" +
+            "    Return Cast inner on (\"x\") or pass the failure off.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Failure_TypeChecker_WrongDefaultTypeForButOnFailure()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return a failure \"bad\".\n" +
+            "Done.\n" +
+            "Define result as Cast parse on (\"x\") but on failure \"wrong type\"."));
+    }
+
+    [Fact]
+    public void Failure_CategoryVoidComparedToTextIsFalse()
+    {
+        // category is absent (void), compared directly to a text value — must yield false, not an error.
+        Assert.Equal("no match", Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return a failure \"bad\".\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define result as Cast parse on (\"x\").\n" +
+            "    State result.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    If the category of the failure is \"bad-input\":\n" +
+            "        State \"matched\".\n" +
+            "    Done.\n" +
+            "    Otherwise:\n" +
+            "        State \"no match\".\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Failure_CategoryPresentComparedToTextIsTrue()
+    {
+        Assert.Equal("matched", Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return a failure \"bad\" of category \"bad-input\".\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define result as Cast parse on (\"x\").\n" +
+            "    State result.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    If the category of the failure is \"bad-input\":\n" +
+            "        State \"matched\".\n" +
+            "    Done.\n" +
+            "    Otherwise:\n" +
+            "        State \"no match\".\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Failure_CategoryVoidIsNotTextIsTrue()
+    {
+        // void category is not "literal" → true (complement of the false case)
+        Assert.Equal("is not matched", Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return a failure \"bad\".\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define result as Cast parse on (\"x\").\n" +
+            "    State result.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    If the category of the failure is not \"bad-input\":\n" +
+            "        State \"is not matched\".\n" +
+            "    Done.\n" +
+            "    Otherwise:\n" +
+            "        State \"matched\".\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Failure_UnhandledAtTopLevelGivesRuntimeException()
+    {
+        // A failure that escapes without being handled should produce a RuntimeException,
+        // not a raw C# FailureUnwind propagating out of Execute(Program).
+        Assert.Throws<RuntimeException>(() => Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return a failure \"something went wrong\".\n" +
+            "Done.\n" +
+            "Define result as Cast parse on (\"x\").\n" +
+            "State result."));
+    }
 }

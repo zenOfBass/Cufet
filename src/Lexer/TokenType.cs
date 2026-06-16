@@ -112,7 +112,17 @@ public enum TokenType
 
     // ── Voidable ──────────────────────────────────────────────────────────────
     Voidable,  // "voidable"  — in "a voidable number" type annotation
-    But,       // "but"       — in "<expr> but void is <default>"
+    But,       // "but"       — in "<expr> but void is <default>" / "<expr> but on failure <default>"
+
+    // ── Failures (recoverable errors as values) ─────────────────────────────────
+    Failure,  // "failure"  — in "a failure \"msg\" [of category \"tag\"]" (literal) / "the failure" (bare
+              //               reference) / "<type> or failure" (return type) / "but on failure"
+    Category, // "category" — in "of category \"tag\""; NOT excluded from IsFieldNameToken —
+              //               "the category of the failure" must reach the normal named-access path
+    Try,      // "try"      — in "Try to: ... Done."
+    Case,     // "case"     — in "In case of failure:" / "In case of exception (...):"
+    Pass,     // "pass"     — in "or pass the failure off"
+    Off,      // "off"      — in "or pass the failure off"
 
     // ── Maps ──────────────────────────────────────────────────────────────────
     Map,    // "map"   — type annotation and literal

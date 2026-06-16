@@ -16,6 +16,22 @@ public sealed partial class Interpreter
         public ReturnException(object? value) { Value = value; }
     }
 
+    // Runtime representation of a failure value produced by 'return a failure "..."'.
+    private sealed class FailureValue
+    {
+        public string  Message  { get; }
+        public string? Category { get; }
+        public FailureValue(string message, string? category) { Message = message; Category = category; }
+    }
+
+    // Used internally to propagate a failure through the call stack inside Try blocks.
+    // Never escapes to the user — caught by TryStatement, FailureFallback, or FailurePropagate.
+    private sealed class FailureUnwind : Exception
+    {
+        public FailureValue Value { get; }
+        public FailureUnwind(FailureValue value) { Value = value; }
+    }
+
     // The singleton runtime representation of the void value (the absent case of any voidable T).
     // Distinct from C# null, which means "this function returned nothing" in the call machinery.
     private sealed class VoidValue
@@ -127,7 +143,16 @@ public sealed partial class Interpreter
         }
 
         foreach (var stmt in program.Statements)
-            Execute(stmt);
+        {
+            try { Execute(stmt); }
+            catch (FailureUnwind fu)
+            {
+                throw new RuntimeException(
+                    $"A failure escaped without being handled: \"{fu.Value.Message}\"" +
+                    (fu.Value.Category != null ? $" (category: \"{fu.Value.Category}\")" : "") +
+                    ". Use a Try block, 'but on failure', or 'or pass the failure off'.");
+            }
+        }
     }
 
     private void Execute(IStatement stmt)
@@ -350,6 +375,10 @@ public sealed partial class Interpreter
             case ReturnStatement ret:
                 throw new ReturnException(ret.Value != null ? Evaluate(ret.Value) : null);
 
+            case TryStatement trySt:
+                ExecuteTryStatement(trySt);
+                break;
+
             case ForEachStatement fe:
             {
                 var seriesVal = Evaluate(fe.Series);
@@ -490,9 +519,7 @@ public sealed partial class Interpreter
         RecordNamedAccess rna => EvaluateRecordNamedAccess(rna),
         ObjectLiteral    ol   => EvaluateObjectLiteral(ol),
         PossessiveAccess pa   => EvaluatePossessiveAccess(pa),
-        CastExpression   cast => ExecuteCallExpr(cast.Function, cast.Args, cast.Line)
-                                     ?? throw new RuntimeException(
-                                         $"{FuncDisplayName(cast.Function)} gives nothing back — it can't be used as a value (line {cast.Line})."),
+        CastExpression   cast => EvaluateCastExpr(cast),
         TextJoin   tj => EvaluateTextJoin(tj),
         TextConvert tc => (object)Format(Evaluate(tc.Value)),
         NumberConvert nc => EvaluateNumberConvert(nc),
@@ -507,6 +534,9 @@ public sealed partial class Interpreter
         TextTrim         trim    => EvaluateTextTrim(trim),
         RangeExpression re  => EvaluateRangeExpr(re),
         VoidLiteral        _  => VoidValue.Instance,
+        FailureLiteral fl     => EvaluateFailureLiteral(fl),
+        FailureFallback ff    => EvaluateFailureFallback(ff),
+        FailurePropagate fp   => EvaluateFailurePropagate(fp),
         ButVoidDefault bvd    => EvaluateButVoidDefault(bvd),
         MapLiteral     ml     => EvaluateMapLiteral(ml),
         MapLookup      mlu    => EvaluateMapLookup(mlu),
@@ -587,6 +617,17 @@ public sealed partial class Interpreter
             if (TryFindNamedFieldValue(ov, rna.FieldName, out var found)) return found;
             throw new RuntimeException(
                 $"Object of type '{ov.TypeName}' has no field named '{rna.FieldName}' (line {rna.Line}).");
+        }
+
+        if (target is FailureValue fv)
+        {
+            return rna.FieldName switch
+            {
+                "message"  => (object)fv.Message,
+                "category" => fv.Category != null ? (object)fv.Category : VoidValue.Instance,
+                _ => throw new RuntimeException(
+                    $"A failure only has 'message' and 'category' fields (line {rna.Line}).")
+            };
         }
 
         if (target is not RecordValue rv)

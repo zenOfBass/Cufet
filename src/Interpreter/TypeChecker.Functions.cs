@@ -175,6 +175,11 @@ public sealed partial class TypeChecker
                 "use its result as a value",
                 "Cast it as a statement instead, or change its return type if you need a result."));
 
+        // Inside a Try block, if control reaches the next line after a fallible call,
+        // the failure branch was not taken — unwrap FailureType(T) to T automatically.
+        if (_inTryBlock && funcType.ReturnType is FailureType frt)
+            return frt.Inner;
+
         return funcType.ReturnType;
     }
 

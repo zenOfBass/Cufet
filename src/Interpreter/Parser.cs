@@ -49,6 +49,7 @@ public sealed class Parser
             TokenType.Bind       => ParseBindStatement(),
             TokenType.Cast       => ParseCastStatementWrapper(),
             TokenType.Return     => ParseReturnStatement(),
+            TokenType.Try        => ParseTryStatement(),
             TokenType.In         => ParseMapSetStatement(),
             _ => throw new ParseException(tok, "statement keyword"),
         };
@@ -966,20 +967,45 @@ public sealed class Parser
     {
         var left = ParseExprOr();
         SkipNoise();
-        if (Peek().Type != TokenType.But) return left;
-        var line = Advance().Line; // consume 'but'
-        SkipNoise();
-        Consume(TokenType.Void);
-        SkipNoise();
-        Consume(TokenType.Is);
-        SkipNoise();
-        return new ButVoidDefault(left, ParseExprOr(), line);
+
+        if (Peek().Type == TokenType.But)
+        {
+            var line = Advance().Line; // consume 'but'
+            SkipNoise();
+            if (Peek().Type == TokenType.On)
+            {
+                Advance(); // consume 'on'
+                SkipNoise();
+                Consume(TokenType.Failure);
+                SkipNoise();
+                return new FailureFallback(left, ParseExprOr(), line);
+            }
+            Consume(TokenType.Void);
+            SkipNoise();
+            Consume(TokenType.Is);
+            SkipNoise();
+            return new ButVoidDefault(left, ParseExprOr(), line);
+        }
+
+        if (Peek().Type == TokenType.Or && PeekAfterCurrent() == TokenType.Pass)
+        {
+            var line = Advance().Line; // consume 'or'
+            SkipNoise();
+            Consume(TokenType.Pass);
+            SkipNoise();        // eats 'the'
+            Consume(TokenType.Failure);
+            SkipNoise();
+            Consume(TokenType.Off);
+            return new FailurePropagate(left, line);
+        }
+
+        return left;
     }
 
     private IExpression ParseExprOr()
     {
         var left = ParseExprAnd();
-        while (Peek().Type == TokenType.Or)
+        while (Peek().Type == TokenType.Or && PeekAfterCurrent() != TokenType.Pass)
         {
             var line = Advance().Line;
             SkipNoise();
@@ -1342,6 +1368,34 @@ public sealed class Parser
             {
                 var line = Advance().Line;
                 baseExpr = new VoidLiteral(line);
+                break;
+            }
+            case TokenType.Failure:
+            {
+                // The leading article is already stripped by SkipNoise, so 'a failure "..."'
+                // and bare 'the failure' are indistinguishable until we look at what follows:
+                // a String immediately after means the literal constructor; anything else means
+                // the bare implicit reference (only meaningful inside a failure handler).
+                var failTok = Advance(); // consume 'failure'
+                if (Peek().Type == TokenType.String)
+                {
+                    var message = new StringLiteral(Advance().Lexeme);
+                    SkipNoise();
+                    IExpression? category = null;
+                    if (Peek().Type == TokenType.Of)
+                    {
+                        Advance(); // consume 'of'
+                        SkipNoise();
+                        Consume(TokenType.Category);
+                        SkipNoise();
+                        category = ParseExpression();
+                    }
+                    baseExpr = new FailureLiteral(message, category, failTok.Line);
+                }
+                else
+                {
+                    baseExpr = new VariableReference("the failure", failTok.Line);
+                }
                 break;
             }
             case TokenType.Cast:
@@ -1766,6 +1820,14 @@ public sealed class Parser
         }
         var baseType = ParseTypeAnnotation();
         SkipNoise();
+        if (Peek().Type == TokenType.Or && PeekAfterCurrent() == TokenType.Failure)
+        {
+            Advance(); // consume 'or'
+            SkipNoise();
+            Consume(TokenType.Failure);
+            SkipNoise();
+            return new FailureType(baseType);
+        }
         if (Peek().Type != TokenType.FunctionKw)
             return baseType;
         Advance(); SkipNoise(); // consume 'function'
@@ -1945,6 +2007,32 @@ public sealed class Parser
         }
 
         return new CastExpression(funcExpr, [], line);
+    }
+
+    private TryStatement ParseTryStatement()
+    {
+        var line = Consume(TokenType.Try).Line;
+        SkipNoise();
+        Consume(TokenType.To);
+        SkipNoise();
+        Consume(TokenType.Colon);
+        _nestDepth++;
+        var body = ParseLoopBody();
+        _nestDepth--;
+        SkipNoise();
+        Consume(TokenType.In);
+        SkipNoise();
+        Consume(TokenType.Case);
+        SkipNoise();
+        Consume(TokenType.Of);
+        SkipNoise();
+        Consume(TokenType.Failure);
+        SkipNoise();
+        Consume(TokenType.Colon);
+        _nestDepth++;
+        var handler = ParseLoopBody();
+        _nestDepth--;
+        return new TryStatement(body, handler, line);
     }
 
     private ReturnStatement ParseReturnStatement()

@@ -11,6 +11,7 @@ public abstract class CufetType
     public static readonly CufetType Text   = new TextType();
     public static readonly CufetType Fact   = new FactType();
     public static readonly CufetType Void   = new VoidType();
+    public static readonly CufetType FailureMarker = new FailureMarkerType();
 
     public abstract override bool Equals(object? obj);
     public abstract override int GetHashCode();
@@ -189,6 +190,26 @@ public sealed class MappingType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(MappingType), KeyType, ValueType);
 }
 
+// The type of a bare 'a failure "..."' literal, and of 'the failure' inside a handler (a fixed
+// pseudo-record exposing 'message' (text) and 'category' (voidable text); see InferRecordNamedAccess).
+public sealed class FailureMarkerType : CufetType
+{
+    public override bool Equals(object? obj) => obj is FailureMarkerType;
+    public override int GetHashCode() => typeof(FailureMarkerType).GetHashCode();
+}
+
+// a T or failure — holds T, or a failure. The richer sibling of voidable T (which carries no
+// "why"). T widens to "T or failure"; a bare failure widens to "T or failure" for any T.
+// "T or failure" does NOT collapse to T except inside a Try block's success path, via
+// 'but on failure <default>', or via 'or pass the failure off'.
+public sealed class FailureType : CufetType
+{
+    public CufetType Inner { get; }
+    public FailureType(CufetType inner) => Inner = inner;
+    public override bool Equals(object? obj) => obj is FailureType f && Inner == f.Inner;
+    public override int GetHashCode() => HashCode.Combine(typeof(FailureType), Inner);
+}
+
 public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false);
 
 public sealed class TypeException : Exception
@@ -211,6 +232,9 @@ public sealed partial class TypeChecker
     // When true, the first Return statement encountered sets _expectedReturnType
     // instead of validating against it. Used during lambda return-type inference.
     private bool       _inferringLambdaReturn   = false;
+    // When true, CastExpression results of type FailureType(T) are auto-unwrapped to T
+    // because control only reaches the next line inside a Try block if the call succeeded.
+    private bool       _inTryBlock              = false;
 
     public void Check(Program program)
     {
@@ -393,6 +417,9 @@ public sealed partial class TypeChecker
             case ReturnStatement ret:
                 CheckReturn(ret);
                 break;
+            case TryStatement trySt:
+                CheckTryStatement(trySt);
+                break;
             case ObjectDefinition od:
                 CheckObjectDefinition(od);
                 break;
@@ -530,6 +557,9 @@ public sealed partial class TypeChecker
         TextTrim trim                                                                                    => InferTextTrim(trim),
         RangeExpression re                                                                               => InferRangeExpr(re),
         ButVoidDefault bvd                                                                               => InferButVoidDefault(bvd),
+        FailureLiteral fl                                                                                => InferFailureLiteral(fl),
+        FailureFallback ff                                                                               => InferFailureFallback(ff),
+        FailurePropagate fp                                                                              => InferFailurePropagate(fp),
         MapLiteral ml                                                                                    => InferMapLiteral(ml),
         MapLookup  mlu                                                                                   => InferMapLookup(mlu),
         MapHasKey  mhk                                                                                   => InferMapHasKey(mhk),
@@ -589,6 +619,13 @@ public sealed partial class TypeChecker
             TokenType.Equal or TokenType.NotEqual
                 when (l is VoidableType && r is VoidType) || (l is VoidType && r is VoidableType)
                 => CufetType.Fact,
+            // voidable T compared directly to a plain T (or vice versa) — void is simply
+            // unequal to any T, so this is total and needs no narrowing first. Lets a
+            // voidable value (e.g. a failure's category) be tested against a concrete
+            // value directly: 'the category of the failure is "bad-input"'.
+            TokenType.Equal or TokenType.NotEqual
+                when (l is VoidableType lv && r == lv.Inner) || (r is VoidableType rv && l == rv.Inner)
+                => CufetType.Fact,
             TokenType.Equal or TokenType.NotEqual
                 when l == r
                 => CufetType.Fact,
@@ -632,6 +669,8 @@ public sealed partial class TypeChecker
         if (target == source) return true;
         if (target is VoidableType v)
             return source == v.Inner || source is VoidType;
+        if (target is FailureType f)
+            return source == f.Inner || source is FailureMarkerType;
         return false;
     }
 
@@ -723,6 +762,8 @@ public sealed partial class TypeChecker
         InterfaceType it                     => it.Name,
         MapType mt                           => $"map from {FormatType(mt.KeyType)} to {FormatType(mt.ValueType)}",
         MappingType                          => "mapping",
+        FailureMarkerType                    => "failure",
+        FailureType { Inner: var inner }     => $"{FormatType(inner)} or failure",
         _                                    => "<unknown>",
     };
 
@@ -757,6 +798,8 @@ public sealed partial class TypeChecker
         InterfaceType it                     => $"{it.Name} values",
         MapType mt                           => $"maps from {FormatType(mt.KeyType)} to {FormatType(mt.ValueType)}",
         MappingType                          => "mappings",
+        FailureMarkerType                    => "failures",
+        FailureType { Inner: var inner }     => $"{FormatTypePlural(inner)} or failures",
         _                                    => "<unknown>",
     };
 

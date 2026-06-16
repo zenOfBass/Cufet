@@ -236,6 +236,30 @@ public sealed record ButVoidDefault(IExpression Voidable, IExpression Default, i
 // alice's age becomes X  /  one's age becomes X  — possessive field mutation
 public sealed record PossessiveSetStatement(IExpression Target, string Member, IExpression Value, int Line) : IStatement;
 
+// ── Failures (recoverable errors as values) ────────────────────────────────────
+
+// a failure "message" [of category "tag"] — a recoverable-problem value. Category null = no tag.
+public sealed record FailureLiteral(IExpression Message, IExpression? Category, int Line) : IExpression;
+
+// <fallible-expr> but on failure <default-expr>
+// Produces plain T: the value on success, the default on failure. Mirrors ButVoidDefault.
+public sealed record FailureFallback(IExpression Fallible, IExpression Default, int Line) : IExpression;
+
+// <fallible-expr> or pass the failure off
+// On failure, returns the failure from the enclosing function immediately (requires the
+// enclosing function to itself be fallible). On success, yields the plain value.
+public sealed record FailurePropagate(IExpression Fallible, int Line) : IExpression;
+
+// Try to: <Body> Done. In case of failure: <FailureHandler> Done.
+// If a fallible call's result reaches a context inside Body that doesn't explicitly handle it
+// (no 'but on failure' / 'or pass the failure off'), control transfers to FailureHandler, with
+// 'the failure' bound (see VariableReference("the failure", ...)).
+public sealed record TryStatement(
+    IReadOnlyList<IStatement> Body,
+    IReadOnlyList<IStatement> FailureHandler,
+    int Line
+) : IStatement;
+
 // ── Maps ──────────────────────────────────────────────────────────────────────
 
 // a map with ("k":v, ...) — populated; KeyType/ValueType null (infer from pairs)

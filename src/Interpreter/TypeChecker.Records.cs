@@ -99,6 +99,21 @@ public sealed partial class TypeChecker
             };
         }
 
+        // Failure values expose 'message' (text) and 'category' (voidable text).
+        if (recordType is FailureMarkerType)
+        {
+            return rna.FieldName switch
+            {
+                "message"  => CufetType.Text,
+                "category" => new VoidableType(CufetType.Text),
+                _ => throw new TypeException(FormatTypeError(
+                    "a failure only has 'message' and 'category' fields",
+                    null, rna.Line,
+                    $"access field '{rna.FieldName}' on a failure",
+                    "Use 'the message of the failure' or 'the category of the failure'."))
+            };
+        }
+
         // Named field access also works on objects (the <name> of <object>).
         // Includes promoted fields from embedded types and the embed handle itself.
         if (recordType is ObjectType ot)
