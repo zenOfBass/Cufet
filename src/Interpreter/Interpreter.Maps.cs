@@ -43,7 +43,8 @@ public sealed partial class Interpreter
         var mapVal = Evaluate(hasEntry.Map);
         if (mapVal is not Dictionary<object, object> dict)
             throw new RuntimeException($"Expected a map for 'has an entry for' on line {hasEntry.Line}.");
-        return (object)dict.ContainsKey(Evaluate(hasEntry.Key));
+        // Diverges from 'has a key': a slot holding an explicit void value counts as no entry.
+        return (object)(dict.TryGetValue(Evaluate(hasEntry.Key), out var val) && val is not VoidValue);
     }
 
     private object EvaluateMapSize(MapSize size)

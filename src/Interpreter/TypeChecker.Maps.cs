@@ -106,7 +106,9 @@ public sealed partial class TypeChecker
                 $"look up using a {FormatType(keyType)} key",
                 $"Keys in this map are {FormatTypePlural(mt.KeyType)}."));
 
-        return new VoidableType(mt.ValueType);
+        // Flatten: a map whose value type is already voidable must not produce
+        // 'voidable voidable V' from a lookup — the nesting never surfaces to the user.
+        return mt.ValueType is VoidableType ? mt.ValueType : new VoidableType(mt.ValueType);
     }
 
     private CufetType InferMapHasKey(MapHasKey hasKey)

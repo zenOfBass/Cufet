@@ -4691,6 +4691,132 @@ public class InterpreterTests
             "Done."));
     }
 
+    // ── Maps — voidable values ───────────────────────────────────────────────
+
+    [Fact]
+    public void VoidableMap_DeclareAndConstruct()
+    {
+        Assert.Equal("0", Run(
+            "Define ages as a new map from text to voidable number.\n" +
+            "State the size of ages."));
+    }
+
+    [Fact]
+    public void VoidableMap_SetPlainValueWorks()
+    {
+        Assert.Equal("30", Run(
+            "Define ages as a new map from text to voidable number.\n" +
+            "In ages, the entry for \"alice\" becomes 30.\n" +
+            "State the entry for \"alice\" in ages but void is 0."));
+    }
+
+    [Fact]
+    public void VoidableMap_SetVoidWorks()
+    {
+        Assert.Equal("void", Run(
+            "Define ages as a new map from text to voidable number.\n" +
+            "In ages, the entry for \"bob\" becomes void.\n" +
+            "State the entry for \"bob\" in ages."));
+    }
+
+    [Fact]
+    public void VoidableMap_LookupTypeIsFlatVoidable_NoNarrowingErrorOnDoubleVoidCheck()
+    {
+        // If the type were 'voidable voidable number', 'is not void' would narrow to
+        // 'voidable number', and using it directly as a number would be a static error.
+        Assert.Equal("31", Run(
+            "Define ages as a new map from text to voidable number.\n" +
+            "In ages, the entry for \"alice\" becomes 30.\n" +
+            "Define v as the entry for \"alice\" in ages.\n" +
+            "If v is not void:\n" +
+            "    State v + 1.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State 0.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void VoidableMap_HasKey_TrueForVoidValue()
+    {
+        // The slot exists even though its value is void.
+        Assert.Equal("true", Run(
+            "Define ages as a new map from text to voidable number.\n" +
+            "In ages, the entry for \"bob\" becomes void.\n" +
+            "State ages has a key for \"bob\"."));
+    }
+
+    [Fact]
+    public void VoidableMap_HasEntry_FalseForVoidValue()
+    {
+        // Diverges from has-a-key: a void-valued slot is not a present entry.
+        Assert.Equal("false", Run(
+            "Define ages as a new map from text to voidable number.\n" +
+            "In ages, the entry for \"bob\" becomes void.\n" +
+            "State ages has an entry for \"bob\"."));
+    }
+
+    [Fact]
+    public void VoidableMap_HasKey_FalseWhenAbsent()
+    {
+        Assert.Equal("false", Run(
+            "Define ages as a new map from text to voidable number.\n" +
+            "State ages has a key for \"carol\"."));
+    }
+
+    [Fact]
+    public void VoidableMap_HasEntry_TrueForRealValue()
+    {
+        Assert.Equal("true", Run(
+            "Define ages as a new map from text to voidable number.\n" +
+            "In ages, the entry for \"alice\" becomes 30.\n" +
+            "State ages has an entry for \"alice\"."));
+    }
+
+    [Fact]
+    public void VoidableMap_CanonicalPattern_DistinguishesAbsentFromVoidValue()
+    {
+        Assert.Equal("present, but void\nno such key", Run(
+            "Define ages as a new map from text to voidable number.\n" +
+            "In ages, the entry for \"bob\" becomes void.\n" +
+            "If ages has a key for \"bob\":\n" +
+            "    Define v as the entry for \"bob\" in ages.\n" +
+            "    If v is not void:\n" +
+            "        State v.\n" +
+            "    Done.\n" +
+            "    Otherwise:\n" +
+            "        State \"present, but void\".\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"no such key\".\n" +
+            "Done.\n" +
+            "If ages has a key for \"carol\":\n" +
+            "    State \"found\".\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"no such key\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void VoidableMap_UpdateVoidEntryToRealValue()
+    {
+        Assert.Equal("42", Run(
+            "Define ages as a new map from text to voidable number.\n" +
+            "In ages, the entry for \"bob\" becomes void.\n" +
+            "In ages, the entry for \"bob\" becomes 42.\n" +
+            "State the entry for \"bob\" in ages but void is 0."));
+    }
+
+    [Fact]
+    public void VoidableMap_TypeError_SetWrongType()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define ages as a new map from text to voidable number.\n" +
+            "In ages, the entry for \"bob\" becomes \"oops\"."));
+    }
+
     // ── Closures ──────────────────────────────────────────────────────────
 
     [Fact]

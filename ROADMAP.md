@@ -16,6 +16,10 @@ language is considered stable.
 **Core**
 - Values and state: `Define name as value.` (declare), `name becomes value.`
   (reassign). No null — every value is initialized.
+- Constants: `Define name as value permanently.` — the binding can never be
+  reassigned (static error on `becomes`). Shallow: fixes the binding only, not
+  the contents — a permanent map/record/object can still mutate its
+  entries/fields, since that's not rebinding the name.
 - Types: static, strong, inferred. Base types `number` (decimal), `text`,
   `fact` (boolean), `series of T`, function types, record types, object types.
 - Arithmetic: `+ - * / %` with conventional precedence, whitespace-disambiguated.
@@ -43,9 +47,14 @@ language is considered stable.
   magnitude — direction still comes from start-vs-end — and the endpoint is
   included only if the step lands on it exactly.
 - Maps: `a map from text to number` — homogeneous typed key→value. Keys `number`
-  or `text`. Lookup (`the entry for K in M`) returns `voidable V`; set via
-  `becomes`; `has a key for` / `has an entry for`; `remove`; `the size of`;
-  iterate gives `mapping`s (`the key of` / `the value of`). Reference-typed.
+  or `text`. Values can themselves be `voidable V` — a present key can hold an
+  explicitly-void value, distinct from an absent key. Lookup (`the entry for K
+  in M`) always returns a **flat** `voidable V`, never `voidable voidable V`,
+  even when the map's value type is already voidable. `has a key for` (slot
+  present) and `has an entry for` (value present and non-void) agree for
+  ordinary maps but **diverge** for voidable-valued ones. Set via `becomes`;
+  `remove`; `the size of`; iterate gives `mapping`s (`the key of` / `the value
+  of`). Reference-typed.
 
 **Text**
 - `joined to` (concatenation, text-to-text only, chains), `converted to text`
@@ -137,21 +146,12 @@ language is considered stable.
   length exist. Substring / slicing, contains / find, split, replace,
   case-change, and trim do not yet. A later text slice.
 
-- **Constant declarations** — Cufet is mutable-by-default. Add an optional,
-  explicit way to declare a value that cannot change. Backward-compatible. Form
-  undecided.
-
 ### Types and data structures
 
 - **Recursive data structures (linked lists, trees)** — now expressible, since
   the voidable type provides the "or nothing" terminator a recursive structure
   needs (a node's `next` is `a voidable node`). Unblocked by the voidable type;
   not yet built out or documented as a pattern.
-
-- **Voidable-valued maps** (`a map from text to voidable number`) — deferred.
-  Opens a nested-voidable case (`voidable voidable T`) that needs a flattening
-  rule. When added, `has a key for` and `has an entry for` (currently aliased,
-  since a value can't be void) diverge meaningfully.
 
 - **Heterogeneous collections (`atlas`)** — a mixed-type map/series. Deliberately
   *not* built, because it would require **tagged unions / sum types** (so the

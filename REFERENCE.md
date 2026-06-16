@@ -771,6 +771,36 @@ In ages, the entry for "alice" becomes 30.
 If ages has a key for "alice", ...        ← is the key present?
 If ages has an entry for "alice", ...     ← is the value present (not void)?
 ```
+For an ordinary (non-voidable-valued) map these two questions always agree —
+a present key always has a real value. They only **diverge** for a
+voidable-valued map (below): a key can be present with its value explicitly
+`void`, in which case `has a key` is true but `has an entry` is false.
+
+**Voidable values** — a map's value type can itself be `voidable V`:
+```
+Define ages as a new map from text to voidable number.
+In ages, the entry for "alice" becomes 30.
+In ages, the entry for "bob" becomes void.        ← present key, void value
+```
+A lookup always returns a **flat** `voidable V` — never `voidable voidable V`,
+even when the map's value type is already voidable. The nesting never surfaces.
+This means a plain lookup can't tell "key absent" apart from "key present, but
+its value is void" — both produce `void`. Distinguish them with `has a key`
+first, then look up:
+```
+If ages has a key for "bob":
+    Define v as the entry for "bob" in ages.      ← void here means the VALUE is void
+    If v is not void:
+        State v.
+    Done.
+    Otherwise:
+        State "present, but void".
+    Done.
+Done.
+Otherwise:
+    State "no such key".
+Done.
+```
 
 **Remove and size:**
 ```
