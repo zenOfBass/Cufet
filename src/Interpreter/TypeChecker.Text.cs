@@ -200,4 +200,66 @@ public sealed partial class TypeChecker
 
         return CufetType.Text;
     }
+
+    // ── Text operations (Slice 3: replace, case, trim) ────────────────────────
+
+    private CufetType InferTextReplace(TextReplace tr)
+    {
+        var textType = InferType(tr.Text);
+        if (textType != null && textType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "'replace ... with ... in ...' works on text only",
+                null, tr.Line,
+                $"replace inside a {FormatType(textType)}",
+                "Only text can be searched and replaced. Convert the value to text first if needed."));
+
+        var oldType = InferType(tr.Old);
+        if (oldType != null && oldType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "the text being replaced must be text",
+                null, tr.Line,
+                $"replace a {FormatType(oldType)}",
+                "Use a text value as the target, e.g. \"a\"."));
+
+        var newType = InferType(tr.New);
+        if (newType != null && newType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "the replacement must be text",
+                null, tr.Line,
+                $"replace with a {FormatType(newType)}",
+                "Use a text value as the replacement, e.g. \"X\" (or \"\" to delete)."));
+
+        if (tr.Old is StringLiteral { Value: "" })
+            throw new TypeException(FormatTypeError(
+                "'replace' needs a non-empty target",
+                null, tr.Line,
+                "replace an empty piece of text",
+                "Use a target with at least one character."));
+
+        return CufetType.Text;
+    }
+
+    private CufetType InferTextCase(TextCase tc)
+    {
+        var textType = InferType(tc.Text);
+        if (textType != null && textType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "'in uppercase'/'in lowercase' work on text only",
+                null, tc.Line,
+                $"change the case of a {FormatType(textType)}",
+                "Only text has a case to change. Convert the value to text first if needed."));
+        return CufetType.Text;
+    }
+
+    private CufetType InferTextTrim(TextTrim trim)
+    {
+        var textType = InferType(trim.Text);
+        if (textType != null && textType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "'trimmed' works on text only",
+                null, trim.Line,
+                $"trim a {FormatType(textType)}",
+                "Only text has surrounding whitespace to trim. Convert the value to text first if needed."));
+        return CufetType.Text;
+    }
 }

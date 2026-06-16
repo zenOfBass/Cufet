@@ -492,6 +492,9 @@ public sealed partial class Interpreter
         TextFind         find  => EvaluateTextFind(find),
         TextSubstringRange tsr => EvaluateTextSubstringRange(tsr),
         TextSubstringEdge  tse => EvaluateTextSubstringEdge(tse),
+        TextReplace      replace => EvaluateTextReplace(replace),
+        TextCase         tcase   => EvaluateTextCase(tcase),
+        TextTrim         trim    => EvaluateTextTrim(trim),
         RangeExpression re  => EvaluateRangeExpr(re),
         VoidLiteral        _  => VoidValue.Instance,
         ButVoidDefault bvd    => EvaluateButVoidDefault(bvd),
@@ -643,6 +646,28 @@ public sealed partial class Interpreter
         return (object)(edge.FromStart
             ? text.Substring(0, clamped)
             : text.Substring(text.Length - clamped, clamped));
+    }
+
+    private object EvaluateTextReplace(TextReplace replace)
+    {
+        var text   = (string)Evaluate(replace.Text);
+        var oldStr = (string)Evaluate(replace.Old);
+        var newStr = (string)Evaluate(replace.New);
+        if (oldStr.Length == 0)
+            throw new RuntimeException($"'replace' needs a non-empty target (line {replace.Line}).");
+        return (object)text.Replace(oldStr, newStr);
+    }
+
+    private object EvaluateTextCase(TextCase tcase)
+    {
+        var text = (string)Evaluate(tcase.Text);
+        return (object)(tcase.Uppercase ? text.ToUpperInvariant() : text.ToLowerInvariant());
+    }
+
+    private object EvaluateTextTrim(TextTrim trim)
+    {
+        var text = (string)Evaluate(trim.Text);
+        return (object)text.Trim();
     }
 
     // "looks like a Cufet number literal": optional leading '-', digits, optional '.digits'.

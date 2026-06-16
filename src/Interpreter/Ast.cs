@@ -200,6 +200,18 @@ public sealed record TextSubstringRange(IExpression Text, IExpression From, IExp
 // text's length; Count <= 0 yields "".
 public sealed record TextSubstringEdge(IExpression Text, IExpression Count, bool FromStart, int Line) : IExpression;
 
+// ── Text operations (Slice 3: replace, case, trim) ─────────────────────────────
+
+// replace <Old> with <New> in <Text> — replaces all occurrences; empty Old is an error;
+// empty New is deletion; Old not found returns Text unchanged.
+public sealed record TextReplace(IExpression Text, IExpression Old, IExpression New, int Line) : IExpression;
+
+// <text> in uppercase / <text> in lowercase — invariant (culture-independent) case conversion
+public sealed record TextCase(IExpression Text, bool Uppercase, int Line) : IExpression;
+
+// <text> trimmed — strips standard whitespace from both ends
+public sealed record TextTrim(IExpression Text, int Line) : IExpression;
+
 // ── Range (Slice 1 + Slice 2: stepping) ────────────────────────────────────────
 
 // range <start> to <end> [counting by <step>] — materializes an inclusive series of number;

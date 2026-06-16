@@ -4495,6 +4495,126 @@ public class InterpreterTests
             "State the characters from from-pos to to-pos of \"hello\"."));
     }
 
+    // ── Text Operations — Slice 3: replace, case, trim ────────────────────────
+
+    [Fact]
+    public void TextReplace_AllOccurrences()
+    {
+        Assert.Equal("bXnXnX", Run("State replace \"a\" with \"X\" in \"banana\"."));
+    }
+
+    [Fact]
+    public void TextReplace_EmptyNewIsDeletion()
+    {
+        Assert.Equal("ab", Run("State replace \"x\" with \"\" in \"axbx\"."));
+    }
+
+    [Fact]
+    public void TextReplace_NotFoundReturnsUnchanged()
+    {
+        Assert.Equal("hello", Run("State replace \"z\" with \"Q\" in \"hello\"."));
+    }
+
+    [Fact]
+    public void TextReplace_EmptyOldIsStaticError()
+    {
+        Assert.Throws<TypeException>(() => Run("State replace \"\" with \"X\" in \"hello\"."));
+    }
+
+    [Fact]
+    public void TextReplace_EmptyOldRuntimeBackstop()
+    {
+        Assert.Throws<RuntimeException>(() => Run(
+            "Define old as \"\".\n" +
+            "State replace old with \"X\" in \"hello\"."));
+    }
+
+    [Fact]
+    public void TextReplace_TypeErrorOnNonTextTarget()
+    {
+        Assert.Throws<TypeException>(() => Run("State replace \"a\" with \"X\" in 5."));
+    }
+
+    [Fact]
+    public void TextReplace_TypeErrorOnNonTextOld()
+    {
+        Assert.Throws<TypeException>(() => Run("State replace 5 with \"X\" in \"hello\"."));
+    }
+
+    [Fact]
+    public void TextReplace_TypeErrorOnNonTextNew()
+    {
+        Assert.Throws<TypeException>(() => Run("State replace \"a\" with 5 in \"hello\"."));
+    }
+
+    [Fact]
+    public void TextCase_Uppercase()
+    {
+        Assert.Equal("HELLO", Run("State \"Hello\" in uppercase."));
+    }
+
+    [Fact]
+    public void TextCase_Lowercase()
+    {
+        Assert.Equal("hello", Run("State \"Hello\" in lowercase."));
+    }
+
+    [Fact]
+    public void TextCase_TypeErrorOnNonText()
+    {
+        Assert.Throws<TypeException>(() => Run("State 5 in uppercase."));
+    }
+
+    [Fact]
+    public void TextCase_DoesNotCollideWithMapLookupIn()
+    {
+        Assert.Equal("30", Run(
+            "Define ages as a map with (\"alice\" : 30).\n" +
+            "State the entry for \"alice\" in ages but void is 0."));
+    }
+
+    [Fact]
+    public void TextCase_DoesNotCollideWithMapSetStatement()
+    {
+        Assert.Equal("42", Run(
+            "Define ages as a new map from text to number.\n" +
+            "In ages, the entry for \"x\" becomes 42.\n" +
+            "State the entry for \"x\" in ages but void is 0."));
+    }
+
+    [Fact]
+    public void TextCase_DoesNotCollideWithTextFindIn()
+    {
+        Assert.Equal("2", Run("State the position of \"ell\" in \"hello\"."));
+    }
+
+    [Fact]
+    public void TextTrim_BothEnds()
+    {
+        Assert.Equal("hello", Run("State \" hello \" trimmed."));
+    }
+
+    [Fact]
+    public void TextTrim_TypeErrorOnNonText()
+    {
+        Assert.Throws<TypeException>(() => Run("State 5 trimmed."));
+    }
+
+    [Fact]
+    public void TextOps_ChainTrimmedThenUppercase()
+    {
+        Assert.Equal("HI", Run("State \"  hi  \" trimmed in uppercase."));
+    }
+
+    [Fact]
+    public void TextOps_CombineSplitReplaceCaseTrim()
+    {
+        Assert.Equal("X-Y-Z", Run(
+            "Define raw as \"  x,y,z  \".\n" +
+            "Define cleaned as raw trimmed in uppercase.\n" +
+            "State replace \",\" with \"-\" in cleaned."));
+    }
+
     // ── Voidable type + narrowing ─────────────────────────────────────────────
 
     [Fact]

@@ -162,6 +162,10 @@ public sealed class Lexer
             "position"   => TokenType.Position,
             "characters" => TokenType.Characters,
             "end"        => TokenType.End,
+            "replace"    => TokenType.Replace,
+            "uppercase"  => TokenType.Uppercase,
+            "lowercase"  => TokenType.Lowercase,
+            "trimmed"    => TokenType.Trimmed,
             _           => TokenType.Identifier,
         };
 

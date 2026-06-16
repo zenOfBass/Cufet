@@ -1300,6 +1300,22 @@ public sealed class Parser
                 baseExpr = new TextSubstringRange(textTarget, fromExpr, toExpr, charsLine);
                 break;
             }
+            case TokenType.Replace:
+            {
+                // 'replace <old> with <new> in <text>' — replaces all occurrences.
+                var replaceLine = Advance().Line; // consume 'replace'
+                SkipNoise();
+                var oldExpr = ParseAddition();
+                SkipNoise();
+                Consume(TokenType.With);
+                SkipNoise();
+                var newExpr = ParseAddition();
+                SkipNoise();
+                Consume(TokenType.In);
+                SkipNoise();
+                baseExpr = new TextReplace(ParsePrimary(), oldExpr, newExpr, replaceLine);
+                break;
+            }
             case TokenType.Range:
             {
                 var line = Advance().Line; // consume 'range'
@@ -1503,6 +1519,36 @@ public sealed class Parser
             else
             {
                 throw new ParseException(targetTok, "text or number — expected after 'converted to'");
+            }
+            SkipNoise();
+        }
+
+        // 'trimmed' / 'in uppercase' / 'in lowercase' postfix — same tier as 'converted to
+        // text', chains naturally (e.g. '"  hi  " trimmed in uppercase').
+        // 'in' is ALSO used to lead a sub-expression that an enclosing construct will consume
+        // itself (e.g. 'the entry for <key> in <map>', 'the position of <substring> in <text>'
+        // both parse their first operand via the full expression chain, which bottoms out here
+        // before the outer construct's own 'Consume(TokenType.In)' runs). Without a lookahead,
+        // this loop would greedily swallow that 'in' and then fail expecting 'uppercase'/
+        // 'lowercase'. The fix: only treat 'in' as the case-operator when the token immediately
+        // after it is actually 'uppercase' or 'lowercase' — checked via the unguarded
+        // PeekAfterCurrent(), so a bare 'in <map-or-text-expr>' is left untouched for the
+        // enclosing construct to consume.
+        while (Peek().Type == TokenType.Trimmed ||
+               (Peek().Type == TokenType.In && PeekAfterCurrent() is TokenType.Uppercase or TokenType.Lowercase))
+        {
+            if (Peek().Type == TokenType.Trimmed)
+            {
+                var line = Advance().Line; // consume 'trimmed'
+                baseExpr = new TextTrim(baseExpr, line);
+            }
+            else
+            {
+                var line = Advance().Line; // consume 'in'
+                SkipNoise();
+                bool toUpper = Peek().Type == TokenType.Uppercase;
+                Advance(); // consume 'uppercase'/'lowercase'
+                baseExpr = new TextCase(baseExpr, toUpper, line);
             }
             SkipNoise();
         }

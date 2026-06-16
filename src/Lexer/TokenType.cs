@@ -99,6 +99,10 @@ public enum TokenType
                 //                 IsFieldNameToken(forAccess: true) — collides with "the X of" named access
     Characters, // "characters" — in "the characters from N to M of <text>", "the first/last N characters of <text>"
     End,        // "end"        — in "to the end" (substring upper bound = length of the text)
+    Replace,    // "replace"    — in "replace <old> with <new> in <text>"
+    Uppercase,  // "uppercase"  — in "<text> in uppercase"
+    Lowercase,  // "lowercase"  — in "<text> in lowercase"
+    Trimmed,    // "trimmed"    — in "<text> trimmed"
 
     // ── Range ─────────────────────────────────────────────────────────────────
     Range,     // "range"     — in "range <start> to <end>"; To already exists

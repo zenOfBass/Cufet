@@ -344,6 +344,38 @@ State the characters from 3 to the end of "hello".   → "llo"
   see [Series](#series-collections)) are unaffected — the count-and-`characters`
   shape is what distinguishes the substring forms from plain ordinal access.
 
+**Replacing** — `replace <old> with <new> in <text>`, all occurrences:
+```
+Define s as replace "a" with "X" in "banana".         → "bXnXnX"
+Define deleted as replace "x" with "" in "axbx".       → "ab"
+```
+An empty replacement is deletion (allowed). An empty target is a static error
+(when literal — runtime otherwise) — replacing "nothing" is meaningless, the
+same reasoning as `split by`'s empty-delimiter error. If `<old>` isn't found,
+the text comes back unchanged.
+
+**Case** — `<text> in uppercase` / `<text> in lowercase`:
+```
+State "Hello" in uppercase.        → "HELLO"
+State "Hello" in lowercase.        → "hello"
+```
+Uses default (invariant, culture-independent) case rules — not locale-sensitive.
+Only upper/lower this slice; title-case and capitalize-first are deferred.
+
+> **Note:** `in` is also used to lead the map-set statement (`In ages, the
+> entry for "x" becomes ...`) and inside `the entry for K in M` / `the
+> position of S in T`. These don't collide: `in uppercase`/`in lowercase` is
+> only recognized when `in` is immediately followed by `uppercase` or
+> `lowercase` — any other use of `in` is left alone for its own construct.
+
+**Trimming** — `<text> trimmed`, strips whitespace from both ends:
+```
+State " hello " trimmed.           → "hello"
+```
+Standard whitespace (spaces, tabs, newlines). Leading-only / trailing-only
+trim are deferred. All three operations chain naturally with each other and
+with the rest of the text toolkit: `raw trimmed in uppercase`.
+
 ---
 
 ## Range
@@ -908,6 +940,9 @@ Cufet has a static type checker that runs before execution. It catches:
 - An empty delimiter in `split by`
 - A character position of zero or negative in a substring form (when known
   at compile time; a runtime check catches the rest)
+- Using `replace`, `in uppercase`/`in lowercase`, or `trimmed` on a non-text
+  value
+- An empty target in `replace ... with ... in ...`
 
 **Records use structural typing** — shape is identity. Two records with the same
 fields and types are the same type regardless of where they were declared. Named

@@ -69,6 +69,13 @@ language is considered stable.
   from N to M of`, `the first/last N characters of`, `... to the end of` (all
   1-based inclusive, always plain `text` via clamping: out-of-range-high
   clamps, backwards range is `""`, position ≤ 0 is an error).
+- `replace <old> with <new> in <text>` (all occurrences; empty `<old>` is an
+  error, empty `<new>` is deletion, not-found returns the text unchanged),
+  `in uppercase` / `in lowercase` (default/invariant case rules), `trimmed`
+  (strips whitespace from both ends). **This completes the everyday text
+  toolkit** — join, measure, convert both ways, split, search, find, slice,
+  replace, case, and trim are all built; only the fancier stuff (regex-ish
+  matching, locale-aware casing, a character-sequence type) remains deferred.
 
 **Voidable values**
 - `void` is a first-class, holdable empty value; `voidable T` is "a T, or void".
@@ -148,9 +155,12 @@ language is considered stable.
   bases, not silent assumptions). Generalizes to any orderable dimension
   (e.g. a series `by size`). Intended shape; undesigned in detail.
 
-- **Further text operations** — joining, conversion (both directions), length,
-  split, contains, find, and substring all exist. Replace, case-change
-  (upper/lower), and trim do not yet. A later text slice.
+- **Text refinements (deferred, pending use cases)** — the everyday text
+  toolkit is complete (join, measure, convert both ways, split, search, find,
+  slice, replace, case, trim). What's left is all fancier: locale-aware
+  casing (this slice's `in uppercase`/`in lowercase` are invariant only),
+  title-case / capitalize-first, leading-only / trailing-only trim, and a
+  character-sequence type (`text` stays opaque — no character-level indexing).
 
 ### Types and data structures
 
@@ -393,21 +403,24 @@ Load-bearing prerequisites (each a real feature):
   load-bearing deferred prerequisite, and it now exists — it has already
   unblocked text→number (✅ built) and closures/lambdas (✅ built); recursive
   data structures remain unblocked-but-not-yet-built.
-- **Text operations** — joining, conversion (both directions), length, split,
-  contains, find, and substring exist; a shell still wants replace, case-change,
-  and trim, since it is almost entirely text manipulation.
+- **Text operations** — ✅ **built.** Joining, conversion (both directions),
+  length, split, contains, find, substring, replace, case, and trim all exist
+  — the everyday text toolkit a shell would lean on is complete (only
+  locale-aware casing and a character-sequence type remain, both deferred
+  refinements rather than gaps).
 - **Possibly streaming / pipes and a concurrency model** — Cufet has no concept
   of this today.
 
-**How this reorganizes the nearer roadmap:** the most load-bearing prerequisite,
-the **"or nothing" type, is now built** (voidable), and it has already paid off
-twice (text→number, closures/lambdas). What remains load-bearing for the shell
-direction is **recoverable error handling** and the **remaining text operations**
-(replace, case-change, trim). Rough order the vision imposes: pure-language
-maturity first (records, objects, maps, voidable, text ops, closures/lambdas,
-constants — done; **recursive data structures, remaining text ops next**) →
-then the outside-world layer (I/O, recoverable errors, processes) → then
-shell-specific features (pipes, the interactive prompt / REPL).
+**How this reorganizes the nearer roadmap:** the two most load-bearing
+prerequisites — the **"or nothing" type** (voidable) and **text operations**
+— are now both built. The voidable type has already paid off twice
+(text→number, closures/lambdas). What remains load-bearing for the shell
+direction is **recoverable error handling** — the one big gap left. Rough
+order the vision imposes: pure-language maturity first (records, objects,
+maps, voidable, text ops, closures/lambdas, constants — done; **recursive
+data structures next**) → then the outside-world layer (I/O, recoverable
+errors, processes) → then shell-specific features (pipes, the interactive
+prompt / REPL).
 
 ---
 
