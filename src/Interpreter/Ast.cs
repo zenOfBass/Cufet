@@ -178,11 +178,12 @@ public sealed record NumberConvert(IExpression Value, int Line) : IExpression;
 // the length of greeting — character count of a text value; result is number
 public sealed record TextLength(IExpression Target, int Line) : IExpression;
 
-// ── Range (Slice 1) ───────────────────────────────────────────────────────────
+// ── Range (Slice 1 + Slice 2: stepping) ────────────────────────────────────────
 
-// range <start> to <end> — materializes an inclusive series of number;
-// descending when start > end; single-element when start == end.
-public sealed record RangeExpression(IExpression Start, IExpression End, int Line) : IExpression;
+// range <start> to <end> [counting by <step>] — materializes an inclusive series of number;
+// descending when start > end; single-element when start == end. Step is a positive magnitude
+// (direction always comes from start-vs-end); null Step means step 1.
+public sealed record RangeExpression(IExpression Start, IExpression End, IExpression? Step, int Line) : IExpression;
 
 // ── Void / Voidable ───────────────────────────────────────────────────────────
 

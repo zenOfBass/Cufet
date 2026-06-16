@@ -617,12 +617,26 @@ public sealed partial class Interpreter
             throw new RuntimeException($"range start must be a number (line {re.Line}).");
         if (endVal is not decimal end)
             throw new RuntimeException($"range end must be a number (line {re.Line}).");
+
+        var step = 1m;
+        if (re.Step != null)
+        {
+            var stepVal = Evaluate(re.Step);
+            if (stepVal is not decimal s)
+                throw new RuntimeException($"range step must be a number (line {re.Line}).");
+            if (s == 0)
+                throw new RuntimeException($"'counting by 0' never makes progress (line {re.Line}).");
+            if (s < 0)
+                throw new RuntimeException($"the step in 'counting by' must be positive (line {re.Line}).");
+            step = s;
+        }
+
         var list = new List<object>();
         if (start <= end)
-            for (decimal n = start; n <= end; n++)
+            for (decimal n = start; n <= end; n += step)
                 list.Add(n);
         else
-            for (decimal n = start; n >= end; n--)
+            for (decimal n = start; n >= end; n -= step)
                 list.Add(n);
         return (object)list;
     }
@@ -773,11 +787,17 @@ public sealed partial class Interpreter
         return d[a.Length, b.Length];
     }
 
+    // Strips scale-only trailing zeros (e.g. 2.0 -> 2, 1.50 -> 1.5) without losing precision.
+    // Decimal arithmetic preserves the operands' scale (1m + 0.5m + 0.5m == 2.0m, not 2m);
+    // dividing by a maximally-scaled 1 forces .NET to re-derive the minimal exact representation.
+    private static readonly decimal NormalizingDivisor = 1.0000000000000000000000000000m;
+    private static decimal NormalizeDecimal(decimal d) => d / NormalizingDivisor;
+
     private static string Format(object val) => val switch
     {
         VoidValue        => "void",
         bool b           => b ? "true" : "false",
-        decimal d        => d.ToString(),
+        decimal d        => NormalizeDecimal(d).ToString(),
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
         FunctionValue    => "<function>",
         RecordValue rv   => FormatRecord(rv),

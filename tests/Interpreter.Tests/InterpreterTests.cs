@@ -1069,6 +1069,120 @@ public class InterpreterTests
             "Done."));
     }
 
+    // ── Range — Slice 2: counting by (stepping) ─────────────────────────────
+
+    [Fact]
+    public void RangeStep_AscendingEvenSteps()
+    {
+        Assert.Equal("1\n3\n5\n7\n9", Run(
+            "For each n in range 1 to 10 counting by 2, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeStep_EndpointLandsExactly()
+    {
+        Assert.Equal("2\n4\n6\n8\n10", Run(
+            "Define evens as range 2 to 10 counting by 2.\n" +
+            "For each n in evens, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeStep_EndpointSkippedWhenNotLanded()
+    {
+        Assert.Equal("1\n3\n5\n7\n9", Run(
+            "For each n in range 1 to 9 counting by 2, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeStep_DescendingDirectionFromStartEnd()
+    {
+        Assert.Equal("10\n8\n6\n4\n2", Run(
+            "For each n in range 10 to 1 counting by 2, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeStep_DecimalStep()
+    {
+        Assert.Equal("1\n1.5\n2", Run(
+            "For each n in range 1 to 2 counting by 0.5, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeStep_VariableStep()
+    {
+        Assert.Equal("1\n4\n7", Run(
+            "Define step as 3.\n" +
+            "For each n in range 1 to 7 counting by step, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeStep_ArticleOptional()
+    {
+        Assert.Equal("1\n3\n5", Run(
+            "For each n in the range 1 to 5 counting by 2, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeStep_LiteralZeroIsStaticError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "For each n in range 1 to 10 counting by 0, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeStep_LiteralNegativeIsStaticError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "For each n in range 1 to 10 counting by -2, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeStep_RuntimeZeroIsError()
+    {
+        Assert.Throws<RuntimeException>(() => Run(
+            "Define step as 0.\n" +
+            "For each n in range 1 to 10 counting by step, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeStep_RuntimeNegativeIsError()
+    {
+        Assert.Throws<RuntimeException>(() => Run(
+            "Define step as 0 - 2.\n" +
+            "For each n in range 1 to 10 counting by step, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void RangeStep_NonNumberStepIsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "For each n in range 1 to 10 counting by \"two\", repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
     // ── Type checking ─────────────────────────────────────────────────────
 
     [Fact]

@@ -95,6 +95,8 @@ public enum TokenType
 
     // ── Range ─────────────────────────────────────────────────────────────────
     Range,     // "range"     — in "range <start> to <end>"; To already exists
+    Counting,  // "counting"  — in "range <start> to <end> counting by <step>"
+    By,        // "by"        — in "counting by <step>"
 
     // ── Voidable ──────────────────────────────────────────────────────────────
     Voidable,  // "voidable"  — in "a voidable number" type annotation

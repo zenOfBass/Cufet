@@ -1,3 +1,5 @@
+using Cufet.Lexer;
+
 namespace Cufet.Interpreter;
 
 public sealed partial class TypeChecker
@@ -331,6 +333,43 @@ public sealed partial class TypeChecker
                 $"use a {FormatType(endType)} as the end of a range",
                 "Both ends of a range must be numbers. For example: range 1 to 100."));
 
+        if (re.Step != null)
+        {
+            var stepType = InferType(re.Step);
+            if (stepType != null && stepType != CufetType.Number)
+                throw new TypeException(FormatTypeError(
+                    "range step must be a number",
+                    null,
+                    re.Line,
+                    $"count by a {FormatType(stepType)}",
+                    "The step in 'counting by <step>' must be a number. For example: range 1 to 10 counting by 2."));
+
+            var literalStep = TryGetLiteralNumber(re.Step);
+            if (literalStep == 0)
+                throw new TypeException(FormatTypeError(
+                    "'counting by 0' never makes progress",
+                    null,
+                    re.Line,
+                    "count by 0",
+                    "Use a step greater than 0. The range's direction already comes from start vs. end."));
+            if (literalStep < 0)
+                throw new TypeException(FormatTypeError(
+                    "the step in 'counting by' must be positive",
+                    null,
+                    re.Line,
+                    $"count by {literalStep}",
+                    "Direction comes from start vs. end, not the step's sign. Use a positive step, e.g. 'range 10 to 1 counting by 2' already descends."));
+        }
+
         return new SeriesType(CufetType.Number);
     }
+
+    // Returns the literal numeric value of a number literal or a negated number literal
+    // (e.g. NumberLiteral(2) or UnaryExpression(Minus, NumberLiteral(2))), else null.
+    private static decimal? TryGetLiteralNumber(IExpression expr) => expr switch
+    {
+        NumberLiteral nl => nl.Value,
+        UnaryExpression { Op: TokenType.Minus, Operand: NumberLiteral nl } => -nl.Value,
+        _ => null,
+    };
 }

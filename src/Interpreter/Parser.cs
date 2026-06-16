@@ -1204,7 +1204,17 @@ public sealed class Parser
                 Consume(TokenType.To);
                 SkipNoise();
                 var end = ParseExpression();
-                baseExpr = new RangeExpression(start, end, line);
+                SkipNoise();
+                IExpression? step = null;
+                if (Peek().Type == TokenType.Counting)
+                {
+                    Advance(); // consume 'counting'
+                    SkipNoise();
+                    Consume(TokenType.By);
+                    SkipNoise();
+                    step = ParseExpression();
+                }
+                baseExpr = new RangeExpression(start, end, step, line);
                 break;
             }
             case TokenType.Void:
