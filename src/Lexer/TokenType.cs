@@ -62,6 +62,7 @@ public enum TokenType
     Possessive, // "'s"       — possessive marker: alice's name, one's field
     LBrace,     // "{"        — opens object literal fields
     RBrace,     // "}"        — closes object literal fields
+    Unto,       // "unto"     — in "Bind <ret> to <name> unto <type>: ..." — method defined outside its object's body
 
     // ── Collections — for-each ────────────────────────────────────────────
     For,      // "for"

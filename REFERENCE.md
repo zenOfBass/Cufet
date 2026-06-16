@@ -24,6 +24,7 @@ behind the design, see [ROADMAP.md](ROADMAP.md).
   - [Objects](#objects)
     - [Embedding (composition)](#embedding-composition)
     - [Interfaces (polymorphism)](#interfaces-polymorphism)
+    - [Methods defined outside the object body (`unto`)](#methods-defined-outside-the-object-body-unto)
   - [Functions](#functions)
     - [Closures](#closures)
     - [Lambda literals (anonymous functions)](#lambda-literals-anonymous-functions)
@@ -624,6 +625,45 @@ Done.
 Conformance **is a flat compile-time check, not subtyping** — no variance is
 introduced; objects do not become subtypes of one another.
 
+### Methods defined outside the object body (`unto`)
+
+A method can be declared *outside* its object's definition — attached with
+`unto <type>` — for code organization (grouping related methods elsewhere,
+splitting a large type across locations). It is **identical in every way**
+to a method nested in the definition; only the declaration location differs:
+
+```
+Define object person with (the text name, the number age).
+
+Bind void to greet unto person:
+    State "Hi, I'm " joined to one's name.
+Done.
+
+Bind number to birthday unto person:
+    one's age becomes one's age + 1.
+    Return one's age.
+Done.
+```
+
+- `unto <type>` goes right after the method name, before the optional
+  `, given (...)` parameter clause: `Bind void to steer unto racer, given
+  (the number angle): ... Done.`
+- Sees `one` (the receiver) and the object's fields exactly like a nested
+  method. Called identically too — `Cast greet on alice`, `Cast alice's
+  greet` — indistinguishable at the call site from a nested method.
+- **Hoisted, order-independent** — the `unto` method may appear before or
+  after `Define object <type>` in the file.
+- **Your own object types only.** `unto` on an undefined name, or on
+  something that isn't an object type (e.g. an interface), is a static
+  error. This is not foreign-type extension and not overloading.
+- **Method names are unique per type, regardless of where declared.** A name
+  clash between a nested method and an `unto` method (or between two `unto`
+  methods) on the *same* type is a static error. The same name `unto`
+  *different* types is fine — there's no shared namespace across types.
+- **Satisfies interface conformance** exactly as a nested method would — the
+  conformance check looks for "does the type have a matching method?", not
+  "where was it declared?"
+
 ---
 
 ## Functions
@@ -943,6 +983,9 @@ Cufet has a static type checker that runs before execution. It catches:
 - Using `replace`, `in uppercase`/`in lowercase`, or `trimmed` on a non-text
   value
 - An empty target in `replace ... with ... in ...`
+- `unto` naming an undefined type, or a non-object type (e.g. an interface)
+- A method name clash between a nested method and an `unto` method (or
+  between two `unto` methods) on the same object type
 
 **Records use structural typing** — shape is identity. Two records with the same
 fields and types are the same type regardless of where they were declared. Named

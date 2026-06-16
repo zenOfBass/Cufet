@@ -105,10 +105,20 @@ public sealed partial class Interpreter
                 _objectDefs[od.Name] = od;
         }
 
+        // Merge 'unto' methods (declared outside the object body) into their target type's
+        // method list, so dispatch finds them identically to a nested method. The
+        // TypeChecker already validated every target exists, so a miss here can't happen.
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is not BindStatement { UntoType: { } untoType } bind) continue;
+            if (!_objectDefs.TryGetValue(untoType, out var def)) continue;
+            _objectDefs[untoType] = def with { Methods = def.Methods.Append(bind).ToList() };
+        }
+
         // Hoist top-level function definitions.
         foreach (var stmt in program.Statements)
         {
-            if (stmt is BindStatement bind)
+            if (stmt is BindStatement { UntoType: null } bind)
                 _env[bind.Name] = new FunctionValue
                 {
                     ParameterNames = bind.Parameters.Select(p => p.Name).ToList(),

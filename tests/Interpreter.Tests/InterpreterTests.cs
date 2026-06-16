@@ -5734,4 +5734,276 @@ public class InterpreterTests
         Assert.Contains("line 1", ex.Message);
         Assert.Contains("line 3", ex.Message);
     }
+
+    // ── Methods defined outside the object body — 'unto' ───────────────────
+
+    [Fact]
+    public void Unto_BasicMethodSeesOneAndFields()
+    {
+        Assert.Equal("Hi, I'm Alice", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Bind void to greet unto person:\n" +
+            "    State \"Hi, I'm \" joined to one's name.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "Cast greet on alice."));
+    }
+
+    [Fact]
+    public void Unto_MutatesReceiverAndReturnsValue()
+    {
+        Assert.Equal("31", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Bind number to birthday unto person:\n" +
+            "    one's age becomes one's age + 1.\n" +
+            "    Return one's age.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\", the age 30 }.\n" +
+            "State cast birthday on alice."));
+    }
+
+    [Fact]
+    public void Unto_CalledViaCastOn()
+    {
+        Assert.Equal("Alice", Run(
+            "Define object person with (the text name).\n" +
+            "Bind void to greet unto person:\n" +
+            "    State one's name.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Cast greet on alice."));
+    }
+
+    [Fact]
+    public void Unto_CalledViaPossessive()
+    {
+        Assert.Equal("Alice", Run(
+            "Define object person with (the text name).\n" +
+            "Bind void to greet unto person:\n" +
+            "    State one's name.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Cast alice's greet."));
+    }
+
+    [Fact]
+    public void Unto_WithParamsViaGiven()
+    {
+        Assert.Equal("Speedy steers 90", Run(
+            "Define object racer with (the text name).\n" +
+            "Bind void to steer unto racer, given (the number angle):\n" +
+            "    State one's name joined to \" steers \" joined to angle converted to text.\n" +
+            "Done.\n" +
+            "Define r as a new racer { the name \"Speedy\" }.\n" +
+            "Cast steer on (r, 90)."));
+    }
+
+    [Fact]
+    public void Unto_WithParamsCalledPossessively()
+    {
+        Assert.Equal("90", Run(
+            "Define object racer with (the text name).\n" +
+            "Bind void to steer unto racer, given (the number angle):\n" +
+            "    State angle converted to text.\n" +
+            "Done.\n" +
+            "Define r as a new racer { the name \"Speedy\" }.\n" +
+            "Cast r's steer on (90)."));
+    }
+
+    [Fact]
+    public void Unto_HoistedBeforeObjectDefinition()
+    {
+        // The 'unto' Bind appears in the file before 'Define object' — order-independent.
+        Assert.Equal("Alice", Run(
+            "Bind void to greet unto person:\n" +
+            "    State one's name.\n" +
+            "Done.\n" +
+            "Define object person with (the text name).\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Cast greet on alice."));
+    }
+
+    [Fact]
+    public void Unto_HoistedAfterObjectDefinition()
+    {
+        Assert.Equal("Alice", Run(
+            "Define object person with (the text name).\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Bind void to greet unto person:\n" +
+            "    State one's name.\n" +
+            "Done.\n" +
+            "Cast greet on alice."));
+    }
+
+    [Fact]
+    public void Unto_NotCallableAsFreeFunction()
+    {
+        // An 'unto' method must not leak into the free-function namespace. A zero-arg call to
+        // an undefined name is a runtime error in Cufet generally (not statically provable —
+        // same as calling any other undefined free function with no args), so that's the
+        // exception this throws; the point is it's NOT resolved as a callable free function.
+        Assert.Throws<RuntimeException>(() => Run(
+            "Define object person with (the text name).\n" +
+            "Bind void to greet unto person:\n" +
+            "    State one's name.\n" +
+            "Done.\n" +
+            "Cast greet on ()."));
+    }
+
+    [Fact]
+    public void Unto_IndistinguishableFromNestedAtCallSite()
+    {
+        // Two methods, one nested, one unto — both callable identically.
+        Assert.Equal("nested\nunto", Run(
+            "Define object person with (the text name):\n" +
+            "    Bind void to greet-nested:\n" +
+            "        State \"nested\".\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Bind void to greet-unto unto person:\n" +
+            "    State \"unto\".\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Cast greet-nested on alice.\n" +
+            "Cast greet-unto on alice."));
+    }
+
+    [Fact]
+    public void Unto_CollisionWithNestedMethodIsStaticError()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name):\n" +
+            "    Bind void to greet:\n" +
+            "        State one's name.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Bind void to greet unto person:\n" +
+            "    State one's name.\n" +
+            "Done."));
+        Assert.Contains("already has a method", ex.Message);
+    }
+
+    [Fact]
+    public void Unto_CollisionBetweenTwoUntoMethodsIsStaticError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name).\n" +
+            "Bind void to greet unto person:\n" +
+            "    State one's name.\n" +
+            "Done.\n" +
+            "Bind void to greet unto person:\n" +
+            "    State \"again\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Unto_NoCollisionAcrossDifferentTypes()
+    {
+        // Same method name 'unto' two different types is fine — no shared namespace.
+        Assert.Equal("person\ncar", Run(
+            "Define object person with (the text name).\n" +
+            "Define object car with (the text make).\n" +
+            "Bind void to describe unto person:\n" +
+            "    State \"person\".\n" +
+            "Done.\n" +
+            "Bind void to describe unto car:\n" +
+            "    State \"car\".\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Define honda as a new car { the make \"Honda\" }.\n" +
+            "Cast describe on alice.\n" +
+            "Cast describe on honda."));
+    }
+
+    [Fact]
+    public void Unto_UndefinedTargetTypeIsStaticError()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Bind void to greet unto nonexistent:\n" +
+            "    State \"hi\".\n" +
+            "Done."));
+        Assert.Contains("not a defined object type", ex.Message);
+    }
+
+    [Fact]
+    public void Unto_InterfaceTargetIsStaticError()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define greeter as an interface for the void function greet.\n" +
+            "Bind void to greet unto greeter:\n" +
+            "    State \"hi\".\n" +
+            "Done."));
+        Assert.Contains("is an interface, not an object type", ex.Message);
+    }
+
+    [Fact]
+    public void Unto_SatisfiesInterfaceConformance()
+    {
+        Assert.Equal("Hi Alice", Run(
+            "Define greeter as an interface for the void function greet.\n" +
+            "Define object person with (the text name) and greeter.\n" +
+            "Bind void to greet unto person:\n" +
+            "    State \"Hi \" joined to one's name.\n" +
+            "Done.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Bind void to greet-someone, given (the greeter g):\n" +
+            "    Cast greet on g.\n" +
+            "Done.\n" +
+            "Cast greet-someone on alice."));
+    }
+
+    [Fact]
+    public void Unto_MissingMethodStillFailsConformance()
+    {
+        // Without the 'unto' method, conformance fails exactly as it would for a nested-only check.
+        Assert.Throws<TypeException>(() => Run(
+            "Define greeter as an interface for the void function greet.\n" +
+            "Define object person with (the text name) and greeter."));
+    }
+
+    [Fact]
+    public void Unto_NestedBindInsideBodyIsParseError()
+    {
+        // 'unto' methods block nested Binds inside their body, identically to nested methods.
+        Assert.Throws<ParseException>(() => Run(
+            "Define object person with (the text name).\n" +
+            "Bind void to greet unto person:\n" +
+            "    Bind void to helper:\n" +
+            "        State \"x\".\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Unto_TypeErrorInBodyIsCaught()
+    {
+        // Body type-checking applies to 'unto' methods exactly as to nested ones.
+        Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name).\n" +
+            "Bind void to greet unto person:\n" +
+            "    State one's name + 1.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Unto_WrongReturnTypeIsCaught()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name).\n" +
+            "Bind number to get-name unto person:\n" +
+            "    Return one's name.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Unto_MissingReturnOnSomePathIsCaught()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the number age).\n" +
+            "Bind number to get-age unto person:\n" +
+            "    If one's age is greater than 0:\n" +
+            "        Return one's age.\n" +
+            "    Done.\n" +
+            "Done."));
+    }
 }

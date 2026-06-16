@@ -119,7 +119,8 @@ language is considered stable.
   same name (nominal), in contrast to records (structural).
 - Instances: `a new person {the name "Alice", the age 30}` — `{}` literals.
 - Field access (named + positional), reusing record machinery.
-- Methods: nested in the definition. Self-reference via `one` (`one's name`).
+- Methods: nested in the definition, or declared externally with `unto` (below).
+  Self-reference via `one` (`one's name`).
 - Method calls: `Cast greet on alice` (no args) and `Cast steer on (racer, 90)`
   (object as first argument, params follow) — same syntax as function calls.
   Possessive form `Cast racer's steer on (90)` for explicit/disambiguated calls.
@@ -140,6 +141,14 @@ language is considered stable.
   usable as a parameter type, accepting any conforming object.
   **Conformance is not subtyping** — it is a flat compile-time check; no
   variance is introduced.
+- Methods defined outside the object body: `Bind <ret> to <name> unto <type>:
+  ...` — pure code organization, **identical in every way** to a nested
+  method (sees `one` + fields, called identically, satisfies interface
+  conformance identically). Hoisted/order-independent — may appear before or
+  after `Define object <type>`. Attaches only to an object type defined in
+  the same program (not foreign-type extension); a method-name clash between
+  nested and `unto` (or between two `unto`s) on the same type is a static
+  error — not overloading.
 
 ---
 
@@ -199,9 +208,6 @@ see [What's built](#whats-built-the-language-today) above.*
 - **Reference-semantics opt-in** — objects (and maps' values) are value-typed; an
   explicit way to ask for shared/reference semantics (Rust-style) is deferred.
   Separate design.
-- **Methods defined outside the object body** — currently methods are nested in
-  the definition only. Defining them externally (associated by naming the type)
-  is deferred.
 
 ### Tooling
 

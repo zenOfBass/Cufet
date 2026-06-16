@@ -104,11 +104,15 @@ public sealed record ForEachStatement(
 //   ...body...
 // Done.
 // ReturnType == null means void.
+// UntoType != null means this Bind is a method of that object type, declared outside its
+// body (`Bind ... unto <type>: ...`) — identical to a nested method in every way except
+// declaration location.
 public sealed record BindStatement(
     string Name,
     CufetType? ReturnType,
     IReadOnlyList<(CufetType Type, string Name)> Parameters,
     IReadOnlyList<IStatement> Body,
+    string? UntoType,
     int Line
 ) : IStatement;
 

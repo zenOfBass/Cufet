@@ -192,45 +192,59 @@ public sealed partial class TypeChecker
         ValidateObjectConformance(od, objType);
 
         foreach (var method in od.Methods)
+            CheckMethodBody(method, objType, od.Line);
+    }
+
+    // Checks a method body — 'one' (self) bound to objType, parameters in scope, identical
+    // whether the method is nested in the object's definition or declared via 'unto'.
+    private void CheckMethodBody(BindStatement method, ObjectType objType, int selfLine)
+    {
+        var snapshot = new Dictionary<string, TypeInfo>(_env);
+        _env.Clear();
+
+        // Method scope: functions + object functions visible, plus 'one' (self) + parameters.
+        foreach (var (k, v) in snapshot.Where(kv => kv.Value.Type is FunctionType))
+            _env[k] = v;
+        _env["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine);
+        foreach (var (type, name) in method.Parameters)
+            _env[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), method.Line);
+
+        var prevInFunction       = _inFunction;
+        var prevReturnType       = _expectedReturnType;
+        var prevFunctionLine     = _functionDeclarationLine;
+        _inFunction              = true;
+        _expectedReturnType      = method.ReturnType;
+        _functionDeclarationLine = method.Line;
+
+        try
         {
-            var snapshot = new Dictionary<string, TypeInfo>(_env);
-            _env.Clear();
+            foreach (var stmt in method.Body)
+                CheckStatement(stmt);
 
-            // Method scope: functions + object functions visible, plus 'one' (self) + parameters.
-            foreach (var (k, v) in snapshot.Where(kv => kv.Value.Type is FunctionType))
-                _env[k] = v;
-            _env["one"] = new TypeInfo(objType, new VariableReference("one", 0), od.Line);
-            foreach (var (type, name) in method.Parameters)
-                _env[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), method.Line);
-
-            var prevInFunction       = _inFunction;
-            var prevReturnType       = _expectedReturnType;
-            var prevFunctionLine     = _functionDeclarationLine;
-            _inFunction              = true;
-            _expectedReturnType      = method.ReturnType;
-            _functionDeclarationLine = method.Line;
-
-            try
-            {
-                foreach (var stmt in method.Body)
-                    CheckStatement(stmt);
-
-                if (method.ReturnType != null && !DefinitelyReturns(method.Body))
-                    throw new TypeException(FormatTypeError(
-                        $"method '{method.Name}' is declared to give back a {FormatType(method.ReturnType)}, but it can reach its end without returning one",
-                        null, method.Line,
-                        "define a method that might not return a value",
-                        "Make sure every path through the method ends with a return statement."));
-            }
-            finally
-            {
-                _inFunction              = prevInFunction;
-                _expectedReturnType      = prevReturnType;
-                _functionDeclarationLine = prevFunctionLine;
-                _env.Clear();
-                foreach (var (k, v) in snapshot) _env[k] = v;
-            }
+            if (method.ReturnType != null && !DefinitelyReturns(method.Body))
+                throw new TypeException(FormatTypeError(
+                    $"method '{method.Name}' is declared to give back a {FormatType(method.ReturnType)}, but it can reach its end without returning one",
+                    null, method.Line,
+                    "define a method that might not return a value",
+                    "Make sure every path through the method ends with a return statement."));
         }
+        finally
+        {
+            _inFunction              = prevInFunction;
+            _expectedReturnType      = prevReturnType;
+            _functionDeclarationLine = prevFunctionLine;
+            _env.Clear();
+            foreach (var (k, v) in snapshot) _env[k] = v;
+        }
+    }
+
+    // 'Bind ... unto <type>: ...' — a method declared outside its object's definition body.
+    // Target type existence/kind and name-collision were already validated in Pass1Hoist;
+    // here we just check the body, identically to a nested method.
+    private void CheckUntoMethod(BindStatement method)
+    {
+        var objType = _objectDefs[method.UntoType!];
+        CheckMethodBody(method, objType, method.Line);
     }
 
     private ObjectType InferObjectLiteral(ObjectLiteral lit)

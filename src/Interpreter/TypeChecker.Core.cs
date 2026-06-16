@@ -219,8 +219,10 @@ public sealed partial class TypeChecker
             CheckStatement(stmt);
     }
 
-    // Pass 1: register interfaces (1a), then object types (1b), then function signatures (1c).
-    // Interfaces registered first so object conformance declarations can be validated against them.
+    // Pass 1: register interfaces (1a), then object types — merged with their 'unto' methods
+    // (1b) — then function signatures, excluding 'unto' methods, which are not free
+    // functions (1c). Interfaces registered first so object conformance declarations can be
+    // validated against them.
     private void Pass1Hoist(Program program)
     {
         foreach (var stmt in program.Statements)
@@ -229,20 +231,61 @@ public sealed partial class TypeChecker
             _interfaceDefs[ifd.Name] = ifd;
         }
 
+        // Gather 'unto'-attached methods by target type name before building ObjectTypes,
+        // so their signatures merge into the type's method set regardless of whether the
+        // 'unto' Bind appears before or after 'Define object <type>' in the file.
+        var untoMethodsByType = new Dictionary<string, List<BindStatement>>();
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is not BindStatement { UntoType: { } untoType } bind) continue;
+            if (!untoMethodsByType.TryGetValue(untoType, out var list))
+                untoMethodsByType[untoType] = list = new List<BindStatement>();
+            list.Add(bind);
+        }
+
         foreach (var stmt in program.Statements)
         {
             if (stmt is not ObjectDefinition od) continue;
             var methodSigs = od.Methods
                 .Select(m => (m.Name, new FunctionType(m.Parameters.Select(p => p.Type).ToList(), m.ReturnType)))
                 .ToList();
+
+            if (untoMethodsByType.Remove(od.Name, out var untoMethods))
+            {
+                foreach (var um in untoMethods)
+                {
+                    if (methodSigs.Any(s => s.Name == um.Name))
+                        throw new TypeException(FormatTypeError(
+                            $"'{od.Name}' already has a method '{um.Name}'",
+                            null, um.Line,
+                            $"declare another method named '{um.Name}' for '{od.Name}'",
+                            "Method names must be unique per type, whether declared nested or with 'unto'. Rename one of them."));
+                    methodSigs.Add((um.Name, new FunctionType(um.Parameters.Select(p => p.Type).ToList(), um.ReturnType)));
+                }
+            }
+
             _objectDefs[od.Name] = new ObjectType(
                 od.Name, od.PositionalTypes, od.NamedFields, methodSigs,
                 od.EmbeddedTypeName, od.ConformedInterfaces);
         }
 
+        // Anything left in untoMethodsByType targets a name that isn't a defined object type.
+        foreach (var (targetName, methods) in untoMethodsByType)
+        {
+            var reason = _interfaceDefs.ContainsKey(targetName)
+                ? $"'{targetName}' is an interface, not an object type — methods can't be attached to it with 'unto'"
+                : $"'{targetName}' is not a defined object type";
+            throw new TypeException(FormatTypeError(
+                reason,
+                null, methods[0].Line,
+                $"declare a method unto '{targetName}'",
+                $"'unto' only attaches methods to object types defined in this program. Define 'object {targetName}' first, or check the spelling."));
+        }
+
         foreach (var stmt in program.Statements)
         {
             if (stmt is not BindStatement bind) continue;
+            if (bind.UntoType != null) continue; // 'unto' methods are not free functions
             var paramTypes = bind.Parameters.Select(p => p.Type).ToList();
             _env[bind.Name] = new TypeInfo(
                 new FunctionType(paramTypes, bind.ReturnType),
@@ -323,6 +366,9 @@ public sealed partial class TypeChecker
                 break;
             case SeriesRemoveAtStatement removeAt:
                 CheckSeriesRemoveAt(removeAt);
+                break;
+            case BindStatement { UntoType: { } } unto:
+                CheckUntoMethod(unto);
                 break;
             case BindStatement bind:
                 // Nested Bind: register type in enclosing scope before checking body

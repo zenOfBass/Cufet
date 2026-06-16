@@ -1684,7 +1684,6 @@ public sealed class Parser
         var savedInObjectDef   = _inObjectDef;
         var savedInFreeFunction = _inFreeFunction;
         _inObjectDef    = false;               // method body must not allow nested Binds
-        _inFreeFunction = !savedInObjectDef;   // true for free functions, false for method bodies
         SkipNoise();
         var returnType = ParseReturnType();
         SkipNoise();
@@ -1692,6 +1691,19 @@ public sealed class Parser
         SkipNoise();
         var name = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
+
+        // 'unto <type>' — declares this Bind as a method of <type>, defined outside its
+        // body. Comes right after the name, before the optional ', given (...)' clause.
+        // Treated exactly like a nested method below: blocks nested Binds inside its body,
+        // same as a method declared inside the object's own definition.
+        string? untoType = null;
+        if (Peek().Type == TokenType.Unto)
+        {
+            Advance(); // consume 'unto'
+            SkipNoise();
+            untoType = Consume(TokenType.Identifier).Lexeme;
+            SkipNoise();
+        }
 
         var parameters = new List<(CufetType Type, string Name)>();
         if (Peek().Type == TokenType.Comma)
@@ -1718,6 +1730,9 @@ public sealed class Parser
             SkipNoise();
         }
 
+        // True for free functions, false for method bodies (nested or 'unto').
+        _inFreeFunction = untoType == null && !savedInObjectDef;
+
         Consume(TokenType.Colon);
         _functionDepth++;
         _nestDepth++;
@@ -1727,7 +1742,7 @@ public sealed class Parser
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
 
-        return new BindStatement(name, returnType, parameters, body, bindTok.Line);
+        return new BindStatement(name, returnType, parameters, body, untoType, bindTok.Line);
     }
 
     // null return → void (this function returns nothing)
