@@ -67,4 +67,137 @@ public sealed partial class TypeChecker
             $"get the length of a {FormatType(operand)}",
             "Only text values have a character length. For series, use 'the number of series'."));
     }
+
+    // ── Text operations (Slice 2: split, contains, find, substring) ───────────
+
+    private CufetType InferTextSplit(TextSplit split)
+    {
+        var textType = InferType(split.Text);
+        if (textType != null && textType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "'split by' works on text only",
+                null, split.Line,
+                $"split a {FormatType(textType)}",
+                "Only text can be split. Convert the value to text first if needed."));
+
+        var delimType = InferType(split.Delimiter);
+        if (delimType != null && delimType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "the delimiter in 'split by' must be text",
+                null, split.Line,
+                $"split by a {FormatType(delimType)}",
+                "Use a text value as the delimiter, e.g. \",\"."));
+
+        if (split.Delimiter is StringLiteral { Value: "" })
+            throw new TypeException(FormatTypeError(
+                "'split by' needs a non-empty delimiter",
+                null, split.Line,
+                "split by an empty piece of text",
+                "Use a delimiter with at least one character."));
+
+        return new SeriesType(CufetType.Text);
+    }
+
+    private CufetType InferTextContains(TextContains contains)
+    {
+        var textType = InferType(contains.Text);
+        if (textType != null && textType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "'contains' works on text only",
+                null, contains.Line,
+                $"check whether a {FormatType(textType)} contains something",
+                "Only text values support 'contains'. Convert the value to text first if needed."));
+
+        var subType = InferType(contains.Substring);
+        if (subType != null && subType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "'contains' checks for text only",
+                null, contains.Line,
+                $"check whether text contains a {FormatType(subType)}",
+                "Convert the value to text first if needed."));
+
+        return CufetType.Fact;
+    }
+
+    private CufetType InferTextFind(TextFind find)
+    {
+        var subType = InferType(find.Substring);
+        if (subType != null && subType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "'the position of ... in ...' looks for text only",
+                null, find.Line,
+                $"look for a {FormatType(subType)}",
+                "Convert the value to text first if needed."));
+
+        var textType = InferType(find.Text);
+        if (textType != null && textType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "'the position of ... in ...' searches text only",
+                null, find.Line,
+                $"search in a {FormatType(textType)}",
+                "Convert the value to text first if needed."));
+
+        return new VoidableType(CufetType.Number);
+    }
+
+    private CufetType InferTextSubstringRange(TextSubstringRange range)
+    {
+        var textType = InferType(range.Text);
+        if (textType != null && textType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "'the characters ... of' works on text only",
+                null, range.Line,
+                $"take characters from a {FormatType(textType)}",
+                "Only text has characters to take. Convert the value to text first if needed."));
+
+        var fromType = InferType(range.From);
+        if (fromType != null && fromType != CufetType.Number)
+            throw new TypeException(FormatTypeError(
+                "a character position must be a number",
+                null, range.Line,
+                $"use a {FormatType(fromType)} as a character position",
+                "Positions are counted starting at 1, like series ordinals."));
+
+        if (range.To != null)
+        {
+            var toType = InferType(range.To);
+            if (toType != null && toType != CufetType.Number)
+                throw new TypeException(FormatTypeError(
+                    "a character position must be a number",
+                    null, range.Line,
+                    $"use a {FormatType(toType)} as a character position",
+                    "Positions are counted starting at 1, like series ordinals."));
+        }
+
+        var literalFrom = TryGetLiteralNumber(range.From);
+        if (literalFrom <= 0)
+            throw new TypeException(FormatTypeError(
+                "a character position must be 1 or greater",
+                null, range.Line,
+                $"start at position {literalFrom}",
+                "Positions are counted starting at 1, like series ordinals — not 0."));
+
+        return CufetType.Text;
+    }
+
+    private CufetType InferTextSubstringEdge(TextSubstringEdge edge)
+    {
+        var textType = InferType(edge.Text);
+        if (textType != null && textType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "'the first/last ... characters of' works on text only",
+                null, edge.Line,
+                $"take characters from a {FormatType(textType)}",
+                "Only text has characters to take. Convert the value to text first if needed."));
+
+        var countType = InferType(edge.Count);
+        if (countType != null && countType != CufetType.Number)
+            throw new TypeException(FormatTypeError(
+                "a character count must be a number",
+                null, edge.Line,
+                $"use a {FormatType(countType)} as a character count",
+                "Use a number of characters, e.g. 'the first 3 characters of greeting'."));
+
+        return CufetType.Text;
+    }
 }

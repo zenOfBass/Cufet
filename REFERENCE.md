@@ -298,6 +298,52 @@ like a Cufet number literal: digits, an optional leading `-`, and an optional
 decimal point followed by more digits. Anything else — empty text, trailing
 garbage, multiple decimal points — produces `void`.
 
+**Splitting** — `split by`, into a `series of text`:
+```
+Define parts as "a,b,c" split by ",".          → "a", "b", "c"
+For each part in "alice:bob:carol" split by ":", repeat:
+    State part.
+Done.
+```
+The delimiter not being found yields a single-element series holding the
+whole text. Consecutive, leading, and trailing delimiters produce empty
+strings — `"a,,b" split by ","` is `"a", "", "b"`; nothing is collapsed or
+trimmed automatically. An empty delimiter (`split by ""`) is a static error.
+
+**Contains** — `contains`, a boolean substring test:
+```
+If "hello" contains "ell", state "yes".          → yes
+```
+
+**Finding a position** — `the position of <substring> in <text>`, **1-based**:
+```
+Define p as the position of "ell" in "hello".    → 2
+Define q as the position of "z" in "hello".      → void
+```
+Returns the position of the first occurrence, or `void` if the substring
+isn't present — a `voidable number`, handled like any other voidable. There's
+no `-1` sentinel.
+
+**Substring** — four forms, all **1-based and inclusive**, always returning
+plain `text` (never voidable — out-of-range inputs clamp rather than fail):
+```
+State the characters from 2 to 4 of "hello".         → "ell"
+State the first 3 characters of "hello".             → "hel"
+State the last 3 characters of "hello".               → "llo"
+State the characters from 3 to the end of "hello".   → "llo"
+```
+- An out-of-range-high end **clamps** to what's there: `the characters from 2
+  to 99 of "hi"` is `"i"`; `the first 10 characters of "hi"` is `"hi"`.
+- A backwards range (end before start) yields `""`: `the characters from 5 to
+  2 of "hello"` is `""`.
+- `the first 0` / `the last 0` characters is `""`.
+- A character position of `0` or negative is a **mistake, not a clamp case**
+  — it's a static error when the position is a literal, and a runtime error
+  otherwise: `the characters from 0 to 3 of "hello"` doesn't run.
+- `the first of <series>` / `the last of <series>` (series ordinal access,
+  see [Series](#series-collections)) are unaffected — the count-and-`characters`
+  shape is what distinguishes the substring forms from plain ordinal access.
+
 ---
 
 ## Range
@@ -857,6 +903,11 @@ Cufet has a static type checker that runs before execution. It catches:
 - Converting a non-text value with `converted to number`
 - A `range ... counting by` step that is zero or negative (when known at
   compile time; a runtime check catches the rest)
+- Using `split by`, `contains`, `the position of ... in ...`, or any
+  substring form on a non-text value
+- An empty delimiter in `split by`
+- A character position of zero or negative in a substring form (when known
+  at compile time; a runtime check catches the rest)
 
 **Records use structural typing** — shape is identity. Two records with the same
 fields and types are the same type regardless of where they were declared. Named

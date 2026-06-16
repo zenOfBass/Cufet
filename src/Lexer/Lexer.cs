@@ -157,6 +157,11 @@ public sealed class Lexer
             "key"       => TokenType.Key,
             "entry"     => TokenType.Entry,
             "size"      => TokenType.Size,
+            "split"      => TokenType.Split,
+            "contains"   => TokenType.Contains,
+            "position"   => TokenType.Position,
+            "characters" => TokenType.Characters,
+            "end"        => TokenType.End,
             _           => TokenType.Identifier,
         };
 

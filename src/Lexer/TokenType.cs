@@ -93,6 +93,12 @@ public enum TokenType
     LengthKw,  // "length"    — in "the length of <text>"
     Joined,    // "joined"    — in "<text> joined to <text>"
     Converted, // "converted" — in "<value> converted to text"
+    Split,      // "split"      — in "<text> split by <delimiter>"
+    Contains,   // "contains"   — in "<text> contains <substring>"
+    Position,   // "position"   — in "the position of <substring> in <text>"; excluded from
+                //                 IsFieldNameToken(forAccess: true) — collides with "the X of" named access
+    Characters, // "characters" — in "the characters from N to M of <text>", "the first/last N characters of <text>"
+    End,        // "end"        — in "to the end" (substring upper bound = length of the text)
 
     // ── Range ─────────────────────────────────────────────────────────────────
     Range,     // "range"     — in "range <start> to <end>"; To already exists

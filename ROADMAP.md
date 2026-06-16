@@ -63,6 +63,12 @@ language is considered stable.
 - `converted to number` — the inverse direction. Parsing can fail, so the result
   is always `voidable number` (even for an obviously-valid literal), handled with
   the same voidable machinery as everything else. No new handling syntax needed.
+- `split by` (→ `series of text`, empties kept, not-found → single-element
+  series), `contains` (→ `fact`), `the position of ... in ...` (→ `voidable
+  number`, 1-based, first occurrence), and substring access — `the characters
+  from N to M of`, `the first/last N characters of`, `... to the end of` (all
+  1-based inclusive, always plain `text` via clamping: out-of-range-high
+  clamps, backwards range is `""`, position ≤ 0 is an error).
 
 **Voidable values**
 - `void` is a first-class, holdable empty value; `voidable T` is "a T, or void".
@@ -142,9 +148,9 @@ language is considered stable.
   bases, not silent assumptions). Generalizes to any orderable dimension
   (e.g. a series `by size`). Intended shape; undesigned in detail.
 
-- **Further text operations** — joining, conversion (both directions), and
-  length exist. Substring / slicing, contains / find, split, replace,
-  case-change, and trim do not yet. A later text slice.
+- **Further text operations** — joining, conversion (both directions), length,
+  split, contains, find, and substring all exist. Replace, case-change
+  (upper/lower), and trim do not yet. A later text slice.
 
 ### Types and data structures
 
@@ -387,21 +393,21 @@ Load-bearing prerequisites (each a real feature):
   load-bearing deferred prerequisite, and it now exists — it has already
   unblocked text→number (✅ built) and closures/lambdas (✅ built); recursive
   data structures remain unblocked-but-not-yet-built.
-- **Text operations** — joining, conversion (both directions), and length
-  exist; a shell wants the fuller set (split, replace, slice, find), since it
-  is almost entirely text manipulation.
+- **Text operations** — joining, conversion (both directions), length, split,
+  contains, find, and substring exist; a shell still wants replace, case-change,
+  and trim, since it is almost entirely text manipulation.
 - **Possibly streaming / pipes and a concurrency model** — Cufet has no concept
   of this today.
 
 **How this reorganizes the nearer roadmap:** the most load-bearing prerequisite,
 the **"or nothing" type, is now built** (voidable), and it has already paid off
 twice (text→number, closures/lambdas). What remains load-bearing for the shell
-direction is **recoverable error handling** and the **fuller text operations**.
-Rough order the vision imposes: pure-language maturity first (records, objects,
-maps, voidable, text basics, closures/lambdas — done; **further text ops,
-constants, recursive data structures next**) → then the outside-world layer
-(I/O, recoverable errors, processes) → then shell-specific features (pipes, the
-interactive prompt / REPL).
+direction is **recoverable error handling** and the **remaining text operations**
+(replace, case-change, trim). Rough order the vision imposes: pure-language
+maturity first (records, objects, maps, voidable, text ops, closures/lambdas,
+constants — done; **recursive data structures, remaining text ops next**) →
+then the outside-world layer (I/O, recoverable errors, processes) → then
+shell-specific features (pipes, the interactive prompt / REPL).
 
 ---
 

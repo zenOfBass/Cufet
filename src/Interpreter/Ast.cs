@@ -180,6 +180,26 @@ public sealed record NumberConvert(IExpression Value, int Line) : IExpression;
 // the length of greeting — character count of a text value; result is number
 public sealed record TextLength(IExpression Target, int Line) : IExpression;
 
+// ── Text operations (Slice 2: split, contains, find, substring) ───────────────
+
+// <text> split by <delimiter> — series of text; empty delimiter is an error,
+// delimiter-not-found yields a single-element series, empty pieces are kept.
+public sealed record TextSplit(IExpression Text, IExpression Delimiter, int Line) : IExpression;
+
+// <text> contains <substring> — fact
+public sealed record TextContains(IExpression Text, IExpression Substring, int Line) : IExpression;
+
+// the position of <substring> in <text> — voidable number; 1-based, first occurrence, void if absent
+public sealed record TextFind(IExpression Substring, IExpression Text, int Line) : IExpression;
+
+// the characters from <From> to <To> of <text> — 1-based inclusive; To == null means "to the end".
+// Out-of-range-high clamps; To < From yields "". Always returns plain text (never voidable).
+public sealed record TextSubstringRange(IExpression Text, IExpression From, IExpression? To, int Line) : IExpression;
+
+// the first/last <Count> characters of <text> — 1-based count from either edge; clamps to the
+// text's length; Count <= 0 yields "".
+public sealed record TextSubstringEdge(IExpression Text, IExpression Count, bool FromStart, int Line) : IExpression;
+
 // ── Range (Slice 1 + Slice 2: stepping) ────────────────────────────────────────
 
 // range <start> to <end> [counting by <step>] — materializes an inclusive series of number;

@@ -1025,11 +1025,11 @@ public sealed class Parser
     }
 
     // '<map> has a key/entry for <key>' — postfix; returns fact.
-    // Sits between ParseJoinedTo and ParseAddition so "has" binds tighter than "joined to"
+    // Sits between ParseJoinedTo and ParseSplitBy so "has" binds tighter than "joined to"
     // but looser than arithmetic, and works naturally in both expression and condition context.
     private IExpression ParseHasCheck()
     {
-        var left = ParseAddition();
+        var left = ParseSplitBy();
         SkipNoise();
         if (Peek().Type != TokenType.Has) return left;
         var line = Advance().Line; // consume 'has'
@@ -1046,6 +1046,34 @@ public sealed class Parser
         return isEntry
             ? (IExpression)new MapHasEntry(left, keyExpr, line)
             : new MapHasKey(left, keyExpr, line);
+    }
+
+    // '<text> split by <delimiter>' — series of text. Sits between ParseHasCheck and
+    // ParseTextContains so split/contains/has/joined-to are all available at the same
+    // general "text/collection operator" tier, above arithmetic.
+    private IExpression ParseSplitBy()
+    {
+        var left = ParseTextContains();
+        SkipNoise();
+        if (Peek().Type != TokenType.Split) return left;
+        var line = Advance().Line; // consume 'split'
+        SkipNoise();
+        Consume(TokenType.By);
+        SkipNoise();
+        var delimiter = ParseAddition();
+        return new TextSplit(left, delimiter, line);
+    }
+
+    // '<text> contains <substring>' — fact. Sits just above ParseAddition.
+    private IExpression ParseTextContains()
+    {
+        var left = ParseAddition();
+        SkipNoise();
+        if (Peek().Type != TokenType.Contains) return left;
+        var line = Advance().Line; // consume 'contains'
+        SkipNoise();
+        var substring = ParseAddition();
+        return new TextContains(left, substring, line);
     }
 
     // '<text> joined to <text>' — left-associative text concatenation.
@@ -1160,11 +1188,30 @@ public sealed class Parser
             }
             case TokenType.Ordinal:
             {
+                var ordTok = Advance();
+                SkipNoise();
+                // 'first <count> characters of <text>' / 'last <count> characters of <text>' —
+                // text substring from an edge. Distinguished from plain ordinal access ('first
+                // of <series>') by a count expression appearing where 'of' would otherwise be.
+                bool isFirstOrLast = ordTok.Lexeme.Equals("first", StringComparison.OrdinalIgnoreCase) ||
+                                     ordTok.Lexeme.Equals("last", StringComparison.OrdinalIgnoreCase);
+                if (isFirstOrLast && Peek().Type != TokenType.Of)
+                {
+                    var count = ParseAddition();
+                    SkipNoise();
+                    Consume(TokenType.Characters);
+                    SkipNoise();
+                    Consume(TokenType.Of);
+                    SkipNoise();
+                    var textTarget = ParsePrimary();
+                    bool fromStart = ordTok.Lexeme.Equals("first", StringComparison.OrdinalIgnoreCase);
+                    baseExpr = new TextSubstringEdge(textTarget, count, fromStart, ordTok.Line);
+                    break;
+                }
+
                 // Inline ordinal access: 'first of <target-expr>' where target is parsed as
                 // a primary expression, enabling chains like 'the first of the first of s'.
-                var ordTok = Advance();
                 var index = OrdinalToIndex(ordTok.Lexeme);
-                SkipNoise();
                 Consume(TokenType.Of);
                 SkipNoise();
                 var target = ParsePrimary();
@@ -1200,6 +1247,57 @@ public sealed class Parser
                 Consume(TokenType.Of);
                 SkipNoise();
                 baseExpr = new TextLength(ParsePrimary(), line);
+                break;
+            }
+            case TokenType.Position:
+            {
+                // 'the position of <substring> in <text>' — mirrors 'the entry for <key> in <map>'.
+                var posLine = Advance().Line; // consume 'position'
+                SkipNoise();
+                Consume(TokenType.Of);
+                SkipNoise();
+                var substringExpr = ParseExpression();
+                SkipNoise();
+                Consume(TokenType.In);
+                SkipNoise();
+                baseExpr = new TextFind(substringExpr, ParsePrimary(), posLine);
+                break;
+            }
+            case TokenType.Characters:
+            {
+                // 'the characters from <from> to <to> of <text>' / '... to the end of <text>'.
+                var charsLine = Advance().Line; // consume 'characters'
+                SkipNoise();
+                Consume(TokenType.From);
+                SkipNoise();
+                var fromExpr = ParseAddition();
+                SkipNoise();
+                Consume(TokenType.To);
+                // 'the end' sentinel — checked directly (not via SkipNoise) because SkipNoise
+                // would otherwise treat 'the end of ...' as a would-be named-access pattern and
+                // refuse to consume 'the', since Position is the only token excluded for that.
+                IExpression? toExpr;
+                if (Peek().Type == TokenType.End)
+                {
+                    Advance(); // consume 'end'
+                    toExpr = null;
+                }
+                else if (Peek().Type == TokenType.Article && PeekAfterCurrent() == TokenType.End)
+                {
+                    Advance(); // consume the article ('the'/'an')
+                    Advance(); // consume 'end'
+                    toExpr = null;
+                }
+                else
+                {
+                    SkipNoise();
+                    toExpr = ParseAddition();
+                }
+                SkipNoise();
+                Consume(TokenType.Of);
+                SkipNoise();
+                var textTarget = ParsePrimary();
+                baseExpr = new TextSubstringRange(textTarget, fromExpr, toExpr, charsLine);
                 break;
             }
             case TokenType.Range:
@@ -1523,7 +1621,9 @@ public sealed class Parser
         //   Ordinal → 'the first of s' (positional access)
         //   NumberKw → 'the number of s' (series length)
         //   Start → 'to the start of s' (add-to-start)
-        if (forAccess && tok.Type is TokenType.Ordinal or TokenType.NumberKw or TokenType.Start or TokenType.LengthKw or TokenType.Size)
+        //   Position → 'the position of X in Y' (find) — directly followed by 'of', same shape
+        //              as named access, but with a trailing 'in Y' the access check doesn't see
+        if (forAccess && tok.Type is TokenType.Ordinal or TokenType.NumberKw or TokenType.Start or TokenType.LengthKw or TokenType.Size or TokenType.Position)
             return false;
         return true;
     }

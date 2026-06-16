@@ -4269,6 +4269,232 @@ public class InterpreterTests
             "State scores converted to text."));
     }
 
+    // ── Text Operations — Slice 2: split, contains, find, substring ──────────
+
+    [Fact]
+    public void TextSplit_Basic()
+    {
+        Assert.Equal("a\nb\nc", Run(
+            "Define parts as \"a,b,c\" split by \",\".\n" +
+            "For each part in parts, repeat:\n" +
+            "    State part.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void TextSplit_ResultIsSeriesOfText()
+    {
+        Assert.Equal("3", Run(
+            "Define parts as \"a,b,c\" split by \",\".\n" +
+            "State the number of parts."));
+    }
+
+    [Fact]
+    public void TextSplit_DelimiterNotFound_SingleElementSeries()
+    {
+        Assert.Equal("1\nabc", Run(
+            "Define parts as \"abc\" split by \",\".\n" +
+            "State the number of parts.\n" +
+            "State the first of parts."));
+    }
+
+    [Fact]
+    public void TextSplit_KeepsConsecutiveEmpties()
+    {
+        Assert.Equal("a\n\nb", Run(
+            "For each part in \"a,,b\" split by \",\", repeat:\n" +
+            "    State part.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void TextSplit_KeepsLeadingAndTrailingEmpties()
+    {
+        // Trailing-empty output is invisible through Run()'s TrimEnd('\n'), so assert on
+        // length and the count of elements instead of the raw printed text.
+        Assert.Equal("3\n0\na\n0", Run(
+            "Define parts as \",a,\" split by \",\".\n" +
+            "State the number of parts.\n" +
+            "State the length of the first of parts.\n" +
+            "State the second of parts.\n" +
+            "State the length of the third of parts."));
+    }
+
+    [Fact]
+    public void TextSplit_EmptyDelimiterIsStaticError()
+    {
+        Assert.Throws<TypeException>(() => Run("State \"abc\" split by \"\"."));
+    }
+
+    [Fact]
+    public void TextSplit_TypeErrorOnNonText()
+    {
+        Assert.Throws<TypeException>(() => Run("State 5 split by \",\"."));
+    }
+
+    [Fact]
+    public void TextContains_True()
+    {
+        Assert.Equal("yes", Run("If \"hello\" contains \"ell\", state \"yes\". Otherwise, state \"no\"."));
+    }
+
+    [Fact]
+    public void TextContains_False()
+    {
+        Assert.Equal("no", Run("If \"hello\" contains \"z\", state \"yes\". Otherwise, state \"no\"."));
+    }
+
+    [Fact]
+    public void TextContains_TypeErrorOnNonText()
+    {
+        Assert.Throws<TypeException>(() => Run("State 5 contains \"ell\"."));
+    }
+
+    [Fact]
+    public void TextFind_Present_OneBased()
+    {
+        Assert.Equal("2", Run("State the position of \"ell\" in \"hello\"."));
+    }
+
+    [Fact]
+    public void TextFind_Absent_IsVoid()
+    {
+        Assert.Equal("void", Run(
+            "Define q as the position of \"z\" in \"hello\".\n" +
+            "If q is void:\n" +
+            "    State \"void\".\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State q.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void TextFind_FirstOccurrence()
+    {
+        Assert.Equal("1", Run("State the position of \"a\" in \"abca\"."));
+    }
+
+    [Fact]
+    public void TextFind_ButVoidDefault()
+    {
+        Assert.Equal("0", Run("State (the position of \"z\" in \"hello\" but void is 0)."));
+    }
+
+    [Fact]
+    public void TextFind_TypeErrorOnNonText()
+    {
+        Assert.Throws<TypeException>(() => Run("State the position of 5 in \"hello\"."));
+    }
+
+    [Fact]
+    public void TextSubstring_FromTo()
+    {
+        Assert.Equal("ell", Run("State the characters from 2 to 4 of \"hello\"."));
+    }
+
+    [Fact]
+    public void TextSubstring_FirstN()
+    {
+        Assert.Equal("hel", Run("State the first 3 characters of \"hello\"."));
+    }
+
+    [Fact]
+    public void TextSubstring_LastN()
+    {
+        Assert.Equal("llo", Run("State the last 3 characters of \"hello\"."));
+    }
+
+    [Fact]
+    public void TextSubstring_ToTheEnd()
+    {
+        Assert.Equal("llo", Run("State the characters from 3 to the end of \"hello\"."));
+    }
+
+    [Fact]
+    public void TextSubstring_ClampsOutOfRangeHigh()
+    {
+        Assert.Equal("i", Run("State the characters from 2 to 99 of \"hi\"."));
+    }
+
+    [Fact]
+    public void TextSubstring_FirstNClampsBeyondLength()
+    {
+        Assert.Equal("hi", Run("State the first 10 characters of \"hi\"."));
+    }
+
+    [Fact]
+    public void TextSubstring_BackwardsRangeIsEmpty()
+    {
+        Assert.Equal("", Run("State the characters from 5 to 2 of \"hello\"."));
+    }
+
+    [Fact]
+    public void TextSubstring_FirstZeroIsEmpty()
+    {
+        Assert.Equal("", Run("State the first 0 characters of \"hello\"."));
+    }
+
+    [Fact]
+    public void TextSubstring_LastZeroIsEmpty()
+    {
+        Assert.Equal("", Run("State the last 0 characters of \"hello\"."));
+    }
+
+    [Fact]
+    public void TextSubstring_PositionZeroIsStaticError()
+    {
+        Assert.Throws<TypeException>(() => Run("State the characters from 0 to 3 of \"hello\"."));
+    }
+
+    [Fact]
+    public void TextSubstring_NegativePositionIsStaticError()
+    {
+        Assert.Throws<TypeException>(() => Run("State the characters from -1 to 3 of \"hello\"."));
+    }
+
+    [Fact]
+    public void TextSubstring_PositionZeroRuntimeBackstop()
+    {
+        Assert.Throws<RuntimeException>(() => Run(
+            "Define p as 0.\n" +
+            "State the characters from p to 3 of \"hello\"."));
+    }
+
+    [Fact]
+    public void TextSubstring_TypeErrorOnNonText()
+    {
+        Assert.Throws<TypeException>(() => Run("State the characters from 1 to 2 of 5."));
+    }
+
+    [Fact]
+    public void TextSubstring_NoCollisionWithSeriesOrdinalAccess()
+    {
+        Assert.Equal("10\n30", Run(
+            "Define s as a series with (10, 20, 30).\n" +
+            "State the first of s.\n" +
+            "State the last of s."));
+    }
+
+    [Fact]
+    public void TextSubstring_CharactersFieldNameStillWorksAsNamedAccess()
+    {
+        // 'characters' isn't excluded from named-field access — disambiguated by
+        // the presence of 'from' (substring) vs. its absence (named access).
+        Assert.Equal("5", Run(
+            "Define r as a record with (the characters 5).\n" +
+            "State the characters of r."));
+    }
+
+    [Fact]
+    public void TextSubstring_VariablePosition()
+    {
+        Assert.Equal("ell", Run(
+            "Define from-pos as 2.\n" +
+            "Define to-pos as 4.\n" +
+            "State the characters from from-pos to to-pos of \"hello\"."));
+    }
+
     // ── Voidable type + narrowing ─────────────────────────────────────────────
 
     [Fact]

@@ -487,6 +487,11 @@ public sealed partial class Interpreter
         TextConvert tc => (object)Format(Evaluate(tc.Value)),
         NumberConvert nc => EvaluateNumberConvert(nc),
         TextLength  tl => (object)(decimal)((string)Evaluate(tl.Target)).Length,
+        TextSplit        split => EvaluateTextSplit(split),
+        TextContains     tc2   => EvaluateTextContains(tc2),
+        TextFind         find  => EvaluateTextFind(find),
+        TextSubstringRange tsr => EvaluateTextSubstringRange(tsr),
+        TextSubstringEdge  tse => EvaluateTextSubstringEdge(tse),
         RangeExpression re  => EvaluateRangeExpr(re),
         VoidLiteral        _  => VoidValue.Instance,
         ButVoidDefault bvd    => EvaluateButVoidDefault(bvd),
@@ -590,6 +595,54 @@ public sealed partial class Interpreter
         if (r is not string rs)
             throw new RuntimeException($"'joined to' requires text on the right side (line {tj.Line}).");
         return (object)(ls + rs);
+    }
+
+    private object EvaluateTextSplit(TextSplit split)
+    {
+        var text      = (string)Evaluate(split.Text);
+        var delimiter = (string)Evaluate(split.Delimiter);
+        if (delimiter.Length == 0)
+            throw new RuntimeException($"'split by' needs a non-empty delimiter (line {split.Line}).");
+        return (object)text.Split(delimiter).Select(s => (object)s).ToList();
+    }
+
+    private object EvaluateTextContains(TextContains contains)
+    {
+        var text = (string)Evaluate(contains.Text);
+        var sub  = (string)Evaluate(contains.Substring);
+        return (object)text.Contains(sub, StringComparison.Ordinal);
+    }
+
+    private object EvaluateTextFind(TextFind find)
+    {
+        var sub  = (string)Evaluate(find.Substring);
+        var text = (string)Evaluate(find.Text);
+        var idx  = text.IndexOf(sub, StringComparison.Ordinal);
+        return idx < 0 ? VoidValue.Instance : (object)(decimal)(idx + 1); // 1-based
+    }
+
+    private object EvaluateTextSubstringRange(TextSubstringRange range)
+    {
+        var text    = (string)Evaluate(range.Text);
+        var fromIdx = (int)(decimal)Evaluate(range.From); // 1-based
+        if (fromIdx <= 0)
+            throw new RuntimeException($"a character position must be 1 or greater — positions start at 1 (line {range.Line}).");
+
+        var toIdx  = range.To != null ? (int)(decimal)Evaluate(range.To) : text.Length;
+        var from0  = fromIdx - 1;
+        var to0    = Math.Min(toIdx, text.Length) - 1; // clamp high, 0-based inclusive
+        var length = to0 - from0 + 1;
+        return (object)(length <= 0 ? "" : text.Substring(from0, length));
+    }
+
+    private object EvaluateTextSubstringEdge(TextSubstringEdge edge)
+    {
+        var text    = (string)Evaluate(edge.Text);
+        var count   = (int)(decimal)Evaluate(edge.Count);
+        var clamped = Math.Clamp(count, 0, text.Length);
+        return (object)(edge.FromStart
+            ? text.Substring(0, clamped)
+            : text.Substring(text.Length - clamped, clamped));
     }
 
     // "looks like a Cufet number literal": optional leading '-', digits, optional '.digits'.
