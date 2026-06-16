@@ -42,6 +42,19 @@ public sealed partial class TypeChecker
             "Only numbers and facts can be converted to text."));
     }
 
+    private CufetType InferNumberConvert(NumberConvert nc)
+    {
+        var operand = InferType(nc.Value);
+        if (operand != null && operand != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "'converted to number' expects text",
+                null,
+                nc.Line,
+                $"convert a {FormatType(operand)} to number",
+                "Only text can be converted to number. The result is a voidable number — void if the text isn't a valid number."));
+        return new VoidableType(CufetType.Number);
+    }
+
     private CufetType InferTextLength(TextLength tl)
     {
         var operand = InferType(tl.Target);

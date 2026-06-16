@@ -464,6 +464,7 @@ public sealed partial class TypeChecker
         PossessiveAccess poss                                                                            => InferPossessiveAccess(poss),
         TextJoin tj                                                                                      => InferTextJoin(tj),
         TextConvert tc                                                                                   => InferTextConvert(tc),
+        NumberConvert nc                                                                                 => InferNumberConvert(nc),
         TextLength tl                                                                                    => InferTextLength(tl),
         RangeExpression re                                                                               => InferRangeExpr(re),
         ButVoidDefault bvd                                                                               => InferButVoidDefault(bvd),

@@ -4939,4 +4939,116 @@ public class InterpreterTests
             "    Done.\n" +
             "Done."));
     }
+
+    // ── Text → Number conversion ──────────────────────────────────────────────
+
+    [Fact]
+    public void NumberConvert_IntegerSucceeds()
+    {
+        Assert.Equal("95", Run(
+            "Define n as \"95\" converted to number.\n" +
+            "State n but void is -1."));
+    }
+
+    [Fact]
+    public void NumberConvert_DecimalSucceeds()
+    {
+        Assert.Equal("2.5", Run(
+            "Define n as \"2.5\" converted to number.\n" +
+            "State n but void is -1."));
+    }
+
+    [Fact]
+    public void NumberConvert_NegativeSucceeds()
+    {
+        Assert.Equal("-7", Run(
+            "Define n as \"-7\" converted to number.\n" +
+            "State n but void is 0."));
+    }
+
+    [Fact]
+    public void NumberConvert_TrimsSurroundingWhitespace()
+    {
+        Assert.Equal("95", Run(
+            "Define n as \" 95 \" converted to number.\n" +
+            "State n but void is -1."));
+    }
+
+    [Fact]
+    public void NumberConvert_NonNumericIsVoid()
+    {
+        Assert.Equal("not a number", Run(
+            "Define n as \"hello\" converted to number.\n" +
+            "If n is not void:\n" +
+            "    State n.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"not a number\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void NumberConvert_EmptyTextIsVoid()
+    {
+        Assert.Equal("not a number", Run(
+            "Define n as \"\" converted to number.\n" +
+            "If n is not void:\n" +
+            "    State n.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"not a number\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void NumberConvert_PartialGarbageIsVoid()
+    {
+        Assert.Equal("not a number", Run(
+            "Define n as \"95abc\" converted to number.\n" +
+            "If n is not void:\n" +
+            "    State n.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"not a number\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void NumberConvert_DoubleDecimalPointIsVoid()
+    {
+        Assert.Equal("not a number", Run(
+            "Define n as \"95.5.5\" converted to number.\n" +
+            "If n is not void:\n" +
+            "    State n.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"not a number\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void NumberConvert_NarrowsAfterIsNotVoid()
+    {
+        // n must be usable as a plain number (arithmetic) inside the narrowed branch
+        Assert.Equal("100", Run(
+            "Define n as \"95\" converted to number.\n" +
+            "If n is not void:\n" +
+            "    State n + 5.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State 0.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void NumberConvert_ButVoidDefaultInline()
+    {
+        Assert.Equal("0", Run("State (\"abc\" converted to number but void is 0)."));
+    }
+
+    [Fact]
+    public void NumberConvert_TypeErrorOnNonText()
+    {
+        Assert.Throws<TypeException>(() => Run("State 95 converted to number."));
+    }
 }

@@ -1363,20 +1363,32 @@ public sealed class Parser
             SkipNoise();
         }
 
-        // 'converted to text' postfix — binds tighter than 'joined to' (parsed here at primary level).
-        // Handles: score converted to text, car's year converted to text, (x+1) converted to text.
+        // 'converted to text' / 'converted to number' postfix — binds tighter than 'joined to'
+        // (parsed here at primary level).
+        // Handles: score converted to text, car's year converted to text, (x+1) converted to text,
+        // "95" converted to number.
         while (Peek().Type == TokenType.Converted)
         {
             var line = Advance().Line; // consume 'converted'
             SkipNoise();
             Consume(TokenType.To);
             SkipNoise();
-            var textTok = Peek();
-            if (textTok.Type != TokenType.Identifier ||
-                !textTok.Lexeme.Equals("text", StringComparison.OrdinalIgnoreCase))
-                throw new ParseException(textTok, "text — expected after 'converted to'");
-            Advance(); // consume 'text'
-            baseExpr = new TextConvert(baseExpr, line);
+            var targetTok = Peek();
+            if (targetTok.Type == TokenType.NumberKw)
+            {
+                Advance(); // consume 'number'
+                baseExpr = new NumberConvert(baseExpr, line);
+            }
+            else if (targetTok.Type == TokenType.Identifier &&
+                     targetTok.Lexeme.Equals("text", StringComparison.OrdinalIgnoreCase))
+            {
+                Advance(); // consume 'text'
+                baseExpr = new TextConvert(baseExpr, line);
+            }
+            else
+            {
+                throw new ParseException(targetTok, "text or number — expected after 'converted to'");
+            }
             SkipNoise();
         }
 

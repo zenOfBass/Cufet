@@ -485,6 +485,7 @@ public sealed partial class Interpreter
                                          $"{FuncDisplayName(cast.Function)} gives nothing back — it can't be used as a value (line {cast.Line})."),
         TextJoin   tj => EvaluateTextJoin(tj),
         TextConvert tc => (object)Format(Evaluate(tc.Value)),
+        NumberConvert nc => EvaluateNumberConvert(nc),
         TextLength  tl => (object)(decimal)((string)Evaluate(tl.Target)).Length,
         RangeExpression re  => EvaluateRangeExpr(re),
         VoidLiteral        _  => VoidValue.Instance,
@@ -589,6 +590,23 @@ public sealed partial class Interpreter
         if (r is not string rs)
             throw new RuntimeException($"'joined to' requires text on the right side (line {tj.Line}).");
         return (object)(ls + rs);
+    }
+
+    // "looks like a Cufet number literal": optional leading '-', digits, optional '.digits'.
+    // Mirrors the Lexer's own number-literal acceptance (which never includes the sign — that's
+    // unary minus at parse time — so the sign is added back in here for the free-standing-text case).
+    private static readonly System.Text.RegularExpressions.Regex NumberLiteralPattern =
+        new(@"^-?\d+(\.\d+)?$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private object EvaluateNumberConvert(NumberConvert nc)
+    {
+        var text    = (string)Evaluate(nc.Value);
+        var trimmed = text.Trim();
+        if (NumberLiteralPattern.IsMatch(trimmed) &&
+            decimal.TryParse(trimmed, System.Globalization.NumberStyles.AllowDecimalPoint | System.Globalization.NumberStyles.AllowLeadingSign,
+                System.Globalization.CultureInfo.InvariantCulture, out var result))
+            return (object)result;
+        return VoidValue.Instance;
     }
 
     private object EvaluateRangeExpr(RangeExpression re)

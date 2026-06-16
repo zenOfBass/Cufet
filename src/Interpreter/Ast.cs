@@ -172,6 +172,9 @@ public sealed record TextJoin(IExpression Left, IExpression Right, int Line) : I
 // score converted to text — explicit value → text (number, fact, or text no-op)
 public sealed record TextConvert(IExpression Value, int Line) : IExpression;
 
+// "95" converted to number — text → voidable number; void if the text isn't a clean number literal
+public sealed record NumberConvert(IExpression Value, int Line) : IExpression;
+
 // the length of greeting — character count of a text value; result is number
 public sealed record TextLength(IExpression Target, int Line) : IExpression;
 
