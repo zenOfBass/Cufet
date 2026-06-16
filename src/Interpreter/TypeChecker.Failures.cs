@@ -32,7 +32,10 @@ public sealed partial class TypeChecker
     // Checks that X is FailureType(T) and Y is assignable to T; returns T.
     private CufetType? InferFailureFallback(FailureFallback ff)
     {
+        var savedCtx = _inFailureHandledContext;
+        _inFailureHandledContext = true;
         var fallibleType = InferType(ff.Fallible);
+        _inFailureHandledContext = savedCtx;
         var defaultType  = InferType(ff.Default);
 
         if (fallibleType is FailureType f)
@@ -60,7 +63,10 @@ public sealed partial class TypeChecker
     // Requires the enclosing function to also be declared fallible.
     private CufetType? InferFailurePropagate(FailurePropagate fp)
     {
+        var savedCtx = _inFailureHandledContext;
+        _inFailureHandledContext = true;
         var fallibleType = InferType(fp.Fallible);
+        _inFailureHandledContext = savedCtx;
 
         if (fallibleType is FailureType f)
         {

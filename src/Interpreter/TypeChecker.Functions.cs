@@ -180,6 +180,13 @@ public sealed partial class TypeChecker
         if (_inTryBlock && funcType.ReturnType is FailureType frt)
             return frt.Inner;
 
+        if (funcType.ReturnType is FailureType && !_inFailureHandledContext)
+            throw new TypeException(FormatTypeError(
+                $"{displayName} can fail — you must handle the failure",
+                null, cast.Line,
+                "use a fallible function's result without handling the failure",
+                "Wrap the call in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'."));
+
         return funcType.ReturnType;
     }
 

@@ -235,6 +235,10 @@ public sealed partial class TypeChecker
     // When true, CastExpression results of type FailureType(T) are auto-unwrapped to T
     // because control only reaches the next line inside a Try block if the call succeeded.
     private bool       _inTryBlock              = false;
+    // When true, a CastExpression that returns FailureType(T) is permitted without an explicit
+    // handler — set by InferFailureFallback and InferFailurePropagate while checking their
+    // inner fallible expression, so the FailureType passes through to their own logic.
+    private bool       _inFailureHandledContext = false;
 
     public void Check(Program program)
     {
@@ -411,7 +415,16 @@ public sealed partial class TypeChecker
             case CastStatement cs:
             {
                 var (funcType, displayName, declLine, argsToValidate) = ResolveForCast(cs.Function, cs.Args, cs.Line);
-                if (funcType != null) ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cs.Line);
+                if (funcType != null)
+                {
+                    ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cs.Line);
+                    if (!_inTryBlock && funcType.ReturnType is FailureType)
+                        throw new TypeException(FormatTypeError(
+                            $"{displayName} can fail — you must handle the failure",
+                            null, cs.Line,
+                            $"call a fallible function without handling the failure",
+                            "Wrap this call in a 'Try to: / In case of failure:' block."));
+                }
                 break;
             }
             case ReturnStatement ret:

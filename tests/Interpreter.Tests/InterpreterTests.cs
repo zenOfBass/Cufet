@@ -6242,15 +6242,23 @@ public class InterpreterTests
     }
 
     [Fact]
-    public void Failure_UnhandledAtTopLevelGivesRuntimeException()
+    public void Failure_UnhandledInExpressionContextGivesTypeException()
     {
-        // A failure that escapes without being handled should produce a RuntimeException,
-        // not a raw C# FailureUnwind propagating out of Execute(Program).
-        Assert.Throws<RuntimeException>(() => Run(
+        Assert.Throws<TypeException>(() => Run(
             "Bind number or failure to parse, given (the text s):\n" +
             "    Return a failure \"something went wrong\".\n" +
             "Done.\n" +
             "Define result as Cast parse on (\"x\").\n" +
             "State result."));
+    }
+
+    [Fact]
+    public void Failure_UnhandledBareCallGivesTypeException()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return a failure \"something went wrong\".\n" +
+            "Done.\n" +
+            "Cast parse on (\"x\")."));
     }
 }
