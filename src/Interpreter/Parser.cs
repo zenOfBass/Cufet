@@ -50,6 +50,7 @@ public sealed class Parser
             TokenType.Cast       => ParseCastStatementWrapper(),
             TokenType.Return     => ParseReturnStatement(),
             TokenType.Try        => ParseTryStatement(),
+            TokenType.Suppress   => ParseSuppressStatement(),
             TokenType.In         => ParseMapSetStatement(),
             _ => throw new ParseException(tok, "statement keyword"),
         };
@@ -1398,6 +1399,14 @@ public sealed class Parser
                 }
                 break;
             }
+            case TokenType.Exception:
+            {
+                // 'the exception' — 'the' is already stripped by SkipNoise.
+                // Only meaningful inside an 'In case of exception' handler block.
+                var exTok = Advance(); // consume 'exception'
+                baseExpr = new VariableReference("the exception", exTok.Line);
+                break;
+            }
             case TokenType.Cast:
                 baseExpr = ParseCastExpression();
                 break;
@@ -2020,19 +2029,70 @@ public sealed class Parser
         var body = ParseLoopBody();
         _nestDepth--;
         SkipNoise();
-        Consume(TokenType.In);
+
+        IReadOnlyList<IStatement>? failureHandler   = null;
+        IReadOnlyList<IStatement>? exceptionHandler = null;
+
+        // Optional failure handler — must come first if both handlers are present.
+        if (PeekHandlerKind() == TokenType.Failure)
+        {
+            Consume(TokenType.In);   SkipNoise();
+            Consume(TokenType.Case); SkipNoise();
+            Consume(TokenType.Of);   SkipNoise();
+            Consume(TokenType.Failure); SkipNoise();
+            Consume(TokenType.Colon);
+            _nestDepth++;
+            failureHandler = ParseLoopBody();
+            _nestDepth--;
+            SkipNoise();
+        }
+
+        // Optional exception handler.
+        if (PeekHandlerKind() == TokenType.Exception)
+        {
+            Consume(TokenType.In);        SkipNoise();
+            Consume(TokenType.Case);      SkipNoise();
+            Consume(TokenType.Of);        SkipNoise();
+            Consume(TokenType.Exception); SkipNoise();
+            // Binding: '(the exception)' — 'the' is noise-skipped inside the parens.
+            Consume(TokenType.LParen);    SkipNoise();
+            Consume(TokenType.Exception); SkipNoise();
+            Consume(TokenType.RParen);    SkipNoise();
+            Consume(TokenType.Colon);
+            _nestDepth++;
+            exceptionHandler = ParseLoopBody();
+            _nestDepth--;
+        }
+
+        return new TryStatement(body, failureHandler, exceptionHandler, line);
+    }
+
+    private SuppressStatement ParseSuppressStatement()
+    {
+        var line = Consume(TokenType.Suppress).Line;
+        SkipNoise(); // skips 'the'
+        Consume(TokenType.Exception);
         SkipNoise();
-        Consume(TokenType.Case);
-        SkipNoise();
-        Consume(TokenType.Of);
-        SkipNoise();
-        Consume(TokenType.Failure);
-        SkipNoise();
-        Consume(TokenType.Colon);
-        _nestDepth++;
-        var handler = ParseLoopBody();
-        _nestDepth--;
-        return new TryStatement(body, handler, line);
+        Consume(TokenType.Dot);
+        return new SuppressStatement(line);
+    }
+
+    // Returns the handler keyword (Failure or Exception) following 'In case of' at
+    // the current position, skipping noise. Returns Eof if no handler pattern follows.
+    private TokenType PeekHandlerKind()
+    {
+        int i = _pos;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        if (i >= _tokens.Count || _tokens[i].Type != TokenType.In) return TokenType.Eof;
+        i++;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        if (i >= _tokens.Count || _tokens[i].Type != TokenType.Case) return TokenType.Eof;
+        i++;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        if (i >= _tokens.Count || _tokens[i].Type != TokenType.Of) return TokenType.Eof;
+        i++;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count ? _tokens[i].Type : TokenType.Eof;
     }
 
     private ReturnStatement ParseReturnStatement()

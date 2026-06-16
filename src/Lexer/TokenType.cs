@@ -121,8 +121,10 @@ public enum TokenType
               //               "the category of the failure" must reach the normal named-access path
     Try,      // "try"      — in "Try to: ... Done."
     Case,     // "case"     — in "In case of failure:" / "In case of exception (...):"
-    Pass,     // "pass"     — in "or pass the failure off"
-    Off,      // "off"      — in "or pass the failure off"
+    Pass,      // "pass"      — in "or pass the failure off"
+    Off,       // "off"       — in "or pass the failure off"
+    Exception, // "exception" — in "In case of exception (the exception):" / "the exception" binding
+    Suppress,  // "suppress"  — in "Suppress the exception."
 
     // ── Maps ──────────────────────────────────────────────────────────────────
     Map,    // "map"   — type annotation and literal

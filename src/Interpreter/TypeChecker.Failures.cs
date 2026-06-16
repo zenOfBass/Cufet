@@ -99,21 +99,47 @@ public sealed partial class TypeChecker
 
     private void CheckTryStatement(TryStatement trySt)
     {
-        // Body: set _inTryBlock so CastExpression results of FailureType(T) are auto-unwrapped to T.
+        if (trySt.FailureHandler == null && trySt.ExceptionHandler == null)
+            throw new TypeException(FormatTypeError(
+                "a 'Try' block must have at least one handler",
+                null, trySt.Line,
+                "write a Try block with no handlers",
+                "Add 'In case of failure:' and/or 'In case of exception (the exception):' after the Try body."));
+
+        // Body: only set _inTryBlock when there IS a failure handler, so CastExpression results
+        // of FailureType(T) auto-unwrap to T. Without a failure handler, fallible calls inside
+        // the body must be handled explicitly ('but on failure' / 'or pass the failure off').
         var savedInTryBlock = _inTryBlock;
-        _inTryBlock = true;
+        _inTryBlock = trySt.FailureHandler != null;
         foreach (var s in trySt.Body)
             CheckStatement(s);
         _inTryBlock = savedInTryBlock;
 
-        // Handler: bind "the failure" as FailureMarkerType so 'the failure', 'the message of the
-        // failure', and 'the category of the failure' resolve correctly inside the handler.
-        var savedFailure = _env.TryGetValue("the failure", out var prevFailure) ? prevFailure : null;
-        _env["the failure"] = new TypeInfo(CufetType.FailureMarker,
-            new VariableReference("the failure", trySt.Line), trySt.Line);
-        foreach (var s in trySt.FailureHandler)
-            CheckStatement(s);
-        if (savedFailure != null) _env["the failure"] = savedFailure;
-        else _env.Remove("the failure");
+        // Failure handler: bind "the failure" as FailureMarkerType.
+        if (trySt.FailureHandler != null)
+        {
+            var savedFailure = _env.TryGetValue("the failure", out var prevFailure) ? prevFailure : null;
+            _env["the failure"] = new TypeInfo(CufetType.FailureMarker,
+                new VariableReference("the failure", trySt.Line), trySt.Line);
+            foreach (var s in trySt.FailureHandler)
+                CheckStatement(s);
+            if (savedFailure != null) _env["the failure"] = savedFailure;
+            else _env.Remove("the failure");
+        }
+
+        // Exception handler: bind "the exception" as ExceptionMarkerType; set _inExceptionHandler.
+        if (trySt.ExceptionHandler != null)
+        {
+            var savedEx = _env.TryGetValue("the exception", out var prevEx) ? prevEx : null;
+            _env["the exception"] = new TypeInfo(CufetType.ExceptionMarker,
+                new VariableReference("the exception", trySt.Line), trySt.Line);
+            var savedInEx = _inExceptionHandler;
+            _inExceptionHandler = true;
+            foreach (var s in trySt.ExceptionHandler)
+                CheckStatement(s);
+            _inExceptionHandler = savedInEx;
+            if (savedEx != null) _env["the exception"] = savedEx;
+            else _env.Remove("the exception");
+        }
     }
 }

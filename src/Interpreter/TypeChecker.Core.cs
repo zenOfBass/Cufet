@@ -11,7 +11,8 @@ public abstract class CufetType
     public static readonly CufetType Text   = new TextType();
     public static readonly CufetType Fact   = new FactType();
     public static readonly CufetType Void   = new VoidType();
-    public static readonly CufetType FailureMarker = new FailureMarkerType();
+    public static readonly CufetType FailureMarker   = new FailureMarkerType();
+    public static readonly CufetType ExceptionMarker = new ExceptionMarkerType();
 
     public abstract override bool Equals(object? obj);
     public abstract override int GetHashCode();
@@ -210,6 +211,14 @@ public sealed class FailureType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(FailureType), Inner);
 }
 
+// The type of 'the exception' binding inside an 'In case of exception' handler block.
+// Exposes only 'message' (text) via record-style access.
+public sealed class ExceptionMarkerType : CufetType
+{
+    public override bool Equals(object? obj) => obj is ExceptionMarkerType;
+    public override int GetHashCode() => typeof(ExceptionMarkerType).GetHashCode();
+}
+
 public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false);
 
 public sealed class TypeException : Exception
@@ -239,6 +248,8 @@ public sealed partial class TypeChecker
     // handler — set by InferFailureFallback and InferFailurePropagate while checking their
     // inner fallible expression, so the FailureType passes through to their own logic.
     private bool       _inFailureHandledContext = false;
+    // When true, 'Suppress the exception.' is valid — only inside an exception handler block.
+    private bool       _inExceptionHandler      = false;
 
     public void Check(Program program)
     {
@@ -432,6 +443,14 @@ public sealed partial class TypeChecker
                 break;
             case TryStatement trySt:
                 CheckTryStatement(trySt);
+                break;
+            case SuppressStatement ss:
+                if (!_inExceptionHandler)
+                    throw new TypeException(FormatTypeError(
+                        "'Suppress the exception.' is only valid inside an exception handler",
+                        null, ss.Line,
+                        "suppress an exception outside an exception handler",
+                        "Move 'Suppress the exception.' inside an 'In case of exception' block."));
                 break;
             case ObjectDefinition od:
                 CheckObjectDefinition(od);
@@ -777,6 +796,7 @@ public sealed partial class TypeChecker
         MappingType                          => "mapping",
         FailureMarkerType                    => "failure",
         FailureType { Inner: var inner }     => $"{FormatType(inner)} or failure",
+        ExceptionMarkerType                  => "exception",
         _                                    => "<unknown>",
     };
 
@@ -813,6 +833,7 @@ public sealed partial class TypeChecker
         MappingType                          => "mappings",
         FailureMarkerType                    => "failures",
         FailureType { Inner: var inner }     => $"{FormatTypePlural(inner)} or failures",
+        ExceptionMarkerType                  => "exceptions",
         _                                    => "<unknown>",
     };
 

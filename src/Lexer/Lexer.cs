@@ -173,6 +173,8 @@ public sealed class Lexer
             "case"       => TokenType.Case,
             "pass"       => TokenType.Pass,
             "off"        => TokenType.Off,
+            "exception"  => TokenType.Exception,
+            "suppress"   => TokenType.Suppress,
             _           => TokenType.Identifier,
         };
 

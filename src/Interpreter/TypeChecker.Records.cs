@@ -99,6 +99,20 @@ public sealed partial class TypeChecker
             };
         }
 
+        // Exception values expose only 'message' (text).
+        if (recordType is ExceptionMarkerType)
+        {
+            return rna.FieldName switch
+            {
+                "message" => CufetType.Text,
+                _ => throw new TypeException(FormatTypeError(
+                    "an exception only has a 'message' field",
+                    null, rna.Line,
+                    $"access field '{rna.FieldName}' on an exception",
+                    "Use 'the message of the exception'."))
+            };
+        }
+
         // Failure values expose 'message' (text) and 'category' (voidable text).
         if (recordType is FailureMarkerType)
         {

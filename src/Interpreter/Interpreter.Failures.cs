@@ -47,30 +47,60 @@ public sealed partial class Interpreter
 
     private void ExecuteTryStatement(TryStatement trySt)
     {
-        FailureUnwind? caught = null;
+        FailureUnwind?    caughtFailure = null;
+        RuntimeException? caughtEx      = null;
+
         try
         {
             foreach (var s in trySt.Body)
                 Execute(s);
         }
-        catch (FailureUnwind fu)
+        catch (FailureUnwind fu) when (trySt.FailureHandler != null)
         {
-            caught = fu;
+            caughtFailure = fu;
+        }
+        catch (RuntimeException re) when (trySt.ExceptionHandler != null)
+        {
+            caughtEx = re;
         }
 
-        if (caught == null) return;
-
-        var savedFailure = _env.TryGetValue("the failure", out var prev);
-        _env["the failure"] = caught.Value;
-        try
+        if (caughtFailure != null)
         {
-            foreach (var s in trySt.FailureHandler)
-                Execute(s);
+            var savedFailure = _env.TryGetValue("the failure", out var prev);
+            _env["the failure"] = caughtFailure.Value;
+            try
+            {
+                foreach (var s in trySt.FailureHandler!)
+                    Execute(s);
+            }
+            finally
+            {
+                if (savedFailure) _env["the failure"] = prev!;
+                else _env.Remove("the failure");
+            }
+            return;
         }
-        finally
+
+        if (caughtEx != null)
         {
-            if (savedFailure) _env["the failure"] = prev!;
-            else _env.Remove("the failure");
+            var savedEx = _env.TryGetValue("the exception", out var prev);
+            _env["the exception"] = new ExceptionValue(caughtEx.Message);
+            bool suppress = false;
+            try
+            {
+                foreach (var s in trySt.ExceptionHandler!)
+                    Execute(s);
+            }
+            catch (SuppressSignal)
+            {
+                suppress = true;
+            }
+            finally
+            {
+                if (savedEx) _env["the exception"] = prev!;
+                else _env.Remove("the exception");
+            }
+            if (!suppress) throw caughtEx; // re-raise by default
         }
     }
 }

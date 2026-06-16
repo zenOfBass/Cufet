@@ -6261,4 +6261,171 @@ public class InterpreterTests
             "Done.\n" +
             "Cast parse on (\"x\")."));
     }
+
+    // ── Exceptions (Slice 2) ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void Exception_CaughtByHandler_HandlerRuns()
+    {
+        // A runtime exception (divide by zero) is caught; handler prints the message.
+        var output = Run(
+            "Try to:\n" +
+            "    Define x as 1 / 0.\n" +
+            "    State \"should not reach\".\n" +
+            "Done.\n" +
+            "In case of exception (the exception):\n" +
+            "    State \"caught: \" joined to the message of the exception.\n" +
+            "    Suppress the exception.\n" +
+            "Done.");
+        Assert.Contains("caught:", output);
+        Assert.DoesNotContain("should not reach", output);
+    }
+
+    [Fact]
+    public void Exception_SuppressedContinuesAfterTry()
+    {
+        // After Suppress, execution continues with the statement after the Try block.
+        var output = Run(
+            "Try to:\n" +
+            "    Define x as 1 / 0.\n" +
+            "Done.\n" +
+            "In case of exception (the exception):\n" +
+            "    Suppress the exception.\n" +
+            "Done.\n" +
+            "State \"after try\".");
+        Assert.Equal("after try", output.Trim());
+    }
+
+    [Fact]
+    public void Exception_NotSuppressedReRaises()
+    {
+        // Without Suppress, the exception re-raises and the program halts with RuntimeException.
+        Assert.Throws<RuntimeException>(() => Run(
+            "Try to:\n" +
+            "    Define x as 1 / 0.\n" +
+            "Done.\n" +
+            "In case of exception (the exception):\n" +
+            "    State \"handler ran\".\n" +
+            "Done.\n" +
+            "State \"after try\"."));
+    }
+
+    [Fact]
+    public void Exception_MessageAccessible()
+    {
+        // The message of the exception is accessible inside the handler.
+        var output = Run(
+            "Try to:\n" +
+            "    Define x as 1 / 0.\n" +
+            "Done.\n" +
+            "In case of exception (the exception):\n" +
+            "    State the message of the exception.\n" +
+            "    Suppress the exception.\n" +
+            "Done.");
+        Assert.False(string.IsNullOrWhiteSpace(output));
+    }
+
+    [Fact]
+    public void Exception_NoExceptionInBodySkipsHandler()
+    {
+        // When the body succeeds, the exception handler does not run.
+        var output = Run(
+            "Try to:\n" +
+            "    State \"body ran\".\n" +
+            "Done.\n" +
+            "In case of exception (the exception):\n" +
+            "    State \"handler ran\".\n" +
+            "    Suppress the exception.\n" +
+            "Done.");
+        Assert.Equal("body ran", output.Trim());
+        Assert.DoesNotContain("handler ran", output);
+    }
+
+    [Fact]
+    public void Exception_BothHandlers_FailureTakesFailurePath()
+    {
+        // A failure goes to the failure handler, NOT the exception handler.
+        var output = Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return a failure \"bad\".\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define result as Cast parse on (\"x\").\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failure handler\".\n" +
+            "Done.\n" +
+            "In case of exception (the exception):\n" +
+            "    State \"exception handler\".\n" +
+            "    Suppress the exception.\n" +
+            "Done.");
+        Assert.Equal("failure handler", output.Trim());
+        Assert.DoesNotContain("exception handler", output);
+    }
+
+    [Fact]
+    public void Exception_BothHandlers_ExceptionTakesExceptionPath()
+    {
+        // A runtime exception goes to the exception handler, NOT the failure handler.
+        var output = Run(
+            "Try to:\n" +
+            "    Define x as 1 / 0.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failure handler\".\n" +
+            "Done.\n" +
+            "In case of exception (the exception):\n" +
+            "    State \"exception handler\".\n" +
+            "    Suppress the exception.\n" +
+            "Done.");
+        Assert.Equal("exception handler", output.Trim());
+        Assert.DoesNotContain("failure handler", output);
+    }
+
+    [Fact]
+    public void Exception_OnlyExceptionHandler_NoFailureHandler()
+    {
+        // A Try with only an exception handler works.
+        var output = Run(
+            "Try to:\n" +
+            "    Define x as 1 / 0.\n" +
+            "Done.\n" +
+            "In case of exception (the exception):\n" +
+            "    State \"caught\".\n" +
+            "    Suppress the exception.\n" +
+            "Done.");
+        Assert.Equal("caught", output.Trim());
+    }
+
+    [Fact]
+    public void Exception_TypeChecker_SuppressOutsideHandlerIsError()
+    {
+        Assert.Throws<TypeException>(() => Run("Suppress the exception."));
+    }
+
+    [Fact]
+    public void Exception_TypeChecker_TryWithNoHandlersIsError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Try to:\n" +
+            "    State \"body\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Exception_SuppressInsideIfInsideHandler_StopsHandler()
+    {
+        // Suppress inside a nested If still stops the handler — SuppressSignal unwinds through If.
+        var output = Run(
+            "Try to:\n" +
+            "    Define x as 1 / 0.\n" +
+            "Done.\n" +
+            "In case of exception (the exception):\n" +
+            "    If 1 is 1:\n" +
+            "        Suppress the exception.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "State \"continued\".");
+        Assert.Equal("continued", output.Trim());
+    }
 }

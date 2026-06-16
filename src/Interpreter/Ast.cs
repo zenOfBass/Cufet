@@ -250,15 +250,24 @@ public sealed record FailureFallback(IExpression Fallible, IExpression Default, 
 // enclosing function to itself be fallible). On success, yields the plain value.
 public sealed record FailurePropagate(IExpression Fallible, int Line) : IExpression;
 
-// Try to: <Body> Done. In case of failure: <FailureHandler> Done.
-// If a fallible call's result reaches a context inside Body that doesn't explicitly handle it
-// (no 'but on failure' / 'or pass the failure off'), control transfers to FailureHandler, with
-// 'the failure' bound (see VariableReference("the failure", ...)).
+// Try to: <Body> Done.
+//   [In case of failure: <FailureHandler> Done.]        — optional, null if absent
+//   [In case of exception (the exception): <ExceptionHandler> Done.] — optional, null if absent
+// At least one handler must be present (enforced by TypeChecker, not Parser).
+// Failure and exception paths are independent — failures go to FailureHandler only,
+// runtime exceptions go to ExceptionHandler only.
 public sealed record TryStatement(
     IReadOnlyList<IStatement> Body,
-    IReadOnlyList<IStatement> FailureHandler,
+    IReadOnlyList<IStatement>? FailureHandler,    // null = no failure handler
+    IReadOnlyList<IStatement>? ExceptionHandler,  // null = no exception handler
     int Line
 ) : IStatement;
+
+// Suppress the exception.
+// Valid only inside an 'In case of exception' handler block (static error elsewhere).
+// Causes the exception to be swallowed — execution continues after the Try statement
+// rather than re-raising the exception. Without this, exceptions re-raise by default.
+public sealed record SuppressStatement(int Line) : IStatement;
 
 // ── Maps ──────────────────────────────────────────────────────────────────────
 

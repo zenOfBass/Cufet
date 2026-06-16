@@ -32,6 +32,17 @@ public sealed partial class Interpreter
         public FailureUnwind(FailureValue value) { Value = value; }
     }
 
+    // Runtime representation of 'the exception' binding inside an exception handler.
+    private sealed class ExceptionValue
+    {
+        public string Message { get; }
+        public ExceptionValue(string message) => Message = message;
+    }
+
+    // Thrown by 'Suppress the exception.' inside an exception handler to signal swallow-and-continue.
+    // Caught by ExecuteTryStatement; never visible to users.
+    private sealed class SuppressSignal : Exception { }
+
     // The singleton runtime representation of the void value (the absent case of any voidable T).
     // Distinct from C# null, which means "this function returned nothing" in the call machinery.
     private sealed class VoidValue
@@ -379,6 +390,9 @@ public sealed partial class Interpreter
                 ExecuteTryStatement(trySt);
                 break;
 
+            case SuppressStatement:
+                throw new SuppressSignal();
+
             case ForEachStatement fe:
             {
                 var seriesVal = Evaluate(fe.Series);
@@ -627,6 +641,16 @@ public sealed partial class Interpreter
                 "category" => fv.Category != null ? (object)fv.Category : VoidValue.Instance,
                 _ => throw new RuntimeException(
                     $"A failure only has 'message' and 'category' fields (line {rna.Line}).")
+            };
+        }
+
+        if (target is ExceptionValue ev)
+        {
+            return rna.FieldName switch
+            {
+                "message" => (object)ev.Message,
+                _ => throw new RuntimeException(
+                    $"An exception only has a 'message' field (line {rna.Line}).")
             };
         }
 
