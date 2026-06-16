@@ -39,6 +39,9 @@ language is considered stable.
 - Range: `range 1 to 100` — sugar producing a materialized `series of number`.
   Inclusive of both ends; counts down when start > end. With `for each` it covers
   every use of a C-style counter loop, so no separate index-loop construct exists.
+  Optional stepping: `range 1 to 10 counting by 2`. The step is always a positive
+  magnitude — direction still comes from start-vs-end — and the endpoint is
+  included only if the step lands on it exactly.
 - Maps: `a map from text to number` — homogeneous typed key→value. Keys `number`
   or `text`. Lookup (`the entry for K in M`) returns `voidable V`; set via
   `becomes`; `has a key for` / `has an entry for`; `remove`; `the size of`;
@@ -48,6 +51,9 @@ language is considered stable.
 - `joined to` (concatenation, text-to-text only, chains), `converted to text`
   (explicit number/fact → text — no hidden coercion), `the length of` (character
   count). `+` is deliberately not concatenation.
+- `converted to number` — the inverse direction. Parsing can fail, so the result
+  is always `voidable number` (even for an obviously-valid literal), handled with
+  the same voidable machinery as everything else. No new handling syntax needed.
 
 **Voidable values**
 - `void` is a first-class, holdable empty value; `voidable T` is "a T, or void".
@@ -57,13 +63,23 @@ language is considered stable.
   This is Cufet's answer to "or nothing" — no null, absence is explicit and
   checked.
 
-**Functions**
+**Functions** *(including closures and lambdas, complete)*
 - `Bind <return-type|void> to <name>, given (<params>): ... return value.`
   Top-level, hoisted (use-before-declaration and recursion work).
 - Fully first-class: stored in variables, passed as parameters, returned, and
   held in series. Function types written `the <return> function <name>,
   given (<params>)`.
 - Recursion with a graceful depth limit (kind "missing base case?" error).
+- **Closures** — a `Bind` declared inside another function or method body
+  captures the enclosing variables at declaration time. Capture follows the
+  same value/reference split as everywhere else: value types snapshot,
+  reference types share the live instance.
+- **Lambda literals** — anonymous function expressions, `a function given
+  (<params>): <body> Done`, usable anywhere a function value goes (assigned,
+  passed, returned, stored in a series). Body is always block-form
+  (`Done`-terminated, no inline single-statement sugar). Return type is
+  **inferred from the body**, never declared. Lambdas always carry a captured
+  environment, same capture rule as closures above.
 
 **Records** *(complete)*
 - Anonymous, structural data. `a record with (<positional>, the <type> <name>, ...)`
@@ -117,13 +133,9 @@ language is considered stable.
   bases, not silent assumptions). Generalizes to any orderable dimension
   (e.g. a series `by size`). Intended shape; undesigned in detail.
 
-- **Further text operations** — joining, conversion, and length exist. Substring
-  / slicing, contains / find, split, replace, case-change, and trim do not yet.
-  A later text slice.
-
-- **Text → number conversion** — the reverse of `converted to text`. It can
-  *fail* (`"hello"` has no number), so it returns a `voidable number` — now
-  expressible, since the voidable type exists. Unblocked; not yet built.
+- **Further text operations** — joining, conversion (both directions), and
+  length exist. Substring / slicing, contains / find, split, replace,
+  case-change, and trim do not yet. A later text slice.
 
 - **Constant declarations** — Cufet is mutable-by-default. Add an optional,
   explicit way to declare a value that cannot change. Backward-compatible. Form
@@ -150,21 +162,8 @@ language is considered stable.
 
 ### Functions
 
-*Closures + lambdas are the next major frontier — the largest remaining
-language feature, comparable in scope to the objects arc.*
-
-- **Closures** — functions that capture variables from an enclosing scope.
-  Currently a passed/returned function can only be a top-level function by name
-  (no captured state), so a "specialized" function (the classic `make-adder`)
-  is not yet expressible. Closures are forced only by **nested function
-  declarations** or **anonymous/inline function literals**, neither of which
-  exists yet — adding either brings closures into play. Closures are what make
-  function-return genuinely powerful. The real design fork: capture by reference
-  vs. by value (entangled with the value/reference split), and lifetime (a
-  returned closure outlives its defining scope).
-
-- **Anonymous / inline functions (lambdas)** — function literals written inline
-  rather than declared at top level. Tied to closures (one arc, not two).
+*Closures and lambdas (the former "next major frontier") are now complete —
+see [What's built](#whats-built-the-language-today) above.*
 
 - **Built-in functions / standard library** — Cufet has no built-in functions
   yet; every function is user-declared. Conversions, math, and (eventually) I/O
@@ -385,21 +384,24 @@ Load-bearing prerequisites (each a real feature):
   open.)
 - **An "or nothing" type** — ✅ **built.** The voidable type (`voidable T`,
   `void`) expresses "a value, or nothing" with no null. This was the most
-  load-bearing deferred prerequisite, and it now exists — also unblocking
-  text→number and recursive data structures.
-- **Text operations** — joining, conversion, and length exist; a shell wants the
-  fuller set (split, replace, slice, find), since it is almost entirely text
-  manipulation.
+  load-bearing deferred prerequisite, and it now exists — it has already
+  unblocked text→number (✅ built) and closures/lambdas (✅ built); recursive
+  data structures remain unblocked-but-not-yet-built.
+- **Text operations** — joining, conversion (both directions), and length
+  exist; a shell wants the fuller set (split, replace, slice, find), since it
+  is almost entirely text manipulation.
 - **Possibly streaming / pipes and a concurrency model** — Cufet has no concept
   of this today.
 
 **How this reorganizes the nearer roadmap:** the most load-bearing prerequisite,
-the **"or nothing" type, is now built** (voidable). What remains load-bearing for
-the shell direction is **recoverable error handling** and the **fuller text
-operations**. Rough order the vision imposes: pure-language maturity first
-(records, objects, maps, voidable, text basics — done; **closures/lambdas next**)
-→ then the outside-world layer (I/O, recoverable errors, processes) → then
-shell-specific features (pipes, the interactive prompt / REPL).
+the **"or nothing" type, is now built** (voidable), and it has already paid off
+twice (text→number, closures/lambdas). What remains load-bearing for the shell
+direction is **recoverable error handling** and the **fuller text operations**.
+Rough order the vision imposes: pure-language maturity first (records, objects,
+maps, voidable, text basics, closures/lambdas — done; **further text ops,
+constants, recursive data structures next**) → then the outside-world layer
+(I/O, recoverable errors, processes) → then shell-specific features (pipes, the
+interactive prompt / REPL).
 
 ---
 

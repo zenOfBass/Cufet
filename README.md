@@ -58,6 +58,16 @@ For each op in ops, repeat:
 Done.
 ```
 
+**Closures and lambdas — make a specialized function on the fly:**
+```
+Bind number function given (the number) to make-adder, given (the number n):
+    Return a function given (the number x): Return x + n. Done.
+Done.
+
+Define add-five as cast make-adder on (5).
+State cast add-five on (10).        → 15
+```
+
 **Objects with data and behavior:**
 ```
 Define object vehicle with (the text make, the number year):

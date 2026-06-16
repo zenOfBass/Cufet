@@ -25,6 +25,8 @@ behind the design, see [ROADMAP.md](ROADMAP.md).
     - [Embedding (composition)](#embedding-composition)
     - [Interfaces (polymorphism)](#interfaces-polymorphism)
   - [Functions](#functions)
+    - [Closures](#closures)
+    - [Lambda literals (anonymous functions)](#lambda-literals-anonymous-functions)
   - [Voidable values (`void` and `voidable T`)](#voidable-values-void-and-voidable-t)
   - [Maps](#maps)
   - [Type system](#type-system)
@@ -56,6 +58,9 @@ Uses `decimal` — no floating-point surprises.
 `%` is modulo (remainder). Binary `-` requires surrounding whitespace to
 distinguish it from a dash inside an identifier: `a - b` is subtraction,
 `a-b` is one identifier.
+
+Results print in their minimal form regardless of scale picked up along the
+way — `1.5 + 0.5` displays as `2`, not `2.0`.
 
 ---
 
@@ -271,6 +276,28 @@ State the length of "hello".          → 5
 Define n as the length of greeting.
 ```
 
+**Converting text to number** — `converted to number`, the inverse of
+`converted to text`:
+```
+Define n as "42" converted to number.
+If n is not void:
+    State n.                          → 42
+Done.
+Otherwise:
+    State "not a number".
+Done.
+
+Define m as ("abc" converted to number but void is 0).      → 0
+```
+Parsing can fail (`"hello"` isn't a number), so the result is **always a
+`voidable number`** — even for an obviously valid literal — and must be
+handled like any other voidable (see
+[Voidable values](#voidable-values-void-and-voidable-t)). A text value
+converts successfully iff, after trimming surrounding whitespace, it looks
+like a Cufet number literal: digits, an optional leading `-`, and an optional
+decimal point followed by more digits. Anything else — empty text, trailing
+garbage, multiple decimal points — produces `void`.
+
 ---
 
 ## Range
@@ -294,6 +321,24 @@ Define hundred as range 1 to 100.        ← also valid anywhere a series goes
 A range plus `for each` covers everything a C-style counter loop would: there is
 no separate index-loop construct, because iterating `range 1 to 100` is the same
 thing, read more plainly.
+
+**Stepping** — `counting by <step>` is an optional suffix that changes the
+increment from the default of 1:
+```
+For each n in range 1 to 10 counting by 2, repeat:
+    State n.
+Done.                                       → 1, 3, 5, 7, 9
+
+Define halves as range 1 to 2 counting by 0.5.    → 1, 1.5, 2
+```
+- `step` is always a **positive magnitude** — direction still comes from
+  start-vs-end, so `range 10 to 1 counting by 2` descends: `10, 8, 6, 4, 2`.
+- The end is included only if the step lands on it exactly; otherwise the
+  range stops at the last value still within bounds (`range 1 to 10 counting
+  by 2` is `1, 3, 5, 7, 9` — `10` is skipped).
+- Decimal steps are allowed.
+- `counting by 0` or a negative step is an error — caught statically when the
+  step is a literal, at runtime otherwise.
 
 ---
 
@@ -578,8 +623,9 @@ State cast fn on (5).              → 10
 ```
 
 The return type `number function given (the number)` declares that this function
-returns a function. Only top-level named functions can be returned — closures are
-not yet supported.
+returns a function. Closures and lambda literals can be returned too — see
+[Closures](#closures) and
+[Lambda literals](#lambda-literals-anonymous-functions) below.
 
 **Series of functions:**
 ```
@@ -595,6 +641,47 @@ Done.
 A series whose element type is a function type. All the usual series operations
 apply — access, add, remove, for-each — and any accessed element can be `Cast`
 directly.
+
+### Closures
+
+A function declared with `Bind` *inside* another function or method body
+captures the enclosing variables at the point of declaration:
+
+```
+Bind number function given (the number) to make-adder, given (the number n):
+    Bind number to adder, given (the number x):
+        Return x + n.
+    Done.
+    Return adder.
+Done.
+
+Define add-five as cast make-adder on (5).
+State cast add-five on (10).          → 15
+```
+
+Capture follows the same value/reference split used everywhere else in
+Cufet: value types (`number`, `text`, `fact`) are captured as a snapshot at
+declaration time, so later changes to the outer variable don't affect an
+already-created closure; reference types (series, maps, objects) capture the
+live instance, so mutations through the closure are visible in the outer
+scope and vice versa.
+
+### Lambda literals (anonymous functions)
+
+A function literal written inline, with no name — usable anywhere a function
+value goes: assigned, passed as an argument, returned, or stored in a series.
+
+```
+Define double as a function given (the number x): Return x * 2. Done.
+State cast double on (5).                                       → 10
+
+Cast apply on (10, a function given (the number x): Return x * 2. Done).
+```
+
+The body is always `Done`-terminated (there's no inline single-statement
+form). The return type is **inferred from the body** — there's no syntax to
+declare it. Lambdas capture enclosing variables under the same rule as
+[Closures](#closures) above, and always carry their captured environment.
 
 ---
 
@@ -737,6 +824,9 @@ Cufet has a static type checker that runs before execution. It catches:
 - Comparing records of incompatible shapes, or objects of different types, with `is`
 - Joining a non-text value with `joined to`, or using the wrong key/value types
   with a map
+- Converting a non-text value with `converted to number`
+- A `range ... counting by` step that is zero or negative (when known at
+  compile time; a runtime check catches the rest)
 
 **Records use structural typing** — shape is identity. Two records with the same
 fields and types are the same type regardless of where they were declared. Named
