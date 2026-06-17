@@ -76,6 +76,35 @@ language is considered stable.
   toolkit** — join, measure, convert both ways, split, search, find, slice,
   replace, case, and trim are all built; only the fancier stuff (regex-ish
   matching, locale-aware casing, a character-sequence type) remains deferred.
+- Escape sequences in string literals: `\n` `\t` `\r` `\\` `\"` `\{` `\}`.
+  Unrecognized escape is a lexer error. `\{`/`\}` produce literal braces (not
+  interpolation). String interpolation: `{expr}` inside a string literal embeds
+  the expression's value — numbers and facts convert automatically; records,
+  series, and maps are a static type error. `\{` vs. `{` is resolved entirely in
+  the lexer (the only clean boundary given that escapes are processed there).
+
+**Error handling**
+- **`failure T`** — a failable value: either a plain `T` or a failure with a
+  text message and optional category tag. The parallel to `voidable T` is exact:
+  same inline fallback (`<expr> but on failure <default>` mirrors `but void is`),
+  same propagation operator (`or pass the failure off` — propagates to the
+  caller, which must itself return a failable type), same block form.
+- **Failure literal:** `a failure "message" [of category "tag"]` — creates a
+  failure value. Category tags are plain text; no closed enum.
+- **Block form:** `Try to: <body> Done. [In case of failure: <handler> Done.]
+  [In case of exception (the exception): <handler> Done.]` — at least one
+  handler required. Failure and exception paths are independent: failures go to
+  the failure handler only, runtime exceptions go to the exception handler only.
+- **Runtime exceptions** (`In case of exception`) — catches things Cufet's type
+  system can't prevent at compile time (divide-by-zero, etc.). Inside the
+  handler, `the exception` is bound to a text description of what went wrong.
+  Exceptions **re-raise by default**; `Suppress.` (inside the handler only)
+  swallows the exception and lets execution continue after the `Try`. This
+  default-re-raise rule is intentional: silent swallowing is the wrong default
+  for recoverable-error design.
+- **Unhandled failure is a static error** — a function that returns a failable
+  type and discards the failure silently is caught by the type checker, not at
+  runtime.
 
 **Voidable values**
 - `void` is a first-class, holdable empty value; `voidable T` is "a T, or void".
@@ -155,6 +184,24 @@ language is considered stable.
 ## Planned features
 
 ### Language
+
+- **Scope (lexical)** — the first outward-facing wall. All top-level names are
+  currently global; lexical scope is the next layer. Direction is locked:
+  **lexical only**, no dynamic-scope toggle (dynamic scope cuts against local
+  readability, which is the core value). Closures already use lexical capture,
+  so top-level scope is an extension of the existing model, not a new one.
+  Small-scale scope: lexical blocks bounded by `Done.` (consistent with
+  conditionals, loops, and function bodies). Large-scale organization:
+  **concept-oriented namespaces** reusing the existing possessive/of grammar
+  (`text-utils' trim` / `the trim of text-utils`) — same access syntax as
+  object members, consistent and familiar. Known interactions to keep coherent:
+  closures (already lexical — extension, not replacement), hoisting
+  (functions/objects currently hoist globally — becomes hoist-within-enclosing-
+  scope), and `unto` (currently attaches to types by global name lookup —
+  must resolve to the type visible in the `unto`'s enclosing scope).
+
+- **Standard I/O** — `State` writes to stdout; reading a line from stdin has no
+  syntax yet. The REPL vision and the shell vision both need this.
 
 - **Text and general ordering via a `by` modifier** — ordering currently works
   on numbers only. Extend it with an explicit basis modifier rather than new
@@ -386,47 +433,63 @@ a prompt, should a bare expression auto-print its value. Worth considering
 accelerates the use-driven development loop, and an interactive back-and-forth
 suits a language built to read like natural language.
 
-### Cufet as a shell / scripting language (the far star)
+### Cufet as a shell / scripting language (the concrete goal)
 
-Cufet used not only for pure computation but to orchestrate the system — running
-programs, reading/writing files, looping over directories, branching on results;
-possibly even a login shell. This is a *different category* from today's Cufet,
-which is a **pure computation language** with no way to reach outside itself (no
-I/O, no process execution, no filesystem/network, no clock). That sealed-ness is
-currently a strength (clean type system, determinism, no null). A shell is
-defined by the opposite.
+The concrete north star: **Nathan's Operating Systems coursework in Cufet** —
+a shell program (`clear`/`pwd`/`time`/`date`/`ls`/`which`, process
+creation, signal handling), process/memory inspection, all the things the
+class does in C++.
 
-Load-bearing prerequisites (each a real feature):
-- **I/O and process execution** — files, external programs, output capture, exit
-  codes, environment variables. An entirely new domain.
-- **Error *handling* (recovery, not just halting)** — today an error halts; a
-  shell must recover ("that failed — do something else"). No recoverable-error
-  mechanism exists yet. The shell vision is the strongest argument for it. (The
-  voidable type is the *absence* half of this; *recovery from failure* is still
-  open.)
-- **An "or nothing" type** — ✅ **built.** The voidable type (`voidable T`,
-  `void`) expresses "a value, or nothing" with no null. This was the most
-  load-bearing deferred prerequisite, and it now exists — it has already
-  unblocked text→number (✅ built) and closures/lambdas (✅ built); recursive
-  data structures remain unblocked-but-not-yet-built.
-- **Text operations** — ✅ **built.** Joining, conversion (both directions),
-  length, split, contains, find, substring, replace, case, and trim all exist
-  — the everyday text toolkit a shell would lean on is complete (only
-  locale-aware casing and a character-sequence type remain, both deferred
-  refinements rather than gaps).
-- **Possibly streaming / pipes and a concurrency model** — Cufet has no concept
-  of this today.
+**The key reframe:** this is not "Cufet reimplements C." It's "Cufet
+*orchestrates* the OS and its tools." A shell's job is orchestration — you
+don't reimplement `ls`, you invoke it. C's `fork()`/`exec()`/`wait()` are
+the low-level mechanism for that; the OS homework is for understanding the
+*process model* (what fork duplicates, how exec replaces the image, what
+exit codes mean, how signals interrupt). Cufet expresses that model at the
+right level of abstraction via process-spawn + stdin/stdout/exit-code
+communication.
 
-**How this reorganizes the nearer roadmap:** the two most load-bearing
-prerequisites — the **"or nothing" type** (voidable) and **text operations**
-— are now both built. The voidable type has already paid off twice
-(text→number, closures/lambdas). What remains load-bearing for the shell
-direction is **recoverable error handling** — the one big gap left. Rough
-order the vision imposes: pure-language maturity first (records, objects,
-maps, voidable, text ops, closures/lambdas, constants — done; **recursive
-data structures next**) → then the outside-world layer (I/O, recoverable
-errors, processes) → then shell-specific features (pipes, the interactive
-prompt / REPL).
+`fork()` as a C primitive won't exist in Cufet, and that's a correctness
+boundary, not a gap: forking a GC'd .NET runtime produces undefined behavior
+(the GC heap, finalizer threads, and interpreter state all get duplicated
+mid-traversal). The right primitive is `run <program> with <args>`, capture
+stdout/stderr/exit code — which is precisely what `fork()/exec()/wait()`
+compose into when used correctly. `readelf`/`gdb` are invoked as
+subprocesses rather than reimplemented (a Cufet program calling `readelf` on
+another binary is exactly what a shell does). The student who writes a Cufet
+shell understands the process model without being in pointer-management hell.
+
+**What's already built toward this goal:**
+
+| Foundation | Status |
+|---|---|
+| Voidable type (`voidable T`, absence without null) | ✅ built |
+| Text toolkit (join, split, find, replace, case, trim, convert) | ✅ built |
+| String interpolation (`{expr}` in string literals) | ✅ built |
+| Closures and lambdas (callback-style handlers) | ✅ built |
+| Error handling: `failure T`, `Try/In case of`, `Suppress` | ✅ built |
+| Constants, records, objects, interfaces, maps | ✅ built |
+
+**What's still needed, in rough order:**
+
+1. **Scope** — the immediate next feature. Top-level names are global; lexical
+   scope is the wall before meaningful program organization and before I/O can
+   be layered cleanly on top.
+2. **Standard I/O** — read a line from stdin; `State` already writes stdout.
+3. **File I/O** — read/write files; loop over directory entries.
+4. **Process execution** — run external programs with args, capture output,
+   check exit codes, read/write their stdin/stdout. The big one — where
+   "Cufet talks to the OS" begins.
+5. **Environment variables** — read `$PATH`, pass env to subprocesses.
+6. **Signal handling** — `SIGINT`/`SIGTERM` at minimum. `SIGFPE`
+   (divide-by-zero) is already covered conceptually by Cufet's exception
+   system; the Unix signal wire is a separate, later design question.
+
+**Honest rough estimate:** the language is roughly halfway through its
+major-feature count — but the remaining half is the harder half. Scope,
+I/O, and process execution are all new territory ("the interpreter talks to
+the OS"). The foundations were deliberately built in the right order; the
+outward era is now unblocked, not foundation-starved.
 
 ---
 
