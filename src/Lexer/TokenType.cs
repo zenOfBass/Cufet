@@ -6,7 +6,14 @@ public enum TokenType
     It,       // reserved pronoun — never an Identifier
     Article,  // "a" | "an" | "the" — noise; parser discards
     Number,   // numeric literal: digit { digit } [ "." digit { digit } ]
-    String,   // "..." with "" as escaped double-quote
+    String,   // "..." with backslash escapes; no bare '{' inside
+
+    // ── String interpolation (lexer-generated; never emitted for plain strings) ──
+    InterpolOpen,      // opening '"' of an interpolated string literal
+    StringPiece,       // a literal text segment within an interpolated string
+    InterpolHoleOpen,  // bare '{' that starts an embedded expression
+    InterpolHoleClose, // matching '}' that ends an embedded expression
+    InterpolClose,     // closing '"' of an interpolated string literal
     State,    // keyword — print/announce a value
     Define,   // keyword — declare a new name
     As,       // keyword — separates name from initial value in Define

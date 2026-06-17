@@ -328,6 +328,142 @@ public class LexerTests
         Assert.Throws<LexerException>(() => Lex("\"oops"));
     }
 
+    // ── String interpolation ──────────────────────────────────────────────
+
+    // Helper: extract token types (without Eof) from an interpolated-string source.
+    private static IReadOnlyList<TokenType> LexTypes(string source) =>
+        LexTokens(source).Select(t => t.Type).ToList();
+
+    [Fact]
+    public void Interp_PlainStringUnchanged()
+    {
+        // No bare '{' → still emits a single String token, not InterpolOpen.
+        var tokens = LexTokens("\"hello\"");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.String, tokens[0].Type);
+    }
+
+    [Fact]
+    public void Interp_EscapedBraceIsNotInterpolation()
+    {
+        // \{ and \} produce literal braces; the string is still plain.
+        var tokens = LexTokens("\"\\{not interp\\}\"");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.String, tokens[0].Type);
+        Assert.Equal("{not interp}", tokens[0].Lexeme);
+    }
+
+    [Fact]
+    public void Interp_SimpleTokenStream()
+    {
+        // "hello {name}!" → InterpolOpen, StringPiece, InterpolHoleOpen,
+        //                    Identifier, InterpolHoleClose, StringPiece, InterpolClose
+        var types = LexTypes("\"hello {name}!\"");
+        Assert.Equal(
+            new[] { TokenType.InterpolOpen, TokenType.StringPiece,
+                    TokenType.InterpolHoleOpen, TokenType.Identifier, TokenType.InterpolHoleClose,
+                    TokenType.StringPiece, TokenType.InterpolClose },
+            types);
+    }
+
+    [Fact]
+    public void Interp_TokenStream_LeadingHole()
+    {
+        // "{name} says" — no leading StringPiece (empty pieces are omitted)
+        var types = LexTypes("\"{name} says\"");
+        Assert.Equal(
+            new[] { TokenType.InterpolOpen,
+                    TokenType.InterpolHoleOpen, TokenType.Identifier, TokenType.InterpolHoleClose,
+                    TokenType.StringPiece, TokenType.InterpolClose },
+            types);
+    }
+
+    [Fact]
+    public void Interp_TokenStream_TrailingHole()
+    {
+        // "hello {name}" — no trailing StringPiece
+        var types = LexTypes("\"hello {name}\"");
+        Assert.Equal(
+            new[] { TokenType.InterpolOpen, TokenType.StringPiece,
+                    TokenType.InterpolHoleOpen, TokenType.Identifier, TokenType.InterpolHoleClose,
+                    TokenType.InterpolClose },
+            types);
+    }
+
+    [Fact]
+    public void Interp_TokenStream_AdjacentHoles()
+    {
+        // "{x}{y}" — two holes with no piece between them
+        var types = LexTypes("\"{x}{y}\"");
+        Assert.Equal(
+            new[] { TokenType.InterpolOpen,
+                    TokenType.InterpolHoleOpen, TokenType.Identifier, TokenType.InterpolHoleClose,
+                    TokenType.InterpolHoleOpen, TokenType.Identifier, TokenType.InterpolHoleClose,
+                    TokenType.InterpolClose },
+            types);
+    }
+
+    [Fact]
+    public void Interp_TokenStream_ArithmeticHole()
+    {
+        // "{1 + 2}" — arithmetic inside hole
+        var types = LexTypes("\"{1 + 2}\"");
+        Assert.Equal(
+            new[] { TokenType.InterpolOpen,
+                    TokenType.InterpolHoleOpen,
+                    TokenType.Number, TokenType.Plus, TokenType.Number,
+                    TokenType.InterpolHoleClose,
+                    TokenType.InterpolClose },
+            types);
+    }
+
+    [Fact]
+    public void Interp_TokenStream_NestedBracesInHole()
+    {
+        // "{x {y: 1}}" — object literal inside hole; outer } is the hole close
+        var types = LexTypes("\"{x {y: 1}}\"");
+        Assert.Equal(
+            new[] { TokenType.InterpolOpen,
+                    TokenType.InterpolHoleOpen,
+                    TokenType.Identifier, TokenType.LBrace, TokenType.Identifier,
+                    TokenType.Colon, TokenType.Number, TokenType.RBrace,
+                    TokenType.InterpolHoleClose,
+                    TokenType.InterpolClose },
+            types);
+    }
+
+    [Fact]
+    public void Interp_StringPieceLexemesPreserved()
+    {
+        // The literal parts must survive correctly.
+        var tokens = LexTokens("\"hello {name}!\"");
+        var pieces = tokens.Where(t => t.Type == TokenType.StringPiece).ToList();
+        Assert.Equal(2, pieces.Count);
+        Assert.Equal("hello ", pieces[0].Lexeme);
+        Assert.Equal("!", pieces[1].Lexeme);
+    }
+
+    [Fact]
+    public void Interp_EscapesInsidePiece()
+    {
+        // Escape sequences inside the literal part of an interpolated string still work.
+        var tokens = LexTokens("\"line1\\n{x}line2\"");
+        var piece = tokens.First(t => t.Type == TokenType.StringPiece);
+        Assert.Equal("line1\n", piece.Lexeme);
+    }
+
+    [Fact]
+    public void Interp_EmptyHoleThrows()
+    {
+        Assert.Throws<LexerException>(() => Lex("\"{  }\""));
+    }
+
+    [Fact]
+    public void Interp_UnterminatedHoleThrows()
+    {
+        Assert.Throws<LexerException>(() => Lex("\"hello {name\""));
+    }
+
     // ── Define / as / becomes keywords ───────────────────────────────────
 
     [Theory]

@@ -1186,6 +1186,10 @@ public sealed class Parser
             case TokenType.String:
                 baseExpr = new StringLiteral(Advance().Lexeme);
                 break;
+            case TokenType.InterpolOpen:
+                Advance(); // consume InterpolOpen
+                baseExpr = ParseInterpolatedString();
+                break;
             case TokenType.Identifier:
             {
                 var t = Advance();
@@ -2150,6 +2154,45 @@ public sealed class Parser
         if (tok.Type != expected)
             throw new ParseException(tok, expected.ToString());
         return Advance();
+    }
+
+    // Parses an interpolated string starting just after InterpolOpen was consumed.
+    // Collects StringPiece tokens and InterpolHoleOpen…InterpolHoleClose expression
+    // sequences, building a left-associative TextJoin chain where each embedded
+    // expression is wrapped in TextConvert (text/number/fact — type-checker enforces).
+    private IExpression ParseInterpolatedString()
+    {
+        int line = _tokens[_pos - 1].Line; // line of the InterpolOpen
+        IExpression? result = null;
+
+        while (Peek().Type != TokenType.InterpolClose)
+        {
+            IExpression piece;
+
+            if (Peek().Type == TokenType.StringPiece)
+            {
+                var tok = Advance();
+                piece = new StringLiteral(tok.Lexeme);
+            }
+            else if (Peek().Type == TokenType.InterpolHoleOpen)
+            {
+                int holeLine = Advance().Line; // consume InterpolHoleOpen
+                if (Peek().Type == TokenType.InterpolHoleClose)
+                    throw new ParseException(holeLine, "empty interpolation '{}' — write an expression between the braces");
+                var expr = ParseExpression();
+                Consume(TokenType.InterpolHoleClose);
+                piece = new TextConvert(expr, holeLine);
+            }
+            else
+            {
+                throw new ParseException(Peek(), "string piece or interpolation expression");
+            }
+
+            result = result == null ? piece : new TextJoin(result, piece, line);
+        }
+
+        Consume(TokenType.InterpolClose);
+        return result ?? new StringLiteral("");
     }
 
     private Token Advance() => _tokens[_pos++];

@@ -120,6 +120,113 @@ public class InterpreterTests
         Assert.Equal("back\\slash", Run("State \"back\\\\slash\"."));
     }
 
+    // ── String interpolation ──────────────────────────────────────────────
+
+    [Fact]
+    public void Interp_SimpleVariable()
+    {
+        Assert.Equal("hello world!",
+            Run("Define name as \"world\". State \"hello {name}!\"."));
+    }
+
+    [Fact]
+    public void Interp_NumberAutoConverted()
+    {
+        Assert.Equal("total: 15",
+            Run("Define price as 5. Define qty as 3. State \"total: {price * qty}\"."));
+    }
+
+    [Fact]
+    public void Interp_FactAutoConverted()
+    {
+        Assert.Equal("result: true",
+            Run("Define ok as 1 = 1. State \"result: {ok}\"."));
+    }
+
+    [Fact]
+    public void Interp_TextInsertedAsIs()
+    {
+        Assert.Equal("say hello",
+            Run("Define word as \"hello\". State \"say {word}\"."));
+    }
+
+    [Fact]
+    public void Interp_ArithmeticExpression()
+    {
+        Assert.Equal("answer: 42",
+            Run("State \"answer: {6 * 7}\"."));
+    }
+
+    [Fact]
+    public void Interp_MultipleHoles()
+    {
+        Assert.Equal("x=1, y=2",
+            Run("Define x as 1. Define y as 2. State \"x={x}, y={y}\"."));
+    }
+
+    [Fact]
+    public void Interp_LeadingHole()
+    {
+        Assert.Equal("42 items",
+            Run("State \"{42} items\"."));
+    }
+
+    [Fact]
+    public void Interp_TrailingHole()
+    {
+        Assert.Equal("count: 7",
+            Run("State \"count: {7}\"."));
+    }
+
+    [Fact]
+    public void Interp_OnlyHole()
+    {
+        Assert.Equal("42",
+            Run("State \"{42}\"."));
+    }
+
+    [Fact]
+    public void Interp_AdjacentHoles()
+    {
+        Assert.Equal("xy",
+            Run("Define x as \"x\". Define y as \"y\". State \"{x}{y}\"."));
+    }
+
+    [Fact]
+    public void Interp_EscapedBraceNotInterpolated()
+    {
+        Assert.Equal("use {braces} literally",
+            Run("State \"use \\{braces\\} literally\"."));
+    }
+
+    [Fact]
+    public void Interp_EscapeSequenceInPiece()
+    {
+        Assert.Equal("line1\nline2",
+            Run("Define x as \"line2\". State \"line1\\n{x}\"."));
+    }
+
+    [Fact]
+    public void Interp_FieldAccessInHole()
+    {
+        Assert.Equal("error: oops",
+            Run("Define rec as a record with (the msg \"oops\"). State \"error: {the msg of rec}\"."));
+    }
+
+    [Fact]
+    public void Interp_TypeChecker_RecordIsError()
+    {
+        Assert.Throws<TypeException>(() =>
+            Run("Define r as a record with (1, 2). State \"value: {r}\"."));
+    }
+
+    [Fact]
+    public void Interp_TypeChecker_SeriesIsError()
+    {
+        Assert.Throws<TypeException>(() =>
+            Run("Define s as a series with (1, 2). State \"value: {s}\"."));
+    }
+
     // ── Arithmetic ───────────────────────────────────────────────────────
 
     [Theory]

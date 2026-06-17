@@ -16,39 +16,42 @@ public sealed class Lexer
     public IReadOnlyList<Token> Tokenize()
     {
         var tokens = new List<Token>();
-
         while (!AtEnd())
         {
             SkipWhitespace();
             if (AtEnd()) break;
-
-            char c = Peek();
-
-            if (char.IsLetter(c))
-                tokens.Add(ReadWord());
-            else if (char.IsDigit(c))
-                tokens.Add(ReadNumber());
-            else if (c == '"')
-                tokens.Add(ReadString());
-            else if (c is '+' or '-' or '*' or '/' or '%' or '(' or ')' or '=' or '<' or '>' or ':' or ',' or '{' or '}')
-                tokens.Add(ReadSymbol());
-            else if (c == '\'')
-                tokens.Add(ReadPossessive());
-            // DECIDED, DEFERRED:
-            //   <<...>> — verbatim strings with distinct open/close delimiters; nestable by depth-counting <</>>.
-            //   exactly — raw modifier (exactly "..." / exactly <<...>>) that suppresses interpretation.
-            //   Both wait until escape sequences exist and need a contrast.
-            else if (c == '.')
-            {
-                tokens.Add(new Token(TokenType.Dot, ".", _line));
-                Advance();
-            }
-            else
-                throw new LexerException(_line, c);
+            ReadOneToken(tokens);
         }
-
         tokens.Add(new Token(TokenType.Eof, "", _line));
         return tokens;
+    }
+
+    // Reads exactly one logical token from the current position and appends it (or its
+    // sequence, in the case of an interpolated string) to `tokens`.
+    private void ReadOneToken(List<Token> tokens)
+    {
+        char c = Peek();
+        if (char.IsLetter(c))
+            tokens.Add(ReadWord());
+        else if (char.IsDigit(c))
+            tokens.Add(ReadNumber());
+        else if (c == '"')
+            ReadString(tokens);
+        else if (c is '+' or '-' or '*' or '/' or '%' or '(' or ')' or '=' or '<' or '>' or ':' or ',' or '{' or '}')
+            tokens.Add(ReadSymbol());
+        else if (c == '\'')
+            tokens.Add(ReadPossessive());
+        // DECIDED, DEFERRED:
+        //   <<...>> — verbatim strings with distinct open/close delimiters; nestable by depth-counting <</>>.
+        //   exactly — raw modifier (exactly "..." / exactly <<...>>) that suppresses interpretation.
+        //   Both wait until escape sequences exist and need a contrast.
+        else if (c == '.')
+        {
+            tokens.Add(new Token(TokenType.Dot, ".", _line));
+            Advance();
+        }
+        else
+            throw new LexerException(_line, c);
     }
 
     private Token ReadWord()
@@ -242,20 +245,32 @@ public sealed class Lexer
         return new Token(TokenType.Number, _source[start.._pos], _line);
     }
 
-    private Token ReadString()
+    // Scans a string literal starting at the current '"'. For plain strings (no bare
+    // '{') appends a single String token. For interpolated strings, appends the
+    // sequence: InterpolOpen, (StringPiece | InterpolHoleOpen … InterpolHoleClose)*,
+    // InterpolClose — allowing the parser to build the join-chain.
+    private void ReadString(List<Token> tokens)
     {
+        int startLine = _line;
         Advance(); // consume opening '"'
-        var sb = new System.Text.StringBuilder();
+        var sb      = new System.Text.StringBuilder();
+        bool isInterp = false;
+        var  pieces   = new List<Token>(); // buffer used only when interpolation is found
+
         while (true)
         {
             if (AtEnd())
                 throw new LexerException(_line, "unterminated string literal");
             char c = Peek();
+
+            // ── Closing quote ───────────────────────────────────────────────
             if (c == '"')
             {
                 Advance();
                 break;
             }
+
+            // ── Escape sequence ─────────────────────────────────────────────
             if (c == '\\')
             {
                 Advance();
@@ -263,6 +278,7 @@ public sealed class Lexer
                     throw new LexerException(_line, "unterminated string literal");
                 char esc = Peek();
                 Advance();
+                // \{ and \} produce a literal brace — they are NOT interpolation markers.
                 sb.Append(esc switch
                 {
                     'n'  => '\n',
@@ -276,11 +292,83 @@ public sealed class Lexer
                 });
                 continue;
             }
+
+            // ── Interpolation hole ──────────────────────────────────────────
+            if (c == '{')
+            {
+                isInterp = true;
+                if (sb.Length > 0)
+                {
+                    pieces.Add(new Token(TokenType.StringPiece, sb.ToString(), _line));
+                    sb.Clear();
+                }
+                Advance(); // consume '{'
+                pieces.Add(new Token(TokenType.InterpolHoleOpen, "{", _line));
+
+                SkipWhitespace();
+                if (AtEnd() || Peek() == '}')
+                    throw new LexerException(_line, "empty interpolation — write an expression between the braces");
+
+                // Lex expression tokens with brace-depth tracking.
+                // Nested '{' (object literals etc.) increase depth; matching '}' decreases.
+                int depth = 1;
+                while (depth > 0)
+                {
+                    if (AtEnd())
+                        throw new LexerException(_line, "unterminated interpolation");
+                    SkipWhitespace();
+                    if (AtEnd())
+                        throw new LexerException(_line, "unterminated interpolation");
+                    char ec = Peek();
+
+                    if (ec == '{')
+                    {
+                        depth++;
+                        Advance();
+                        pieces.Add(new Token(TokenType.LBrace, "{", _line));
+                    }
+                    else if (ec == '}')
+                    {
+                        depth--;
+                        if (depth == 0)
+                        {
+                            Advance();
+                            pieces.Add(new Token(TokenType.InterpolHoleClose, "}", _line));
+                        }
+                        else
+                        {
+                            Advance();
+                            pieces.Add(new Token(TokenType.RBrace, "}", _line));
+                        }
+                    }
+                    else
+                    {
+                        // All other tokens (words, numbers, symbols, nested strings) —
+                        // nested ReadString calls handle their own interpolation recursively.
+                        ReadOneToken(pieces);
+                    }
+                }
+                continue;
+            }
+
+            // ── Ordinary character ───────────────────────────────────────────
             if (c == '\n') _line++;
             Advance();
             sb.Append(c);
         }
-        return new Token(TokenType.String, sb.ToString(), _line);
+
+        if (!isInterp)
+        {
+            tokens.Add(new Token(TokenType.String, sb.ToString(), startLine));
+        }
+        else
+        {
+            if (sb.Length > 0)
+                pieces.Add(new Token(TokenType.StringPiece, sb.ToString(), _line));
+            tokens.Add(new Token(TokenType.InterpolOpen, "", startLine));
+            tokens.AddRange(pieces);
+            tokens.Add(new Token(TokenType.InterpolClose, "", _line));
+        }
     }
 
     private void SkipWhitespace()
