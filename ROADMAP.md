@@ -433,63 +433,98 @@ a prompt, should a bare expression auto-print its value. Worth considering
 accelerates the use-driven development loop, and an interactive back-and-forth
 suits a language built to read like natural language.
 
-### Cufet as a shell / scripting language (the concrete goal)
+### Cufet as a readable systems language (the real destination)
 
-The concrete north star: **Nathan's Operating Systems coursework in Cufet** —
-a shell program (`clear`/`pwd`/`time`/`date`/`ls`/`which`, process
-creation, signal handling), process/memory inspection, all the things the
-class does in C++.
+The true finish line: **Cufet as a native-compiled (or non-managed-runtime)
+systems language in the Rust/Zig/Nim lineage** — a more humane surface for
+real systems programming. "A better C" where `readelf`-ing a Cufet binary
+shows Cufet's own `.data`/`.text`/`.bss` sections, where memory is real and
+manually managed, where OS signals are caught at the signal wire, not
+intercepted by a managed runtime.
 
-**The key reframe:** this is not "Cufet reimplements C." It's "Cufet
-*orchestrates* the OS and its tools." A shell's job is orchestration — you
-don't reimplement `ls`, you invoke it. C's `fork()`/`exec()`/`wait()` are
-the low-level mechanism for that; the OS homework is for understanding the
-*process model* (what fork duplicates, how exec replaces the image, what
-exit codes mean, how signals interrupt). Cufet expresses that model at the
-right level of abstraction via process-spawn + stdin/stdout/exit-code
-communication.
+The concrete north star is Nathan's Operating Systems coursework — a shell
+program, process creation, signal handling, memory inspection — *done in
+Cufet the way it would be done in C++*. Pressure-testing against the actual
+homework assignments revealed the honest finish line:
 
-`fork()` as a C primitive won't exist in Cufet, and that's a correctness
-boundary, not a gap: forking a GC'd .NET runtime produces undefined behavior
-(the GC heap, finalizer threads, and interpreter state all get duplicated
-mid-traversal). The right primitive is `run <program> with <args>`, capture
-stdout/stderr/exit code — which is precisely what `fork()/exec()/wait()`
-compose into when used correctly. `readelf`/`gdb` are invoked as
-subprocesses rather than reimplemented (a Cufet program calling `readelf` on
-another binary is exactly what a shell does). The student who writes a Cufet
-shell understands the process model without being in pointer-management hell.
+- **Task 3 (memory layout — `readelf`/`nm` on a real binary to find
+  globals in `.data`, locals on the stack):** a simulated memory arena
+  inside the .NET interpreter would only ever show .NET's sections, not
+  Cufet's. The "call `readelf` as a subprocess" workaround fails the spirit
+  of the task — it explicitly demands real machine memory inspectable by
+  real tools. Memory inspection is **post-native-backend**.
+- **Task 4 (catch a real `SIGFPE` via `sigaction`):** a managed runtime
+  intercepts signals before user code can see them. Catching a real OS
+  signal at the `sigaction` level is **post-native-backend**.
 
-**What's already built toward this goal:**
+These two tasks are the falsifying tests that establish "Cufet as OS
+orchestrator" as a *waypoint*, not the destination.
 
-| Foundation | Status |
-|---|---|
-| Voidable type (`voidable T`, absence without null) | ✅ built |
-| Text toolkit (join, split, find, replace, case, trim, convert) | ✅ built |
-| String interpolation (`{expr}` in string literals) | ✅ built |
-| Closures and lambdas (callback-style handlers) | ✅ built |
-| Error handling: `failure T`, `Try/In case of`, `Suppress` | ✅ built |
-| Constants, records, objects, interfaces, maps | ✅ built |
+**The current interpreter is the reference implementation / executable spec.**
+The 784 tests define Cufet's semantics. A future native backend (native
+compilation, compile-to-C/LLVM, or a from-scratch non-managed runtime)
+implements those same semantics against real metal. Nothing built is wasted
+— this is the path most serious languages took (Lua defined its semantics
+via tree-walker; LuaJIT implements them natively; Rust bootstrapped through
+an OCaml compiler).
 
-**What's still needed, in rough order:**
+**Shell / OS orchestration as a waypoint.** The interpreter era will be able
+to run programs, read/write files, handle stdin/stdout, and orchestrate OS
+tools as subprocesses. That's real and valuable — it's the OS homework's
+*scripting-layer* tasks (building a shell, running `ls`, reading `$PATH`).
+It is not the tasks that require seeing through the managed runtime
+(real memory layout, raw OS signals). A Cufet shell that can `fork`/`exec`
+subprocesses and handle `SIGINT` is achievable in the interpreter era; a
+Cufet binary whose `.data` section you can `readelf` is post-native.
 
-1. **Scope** — the immediate next feature. Top-level names are global; lexical
-   scope is the wall before meaningful program organization and before I/O can
-   be layered cleanly on top.
-2. **Standard I/O** — read a line from stdin; `State` already writes stdout.
-3. **File I/O** — read/write files; loop over directory entries.
-4. **Process execution** — run external programs with args, capture output,
-   check exit codes, read/write their stdin/stdout. The big one — where
-   "Cufet talks to the OS" begins.
-5. **Environment variables** — read `$PATH`, pass env to subprocesses.
-6. **Signal handling** — `SIGINT`/`SIGTERM` at minimum. `SIGFPE`
-   (divide-by-zero) is already covered conceptually by Cufet's exception
-   system; the Unix signal wire is a separate, later design question.
+**What's already built toward the systems goal:**
 
-**Honest rough estimate:** the language is roughly halfway through its
-major-feature count — but the remaining half is the harder half. Scope,
-I/O, and process execution are all new territory ("the interpreter talks to
-the OS"). The foundations were deliberately built in the right order; the
-outward era is now unblocked, not foundation-starved.
+| Foundation | Status | Why it matters for native |
+|---|---|---|
+| Static type system, explicit types everywhere | ✅ built | Type info available for codegen; no runtime type discovery needed |
+| Voidable type (`voidable T`) | ✅ built | Native model for absence (no GC-assisted null) |
+| `failure T`, `Try/In case of exception` | ✅ built | `failure T` = Rust's `Result<T,E>`; exceptions → `sigaction` in native |
+| Closures (lexical capture) | ✅ built | Closure record / function pointer + captured env — direct native analog |
+| Value semantics for records/objects | ✅ built | C/Zig struct semantics — copy on assign, native-compatible |
+| Text toolkit complete | ✅ built | Needed for any real program; native backend needs a string library |
+| Constants, interfaces, maps | ✅ built | Standard type-system infrastructure |
+
+**What's needed, in rough interpreter-era order:**
+
+1. **Scope** — lexical, `Done.`-bounded. Defines lifetimes; load-bearing for
+   everything after.
+2. **Standard I/O** — stdin read; stdout write already exists.
+3. **File I/O and directory traversal.**
+4. **Process execution** — run with args, capture output, exit codes.
+5. **Environment variables.**
+6. **Signal handling** — `SIGINT`/`SIGTERM` via interpreter hooks; `SIGFPE`
+   and friends are native-backend concerns.
+
+**Then the native-backend era:**
+
+7. **Native compilation or compile-to-C** — the real mountain. Probably
+   larger than everything built so far combined.
+8. **Manual memory model** (`rabbit`/`stash` concept) — real heap/stack
+   distinction, explicit lifetime management. Must be designed native-first;
+   interpreter sugar would be the wrong order for this one.
+9. **Real signal handling at the `sigaction` level.**
+10. **Real memory layout** — globals in `.data`, locals on the stack,
+    inspectable by `readelf`/`nm`/`gdb`.
+
+**Known native-backend friction to record now:**
+
+- **`number` = `decimal`**: C# `decimal` is a 128-bit fixed-point type with
+  no hardware instruction set. The native backend needs a software decimal
+  library (e.g. `libmpdec`). Switching to `double` would betray the
+  "no floating-point surprises" north star. Accepted cost; not a design error.
+- **Reference-type lifetime question (series, maps):** .NET's GC handles
+  series/map lifetimes silently. The native backend needs an ownership model
+  (GC, reference counting, Rust-style ownership, or arena allocation). This
+  is the open question the manual-memory feature will answer.
+- **`text` type for native:** immutable string with rich ops is the right
+  semantics. Native implementation needs a real string type
+  (`(ptr, len, capacity)` or arena-backed). Non-trivial; its own native
+  feature.
 
 ---
 
