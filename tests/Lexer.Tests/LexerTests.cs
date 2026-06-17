@@ -260,12 +260,66 @@ public class LexerTests
     }
 
     [Fact]
-    public void StringWithDoubledQuoteEscape()
+    public void String_Escape_DoubleQuote()
     {
-        // Cufet source: "say ""hi"""  →  decoded: say "hi"
-        var tokens = LexTokens("\"say \"\"hi\"\"\"");
+        // Cufet source: "say \"hi\""  →  decoded: say "hi"
+        var tokens = LexTokens("\"say \\\"hi\\\"\"");
         Assert.Single(tokens);
         Assert.Equal("say \"hi\"", tokens[0].Lexeme);
+    }
+
+    [Fact]
+    public void String_Escape_Newline()
+    {
+        var tokens = LexTokens("\"a\\nb\"");
+        Assert.Single(tokens);
+        Assert.Equal("a\nb", tokens[0].Lexeme);
+    }
+
+    [Fact]
+    public void String_Escape_Tab()
+    {
+        var tokens = LexTokens("\"a\\tb\"");
+        Assert.Single(tokens);
+        Assert.Equal("a\tb", tokens[0].Lexeme);
+    }
+
+    [Fact]
+    public void String_Escape_CarriageReturn()
+    {
+        var tokens = LexTokens("\"a\\rb\"");
+        Assert.Single(tokens);
+        Assert.Equal("a\rb", tokens[0].Lexeme);
+    }
+
+    [Fact]
+    public void String_Escape_Backslash()
+    {
+        var tokens = LexTokens("\"a\\\\b\"");
+        Assert.Single(tokens);
+        Assert.Equal("a\\b", tokens[0].Lexeme);
+    }
+
+    [Fact]
+    public void String_Escape_LBrace()
+    {
+        var tokens = LexTokens("\"a\\{b\"");
+        Assert.Single(tokens);
+        Assert.Equal("a{b", tokens[0].Lexeme);
+    }
+
+    [Fact]
+    public void String_Escape_RBrace()
+    {
+        var tokens = LexTokens("\"a\\}b\"");
+        Assert.Single(tokens);
+        Assert.Equal("a}b", tokens[0].Lexeme);
+    }
+
+    [Fact]
+    public void String_UnrecognizedEscapeThrows()
+    {
+        Assert.Throws<LexerException>(() => Lex("\"\\z\""));
     }
 
     [Fact]

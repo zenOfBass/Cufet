@@ -254,15 +254,31 @@ public sealed class Lexer
             if (c == '"')
             {
                 Advance();
-                if (!AtEnd() && Peek() == '"') { Advance(); sb.Append('"'); } // "" → "
-                else break;                                                    // closing quote
+                break;
             }
-            else
+            if (c == '\\')
             {
-                if (c == '\n') _line++;
                 Advance();
-                sb.Append(c);
+                if (AtEnd())
+                    throw new LexerException(_line, "unterminated string literal");
+                char esc = Peek();
+                Advance();
+                sb.Append(esc switch
+                {
+                    'n'  => '\n',
+                    't'  => '\t',
+                    'r'  => '\r',
+                    '\\' => '\\',
+                    '"'  => '"',
+                    '{'  => '{',
+                    '}'  => '}',
+                    _    => throw new LexerException(_line, $"unrecognized escape sequence '\\{esc}'")
+                });
+                continue;
             }
+            if (c == '\n') _line++;
+            Advance();
+            sb.Append(c);
         }
         return new Token(TokenType.String, sb.ToString(), _line);
     }

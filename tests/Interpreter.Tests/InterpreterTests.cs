@@ -94,10 +94,30 @@ public class InterpreterTests
         Assert.Equal("I can't do that", Run("State \"I can't do that\"."));
     }
 
+    // ── String escape sequences ───────────────────────────────────────────
+
     [Fact]
-    public void StateStringWithDoubledQuote()
+    public void StringEscape_DoubleQuote()
     {
-        Assert.Equal("say \"hi\"", Run("State \"say \"\"hi\"\"\"."));
+        Assert.Equal("say \"hi\"", Run("State \"say \\\"hi\\\"\"."));
+    }
+
+    [Fact]
+    public void StringEscape_Newline()
+    {
+        Assert.Equal("a\nb", Run("State \"a\\nb\"."));
+    }
+
+    [Fact]
+    public void StringEscape_Tab()
+    {
+        Assert.Equal("a\tb", Run("State \"a\\tb\"."));
+    }
+
+    [Fact]
+    public void StringEscape_Backslash()
+    {
+        Assert.Equal("back\\slash", Run("State \"back\\\\slash\"."));
     }
 
     // ── Arithmetic ───────────────────────────────────────────────────────
