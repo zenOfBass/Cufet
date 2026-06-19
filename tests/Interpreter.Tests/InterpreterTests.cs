@@ -313,12 +313,126 @@ public class InterpreterTests
         Assert.Equal("7", Run("Define x as 7. Define y as 0. y becomes x. State y."));
     }
 
+    // ── Scope ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void InnerDefineDoesNotLeakOut()
+    {
+        // Variable defined inside an if-block must not be visible after the block.
+        // TypeChecker catches this when we try to use 'inner' in an expression that requires a known type.
+        Assert.Throws<TypeException>(() => Run(
+            "Define flag as 1.\n" +
+            "If flag is 1:\n" +
+            "  Define inner as 99.\n" +
+            "Done.\n" +
+            "Define result as inner + 1."));
+    }
+
+    [Fact]
+    public void InnerBlockCanReadOuterVar()
+    {
+        Assert.Equal("42", Run(
+            "Define x as 42.\n" +
+            "Define flag as 1.\n" +
+            "If flag is 1:\n" +
+            "  State x.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void InnerBlockCanModifyOuterVar()
+    {
+        Assert.Equal("99", Run(
+            "Define x as 1.\n" +
+            "Define flag as 1.\n" +
+            "If flag is 1:\n" +
+            "  x becomes 99.\n" +
+            "Done.\n" +
+            "State x."));
+    }
+
+    [Fact]
+    public void ShadowingOuterVarWithoutKeywordIsError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define x as 1.\n" +
+            "Define flag as 1.\n" +
+            "If flag is 1:\n" +
+            "  Define x as 2.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void DeliberateShadowWorks()
+    {
+        // 'Define a shadow x' inside a block shadows outer x; outer x unchanged after.
+        Assert.Equal("1", Run(
+            "Define x as 1.\n" +
+            "Define flag as 1.\n" +
+            "If flag is 1:\n" +
+            "  Define a shadow x as 99.\n" +
+            "Done.\n" +
+            "State x."));
+    }
+
+    [Fact]
+    public void ShadowKeywordOnNonExistentOuterIsError()
+    {
+        // 'a shadow' asserts that an outer binding exists — should error when none does.
+        Assert.Throws<TypeException>(() => Run(
+            "Define flag as 1.\n" +
+            "If flag is 1:\n" +
+            "  Define a shadow ghost as 5.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void ForEachIteratorDoesNotLeakOut()
+    {
+        // The iterator is block-local; using it after the loop fails at runtime.
+        Assert.Throws<RuntimeException>(() => Run(
+            "Define nums as a series of number with (1, 2, 3).\n" +
+            "For each n in nums, repeat:\n" +
+            "  State n.\n" +
+            "Done.\n" +
+            "State n."));
+    }
+
+    [Fact]
+    public void ForEachIteratorShadowsOuterAndRestores()
+    {
+        // Outer 'n' defined before loop; loop uses same name as iterator;
+        // after loop, outer 'n' should still hold its original value.
+        var output = Run(
+            "Define n as 7.\n" +
+            "Define nums as a series of number with (1, 2).\n" +
+            "For each n in nums, repeat:\n" +
+            "  State n.\n" +
+            "Done.\n" +
+            "State n.");
+        Assert.Equal("7", output.Split('\n').Last(s => s.Length > 0));
+    }
+
+    [Fact]
+    public void WhileBodyScopeIsolated()
+    {
+        // Variable defined inside While body doesn't leak out; fails at runtime.
+        Assert.Throws<RuntimeException>(() => Run(
+            "Define i as 0.\n" +
+            "While i is less than 1, repeat:\n" +
+            "  Define secret as 5.\n" +
+            "  i becomes 1.\n" +
+            "Done.\n" +
+            "State secret."));
+    }
+
     // ── Runtime errors ────────────────────────────────────────────────────
 
     [Fact]
     public void DoubleDefineThrows()
     {
-        Assert.Throws<RuntimeException>(() => Run("Define x as 1. Define x as 2."));
+        // Caught at type-check time (TypeException), not runtime, since scopes are now statically validated.
+        Assert.Throws<TypeException>(() => Run("Define x as 1. Define x as 2."));
     }
 
     [Fact]

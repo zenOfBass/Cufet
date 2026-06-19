@@ -69,7 +69,9 @@ public sealed record RecordNamedSetStatement(
 public sealed record StateStatement(IExpression Value)                        : IStatement;
 // Permanent: true when declared with the trailing 'permanently' adverb — the binding
 // (not its contents) can never be reassigned with 'becomes'.
-public sealed record DefineStatement(string Name, IExpression Value, bool Permanent, int Line) : IStatement;
+// Shadow: true when declared with the leading 'a shadow' modifier — explicitly shadows an
+// outer binding of the same name. Without this flag, shadowing an outer name is a static error.
+public sealed record DefineStatement(string Name, IExpression Value, bool Permanent, bool Shadow, int Line) : IStatement;
 public sealed record BecomesStatement(string Name, IExpression Value, int Line) : IStatement;
 
 public sealed record ConditionArm(IExpression Condition, IReadOnlyList<IStatement> Body);

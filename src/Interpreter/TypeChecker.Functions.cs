@@ -4,22 +4,22 @@ public sealed partial class TypeChecker
 {
     private void CheckBind(BindStatement bind)
     {
-        var snapshot  = new Dictionary<string, TypeInfo>(_env);
+        var saved     = SaveScopes();
         bool isNested = _inFunction; // true when we're already inside a function (closure case)
-        _env.Clear();
         if (isNested)
         {
             // Nested function body sees the full enclosing scope so captured variables type-check.
-            foreach (var (k, v) in snapshot) _env[k] = v;
+            foreach (var scope in saved)
+                foreach (var (k, v) in scope) Scope[k] = v;
         }
         else
         {
             // Top-level function body: only function signatures visible — no caller/global locals.
-            foreach (var (k, v) in snapshot.Where(kv => kv.Value.Type is FunctionType))
-                _env[k] = v;
+            foreach (var scope in saved)
+                foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
         }
         foreach (var (type, name) in bind.Parameters)
-            _env[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), bind.Line);
+            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), bind.Line);
 
         var prevInFunction        = _inFunction;
         var prevReturnType        = _expectedReturnType;
@@ -38,8 +38,7 @@ public sealed partial class TypeChecker
             _inFunction               = prevInFunction;
             _expectedReturnType       = prevReturnType;
             _functionDeclarationLine  = prevFunctionLine;
-            _env.Clear();
-            foreach (var (k, v) in snapshot) _env[k] = v;
+            RestoreScopes(saved);
         }
 
         if (bind.ReturnType != null && !DefinitelyReturns(bind.Body))
@@ -58,16 +57,16 @@ public sealed partial class TypeChecker
     // Subsequent returns validate against the inferred type normally.
     private FunctionType InferLambdaLiteral(LambdaLiteral lambda)
     {
-        var snapshot  = new Dictionary<string, TypeInfo>(_env);
+        var saved     = SaveScopes();
         bool isNested = _inFunction;
-        _env.Clear();
         if (isNested)
-            foreach (var (k, v) in snapshot) _env[k] = v;
+            foreach (var scope in saved)
+                foreach (var (k, v) in scope) Scope[k] = v;
         else
-            foreach (var (k, v) in snapshot.Where(kv => kv.Value.Type is FunctionType))
-                _env[k] = v;
+            foreach (var scope in saved)
+                foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
         foreach (var (type, name) in lambda.Parameters)
-            _env[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), lambda.Line);
+            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), lambda.Line);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
@@ -91,8 +90,7 @@ public sealed partial class TypeChecker
             _inferringLambdaReturn   = prevInferring;
             inferredReturn           = _expectedReturnType; // capture before restoring
             _expectedReturnType      = prevReturnType;
-            _env.Clear();
-            foreach (var (k, v) in snapshot) _env[k] = v;
+            RestoreScopes(saved);
         }
 
         if (inferredReturn != null && !DefinitelyReturns(lambda.Body))
@@ -200,7 +198,7 @@ public sealed partial class TypeChecker
         if (funcExpr is VariableReference vr)
         {
             var md    = TryMethodDispatch(vr.Name, args, callLine);
-            bool inEnv = _env.TryGetValue(vr.Name, out var info);
+            bool inEnv = TryLookup(vr.Name, out var info);
 
             if (md.HasValue && inEnv && info!.Type is FunctionType)
                 throw new TypeException(FormatTypeError(

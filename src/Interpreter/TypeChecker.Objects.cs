@@ -199,15 +199,14 @@ public sealed partial class TypeChecker
     // whether the method is nested in the object's definition or declared via 'unto'.
     private void CheckMethodBody(BindStatement method, ObjectType objType, int selfLine)
     {
-        var snapshot = new Dictionary<string, TypeInfo>(_env);
-        _env.Clear();
+        var saved = SaveScopes();
 
-        // Method scope: functions + object functions visible, plus 'one' (self) + parameters.
-        foreach (var (k, v) in snapshot.Where(kv => kv.Value.Type is FunctionType))
-            _env[k] = v;
-        _env["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine);
+        // Method scope: functions visible, plus 'one' (self) + parameters.
+        foreach (var scope in saved)
+            foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
+        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine);
         foreach (var (type, name) in method.Parameters)
-            _env[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), method.Line);
+            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), method.Line);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
@@ -233,8 +232,7 @@ public sealed partial class TypeChecker
             _inFunction              = prevInFunction;
             _expectedReturnType      = prevReturnType;
             _functionDeclarationLine = prevFunctionLine;
-            _env.Clear();
-            foreach (var (k, v) in snapshot) _env[k] = v;
+            RestoreScopes(saved);
         }
     }
 

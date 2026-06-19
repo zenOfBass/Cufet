@@ -69,9 +69,18 @@ public sealed class Parser
     private IStatement ParseDefineStatement()
     {
         var line = Consume(TokenType.Define).Line;
-        SkipNoise();
+        SkipNoise(); // skips leading article ('a', 'an', 'the')
         if (Peek().Type == TokenType.Object)
             return ParseObjectDefinition(line);
+        // "Define a shadow <name> as ..." — deliberate shadowing opt-in.
+        // SkipNoise() above already consumed the article 'a', so we check for Shadow directly.
+        bool shadow = false;
+        if (Peek().Type == TokenType.Shadow)
+        {
+            Advance(); // consume 'shadow'
+            shadow = true;
+            SkipNoise();
+        }
         var name = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
         Consume(TokenType.As);
@@ -90,7 +99,7 @@ public sealed class Parser
             SkipNoise();
         }
         Consume(TokenType.Dot);
-        return new DefineStatement(name, value, permanent, line);
+        return new DefineStatement(name, value, permanent, shadow, line);
     }
 
     // Define object <name> with (<fields>) [: <bind-stmts> Done.].

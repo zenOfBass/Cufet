@@ -228,11 +228,55 @@ public sealed class TypeException : Exception
 
 public sealed partial class TypeChecker
 {
-    private readonly Dictionary<string, TypeInfo>            _env           = new();
+    // Scope chain: [0] = global scope, [^1] = innermost current scope.
+    // Every Done.-bounded block (if/while/for/try) pushes a scope on entry and pops on exit.
+    // Function bodies replace the whole chain (see CheckBind/CheckMethodBody).
+    private readonly List<Dictionary<string, TypeInfo>>      _scopes        = [new()];
     private readonly Dictionary<string, ObjectType>          _objectDefs    = new();
     private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new();
     // Active narrowings: variable name → narrowed type (set inside checked branches).
     private readonly Dictionary<string, CufetType>           _narrowedVars  = new();
+
+    // ── Scope chain helpers ────────────────────────────────────────────────
+    // The current (innermost) scope.
+    private Dictionary<string, TypeInfo> Scope => _scopes[^1];
+
+    // Walk from innermost to outermost; return the first matching TypeInfo.
+    private bool TryLookup(string name, [System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out TypeInfo ti)
+    {
+        for (int i = _scopes.Count - 1; i >= 0; i--)
+            if (_scopes[i].TryGetValue(name, out ti)) return true;
+        ti = default!;
+        return false;
+    }
+
+    // Walk from second-innermost to outermost only (skips the current scope).
+    private bool TryLookupOuter(string name, [System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out TypeInfo ti)
+    {
+        for (int i = _scopes.Count - 2; i >= 0; i--)
+            if (_scopes[i].TryGetValue(name, out ti)) return true;
+        ti = default!;
+        return false;
+    }
+
+    private void EnterScope() => _scopes.Add(new Dictionary<string, TypeInfo>());
+    private void ExitScope()  => _scopes.RemoveAt(_scopes.Count - 1);
+
+    // Save the scope chain and replace it with a fresh single scope (for function isolation).
+    // Returns the saved chain for later restoration via RestoreScopes.
+    private List<Dictionary<string, TypeInfo>> SaveScopes()
+    {
+        var saved = _scopes.ToList();
+        _scopes.Clear();
+        _scopes.Add(new Dictionary<string, TypeInfo>());
+        return saved;
+    }
+
+    private void RestoreScopes(List<Dictionary<string, TypeInfo>> saved)
+    {
+        _scopes.Clear();
+        foreach (var s in saved) _scopes.Add(s);
+    }
 
     // Return context — set when entering a Bind or method body.
     private bool       _inFunction              = false;
@@ -326,7 +370,7 @@ public sealed partial class TypeChecker
             if (stmt is not BindStatement bind) continue;
             if (bind.UntoType != null) continue; // 'unto' methods are not free functions
             var paramTypes = bind.Parameters.Select(p => p.Type).ToList();
-            _env[bind.Name] = new TypeInfo(
+            Scope[bind.Name] = new TypeInfo(
                 new FunctionType(paramTypes, bind.ReturnType),
                 new VariableReference(bind.Name, 0),
                 bind.Line);
@@ -359,8 +403,10 @@ public sealed partial class TypeChecker
                         _narrowedVars.TryGetValue(narrowTarget!, out savedNarrowed);
                         _narrowedVars[narrowTarget!] = narrowedTo!;
                     }
+                    EnterScope();
                     foreach (var s in arm.Body)
                         CheckStatement(s);
+                    ExitScope();
                     // Restore narrowing state after the arm body.
                     if (narrowedVar != null)
                     {
@@ -369,17 +415,25 @@ public sealed partial class TypeChecker
                     }
                 }
                 if (ifStmt.ElseBody != null)
+                {
+                    EnterScope();
                     foreach (var s in ifStmt.ElseBody)
                         CheckStatement(s);
+                    ExitScope();
+                }
                 break;
             case WhileStatement whileStmt:
                 _ = InferType(whileStmt.Condition);
+                EnterScope();
                 foreach (var s in whileStmt.Body)
                     CheckStatement(s);
+                ExitScope();
                 break;
             case RepeatUntilStatement repeatUntil:
+                EnterScope();
                 foreach (var s in repeatUntil.Body)
                     CheckStatement(s);
+                ExitScope();
                 _ = InferType(repeatUntil.Condition);
                 break;
             case ForEachStatement forEach:
@@ -410,13 +464,13 @@ public sealed partial class TypeChecker
                 CheckUntoMethod(unto);
                 break;
             case BindStatement bind:
-                // Nested Bind: register type in enclosing scope before checking body
-                // so it can be returned/passed and so the body can recurse on itself.
-                // Top-level Bind: already hoisted by Pass1 — no env update needed.
-                if (_inFunction)
+                // Top-level Bind: already in Scope (= global scope) from Pass1Hoist — skip.
+                // Non-top-level Bind (inside a function or block): register in current scope
+                // so the function can be returned/passed and can recurse on itself.
+                if (!Scope.ContainsKey(bind.Name))
                 {
                     var paramTypes = bind.Parameters.Select(p => p.Type).ToList();
-                    _env[bind.Name] = new TypeInfo(
+                    Scope[bind.Name] = new TypeInfo(
                         new FunctionType(paramTypes, bind.ReturnType),
                         new VariableReference(bind.Name, 0),
                         bind.Line);
@@ -470,7 +524,34 @@ public sealed partial class TypeChecker
                 define.Line,
                 "define a variable without a clear starting type",
                 "Start with a literal value or a defined variable so the type is clear from the beginning."));
-        _env[define.Name] = new TypeInfo(type, define.Value, define.Line, define.Permanent);
+
+        if (Scope.ContainsKey(define.Name))
+            throw new TypeException(FormatTypeError(
+                $"'{define.Name}' is already defined in this scope",
+                null, define.Line,
+                $"define '{define.Name}' again in the same block",
+                "Each name can only be defined once per block. Use 'becomes' to reassign it, or choose a different name."));
+
+        if (TryLookupOuter(define.Name, out var outer))
+        {
+            if (!define.Shadow)
+                throw new TypeException(FormatTypeError(
+                    $"'{define.Name}' already exists in an enclosing scope",
+                    $"It was defined on line {outer.EstablishingLine}",
+                    define.Line,
+                    $"declare '{define.Name}' in this block without shadowing the outer one",
+                    $"To deliberately shadow it, write 'Define a shadow {define.Name} as ...'."));
+        }
+        else if (define.Shadow)
+        {
+            throw new TypeException(FormatTypeError(
+                $"'a shadow {define.Name}' — there's nothing named '{define.Name}' in an enclosing scope to shadow",
+                null, define.Line,
+                $"shadow a name that doesn't exist in any enclosing scope",
+                $"Remove 'a shadow' if you're just defining a new variable, or check the spelling."));
+        }
+
+        Scope[define.Name] = new TypeInfo(type, define.Value, define.Line, define.Permanent);
     }
 
     private void CheckBecomes(BecomesStatement becomes)
@@ -478,7 +559,7 @@ public sealed partial class TypeChecker
         // Reassignment invalidates any active narrowing on this variable.
         _narrowedVars.Remove(becomes.Name);
 
-        if (!_env.TryGetValue(becomes.Name, out var existing))
+        if (!TryLookup(becomes.Name, out var existing))
             return;
 
         if (existing.Permanent)
@@ -565,7 +646,7 @@ public sealed partial class TypeChecker
         UnaryExpression unary                                                                            => InferUnary(unary),
         BinaryExpression bin                                                                             => InferBinary(bin),
         VariableReference { Name: var n } when _narrowedVars.TryGetValue(n, out var narrowed)           => narrowed,
-        VariableReference { Name: var n } when _env.TryGetValue(n, out var ti)                          => ti.Type,
+        VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => ti.Type,
         VariableReference                                                                                => null,
         SeriesLiteral lit                                                                                => InferSeriesLiteral(lit),
         SeriesAccess acc                                                                                 => InferSeriesAccess(acc),
@@ -744,7 +825,7 @@ public sealed partial class TypeChecker
         if (condition is not BinaryExpression { Op: TokenType.NotEqual, Right: VoidLiteral } bin)
             return false;
         if (bin.Left is not VariableReference vr) return false;
-        if (!_env.TryGetValue(vr.Name, out var info)) return false;
+        if (!TryLookup(vr.Name, out var info)) return false;
         if (info.Type is not VoidableType vt) return false;
         varName    = vr.Name;
         narrowedTo = vt.Inner;

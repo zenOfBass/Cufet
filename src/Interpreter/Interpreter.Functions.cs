@@ -21,7 +21,7 @@ public sealed partial class Interpreter
 
         if (funcExpr is VariableReference vr)
         {
-            if (!_env.TryGetValue(vr.Name, out var val))
+            if (!TryLookupValue(vr.Name, out var val))
             {
                 // Not a free function — first arg is the receiver, remaining args are params.
                 if (args.Count == 0)
@@ -59,29 +59,25 @@ public sealed partial class Interpreter
         // Evaluate args in caller scope before altering env.
         var argValues = args.Select(Evaluate).ToList();
 
-        // Full snapshot — captures function-typed bindings too, so the finally can do a clean
-        // restore even when a parameter holds a FunctionValue.
-        var snapshot = new Dictionary<string, object>(_env);
+        var saved = SaveScopes();
 
         if (func.CapturedEnv != null)
         {
-            // Closure: restore the captured environment (outer locals + visible functions).
-            _env.Clear();
+            // Closure: load the captured flat env into the function's fresh global scope.
             foreach (var (k, v) in func.CapturedEnv)
-                _env[k] = v;
+                Scope[k] = v;
         }
         else
         {
-            // Top-level function: isolate to function-typed bindings only.
-            var toRemove = new List<string>();
-            foreach (var (k, v) in _env)
-                if (v is not FunctionValue) toRemove.Add(k);
-            foreach (var k in toRemove) _env.Remove(k);
+            // Top-level function: only function-typed bindings from caller are visible.
+            foreach (var scope in saved)
+                foreach (var (k, v) in scope)
+                    if (v is FunctionValue) Scope[k] = v;
         }
 
-        // Bind parameters (including any function-typed ones).
+        // Bind parameters.
         for (int i = 0; i < func.ParameterNames.Count; i++)
-            _env[func.ParameterNames[i]] = argValues[i];
+            Scope[func.ParameterNames[i]] = argValues[i];
 
         object? returnValue = null;
         try
@@ -95,9 +91,7 @@ public sealed partial class Interpreter
         }
         finally
         {
-            // Full restore from pre-call snapshot. No LINQ — plain ops only.
-            _env.Clear();
-            foreach (var (k, v) in snapshot) _env[k] = v;
+            RestoreScopes(saved);
             _callDepth--;
         }
 
@@ -141,16 +135,16 @@ public sealed partial class Interpreter
                 $"'{method.Name}' expects {paramNames.Count} argument(s), got {args.Count} (line {line}).");
 
         var argValues = args.Select(Evaluate).ToList();
-        var snapshot  = new Dictionary<string, object>(_env);
+        var saved     = SaveScopes();
 
-        var toRemove = new List<string>();
-        foreach (var (k, v) in _env)
-            if (v is not FunctionValue) toRemove.Add(k);
-        foreach (var k in toRemove) _env.Remove(k);
+        // Method scope: only function-typed bindings from caller visible.
+        foreach (var scope in saved)
+            foreach (var (k, v) in scope)
+                if (v is FunctionValue) Scope[k] = v;
 
         for (int i = 0; i < paramNames.Count; i++)
-            _env[paramNames[i]] = argValues[i];
-        _env["one"] = receiver;
+            Scope[paramNames[i]] = argValues[i];
+        Scope["one"] = receiver;
 
         object? returnValue = null;
         try
@@ -164,8 +158,7 @@ public sealed partial class Interpreter
         }
         finally
         {
-            _env.Clear();
-            foreach (var (k, v) in snapshot) _env[k] = v;
+            RestoreScopes(saved);
             _callDepth--;
         }
 

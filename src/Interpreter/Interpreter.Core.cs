@@ -5,7 +5,41 @@ namespace Cufet.Interpreter;
 public sealed partial class Interpreter
 {
     private readonly TextWriter _out;
-    private readonly Dictionary<string, object> _env = new();
+    private readonly List<Dictionary<string, object>> _scopes = [new()];
+
+    private Dictionary<string, object> Scope => _scopes[^1];
+
+    private bool TryLookupValue(string name, out object val)
+    {
+        for (int i = _scopes.Count - 1; i >= 0; i--)
+            if (_scopes[i].TryGetValue(name, out val!)) return true;
+        val = null!;
+        return false;
+    }
+
+    private Dictionary<string, object>? FindOwningScope(string name)
+    {
+        for (int i = _scopes.Count - 1; i >= 0; i--)
+            if (_scopes[i].ContainsKey(name)) return _scopes[i];
+        return null;
+    }
+
+    private void EnterScope() => _scopes.Add(new Dictionary<string, object>());
+    private void ExitScope()  => _scopes.RemoveAt(_scopes.Count - 1);
+
+    private List<Dictionary<string, object>> SaveScopes()
+    {
+        var saved = _scopes.ToList();
+        _scopes.Clear();
+        _scopes.Add(new Dictionary<string, object>());
+        return saved;
+    }
+
+    private void RestoreScopes(List<Dictionary<string, object>> saved)
+    {
+        _scopes.Clear();
+        foreach (var s in saved) _scopes.Add(s);
+    }
 
     // Used internally to implement Stop/Skip — never escape the loop handlers.
     private sealed class StopException  : Exception { }
@@ -146,7 +180,7 @@ public sealed partial class Interpreter
         foreach (var stmt in program.Statements)
         {
             if (stmt is BindStatement { UntoType: null } bind)
-                _env[bind.Name] = new FunctionValue
+                Scope[bind.Name] = new FunctionValue
                 {
                     ParameterNames = bind.Parameters.Select(p => p.Name).ToList(),
                     Body           = bind.Body,
@@ -175,27 +209,28 @@ public sealed partial class Interpreter
                 break;
 
             case DefineStatement d:
-                if (_env.ContainsKey(d.Name))
+                if (Scope.ContainsKey(d.Name))
                     throw new RuntimeException($"'{d.Name}' is already defined on line {d.Line}.");
             {
                 var val = Evaluate(d.Value);
-                _env[d.Name] = val is RecordValue rv ? rv.DeepCopy() :
-                               val is ObjectValue ov ? ov.DeepCopy() : val;
+                Scope[d.Name] = val is RecordValue rv ? rv.DeepCopy() :
+                                val is ObjectValue ov ? ov.DeepCopy() : val;
                 break;
             }
 
             case BecomesStatement b:
-                if (!_env.ContainsKey(b.Name))
+            {
+                var ownerScope = FindOwningScope(b.Name);
+                if (ownerScope == null)
                 {
                     var suggestion = FindSuggestion(b.Name);
                     var msg = $"'{b.Name}' isn't defined on line {b.Line} — use Define to create it first, then becomes to change it.";
                     if (suggestion != null) msg += $" Did you mean '{suggestion}'?";
                     throw new RuntimeException(msg);
                 }
-            {
                 var val = Evaluate(b.Value);
-                _env[b.Name] = val is RecordValue rv ? rv.DeepCopy() :
-                               val is ObjectValue ov ? ov.DeepCopy() : val;
+                ownerScope[b.Name] = val is RecordValue rv ? rv.DeepCopy() :
+                                     val is ObjectValue ov ? ov.DeepCopy() : val;
                 break;
             }
 
@@ -209,13 +244,19 @@ public sealed partial class Interpreter
                         throw new RuntimeException("If condition must evaluate to true or false.");
                     if (b)
                     {
-                        foreach (var s in arm.Body) Execute(s);
+                        EnterScope();
+                        try { foreach (var s in arm.Body) Execute(s); }
+                        finally { ExitScope(); }
                         executed = true;
                         break;
                     }
                 }
                 if (!executed && ifStmt.ElseBody is not null)
-                    foreach (var s in ifStmt.ElseBody) Execute(s);
+                {
+                    EnterScope();
+                    try { foreach (var s in ifStmt.ElseBody) Execute(s); }
+                    finally { ExitScope(); }
+                }
                 break;
             }
 
@@ -227,9 +268,13 @@ public sealed partial class Interpreter
                     if (condVal is not bool b)
                         throw new RuntimeException("While condition must evaluate to true or false.");
                     if (!b) break;
+                    EnterScope();
+                    bool wsStopped = false;
                     try   { foreach (var s in ws.Body) Execute(s); }
-                    catch (StopException) { break; }
-                    catch (SkipException) { continue; }
+                    catch (StopException) { wsStopped = true; }
+                    catch (SkipException) { /* next iteration */ }
+                    finally { ExitScope(); }
+                    if (wsStopped) break;
                 }
                 break;
             }
@@ -238,9 +283,13 @@ public sealed partial class Interpreter
             {
                 while (true)
                 {
+                    EnterScope();
+                    bool stopped = false;
                     try   { foreach (var s in ru.Body) Execute(s); }
-                    catch (StopException) { break; }
+                    catch (StopException) { stopped = true; }
                     catch (SkipException) { /* fall through to condition check */ }
+                    finally { ExitScope(); }
+                    if (stopped) break;
                     var condVal = Evaluate(ru.Condition);
                     if (condVal is not bool b)
                         throw new RuntimeException("Until condition must evaluate to true or false.");
@@ -277,7 +326,7 @@ public sealed partial class Interpreter
 
             case SeriesRemoveValueStatement srv:
             {
-                if (_env.TryGetValue(srv.SeriesName, out var srvEnvVal) && srvEnvVal is Dictionary<object, object> srvDict)
+                if (TryLookupValue(srv.SeriesName, out var srvEnvVal) && srvEnvVal is Dictionary<object, object> srvDict)
                 {
                     var key = Evaluate(srv.Value);
                     if (!srvDict.Remove(key))
@@ -293,7 +342,7 @@ public sealed partial class Interpreter
 
             case SeriesSetStatement ss:
             {
-                if (_env.TryGetValue(ss.SeriesName, out var ssEnvVal))
+                if (TryLookupValue(ss.SeriesName, out var ssEnvVal))
                 {
                     if (ssEnvVal is ObjectValue ssOv)
                     {
@@ -373,7 +422,7 @@ public sealed partial class Interpreter
                         Body           = bind.Body,
                         CapturedEnv    = capturedEnv,
                     };
-                    _env[bind.Name]        = closureFn;
+                    Scope[bind.Name]       = closureFn;
                     capturedEnv[bind.Name] = closureFn; // self-reference enables inner recursion
                 }
                 // else: top-level Bind, already hoisted — no action.
@@ -397,31 +446,24 @@ public sealed partial class Interpreter
             {
                 var seriesVal = Evaluate(fe.Series);
                 string iterKey = fe.IteratorName ?? "it";
-                bool hadPrev = _env.TryGetValue(iterKey, out var prev);
 
                 if (seriesVal is Dictionary<object, object> dict)
                 {
                     // Snapshot keys so mutation during iteration gives a clear error.
                     var snapshot = dict.ToList();
-                    try
+                    foreach (var kvp in snapshot)
                     {
-                        foreach (var kvp in snapshot)
-                        {
-                            if (dict.Count != snapshot.Count)
-                                throw new RuntimeException(
-                                    $"The map was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
-                            _env[iterKey] = new MappingValue(kvp.Key, kvp.Value);
-                            bool stopped = false;
-                            try { foreach (var s in fe.Body) Execute(s); }
-                            catch (StopException) { stopped = true; }
-                            catch (SkipException) { /* next iteration */ }
-                            if (stopped) break;
-                        }
-                    }
-                    finally
-                    {
-                        if (hadPrev) _env[iterKey] = prev!;
-                        else _env.Remove(iterKey);
+                        if (dict.Count != snapshot.Count)
+                            throw new RuntimeException(
+                                $"The map was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
+                        EnterScope();
+                        Scope[iterKey] = new MappingValue(kvp.Key, kvp.Value);
+                        bool stopped = false;
+                        try { foreach (var s in fe.Body) Execute(s); }
+                        catch (StopException) { stopped = true; }
+                        catch (SkipException) { /* next iteration */ }
+                        finally { ExitScope(); }
+                        if (stopped) break;
                     }
                     break;
                 }
@@ -430,48 +472,44 @@ public sealed partial class Interpreter
                     throw new RuntimeException($"Expected a series or map for 'for each' loop on line {fe.Line}.");
                 string seriesDisplay = fe.Series is VariableReference fvr ? $"'{fvr.Name}'" : "The series";
                 int startCount = list.Count;
-                try
+                for (int i = 0; i < startCount; i++)
                 {
-                    for (int i = 0; i < startCount; i++)
-                    {
-                        if (list.Count != startCount)
-                            throw new RuntimeException(
-                                $"{seriesDisplay} was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
-                        _env[iterKey] = list[i];
-                        bool stopped = false;
-                        try { foreach (var s in fe.Body) Execute(s); }
-                        catch (StopException) { stopped = true; }
-                        catch (SkipException) { /* next iteration */ }
-                        if (stopped) break;
-                        if (list.Count != startCount)
-                            throw new RuntimeException(
-                                $"{seriesDisplay} was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
-                    }
-                }
-                finally
-                {
-                    if (hadPrev) _env[iterKey] = prev!;
-                    else _env.Remove(iterKey);
+                    if (list.Count != startCount)
+                        throw new RuntimeException(
+                            $"{seriesDisplay} was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
+                    EnterScope();
+                    Scope[iterKey] = list[i];
+                    bool stopped = false;
+                    try { foreach (var s in fe.Body) Execute(s); }
+                    catch (StopException) { stopped = true; }
+                    catch (SkipException) { /* next iteration */ }
+                    finally { ExitScope(); }
+                    if (stopped) break;
+                    if (list.Count != startCount)
+                        throw new RuntimeException(
+                            $"{seriesDisplay} was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
                 }
                 break;
             }
         }
     }
 
-    // Snapshots the current env for a closure: deep-copies value-typed objects (records, objects)
-    // so they're independent; shares reference-typed collections (series, maps) as-is.
+    // Snapshots the full visible scope chain for a closure (outer-to-inner so inner wins).
+    // Deep-copies value-typed objects (records, objects) so they're independent;
+    // shares reference-typed collections (series, maps) as-is.
     private Dictionary<string, object> CaptureClosure()
     {
         var captured = new Dictionary<string, object>();
-        foreach (var (k, v) in _env)
-            captured[k] = v is RecordValue rv ? rv.DeepCopy() :
-                          v is ObjectValue ov ? ov.DeepCopy() : v;
+        foreach (var scope in _scopes)
+            foreach (var (k, v) in scope)
+                captured[k] = v is RecordValue rv ? rv.DeepCopy() :
+                              v is ObjectValue ov ? ov.DeepCopy() : v;
         return captured;
     }
 
     private List<object> ExpectSeries(string name, int line = 0)
     {
-        if (!_env.TryGetValue(name, out var val))
+        if (!TryLookupValue(name, out var val))
             throw new RuntimeException(UndefinedVariableMessage(name, line));
         if (val is not List<object> list)
             throw new RuntimeException(line > 0
@@ -519,7 +557,7 @@ public sealed partial class Interpreter
     {
         NumberLiteral    n    => (object)n.Value,  // decimal — no floating-point surprises
         StringLiteral    s    => s.Value,
-        VariableReference r   => _env.TryGetValue(r.Name, out var val)
+        VariableReference r   => TryLookupValue(r.Name, out var val)
                                      ? val
                                      : throw new RuntimeException(UndefinedVariableMessage(r.Name, r.Line)),
         UnaryExpression  u    => EvaluateUnary(u),
@@ -919,11 +957,12 @@ public sealed partial class Interpreter
     {
         string? best    = null;
         int     bestDist = 3; // only suggest if Levenshtein distance <= 2
-        foreach (var key in _env.Keys)
-        {
-            var dist = Levenshtein(name, key);
-            if (dist < bestDist) { bestDist = dist; best = key; }
-        }
+        foreach (var scope in _scopes)
+            foreach (var key in scope.Keys)
+            {
+                var dist = Levenshtein(name, key);
+                if (dist < bestDist) { bestDist = dist; best = key; }
+            }
         return best;
     }
 

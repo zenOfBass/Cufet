@@ -21,6 +21,7 @@ public enum TokenType
     Dot,      // "." — statement terminator
     Colon,    // ":" — opens a block body
     Permanently, // "permanently" — trailing adverb on Define; binding can't be reassigned
+    Shadow,   // "shadow" — in "Define a shadow x as ..."; deliberate shadowing opt-in
 
     // ── Control flow ──────────────────────────────────────────────────────
     If,        // "If"

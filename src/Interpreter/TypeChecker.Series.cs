@@ -14,14 +14,10 @@ public sealed partial class TypeChecker
         if (inferred is MapType mapType)
         {
             var iterKey = forEach.IteratorName ?? "it";
-            var hadPrev = _env.TryGetValue(iterKey, out var prev);
-            _env[iterKey] = new TypeInfo(new MappingType(mapType.KeyType, mapType.ValueType), forEach.Series, forEach.Line);
+            EnterScope();
+            Scope[iterKey] = new TypeInfo(new MappingType(mapType.KeyType, mapType.ValueType), forEach.Series, forEach.Line);
             try { foreach (var s in forEach.Body) CheckStatement(s); }
-            finally
-            {
-                if (hadPrev) _env[iterKey] = prev!;
-                else _env.Remove(iterKey);
-            }
+            finally { ExitScope(); }
             return;
         }
 
@@ -34,24 +30,20 @@ public sealed partial class TypeChecker
                 "Only series and maps can be looped over. Define a series if that's what you need."));
 
         var iterKey2 = forEach.IteratorName ?? "it";
-        var hadPrev2 = _env.TryGetValue(iterKey2, out var prev2);
-        _env[iterKey2] = new TypeInfo(seriesType.ElementType, forEach.Series, forEach.Line);
+        EnterScope();
+        Scope[iterKey2] = new TypeInfo(seriesType.ElementType, forEach.Series, forEach.Line);
         try
         {
             foreach (var s in forEach.Body)
                 CheckStatement(s);
         }
-        finally
-        {
-            if (hadPrev2) _env[iterKey2] = prev2!;
-            else _env.Remove(iterKey2);
-        }
+        finally { ExitScope(); }
     }
 
     private void CheckSeriesAdd(SeriesAddStatement add)
     {
         if (add.AfterIndex != null) CheckIndex(add.AfterIndex, add.Line);
-        if (!_env.TryGetValue(add.SeriesName, out var seriesInfo)) return;
+        if (!TryLookup(add.SeriesName, out var seriesInfo)) return;
         if (seriesInfo.Type is not SeriesType seriesType) return;
 
         var valueType = InferType(add.Value);
@@ -66,7 +58,7 @@ public sealed partial class TypeChecker
 
     private void CheckSeriesRemoveValue(SeriesRemoveValueStatement removeVal)
     {
-        if (!_env.TryGetValue(removeVal.SeriesName, out var seriesInfo)) return;
+        if (!TryLookup(removeVal.SeriesName, out var seriesInfo)) return;
 
         // Map remove: "remove key from map" — key must match map's key type.
         if (seriesInfo.Type is MapType mapType)
@@ -97,7 +89,7 @@ public sealed partial class TypeChecker
     private void CheckSeriesSet(SeriesSetStatement seriesSet)
     {
         if (seriesSet.Index != null) CheckIndex(seriesSet.Index, seriesSet.Line);
-        if (!_env.TryGetValue(seriesSet.SeriesName, out var seriesInfo)) return;
+        if (!TryLookup(seriesSet.SeriesName, out var seriesInfo)) return;
 
         if (seriesInfo.Type is SeriesType seriesType)
         {
@@ -303,7 +295,7 @@ public sealed partial class TypeChecker
 
     private CufetType InferSeriesLength(SeriesLength sl)
     {
-        if (_env.TryGetValue(sl.SeriesName, out var info) && info.Type is RecordType)
+        if (TryLookup(sl.SeriesName, out var info) && info.Type is RecordType)
             throw new TypeException(FormatTypeError(
                 $"'the number of' works on series, not records",
                 null, 0,

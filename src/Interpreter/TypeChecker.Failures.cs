@@ -111,35 +111,30 @@ public sealed partial class TypeChecker
         // the body must be handled explicitly ('but on failure' / 'or pass the failure off').
         var savedInTryBlock = _inTryBlock;
         _inTryBlock = trySt.FailureHandler != null;
-        foreach (var s in trySt.Body)
-            CheckStatement(s);
-        _inTryBlock = savedInTryBlock;
+        EnterScope();
+        try { foreach (var s in trySt.Body) CheckStatement(s); }
+        finally { ExitScope(); _inTryBlock = savedInTryBlock; }
 
         // Failure handler: bind "the failure" as FailureMarkerType.
         if (trySt.FailureHandler != null)
         {
-            var savedFailure = _env.TryGetValue("the failure", out var prevFailure) ? prevFailure : null;
-            _env["the failure"] = new TypeInfo(CufetType.FailureMarker,
+            EnterScope();
+            Scope["the failure"] = new TypeInfo(CufetType.FailureMarker,
                 new VariableReference("the failure", trySt.Line), trySt.Line);
-            foreach (var s in trySt.FailureHandler)
-                CheckStatement(s);
-            if (savedFailure != null) _env["the failure"] = savedFailure;
-            else _env.Remove("the failure");
+            try { foreach (var s in trySt.FailureHandler) CheckStatement(s); }
+            finally { ExitScope(); }
         }
 
         // Exception handler: bind "the exception" as ExceptionMarkerType; set _inExceptionHandler.
         if (trySt.ExceptionHandler != null)
         {
-            var savedEx = _env.TryGetValue("the exception", out var prevEx) ? prevEx : null;
-            _env["the exception"] = new TypeInfo(CufetType.ExceptionMarker,
+            EnterScope();
+            Scope["the exception"] = new TypeInfo(CufetType.ExceptionMarker,
                 new VariableReference("the exception", trySt.Line), trySt.Line);
             var savedInEx = _inExceptionHandler;
             _inExceptionHandler = true;
-            foreach (var s in trySt.ExceptionHandler)
-                CheckStatement(s);
-            _inExceptionHandler = savedInEx;
-            if (savedEx != null) _env["the exception"] = savedEx;
-            else _env.Remove("the exception");
+            try { foreach (var s in trySt.ExceptionHandler) CheckStatement(s); }
+            finally { _inExceptionHandler = savedInEx; ExitScope(); }
         }
     }
 }

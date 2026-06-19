@@ -50,6 +50,7 @@ public sealed partial class Interpreter
         FailureUnwind?    caughtFailure = null;
         RuntimeException? caughtEx      = null;
 
+        EnterScope();
         try
         {
             foreach (var s in trySt.Body)
@@ -63,28 +64,25 @@ public sealed partial class Interpreter
         {
             caughtEx = re;
         }
+        finally { ExitScope(); }
 
         if (caughtFailure != null)
         {
-            var savedFailure = _env.TryGetValue("the failure", out var prev);
-            _env["the failure"] = caughtFailure.Value;
+            EnterScope();
+            Scope["the failure"] = caughtFailure.Value;
             try
             {
                 foreach (var s in trySt.FailureHandler!)
                     Execute(s);
             }
-            finally
-            {
-                if (savedFailure) _env["the failure"] = prev!;
-                else _env.Remove("the failure");
-            }
+            finally { ExitScope(); }
             return;
         }
 
         if (caughtEx != null)
         {
-            var savedEx = _env.TryGetValue("the exception", out var prev);
-            _env["the exception"] = new ExceptionValue(caughtEx.Message);
+            EnterScope();
+            Scope["the exception"] = new ExceptionValue(caughtEx.Message);
             bool suppress = false;
             try
             {
@@ -95,11 +93,7 @@ public sealed partial class Interpreter
             {
                 suppress = true;
             }
-            finally
-            {
-                if (savedEx) _env["the exception"] = prev!;
-                else _env.Remove("the exception");
-            }
+            finally { ExitScope(); }
             if (!suppress) throw caughtEx; // re-raise by default
         }
     }
