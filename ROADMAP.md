@@ -235,6 +235,20 @@ see [What's built](#whats-built-the-language-today) above.*
   as a side effect of one construct. (Surfaced when designing `converted to
   text`, which was kept a primitive construct rather than a built-in.)
 
+### Organization and external code
+
+- **`book` and module loading** — Cufet's mechanism for pulling rare or
+  specialized capability into a program. A `book` is an object-like value
+  (possessive/`of` member access, singleton, stateless capability-bag), but
+  pulling one is a *module-loading operation* — it fetches code not already in
+  the program. Namespaces were evaluated and rejected (see Design decisions
+  above). The `module` interface defines the contract any loadable thing must
+  satisfy; `book` conforms to it. **Downstream of both a standard library
+  existing and a code-loading mechanism** — a std-lib/module-era feature, not
+  near-term. The `module` interface itself (just an interface definition, no
+  loader required) is buildable early as the stable boundary program code is
+  written against.
+
 ### Objects and voidable (extensions to the complete core)
 
 - **Expression-level flow-narrowing ("Slice B")** — narrowing currently works on
@@ -347,6 +361,24 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
 - **`one` is the self-reference inside methods** (`one's name`). Third-person,
   reads like English. Mild collision with the generic English pronoun "one" in
   prose *about* the language — write examples with care (code-font the keyword).
+
+- **Organization: common-as-grammar, rare-as-book; namespaces permanently
+  closed.** Organization philosophy is *frequency of use*: common functionality
+  (~95% — text, numbers, collections, control flow) is core grammar — no
+  imports, no prefixes. Rare/specialized capability is pulled as a `book` when
+  needed. **Namespaces are deliberately not built** — they would be a fourth
+  organizer (alongside functions, objects, and lexical scope) adding import
+  overhead and prefix noise without providing value the other three don't
+  already cover. A `book` is an object-like value (possessive/`of` member
+  access, singleton, stateless capability-bag) but pulling one is a
+  *module-loading operation*, not object construction. The `module` interface
+  is the contract program code depends on; the loader produces
+  `module`-conforming values. `book` is-a `module` (same pattern as
+  `vehicle`/`car`). Singleton and statelessness are loader-enforced
+  conventions, not interface-level constraints — the interface stays minimal
+  and general; the loader enforces book-specific behavior. The `module`
+  interface can be built early as the stable seam; the real external-code
+  loader comes later without touching program code.
 
 ---
 
