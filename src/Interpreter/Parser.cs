@@ -1555,6 +1555,51 @@ public sealed class Parser
                 baseExpr = new LambdaLiteral(lambdaParams, lambdaBody, lambdaLine);
                 break;
             }
+            case TokenType.Read:
+            {
+                // 'read a line from the input'    → voidable text
+                // 'read all from the input'       → text
+                // 'read all lines from the input' → series of text
+                var readLine = Advance().Line; // consume 'read'
+                SkipNoise(); // eats leading article (e.g. 'a' in 'read a line')
+
+                ReadForm form;
+                if (Peek().Type == TokenType.LineKw)
+                {
+                    Advance(); // consume 'line'
+                    form = ReadForm.Line;
+                }
+                else if (Peek().Type == TokenType.All)
+                {
+                    Advance(); // consume 'all'
+                    SkipNoise();
+                    if (Peek().Type == TokenType.LinesKw)
+                    {
+                        Advance(); // consume 'lines'
+                        form = ReadForm.AllLines;
+                    }
+                    else
+                    {
+                        form = ReadForm.All;
+                    }
+                }
+                else
+                {
+                    throw new ParseException(Peek(),
+                        "expected 'line', 'all', or 'all lines' after 'read'");
+                }
+
+                SkipNoise();
+                Consume(TokenType.From);
+                SkipNoise(); // eats 'the' article
+                if (Peek().Type != TokenType.InputKw)
+                    throw new ParseException(Peek(),
+                        "'the input' (stdin) is the only read source available yet");
+                Advance(); // consume 'input'
+
+                baseExpr = new ReadExpression(form, readLine);
+                break;
+            }
             default:
                 throw new ParseException(tok, "expression");
         }

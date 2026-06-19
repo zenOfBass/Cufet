@@ -179,6 +179,11 @@ public sealed class Lexer
             "off"        => TokenType.Off,
             "exception"  => TokenType.Exception,
             "suppress"   => TokenType.Suppress,
+            "read"       => TokenType.Read,
+            "input"      => TokenType.InputKw,
+            "line"       => TokenType.LineKw,
+            "lines"      => TokenType.LinesKw,
+            "all"        => TokenType.All,
             _           => TokenType.Identifier,
         };
 

@@ -5,6 +5,7 @@ namespace Cufet.Interpreter;
 public sealed partial class Interpreter
 {
     private readonly TextWriter _out;
+    private readonly TextReader _in;
     private readonly List<Dictionary<string, object>> _scopes = [new()];
 
     private Dictionary<string, object> Scope => _scopes[^1];
@@ -151,9 +152,10 @@ public sealed partial class Interpreter
     private int _callDepth = 0;
     private readonly int _maxCallDepth;
 
-    public Interpreter(TextWriter? output = null, int maxCallDepth = 1000)
+    public Interpreter(TextWriter? output = null, TextReader? input = null, int maxCallDepth = 1000)
     {
         _out = output ?? Console.Out;
+        _in  = input  ?? Console.In;
         _maxCallDepth = maxCallDepth;
     }
 
@@ -596,8 +598,34 @@ public sealed partial class Interpreter
         MapHasEntry    mhe    => EvaluateMapHasEntry(mhe),
         MapSize        ms     => EvaluateMapSize(ms),
         LambdaLiteral  lam    => EvaluateLambda(lam),
+        ReadExpression re     => EvaluateReadExpr(re),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
+
+    private object EvaluateReadExpr(ReadExpression re)
+    {
+        switch (re.Form)
+        {
+            case ReadForm.Line:
+                // Console.ReadLine() returns null at EOF; translate immediately to Cufet void.
+                // null never enters the language — it's converted at the I/O boundary.
+                var oneLine = _in.ReadLine();
+                return oneLine is null ? (object)VoidValue.Instance : oneLine;
+
+            case ReadForm.All:
+                return _in.ReadToEnd();
+
+            case ReadForm.AllLines:
+                var lineList = new List<object>();
+                string? next;
+                while ((next = _in.ReadLine()) != null)
+                    lineList.Add((object)next);
+                return lineList;
+
+            default:
+                throw new InvalidOperationException($"Unknown ReadForm {re.Form}");
+        }
+    }
 
     private object EvaluateLambda(LambdaLiteral lam) => new FunctionValue
     {

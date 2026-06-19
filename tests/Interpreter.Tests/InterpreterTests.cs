@@ -18,6 +18,17 @@ public class InterpreterTests
         return output.ToString().Replace("\r\n", "\n").TrimEnd('\n');
     }
 
+    private static string RunWithInput(string source, string stdinContent)
+    {
+        var tokens  = new CufetLexer(source).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        var output  = new StringWriter();
+        var input   = new StringReader(stdinContent);
+        RunOnLargeStack(() => new Interpreter(output, input).Execute(program));
+        return output.ToString().Replace("\r\n", "\n").TrimEnd('\n');
+    }
+
     private static void RunOnLargeStack(Action action)
     {
         Exception? caught = null;
@@ -6668,5 +6679,155 @@ public class InterpreterTests
             "Done.\n" +
             "State \"continued\".");
         Assert.Equal("continued", output.Trim());
+    }
+
+    // ── I/O — read a line from the input ─────────────────────────────────────
+
+    [Fact]
+    public void IO_ReadLine_ReturnsSingleLine()
+    {
+        Assert.Equal("hello", RunWithInput(
+            "Define line as read a line from the input.\n" +
+            "State line but void is \"nothing\".",
+            "hello\n"));
+    }
+
+    [Fact]
+    public void IO_ReadLine_StripsTrailingNewline()
+    {
+        // Trailing newline is stripped — result is the text content only.
+        Assert.Equal("5", RunWithInput(
+            "Define line as read a line from the input.\n" +
+            "State the length of (line but void is \"\") converted to text.",
+            "hello\n"));
+    }
+
+    [Fact]
+    public void IO_ReadLine_AtEof_ReturnsVoid()
+    {
+        Assert.Equal("nothing", RunWithInput(
+            "Define line as read a line from the input.\n" +
+            "State line but void is \"nothing\".",
+            ""));
+    }
+
+    [Fact]
+    public void IO_ReadLine_VoidNarrowed_WithIsVoidCheck()
+    {
+        Assert.Equal("got: hello", RunWithInput(
+            "Define line as read a line from the input.\n" +
+            "If line is not void:\n" +
+            "    State \"got: \" joined to line.\n" +
+            "Done.",
+            "hello"));
+    }
+
+    [Fact]
+    public void IO_ReadLine_ReadLoop_WithStop()
+    {
+        Assert.Equal("hello\nworld", RunWithInput(
+            "While true, repeat:\n" +
+            "    Define line as read a line from the input.\n" +
+            "    If line is void, Stop.\n" +
+            "    State line.\n" +
+            "Done.",
+            "hello\nworld\n"));
+    }
+
+    [Fact]
+    public void IO_ReadLine_ReadLoop_EmptyInput_ExitsImmediately()
+    {
+        Assert.Equal("done", RunWithInput(
+            "While true, repeat:\n" +
+            "    Define line as read a line from the input.\n" +
+            "    If line is void, Stop.\n" +
+            "    State line.\n" +
+            "Done.\n" +
+            "State \"done\".",
+            ""));
+    }
+
+    [Fact]
+    public void IO_ReadLine_TypeIsVoidableText_CannotJoinDirectly()
+    {
+        // read a line returns voidable text — joining without void handling is a type error.
+        Assert.Throws<TypeException>(() => Run(
+            "Define line as read a line from the input.\n" +
+            "State line joined to \" world\"."));
+    }
+
+    // ── I/O — read all from the input ────────────────────────────────────────
+
+    [Fact]
+    public void IO_ReadAll_ReturnsSingleTextBlock()
+    {
+        Assert.Equal("hello\nworld\n", RunWithInput(
+            "Define contents as read all from the input.\n" +
+            "State contents.",
+            "hello\nworld\n"));
+    }
+
+    [Fact]
+    public void IO_ReadAll_EmptyInput_ReturnsEmptyString()
+    {
+        Assert.Equal("empty", RunWithInput(
+            "Define contents as read all from the input.\n" +
+            "If contents is \"\":\n" +
+            "    State \"empty\".\n" +
+            "Otherwise:\n" +
+            "    State \"not empty\".\n" +
+            "Done.",
+            ""));
+    }
+
+    [Fact]
+    public void IO_ReadAll_TypeIsPlainText_NoVoidHandlingNeeded()
+    {
+        // read all returns plain text — should type-check and run without void handling.
+        Assert.Equal("hello", RunWithInput(
+            "Define contents as read all from the input.\n" +
+            "State contents trimmed.",
+            "hello\n"));
+    }
+
+    // ── I/O — read all lines from the input ──────────────────────────────────
+
+    [Fact]
+    public void IO_ReadAllLines_ReturnsSeriesOfText()
+    {
+        Assert.Equal("3", RunWithInput(
+            "Define lines as read all lines from the input.\n" +
+            "State the number of lines converted to text.",
+            "one\ntwo\nthree\n"));
+    }
+
+    [Fact]
+    public void IO_ReadAllLines_ContentCorrect()
+    {
+        Assert.Equal("one\ntwo\nthree", RunWithInput(
+            "Define lines as read all lines from the input.\n" +
+            "For each ln in lines, repeat:\n" +
+            "    State ln.\n" +
+            "Done.",
+            "one\ntwo\nthree\n"));
+    }
+
+    [Fact]
+    public void IO_ReadAllLines_EmptyInput_ReturnsEmptySeries()
+    {
+        Assert.Equal("0", RunWithInput(
+            "Define lines as read all lines from the input.\n" +
+            "State the number of lines converted to text.",
+            ""));
+    }
+
+    [Fact]
+    public void IO_ReadAllLines_TrailingNewlineDoesNotProduceEmptyElement()
+    {
+        // "hello\n" should produce one element "hello", not ["hello", ""].
+        Assert.Equal("1", RunWithInput(
+            "Define lines as read all lines from the input.\n" +
+            "State the number of lines converted to text.",
+            "hello\n"));
     }
 }

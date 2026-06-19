@@ -679,7 +679,16 @@ public sealed partial class TypeChecker
         MapHasEntry mhe                                                                                  => InferMapHasEntry(mhe),
         MapSize    ms                                                                                    => InferMapSize(ms),
         LambdaLiteral lambda                                                                             => InferLambdaLiteral(lambda),
+        ReadExpression re                                                                                 => InferReadExpr(re),
         _                                                                                                => null,
+    };
+
+    private static CufetType InferReadExpr(ReadExpression re) => re.Form switch
+    {
+        ReadForm.Line     => new VoidableType(CufetType.Text),
+        ReadForm.All      => CufetType.Text,
+        ReadForm.AllLines => new SeriesType(CufetType.Text),
+        _                 => throw new InvalidOperationException($"Unknown ReadForm {re.Form}"),
     };
 
     private CufetType? InferUnary(UnaryExpression unary)

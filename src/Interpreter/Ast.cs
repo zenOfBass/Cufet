@@ -305,4 +305,14 @@ public sealed record LambdaLiteral(
     int Line
 ) : IExpression;
 
+// ── I/O ───────────────────────────────────────────────────────────────────────
+
+public enum ReadForm { Line, All, AllLines }
+
+// read a line from the input    → voidable text (void at EOF)
+// read all from the input       → text (empty string for empty input, never void)
+// read all lines from the input → series of text (empty series for empty input)
+// Slice 1: stdin ("the input") is the only valid source; file sources come in Slice 3.
+public sealed record ReadExpression(ReadForm Form, int Line) : IExpression;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

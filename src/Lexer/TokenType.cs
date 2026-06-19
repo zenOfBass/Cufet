@@ -134,6 +134,13 @@ public enum TokenType
     Exception, // "exception" — in "In case of exception (the exception):" / "the exception" binding
     Suppress,  // "suppress"  — in "Suppress the exception."
 
+    // ── I/O ───────────────────────────────────────────────────────────────────
+    Read,     // "read"  — starts a read expression
+    InputKw,  // "input" — names stdin in "from the input"
+    LineKw,   // "line"  — in "read a line from the input"
+    LinesKw,  // "lines" — in "read all lines from the input"
+    All,      // "all"   — in "read all [lines] from the input"
+
     // ── Maps ──────────────────────────────────────────────────────────────────
     Map,    // "map"   — type annotation and literal
     Has,    // "has"   — in "map has a key/entry for X"
