@@ -16,6 +16,13 @@ language is considered stable.
 **Core**
 - Values and state: `Define name as value.` (declare), `name becomes value.`
   (reassign). No null — every value is initialized.
+- **Scope (lexical)** — every `Done.`-bounded block (`If`, `While`,
+  `Repeat...until`, `For each`, function bodies) introduces a lexical scope.
+  Inner declarations are local (do not leak out). Inner blocks can freely read
+  and modify outer variables via `becomes`. Shadowing an outer name via `Define`
+  is a static error by default; `Define a shadow x` opts in deliberately and
+  asserts the outer name exists. For-each iterators and `Try` handler bindings
+  (`the failure`, `the exception`) are automatically block-local.
 - Constants: `Define name as value permanently.` — the binding can never be
   reassigned (static error on `becomes`). Shallow: fixes the binding only, not
   the contents — a permanent map/record/object can still mutate its
@@ -184,21 +191,6 @@ language is considered stable.
 ## Planned features
 
 ### Language
-
-- **Scope (lexical)** — the first outward-facing wall. All top-level names are
-  currently global; lexical scope is the next layer. Direction is locked:
-  **lexical only**, no dynamic-scope toggle (dynamic scope cuts against local
-  readability, which is the core value). Closures already use lexical capture,
-  so top-level scope is an extension of the existing model, not a new one.
-  Small-scale scope: lexical blocks bounded by `Done.` (consistent with
-  conditionals, loops, and function bodies). Large-scale organization:
-  **concept-oriented namespaces** reusing the existing possessive/of grammar
-  (`text-utils' trim` / `the trim of text-utils`) — same access syntax as
-  object members, consistent and familiar. Known interactions to keep coherent:
-  closures (already lexical — extension, not replacement), hoisting
-  (functions/objects currently hoist globally — becomes hoist-within-enclosing-
-  scope), and `unto` (currently attaches to types by global name lookup —
-  must resolve to the type visible in the `unto`'s enclosing scope).
 
 - **Standard I/O** — `State` writes to stdout; reading a line from stdin has no
   syntax yet. The REPL vision and the shell vision both need this.
@@ -461,7 +453,7 @@ These two tasks are the falsifying tests that establish "Cufet as OS
 orchestrator" as a *waypoint*, not the destination.
 
 **The current interpreter is the reference implementation / executable spec.**
-The 784 tests define Cufet's semantics. A future native backend (native
+The 793 tests define Cufet's semantics. A future native backend (native
 compilation, compile-to-C/LLVM, or a from-scratch non-managed runtime)
 implements those same semantics against real metal. Nothing built is wasted
 — this is the path most serious languages took (Lua defined its semantics
@@ -482,6 +474,7 @@ Cufet binary whose `.data` section you can `readelf` is post-native.
 | Foundation | Status | Why it matters for native |
 |---|---|---|
 | Static type system, explicit types everywhere | ✅ built | Type info available for codegen; no runtime type discovery needed |
+| Lexical block scope (`Done.`-bounded) | ✅ built | Defines lifetimes; load-bearing for everything after |
 | Voidable type (`voidable T`) | ✅ built | Native model for absence (no GC-assisted null) |
 | `failure T`, `Try/In case of exception` | ✅ built | `failure T` = Rust's `Result<T,E>`; exceptions → `sigaction` in native |
 | Closures (lexical capture) | ✅ built | Closure record / function pointer + captured env — direct native analog |
@@ -491,13 +484,11 @@ Cufet binary whose `.data` section you can `readelf` is post-native.
 
 **What's needed, in rough interpreter-era order:**
 
-1. **Scope** — lexical, `Done.`-bounded. Defines lifetimes; load-bearing for
-   everything after.
-2. **Standard I/O** — stdin read; stdout write already exists.
-3. **File I/O and directory traversal.**
-4. **Process execution** — run with args, capture output, exit codes.
-5. **Environment variables.**
-6. **Signal handling** — `SIGINT`/`SIGTERM` via interpreter hooks; `SIGFPE`
+1. **Standard I/O** — stdin read; stdout write already exists.
+2. **File I/O and directory traversal.**
+3. **Process execution** — run with args, capture output, exit codes.
+4. **Environment variables.**
+5. **Signal handling** — `SIGINT`/`SIGTERM` via interpreter hooks; `SIGFPE`
    and friends are native-backend concerns.
 
 **Then the native-backend era:**

@@ -17,6 +17,7 @@ behind the design, see [ROADMAP.md](ROADMAP.md).
   - [Conditionals](#conditionals)
   - [Loops](#loops)
     - [For-each loops](#for-each-loops)
+  - [Scope](#scope)
   - [Series (collections)](#series-collections)
   - [Text](#text)
   - [Range](#range)
@@ -179,6 +180,66 @@ Mutating the series being iterated is a runtime error. Use `While` with an index
 if you need to change the series as you go.
 
 `Stop.` and `Skip.` work the same as in `While` loops.
+
+---
+
+## Scope
+
+Every `Done.`-bounded block — an `If` arm, a `While` body, a `For each` body, a
+`Repeat...until` body, a function body — introduces a **lexical scope**. Names
+declared inside a block do not exist outside it.
+
+**Inner blocks can freely read and modify outer variables:**
+```
+Define x as 10.
+If x is greater than 5:
+    x becomes 20.         ← modifies the outer x
+Done.
+State x.                  → 20
+```
+
+**Inner declarations are local — they do not leak out:**
+```
+Define x as 10.
+If x is greater than 5:
+    Define y as 99.       ← y lives only inside this block
+Done.
+State y.                  ← error: y isn't defined here
+```
+
+**Shadowing an outer name via `Define` is a static error by default:**
+```
+Define x as 10.
+If x is greater than 5:
+    Define x as 99.       ← TypeException: x already exists in an enclosing scope
+Done.
+```
+
+**Deliberate shadowing requires the `shadow` keyword:**
+```
+Define x as 10.
+If x is greater than 5:
+    Define a shadow x as 99.    ← explicit opt-in; shadow x exists only inside this block
+    State x.                    → 99
+Done.
+State x.                        → 10  (outer x is unchanged)
+```
+
+Using `a shadow` when no outer name exists is also a static error — the keyword
+asserts that something is being deliberately overridden.
+
+**For-each iterators are block-local automatically**, even if the name matches an
+outer variable:
+```
+Define n as 7.
+For each n in range 1 to 3, repeat:
+    State n.              ← 1, 2, 3  (the iterator)
+Done.
+State n.                  → 7  (outer n is restored)
+```
+
+**`Try` handler bindings** (`the failure`, `the exception`) are also block-local
+to their respective handler bodies.
 
 ---
 
@@ -983,6 +1044,9 @@ Cufet has a static type checker that runs before execution. It catches:
 - Using `replace`, `in uppercase`/`in lowercase`, or `trimmed` on a non-text
   value
 - An empty target in `replace ... with ... in ...`
+- Declaring a name already declared in the same scope
+- Declaring a name that exists in an enclosing scope without the `shadow` keyword
+- Using `Define a shadow x` when no outer `x` exists
 - `unto` naming an undefined type, or a non-object type (e.g. an interface)
 - A method name clash between a nested method and an `unto` method (or
   between two `unto` methods) on the same object type
