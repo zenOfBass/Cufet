@@ -312,7 +312,19 @@ public enum ReadForm { Line, All, AllLines }
 // read a line from the input    → voidable text (void at EOF)
 // read all from the input       → text (empty string for empty input, never void)
 // read all lines from the input → series of text (empty series for empty input)
-// Slice 1: stdin ("the input") is the only valid source; file sources come in Slice 3.
 public sealed record ReadExpression(ReadForm Form, int Line) : IExpression;
+
+public enum FileReadForm { All, AllLines }
+
+// read all from the file "<path>"        → text or failure
+// read all lines from the file "<path>"  → series of text or failure
+// Path is a text expression (string literal or variable). Failure on not-found / permission / disk-error.
+// Whole-file reads return the full contents or a failure — no void (no EOF-absence to express here).
+public sealed record FileReadExpression(FileReadForm Form, IExpression Path, int Line) : IExpression;
+
+// write <value> to the file "<path>"   — overwrite (creates if absent); Append = false
+// append <value> to the file "<path>"  — append   (creates if absent); Append = true
+// Statements: complete on success; throw FailureUnwind on IO failure (catchable by Try/In case of failure).
+public sealed record FileWriteStatement(bool Append, IExpression Value, IExpression Path, int Line) : IStatement;
 
 public sealed record Program(IReadOnlyList<IStatement> Statements);

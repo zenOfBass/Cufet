@@ -180,6 +180,9 @@ public sealed class Lexer
             "exception"  => TokenType.Exception,
             "suppress"   => TokenType.Suppress,
             "read"       => TokenType.Read,
+            "file"       => TokenType.File,
+            "write"      => TokenType.Write,
+            "append"     => TokenType.Append,
             _           => TokenType.Identifier,
         };
 

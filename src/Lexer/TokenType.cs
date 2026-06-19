@@ -135,8 +135,11 @@ public enum TokenType
     Suppress,  // "suppress"  — in "Suppress the exception."
 
     // ── I/O ───────────────────────────────────────────────────────────────────
-    Read,     // "read" — starts a read expression; the form words (line/lines/all/input) are
-              //          parsed as contextual identifiers (lexeme-checked), not reserved keywords
+    Read,     // "read"   — starts a read expression; the form words (line/lines/all/input) are
+              //            parsed as contextual identifiers (lexeme-checked), not reserved keywords
+    File,     // "file"   — in "from the file \"path\"" / "to the file \"path\""
+    Write,    // "write"  — in "write <text> to the file \"path\"" (overwrites)
+    Append,   // "append" — in "append <text> to the file \"path\"" (appends)
 
     // ── Maps ──────────────────────────────────────────────────────────────────
     Map,    // "map"   — type annotation and literal

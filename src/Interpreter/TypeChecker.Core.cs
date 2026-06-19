@@ -506,6 +506,9 @@ public sealed partial class TypeChecker
                         "suppress an exception outside an exception handler",
                         "Move 'Suppress the exception.' inside an 'In case of exception' block."));
                 break;
+            case FileWriteStatement fw:
+                CheckFileWrite(fw);
+                break;
             case ObjectDefinition od:
                 CheckObjectDefinition(od);
                 break;
@@ -680,6 +683,7 @@ public sealed partial class TypeChecker
         MapSize    ms                                                                                    => InferMapSize(ms),
         LambdaLiteral lambda                                                                             => InferLambdaLiteral(lambda),
         ReadExpression re                                                                                 => InferReadExpr(re),
+        FileReadExpression fre                                                                           => InferFileReadExpr(fre),
         _                                                                                                => null,
     };
 

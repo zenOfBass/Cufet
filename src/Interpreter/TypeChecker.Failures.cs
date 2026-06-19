@@ -97,6 +97,61 @@ public sealed partial class TypeChecker
         return null;
     }
 
+    // ── File I/O ─────────────────────────────────────────────────────────────
+
+    // read all from the file "<path>"       → text or failure (FailureType(Text))
+    // read all lines from the file "<path>" → series of text or failure (FailureType(SeriesType(Text)))
+    // Inside a Try body (_inTryBlock): auto-unwrap to the success type.
+    // Inside handled context (_inFailureHandledContext): return FailureType (caller handles it).
+    // Otherwise: static error — must handle the failure.
+    private CufetType InferFileReadExpr(FileReadExpression fe)
+    {
+        var pathType = InferType(fe.Path);
+        if (pathType != null && pathType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "a file path must be text",
+                null, fe.Line,
+                $"use a {FormatType(pathType)} as a file path",
+                "Write the path as a text literal like \"config.txt\", or use a text variable."));
+
+        CufetType successType = fe.Form == FileReadForm.AllLines
+            ? new SeriesType(CufetType.Text)
+            : CufetType.Text;
+
+        if (_inTryBlock)
+            return successType; // inside Try body: failure branch not taken, unwrap to T
+
+        if (!_inFailureHandledContext)
+            throw new TypeException(FormatTypeError(
+                "reading from a file can fail — you must handle the failure",
+                null, fe.Line,
+                "use a file read's result without handling the failure",
+                "Wrap the read in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'."));
+
+        return new FailureType(successType);
+    }
+
+    // write <text> to the file "<path>"  /  append <text> to the file "<path>"
+    // Validates operand types; failure is runtime-only (caught by enclosing Try if present).
+    private void CheckFileWrite(FileWriteStatement fw)
+    {
+        var valueType = InferType(fw.Value);
+        if (valueType != null && valueType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "you can only write text to a file",
+                null, fw.Line,
+                $"write a {FormatType(valueType)} to a file",
+                "Convert the value to text first with 'converted to text', or build a text value with 'joined to'."));
+
+        var pathType = InferType(fw.Path);
+        if (pathType != null && pathType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "a file path must be text",
+                null, fw.Line,
+                $"use a {FormatType(pathType)} as a file path",
+                "Write the path as a text literal like \"output.txt\", or use a text variable."));
+    }
+
     private void CheckTryStatement(TryStatement trySt)
     {
         if (trySt.FailureHandler == null && trySt.ExceptionHandler == null)

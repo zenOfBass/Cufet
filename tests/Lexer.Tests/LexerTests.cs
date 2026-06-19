@@ -724,4 +724,30 @@ public class LexerTests
         Assert.Single(tokens);
         Assert.Equal(TokenType.Identifier, tokens[0].Type);
     }
+
+    // ── I/O Slice 3: file keywords ────────────────────────────────────────────
+
+    [Fact]
+    public void FileIsKeyword()
+    {
+        var tokens = LexTokens("file");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.File, tokens[0].Type);
+    }
+
+    [Fact]
+    public void WriteIsKeyword()
+    {
+        var tokens = LexTokens("write");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Write, tokens[0].Type);
+    }
+
+    [Fact]
+    public void AppendIsKeyword()
+    {
+        var tokens = LexTokens("append");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Append, tokens[0].Type);
+    }
 }

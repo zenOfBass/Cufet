@@ -1,8 +1,71 @@
+using System.IO;
+using System.Linq;
+
 namespace Cufet.Interpreter;
 
 public sealed partial class Interpreter
 {
     // ── Failures (recoverable errors as values) ───────────────────────────────
+
+    // ── File I/O ─────────────────────────────────────────────────────────────
+
+    // Maps .NET IO exceptions to Cufet failure values at the I/O boundary.
+    // Host exceptions must not surface as Cufet exceptions — file-not-found is recoverable.
+    private static FailureUnwind FileIoFailure(string path, Exception ex)
+    {
+        string category, message;
+        if (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            category = "not-found";
+            message  = $"the file '{path}' was not found";
+        }
+        else if (ex is UnauthorizedAccessException)
+        {
+            category = "permission-denied";
+            message  = $"permission denied accessing '{path}'";
+        }
+        else
+        {
+            category = "disk-error";
+            message  = ex.Message;
+        }
+        return new FailureUnwind(new FailureValue(message, category));
+    }
+
+    private object EvaluateFileReadExpr(FileReadExpression fe)
+    {
+        var path = (string)Evaluate(fe.Path);
+        try
+        {
+            return fe.Form switch
+            {
+                FileReadForm.All      => File.ReadAllText(path),
+                FileReadForm.AllLines => File.ReadAllLines(path).Select(l => (object)l).ToList(),
+                _ => throw new InvalidOperationException($"Unknown FileReadForm {fe.Form}"),
+            };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw FileIoFailure(path, ex);
+        }
+    }
+
+    private void ExecuteFileWriteStatement(FileWriteStatement fw)
+    {
+        var value = (string)Evaluate(fw.Value);
+        var path  = (string)Evaluate(fw.Path);
+        try
+        {
+            if (fw.Append)
+                File.AppendAllText(path, value);
+            else
+                File.WriteAllText(path, value);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw FileIoFailure(path, ex);
+        }
+    }
 
     private object EvaluateCastExpr(CastExpression cast)
     {

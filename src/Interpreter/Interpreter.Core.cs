@@ -437,6 +437,10 @@ public sealed partial class Interpreter
             case ReturnStatement ret:
                 throw new ReturnException(ret.Value != null ? Evaluate(ret.Value) : null);
 
+            case FileWriteStatement fw:
+                ExecuteFileWriteStatement(fw);
+                break;
+
             case TryStatement trySt:
                 ExecuteTryStatement(trySt);
                 break;
@@ -599,6 +603,7 @@ public sealed partial class Interpreter
         MapSize        ms     => EvaluateMapSize(ms),
         LambdaLiteral  lam    => EvaluateLambda(lam),
         ReadExpression re     => EvaluateReadExpr(re),
+        FileReadExpression fr => EvaluateFileReadExpr(fr),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 

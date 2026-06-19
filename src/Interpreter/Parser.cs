@@ -52,6 +52,8 @@ public sealed class Parser
             TokenType.Try        => ParseTryStatement(),
             TokenType.Suppress   => ParseSuppressStatement(),
             TokenType.In         => ParseMapSetStatement(),
+            TokenType.Write      => ParseFileWriteStatement(),
+            TokenType.Append     => ParseFileWriteStatement(),
             _ => throw new ParseException(tok, "statement keyword"),
         };
     }
@@ -839,6 +841,30 @@ public sealed class Parser
         return new MapSetStatement(mapExpr, keyExpr, valueExpr, line);
     }
 
+    // write <text> to the file "<path>"   — overwrite (creates if absent)
+    // append <text> to the file "<path>"  — append   (creates if absent)
+    private FileWriteStatement ParseFileWriteStatement()
+    {
+        bool isAppend = Peek().Type == TokenType.Append;
+        var line = Advance().Line; // consume 'write' or 'append'
+        SkipNoise();
+        var value = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.To);
+        SkipNoise(); // eats 'the' article before 'file'
+        if (Peek().Type != TokenType.File)
+            throw new ParseException(Peek(),
+                $"expected 'the file \"path\"' after '{(isAppend ? "append" : "write")} <value> to'");
+        Advance(); // consume 'file'
+        SkipNoise();
+        // ParseExprOr not ParseExpression: path is a simple text expression; 'but on failure'
+        // applies to the write verb's failure result, not to the path itself.
+        var path = ParseExprOr();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new FileWriteStatement(isAppend, value, path, line);
+    }
+
     // Condition grammar (conditional context — after If / Otherwise if):
     //   condition        → logical-or
     //   logical-or       → logical-and ( "or" logical-and )*
@@ -1557,19 +1583,21 @@ public sealed class Parser
             }
             case TokenType.Read:
             {
-                // 'read a line from the input'    → voidable text
-                // 'read all from the input'       → text
-                // 'read all lines from the input' → series of text
+                // 'read a line from the input'         → voidable text (stdin)
+                // 'read all from the input'            → text (stdin)
+                // 'read all lines from the input'      → series of text (stdin)
+                // 'read all from the file "<path>"'    → text or failure (file)
+                // 'read all lines from the file "<path>"' → series of text or failure (file)
                 // 'line', 'lines', 'all', and 'input' are contextual words, not reserved
                 // keywords — they're parsed by lexeme in this position only.
                 var readLine = Advance().Line; // consume 'read'
                 SkipNoise(); // eats leading article (e.g. 'a' in 'read a line')
 
-                ReadForm form;
+                ReadForm stdinForm;
                 if (IsWord("line"))
                 {
                     Advance(); // consume 'line'
-                    form = ReadForm.Line;
+                    stdinForm = ReadForm.Line;
                 }
                 else if (IsWord("all"))
                 {
@@ -1578,11 +1606,11 @@ public sealed class Parser
                     if (IsWord("lines"))
                     {
                         Advance(); // consume 'lines'
-                        form = ReadForm.AllLines;
+                        stdinForm = ReadForm.AllLines;
                     }
                     else
                     {
-                        form = ReadForm.All;
+                        stdinForm = ReadForm.All;
                     }
                 }
                 else
@@ -1593,13 +1621,32 @@ public sealed class Parser
 
                 SkipNoise();
                 Consume(TokenType.From);
-                SkipNoise(); // eats 'the' article
-                if (!IsWord("input"))
-                    throw new ParseException(Peek(),
-                        "'the input' (stdin) is the only read source available yet");
-                Advance(); // consume 'input'
+                SkipNoise(); // eats 'the' article before 'input' or 'file'
 
-                baseExpr = new ReadExpression(form, readLine);
+                if (IsWord("input"))
+                {
+                    Advance(); // consume 'input'
+                    baseExpr = new ReadExpression(stdinForm, readLine);
+                }
+                else if (Peek().Type == TokenType.File)
+                {
+                    if (stdinForm == ReadForm.Line)
+                        throw new ParseException(Peek(),
+                            "reading line-by-line from a file is not yet supported — use 'read all' or 'read all lines'");
+                    Advance(); // consume 'file'
+                    SkipNoise();
+                    // ParseExprOr not ParseExpression: stops before 'but on failure' / 'or pass
+                    // the failure off', which belong to the outer expression that wraps this read.
+                    var pathExpr = ParseExprOr();
+                    var fileForm = stdinForm == ReadForm.AllLines ? FileReadForm.AllLines : FileReadForm.All;
+                    baseExpr = new FileReadExpression(fileForm, pathExpr, readLine);
+                }
+                else
+                {
+                    throw new ParseException(Peek(),
+                        "expected 'the input' (stdin) or 'the file \"path\"' after 'from'");
+                }
+
                 break;
             }
             default:

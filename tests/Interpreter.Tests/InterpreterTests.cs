@@ -6832,4 +6832,311 @@ public class InterpreterTests
             "State the number of lines converted to text.",
             "hello\n"));
     }
+
+    // ── I/O — file reads ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void IO_FileReadAll_ReadsEntireContents()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, "hello world");
+            Assert.Equal("hello world", Run(
+                $"Try to:\n" +
+                $"    Define contents as read all from the file \"{path.Replace("\\", "\\\\")}\".\n" +
+                $"    State contents.\n" +
+                $"Done.\n" +
+                $"In case of failure:\n" +
+                $"    State \"fail\".\n" +
+                $"Done."));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
+    public void IO_FileReadAllLines_ReadsLines()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, "one\ntwo\nthree");
+            Assert.Equal("3", Run(
+                $"Try to:\n" +
+                $"    Define lines as read all lines from the file \"{path.Replace("\\", "\\\\")}\".\n" +
+                $"    State the number of lines converted to text.\n" +
+                $"Done.\n" +
+                $"In case of failure:\n" +
+                $"    State \"fail\".\n" +
+                $"Done."));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
+    public void IO_FileReadAllLines_ContentCorrect()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, "alpha\nbeta\ngamma");
+            Assert.Equal("alpha\nbeta\ngamma", Run(
+                $"Try to:\n" +
+                $"    Define lines as read all lines from the file \"{path.Replace("\\", "\\\\")}\".\n" +
+                $"    For each line in lines, repeat:\n" +
+                $"        State line.\n" +
+                $"    Done.\n" +
+                $"Done.\n" +
+                $"In case of failure:\n" +
+                $"    State \"fail\".\n" +
+                $"Done."));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
+    public void IO_FileReadAll_EmptyFile_ReturnsEmptyString()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, "");
+            Assert.Equal("empty", Run(
+                $"Try to:\n" +
+                $"    Define contents as read all from the file \"{path.Replace("\\", "\\\\")}\".\n" +
+                $"    If the length of contents is 0:\n" +
+                $"        State \"empty\".\n" +
+                $"    Done.\n" +
+                $"Done.\n" +
+                $"In case of failure:\n" +
+                $"    State \"fail\".\n" +
+                $"Done."));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
+    public void IO_FileReadAllLines_EmptyFile_ReturnsEmptySeries()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, "");
+            Assert.Equal("0", Run(
+                $"Try to:\n" +
+                $"    Define lines as read all lines from the file \"{path.Replace("\\", "\\\\")}\".\n" +
+                $"    State the number of lines converted to text.\n" +
+                $"Done.\n" +
+                $"In case of failure:\n" +
+                $"    State \"fail\".\n" +
+                $"Done."));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
+    public void IO_FileReadAll_FileNotFound_ReturnsNotFoundCategory()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "cufet_no_such_file_" + Guid.NewGuid() + ".txt");
+        Assert.Equal("not-found", Run(
+            $"Try to:\n" +
+            $"    Define contents as read all from the file \"{path.Replace("\\", "\\\\")}\".\n" +
+            $"    State contents.\n" +
+            $"Done.\n" +
+            $"In case of failure:\n" +
+            $"    State the category of the failure.\n" +
+            $"Done."));
+    }
+
+    [Fact]
+    public void IO_FileReadAll_InsideTry_CatchesFailureMessage()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "cufet_no_such_file_" + Guid.NewGuid() + ".txt");
+        var result = Run(
+            $"Try to:\n" +
+            $"    Define contents as read all from the file \"{path.Replace("\\", "\\\\")}\".\n" +
+            $"    State contents.\n" +
+            $"Done.\n" +
+            $"In case of failure:\n" +
+            $"    State \"caught\".\n" +
+            $"Done.");
+        Assert.Equal("caught", result);
+    }
+
+    [Fact]
+    public void IO_FileReadAll_ButOnFailure_UsesDefault()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "cufet_no_such_file_" + Guid.NewGuid() + ".txt");
+        Assert.Equal("default text", Run(
+            $"Define contents as read all from the file \"{path.Replace("\\", "\\\\")}\" but on failure \"default text\".\n" +
+            $"State contents."));
+    }
+
+    [Fact]
+    public void IO_FileReadAll_PathFromVariable_Works()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, "from variable");
+            Assert.Equal("from variable", Run(
+                $"Define p as \"{path.Replace("\\", "\\\\")}\".\n" +
+                $"Try to:\n" +
+                $"    Define contents as read all from the file p.\n" +
+                $"    State contents.\n" +
+                $"Done.\n" +
+                $"In case of failure:\n" +
+                $"    State \"fail\".\n" +
+                $"Done."));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
+    public void IO_FileRead_MustHandleFailure_StaticError()
+    {
+        var path = "\"config.txt\"";
+        Assert.Throws<TypeException>(() => Run(
+            $"Define contents as read all from the file {path}.\n" +
+            $"State contents."));
+    }
+
+    [Fact]
+    public void IO_FileRead_PathMustBeText_StaticError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Try to:\n" +
+            "    Define contents as read all from the file 42.\n" +
+            "    State contents.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"fail\".\n" +
+            "Done."));
+    }
+
+    // ── I/O — file writes ────────────────────────────────────────────────────
+
+    [Fact]
+    public void IO_FileWrite_CreatesFile()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "cufet_write_" + Guid.NewGuid() + ".txt");
+        try
+        {
+            Run(
+                $"Try to:\n" +
+                $"    Write \"hello\" to the file \"{path.Replace("\\", "\\\\")}\".\n" +
+                $"Done.\n" +
+                $"In case of failure:\n" +
+                $"    State \"fail\".\n" +
+                $"Done.");
+            Assert.Equal("hello", File.ReadAllText(path));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
+    public void IO_FileWrite_OverwritesExistingContent()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, "old content");
+            Run(
+                $"Try to:\n" +
+                $"    Write \"new content\" to the file \"{path.Replace("\\", "\\\\")}\".\n" +
+                $"Done.\n" +
+                $"In case of failure:\n" +
+                $"    State \"fail\".\n" +
+                $"Done.");
+            Assert.Equal("new content", File.ReadAllText(path));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
+    public void IO_FileAppend_AppendsToExisting()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, "first");
+            Run(
+                $"Try to:\n" +
+                $"    Append \" second\" to the file \"{path.Replace("\\", "\\\\")}\".\n" +
+                $"Done.\n" +
+                $"In case of failure:\n" +
+                $"    State \"fail\".\n" +
+                $"Done.");
+            Assert.Equal("first second", File.ReadAllText(path));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
+    public void IO_FileAppend_CreatesFileIfNotExists()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "cufet_append_" + Guid.NewGuid() + ".txt");
+        try
+        {
+            Run(
+                $"Try to:\n" +
+                $"    Append \"created\" to the file \"{path.Replace("\\", "\\\\")}\".\n" +
+                $"Done.\n" +
+                $"In case of failure:\n" +
+                $"    State \"fail\".\n" +
+                $"Done.");
+            Assert.Equal("created", File.ReadAllText(path));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [Fact]
+    public void IO_FileWrite_DirectoryNotFound_ThrowsFailure()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "cufet_no_dir_" + Guid.NewGuid(), "file.txt");
+        Assert.Equal("not-found", Run(
+            $"Try to:\n" +
+            $"    Write \"x\" to the file \"{path.Replace("\\", "\\\\")}\".\n" +
+            $"Done.\n" +
+            $"In case of failure:\n" +
+            $"    State the category of the failure.\n" +
+            $"Done."));
+    }
+
+    [Fact]
+    public void IO_FileWrite_ValueMustBeText_StaticError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Try to:\n" +
+            "    Write 42 to the file \"out.txt\".\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"fail\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_FileWrite_WriteAndReadRoundtrip()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "cufet_roundtrip_" + Guid.NewGuid() + ".txt");
+        try
+        {
+            Assert.Equal("round trip data", Run(
+                $"Define p as \"{path.Replace("\\", "\\\\")}\".\n" +
+                $"Try to:\n" +
+                $"    Write \"round trip data\" to the file p.\n" +
+                $"Done.\n" +
+                $"In case of failure:\n" +
+                $"    State \"write failed\".\n" +
+                $"Done.\n" +
+                $"Try to:\n" +
+                $"    Define contents as read all from the file p.\n" +
+                $"    State contents.\n" +
+                $"Done.\n" +
+                $"In case of failure:\n" +
+                $"    State \"read failed\".\n" +
+                $"Done."));
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
 }
