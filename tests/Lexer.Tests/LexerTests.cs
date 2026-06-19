@@ -701,4 +701,27 @@ public class LexerTests
         Assert.Single(tokens);
         Assert.Equal(TokenType.Eof, tokens[0].Type);
     }
+
+    // ── I/O keywords ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ReadIsKeyword()
+    {
+        var tokens = LexTokens("read");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Read, tokens[0].Type);
+    }
+
+    [Theory]
+    [InlineData("line")]
+    [InlineData("lines")]
+    [InlineData("all")]
+    [InlineData("input")]
+    public void IOContextualWordsAreIdentifiers(string word)
+    {
+        // Contextual words parsed by lexeme inside read expressions — not reserved keywords.
+        var tokens = LexTokens(word);
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Identifier, tokens[0].Type);
+    }
 }

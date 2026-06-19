@@ -6726,7 +6726,7 @@ public class InterpreterTests
     public void IO_ReadLine_ReadLoop_WithStop()
     {
         Assert.Equal("hello\nworld", RunWithInput(
-            "While true, repeat:\n" +
+            "While 1 is 1, repeat:\n" +
             "    Define line as read a line from the input.\n" +
             "    If line is void, Stop.\n" +
             "    State line.\n" +
@@ -6738,7 +6738,7 @@ public class InterpreterTests
     public void IO_ReadLine_ReadLoop_EmptyInput_ExitsImmediately()
     {
         Assert.Equal("done", RunWithInput(
-            "While true, repeat:\n" +
+            "While 1 is 1, repeat:\n" +
             "    Define line as read a line from the input.\n" +
             "    If line is void, Stop.\n" +
             "    State line.\n" +
@@ -6761,7 +6761,8 @@ public class InterpreterTests
     [Fact]
     public void IO_ReadAll_ReturnsSingleTextBlock()
     {
-        Assert.Equal("hello\nworld\n", RunWithInput(
+        // read all returns raw content; State + TrimEnd('\n') strips one trailing newline.
+        Assert.Equal("hello\nworld", RunWithInput(
             "Define contents as read all from the input.\n" +
             "State contents.",
             "hello\nworld\n"));
@@ -6774,6 +6775,7 @@ public class InterpreterTests
             "Define contents as read all from the input.\n" +
             "If contents is \"\":\n" +
             "    State \"empty\".\n" +
+            "Done.\n" +
             "Otherwise:\n" +
             "    State \"not empty\".\n" +
             "Done.",

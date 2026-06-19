@@ -135,11 +135,8 @@ public enum TokenType
     Suppress,  // "suppress"  — in "Suppress the exception."
 
     // ── I/O ───────────────────────────────────────────────────────────────────
-    Read,     // "read"  — starts a read expression
-    InputKw,  // "input" — names stdin in "from the input"
-    LineKw,   // "line"  — in "read a line from the input"
-    LinesKw,  // "lines" — in "read all lines from the input"
-    All,      // "all"   — in "read all [lines] from the input"
+    Read,     // "read" — starts a read expression; the form words (line/lines/all/input) are
+              //          parsed as contextual identifiers (lexeme-checked), not reserved keywords
 
     // ── Maps ──────────────────────────────────────────────────────────────────
     Map,    // "map"   — type annotation and literal

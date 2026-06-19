@@ -1560,20 +1560,22 @@ public sealed class Parser
                 // 'read a line from the input'    → voidable text
                 // 'read all from the input'       → text
                 // 'read all lines from the input' → series of text
+                // 'line', 'lines', 'all', and 'input' are contextual words, not reserved
+                // keywords — they're parsed by lexeme in this position only.
                 var readLine = Advance().Line; // consume 'read'
                 SkipNoise(); // eats leading article (e.g. 'a' in 'read a line')
 
                 ReadForm form;
-                if (Peek().Type == TokenType.LineKw)
+                if (IsWord("line"))
                 {
                     Advance(); // consume 'line'
                     form = ReadForm.Line;
                 }
-                else if (Peek().Type == TokenType.All)
+                else if (IsWord("all"))
                 {
                     Advance(); // consume 'all'
                     SkipNoise();
-                    if (Peek().Type == TokenType.LinesKw)
+                    if (IsWord("lines"))
                     {
                         Advance(); // consume 'lines'
                         form = ReadForm.AllLines;
@@ -1592,7 +1594,7 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.From);
                 SkipNoise(); // eats 'the' article
-                if (Peek().Type != TokenType.InputKw)
+                if (!IsWord("input"))
                     throw new ParseException(Peek(),
                         "'the input' (stdin) is the only read source available yet");
                 Advance(); // consume 'input'
@@ -2251,6 +2253,12 @@ public sealed class Parser
 
     private Token Advance() => _tokens[_pos++];
     private Token Peek()    => _tokens[_pos];
+
+    // True when the current token is an Identifier (or any token) whose normalized lexeme
+    // matches the given word.  Used for positionally-disambiguated contextual words (line,
+    // lines, all, input) that are not reserved keywords.
+    private bool IsWord(string word) =>
+        Peek().Lexeme.Equals(word, StringComparison.OrdinalIgnoreCase);
 
     // Returns the type of the first non-noise token after the current position.
     private TokenType PeekAfterCurrent()
