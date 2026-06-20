@@ -1,4 +1,4 @@
-﻿# Cufet `0.3.0`
+﻿# Cufet `0.5.0`
 
 *From the Mvskoke (Muskogee) word for rabbit—the trickster who brings the gift of fire to humankind.*
 
@@ -100,8 +100,39 @@ Otherwise:
 Done.
 ```
 
+**Failures are values — carry them, handle them, propagate them:**
+```
+Bind number or failure to parse-age, given (the text raw):
+    Define n as raw converted to number.
+    If n is void, return a failure "not a number" of category "validation".
+    Return n.
+Done.
+
+Try to:
+    Define age as cast parse-age on ("thirty").
+Done.
+In case of failure:
+    State "bad input: " joined to the message of the failure.
+Done.
+```
+
+**Read files. Run programs. Cufet now touches the world:**
+```
+With the file "log.txt" open for writing as log:
+    write "Starting.\n" to log.
+
+    Try to:
+        Define result as run "date".
+        write result's output to log.
+    Done.
+    In case of failure:
+        write "date command not found\n" to log.
+    Done.
+Done.
+```
+
 For the complete language — every statement, the type system, records,
-objects, functions, collections, and the rules behind them — see
+objects, functions, collections, error handling, and I/O — see
 **[REFERENCE.md](REFERENCE.md)**.
 
 ---

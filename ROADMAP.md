@@ -90,6 +90,19 @@ language is considered stable.
   series, and maps are a static type error. `\{` vs. `{` is resolved entirely in
   the lexer (the only clean boundary given that escapes are processed there).
 
+**Constants**
+- `Define name as value permanently.` — the binding is locked against
+  reassignment (static error on `becomes`). Shallow: fixes the binding, not the
+  contents — a permanent map/series/object can still mutate its elements/fields
+  since those go through `Add`/`Remove`/field-set, not `becomes`.
+
+**String literals**
+- Escape sequences: `\n` `\t` `\r` `\\` `\"` `\{` `\}`. Unrecognized escape is
+  a lexer error. `\{`/`\}` produce literal braces (not interpolation).
+- String interpolation: `{expr}` embeds an expression's value inline. Numbers
+  and facts convert automatically; records, series, and maps are a static type
+  error. Desugars to a `joined to`/`converted to text` chain at parse time.
+
 **Error handling**
 - **`failure T`** — a failable value: either a plain `T` or a failure with a
   text message and optional category tag. The parallel to `voidable T` is exact:
@@ -112,6 +125,33 @@ language is considered stable.
 - **Unhandled failure is a static error** — a function that returns a failable
   type and discards the failure silently is caught by the type checker, not at
   runtime.
+
+**Input and output** *(complete — the outward era)*
+- **Standard input** — `read a line from the input` (→ `voidable text`, void at
+  EOF), `read all from the input` (→ `text`), `read all lines from the input`
+  (→ `series of text`). `the input` is a pre-defined `readable stream of text`
+  binding, not magic syntax.
+- **File I/O** — `read all from the file <path>` (→ `text or failure`), `read
+  all lines from the file <path>` (→ `series of text or failure`), `write
+  <text> to the file <path>.` (overwrite), `append <text> to the file <path>.`
+  (append). Failure categories: `"not-found"`, `"permission-denied"`,
+  `"disk-error"`. Host exceptions translated to Cufet failures at the boundary
+  — .NET exceptions never surface as Cufet exceptions.
+- **File streams** — `With the file <path> open for reading/writing as <name>:
+  ... Done.` opens a scoped stream (`readable stream of text` or `writable
+  stream of text`), bound to `<name>` for the block, closed on every exit path
+  (normal, failure, exception, `Stop.`) via `try/finally`. Stream direction is
+  statically enforced: reading from a writable stream (or vice versa) is a
+  compile-time error. All three read forms (`read a line`, `read all`, `read all
+  lines`) work on any `readable stream of text`. `write <text> to <stream>`
+  writes incrementally to a writable stream (no newline added).
+- **Process execution** — `run <program>` and `run <program> with arguments
+  (<args>)` run an external program synchronously and return a result record
+  (`output` text, `errors` text, `exit-code` number) as a `result or failure`.
+  Launch failure (not found, permission denied) is a Cufet failure; nonzero
+  exit is a normal result. Arguments pass as individual OS-level strings — no
+  shell, no injection possible. Failure categories: `"not-found"`,
+  `"permission-denied"`, `"io-error"`.
 
 **Voidable values**
 - `void` is a first-class, holdable empty value; `voidable T` is "a T, or void".
@@ -191,9 +231,6 @@ language is considered stable.
 ## Planned features
 
 ### Language
-
-- **Standard I/O** — `State` writes to stdout; reading a line from stdin has no
-  syntax yet. The REPL vision and the shell vision both need this.
 
 - **Text and general ordering via a `by` modifier** — ordering currently works
   on numbers only. Extend it with an explicit basis modifier rather than new
@@ -396,6 +433,19 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   is parsed and discarded. Minor syntax wart. Acceptable; revisit only if nested
   function types become common (unlikely).
 
+- **`or pass the failure off` on file reads inside `Try`** — inside a `Try`
+  block, `InferFileReadExpr` returns the plain success type (not `failure T`),
+  because the `Try` block is already the handler. This means `or pass the
+  failure off` on a file read inside `Try` is a static type error — correctly
+  rejected, since there's nothing to propagate past the enclosing `Try`. If you
+  need both "catch some failures here" and "propagate others to my caller," use
+  `or pass the failure off` outside the `Try` block instead.
+
+- **`With ... open for writing` always truncates** — opening a file for writing
+  via the stream form always creates or truncates; append mode for streams is
+  deferred (use `append ... to the file` for whole-value appends in the
+  meantime).
+
 ---
 
 ## Maintenance notes (for future development)
@@ -425,6 +475,28 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   fires for non-number arithmetic. Verify whether the type checker should catch
   all such cases statically, or whether this is a genuine runtime backstop for
   `SeriesPending` / unresolved paths. Currently flagged with a code comment.
+
+- **I/O failure boundary is at the .NET edge, not inside Cufet.** All .NET
+  `IOException`/`UnauthorizedAccessException`/`Win32Exception` are translated to
+  `FailureUnwind` at the outermost call site (file open, file read, process
+  launch). Cufet code never sees a .NET exception from an I/O operation —
+  only a Cufet failure. This invariant must be preserved when adding new I/O
+  primitives: always wrap the outermost .NET call, not inner helpers.
+
+- **`_inTryBlock` flag controls file-read type inference.** Inside a `Try`
+  block, `InferFileReadExpr` and `InferRunExpr` return the plain success type
+  (not `failure T`), because the `Try` block is the designated handler. This
+  allows reading results directly without `or pass the failure off`. Outside a
+  `Try` block, the failable type is returned and must be handled. Any new I/O
+  primitive that produces a failable value should follow this same pattern —
+  check `_inTryBlock` in `InferType`, and return the unwrapped type when true.
+
+- **`ExecuteWithOpen` uses `try/finally` for stream lifecycle.** The scope is
+  entered and the stream is bound before the `try`, so the `finally` always
+  has the stream to dispose. This is the correct pattern — do not push
+  `EnterScope` inside the `try`, because then an open failure would skip
+  `ExitScope`. New scoped-resource primitives should follow the same structure:
+  open → EnterScope → bind → try { body } finally { ExitScope; Dispose }.
 
 - **Big files are split by concern via `partial class`; the file boundaries are
   the navigation.** `TypeChecker` is split into `Core` + per-feature files
@@ -485,7 +557,7 @@ These two tasks are the falsifying tests that establish "Cufet as OS
 orchestrator" as a *waypoint*, not the destination.
 
 **The current interpreter is the reference implementation / executable spec.**
-The 793 tests define Cufet's semantics. A future native backend (native
+The 873 tests define Cufet's semantics. A future native backend (native
 compilation, compile-to-C/LLVM, or a from-scratch non-managed runtime)
 implements those same semantics against real metal. Nothing built is wasted
 — this is the path most serious languages took (Lua defined its semantics
@@ -511,17 +583,18 @@ Cufet binary whose `.data` section you can `readelf` is post-native.
 | `failure T`, `Try/In case of exception` | ✅ built | `failure T` = Rust's `Result<T,E>`; exceptions → `sigaction` in native |
 | Closures (lexical capture) | ✅ built | Closure record / function pointer + captured env — direct native analog |
 | Value semantics for records/objects | ✅ built | C/Zig struct semantics — copy on assign, native-compatible |
-| Text toolkit complete | ✅ built | Needed for any real program; native backend needs a string library |
+| Text toolkit complete + string interpolation | ✅ built | Needed for any real program; native backend needs a string library |
 | Constants, interfaces, maps | ✅ built | Standard type-system infrastructure |
+| Standard input (`read a line/all/all lines from the input`) | ✅ built | Shell needs stdin; pipes need readable streams |
+| File I/O (read/write/append/scoped streams) | ✅ built | Core OS capability; `With ... open` lifecycle = RAII analog |
+| Process execution (`run` with args, capture output/exit-code) | ✅ built | Shell's `fork`/`exec`/`wait` at the scripting layer |
 
 **What's needed, in rough interpreter-era order:**
 
-1. **Standard I/O** — stdin read; stdout write already exists.
-2. **File I/O and directory traversal.**
-3. **Process execution** — run with args, capture output, exit codes.
-4. **Environment variables.**
+4. **Environment variables** — read `$PATH`, `$HOME`, etc.
 5. **Signal handling** — `SIGINT`/`SIGTERM` via interpreter hooks; `SIGFPE`
    and friends are native-backend concerns.
+6. **Directory traversal** — list directory contents, check existence, walk trees.
 
 **Then the native-backend era:**
 

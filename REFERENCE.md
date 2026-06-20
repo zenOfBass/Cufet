@@ -1,6 +1,6 @@
 # Cufet Language Reference
 
-The complete reference for Cufet `0.3.0`. For a quick introduction and taste of
+The complete reference for Cufet `0.5.0`. For a quick introduction and taste of
 the language, see [README.md](README.md). For what's planned and the reasoning
 behind the design, see [ROADMAP.md](ROADMAP.md).
 
@@ -11,6 +11,7 @@ behind the design, see [ROADMAP.md](ROADMAP.md).
 - [Cufet Language Reference](#cufet-language-reference)
   - [Contents](#contents)
   - [Statements](#statements)
+  - [Constants](#constants)
   - [Arithmetic](#arithmetic)
   - [Comparisons](#comparisons)
   - [Logic](#logic)
@@ -30,7 +31,14 @@ behind the design, see [ROADMAP.md](ROADMAP.md).
     - [Closures](#closures)
     - [Lambda literals (anonymous functions)](#lambda-literals-anonymous-functions)
   - [Voidable values (`void` and `voidable T`)](#voidable-values-void-and-voidable-t)
+  - [Error handling (failures and exceptions)](#error-handling-failures-and-exceptions)
+    - [Failure values (`failure T`)](#failure-values-failure-t)
+    - [Block form: `Try to`](#block-form-try-to)
   - [Maps](#maps)
+  - [Input and output](#input-and-output)
+    - [Reading from standard input](#reading-from-standard-input)
+    - [File I/O](#file-io)
+    - [Process execution](#process-execution)
   - [Type system](#type-system)
   - [Identifiers](#identifiers)
 
@@ -49,6 +57,27 @@ Articles (`a`, `an`, `the`) are noise everywhere — `Define the total as 0.` an
 
 Keywords are case-insensitive (`Cast`, `cast`, and `CAST` are the same).
 Identifiers are not (see [Identifiers](#identifiers)).
+
+---
+
+## Constants
+
+`Define name as value permanently.` — the trailing adverb locks the binding:
+
+```
+Define max-retries as 3 permanently.
+Define pi as 3.14159 permanently.
+Define greeting as "Hello!" permanently.
+```
+
+A permanent binding can never be reassigned — `max-retries becomes 4.` is a
+static type error that names both the declaration line and the violation.
+
+**Shallow by construction:** `permanently` fixes the *binding*, not the
+*contents*. A permanent series or map can still add and remove elements; a
+permanent object can still mutate its fields — those operations go through
+`Add`/`Remove`/field-set, not `becomes`, so they are not touched by the
+constant rule. Only `becomes` on the name itself is locked.
 
 ---
 
@@ -920,6 +949,122 @@ Define n as (the entry for "alice" in ages but void is 0).
 
 ---
 
+## Error handling (failures and exceptions)
+
+Cufet distinguishes two kinds of bad outcome:
+
+- **Failures** — expected, recoverable outcomes that are part of a function's
+  contract. A file not being found is a failure. A config value being invalid is
+  a failure. These are things a caller should plan for.
+- **Exceptions** — unexpected outcomes the type system can't prevent at compile
+  time. Divide-by-zero is an exception. An out-of-bounds access with a runtime
+  index is an exception. These are things that should not happen in correct code.
+
+The two paths are handled separately and cannot be mixed up.
+
+### Failure values (`failure T`)
+
+`failure T` is "either a plain `T` or a failure." A failure carries a text
+message and an optional category tag. The parallel to `voidable T` is exact:
+same inline-fallback syntax, same propagation operator, same block form.
+
+**Failure literal:**
+```
+Define err as a failure "not found" of category "not-found".
+Define err as a failure "something went wrong".       ← category is optional
+```
+
+**Inline fallback — `but on failure <default>`** — collapses `failure T` to
+plain `T`, like `but void is` for voidable:
+```
+Define n as (cast parse-int on (raw) but on failure 0).
+```
+
+**Propagation — `or pass the failure off`** — re-raises the failure to the
+caller. The function must itself declare a failable return type:
+```
+Bind number or failure to to-positive, given (the number n):
+    If n is 0 or less, return a failure "must be positive" of category "range".
+    Return n.
+Done.
+
+Bind number or failure to double-positive, given (the number n):
+    Define p as cast to-positive on (n) or pass the failure off.
+    Return p * 2.
+Done.
+```
+
+**Unhandled failure is a static error** — dropping a failable value without
+a fallback, a propagation, or a `Try` block is caught by the type checker, not
+at runtime.
+
+### Block form: `Try to`
+
+For multiple statements that may produce failures, `Try to:` handles them as a
+group:
+
+```
+Try to:
+    Define contents as read all from the file "data.txt".
+    State contents.
+Done.
+In case of failure:
+    State "could not open file: " joined to the message of the failure.
+Done.
+```
+
+Inside `In case of failure:`, `the failure` is bound to the failure value.
+Access its fields with named access:
+```
+In case of failure:
+    State the message of the failure.
+    State the category of the failure.    ← text, or void if no category was given
+Done.
+```
+
+**`In case of exception`** — catches runtime exceptions (divide-by-zero,
+dynamic out-of-bounds, etc.) that the type system can't statically prevent:
+```
+Try to:
+    State 1 / 0.
+Done.
+In case of exception (the exception):
+    State "runtime error: " joined to the exception.    ← bound as text
+Done.
+```
+
+The name in parentheses (`the exception` in the example above) is the binding
+for the exception description — it is block-local to the handler.
+
+Exceptions **re-raise by default** after the handler runs. `Suppress.` (only
+valid inside `In case of exception`) swallows the exception and continues
+execution after the `Try`:
+```
+In case of exception (the exception):
+    State "ignoring: " joined to the exception.
+    Suppress.
+Done.
+```
+
+Both handlers can appear in the same `Try`:
+```
+Try to:
+    ...
+Done.
+In case of failure:
+    ...
+Done.
+In case of exception (the exception):
+    ...
+Done.
+```
+
+At least one handler is required. The two paths are independent — a failure
+goes only to `In case of failure`; an exception goes only to
+`In case of exception`.
+
+---
+
 ## Maps
 
 Typed key→value collections. Keys are one type, values are one type
@@ -1010,6 +1155,155 @@ Done.
 
 ---
 
+## Input and output
+
+### Reading from standard input
+
+The pre-defined name `input` holds standard input as a `readable stream of
+text`. Three read forms cover common patterns:
+
+```
+Define line  as read a line from the input.      ← voidable text (void at EOF)
+Define all   as read all from the input.         ← text (empty string at EOF)
+Define lines as read all lines from the input.   ← series of text (empty at EOF)
+```
+
+`read a line from the input` strips the trailing newline and returns
+`voidable text` — `void` signals end-of-input. The typical read loop:
+```
+Repeat:
+    Define line as read a line from the input.
+    If line is void, stop.
+    State line.
+until false.
+```
+
+(`until false` is the standard idiom for a loop that exits only via `Stop.`)
+
+`read all from the input` drains all of stdin and returns it as one `text`
+value (empty input → `""`; never void). `read all lines from the input`
+splits on newlines and returns a `series of text` (empty input → empty series).
+
+### File I/O
+
+**Reading an entire file** — returns a failable value; must be handled:
+```
+Try to:
+    Define text as read all from the file "notes.txt".
+    State text.
+Done.
+In case of failure:
+    State "could not read: " joined to the message of the failure.
+Done.
+```
+
+`read all from the file <path>` returns `text or failure`.
+`read all lines from the file <path>` returns `series of text or failure`.
+The path is any text expression (literal, variable, or interpolated string).
+
+Failure categories: `"not-found"`, `"permission-denied"`, `"disk-error"`.
+
+**Writing to a file:**
+```
+write "hello\n" to the file "out.txt".      ← overwrite (create or truncate)
+append "more\n" to the file "out.txt".      ← append to end
+```
+
+Write and append complete silently on success; on failure they raise a Cufet
+failure caught by the enclosing `Try` handler.
+
+**Scoped file streams — `With the file ... open for reading/writing as`:**
+
+For reading line-by-line, or writing incrementally, open the file as a stream
+and let Cufet close it automatically:
+
+```
+With the file "data.txt" open for reading as stream:
+    Define line as read a line from stream.
+    State line.
+Done.
+```
+
+```
+With the file "out.txt" open for writing as log:
+    write "Line 1\n" to log.
+    write "Line 2\n" to log.
+Done.
+```
+
+`With the file <path> open for reading as <name>: ... Done.` opens the file,
+binds it to `<name>` (a `readable stream of text`) for the duration of the
+block, and closes it on every exit path — including failures, exceptions, and
+`Stop.` inside the block. `for writing` binds a `writable stream of text`.
+
+Stream direction is **statically enforced**: reading from a writable stream, or
+writing to a readable stream, is a static type error.
+
+An open failure (file not found, permission denied) propagates to the enclosing
+`Try` handler the same as any other file failure.
+
+**Stream reads support all three read forms** — a `readable stream of text`
+works anywhere `the input` works:
+```
+With the file "lines.txt" open for reading as s:
+    Define lines as read all lines from s.
+    For each line in lines, repeat:
+        State line.
+    Done.
+Done.
+```
+
+**Passing a stream to a function:**
+```
+Bind void to process, given (the readable stream of text src):
+    Define line as read a line from src.
+    State line.
+Done.
+```
+
+### Process execution
+
+`run <program>` runs an external program synchronously and collects its output:
+
+```
+Try to:
+    Define result as run "git" with arguments ("log", "--oneline", "-5").
+    State result's output.
+    If result's exit-code is not 0:
+        State "stderr: " joined to result's errors.
+    Done.
+Done.
+In case of failure:
+    State "git not available".
+Done.
+```
+
+`run <program>` and `run <program> with arguments (<arg1>, <arg2>, ...)`
+return a result record with three fields:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `output` | `text` | everything written to stdout |
+| `errors` | `text` | everything written to stderr |
+| `exit-code` | `number` | the process exit code |
+
+The return type is `result or failure`. A **launch failure** (program not found,
+permission denied) is a Cufet failure. A program that **runs and exits nonzero**
+is not a failure — it is a normal result; check `exit-code` or `errors` to
+decide what to do.
+
+Failure categories: `"not-found"`, `"permission-denied"`, `"io-error"`.
+
+Arguments are passed as individual strings to the OS — no shell is invoked and
+shell injection is structurally impossible. The program name is any text
+expression.
+
+> **Note:** `result's exit-code converted to text` mis-parses (a parser quirk
+> with `converted to text` in possessive-access position). Workaround: extract
+> first — `Define code as result's exit-code. State code converted to text.`
+
+---
+
 ## Type system
 
 Cufet has a static type checker that runs before execution. It catches:
@@ -1050,6 +1344,14 @@ Cufet has a static type checker that runs before execution. It catches:
 - `unto` naming an undefined type, or a non-object type (e.g. an interface)
 - A method name clash between a nested method and an `unto` method (or
   between two `unto` methods) on the same object type
+- Reassigning a `permanently` binding with `becomes`
+- Dropping a failable (`failure T`) value without handling it (fallback,
+  propagation, or enclosing `Try`) — unhandled failure is always a static error
+- Reading from a `writable stream of text`, or writing to a `readable stream
+  of text` — stream direction is statically enforced
+- File reads (`read all from the file`, `read all lines from the file`) and
+  process execution (`run`) outside a `Try` block or propagation context —
+  their failable return types must be handled
 
 **Records use structural typing** — shape is identity. Two records with the same
 fields and types are the same type regardless of where they were declared. Named
