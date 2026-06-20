@@ -7807,4 +7807,94 @@ public class InterpreterTests
             "    Return 1.\n" +
             "Done."));
     }
+
+    // ── Rabbits (block-scoped memory regions) ─────────────────────────────────────────────────
+
+    [Fact]
+    public void Rabbit_BasicScopeAndBinding()
+    {
+        // The rabbit name is in scope inside the With block; code inside the block runs normally.
+        Assert.Equal("inside", Run(
+            "With a rabbit warren:\n" +
+            "    State \"inside\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Rabbit_ReferenceTypeAllocatedInBlock()
+    {
+        // A series created inside the rabbit block is accessible within the block.
+        Assert.Equal("hello", Run(
+            "With a rabbit warren:\n" +
+            "    Define words as a series of text with (\"hello\", \"world\").\n" +
+            "    State the first of words.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Rabbit_ExecutionContinuesAfterBlock()
+    {
+        // Control flow continues normally after the With block ends.
+        Assert.Equal("before\nafter", Run(
+            "State \"before\".\n" +
+            "With a rabbit warren:\n" +
+            "    Define x as 42.\n" +
+            "Done.\n" +
+            "State \"after\"."));
+    }
+
+    [Fact]
+    public void Rabbit_PassedDownToCallee()
+    {
+        // A rabbit can be passed as a parameter; the callee runs normally and returns a handle.
+        Assert.Equal("7", Run(
+            "Bind number to compute, given (the rabbit r, the number x):\n" +
+            "    Return x * 7.\n" +
+            "Done.\n" +
+            "With a rabbit warren:\n" +
+            "    Define result as Cast compute on (warren, 1).\n" +
+            "    State result.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Rabbit_CalleeAllocatesSeriesAndReturnsHandle()
+    {
+        // Callee creates a series (allocated in warren's region), returns the first element.
+        Assert.Equal("alpha", Run(
+            "Bind text to make-label, given (the rabbit r):\n" +
+            "    Define labels as a series of text with (\"alpha\", \"beta\").\n" +
+            "    Return the first of labels.\n" +
+            "Done.\n" +
+            "With a rabbit warren:\n" +
+            "    Define label as Cast make-label on (warren).\n" +
+            "    State label.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Rabbit_NestedWithBlocksAreIndependent()
+    {
+        // Two sequential With blocks don't interfere with each other.
+        Assert.Equal("first\nsecond", Run(
+            "With a rabbit alpha:\n" +
+            "    State \"first\".\n" +
+            "Done.\n" +
+            "With a rabbit beta:\n" +
+            "    State \"second\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Rabbit_ReturnIsTypeError()
+    {
+        // Returning a rabbit from a function is a static type error (downward-only rule).
+        Assert.Throws<TypeException>(() => Run(
+            "Bind text to escape-rabbit:\n" +
+            "    With a rabbit warren:\n" +
+            "        Return warren.\n" +
+            "    Done.\n" +
+            "    Return \"unreachable\".\n" +
+            "Done."));
+    }
 }

@@ -355,4 +355,15 @@ public sealed record WriteToStreamStatement(IExpression Value, IExpression Strea
 // Args is empty when no 'with arguments' clause is present.
 public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpression> Args, int Line) : IExpression;
 
+// With a rabbit <name>: ... Done.
+// Creates a named block-scoped region (arena). Reference-typed values created in the block
+// live in the rabbit's region; freed at Done. The rabbit may be passed DOWN to callees as a
+// parameter but may never be returned (downward-only rule, enforced statically).
+// In the interpreter (GC-backed) the region is semantic — values become unreachable at Done.
+public sealed record WithRabbitStatement(
+    string Name,
+    IReadOnlyList<IStatement> Body,
+    int Line
+) : IStatement;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

@@ -2,6 +2,15 @@ using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
 
+// Runtime sentinel for a rabbit region. Passed as a parameter so callees can allocate into
+// the region. In the interpreter (GC-backed) this is a tag value — region semantics are enforced
+// statically by the type checker; the native backend implements the physical arena.
+public sealed class RabbitValue
+{
+    public readonly string Name;
+    public RabbitValue(string name) => Name = name;
+}
+
 // Reference-typed readable stream — wraps a TextReader for incremental text consumption.
 // Stateful: each read advances the position; not reversible.
 public sealed class ReadableStreamValue
@@ -459,6 +468,10 @@ public sealed partial class Interpreter
 
             case WithOpenStatement wos:
                 ExecuteWithOpen(wos);
+                break;
+
+            case WithRabbitStatement wrs:
+                ExecuteWithRabbit(wrs);
                 break;
 
             case WriteToStreamStatement wts:
@@ -1050,6 +1063,7 @@ public sealed partial class Interpreter
         decimal d        => NormalizeDecimal(d).ToString(),
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
         FunctionValue        => "<function>",
+        RabbitValue rv       => $"<rabbit {rv.Name}>",
         ReadableStreamValue  => "<readable stream of text>",
         WritableStreamValue  => "<writable stream of text>",
         RecordValue rv   => FormatRecord(rv),

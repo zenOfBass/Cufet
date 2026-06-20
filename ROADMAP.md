@@ -777,15 +777,99 @@ regions themselves. Values may escape outward (to longer-lived regions); regions
 region can't travel upward. **Values escape outward; regions flow downward.**
 Safe by structure, no borrow checker, no annotations.
 
-**What the layers ahead still need to specify.**
+**Layer 3 — the rabbit's surface (block-scoped arenas). Designed; ready to
+build.**
 
-- **Layer 3 — the rabbit's explicit operations:** syntax for creating a
-  rabbit, allocating into it, the lifetime of a held rabbit, passing rabbits.
-  Layer 3 now starts from proven-clean ground.
+**Creating a rabbit:** `With a rabbit warren: ... Done.` creates a named,
+block-scoped region. Birth-scope = this block; freed at `Done.` — the
+lifetime is visually bounded, exactly where you can see it. The `With` verb
+carries the lifecycle (open/scope/close) — same shape as `With the file ...
+open for reading/writing`. `With` = "this resource's lifetime IS this block."
+`pull a rabbit` is the *different* lifetime story (task-lifetime, concurrency
+era) — **deferred** until the concurrency model exists; the `pull` verb
+signals "resource whose lifetime is managed above, not by a lexical block,"
+the same connotation as `pull a book`.
+
+**Allocating into the rabbit (lexical context):**
+- **Reference-typed values** (series, maps, streams, objects) created inside
+  the `With a rabbit warren:` block are allocated from `warren`.
+- **Value-typed values** (primitives — numbers/text/facts — and records) are
+  untouched by the rabbit: stack/copy as always, consistent with their locked
+  value semantics.
+- **Allocation is implicit-default by context:** no per-allocation marker
+  needed when one rabbit is in scope. When *multiple* rabbits are in scope
+  simultaneously, an explicit `in <name>` marker disambiguates
+  (`a series of node in warren` vs. `a series of node in burrow`).
+- **The implicit context is lexical only.** It does NOT flow into callees.
+  Implicit-context-across-a-call would be dynamic scope, which is banned.
+  A callee allocates from a rabbit *passed to it as a parameter*.
+
+**Passing a rabbit down to a callee:** `given (the rabbit warren)` — a
+rabbit is a normal parameter. The callee allocates into the passed rabbit
+(via its parameter name); it may pass the rabbit further down; it may never
+return it. The callee can only store values at least as long-lived as the
+rabbit's birth-scope — storing its own shorter-lived locals is a static error
+("hold only ≥ birth-scope" checked at the store, against the structurally-
+known birth-scope).
+
+**Downward-only enforced statically:**
+- Returning a rabbit → static error with educational message naming the rule
+  and the alternative: *"Rabbits cannot be returned — they flow downward
+  only. Pass the rabbit as an argument, or return a reference into it
+  instead."*
+- Storing a too-short-lived value into a rabbit → static error (*"this value
+  is shorter-lived than the rabbit; it would dangle when the value's scope
+  ends"*). Checked at the store regardless of how the rabbit arrived (closes
+  the closure-laundering edge case — no special closure handling needed).
+
+**Handles = normal references (no distinct type).** When a callee allocates
+into a rabbit and "returns a handle," the handle is just a reference to a
+value living in the rabbit's region. "Handle" is documentation vocabulary,
+not a type. Safety comes from the downward-only rule (rabbit outlives all
+callees), not from a special type.
+
+**Interpreter vs. native (the reference-implementation split applied to
+rabbits).** In the interpreter (.NET, GC-backed), "freed at `Done.`" is
+modeled semantically — values become unreachable when the block ends; the GC
+handles actual reclamation. The interpreter enforces and tests the *static
+safety rules* (downward-only, hold-≥-birth-scope) and the *observable
+semantics* (lifetime = the block, what's allocated where). The *physical*
+arena allocation (bump-allocate into a real arena, free the whole region at
+`Done.`) is the native backend's job. The interpreter proves the rabbit's
+semantics and safety; the native backend implements the physical memory. Same
+reference-implementation / native-backend split as the rest of the language.
+
+**Files touched when building Layer 3:**
+- **Lexer/TokenType:** `rabbit` keyword; `in <name>` marker parsed by
+  position (confirm `in <rabbit>` disambiguates — same family as prior `in`
+  uses).
+- **AST:** `WithRabbitStatement` (name + body); `in <name>` allocation marker
+  on reference-type allocation expressions; `rabbit` as a parameter type.
+- **Parser:** `With a rabbit <name>: ... Done.`; the `in <name>` allocation
+  marker; `the rabbit <name>` parameter form.
+- **TypeChecker:** rabbit region tracked in scope; reference allocations in
+  block target the rabbit; downward-only checks (return-a-rabbit → error;
+  store-too-short → error, comparing against birth-scope); rabbit-as-
+  parameter type; value/reference distinction determines what the rabbit
+  claims.
+- **Interpreter:** `With a rabbit` enters/exits scope; allocations in the
+  block associate with it semantically; downward-only is the static check
+  (type-checker work); no physical arena needed (GC-backed semantics are
+  sufficient for the reference implementation).
+
+**NOT in this slice:** `pull a rabbit` (concurrency era); physical arena
+allocation (native backend); returning a rabbit / lifetime parameters
+(deliberately not solved — handle-passing covers the real cases; address only
+if a real program proves otherwise, as a named exception with explicit syntax).
+
+**Layers still ahead.**
+
 - **`book` as a module conformer:** the loading face, gated by a standard
   library existing.
-- **Concurrency:** rabbits "for tasks doing concurrency" need a concurrent
-  task model, which Cufet does not yet have.
+- **Concurrency / `pull a rabbit`:** rabbits "for tasks doing concurrency"
+  need a concurrent task model, which Cufet does not yet have. `pull a rabbit`
+  (task-lifetime rabbit, the `pull`-verb acquisition mirroring `pull a book`)
+  is the concurrency-era form and is designed alongside the concurrency model.
 
 ---
 

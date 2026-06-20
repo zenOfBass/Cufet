@@ -201,6 +201,17 @@ public sealed class WritableStreamType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(WritableStreamType), ElementType);
 }
 
+// rabbit — an explicit block-scoped memory region. Flows downward only (may be passed as a
+// parameter, never returned). Reference-typed values created in the rabbit's With block live in
+// its region and are freed at Done. In the interpreter (GC-backed) this is a semantic boundary;
+// the native backend implements the physical arena.
+public sealed class RabbitType : CufetType
+{
+    public static readonly RabbitType Instance = new();
+    public override bool Equals(object? obj) => obj is RabbitType;
+    public override int GetHashCode() => typeof(RabbitType).GetHashCode();
+}
+
 // Type of the iterator variable in "for each X in map" — pseudo-record with 'key' and 'value' fields.
 public sealed class MappingType : CufetType
 {
@@ -538,6 +549,9 @@ public sealed partial class TypeChecker
             case WithOpenStatement wos:
                 CheckWithOpen(wos);
                 break;
+            case WithRabbitStatement wrs:
+                CheckWithRabbit(wrs);
+                break;
             case WriteToStreamStatement wts:
                 CheckWriteToStream(wts);
                 break;
@@ -649,6 +663,12 @@ public sealed partial class TypeChecker
                     $"Provide a {FormatType(_expectedReturnType)} value to return."));
 
             var returnType = InferType(ret.Value);
+            if (returnType is RabbitType)
+                throw new TypeException(FormatTypeError(
+                    "rabbits cannot be returned — they flow downward only",
+                    null, ret.Line,
+                    "return a rabbit from a function",
+                    "Pass the rabbit as an argument instead, or return a value that lives in it (a handle into the rabbit)."));
             if (returnType != null && !IsAssignable(_expectedReturnType!, returnType))
                 throw new TypeException(FormatTypeError(
                     $"this function is declared to give back a {FormatType(_expectedReturnType!)}",
@@ -932,6 +952,7 @@ public sealed partial class TypeChecker
         InterfaceType it                     => it.Name,
         ReadableStreamType { ElementType: var elem } => $"readable stream of {FormatTypePlural(elem)}",
         WritableStreamType { ElementType: var elem } => $"writable stream of {FormatTypePlural(elem)}",
+        RabbitType                           => "rabbit",
         MapType mt                           => $"map from {FormatType(mt.KeyType)} to {FormatType(mt.ValueType)}",
         MappingType                          => "mapping",
         FailureMarkerType                    => "failure",
@@ -971,6 +992,7 @@ public sealed partial class TypeChecker
         InterfaceType it                     => $"{it.Name} values",
         ReadableStreamType { ElementType: var elem } => $"readable streams of {FormatTypePlural(elem)}",
         WritableStreamType { ElementType: var elem } => $"writable streams of {FormatTypePlural(elem)}",
+        RabbitType                           => "rabbits",
         MapType mt                           => $"maps from {FormatType(mt.KeyType)} to {FormatType(mt.ValueType)}",
         MappingType                          => "mappings",
         FailureMarkerType                    => "failures",

@@ -54,7 +54,9 @@ public sealed class Parser
             TokenType.In         => ParseMapSetStatement(),
             TokenType.Write      => ParseWriteStatement(),
             TokenType.Append     => ParseFileWriteStatement(),
-            TokenType.With       => ParseWithOpenStatement(),
+            TokenType.With       => PeekAfterCurrent() == TokenType.Rabbit
+                                     ? ParseWithRabbitStatement()
+                                     : ParseWithOpenStatement(),
             _ => throw new ParseException(tok, "statement keyword"),
         };
     }
@@ -373,6 +375,11 @@ public sealed class Parser
         if (tok.Type == TokenType.Stream)
             throw new ParseException(tok,
                 "stream direction — write 'readable stream of text' or 'writable stream of text'");
+        if (tok.Type == TokenType.Rabbit)
+        {
+            Advance();
+            return RabbitType.Instance;
+        }
         // Named type: object or interface name — resolved by TypeChecker.
         if (tok.Type == TokenType.Identifier)
         {
@@ -950,6 +957,21 @@ public sealed class Parser
         var body = ParseLoopBody(); // consumes Done.
         _nestDepth--;
         return new WithOpenStatement(mode, pathExpr, bindingName, body, line);
+    }
+
+    // "With a rabbit <name>: ... Done."
+    // Creates a named block-scoped region; freed at Done. Same With/lifecycle shape as streams.
+    private WithRabbitStatement ParseWithRabbitStatement()
+    {
+        var line = Advance().Line; // consume 'With'
+        SkipNoise();               // eats 'a'
+        Consume(TokenType.Rabbit); // consume 'rabbit'
+        var name = Consume(TokenType.Identifier).Lexeme;
+        Consume(TokenType.Colon);
+        _nestDepth++;
+        var body = ParseLoopBody(); // consumes Done.
+        _nestDepth--;
+        return new WithRabbitStatement(name, body, line);
     }
 
     // Condition grammar (conditional context — after If / Otherwise if):

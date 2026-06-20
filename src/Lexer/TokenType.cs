@@ -134,6 +134,9 @@ public enum TokenType
     Exception, // "exception" — in "In case of exception (the exception):" / "the exception" binding
     Suppress,  // "suppress"  — in "Suppress the exception."
 
+    // ── Rabbits (block-scoped memory regions) ────────────────────────────────
+    Rabbit,   // "rabbit" — in "With a rabbit <name>: ... Done." and "given (the rabbit <name>)"
+
     // ── I/O ───────────────────────────────────────────────────────────────────
     Read,     // "read"   — starts a read expression; the form words (line/lines/all/input) are
               //            parsed as contextual identifiers (lexeme-checked), not reserved keywords
