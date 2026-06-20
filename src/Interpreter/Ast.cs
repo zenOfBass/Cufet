@@ -309,10 +309,12 @@ public sealed record LambdaLiteral(
 
 public enum ReadForm { Line, All, AllLines }
 
-// read a line from the input    → voidable text (void at EOF)
-// read all from the input       → text (empty string for empty input, never void)
-// read all lines from the input → series of text (empty series for empty input)
-public sealed record ReadExpression(ReadForm Form, int Line) : IExpression;
+// read a line from <stream>       → voidable text (void at end-of-stream; trailing newline stripped)
+// read all from <stream>          → text (drains remaining content; empty → "")
+// read all lines from <stream>    → series of text (drains and splits; empty → empty series)
+// Source is any expression of type stream of text.
+// 'the input' is a pre-defined always-open stream of text (stdin).
+public sealed record ReadExpression(ReadForm Form, IExpression Source, int Line) : IExpression;
 
 public enum FileReadForm { All, AllLines }
 

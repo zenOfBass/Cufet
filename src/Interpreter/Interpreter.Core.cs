@@ -2,6 +2,14 @@ using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
 
+// Reference-typed stream value — wraps a TextReader for incremental text consumption.
+// Streams are stateful: each read advances the position; reading is not reversible.
+public sealed class StreamValue
+{
+    public readonly TextReader Reader;
+    public StreamValue(TextReader reader) => Reader = reader;
+}
+
 public sealed partial class Interpreter
 {
     private readonly TextWriter _out;
@@ -32,7 +40,7 @@ public sealed partial class Interpreter
     {
         var saved = _scopes.ToList();
         _scopes.Clear();
-        _scopes.Add(new Dictionary<string, object>());
+        _scopes.Add(new Dictionary<string, object> { ["input"] = new StreamValue(_in) });
         return saved;
     }
 
@@ -157,6 +165,7 @@ public sealed partial class Interpreter
         _out = output ?? Console.Out;
         _in  = input  ?? Console.In;
         _maxCallDepth = maxCallDepth;
+        _scopes[0]["input"] = new StreamValue(_in);
     }
 
     public void Execute(Program program)
@@ -610,21 +619,21 @@ public sealed partial class Interpreter
 
     private object EvaluateReadExpr(ReadExpression re)
     {
+        var sv = (StreamValue)Evaluate(re.Source);
         switch (re.Form)
         {
             case ReadForm.Line:
-                // Console.ReadLine() returns null at EOF; translate immediately to Cufet void.
-                // null never enters the language — it's converted at the I/O boundary.
-                var oneLine = _in.ReadLine();
+                // null at EOF → translate to Cufet void; null never enters the language.
+                var oneLine = sv.Reader.ReadLine();
                 return oneLine is null ? (object)VoidValue.Instance : oneLine;
 
             case ReadForm.All:
-                return _in.ReadToEnd();
+                return sv.Reader.ReadToEnd();
 
             case ReadForm.AllLines:
                 var lineList = new List<object>();
                 string? next;
-                while ((next = _in.ReadLine()) != null)
+                while ((next = sv.Reader.ReadLine()) != null)
                     lineList.Add((object)next);
                 return lineList;
 
@@ -1026,6 +1035,7 @@ public sealed partial class Interpreter
         decimal d        => NormalizeDecimal(d).ToString(),
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
         FunctionValue    => "<function>",
+        StreamValue      => "<stream of text>",
         RecordValue rv   => FormatRecord(rv),
         ObjectValue ov   => FormatObject(ov),
         Dictionary<object, object> dict =>

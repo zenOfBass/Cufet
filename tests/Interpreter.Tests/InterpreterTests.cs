@@ -7355,4 +7355,80 @@ public class InterpreterTests
             "    State \"failed\".\n" +
             "Done."));
     }
+
+    // ── I/O — streams: Slice 1 (stream of text type + generalized reads) ──────
+
+    [Fact]
+    public void Stream_InputStillWorksAfterRefactor()
+    {
+        // 'read a line from the input' surface syntax unchanged — unification is internal.
+        var result = RunWithInput("State read a line from the input but void is \"none\".", "hello\n");
+        Assert.Equal("hello", result);
+    }
+
+    [Fact]
+    public void Stream_ReadAllFromInputUnchanged()
+    {
+        var result = RunWithInput("State read all from the input.", "hello world");
+        Assert.Equal("hello world", result);
+    }
+
+    [Fact]
+    public void Stream_ReadAllLinesFromInputUnchanged()
+    {
+        var result = RunWithInput("State read all lines from the input.", "a\nb\nc\n");
+        Assert.Equal("(a, b, c)", result);
+    }
+
+    [Fact]
+    public void Stream_InputVariableHoldsStream()
+    {
+        // 'the input' is a stream of text binding — can be assigned to a variable and read from.
+        var result = RunWithInput(
+            "Define s as the input.\n" +
+            "State read a line from s but void is \"none\".",
+            "hello\n");
+        Assert.Equal("hello", result);
+    }
+
+    [Fact]
+    public void Stream_ReadFromVariableTwiceAdvancesPosition()
+    {
+        // Each read advances position — second read gets the second line.
+        var result = RunWithInput(
+            "Define s as the input.\n" +
+            "Define line1 as read a line from s but void is \"\".\n" +
+            "Define line2 as read a line from s but void is \"\".\n" +
+            "State line1 joined to \",\" joined to line2.",
+            "line1\nline2\n");
+        Assert.Equal("line1,line2", result);
+    }
+
+    [Fact]
+    public void Stream_PassedToFunction()
+    {
+        // A stream of text is a valid function parameter type.
+        var result = RunWithInput(
+            "Bind text to read-first, given (the stream of text src):\n" +
+            "    Define line as read a line from src but void is \"none\".\n" +
+            "    return line.\n" +
+            "Done.\n" +
+            "State Cast read-first on (the input).",
+            "hello\n");
+        Assert.Equal("hello", result);
+    }
+
+    [Fact]
+    public void Stream_NonStreamSourceIsStaticError()
+    {
+        // Passing a number as the stream source is a static type error.
+        Assert.Throws<TypeException>(() => Run("State read a line from 42 but void is \"none\"."));
+    }
+
+    [Fact]
+    public void Stream_TextSourceIsStaticError()
+    {
+        // Text is not a stream — read requires a stream of text.
+        Assert.Throws<TypeException>(() => Run("State read a line from \"hello\" but void is \"none\"."));
+    }
 }

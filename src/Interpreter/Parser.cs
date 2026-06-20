@@ -353,6 +353,14 @@ public sealed class Parser
             SkipNoise();
             return new SeriesType(ParseTypeAnnotation());
         }
+        if (tok.Type == TokenType.Stream)
+        {
+            Advance(); // consume "stream"
+            SkipNoise();
+            Consume(TokenType.Of);
+            SkipNoise();
+            return new StreamType(ParseTypeAnnotation());
+        }
         // Named type: object or interface name — resolved by TypeChecker.
         if (tok.Type == TokenType.Identifier)
         {
@@ -1662,14 +1670,9 @@ public sealed class Parser
 
                 SkipNoise();
                 Consume(TokenType.From);
-                SkipNoise(); // eats 'the' article before 'input' or 'file'
+                SkipNoise(); // eats 'the' article before 'file' or stream source expression
 
-                if (IsWord("input"))
-                {
-                    Advance(); // consume 'input'
-                    baseExpr = new ReadExpression(stdinForm, readLine);
-                }
-                else if (Peek().Type == TokenType.File)
+                if (Peek().Type == TokenType.File)
                 {
                     if (stdinForm == ReadForm.Line)
                         throw new ParseException(Peek(),
@@ -1684,8 +1687,10 @@ public sealed class Parser
                 }
                 else
                 {
-                    throw new ParseException(Peek(),
-                        "expected 'the input' (stdin) or 'the file \"path\"' after 'from'");
+                    // General stream source — 'the input' is a pre-defined stream of text binding.
+                    // SkipNoise() above already consumed 'the', so we parse the rest of the expression.
+                    var sourceExpr = ParseExprOr();
+                    baseExpr = new ReadExpression(stdinForm, sourceExpr, readLine);
                 }
 
                 break;
@@ -1880,7 +1885,9 @@ public sealed class Parser
         //   Start → 'to the start of s' (add-to-start)
         //   Position → 'the position of X in Y' (find) — directly followed by 'of', same shape
         //              as named access, but with a trailing 'in Y' the access check doesn't see
-        if (forAccess && tok.Type is TokenType.Ordinal or TokenType.NumberKw or TokenType.Start or TokenType.LengthKw or TokenType.Size or TokenType.Position)
+        if (forAccess && tok.Type is TokenType.Ordinal or TokenType.NumberKw or TokenType.Start
+                                   or TokenType.LengthKw or TokenType.Size or TokenType.Position
+                                   or TokenType.Stream)
             return false;
         return true;
     }

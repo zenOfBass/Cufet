@@ -181,6 +181,16 @@ public sealed class MapType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(MapType), KeyType, ValueType);
 }
 
+// stream of T — stateful, reference-typed I/O channel consumed incrementally.
+// Currently only stream of text is supported (text streams first; stream of bytes deferred).
+public sealed class StreamType : CufetType
+{
+    public CufetType ElementType { get; }
+    public StreamType(CufetType elementType) => ElementType = elementType;
+    public override bool Equals(object? obj) => obj is StreamType s && ElementType == s.ElementType;
+    public override int GetHashCode() => HashCode.Combine(typeof(StreamType), ElementType);
+}
+
 // Type of the iterator variable in "for each X in map" — pseudo-record with 'key' and 'value' fields.
 public sealed class MappingType : CufetType
 {
@@ -268,7 +278,7 @@ public sealed partial class TypeChecker
     {
         var saved = _scopes.ToList();
         _scopes.Clear();
-        _scopes.Add(new Dictionary<string, TypeInfo>());
+        _scopes.Add(new Dictionary<string, TypeInfo> { ["input"] = BuiltinInput });
         return saved;
     }
 
@@ -297,10 +307,16 @@ public sealed partial class TypeChecker
 
     public void Check(Program program)
     {
+        _scopes[0]["input"] = BuiltinInput;
         Pass1Hoist(program);
         foreach (var stmt in program.Statements)
             CheckStatement(stmt);
     }
+
+    // Built-in stream binding — seeded into every scope (global and each fresh function scope)
+    // so 'the input' is visible everywhere, including inside function bodies.
+    private static readonly TypeInfo BuiltinInput =
+        new TypeInfo(new StreamType(CufetType.Text), new VariableReference("input", 0), 0);
 
     // Pass 1: register interfaces (1a), then object types — merged with their 'unto' methods
     // (1b) — then function signatures, excluding 'unto' methods, which are not free
@@ -688,13 +704,24 @@ public sealed partial class TypeChecker
         _                                                                                                => null,
     };
 
-    private static CufetType InferReadExpr(ReadExpression re) => re.Form switch
+    private CufetType InferReadExpr(ReadExpression re)
     {
-        ReadForm.Line     => new VoidableType(CufetType.Text),
-        ReadForm.All      => CufetType.Text,
-        ReadForm.AllLines => new SeriesType(CufetType.Text),
-        _                 => throw new InvalidOperationException($"Unknown ReadForm {re.Form}"),
-    };
+        var sourceType = InferType(re.Source);
+        if (sourceType != null && sourceType is not StreamType { ElementType: TextType })
+            throw new TypeException(FormatTypeError(
+                "read expects a stream of text",
+                null, re.Line,
+                $"read from a {FormatType(sourceType)}",
+                "Use a stream of text as the source — 'the input' gives you the standard input stream."));
+
+        return re.Form switch
+        {
+            ReadForm.Line     => new VoidableType(CufetType.Text),
+            ReadForm.All      => CufetType.Text,
+            ReadForm.AllLines => new SeriesType(CufetType.Text),
+            _                 => throw new InvalidOperationException($"Unknown ReadForm {re.Form}"),
+        };
+    }
 
     private CufetType? InferUnary(UnaryExpression unary)
     {
@@ -887,6 +914,7 @@ public sealed partial class TypeChecker
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => ot.Name,
         InterfaceType it                     => it.Name,
+        StreamType { ElementType: var elem } => $"stream of {FormatTypePlural(elem)}",
         MapType mt                           => $"map from {FormatType(mt.KeyType)} to {FormatType(mt.ValueType)}",
         MappingType                          => "mapping",
         FailureMarkerType                    => "failure",
@@ -924,6 +952,7 @@ public sealed partial class TypeChecker
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => $"{ot.Name} objects",
         InterfaceType it                     => $"{it.Name} values",
+        StreamType { ElementType: var elem } => $"streams of {FormatTypePlural(elem)}",
         MapType mt                           => $"maps from {FormatType(mt.KeyType)} to {FormatType(mt.ValueType)}",
         MappingType                          => "mappings",
         FailureMarkerType                    => "failures",

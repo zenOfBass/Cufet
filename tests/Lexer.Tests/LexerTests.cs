@@ -769,4 +769,21 @@ public class LexerTests
         Assert.Single(tokens);
         Assert.Equal(TokenType.Identifier, tokens[0].Type);
     }
+
+    [Fact]
+    public void StreamIsKeyword()
+    {
+        var tokens = LexTokens("stream");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Stream, tokens[0].Type);
+    }
+
+    [Fact]
+    public void InputIsIdentifier()
+    {
+        // 'input' is a contextual identifier — a pre-defined binding, not a reserved keyword.
+        var tokens = LexTokens("input");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Identifier, tokens[0].Type);
+    }
 }
