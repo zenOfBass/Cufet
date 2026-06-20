@@ -614,13 +614,135 @@ Cufet binary whose `.data` section you can `readelf` is post-native.
   library (e.g. `libmpdec`). Switching to `double` would betray the
   "no floating-point surprises" north star. Accepted cost; not a design error.
 - **Reference-type lifetime question (series, maps):** .NET's GC handles
-  series/map lifetimes silently. The native backend needs an ownership model
-  (GC, reference counting, Rust-style ownership, or arena allocation). This
-  is the open question the manual-memory feature will answer.
+  series/map lifetimes silently. The native backend needs an ownership model.
+  **Decided: regions** — see "The memory model" section below. Series/maps
+  live in an implicit scope-region (stack lifetime) or an explicit rabbit
+  (arena lifetime); freed when their region ends. No GC, no borrow checker.
 - **`text` type for native:** immutable string with rich ops is the right
   semantics. Native implementation needs a real string type
   (`(ptr, len, capacity)` or arena-backed). Non-trivial; its own native
   feature.
+
+### The memory model (the foundational decision)
+
+**Cufet manages memory through *regions*.** A region is a span of memory whose
+contents all live and die together. Every value lives in some region; when a
+region ends, everything in it is freed at once. There is no garbage collector
+and no borrow checker — region lifetimes are determined by program structure,
+and one invariant keeps the whole thing safe.
+
+This is the model from which scope, the rabbit, and the native backend all
+derive. It is named here once, formally, so everything downstream descends
+from it rather than the reverse.
+
+**The two forms of region.** A region comes in two forms — the same mechanism
+at two settings:
+
+- **Implicit regions (scope).** Every `Done.`-bounded scope *is* a region.
+  Values created in a scope live in that scope's region and are freed when the
+  scope exits. Zero-cost default — you never name it, never manage it; it
+  happens by virtue of where you wrote the code. (This is what the
+  "scope defines lifetime" lean already was — now named.)
+
+- **Explicit regions (the rabbit).** A **rabbit** is a region made explicit:
+  named, held as a value, and decoupled from lexical scope. You create a
+  rabbit, allocate into it, hold it, pass it; its lifetime is determined by
+  whoever holds it (which is itself scope-visible). The rabbit is not built
+  *on* the model — **the rabbit *is* the model's explicit lever**, the same
+  region mechanism that scope provides implicitly, now under your direct
+  control.
+
+So: **scope is the implicit, automatic region; the rabbit is the explicit,
+named region.** One mechanism, two settings.
+
+**The invariant (the whole safety story).**
+
+> **A value may escape *outward* — to a longer-lived (enclosing) region —
+> but never *inward*, to a shorter-lived one. And this is statically visible.**
+
+That single rule is the entire safety guarantee. Concretely:
+- You can **return** a value to an outer scope/region (outward — the caller
+  outlives the callee). Safe.
+- You can **store** a value into a longer-lived region you hold. Safe.
+- You **cannot** make a longer-lived region reference a value in a
+  shorter-lived one (inward) — the shorter-lived region will be freed first,
+  leaving a dangling reference. **Forbidden, statically.**
+
+Because escaping is *statically visible* (a return, a store-to-outer, a
+capture-that-outlives — all readable in the code structure), the compiler can
+enforce the invariant *without a borrow checker and without runtime tracking*.
+The structure *shows* what escapes; the rule *forbids* the unsafe direction;
+safety falls out.
+
+**This invariant is load-bearing. Everything else is derived from or tested
+against it.** When questions arise later (the transfer question, the rabbit's
+operations), they are answered by "does the outward-only invariant cover
+this?" — not by inventing new rules.
+
+**What lives where.**
+
+- **Primitives** (numbers, text, booleans, facts): **value semantics, stack
+  lifetime.** Copied on assignment, live where they're used, no region
+  management. Nothing to free, nothing to track.
+- **Reference types** (series, maps, records, streams, objects): **live in a
+  region** — either the implicit scope-region they were created in, or an
+  explicit rabbit. Reference semantics; their lifetime is their region's
+  lifetime.
+
+**Cycles.**
+
+- *Within a single region*: free by construction. They all die together when
+  the region ends — no cycle-detection needed, because freeing is per-region,
+  not per-value. (This is what refcounting *cannot* do cleanly — the regions
+  model gets it for free.)
+- *Cross-region*: impossible by the invariant. A cycle would require a
+  longer-lived region to reference into a shorter-lived one — the forbidden
+  inward direction. The invariant rules cross-region cycles out structurally.
+
+**Why this model for the native backend.**
+
+- **Implicit regions → stack allocation.** A scope's region is a stack frame;
+  exiting the scope pops it.
+- **Explicit rabbits → arena allocation.** A rabbit is an arena
+  (bump-allocate into it; free the whole arena at once when the rabbit ends).
+- **No GC pass.** Freeing is structural (region ends → region freed). Nothing
+  traces, nothing pauses.
+- **No borrow checker.** The outward-only invariant is checked from static
+  scope structure, not a separate borrow-analysis pass.
+
+The two hardest things a native backend does — GC and borrow checking — are
+both eliminated. For a language destined for native compilation, the memory
+model that makes native *easiest* is the right one. The soul-feature and
+native-feasibility align.
+
+**What this resolves.**
+
+- **The reference-type ownership question** (long-open: who frees a series
+  when the last reference goes away, without GC?) — answered: a series lives
+  in a region; freed when its region ends. No per-value ownership, no GC.
+- **The rabbit, formally** — it is the explicit region lever. Derived *from*
+  the model, not a metaphor and not a separate construct.
+- **The manual-memory promise** — kept: the programmer controls regions
+  (explicitly via rabbits, implicitly via scope), memory is real and managed,
+  no hidden runtime collector.
+
+**What this does NOT yet specify (the layers ahead).**
+
+- **Layer 2 — the transfer question (the next hard problem):** when a value
+  passes between regions — e.g. a value passed *into* a function — whose
+  region does it belong to? Working hypothesis: it stays in the caller's
+  region; the callee accesses it for the duration of the call (callee scope
+  is shorter, so this is safe by the invariant — the access can't outlive what
+  it accesses); moving a value into a *different* region is an explicit act.
+  **The work of Layer 2 is verifying the outward-only invariant makes all
+  transfer cases safe-by-structure, without a borrow checker creeping in.**
+  This is the real next hard problem.
+- **Layer 3 — the rabbit's explicit operations:** syntax for creating a
+  rabbit, allocating into it, the lifetime of a held rabbit, passing rabbits.
+- **`book` as a module conformer:** the loading face, gated by a standard
+  library existing.
+- **Concurrency:** rabbits "for tasks doing concurrency" need a concurrent
+  task model, which Cufet does not yet have.
 
 ---
 
