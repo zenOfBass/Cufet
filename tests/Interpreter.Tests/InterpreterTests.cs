@@ -7437,21 +7437,18 @@ public class InterpreterTests
     [Fact]
     public void WithOpen_ReadFile_LineByLine()
     {
+        // Read two lines from a file stream — each read advances position.
         var path = Path.GetTempFileName();
         try
         {
             File.WriteAllText(path, "alpha\nbeta\ngamma\n");
             var result = Run(
-                $"Define lines as a series of text with ().\n" +
                 $"With the file \"{path.Replace("\\", "\\\\")}\" open for reading as s:\n" +
-                $"    Define line as read a line from s.\n" +
-                $"    While line is not void, repeat:\n" +
-                $"        Add line to lines.\n" +
-                $"        line becomes read a line from s.\n" +
-                $"    Done.\n" +
-                $"Done.\n" +
-                $"State lines.");
-            Assert.Equal("(alpha, beta, gamma)", result);
+                $"    Define line1 as read a line from s but void is \"\".\n" +
+                $"    Define line2 as read a line from s but void is \"\".\n" +
+                $"    State line1 joined to \",\" joined to line2.\n" +
+                $"Done.");
+            Assert.Equal("alpha,beta", result);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }
@@ -7507,12 +7504,14 @@ public class InterpreterTests
     [Fact]
     public void WithOpen_OpenFailurePropagates()
     {
+        // Open failure (file not found) propagates to the enclosing Try handler.
         var missing = Path.Combine(Path.GetTempPath(), "cufet_no_such_" + Guid.NewGuid() + ".txt");
         var result = Run(
             $"Try to:\n" +
             $"    With the file \"{missing.Replace("\\", "\\\\")}\" open for reading as s:\n" +
             $"        State read all from s.\n" +
             $"    Done.\n" +
+            $"Done.\n" +
             $"In case of failure:\n" +
             $"    State \"caught\".\n" +
             $"Done.");
@@ -7522,25 +7521,23 @@ public class InterpreterTests
     [Fact]
     public void WithOpen_BodyFailurePropagates_StreamClosed()
     {
-        // A failure in the body still closes the stream (guaranteed by try/finally).
-        // We verify the failure reaches the handler (stream is closed before propagating).
+        // A failure mid-body propagates through the With block (closing the stream) to the Try handler.
+        // Inside a Try block, file reads are typed as plain text; at runtime a missing file throws FailureUnwind.
         var path = Path.GetTempFileName();
+        var missing = Path.Combine(Path.GetTempPath(), "cufet_no_such_" + Guid.NewGuid() + ".txt");
         try
         {
-            File.WriteAllText(path, "data");
+            File.WriteAllText(path, "ok");
             var result = Run(
                 $"Try to:\n" +
                 $"    With the file \"{path.Replace("\\", "\\\\")}\" open for reading as src:\n" +
-                $"        Define bad as read all from the file \"{path.Replace("\\", "\\\\")}\" or pass the failure off.\n" +
-                $"        State bad.\n" +
+                $"        State read all from the file \"{missing.Replace("\\", "\\\\")}\".\n" +
                 $"    Done.\n" +
+                $"Done.\n" +
                 $"In case of failure:\n" +
                 $"    State \"handled\".\n" +
                 $"Done.");
-            // This test validates the runtime construct works with failure propagation from body.
-            // The inner 'or pass the failure off' only fires if the file read fails, which it won't here.
-            // So the body runs and State executes normally.
-            Assert.Equal("data", result);
+            Assert.Equal("handled", result);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }

@@ -879,7 +879,7 @@ public sealed class Parser
             var path = ParseExprOr();
             SkipNoise();
             Consume(TokenType.Dot);
-            return new FileWriteStatement(append: false, value, path, line);
+            return new FileWriteStatement(Append: false, value, path, line);
         }
         // Stream write — 'to <stream-expr>'
         var streamExpr = ParseExprOr();
@@ -905,7 +905,7 @@ public sealed class Parser
         var path = ParseExprOr();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new FileWriteStatement(append: true, value, path, line);
+        return new FileWriteStatement(Append: true, value, path, line);
     }
 
     // "With the file "<path>" open for reading/writing as <name>: ... Done."
