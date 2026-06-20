@@ -726,19 +726,62 @@ native-feasibility align.
   (explicitly via rabbits, implicitly via scope), memory is real and managed,
   no hidden runtime collector.
 
-**What this does NOT yet specify (the layers ahead).**
+**Layer 2 — the transfer question (resolved). The regions model survived its
+stress-test.** The bet from Layer 1 — "the outward-only invariant alone keeps
+memory safe without a borrow checker" — holds.
 
-- **Layer 2 — the transfer question (the next hard problem):** when a value
-  passes between regions — e.g. a value passed *into* a function — whose
-  region does it belong to? Working hypothesis: it stays in the caller's
-  region; the callee accesses it for the duration of the call (callee scope
-  is shorter, so this is safe by the invariant — the access can't outlive what
-  it accesses); moving a value into a *different* region is an explicit act.
-  **The work of Layer 2 is verifying the outward-only invariant makes all
-  transfer cases safe-by-structure, without a borrow checker creeping in.**
-  This is the real next hard problem.
+The question Layer 2 had to answer: when values cross between regions (function
+calls, stores into rabbits), is the outward-only invariant enough to keep things
+safe by static structure alone — or does some case need dynamic lifetime-tracking
+(the borrow checker creeping back)?
+
+**The resolution:** safe by structure in all cases, via the downward-only rule
+for rabbits:
+
+> **A rabbit may be passed to callees (downward, into shorter-lived scopes)
+> but may never be returned to callers (upward).**
+
+Why this is the key: if a rabbit *could* be returned, its final lifetime would
+be unknown at creation, and enforcing "hold only values ≥ the rabbit's lifetime"
+would require tracking the final holder's scope — which *is* lifetime parameters
+/ the borrow checker. But because a rabbit **cannot** be returned, **its
+birth-scope IS its lifetime, known at creation** — so lifetime comparison becomes
+purely structural (compare against the birth-scope, which is lexically known).
+The hard sub-case (rabbits decoupled from lexical scope → unknowable lifetimes)
+**collapses into the easy one** (lexically-known lifetimes).
+
+**The enforcement mechanism:** a callee cannot store its *own locals* into a
+passed-in rabbit, because the locals are shorter-lived than the rabbit's
+(structurally-known) birth-scope — caught statically by "hold only values ≥ the
+rabbit's birth-scope."
+
+**The idiomatic pattern — rabbit as backing store, not data structure:** you
+create the rabbit in the *owning* scope (the caller), pass it *down* to
+functions that allocate *into* it, and they hand back *handles/pointers into*
+the rabbit — not the rabbit itself. A tree-builder returns the root *node*; the
+caller's rabbit holds all the nodes. **This is the Zig allocator pattern** —
+idiomatic in real systems programming, not restrictive once internalized.
+
+**Critical discipline — do NOT pre-solve "return a rabbit":** the temptation,
+facing "you can't return a rabbit," is to immediately design lifetime parameters
+for that case — and *that is exactly how the borrow checker creeps back in.* If
+a genuine "build-and-return" use case ever surfaces that handle-passing genuinely
+cannot cover, deal with it *then*, as a named exception with explicit syntax —
+not by pre-designing full lifetime machinery now. The bet (Zig-validated) is
+that handle-passing covers the real cases and that day may never come.
+
+**The unifying framing — one invariant, two faces:** "downward-only for rabbits"
+is not a new rule bolted on — it *is* the outward-only invariant applied to
+regions themselves. Values may escape outward (to longer-lived regions); regions
+(which *are* lifetimes) cannot — a region's lifetime is fixed at birth, so a
+region can't travel upward. **Values escape outward; regions flow downward.**
+Safe by structure, no borrow checker, no annotations.
+
+**What the layers ahead still need to specify.**
+
 - **Layer 3 — the rabbit's explicit operations:** syntax for creating a
   rabbit, allocating into it, the lifetime of a held rabbit, passing rabbits.
+  Layer 3 now starts from proven-clean ground.
 - **`book` as a module conformer:** the loading face, gated by a standard
   library existing.
 - **Concurrency:** rabbits "for tasks doing concurrency" need a concurrent
