@@ -604,6 +604,7 @@ public sealed partial class Interpreter
         LambdaLiteral  lam    => EvaluateLambda(lam),
         ReadExpression re     => EvaluateReadExpr(re),
         FileReadExpression fr => EvaluateFileReadExpr(fr),
+        RunExpression run     => EvaluateRunExpr(run),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 

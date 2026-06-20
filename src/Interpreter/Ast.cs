@@ -327,4 +327,11 @@ public sealed record FileReadExpression(FileReadForm Form, IExpression Path, int
 // Statements: complete on success; throw FailureUnwind on IO failure (catchable by Try/In case of failure).
 public sealed record FileWriteStatement(bool Append, IExpression Value, IExpression Path, int Line) : IStatement;
 
+// run <program> [with arguments (<arg1>, <arg2>, ...)]
+// Blocks until the process exits (synchronous). Returns a record or failure.
+// Launch failure (executable not found, permission denied) → Cufet failure.
+// Process ran but exited nonzero → normal result (check exit-code field).
+// Args is empty when no 'with arguments' clause is present.
+public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpression> Args, int Line) : IExpression;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

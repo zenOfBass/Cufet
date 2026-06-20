@@ -1581,6 +1581,47 @@ public sealed class Parser
                 baseExpr = new LambdaLiteral(lambdaParams, lambdaBody, lambdaLine);
                 break;
             }
+            case TokenType.Run:
+            {
+                // run <program>                              → result or failure
+                // run <program> with arguments (<arg>, ...) → result or failure
+                // "arguments" is contextual (not a reserved keyword) — checked by lexeme.
+                // Arguments are passed directly to the OS; no shell is invoked.
+                var runLine = Advance().Line; // consume 'run'
+                SkipNoise();
+                // ParseExprOr not ParseExpression: 'but on failure'/'or pass the failure off'
+                // belong to the outer expression wrapping this RunExpression, not to the program name.
+                var programExpr = ParseExprOr();
+                SkipNoise();
+                var runArgs = new List<IExpression>();
+                if (Peek().Type == TokenType.With)
+                {
+                    Advance(); // consume 'with'
+                    SkipNoise();
+                    if (!IsWord("arguments"))
+                        throw new ParseException(Peek(),
+                            "expected 'arguments' after 'with' in a run expression");
+                    Advance(); // consume 'arguments' (contextual)
+                    SkipNoise();
+                    Consume(TokenType.LParen);
+                    SkipNoise();
+                    if (Peek().Type != TokenType.RParen)
+                    {
+                        runArgs.Add(ParseExpression());
+                        SkipNoise();
+                        while (Peek().Type == TokenType.Comma)
+                        {
+                            Advance();
+                            SkipNoise();
+                            runArgs.Add(ParseExpression());
+                            SkipNoise();
+                        }
+                    }
+                    Consume(TokenType.RParen);
+                }
+                baseExpr = new RunExpression(programExpr, runArgs, runLine);
+                break;
+            }
             case TokenType.Read:
             {
                 // 'read a line from the input'         → voidable text (stdin)

@@ -750,4 +750,23 @@ public class LexerTests
         Assert.Single(tokens);
         Assert.Equal(TokenType.Append, tokens[0].Type);
     }
+
+    // ── I/O Slice 4: process execution keyword ────────────────────────────────
+
+    [Fact]
+    public void RunIsKeyword()
+    {
+        var tokens = LexTokens("run");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Run, tokens[0].Type);
+    }
+
+    [Fact]
+    public void ArgumentsIsIdentifier()
+    {
+        // 'arguments' is a contextual word parsed by lexeme inside run expressions — not reserved.
+        var tokens = LexTokens("arguments");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Identifier, tokens[0].Type);
+    }
 }

@@ -183,6 +183,7 @@ public sealed class Lexer
             "file"       => TokenType.File,
             "write"      => TokenType.Write,
             "append"     => TokenType.Append,
+            "run"        => TokenType.Run,
             _           => TokenType.Identifier,
         };
 

@@ -684,6 +684,7 @@ public sealed partial class TypeChecker
         LambdaLiteral lambda                                                                             => InferLambdaLiteral(lambda),
         ReadExpression re                                                                                 => InferReadExpr(re),
         FileReadExpression fre                                                                           => InferFileReadExpr(fre),
+        RunExpression run                                                                                => InferRunExpr(run),
         _                                                                                                => null,
     };
 

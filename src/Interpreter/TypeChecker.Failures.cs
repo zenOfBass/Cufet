@@ -152,6 +152,58 @@ public sealed partial class TypeChecker
                 "Write the path as a text literal like \"output.txt\", or use a text variable."));
     }
 
+    // ── Process execution ─────────────────────────────────────────────────────
+
+    // Synthetic RecordType for the result of 'run': (errors: text, exit-code: number, output: text).
+    // Named fields are alphabetically ordered per RecordType convention.
+    private static readonly RecordType RunResultType = new RecordType(
+        positionalTypes: [],
+        namedFields:
+        [
+            ("errors",    CufetType.Text),
+            ("exit-code", CufetType.Number),
+            ("output",    CufetType.Text),
+        ]
+    );
+
+    // run <program> [with arguments (...)] → result or failure (FailureType(RunResultType)).
+    // Inside a Try body (_inTryBlock): auto-unwrap to RunResultType.
+    // Inside handled context (_inFailureHandledContext): return FailureType (caller handles it).
+    // Otherwise: static error — must handle the launch failure.
+    private CufetType InferRunExpr(RunExpression run)
+    {
+        var programType = InferType(run.Program);
+        if (programType != null && programType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "the program to run must be text",
+                null, run.Line,
+                $"use a {FormatType(programType)} as the program name",
+                "Write the program name as a text literal like \"ls\", or use a text variable."));
+
+        foreach (var arg in run.Args)
+        {
+            var argType = InferType(arg);
+            if (argType != null && argType != CufetType.Text)
+                throw new TypeException(FormatTypeError(
+                    "each argument must be text",
+                    null, run.Line,
+                    $"use a {FormatType(argType)} as a program argument",
+                    "Arguments are passed directly to the program — each must be a text value."));
+        }
+
+        if (_inTryBlock)
+            return RunResultType;
+
+        if (!_inFailureHandledContext)
+            throw new TypeException(FormatTypeError(
+                "running a program can fail — you must handle the failure",
+                null, run.Line,
+                "use a run result without handling the launch failure",
+                "Wrap in 'Try to: / In case of failure:', use 'but on failure <default>', or use 'or pass the failure off'."));
+
+        return new FailureType(RunResultType);
+    }
+
     private void CheckTryStatement(TryStatement trySt)
     {
         if (trySt.FailureHandler == null && trySt.ExceptionHandler == null)

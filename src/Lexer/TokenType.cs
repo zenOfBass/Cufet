@@ -140,6 +140,7 @@ public enum TokenType
     File,     // "file"   — in "from the file \"path\"" / "to the file \"path\""
     Write,    // "write"  — in "write <text> to the file \"path\"" (overwrites)
     Append,   // "append" — in "append <text> to the file \"path\"" (appends)
+    Run,      // "run"    — in "run <program> [with arguments (...)]"; "arguments" is contextual
 
     // ── Maps ──────────────────────────────────────────────────────────────────
     Map,    // "map"   — type annotation and literal

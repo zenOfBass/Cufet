@@ -5505,13 +5505,13 @@ public class InterpreterTests
     {
         // After Bind inside a function, the new function can be called in the same body.
         Assert.Equal("7", Run(
-            "Bind number to run:\n" +
+            "Bind number to go:\n" +
             "    Bind number to combine, given (the number p, the number q):\n" +
             "        Return p + q.\n" +
             "    Done.\n" +
             "    Return cast combine on (3, 4).\n" +
             "Done.\n" +
-            "State cast run on ()."));
+            "State cast go on ()."));
     }
 
     [Fact]
@@ -7138,5 +7138,221 @@ public class InterpreterTests
                 $"Done."));
         }
         finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    // ── I/O — process execution (run) ─────────────────────────────────────────
+
+    [Fact]
+    public void IO_Run_ExitCode_Zero()
+    {
+        // run blocks until the process exits; exit code 0 is available in the result record.
+        // Intermediate variable needed: 'the exit-code of result converted to text' mis-parses
+        // (the inner ParsePrimary greedily eats 'converted to text').
+        Assert.Equal("0", Run(
+            "Try to:\n" +
+            "    Define result as run \"cmd\" with arguments (\"/C\", \"exit /b 0\").\n" +
+            "    Define code as the exit-code of result.\n" +
+            "    State code converted to text.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_Run_ExitCode_NonzeroIsNormalResult_NotFailure()
+    {
+        // A process that runs and exits nonzero is a normal result — not a Cufet failure.
+        // Inline If to avoid the per-arm Done. requirement.
+        Assert.Equal("got it", Run(
+            "Try to:\n" +
+            "    Define result as run \"cmd\" with arguments (\"/C\", \"exit /b 42\").\n" +
+            "    If the exit-code of result is 42, State \"got it\".\n" +
+            "    Otherwise, State \"wrong\".\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_Run_ExitCode_CapturedAsNumber()
+    {
+        // exit-code field is a number; non-zero exit codes are captured correctly.
+        Assert.Equal("42", Run(
+            "Try to:\n" +
+            "    Define result as run \"cmd\" with arguments (\"/C\", \"exit /b 42\").\n" +
+            "    Define code as the exit-code of result.\n" +
+            "    State code converted to text.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_Run_Output_StdoutCaptured()
+    {
+        // stdout is captured in the 'output' field of the result record.
+        Assert.Equal("hello", Run(
+            "Try to:\n" +
+            "    Define result as run \"cmd\" with arguments (\"/C\", \"echo hello\").\n" +
+            "    State (the output of result) trimmed.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_Run_Errors_StderrCaptured()
+    {
+        // stderr is captured in the 'errors' field; stdout is empty when only stderr is written.
+        Assert.Equal("stderr-data", Run(
+            "Try to:\n" +
+            "    Define result as run \"cmd\" with arguments (\"/C\", \"echo stderr-data>&2\").\n" +
+            "    State (the errors of result) trimmed.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_Run_WithArguments_ArgsPassedToProcess()
+    {
+        // Each argument in 'with arguments (...)' is passed directly as a separate OS argument.
+        Assert.Equal("passed-arg", Run(
+            "Try to:\n" +
+            "    Define result as run \"cmd\" with arguments (\"/C\", \"echo\", \"passed-arg\").\n" +
+            "    State (the output of result) trimmed.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_Run_LaunchFailure_CategoryNotFound()
+    {
+        // A nonexistent program produces a launch failure with category 'not-found'.
+        // No 'with arguments' clause — tests bare 'run <program>' syntax.
+        Assert.Equal("not-found", Run(
+            "Try to:\n" +
+            "    Define result as run \"nonexistent-program-xyz-abc-9876\".\n" +
+            "    State \"ran\".\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State the category of the failure.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_Run_LaunchFailure_CaughtByTry()
+    {
+        // A launch failure is caught by the 'In case of failure' handler in a Try block.
+        Assert.Equal("caught", Run(
+            "Try to:\n" +
+            "    Define result as run \"nonexistent-program-xyz-abc-9876\".\n" +
+            "    State \"ran\".\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"caught\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_Run_LaunchFailure_ButOnFailure()
+    {
+        // 'but on failure <default>' provides a fallback record when the launch fails.
+        Assert.Equal("default", Run(
+            "Define result as run \"nonexistent-xyz\" but on failure " +
+                "(a record with (the output \"default\", the exit-code 0, the errors \"\")).\n" +
+            "State the output of result."));
+    }
+
+    [Fact]
+    public void IO_Run_LaunchFailure_PassFailureOff()
+    {
+        // 'or pass the failure off' propagates launch failures to the caller.
+        Assert.Equal("hello", Run(
+            "Bind text or failure to run-it:\n" +
+            "    Define result as run \"cmd\" with arguments (\"/C\", \"echo hello\") or pass the failure off.\n" +
+            "    Return (the output of result) trimmed.\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    State cast run-it on ().\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_Run_ProgramFromVariable()
+    {
+        // The program to run can be any text expression, including a variable.
+        Assert.Equal("0", Run(
+            "Define prog as \"cmd\".\n" +
+            "Try to:\n" +
+            "    Define result as run prog with arguments (\"/C\", \"exit /b 0\").\n" +
+            "    Define code as the exit-code of result.\n" +
+            "    State code converted to text.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_Run_AllThreeFieldsAccessible()
+    {
+        // output, errors, and exit-code are all accessible on the result record.
+        // Intermediate variable for exit-code to avoid 'converted to text' mis-parse.
+        Assert.Equal("hello\n0", Run(
+            "Try to:\n" +
+            "    Define result as run \"cmd\" with arguments (\"/C\", \"echo hello\").\n" +
+            "    State (the output of result) trimmed.\n" +
+            "    Define code as the exit-code of result.\n" +
+            "    State code converted to text.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_Run_MustHandleFailure_StaticError()
+    {
+        // Using a run result without handling the launch failure is a static type error.
+        Assert.Throws<TypeException>(() => Run(
+            "Define result as run \"cmd\" with arguments (\"/C\", \"exit /b 0\").\n" +
+            "State the exit-code of result."));
+    }
+
+    [Fact]
+    public void IO_Run_ProgramMustBeText_StaticError()
+    {
+        // The program expression must be text — a number is a static error.
+        Assert.Throws<TypeException>(() => Run(
+            "Try to:\n" +
+            "    Define result as run 42.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_Run_ArgMustBeText_StaticError()
+    {
+        // Each argument must be text — a number argument is a static error.
+        Assert.Throws<TypeException>(() => Run(
+            "Try to:\n" +
+            "    Define result as run \"cmd\" with arguments (\"/C\", 42).\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
     }
 }

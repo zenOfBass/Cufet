@@ -1,5 +1,8 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Cufet.Interpreter;
 
@@ -65,6 +68,75 @@ public sealed partial class Interpreter
         {
             throw FileIoFailure(path, ex);
         }
+    }
+
+    // ── Process execution ─────────────────────────────────────────────────────
+
+    private object EvaluateRunExpr(RunExpression run)
+    {
+        var program = (string)Evaluate(run.Program);
+        var args    = run.Args.Select(a => (string)Evaluate(a)).ToArray();
+        try
+        {
+            var psi = new ProcessStartInfo(program)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+            };
+            // Each argument added individually — no shell, no injection possible.
+            // ProcessStartInfo.ArgumentList passes each string as a separate OS-level argument.
+            foreach (var arg in args)
+                psi.ArgumentList.Add(arg);
+
+            using var proc = Process.Start(psi)
+                ?? throw new InvalidOperationException($"Process.Start returned null for '{program}'");
+
+            // Read stdout and stderr concurrently — sequential reads deadlock when the process
+            // fills one pipe buffer while Cufet is blocked draining the other.
+            var stdoutTask = Task.Run(() => proc.StandardOutput.ReadToEnd());
+            var stderrTask = Task.Run(() => proc.StandardError.ReadToEnd());
+            proc.WaitForExit();
+            Task.WaitAll(stdoutTask, stderrTask);
+
+            return new RecordValue(
+                [],
+                [
+                    ("errors",    (object)stderrTask.Result),
+                    ("exit-code", (object)(decimal)proc.ExitCode),
+                    ("output",    (object)stdoutTask.Result),
+                ]
+            );
+        }
+        catch (Exception ex) when (ex is Win32Exception or FileNotFoundException
+                                       or DirectoryNotFoundException or UnauthorizedAccessException)
+        {
+            throw LaunchFailure(program, ex);
+        }
+    }
+
+    // Maps .NET process-launch exceptions to Cufet failure values at the launch boundary.
+    // Host launch-exceptions must not propagate into Cufet — a missing program is recoverable.
+    private static FailureUnwind LaunchFailure(string program, Exception ex)
+    {
+        int w32Code = ex is Win32Exception w32 ? w32.NativeErrorCode : -1;
+        string category, message;
+        if (ex is FileNotFoundException or DirectoryNotFoundException || w32Code is 2 or 3)
+        {
+            category = "not-found";
+            message  = $"the program '{program}' was not found";
+        }
+        else if (ex is UnauthorizedAccessException || w32Code == 5)
+        {
+            category = "permission-denied";
+            message  = $"permission denied executing '{program}'";
+        }
+        else
+        {
+            category = "io-error";
+            message  = ex.Message;
+        }
+        return new FailureUnwind(new FailureValue(message, category));
     }
 
     private object EvaluateCastExpr(CastExpression cast)
