@@ -2,12 +2,19 @@ using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
 
-// Reference-typed stream value — wraps a TextReader for incremental text consumption.
-// Streams are stateful: each read advances the position; reading is not reversible.
-public sealed class StreamValue
+// Reference-typed readable stream — wraps a TextReader for incremental text consumption.
+// Stateful: each read advances the position; not reversible.
+public sealed class ReadableStreamValue
 {
     public readonly TextReader Reader;
-    public StreamValue(TextReader reader) => Reader = reader;
+    public ReadableStreamValue(TextReader reader) => Reader = reader;
+}
+
+// Reference-typed writable stream — wraps a TextWriter for incremental text output.
+public sealed class WritableStreamValue
+{
+    public readonly TextWriter Writer;
+    public WritableStreamValue(TextWriter writer) => Writer = writer;
 }
 
 public sealed partial class Interpreter
@@ -40,7 +47,7 @@ public sealed partial class Interpreter
     {
         var saved = _scopes.ToList();
         _scopes.Clear();
-        _scopes.Add(new Dictionary<string, object> { ["input"] = new StreamValue(_in) });
+        _scopes.Add(new Dictionary<string, object> { ["input"] = new ReadableStreamValue(_in) });
         return saved;
     }
 
@@ -165,7 +172,7 @@ public sealed partial class Interpreter
         _out = output ?? Console.Out;
         _in  = input  ?? Console.In;
         _maxCallDepth = maxCallDepth;
-        _scopes[0]["input"] = new StreamValue(_in);
+        _scopes[0]["input"] = new ReadableStreamValue(_in);
     }
 
     public void Execute(Program program)
@@ -450,6 +457,14 @@ public sealed partial class Interpreter
                 ExecuteFileWriteStatement(fw);
                 break;
 
+            case WithOpenStatement wos:
+                ExecuteWithOpen(wos);
+                break;
+
+            case WriteToStreamStatement wts:
+                ExecuteWriteToStream(wts);
+                break;
+
             case TryStatement trySt:
                 ExecuteTryStatement(trySt);
                 break;
@@ -619,7 +634,7 @@ public sealed partial class Interpreter
 
     private object EvaluateReadExpr(ReadExpression re)
     {
-        var sv = (StreamValue)Evaluate(re.Source);
+        var sv = (ReadableStreamValue)Evaluate(re.Source);
         switch (re.Form)
         {
             case ReadForm.Line:
@@ -1034,8 +1049,9 @@ public sealed partial class Interpreter
         bool b           => b ? "true" : "false",
         decimal d        => NormalizeDecimal(d).ToString(),
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
-        FunctionValue    => "<function>",
-        StreamValue      => "<stream of text>",
+        FunctionValue        => "<function>",
+        ReadableStreamValue  => "<readable stream of text>",
+        WritableStreamValue  => "<writable stream of text>",
         RecordValue rv   => FormatRecord(rv),
         ObjectValue ov   => FormatObject(ov),
         Dictionary<object, object> dict =>

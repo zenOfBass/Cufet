@@ -181,14 +181,24 @@ public sealed class MapType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(MapType), KeyType, ValueType);
 }
 
-// stream of T — stateful, reference-typed I/O channel consumed incrementally.
-// Currently only stream of text is supported (text streams first; stream of bytes deferred).
-public sealed class StreamType : CufetType
+// readable stream of T — stateful, reference-typed I/O channel for incremental reading.
+// Currently only readable stream of text is supported (stdin, file-for-reading).
+public sealed class ReadableStreamType : CufetType
 {
     public CufetType ElementType { get; }
-    public StreamType(CufetType elementType) => ElementType = elementType;
-    public override bool Equals(object? obj) => obj is StreamType s && ElementType == s.ElementType;
-    public override int GetHashCode() => HashCode.Combine(typeof(StreamType), ElementType);
+    public ReadableStreamType(CufetType elementType) => ElementType = elementType;
+    public override bool Equals(object? obj) => obj is ReadableStreamType s && ElementType == s.ElementType;
+    public override int GetHashCode() => HashCode.Combine(typeof(ReadableStreamType), ElementType);
+}
+
+// writable stream of T — stateful, reference-typed I/O channel for incremental writing.
+// Currently only writable stream of text is supported (file-for-writing).
+public sealed class WritableStreamType : CufetType
+{
+    public CufetType ElementType { get; }
+    public WritableStreamType(CufetType elementType) => ElementType = elementType;
+    public override bool Equals(object? obj) => obj is WritableStreamType s && ElementType == s.ElementType;
+    public override int GetHashCode() => HashCode.Combine(typeof(WritableStreamType), ElementType);
 }
 
 // Type of the iterator variable in "for each X in map" — pseudo-record with 'key' and 'value' fields.
@@ -316,7 +326,7 @@ public sealed partial class TypeChecker
     // Built-in stream binding — seeded into every scope (global and each fresh function scope)
     // so 'the input' is visible everywhere, including inside function bodies.
     private static readonly TypeInfo BuiltinInput =
-        new TypeInfo(new StreamType(CufetType.Text), new VariableReference("input", 0), 0);
+        new TypeInfo(new ReadableStreamType(CufetType.Text), new VariableReference("input", 0), 0);
 
     // Pass 1: register interfaces (1a), then object types — merged with their 'unto' methods
     // (1b) — then function signatures, excluding 'unto' methods, which are not free
@@ -525,6 +535,12 @@ public sealed partial class TypeChecker
             case FileWriteStatement fw:
                 CheckFileWrite(fw);
                 break;
+            case WithOpenStatement wos:
+                CheckWithOpen(wos);
+                break;
+            case WriteToStreamStatement wts:
+                CheckWriteToStream(wts);
+                break;
             case ObjectDefinition od:
                 CheckObjectDefinition(od);
                 break;
@@ -707,12 +723,12 @@ public sealed partial class TypeChecker
     private CufetType InferReadExpr(ReadExpression re)
     {
         var sourceType = InferType(re.Source);
-        if (sourceType != null && sourceType is not StreamType { ElementType: TextType })
+        if (sourceType != null && sourceType is not ReadableStreamType { ElementType: TextType })
             throw new TypeException(FormatTypeError(
-                "read expects a stream of text",
+                "read expects a readable stream of text",
                 null, re.Line,
                 $"read from a {FormatType(sourceType)}",
-                "Use a stream of text as the source — 'the input' gives you the standard input stream."));
+                "Use a readable stream of text as the source — 'the input' is always available, or use 'With the file ... open for reading as s:' for a file stream."));
 
         return re.Form switch
         {
@@ -914,7 +930,8 @@ public sealed partial class TypeChecker
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => ot.Name,
         InterfaceType it                     => it.Name,
-        StreamType { ElementType: var elem } => $"stream of {FormatTypePlural(elem)}",
+        ReadableStreamType { ElementType: var elem } => $"readable stream of {FormatTypePlural(elem)}",
+        WritableStreamType { ElementType: var elem } => $"writable stream of {FormatTypePlural(elem)}",
         MapType mt                           => $"map from {FormatType(mt.KeyType)} to {FormatType(mt.ValueType)}",
         MappingType                          => "mapping",
         FailureMarkerType                    => "failure",
@@ -952,7 +969,8 @@ public sealed partial class TypeChecker
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => $"{ot.Name} objects",
         InterfaceType it                     => $"{it.Name} values",
-        StreamType { ElementType: var elem } => $"streams of {FormatTypePlural(elem)}",
+        ReadableStreamType { ElementType: var elem } => $"readable streams of {FormatTypePlural(elem)}",
+        WritableStreamType { ElementType: var elem } => $"writable streams of {FormatTypePlural(elem)}",
         MapType mt                           => $"maps from {FormatType(mt.KeyType)} to {FormatType(mt.ValueType)}",
         MappingType                          => "mappings",
         FailureMarkerType                    => "failures",

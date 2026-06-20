@@ -185,6 +185,7 @@ public sealed class Lexer
             "append"     => TokenType.Append,
             "run"        => TokenType.Run,
             "stream"     => TokenType.Stream,
+            "open"       => TokenType.Open,
             _           => TokenType.Identifier,
         };
 

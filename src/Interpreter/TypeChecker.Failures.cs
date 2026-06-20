@@ -152,6 +152,50 @@ public sealed partial class TypeChecker
                 "Write the path as a text literal like \"output.txt\", or use a text variable."));
     }
 
+    // With the file "<path>" open for reading/writing as <name>: ... Done.
+    // Validates path type and binds the stream in block scope; open failure is runtime-only.
+    private void CheckWithOpen(WithOpenStatement wos)
+    {
+        var pathType = InferType(wos.Path);
+        if (pathType != null && pathType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "a file path must be text",
+                null, wos.Line,
+                $"use a {FormatType(pathType)} as a file path",
+                "Write the path as a text literal like \"data.txt\", or use a text variable."));
+
+        var streamType = wos.Mode == OpenMode.Reading
+            ? (CufetType)new ReadableStreamType(CufetType.Text)
+            : (CufetType)new WritableStreamType(CufetType.Text);
+
+        EnterScope();
+        Scope[wos.BindingName] = new TypeInfo(streamType, new VariableReference(wos.BindingName, wos.Line), wos.Line);
+        foreach (var stmt in wos.Body)
+            CheckStatement(stmt);
+        ExitScope();
+    }
+
+    // write <value> to <stream> — incremental write to a writable stream.
+    // Validates value is text and stream is writable; I/O failure is runtime-only.
+    private void CheckWriteToStream(WriteToStreamStatement wts)
+    {
+        var valueType = InferType(wts.Value);
+        if (valueType != null && valueType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "you can only write text to a stream",
+                null, wts.Line,
+                $"write a {FormatType(valueType)} to a stream",
+                "Convert the value to text first with 'converted to text', or build a text value with 'joined to'."));
+
+        var streamType = InferType(wts.Stream);
+        if (streamType != null && streamType is not WritableStreamType { ElementType: TextType })
+            throw new TypeException(FormatTypeError(
+                "write expects a writable stream of text",
+                null, wts.Line,
+                $"write to a {FormatType(streamType)}",
+                "Use a writable stream — open a file 'for writing' with 'With the file ... open for writing as s:'."));
+    }
+
     // ── Process execution ─────────────────────────────────────────────────────
 
     // Synthetic RecordType for the result of 'run': (errors: text, exit-code: number, output: text).

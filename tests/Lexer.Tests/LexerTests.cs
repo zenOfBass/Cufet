@@ -786,4 +786,29 @@ public class LexerTests
         Assert.Single(tokens);
         Assert.Equal(TokenType.Identifier, tokens[0].Type);
     }
+
+    [Fact]
+    public void OpenIsKeyword()
+    {
+        var tokens = LexTokens("open");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Open, tokens[0].Type);
+    }
+
+    [Fact]
+    public void ReadingIsIdentifier()
+    {
+        // 'reading' and 'writing' are contextual — not reserved keywords.
+        var tokens = LexTokens("reading");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Identifier, tokens[0].Type);
+    }
+
+    [Fact]
+    public void WritingIsIdentifier()
+    {
+        var tokens = LexTokens("writing");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Identifier, tokens[0].Type);
+    }
 }

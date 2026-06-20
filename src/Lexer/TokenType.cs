@@ -141,7 +141,8 @@ public enum TokenType
     Write,    // "write"  — in "write <text> to the file \"path\"" (overwrites)
     Append,   // "append" — in "append <text> to the file \"path\"" (appends)
     Run,      // "run"    — in "run <program> [with arguments (...)]"; "arguments" is contextual
-    Stream,   // "stream" — in "stream of text" type annotation; "input" stays contextual
+    Stream,   // "stream" — in "readable/writable stream of text" type annotation; "input" stays contextual
+    Open,     // "open"   — in "With the file ... open for reading/writing as <name>:"
 
     // ── Maps ──────────────────────────────────────────────────────────────────
     Map,    // "map"   — type annotation and literal

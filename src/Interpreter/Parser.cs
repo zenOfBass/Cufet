@@ -52,8 +52,9 @@ public sealed class Parser
             TokenType.Try        => ParseTryStatement(),
             TokenType.Suppress   => ParseSuppressStatement(),
             TokenType.In         => ParseMapSetStatement(),
-            TokenType.Write      => ParseFileWriteStatement(),
+            TokenType.Write      => ParseWriteStatement(),
             TokenType.Append     => ParseFileWriteStatement(),
+            TokenType.With       => ParseWithOpenStatement(),
             _ => throw new ParseException(tok, "statement keyword"),
         };
     }
@@ -353,14 +354,25 @@ public sealed class Parser
             SkipNoise();
             return new SeriesType(ParseTypeAnnotation());
         }
-        if (tok.Type == TokenType.Stream)
+        if (tok.Type == TokenType.Identifier &&
+            tok.Lexeme.Equals("readable", StringComparison.OrdinalIgnoreCase))
         {
-            Advance(); // consume "stream"
-            SkipNoise();
-            Consume(TokenType.Of);
-            SkipNoise();
-            return new StreamType(ParseTypeAnnotation());
+            Advance(); SkipNoise(); // consume "readable"
+            Consume(TokenType.Stream); SkipNoise();
+            Consume(TokenType.Of); SkipNoise();
+            return new ReadableStreamType(ParseTypeAnnotation());
         }
+        if (tok.Type == TokenType.Identifier &&
+            tok.Lexeme.Equals("writable", StringComparison.OrdinalIgnoreCase))
+        {
+            Advance(); SkipNoise(); // consume "writable"
+            Consume(TokenType.Stream); SkipNoise();
+            Consume(TokenType.Of); SkipNoise();
+            return new WritableStreamType(ParseTypeAnnotation());
+        }
+        if (tok.Type == TokenType.Stream)
+            throw new ParseException(tok,
+                "stream direction — write 'readable stream of text' or 'writable stream of text'");
         // Named type: object or interface name — resolved by TypeChecker.
         if (tok.Type == TokenType.Identifier)
         {
@@ -851,10 +863,35 @@ public sealed class Parser
 
     // write <text> to the file "<path>"   — overwrite (creates if absent)
     // append <text> to the file "<path>"  — append   (creates if absent)
+    // "write <value> to ..." — dispatches to file-write or stream-write based on what follows 'to'.
+    private IStatement ParseWriteStatement()
+    {
+        var line = Advance().Line; // consume 'write'
+        SkipNoise();
+        var value = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.To);
+        SkipNoise(); // eats 'the' article before 'file' or stream source
+        if (Peek().Type == TokenType.File)
+        {
+            Advance(); // consume 'file'
+            SkipNoise();
+            var path = ParseExprOr();
+            SkipNoise();
+            Consume(TokenType.Dot);
+            return new FileWriteStatement(append: false, value, path, line);
+        }
+        // Stream write — 'to <stream-expr>'
+        var streamExpr = ParseExprOr();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new WriteToStreamStatement(value, streamExpr, line);
+    }
+
+    // "append <value> to the file ..." — file-only (streams are always written with 'write').
     private FileWriteStatement ParseFileWriteStatement()
     {
-        bool isAppend = Peek().Type == TokenType.Append;
-        var line = Advance().Line; // consume 'write' or 'append'
+        var line = Advance().Line; // consume 'append'
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
@@ -862,15 +899,57 @@ public sealed class Parser
         SkipNoise(); // eats 'the' article before 'file'
         if (Peek().Type != TokenType.File)
             throw new ParseException(Peek(),
-                $"expected 'the file \"path\"' after '{(isAppend ? "append" : "write")} <value> to'");
+                "expected 'the file \"path\"' after 'append <value> to'");
         Advance(); // consume 'file'
         SkipNoise();
-        // ParseExprOr not ParseExpression: path is a simple text expression; 'but on failure'
-        // applies to the write verb's failure result, not to the path itself.
         var path = ParseExprOr();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new FileWriteStatement(isAppend, value, path, line);
+        return new FileWriteStatement(append: true, value, path, line);
+    }
+
+    // "With the file "<path>" open for reading/writing as <name>: ... Done."
+    // Safe-by-construction lifecycle: stream is opened, bound, and automatically closed at block-exit.
+    private WithOpenStatement ParseWithOpenStatement()
+    {
+        var line = Advance().Line; // consume 'With'
+        SkipNoise();               // eats 'the'
+        Consume(TokenType.File);
+        SkipNoise();
+        var pathExpr = ParseExprOr();
+        SkipNoise();
+        Consume(TokenType.Open);
+        SkipNoise();
+        Consume(TokenType.For);
+        SkipNoise();
+        var modeTok = Peek();
+        OpenMode mode;
+        if (modeTok.Type == TokenType.Identifier &&
+            modeTok.Lexeme.Equals("reading", StringComparison.OrdinalIgnoreCase))
+        {
+            Advance();
+            mode = OpenMode.Reading;
+        }
+        else if (modeTok.Type == TokenType.Identifier &&
+                 modeTok.Lexeme.Equals("writing", StringComparison.OrdinalIgnoreCase))
+        {
+            Advance();
+            mode = OpenMode.Writing;
+        }
+        else
+        {
+            throw new ParseException(modeTok, "'reading' or 'writing' after 'for'");
+        }
+        SkipNoise();
+        Consume(TokenType.As);
+        SkipNoise();
+        var bindingName = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+        Consume(TokenType.Colon);
+        _nestDepth++;
+        var body = ParseLoopBody(); // consumes Done.
+        _nestDepth--;
+        return new WithOpenStatement(mode, pathExpr, bindingName, body, line);
     }
 
     // Condition grammar (conditional context — after If / Otherwise if):

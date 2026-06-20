@@ -70,6 +70,64 @@ public sealed partial class Interpreter
         }
     }
 
+    // "With the file '<path>' open for reading/writing as <name>: ... Done."
+    // Opens the file, binds the stream, executes the body, then closes on every exit path.
+    private void ExecuteWithOpen(WithOpenStatement wos)
+    {
+        var path = (string)Evaluate(wos.Path);
+
+        if (wos.Mode == OpenMode.Reading)
+        {
+            StreamReader reader;
+            try { reader = new StreamReader(path); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            { throw FileIoFailure(path, ex); }
+
+            EnterScope();
+            Scope[wos.BindingName] = new ReadableStreamValue(reader);
+            try
+            {
+                foreach (var stmt in wos.Body)
+                    Execute(stmt);
+            }
+            finally
+            {
+                ExitScope();
+                reader.Dispose();
+            }
+        }
+        else
+        {
+            StreamWriter writer;
+            try { writer = new StreamWriter(path, append: false); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            { throw FileIoFailure(path, ex); }
+
+            EnterScope();
+            Scope[wos.BindingName] = new WritableStreamValue(writer);
+            try
+            {
+                foreach (var stmt in wos.Body)
+                    Execute(stmt);
+            }
+            finally
+            {
+                ExitScope();
+                writer.Dispose(); // flushes and closes
+            }
+        }
+    }
+
+    // "write <value> to <stream>" — incremental text write; no newline added.
+    private void ExecuteWriteToStream(WriteToStreamStatement wts)
+    {
+        var text = (string)Evaluate(wts.Value);
+        var sv   = (WritableStreamValue)Evaluate(wts.Stream);
+        try { sv.Writer.Write(text); }
+        catch (IOException ex)
+        { throw new FailureUnwind(new FailureValue(ex.Message, "disk-error")); }
+    }
+
     // ── Process execution ─────────────────────────────────────────────────────
 
     private object EvaluateRunExpr(RunExpression run)

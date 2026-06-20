@@ -312,8 +312,8 @@ public enum ReadForm { Line, All, AllLines }
 // read a line from <stream>       → voidable text (void at end-of-stream; trailing newline stripped)
 // read all from <stream>          → text (drains remaining content; empty → "")
 // read all lines from <stream>    → series of text (drains and splits; empty → empty series)
-// Source is any expression of type stream of text.
-// 'the input' is a pre-defined always-open stream of text (stdin).
+// Source is any expression of type readable stream of text.
+// 'the input' is a pre-defined always-open readable stream of text (stdin).
 public sealed record ReadExpression(ReadForm Form, IExpression Source, int Line) : IExpression;
 
 public enum FileReadForm { All, AllLines }
@@ -328,6 +328,25 @@ public sealed record FileReadExpression(FileReadForm Form, IExpression Path, int
 // append <value> to the file "<path>"  — append   (creates if absent); Append = true
 // Statements: complete on success; throw FailureUnwind on IO failure (catchable by Try/In case of failure).
 public sealed record FileWriteStatement(bool Append, IExpression Value, IExpression Path, int Line) : IStatement;
+
+public enum OpenMode { Reading, Writing }
+
+// With the file "<path>" open for reading as <name>: ... Done.
+// With the file "<path>" open for writing as <name>: ... Done.
+// Opens the file, binds the stream to <name> (scoped to the block), then closes
+// it automatically at block-exit — guaranteed on every exit path (normal, failure, exception).
+// An open failure propagates as a Cufet failure to the enclosing handler.
+public sealed record WithOpenStatement(
+    OpenMode Mode,
+    IExpression Path,
+    string BindingName,
+    IReadOnlyList<IStatement> Body,
+    int Line
+) : IStatement;
+
+// write <value> to <stream> — writes text to a writable stream incrementally (no newline added).
+// Failures (disk full, etc.) propagate as Cufet failures.
+public sealed record WriteToStreamStatement(IExpression Value, IExpression Stream, int Line) : IStatement;
 
 // run <program> [with arguments (<arg1>, <arg2>, ...)]
 // Blocks until the process exits (synchronous). Returns a record or failure.
