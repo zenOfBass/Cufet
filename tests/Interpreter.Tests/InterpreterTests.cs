@@ -7590,4 +7590,221 @@ public class InterpreterTests
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }
+
+    // ── Hardening: multi-level failure propagation ───────────────────────────────
+    // Existing tests cover 2-level chains (inner → outer). These verify that a
+    // failure bubbles intact through 4 levels of 'or pass the failure off'.
+
+    [Fact]
+    public void Failure_Propagate_MessageIntactThroughFourLevels()
+    {
+        // A failure raised in level-A propagates through B → C → D and arrives
+        // at the top with its message unchanged.
+        Assert.Equal("deep error", Run(
+            "Bind number or failure to level-a, given (the text s):\n" +
+            "    Return a failure \"deep error\" of category \"dc\".\n" +
+            "Done.\n" +
+            "Bind number or failure to level-b, given (the text s):\n" +
+            "    Return Cast level-a on (s) or pass the failure off.\n" +
+            "Done.\n" +
+            "Bind number or failure to level-c, given (the text s):\n" +
+            "    Return Cast level-b on (s) or pass the failure off.\n" +
+            "Done.\n" +
+            "Bind number or failure to level-d, given (the text s):\n" +
+            "    Return Cast level-c on (s) or pass the failure off.\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define result as Cast level-d on (\"x\").\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State the message of the failure.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Failure_Propagate_CategoryIntactThroughFourLevels()
+    {
+        // The category tag also survives the full 4-level propagation chain.
+        Assert.Equal("dc", Run(
+            "Bind number or failure to level-a, given (the text s):\n" +
+            "    Return a failure \"deep error\" of category \"dc\".\n" +
+            "Done.\n" +
+            "Bind number or failure to level-b, given (the text s):\n" +
+            "    Return Cast level-a on (s) or pass the failure off.\n" +
+            "Done.\n" +
+            "Bind number or failure to level-c, given (the text s):\n" +
+            "    Return Cast level-b on (s) or pass the failure off.\n" +
+            "Done.\n" +
+            "Bind number or failure to level-d, given (the text s):\n" +
+            "    Return Cast level-c on (s) or pass the failure off.\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define result as Cast level-d on (\"x\").\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State the category of the failure but void is \"no-cat\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Failure_Propagate_SuccessPassesThroughFourLevels()
+    {
+        // When the innermost function succeeds, the value passes through all
+        // propagation layers and arrives at the top intact.
+        Assert.Equal("99", Run(
+            "Bind number or failure to level-a, given (the text s):\n" +
+            "    Return 99.\n" +
+            "Done.\n" +
+            "Bind number or failure to level-b, given (the text s):\n" +
+            "    Return Cast level-a on (s) or pass the failure off.\n" +
+            "Done.\n" +
+            "Bind number or failure to level-c, given (the text s):\n" +
+            "    Return Cast level-b on (s) or pass the failure off.\n" +
+            "Done.\n" +
+            "Bind number or failure to level-d, given (the text s):\n" +
+            "    Return Cast level-c on (s) or pass the failure off.\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define x as Cast level-d on (\"x\").\n" +
+            "    State x.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    // ── Hardening: Suppress × nested exception handlers ─────────────────────────
+    // These verify the two key interactions between nested Trys and Suppress:
+    //   (A) inner Suppress swallows the exception — outer handler does NOT see it
+    //   (B) no inner Suppress → inner handler runs → exception re-raises → outer catches it
+
+    [Fact]
+    public void Exception_Nested_InnerSuppressDoesNotReachOuterHandler()
+    {
+        // When the inner exception handler suppresses, execution continues after
+        // the inner Try block. The outer Try body finishes normally; the outer
+        // exception handler never runs.
+        var output = Run(
+            "Try to:\n" +
+            "    Try to:\n" +
+            "        Define x as 1 / 0.\n" +
+            "    Done.\n" +
+            "    In case of exception (the exception):\n" +
+            "        State \"inner caught\".\n" +
+            "        Suppress the exception.\n" +
+            "    Done.\n" +
+            "    State \"after inner\".\n" +
+            "Done.\n" +
+            "In case of exception (the exception):\n" +
+            "    State \"outer caught\".\n" +
+            "    Suppress the exception.\n" +
+            "Done.\n" +
+            "State \"after outer\".");
+        var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        Assert.Equal(["inner caught", "after inner", "after outer"], lines);
+        Assert.DoesNotContain("outer caught", output);
+    }
+
+    [Fact]
+    public void Exception_Nested_NoInnerSuppressReRaisesToOuterHandler()
+    {
+        // When the inner exception handler does NOT suppress, the exception
+        // re-raises out of the inner Try block. The outer Try catches it; the
+        // statement after the inner Try ("after inner") is never reached.
+        var output = Run(
+            "Try to:\n" +
+            "    Try to:\n" +
+            "        Define x as 1 / 0.\n" +
+            "    Done.\n" +
+            "    In case of exception (the exception):\n" +
+            "        State \"inner handler\".\n" +
+            "    Done.\n" +
+            "    State \"after inner\".\n" +
+            "Done.\n" +
+            "In case of exception (the exception):\n" +
+            "    State \"outer caught\".\n" +
+            "    Suppress the exception.\n" +
+            "Done.\n" +
+            "State \"after outer\".");
+        Assert.Contains("inner handler", output);
+        Assert.Contains("outer caught", output);
+        Assert.DoesNotContain("after inner", output);
+        Assert.Contains("after outer", output);
+    }
+
+    // ── Hardening: complex interpolation expressions ─────────────────────────────
+    // Simple holes are already covered (variables, arithmetic, field access).
+    // These verify the lexer's brace-depth tracking and ReadString recursion hold
+    // under more complex hole contents.
+
+    [Fact]
+    public void Interp_CastExpressionInHole()
+    {
+        // A function call (Cast expression) is valid inside an interpolation hole.
+        Assert.Equal("result: 10", Run(
+            "Bind number to double, given (the number x): Return x * 2. Done.\n" +
+            "State \"result: {Cast double on (5)}\"."));
+    }
+
+    [Fact]
+    public void Interp_StringLiteralInsideHole()
+    {
+        // A string literal inside an interpolation hole is handled by the lexer's
+        // recursive ReadString call — the inner quote does not confuse the outer
+        // string's brace-depth tracking.
+        Assert.Equal("len: 5", Run(
+            "State \"len: {the length of \"hello\" converted to text}\"."));
+    }
+
+    [Fact]
+    public void Interp_ObjectLiteralNestedBracesInHole()
+    {
+        // An object literal uses { } tokens inside the interpolation hole.
+        // The lexer's brace-depth counter increments on '{' and decrements on '}'
+        // so the inner RBrace of the object initializer is NOT mistaken for the
+        // end of the interpolation hole.
+        Assert.Equal("at: 3", Run(
+            "Define object point with (the number x, the number y).\n" +
+            "State \"at: {(a new point { the x 3, the y 4 })'s x converted to text}\"."));
+    }
+
+    [Fact]
+    public void Interp_NestedInterpolatedStringInHole()
+    {
+        // A string literal that itself contains an interpolation hole, placed
+        // inside the outer interpolation hole. Tests that the inner ReadString
+        // call correctly processes the inner interpolation and does not leave
+        // stray brace-depth state for the outer hole.
+        Assert.Equal("outer: inner world", Run(
+            "Define x as \"world\".\n" +
+            "State \"outer: {\"inner {x}\"}\"."));
+    }
+
+    // ── Hardening: lock-in test for 'or pass the failure off' inside Try ─────────
+    // Inside a Try block that has a failure handler, _inTryBlock = true. This causes
+    // InferCastExpr to auto-unwrap FailureType(T) → T, because the Try IS the handler.
+    // Consequently 'or pass the failure off' on a fallible call inside that Try body
+    // is a static type error: T can never fail, so there is nothing to propagate.
+    // This is correct and intentional — propagating past a Try that already handles
+    // the failure is nonsensical. Lock this in so it is not mistaken for a bug later.
+
+    [Fact]
+    public void Failure_PropagateInsideTryWithFailureHandlerIsTypeError()
+    {
+        // Inside a Try-with-failure-handler the fallible call returns plain T.
+        // 'or pass the failure off' on plain T is a static error.
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number or failure to parse, given (the text s):\n" +
+            "    Return a failure \"bad\".\n" +
+            "Done.\n" +
+            "Bind number or failure to outer:\n" +
+            "    Try to:\n" +
+            "        Define result as Cast parse on (\"x\") or pass the failure off.\n" +
+            "    Done.\n" +
+            "    In case of failure:\n" +
+            "        Return 0.\n" +
+            "    Done.\n" +
+            "    Return 1.\n" +
+            "Done."));
+    }
 }

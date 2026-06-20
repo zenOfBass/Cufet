@@ -557,7 +557,7 @@ These two tasks are the falsifying tests that establish "Cufet as OS
 orchestrator" as a *waypoint*, not the destination.
 
 **The current interpreter is the reference implementation / executable spec.**
-The 873 tests define Cufet's semantics. A future native backend (native
+The 883 tests define Cufet's semantics. A future native backend (native
 compilation, compile-to-C/LLVM, or a from-scratch non-managed runtime)
 implements those same semantics against real metal. Nothing built is wasted
 — this is the path most serious languages took (Lua defined its semantics
