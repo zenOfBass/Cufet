@@ -1,0 +1,26 @@
+Define path as "examples/sample.txt".
+
+With a rabbit herd:
+    Define counts as a new map from text to number.
+
+    With the file path open for reading as src:
+        Define content as read all from src.
+        Define normalized as replace "\n" with " " in content.
+        Define words as normalized split by " ".
+        For each word in words, repeat:
+            Define lower as word in lowercase.
+            Define w as lower trimmed.
+            If the length of w is 0, skip.
+            If not counts has an entry for w, in counts, the entry for w becomes 0.
+            Define current as the entry for w in counts but void is 0.
+            In counts, the entry for w becomes current + 1.
+        Done.
+    Done.
+
+    State "Word frequencies:".
+    For each pair in counts, repeat:
+        Define k as the key of pair.
+        Define v as the value of pair.
+        State "{k}: {v}".
+    Done.
+Done.
