@@ -689,6 +689,7 @@ public sealed partial class Interpreter
         MatrixAccess  ma      => EvaluateMatrixAccess(ma),
         MatrixRows    mr      => EvaluateMatrixRows(mr),
         MatrixColumns mc      => EvaluateMatrixColumns(mc),
+        IsTypeCheck   tc      => EvaluateIsTypeCheck(tc),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 
@@ -1137,4 +1138,29 @@ public sealed partial class Interpreter
         if (ov.EmbeddedObject != null)               parts.Add(Format(ov.EmbeddedObject));
         return $"{ov.TypeName}(" + string.Join(", ", parts) + ")";
     }
+
+    private object EvaluateIsTypeCheck(IsTypeCheck tc)
+    {
+        var value = Evaluate(tc.Target);
+        bool matches = RuntimeIsType(value, tc.Type);
+        return (object)(tc.Negated ? !matches : matches);
+    }
+
+    private static bool RuntimeIsType(object? value, CufetType type) => type switch
+    {
+        NumberType      => value is decimal,
+        TextType        => value is string,
+        FactType        => value is bool,
+        VoidType        => value is VoidValue,
+        SeriesType      => value is List<object>,
+        MatrixType      => value is MatrixValue,
+        MapType         => value is Dictionary<object, object>,
+        RecordType      => value is RecordValue,
+        ObjectType ot   => value is ObjectValue ov && ov.TypeName == ot.Name,
+        InterfaceType   => false, // interfaces have no runtime representation to check
+        UnionType { Cases: null }      => true, // open union: any value matches
+        UnionType { Cases: var cases } => cases!.Any(c => RuntimeIsType(value, c)),
+        VoidableType vt => value is VoidValue || RuntimeIsType(value, vt.Inner),
+        _               => false,
+    };
 }

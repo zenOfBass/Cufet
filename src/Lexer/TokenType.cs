@@ -144,6 +144,9 @@ public enum TokenType
     // ── Books (standard-library capability units) ─────────────────────────────
     Pull,   // "pull"   — in "Pull a book on <name> [as <local>]."
     Book,   // "book"   — in "Pull a book on <name>"
+    CatalogueKw, // "catalogue" — heterogeneous series: element type is a union
+    AtlasKw,     // "atlas"     — heterogeneous map:    value  type is a union
+
     Matrix,    // "matrix"  — type introduced by the 'collections' book
     At,        // "at"      — in "the item at (row, col) of <matrix>"
     RowsKw,    // "rows"    — in "the rows of <matrix>"; excluded from field-name access

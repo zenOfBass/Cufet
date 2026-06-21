@@ -288,6 +288,31 @@ public sealed class MatrixType : CufetType
     public override int GetHashCode() => typeof(MatrixType).GetHashCode();
 }
 
+// (A or B or C) — a union type; null Cases = open (the all-types union).
+// voidable T is the preferred surface form of (T or void) — (T or void) normalizes to VoidableType(T).
+// Operations on an un-narrowed union value that require a known type → static error.
+public sealed class UnionType : CufetType
+{
+    // null = open union (all types). Non-null = closed union with the listed cases.
+    public IReadOnlyList<CufetType>? Cases { get; }
+    public static readonly UnionType Open = new(null);
+    public UnionType(IReadOnlyList<CufetType>? cases) => Cases = cases;
+    public override bool Equals(object? obj)
+    {
+        if (obj is not UnionType u) return false;
+        if (Cases == null && u.Cases == null) return true;
+        if (Cases == null || u.Cases == null) return false;
+        return Cases.SequenceEqual(u.Cases);
+    }
+    public override int GetHashCode()
+    {
+        if (Cases == null) return typeof(UnionType).GetHashCode();
+        var h = typeof(UnionType).GetHashCode();
+        foreach (var c in Cases) h = HashCode.Combine(h, c);
+        return h;
+    }
+}
+
 public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false);
 
 public sealed class TypeException : Exception
@@ -497,24 +522,70 @@ public sealed partial class TypeChecker
                 _ = InferType(state.Value);
                 break;
             case IfStatement ifStmt:
+            {
+                // Track union exhaustion across arms: if every arm type-checks the same variable
+                // against a closed union, the Otherwise body narrows to what's left.
+                string? unionVar = null;
+                CufetType? remainingUnionType = null;
+                bool canExhaustNarrow = true;
+
                 foreach (var arm in ifStmt.Arms)
                 {
                     _ = InferType(arm.Condition);
-                    // If condition is "X is not void", narrow X to its inner type within this arm.
                     string? narrowedVar = null;
+                    CufetType? narrowedTo = null;
                     CufetType? savedNarrowed = null;
-                    if (TryGetNotVoidNarrowing(arm.Condition, out var narrowTarget, out var narrowedTo))
+
+                    if (TryGetNotVoidNarrowing(arm.Condition, out var nvTarget, out var nvNarrowed))
                     {
-                        narrowedVar = narrowTarget;
-                        _narrowedVars.TryGetValue(narrowTarget!, out savedNarrowed);
-                        _narrowedVars[narrowTarget!] = narrowedTo!;
+                        narrowedVar = nvTarget;
+                        narrowedTo  = nvNarrowed;
+                        canExhaustNarrow = false;
+                    }
+                    else if (TryGetTypeCheckNarrowing(arm.Condition,
+                             out var tcTarget, out var tcType, out bool tcNegated))
+                    {
+                        narrowedVar = tcTarget;
+                        if (!tcNegated)
+                        {
+                            narrowedTo = tcType;
+                            // track exhaustion across arms
+                            if (canExhaustNarrow)
+                            {
+                                if (unionVar == null)
+                                {
+                                    unionVar = tcTarget;
+                                    TryLookup(tcTarget!, out var tinfo);
+                                    remainingUnionType = tinfo?.Type;
+                                }
+                                else if (unionVar != tcTarget)
+                                    canExhaustNarrow = false;
+                                if (canExhaustNarrow)
+                                    remainingUnionType = RemoveFromUnion(remainingUnionType, tcType!);
+                            }
+                        }
+                        else
+                        {
+                            // negated: true-branch narrows to complement
+                            TryLookup(tcTarget!, out var tinfo);
+                            narrowedTo = RemoveFromUnion(tinfo?.Type, tcType!);
+                            canExhaustNarrow = false;
+                        }
+                    }
+                    else
+                    {
+                        canExhaustNarrow = false;
+                    }
+
+                    if (narrowedVar != null && narrowedTo != null)
+                    {
+                        _narrowedVars.TryGetValue(narrowedVar, out savedNarrowed);
+                        _narrowedVars[narrowedVar] = narrowedTo;
                     }
                     EnterScope();
-                    foreach (var s in arm.Body)
-                        CheckStatement(s);
+                    foreach (var s in arm.Body) CheckStatement(s);
                     ExitScope();
-                    // Restore narrowing state after the arm body.
-                    if (narrowedVar != null)
+                    if (narrowedVar != null && narrowedTo != null)
                     {
                         if (savedNarrowed != null) _narrowedVars[narrowedVar] = savedNarrowed;
                         else _narrowedVars.Remove(narrowedVar);
@@ -522,12 +593,26 @@ public sealed partial class TypeChecker
                 }
                 if (ifStmt.ElseBody != null)
                 {
+                    // Apply exhaustive narrowing for closed unions
+                    string? elseNarrowedVar = null;
+                    CufetType? elseNarrowedSaved = null;
+                    if (canExhaustNarrow && unionVar != null && remainingUnionType != null)
+                    {
+                        elseNarrowedVar = unionVar;
+                        _narrowedVars.TryGetValue(unionVar, out elseNarrowedSaved);
+                        _narrowedVars[unionVar] = remainingUnionType;
+                    }
                     EnterScope();
-                    foreach (var s in ifStmt.ElseBody)
-                        CheckStatement(s);
+                    foreach (var s in ifStmt.ElseBody) CheckStatement(s);
                     ExitScope();
+                    if (elseNarrowedVar != null)
+                    {
+                        if (elseNarrowedSaved != null) _narrowedVars[elseNarrowedVar] = elseNarrowedSaved;
+                        else _narrowedVars.Remove(elseNarrowedVar);
+                    }
                 }
                 break;
+            }
             case WhileStatement whileStmt:
                 _ = InferType(whileStmt.Condition);
                 EnterScope();
@@ -815,6 +900,7 @@ public sealed partial class TypeChecker
         MatrixAccess  ma                                                                                 => InferMatrixAccess(ma),
         MatrixRows    mr                                                                                 => InferMatrixRows(mr),
         MatrixColumns mc                                                                                 => InferMatrixColumns(mc),
+        IsTypeCheck   tc                                                                                 => InferIsTypeCheck(tc),
         _                                                                                                => null,
     };
 
@@ -897,6 +983,10 @@ public sealed partial class TypeChecker
             TokenType.Equal or TokenType.NotEqual
                 when l == r
                 => CufetType.Fact,
+            // Union type compared for equality with any value — legal on un-narrowed unions.
+            TokenType.Equal or TokenType.NotEqual
+                when l is UnionType || r is UnionType
+                => CufetType.Fact,
             TokenType.Equal or TokenType.NotEqual
                 => throw new TypeException(FormatTypeError(
                     "equality comparison requires matching types",
@@ -939,6 +1029,16 @@ public sealed partial class TypeChecker
             return source == v.Inner || source is VoidType;
         if (target is FailureType f)
             return source == f.Inner || source is FailureMarkerType;
+        if (target is UnionType ut)
+        {
+            if (ut.Cases == null) return true; // open union accepts anything
+            // source is one of the union cases (or assignable to a case)
+            if (ut.Cases.Any(c => IsAssignable(c, source))) return true;
+            // source is a union whose cases are all in the target union
+            if (source is UnionType us)
+                return us.Cases != null && us.Cases.All(c => ut.Cases.Any(tc => IsAssignable(tc, c)));
+            return false;
+        }
         return false;
     }
 
@@ -968,6 +1068,40 @@ public sealed partial class TypeChecker
                 $"use 'but void is' on a {FormatType(leftType)} value",
                 "Only voidable values can be void. 'but void is' is only needed for voidable values."));
         return null;
+    }
+
+    // Infer type of a union type-test — always yields fact.
+    private CufetType InferIsTypeCheck(IsTypeCheck tc)
+    {
+        _ = InferType(tc.Target); // validate the target expression
+        return CufetType.Fact;
+    }
+
+    // Try to extract narrowing info from an IsTypeCheck condition.
+    private static bool TryGetTypeCheckNarrowing(
+        IExpression condition, out string? varName, out CufetType? type, out bool negated)
+    {
+        varName = null; type = null; negated = false;
+        if (condition is not IsTypeCheck tc) return false;
+        if (tc.Target is not VariableReference vr) return false;
+        varName = vr.Name;
+        type    = tc.Type;
+        negated = tc.Negated;
+        return true;
+    }
+
+    // Remove `removedType` from `unionType`, returning the narrowed remaining type.
+    // Open union or non-union input → returned unchanged. Single remaining case → unwrapped.
+    private static CufetType? RemoveFromUnion(CufetType? unionType, CufetType removedType)
+    {
+        if (unionType is not UnionType { Cases: { } cases }) return unionType;
+        var remaining = cases.Where(c => c != removedType).ToList();
+        if (remaining.Count == 0) return null;
+        if (remaining.Count == 1) return remaining[0];
+        // (T or void) normalizes to VoidableType(T)
+        if (remaining.Count == 2 && remaining.Any(c => c is VoidType))
+            return new VoidableType(remaining.First(c => c is not VoidType));
+        return new UnionType(remaining);
     }
 
     // Returns the variable name and its narrowed inner type when the condition is "X is not void"
@@ -1038,6 +1172,8 @@ public sealed partial class TypeChecker
         ExceptionMarkerType                  => "exception",
         BookType bt                          => $"book '{bt.Name}'",
         MatrixType                           => "matrix",
+        UnionType { Cases: null }            => "open union",
+        UnionType { Cases: var cs }          => $"({string.Join(" or ", cs!.Select(FormatType))})",
         _                                    => "<unknown>",
     };
 
@@ -1080,6 +1216,8 @@ public sealed partial class TypeChecker
         ExceptionMarkerType                  => "exceptions",
         BookType bt                          => $"book '{bt.Name}' values",
         MatrixType                           => "matrices",
+        UnionType { Cases: null }            => "open union values",
+        UnionType { Cases: var cs }          => $"({string.Join(" or ", cs!.Select(FormatType))}) values",
         _                                    => "<unknown>",
     };
 

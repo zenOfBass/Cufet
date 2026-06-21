@@ -417,4 +417,8 @@ public sealed record PullStatement(
     int Line
 ) : IStatement;
 
+// if x is a number — type test; yields fact (true when the runtime value matches the type).
+// Negated: true = "is not a <type>".
+public sealed record IsTypeCheck(IExpression Target, CufetType Type, bool Negated, int Line) : IExpression;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

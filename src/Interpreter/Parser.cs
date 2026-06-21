@@ -310,6 +310,25 @@ public sealed class Parser
     {
         var tok = Peek();
 
+        // Union type: (A or B or C)
+        // (T or void) normalizes to VoidableType(T).
+        if (tok.Type == TokenType.LParen)
+        {
+            Advance(); SkipNoise(); // consume '('
+            var cases = new List<CufetType>();
+            cases.Add(ParseTypeAnnotation()); SkipNoise();
+            while (Peek().Type == TokenType.Or)
+            {
+                Advance(); SkipNoise(); // consume 'or'
+                cases.Add(ParseTypeAnnotation()); SkipNoise();
+            }
+            Consume(TokenType.RParen);
+            // (T or void) → VoidableType(T)
+            if (cases.Count == 2 && cases.Any(c => c is VoidType))
+                return new VoidableType(cases.First(c => c is not VoidType));
+            return new UnionType(cases);
+        }
+
         // voidable T — wraps any inner type
         if (tok.Type == TokenType.Voidable)
         {
@@ -387,6 +406,30 @@ public sealed class Parser
         {
             Advance();
             return MatrixType.Instance;
+        }
+        // catalogue [of (A or B)] as a type annotation — series of union type
+        if (tok.Type == TokenType.CatalogueKw)
+        {
+            Advance(); SkipNoise();
+            if (Peek().Type == TokenType.Of)
+            {
+                Advance(); SkipNoise();
+                return new SeriesType(ParseTypeAnnotation());
+            }
+            return new SeriesType(UnionType.Open);
+        }
+        // atlas from K to (A or B) as a type annotation — map from K to union type
+        if (tok.Type == TokenType.AtlasKw)
+        {
+            Advance(); SkipNoise();
+            if (Peek().Type == TokenType.From)
+            {
+                Advance(); SkipNoise();
+                var keyType = ParseTypeAnnotation(); SkipNoise();
+                Consume(TokenType.To); SkipNoise();
+                return new MapType(keyType, ParseTypeAnnotation());
+            }
+            return new MapType(CufetType.Text, UnionType.Open);
         }
         // Named type: object or interface name — resolved by TypeChecker.
         if (tok.Type == TokenType.Identifier)
@@ -1094,6 +1137,18 @@ public sealed class Parser
                 "you used '=' in a condition — in Cufet, conditions use 'is' (for example, 'If n is 0'). Did you mean 'is'?");
         if (Peek().Type != TokenType.Is) return left;
         var isLine = Consume(TokenType.Is).Line;
+        // BEFORE SkipNoise: detect type-test forms that use the Article as a discriminator.
+        if (Peek().Type == TokenType.Article) // "is a/an <type>"
+        {
+            Advance(); SkipNoise(); // consume the article
+            return new IsTypeCheck(left, ParseTypeAnnotation(), false, isLine);
+        }
+        if (Peek().Type == TokenType.Not && PeekAfterCurrent() == TokenType.Article) // "is not a/an <type>"
+        {
+            Advance(); // consume 'not'
+            Advance(); SkipNoise(); // consume the article
+            return new IsTypeCheck(left, ParseTypeAnnotation(), true, isLine);
+        }
         SkipNoise();
         return ParseWordComparison(left, isLine);
     }
@@ -1821,6 +1876,85 @@ public sealed class Parser
                 }
                 Consume(TokenType.RBrace);
                 baseExpr = new ObjectLiteral(typeName, positionals2, namedFields2, newLine);
+                break;
+            }
+            case TokenType.CatalogueKw:
+            {
+                // "a catalogue [of (A or B)] [with (...)]" — heterogeneous series
+                var catLine = Advance().Line; // consume 'catalogue'
+                SkipNoise();
+                CufetType? catAnnotation = null;
+                if (Peek().Type == TokenType.Of)
+                {
+                    Advance(); SkipNoise(); // consume 'of'
+                    catAnnotation = ParseTypeAnnotation();
+                    SkipNoise();
+                }
+                catAnnotation ??= UnionType.Open;
+                var catElems = new List<IExpression>();
+                if (Peek().Type == TokenType.With)
+                {
+                    Advance(); SkipNoise(); // consume 'with'
+                    Consume(TokenType.LParen); SkipNoise();
+                    if (Peek().Type != TokenType.RParen)
+                    {
+                        catElems.Add(ParseExpression()); SkipNoise();
+                        while (Peek().Type == TokenType.Comma)
+                        {
+                            Advance(); SkipNoise();
+                            catElems.Add(ParseExpression()); SkipNoise();
+                        }
+                    }
+                    Consume(TokenType.RParen);
+                }
+                baseExpr = new SeriesLiteral(catElems, catAnnotation, catLine);
+                break;
+            }
+            case TokenType.AtlasKw:
+            {
+                // "an atlas [from K to (A or B)] [with ("k" : v, ...)]" — heterogeneous map
+                var atlasLine = Advance().Line; // consume 'atlas'
+                SkipNoise();
+                CufetType atlasKeyType;
+                CufetType atlasValType;
+                if (Peek().Type == TokenType.From)
+                {
+                    Advance(); SkipNoise(); // consume 'from'
+                    atlasKeyType = ParseTypeAnnotation(); SkipNoise();
+                    Consume(TokenType.To); SkipNoise();
+                    atlasValType = ParseTypeAnnotation(); SkipNoise();
+                }
+                else
+                {
+                    // bare 'an atlas' — text keys, open value union
+                    atlasKeyType = CufetType.Text;
+                    atlasValType = UnionType.Open;
+                }
+                var atlasPairs = new List<(IExpression Key, IExpression Value)>();
+                if (Peek().Type == TokenType.With)
+                {
+                    Advance(); SkipNoise(); // consume 'with'
+                    Consume(TokenType.LParen); SkipNoise();
+                    if (Peek().Type != TokenType.RParen)
+                    {
+                        var k = ParseExpression(); SkipNoise();
+                        Consume(TokenType.Colon); SkipNoise();
+                        var v = ParseExpression();
+                        atlasPairs.Add((k, v));
+                        SkipNoise();
+                        while (Peek().Type == TokenType.Comma)
+                        {
+                            Advance(); SkipNoise();
+                            var k2 = ParseExpression(); SkipNoise();
+                            Consume(TokenType.Colon); SkipNoise();
+                            var v2 = ParseExpression();
+                            atlasPairs.Add((k2, v2));
+                            SkipNoise();
+                        }
+                    }
+                    Consume(TokenType.RParen);
+                }
+                baseExpr = new MapLiteral(atlasKeyType, atlasValType, atlasPairs, atlasLine);
                 break;
             }
             case TokenType.Map:
