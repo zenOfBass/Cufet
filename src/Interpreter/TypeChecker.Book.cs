@@ -1,3 +1,5 @@
+using Cufet.Lexer;
+
 namespace Cufet.Interpreter;
 
 public sealed partial class TypeChecker
@@ -128,6 +130,69 @@ public sealed partial class TypeChecker
                         $"put a {FormatType(t)} inside a matrix",
                         "All matrix elements must be numbers."));
             }
+        }
+
+        return MatrixType.Instance;
+    }
+
+    // Returns the constant value if expr is a numeric literal or unary-minus-of-literal; null otherwise.
+    private static decimal? TryGetLiteralDecimal(IExpression expr) => expr switch
+    {
+        NumberLiteral nl => nl.Value,
+        UnaryExpression { Op: TokenType.Minus, Operand: NumberLiteral nl } => -nl.Value,
+        _ => null,
+    };
+
+    private CufetType InferMatrixSized(MatrixSized ms)
+    {
+        if (!TryLookupScopedType("matrix", out _))
+            throw new TypeException(FormatTypeError(
+                "'matrix' is not available in this scope",
+                null, ms.Line,
+                "construct a matrix without pulling the 'collections' book first",
+                "Add 'Pull a book on collections.' before this line."));
+
+        var rowsType = InferType(ms.Rows);
+        if (rowsType != null && rowsType != CufetType.Number)
+            throw new TypeException(FormatTypeError(
+                $"matrix row count must be a number, but found a {FormatType(rowsType)}",
+                null, ms.Line,
+                $"use a {FormatType(rowsType)} as a matrix row count",
+                "Row and column counts must be numbers (e.g. 3, 4)."));
+
+        var rowLitVal = TryGetLiteralDecimal(ms.Rows);
+        if (rowLitVal.HasValue && (rowLitVal.Value != Math.Truncate(rowLitVal.Value) || rowLitVal.Value < 1))
+            throw new TypeException(FormatTypeError(
+                $"matrix dimensions must be positive whole numbers; got {rowLitVal.Value} for rows",
+                null, ms.Line,
+                $"use {rowLitVal.Value} as a matrix row count",
+                "Use a positive whole number like 1, 2, 3."));
+
+        var colsType = InferType(ms.Cols);
+        if (colsType != null && colsType != CufetType.Number)
+            throw new TypeException(FormatTypeError(
+                $"matrix column count must be a number, but found a {FormatType(colsType)}",
+                null, ms.Line,
+                $"use a {FormatType(colsType)} as a matrix column count",
+                "Row and column counts must be numbers (e.g. 3, 4)."));
+
+        var colLitVal = TryGetLiteralDecimal(ms.Cols);
+        if (colLitVal.HasValue && (colLitVal.Value != Math.Truncate(colLitVal.Value) || colLitVal.Value < 1))
+            throw new TypeException(FormatTypeError(
+                $"matrix dimensions must be positive whole numbers; got {colLitVal.Value} for columns",
+                null, ms.Line,
+                $"use {colLitVal.Value} as a matrix column count",
+                "Use a positive whole number like 1, 2, 3."));
+
+        if (ms.Fill != null)
+        {
+            var fillType = InferType(ms.Fill);
+            if (fillType != null && fillType != CufetType.Number)
+                throw new TypeException(FormatTypeError(
+                    $"matrix fill value must be a number, but found a {FormatType(fillType)}",
+                    null, ms.Line,
+                    $"use a {FormatType(fillType)} as a matrix fill value",
+                    "The fill value must be a number (e.g. 0, 1, -1.5)."));
         }
 
         return MatrixType.Instance;

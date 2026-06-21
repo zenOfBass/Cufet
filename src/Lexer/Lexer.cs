@@ -195,6 +195,7 @@ public sealed class Lexer
             "at"         => TokenType.At,
             "rows"       => TokenType.RowsKw,
             "columns"    => TokenType.ColumnsKw,
+            "filled"     => TokenType.FilledKw,
             _           => TokenType.Identifier,
         };
 

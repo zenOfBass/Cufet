@@ -40,6 +40,40 @@ public sealed partial class Interpreter
         return (object)mv.GetItem(row, col);
     }
 
+    private object EvaluateMatrixSized(MatrixSized ms)
+    {
+        var rowsVal = Evaluate(ms.Rows);
+        if (rowsVal is not decimal rowsD)
+            throw new RuntimeException($"Matrix row count must be a number on line {ms.Line}.");
+        if (rowsD != Math.Truncate(rowsD) || rowsD < 1)
+            throw new RuntimeException(
+                $"Matrix row count must be a positive whole number, but got {rowsD} (line {ms.Line}).");
+
+        var colsVal = Evaluate(ms.Cols);
+        if (colsVal is not decimal colsD)
+            throw new RuntimeException($"Matrix column count must be a number on line {ms.Line}.");
+        if (colsD != Math.Truncate(colsD) || colsD < 1)
+            throw new RuntimeException(
+                $"Matrix column count must be a positive whole number, but got {colsD} (line {ms.Line}).");
+
+        int rows = (int)rowsD;
+        int cols = (int)colsD;
+
+        decimal fill = 0m;
+        if (ms.Fill != null)
+        {
+            var fillVal = Evaluate(ms.Fill);
+            if (fillVal is not decimal fillD)
+                throw new RuntimeException($"Matrix fill value must be a number on line {ms.Line}.");
+            fill = fillD;
+        }
+
+        var data = new decimal[rows * cols];
+        if (fill != 0m)
+            Array.Fill(data, fill);
+        return (object)new MatrixValue(rows, cols, data);
+    }
+
     private object EvaluateMatrixRows(MatrixRows mr)
     {
         var target = Evaluate(mr.Target);

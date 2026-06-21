@@ -397,6 +397,11 @@ public sealed record MatrixAccess(
     int Line
 ) : IExpression;
 
+// a matrix with <Rows> by <Cols> [filled with <Fill>]
+// Sized constructor: Fill == null → all cells zero; requires 'collections' pulled.
+// Dimension expressions must evaluate to positive whole numbers.
+public sealed record MatrixSized(IExpression Rows, IExpression Cols, IExpression? Fill, int Line) : IExpression;
+
 // the rows of <matrix> — row count as number; access syntax (no pull needed).
 public sealed record MatrixRows(IExpression Target, int Line) : IExpression;
 

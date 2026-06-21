@@ -148,6 +148,7 @@ public enum TokenType
     At,        // "at"      — in "the item at (row, col) of <matrix>"
     RowsKw,    // "rows"    — in "the rows of <matrix>"; excluded from field-name access
     ColumnsKw, // "columns" — in "the columns of <matrix>"; excluded from field-name access
+    FilledKw,  // "filled"  — in "a matrix with <rows> by <columns> filled with <value>"
 
     // ── I/O ───────────────────────────────────────────────────────────────────
     Read,     // "read"   — starts a read expression; the form words (line/lines/all/input) are

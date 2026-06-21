@@ -685,6 +685,7 @@ public sealed partial class Interpreter
         FileReadExpression fr => EvaluateFileReadExpr(fr),
         RunExpression run     => EvaluateRunExpr(run),
         MatrixLiteral ml      => EvaluateMatrixLiteral(ml),
+        MatrixSized   mz      => EvaluateMatrixSized(mz),
         MatrixAccess  ma      => EvaluateMatrixAccess(ma),
         MatrixRows    mr      => EvaluateMatrixRows(mr),
         MatrixColumns mc      => EvaluateMatrixColumns(mc),

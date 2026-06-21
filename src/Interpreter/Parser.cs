@@ -1588,22 +1588,46 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.With);
                 SkipNoise();
-                Consume(TokenType.LParen);
-                SkipNoise();
-                var rows = new List<IReadOnlyList<IExpression>>();
-                if (Peek().Type != TokenType.RParen)
+                if (Peek().Type == TokenType.LParen)
                 {
-                    rows.Add(ParseMatrixRow());
+                    // Literal: a matrix with ((r1e1, r1e2), (r2e1, r2e2), ...)
+                    Consume(TokenType.LParen);
                     SkipNoise();
-                    while (Peek().Type == TokenType.Comma)
+                    var rows = new List<IReadOnlyList<IExpression>>();
+                    if (Peek().Type != TokenType.RParen)
                     {
-                        Advance(); SkipNoise();
                         rows.Add(ParseMatrixRow());
                         SkipNoise();
+                        while (Peek().Type == TokenType.Comma)
+                        {
+                            Advance(); SkipNoise();
+                            rows.Add(ParseMatrixRow());
+                            SkipNoise();
+                        }
                     }
+                    Consume(TokenType.RParen);
+                    baseExpr = new MatrixLiteral(rows, matrixLine);
                 }
-                Consume(TokenType.RParen);
-                baseExpr = new MatrixLiteral(rows, matrixLine);
+                else
+                {
+                    // Sized: a matrix with <rows> by <columns> [filled with <value>]
+                    var rowsExpr = ParseExpression();
+                    SkipNoise();
+                    Consume(TokenType.By);
+                    SkipNoise();
+                    var colsExpr = ParseExpression();
+                    SkipNoise();
+                    IExpression? fillExpr = null;
+                    if (Peek().Type == TokenType.FilledKw)
+                    {
+                        Advance(); // consume 'filled'
+                        SkipNoise();
+                        Consume(TokenType.With);
+                        SkipNoise();
+                        fillExpr = ParseExpression();
+                    }
+                    baseExpr = new MatrixSized(rowsExpr, colsExpr, fillExpr, matrixLine);
+                }
                 break;
             }
             case TokenType.NumberKw:

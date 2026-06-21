@@ -8649,4 +8649,169 @@ public class InterpreterTests
             "Define n as 42.\n" +
             "Define t as cast collections's transpose of (n)."));
     }
+
+    // ── Matrix — sized constructor ──────────────────────────────────────────────
+
+    [Fact]
+    public void Matrix_Sized_Zeros_Rows()
+    {
+        Assert.Equal("3", Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with 3 by 4.\n" +
+            "State the rows of g converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_Zeros_Cols()
+    {
+        Assert.Equal("4", Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with 3 by 4.\n" +
+            "State the columns of g converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_Zeros_CellIsZero()
+    {
+        Assert.Equal("0", Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with 2 by 3.\n" +
+            "State the item at (1, 1) of g converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_Zeros_AllCellsZero()
+    {
+        // Check last cell (2,3) is also zero
+        Assert.Equal("0", Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with 2 by 3.\n" +
+            "State the item at (2, 3) of g converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_Filled_Integer()
+    {
+        Assert.Equal("7", Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with 2 by 2 filled with 7.\n" +
+            "State the item at (1, 1) of g converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_Filled_AllCells()
+    {
+        // Check multiple cells are all filled
+        Assert.Equal("7", Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with 2 by 2 filled with 7.\n" +
+            "State the item at (2, 2) of g converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_Filled_Negative()
+    {
+        Assert.Equal("-1.5", Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with 2 by 2 filled with -1.5.\n" +
+            "State the item at (1, 2) of g converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_Filled_Zero()
+    {
+        // filled with 0 is valid (unconstrained fill value)
+        Assert.Equal("0", Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with 3 by 3 filled with 0.\n" +
+            "State the item at (2, 2) of g converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_1x1()
+    {
+        Assert.Equal("1", Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with 1 by 1.\n" +
+            "State the rows of g converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_ComputedDimensions()
+    {
+        Assert.Equal("2", Run(
+            "Pull a book on collections.\n" +
+            "Define r as 2.\n" +
+            "Define c as 3.\n" +
+            "Define g as a matrix with r by c.\n" +
+            "State the rows of g converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_NoPull_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define g as a matrix with 3 by 4."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_LiteralZeroDim_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with 0 by 4."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_LiteralNegativeDim_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with -1 by 3."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_LiteralFractionalDim_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with 2.5 by 4."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_FillTypeMismatch_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with 2 by 2 filled with \"oops\"."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_ComputedZeroDim_RuntimeException()
+    {
+        Assert.Throws<RuntimeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define r as 0.\n" +
+            "Define g as a matrix with r by 4."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_ComputedFractionalDim_RuntimeException()
+    {
+        Assert.Throws<RuntimeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define r as 2.5.\n" +
+            "Define g as a matrix with r by 4."));
+    }
+
+    [Fact]
+    public void Matrix_Sized_TransposeAfterSized()
+    {
+        // 2×3 transposed → 3×2; check column count of transposed = 2
+        Assert.Equal("2", Run(
+            "Pull a book on collections.\n" +
+            "Define g as a matrix with 2 by 3 filled with 1.\n" +
+            "Define t as cast collections's transpose of (g).\n" +
+            "State the columns of t converted to text."));
+    }
 }
