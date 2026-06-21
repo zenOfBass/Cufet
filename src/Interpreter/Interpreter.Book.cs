@@ -32,10 +32,22 @@ public sealed partial class Interpreter
 
         books["math"] = new BookValue("math", mathFunctions, mathConstants);
 
-        // collections book — introduces the matrix type; operation functions are a follow-on.
+        // collections book — introduces the matrix type + transpose operation.
+        var collectionsFunctions = new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["transpose"] = args =>
+            {
+                var mv = (MatrixValue)args[0];
+                var data = new decimal[mv.Rows * mv.Cols];
+                for (int r = 0; r < mv.Rows; r++)
+                    for (int c = 0; c < mv.Cols; c++)
+                        data[c * mv.Rows + r] = mv.GetItem(r + 1, c + 1);
+                return (object)new MatrixValue(mv.Cols, mv.Rows, data);
+            },
+        };
         books["collections"] = new BookValue(
             "collections",
-            new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase),
+            collectionsFunctions,
             new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase));
 
         return books;

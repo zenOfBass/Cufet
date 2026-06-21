@@ -193,6 +193,8 @@ public sealed class Lexer
             "book"       => TokenType.Book,
             "matrix"     => TokenType.Matrix,
             "at"         => TokenType.At,
+            "rows"       => TokenType.RowsKw,
+            "columns"    => TokenType.ColumnsKw,
             _           => TokenType.Identifier,
         };
 

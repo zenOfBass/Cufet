@@ -1854,6 +1854,26 @@ public sealed class Parser
                 baseExpr = new MapSize(ParseCorePrimary(), sizeLine);
                 break;
             }
+            case TokenType.RowsKw:
+            {
+                // "the rows of <matrix>" — row count as number; access, no pull needed
+                var rowsLine = Advance().Line; // consume 'rows'
+                SkipNoise();
+                Consume(TokenType.Of);
+                SkipNoise();
+                baseExpr = new MatrixRows(ParseCorePrimary(), rowsLine);
+                break;
+            }
+            case TokenType.ColumnsKw:
+            {
+                // "the columns of <matrix>" — column count as number; access, no pull needed
+                var colsLine = Advance().Line; // consume 'columns'
+                SkipNoise();
+                Consume(TokenType.Of);
+                SkipNoise();
+                baseExpr = new MatrixColumns(ParseCorePrimary(), colsLine);
+                break;
+            }
             case TokenType.FunctionKw:
             {
                 // "a function given (<params>): <body>" — anonymous lambda literal.
@@ -2182,7 +2202,7 @@ public sealed class Parser
         //              as named access, but with a trailing 'in Y' the access check doesn't see
         if (forAccess && tok.Type is TokenType.Ordinal or TokenType.NumberKw or TokenType.Start
                                    or TokenType.LengthKw or TokenType.Size or TokenType.Position
-                                   or TokenType.Stream)
+                                   or TokenType.Stream or TokenType.RowsKw or TokenType.ColumnsKw)
             return false;
         return true;
     }
@@ -2464,6 +2484,11 @@ public sealed class Parser
             Consume(TokenType.RParen);
             return new CastExpression(funcExpr, args, line);
         }
+
+        // 'cast collections's transpose of (m)' — the book-of loop inside ParsePostfix already
+        // built the full CastExpression; returning it without another wrapper is correct here.
+        if (funcExpr is CastExpression bookCall)
+            return bookCall;
 
         return new CastExpression(funcExpr, [], line);
     }

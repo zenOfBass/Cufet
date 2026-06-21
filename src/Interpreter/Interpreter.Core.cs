@@ -686,6 +686,8 @@ public sealed partial class Interpreter
         RunExpression run     => EvaluateRunExpr(run),
         MatrixLiteral ml      => EvaluateMatrixLiteral(ml),
         MatrixAccess  ma      => EvaluateMatrixAccess(ma),
+        MatrixRows    mr      => EvaluateMatrixRows(mr),
+        MatrixColumns mc      => EvaluateMatrixColumns(mc),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 

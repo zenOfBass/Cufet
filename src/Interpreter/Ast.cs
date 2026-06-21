@@ -397,6 +397,12 @@ public sealed record MatrixAccess(
     int Line
 ) : IExpression;
 
+// the rows of <matrix> — row count as number; access syntax (no pull needed).
+public sealed record MatrixRows(IExpression Target, int Line) : IExpression;
+
+// the columns of <matrix> — column count as number; access syntax (no pull needed).
+public sealed record MatrixColumns(IExpression Target, int Line) : IExpression;
+
 // Pull a book on <name>.                  — binds the book under <name>
 // Pull a book on <name> as [the] <local>. — binds the book under <local>
 // Books are singleton capability bags; Pull just introduces a scope-local alias.

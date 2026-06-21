@@ -144,8 +144,10 @@ public enum TokenType
     // ── Books (standard-library capability units) ─────────────────────────────
     Pull,   // "pull"   — in "Pull a book on <name> [as <local>]."
     Book,   // "book"   — in "Pull a book on <name>"
-    Matrix, // "matrix" — type introduced by the 'collections' book
-    At,     // "at"     — in "the item at (row, col) of <matrix>"
+    Matrix,    // "matrix"  — type introduced by the 'collections' book
+    At,        // "at"      — in "the item at (row, col) of <matrix>"
+    RowsKw,    // "rows"    — in "the rows of <matrix>"; excluded from field-name access
+    ColumnsKw, // "columns" — in "the columns of <matrix>"; excluded from field-name access
 
     // ── I/O ───────────────────────────────────────────────────────────────────
     Read,     // "read"   — starts a read expression; the form words (line/lines/all/input) are

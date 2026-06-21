@@ -39,4 +39,20 @@ public sealed partial class Interpreter
 
         return (object)mv.GetItem(row, col);
     }
+
+    private object EvaluateMatrixRows(MatrixRows mr)
+    {
+        var target = Evaluate(mr.Target);
+        if (target is not MatrixValue mv)
+            throw new RuntimeException($"'the rows of' expects a matrix on line {mr.Line}.");
+        return (object)(decimal)mv.Rows;
+    }
+
+    private object EvaluateMatrixColumns(MatrixColumns mc)
+    {
+        var target = Evaluate(mc.Target);
+        if (target is not MatrixValue mv)
+            throw new RuntimeException($"'the columns of' expects a matrix on line {mc.Line}.");
+        return (object)(decimal)mv.Cols;
+    }
 }

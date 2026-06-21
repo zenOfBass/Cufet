@@ -26,12 +26,16 @@ public sealed partial class TypeChecker
         };
         books["math"] = new BookType("math", mathMembers);
 
-        // collections book — introduces the matrix type; operation functions are a follow-on.
+        // collections book — introduces the matrix type + transpose operation.
         var collectionsTypes = new Dictionary<string, CufetType>(StringComparer.OrdinalIgnoreCase)
         {
             ["matrix"] = MatrixType.Instance,
         };
-        books["collections"] = new BookType("collections", [], collectionsTypes);
+        var collectionsMembers = new List<(string, CufetType)>
+        {
+            ("transpose", new FunctionType([MatrixType.Instance], MatrixType.Instance)),
+        };
+        books["collections"] = new BookType("collections", collectionsMembers, collectionsTypes);
 
         return books;
     }
@@ -127,6 +131,30 @@ public sealed partial class TypeChecker
         }
 
         return MatrixType.Instance;
+    }
+
+    private CufetType InferMatrixRows(MatrixRows mr)
+    {
+        var t = InferType(mr.Target);
+        if (t != null && t is not MatrixType)
+            throw new TypeException(FormatTypeError(
+                $"'the rows of' requires a matrix, but found a {FormatType(t)}",
+                null, mr.Line,
+                $"query the row count of a {FormatType(t)}",
+                "Use 'the rows of' with a matrix value."));
+        return CufetType.Number;
+    }
+
+    private CufetType InferMatrixColumns(MatrixColumns mc)
+    {
+        var t = InferType(mc.Target);
+        if (t != null && t is not MatrixType)
+            throw new TypeException(FormatTypeError(
+                $"'the columns of' requires a matrix, but found a {FormatType(t)}",
+                null, mc.Line,
+                $"query the column count of a {FormatType(t)}",
+                "Use 'the columns of' with a matrix value."));
+        return CufetType.Number;
     }
 
     private CufetType InferMatrixAccess(MatrixAccess ma)

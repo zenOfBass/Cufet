@@ -8487,4 +8487,166 @@ public class InterpreterTests
             "Define v as the item at (2, 2) of r.\n" +
             "State v converted to text."));
     }
+
+    // ── Matrix — dimension queries ────────────────────────────────────────────
+
+    [Fact]
+    public void Matrix_Rows_Square()
+    {
+        Assert.Equal("3", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6), (7, 8, 9)).\n" +
+            "State the rows of m converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Columns_Square()
+    {
+        Assert.Equal("3", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6), (7, 8, 9)).\n" +
+            "State the columns of m converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Rows_Rectangular()
+    {
+        // 2 rows × 3 cols
+        Assert.Equal("2", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
+            "State the rows of m converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Columns_Rectangular()
+    {
+        // 2 rows × 3 cols
+        Assert.Equal("3", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
+            "State the columns of m converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Rows_NoPullNeeded()
+    {
+        // 'the rows of' is access syntax — works on any matrix value; pull needed only to construct.
+        Assert.Equal("2", Run(
+            "Pull a book on collections.\n" +
+            "Bind number to get-rows, given (the matrix mat):\n" +
+            "    return the rows of mat.\n" +
+            "Done.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "State cast get-rows on (m) converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Columns_NoPullNeeded()
+    {
+        Assert.Equal("4", Run(
+            "Pull a book on collections.\n" +
+            "Bind number to get-cols, given (the matrix mat):\n" +
+            "    return the columns of mat.\n" +
+            "Done.\n" +
+            "Define m as a matrix with ((10, 20, 30, 40), (50, 60, 70, 80)).\n" +
+            "State cast get-cols on (m) converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Rows_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define n as 42.\n" +
+            "State the rows of n converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Columns_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define s as a series with (1, 2, 3).\n" +
+            "State the columns of s converted to text."));
+    }
+
+    // ── Matrix — transpose ────────────────────────────────────────────────────
+
+    [Fact]
+    public void Matrix_Transpose_Square()
+    {
+        // Transpose of ((1,2),(3,4)) → ((1,3),(2,4))
+        Assert.Equal("3", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "Define t as cast collections's transpose of (m).\n" +
+            "Define v as the item at (1, 2) of t.\n" +
+            "State v converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Transpose_Rectangular()
+    {
+        // Transpose of 2×3 → 3×2; element [2][1] of source becomes [1][2] of result
+        // Source ((1,2,3),(4,5,6)): [2][1] = 4 → result [1][2] = 4
+        Assert.Equal("4", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
+            "Define t as cast collections's transpose of (m).\n" +
+            "Define v as the item at (1, 2) of t.\n" +
+            "State v converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Transpose_DimensionsSwap()
+    {
+        // 2×3 transposed becomes 3×2
+        Assert.Equal("3", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
+            "Define t as cast collections's transpose of (m).\n" +
+            "State the rows of t converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Transpose_DimensionsSwap_Cols()
+    {
+        Assert.Equal("2", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
+            "Define t as cast collections's transpose of (m).\n" +
+            "State the columns of t converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Transpose_NonMutating()
+    {
+        // After transposing, the original matrix is unchanged: 2×3 stays 2 rows (not 3)
+        Assert.Equal("2", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
+            "Define t as cast collections's transpose of (m).\n" +
+            "State the rows of m converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Transpose_DoubleTranspose_Identity()
+    {
+        // Transposing twice returns the same values (not necessarily the same object)
+        Assert.Equal("6", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
+            "Define t as cast collections's transpose of (m).\n" +
+            "Define tt as cast collections's transpose of (t).\n" +
+            "Define v as the item at (2, 3) of tt.\n" +
+            "State v converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Transpose_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define n as 42.\n" +
+            "Define t as cast collections's transpose of (n)."));
+    }
 }

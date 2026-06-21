@@ -812,6 +812,8 @@ public sealed partial class TypeChecker
         RunExpression run                                                                                => InferRunExpr(run),
         MatrixLiteral ml                                                                                 => InferMatrixLiteral(ml),
         MatrixAccess  ma                                                                                 => InferMatrixAccess(ma),
+        MatrixRows    mr                                                                                 => InferMatrixRows(mr),
+        MatrixColumns mc                                                                                 => InferMatrixColumns(mc),
         _                                                                                                => null,
     };
 
