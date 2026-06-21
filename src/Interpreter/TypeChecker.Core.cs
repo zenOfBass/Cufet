@@ -247,7 +247,29 @@ public sealed class FailureType : CufetType
 public sealed class ExceptionMarkerType : CufetType
 {
     public override bool Equals(object? obj) => obj is ExceptionMarkerType;
+
     public override int GetHashCode() => typeof(ExceptionMarkerType).GetHashCode();
+}
+
+// book '<name>' — a bundled standard-library capability bag. Singleton; no state.
+// Members are either FunctionType (callable via 'of') or scalar types (constants read via 's).
+// Equality is by name only.
+public sealed class BookType : CufetType
+{
+    public string Name { get; }
+    public IReadOnlyList<(string MemberName, CufetType MemberType)> Members { get; }
+
+    public BookType(string name, IReadOnlyList<(string MemberName, CufetType MemberType)> members)
+    {
+        Name    = name;
+        Members = members;
+    }
+
+    public CufetType? FindMember(string memberName) =>
+        Members.FirstOrDefault(m => string.Equals(m.MemberName, memberName, StringComparison.OrdinalIgnoreCase)).MemberType;
+
+    public override bool Equals(object? obj) => obj is BookType b && b.Name == Name;
+    public override int GetHashCode() => HashCode.Combine(typeof(BookType), Name);
 }
 
 public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false);
@@ -551,6 +573,9 @@ public sealed partial class TypeChecker
                 break;
             case WithRabbitStatement wrs:
                 CheckWithRabbit(wrs);
+                break;
+            case PullStatement ps:
+                CheckPullStatement(ps);
                 break;
             case WriteToStreamStatement wts:
                 CheckWriteToStream(wts);
@@ -959,6 +984,7 @@ public sealed partial class TypeChecker
         FailureMarkerType                    => "failure",
         FailureType { Inner: var inner }     => $"{FormatType(inner)} or failure",
         ExceptionMarkerType                  => "exception",
+        BookType bt                          => $"book '{bt.Name}'",
         _                                    => "<unknown>",
     };
 
@@ -999,6 +1025,7 @@ public sealed partial class TypeChecker
         FailureMarkerType                    => "failures",
         FailureType { Inner: var inner }     => $"{FormatTypePlural(inner)} or failures",
         ExceptionMarkerType                  => "exceptions",
+        BookType bt                          => $"book '{bt.Name}' values",
         _                                    => "<unknown>",
     };
 

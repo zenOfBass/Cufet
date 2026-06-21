@@ -57,6 +57,7 @@ public sealed class Parser
             TokenType.With       => PeekAfterCurrent() == TokenType.Rabbit
                                      ? ParseWithRabbitStatement()
                                      : ParseWithOpenStatement(),
+            TokenType.Pull       => ParsePullStatement(),
             _ => throw new ParseException(tok, "statement keyword"),
         };
     }
@@ -974,6 +975,30 @@ public sealed class Parser
         return new WithRabbitStatement(name, body, line);
     }
 
+    // Pull a book on <name>.
+    // Pull a book on <name> as [the] <local>.
+    private PullStatement ParsePullStatement()
+    {
+        var line = Consume(TokenType.Pull).Line; // consume 'Pull'
+        SkipNoise();                             // eats 'a'
+        Consume(TokenType.Book);                 // consume 'book'
+        SkipNoise();
+        Consume(TokenType.On);                   // consume 'on'
+        SkipNoise();
+        var bookName = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+        string localName = bookName;
+        if (Peek().Type == TokenType.As)
+        {
+            Advance();   // consume 'as'
+            SkipNoise(); // eats optional 'the'
+            localName = Consume(TokenType.Identifier).Lexeme;
+            SkipNoise();
+        }
+        Consume(TokenType.Dot);
+        return new PullStatement(bookName, localName, line);
+    }
+
     // Condition grammar (conditional context — after If / Otherwise if):
     //   condition        → logical-or
     //   logical-or       → logical-and ( "or" logical-and )*
@@ -1800,14 +1825,64 @@ public sealed class Parser
                 throw new ParseException(tok, "expression");
         }
 
-        // Possessive postfix: alice's name, one's field, alice's friend's name
+        // Possessive postfix: alice's name, one's field, alice's friend's name, math's absolute value
         SkipNoise();
         while (Peek().Type == TokenType.Possessive)
         {
             var possTok = Advance(); // consume "'s"
+            // Multi-word member names for book members (e.g. "absolute value", "square root").
+            // Skip leading articles, then accumulate consecutive identifier tokens.
+            // Single-word members (object fields, methods) collect exactly one token.
+            // Non-identifier first token: consume it as-is (keyword-named field fallback).
+            while (Peek().Type == TokenType.Article) Advance();
+            var parts = new List<string>();
+            if (Peek().Type == TokenType.Identifier)
+            {
+                parts.Add(Advance().Lexeme);
+                while (Peek().Type == TokenType.Identifier)
+                    parts.Add(Advance().Lexeme);
+            }
+            else
+            {
+                parts.Add(Advance().Lexeme);
+            }
+            baseExpr = new PossessiveAccess(baseExpr, string.Join(" ", parts), possTok.Line);
             SkipNoise();
-            var memberTok = Advance(); // member name — any word token
-            baseExpr = new PossessiveAccess(baseExpr, memberTok.Lexeme, possTok.Line);
+        }
+
+        // Book-function call postfix: math's floor of x  →  CastExpression(PossessiveAccess(math, "floor"), [x])
+        // Only fires when the left side is a PossessiveAccess (no valid Cufet syntax has object-field 'of').
+        // Single-arg: ParsePrimary() so arithmetic operators bind to the result, not the argument.
+        //   math's log of x / math's log of 10  →  log(x) / log(10), not log(x / log(10))
+        // Multi-arg: 'of (<e1>, <e2>, ...)' uses ParseExpression() per arg.
+        while (baseExpr is PossessiveAccess && Peek().Type == TokenType.Of)
+        {
+            var ofLine = Advance().Line; // consume 'of'
+            SkipNoise();
+            List<IExpression> callArgs;
+            if (Peek().Type == TokenType.LParen)
+            {
+                Advance(); SkipNoise(); // consume '('
+                callArgs = [];
+                if (Peek().Type != TokenType.RParen)
+                {
+                    callArgs.Add(ParseExpression()); SkipNoise();
+                    while (Peek().Type == TokenType.Comma)
+                    {
+                        Advance(); SkipNoise();
+                        callArgs.Add(ParseExpression()); SkipNoise();
+                    }
+                }
+                Consume(TokenType.RParen);
+            }
+            else
+            {
+                // ParseUnary so negation works: math's floor of -3.7 → floor(-3.7).
+                // ParseUnary is one level below multiplication, so arithmetic precedence
+                // still binds outside: math's log of x / math's log of 10 → log(x) / log(10).
+                callArgs = [ParseUnary()];
+            }
+            baseExpr = new CastExpression(baseExpr, callArgs, ofLine);
             SkipNoise();
         }
 

@@ -102,6 +102,25 @@ public sealed partial class Interpreter
     // Caught by ExecuteTryStatement; never visible to users.
     private sealed class SuppressSignal : Exception { }
 
+    // Runtime representation of a book value — a named collection of native functions and constants.
+    // Stateless singleton; Pull binds the pre-existing instance into the current scope.
+    private sealed class BookValue
+    {
+        public string Name { get; }
+        public IReadOnlyDictionary<string, Func<object[], object?>> Functions { get; }
+        public IReadOnlyDictionary<string, object> Constants { get; }
+
+        public BookValue(
+            string name,
+            IReadOnlyDictionary<string, Func<object[], object?>> functions,
+            IReadOnlyDictionary<string, object> constants)
+        {
+            Name      = name;
+            Functions = functions;
+            Constants = constants;
+        }
+    }
+
     // The singleton runtime representation of the void value (the absent case of any voidable T).
     // Distinct from C# null, which means "this function returned nothing" in the call machinery.
     private sealed class VoidValue
@@ -472,6 +491,10 @@ public sealed partial class Interpreter
 
             case WithRabbitStatement wrs:
                 ExecuteWithRabbit(wrs);
+                break;
+
+            case PullStatement ps:
+                ExecutePullStatement(ps);
                 break;
 
             case WriteToStreamStatement wts:

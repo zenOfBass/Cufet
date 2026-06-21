@@ -141,6 +141,10 @@ public enum TokenType
     // ── Rabbits (block-scoped memory regions) ────────────────────────────────
     Rabbit,   // "rabbit" — in "With a rabbit <name>: ... Done." and "given (the rabbit <name>)"
 
+    // ── Books (standard-library capability units) ─────────────────────────────
+    Pull, // "pull"  — in "Pull a book on <name> [as <local>]."
+    Book, // "book"  — in "Pull a book on <name>"
+
     // ── I/O ───────────────────────────────────────────────────────────────────
     Read,     // "read"   — starts a read expression; the form words (line/lines/all/input) are
               //            parsed as contextual identifiers (lexeme-checked), not reserved keywords

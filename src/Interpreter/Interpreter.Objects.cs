@@ -100,6 +100,14 @@ public sealed partial class Interpreter
     private object EvaluatePossessiveAccess(PossessiveAccess pa)
     {
         var target = Evaluate(pa.Target);
+        if (target is BookValue bv)
+        {
+            if (bv.Constants.TryGetValue(pa.Member, out var constVal)) return constVal;
+            if (bv.Functions.ContainsKey(pa.Member))
+                throw new RuntimeException(
+                    $"Book function '{bv.Name}'.'{pa.Member}' must be called with 'of' (line {pa.Line}).");
+            throw new RuntimeException($"Book '{bv.Name}' has no member '{pa.Member}' (line {pa.Line}).");
+        }
         if (target is not ObjectValue ov)
             throw new RuntimeException(
                 $"You're trying to access '{pa.Member}' on something that isn't an object (line {pa.Line}).");

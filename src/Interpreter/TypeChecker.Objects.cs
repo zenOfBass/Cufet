@@ -334,12 +334,15 @@ public sealed partial class TypeChecker
             return new FunctionType(ifaceSig.ParamTypes, ifaceSig.ReturnType);
         }
 
+        if (targetType is BookType bt)
+            return InferBookPossessiveAccess(poss, bt);
+
         if (targetType is not ObjectType ot)
             throw new TypeException(FormatTypeError(
                 $"possessive access ('s) requires an object, but got a {FormatType(targetType)}",
                 null, poss.Line,
                 $"use 's on a {FormatType(targetType)}",
-                "Only objects support the possessive 's syntax."));
+                "Only objects and books support the possessive 's syntax."));
 
         // Methods take priority over fields; both search includes promoted (embed chain).
         var methodSig = FindMethodInOtOrPromoted(ot, poss.Member);

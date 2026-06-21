@@ -8080,4 +8080,210 @@ public class InterpreterTests
             "Define entries as a series of records like (the fact active).\n" +
             "State entries sorted by the active."));
     }
+
+    // ── Books / Math ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Math_Pull_BindsUnderBookName()
+    {
+        Assert.Equal("3", Run(
+            "Pull a book on math.\n" +
+            "State math's floor of 3.7."));
+    }
+
+    [Fact]
+    public void Math_Pull_BindsUnderLocalName()
+    {
+        Assert.Equal("3", Run(
+            "Pull a book on math as the m.\n" +
+            "State m's floor of 3.7."));
+    }
+
+    [Fact]
+    public void Math_Floor()
+    {
+        Assert.Equal("3", Run(
+            "Pull a book on math.\n" +
+            "State math's floor of 3.99."));
+    }
+
+    [Fact]
+    public void Math_Floor_Negative()
+    {
+        Assert.Equal("-4", Run(
+            "Pull a book on math.\n" +
+            "State math's floor of -3.1."));
+    }
+
+    [Fact]
+    public void Math_Ceiling()
+    {
+        Assert.Equal("4", Run(
+            "Pull a book on math.\n" +
+            "State math's ceiling of 3.01."));
+    }
+
+    [Fact]
+    public void Math_Ceiling_Negative()
+    {
+        Assert.Equal("-3", Run(
+            "Pull a book on math.\n" +
+            "State math's ceiling of -3.9."));
+    }
+
+    [Fact]
+    public void Math_Round_AwayFromZero_HalfUp()
+    {
+        Assert.Equal("3", Run(
+            "Pull a book on math.\n" +
+            "State math's round of 2.5."));
+    }
+
+    [Fact]
+    public void Math_Round_AwayFromZero_NegativeHalf()
+    {
+        Assert.Equal("-3", Run(
+            "Pull a book on math.\n" +
+            "State math's round of -2.5."));
+    }
+
+    [Fact]
+    public void Math_AbsoluteValue_Positive()
+    {
+        Assert.Equal("5", Run(
+            "Pull a book on math.\n" +
+            "State math's absolute value of 5."));
+    }
+
+    [Fact]
+    public void Math_AbsoluteValue_Negative()
+    {
+        Assert.Equal("7", Run(
+            "Pull a book on math.\n" +
+            "State math's absolute value of -7."));
+    }
+
+    [Fact]
+    public void Math_SquareRoot()
+    {
+        Assert.Equal("3", Run(
+            "Pull a book on math.\n" +
+            "Define r as math's square root of 9.\n" +
+            "State (r but void is 0) converted to text."));
+    }
+
+    [Fact]
+    public void Math_SquareRoot_Negative_IsVoid()
+    {
+        Assert.Equal("void", Run(
+            "Pull a book on math.\n" +
+            "Define r as math's square root of -1.\n" +
+            "If r is void, state \"void\". Otherwise, state \"not void\"."));
+    }
+
+    [Fact]
+    public void Math_Log_Natural()
+    {
+        // log(1) = 0 exactly; unwrap the voidable and check
+        Assert.Equal("0", Run(
+            "Pull a book on math.\n" +
+            "State (math's log of 1 but void is -1) converted to text."));
+    }
+
+    [Fact]
+    public void Math_Log_Zero_IsVoid()
+    {
+        Assert.Equal("void", Run(
+            "Pull a book on math.\n" +
+            "Define r as math's log of 0.\n" +
+            "If r is void, state \"void\". Otherwise, state \"not void\"."));
+    }
+
+    [Fact]
+    public void Math_Log_Negative_IsVoid()
+    {
+        Assert.Equal("void", Run(
+            "Pull a book on math.\n" +
+            "Define r as math's log of -5.\n" +
+            "If r is void, state \"void\". Otherwise, state \"not void\"."));
+    }
+
+    [Fact]
+    public void Math_Power()
+    {
+        Assert.Equal("8", Run(
+            "Pull a book on math.\n" +
+            "Define r as math's power of (2, 3).\n" +
+            "State (r but void is 0) converted to text."));
+    }
+
+    [Fact]
+    public void Math_Power_NegativeBase_FractionalExp_IsVoid()
+    {
+        Assert.Equal("void", Run(
+            "Pull a book on math.\n" +
+            "Define r as math's power of (-1, 0.5).\n" +
+            "If r is void, state \"void\". Otherwise, state \"not void\"."));
+    }
+
+    [Fact]
+    public void Math_Pi_Constant()
+    {
+        Assert.Equal("yes", Run(
+            "Pull a book on math.\n" +
+            "If math's pi is greater than 3.14, state \"yes\". Otherwise, state \"no\"."));
+    }
+
+    [Fact]
+    public void Math_E_Constant()
+    {
+        Assert.Equal("yes", Run(
+            "Pull a book on math.\n" +
+            "If math's e is greater than 2.71, state \"yes\". Otherwise, state \"no\"."));
+    }
+
+    [Fact]
+    public void Math_ChainedCalls()
+    {
+        // floor(sqrt(9)) = floor(3) = 3
+        Assert.Equal("3", Run(
+            "Pull a book on math.\n" +
+            "Define r as math's square root of 9.\n" +
+            "State (math's floor of (r but void is 0)) converted to text."));
+    }
+
+    [Fact]
+    public void Math_ArithmeticOnResult()
+    {
+        // log(e) / log(10) ≈ 0.434; the division binds outside the book call
+        Assert.Equal("yes", Run(
+            "Pull a book on math.\n" +
+            "Define num as math's log of math's e.\n" +
+            "Define den as math's log of 10.\n" +
+            "Define ratio as (num but void is 0) / (den but void is 1).\n" +
+            "If ratio is greater than 0.43, state \"yes\". Otherwise, state \"no\"."));
+    }
+
+    [Fact]
+    public void Math_TypeError_UnknownBook()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on physics."));
+    }
+
+    [Fact]
+    public void Math_TypeError_UnknownMember()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on math.\n" +
+            "State math's cosine of 0."));
+    }
+
+    [Fact]
+    public void Math_TypeError_WrongArgType()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on math.\n" +
+            "State math's floor of \"hello\"."));
+    }
 }

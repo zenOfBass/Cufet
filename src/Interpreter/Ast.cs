@@ -380,4 +380,13 @@ public sealed record WithRabbitStatement(
     int Line
 ) : IStatement;
 
+// Pull a book on <name>.                  — binds the book under <name>
+// Pull a book on <name> as [the] <local>. — binds the book under <local>
+// Books are singleton capability bags; Pull just introduces a scope-local alias.
+public sealed record PullStatement(
+    string BookName,   // the canonical name of the book (e.g. "math")
+    string LocalName,  // the scope-binding name (default = BookName)
+    int Line
+) : IStatement;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

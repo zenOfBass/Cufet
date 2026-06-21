@@ -100,6 +100,9 @@ public sealed partial class Interpreter
 
     private object? DispatchMethod(string methodName, object receiver, IReadOnlyList<IExpression> args, int line)
     {
+        if (receiver is BookValue bv)
+            return DispatchBookFunction(bv, methodName, args, line);
+
         if (receiver is ObjectValue ov)
         {
             // Walk own object first, then embedded chain.
