@@ -381,6 +381,13 @@ public sealed class Parser
             Advance();
             return RabbitType.Instance;
         }
+        if (tok.Type == TokenType.Matrix ||
+            (tok.Type == TokenType.Identifier &&
+             tok.Lexeme.Equals("matrices", StringComparison.OrdinalIgnoreCase)))
+        {
+            Advance();
+            return MatrixType.Instance;
+        }
         // Named type: object or interface name — resolved by TypeChecker.
         if (tok.Type == TokenType.Identifier)
         {
@@ -1017,6 +1024,27 @@ public sealed class Parser
     //   at the start of a condition it's prefix negation via ParseCondNot.
     // Symbol comparisons (= < > <= >=) are expression context only.
 
+    // Parses a single matrix row: "(<expr>, <expr>, ...)" — at least one element.
+    private IReadOnlyList<IExpression> ParseMatrixRow()
+    {
+        Consume(TokenType.LParen);
+        SkipNoise();
+        var elems = new List<IExpression>();
+        if (Peek().Type != TokenType.RParen)
+        {
+            elems.Add(ParseExpression());
+            SkipNoise();
+            while (Peek().Type == TokenType.Comma)
+            {
+                Advance(); SkipNoise();
+                elems.Add(ParseExpression());
+                SkipNoise();
+            }
+        }
+        Consume(TokenType.RParen);
+        return elems;
+    }
+
     private IExpression ParseCondition() => ParseLogicalOr();
 
     private IExpression ParseLogicalOr()
@@ -1422,12 +1450,53 @@ public sealed class Parser
             {
                 var itemTok = Advance();
                 SkipNoise();
-                var idx = ParseExpression();
+                if (Peek().Type == TokenType.At)
+                {
+                    // Matrix indexing: "item at (row, col) of <matrix>"
+                    Advance(); SkipNoise();              // consume 'at'
+                    Consume(TokenType.LParen); SkipNoise();
+                    var row = ParseExpression(); SkipNoise();
+                    Consume(TokenType.Comma); SkipNoise();
+                    var col = ParseExpression(); SkipNoise();
+                    Consume(TokenType.RParen); SkipNoise();
+                    Consume(TokenType.Of); SkipNoise();
+                    var matTarget = ParsePrimary();
+                    baseExpr = new MatrixAccess(matTarget, row, col, itemTok.Line);
+                }
+                else
+                {
+                    // Series indexing: "item <N> of <series>"
+                    var idx = ParseExpression();
+                    SkipNoise();
+                    Consume(TokenType.Of);
+                    SkipNoise();
+                    var target = ParsePrimary();
+                    baseExpr = new SeriesAccess(target, idx, itemTok.Line);
+                }
+                break;
+            }
+            case TokenType.Matrix:
+            {
+                var matrixLine = Advance().Line; // consume 'matrix'
                 SkipNoise();
-                Consume(TokenType.Of);
+                Consume(TokenType.With);
                 SkipNoise();
-                var target = ParsePrimary();
-                baseExpr = new SeriesAccess(target, idx, itemTok.Line);
+                Consume(TokenType.LParen);
+                SkipNoise();
+                var rows = new List<IReadOnlyList<IExpression>>();
+                if (Peek().Type != TokenType.RParen)
+                {
+                    rows.Add(ParseMatrixRow());
+                    SkipNoise();
+                    while (Peek().Type == TokenType.Comma)
+                    {
+                        Advance(); SkipNoise();
+                        rows.Add(ParseMatrixRow());
+                        SkipNoise();
+                    }
+                }
+                Consume(TokenType.RParen);
+                baseExpr = new MatrixLiteral(rows, matrixLine);
                 break;
             }
             case TokenType.NumberKw:

@@ -8286,4 +8286,190 @@ public class InterpreterTests
             "Pull a book on math.\n" +
             "State math's floor of \"hello\"."));
     }
+
+    // ── Books / Collections — Matrix ────────────────────────────────────────────
+
+    [Fact]
+    public void Matrix_Pull_BindsCollections()
+    {
+        // Pulling collections should succeed and bind under the book name.
+        Assert.Equal("", Run(
+            "Pull a book on collections."));
+    }
+
+    [Fact]
+    public void Matrix_Pull_BindsUnderLocalName()
+    {
+        Assert.Equal("", Run(
+            "Pull a book on collections as col."));
+    }
+
+    [Fact]
+    public void Matrix_Literal_2x2()
+    {
+        // A 2×2 identity matrix — just check it constructs without error.
+        Assert.Equal("", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 0), (0, 1))."));
+    }
+
+    [Fact]
+    public void Matrix_Literal_3x3()
+    {
+        Assert.Equal("", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6), (7, 8, 9))."));
+    }
+
+    [Fact]
+    public void Matrix_Access_TopLeft()
+    {
+        Assert.Equal("1", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "State the item at (1, 1) of m converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Access_BottomRight()
+    {
+        Assert.Equal("4", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "State the item at (2, 2) of m converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Access_MiddleElement()
+    {
+        Assert.Equal("5", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6), (7, 8, 9)).\n" +
+            "State the item at (2, 2) of m converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Access_ArithmeticOnResult()
+    {
+        // item * 2
+        Assert.Equal("6", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
+            "State (the item at (1, 3) of m) * 2 converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Access_VariableIndex()
+    {
+        Assert.Equal("8", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6), (7, 8, 9)).\n" +
+            "Define r as 3.\n" +
+            "Define c as 2.\n" +
+            "State the item at (r, c) of m converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_Literal_Negative_Elements()
+    {
+        Assert.Equal("-5", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((-1, -2), (-3, -5)).\n" +
+            "State the item at (2, 2) of m converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_InSeries()
+    {
+        // A series of matrices — just checks the type system doesn't choke.
+        Assert.Equal("3", Run(
+            "Pull a book on collections.\n" +
+            "Define a as a matrix with ((1, 2), (3, 4)).\n" +
+            "Define b as a matrix with ((5, 6), (7, 8)).\n" +
+            "Define s as a series with (a, b).\n" +
+            "State the item at (1, 2) of first of s converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_TypeError_NoCollections()
+    {
+        // matrix without pulling collections → TypeException
+        Assert.Throws<TypeException>(() => Run(
+            "Define m as a matrix with ((1, 2), (3, 4))."));
+    }
+
+    [Fact]
+    public void Matrix_TypeError_RaggedRows()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4, 5))."));
+    }
+
+    [Fact]
+    public void Matrix_TypeError_NonNumberElement()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, \"hello\"), (3, 4))."));
+    }
+
+    [Fact]
+    public void Matrix_RuntimeError_RowOutOfBounds()
+    {
+        Assert.Throws<RuntimeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "State the item at (3, 1) of m converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_RuntimeError_ColOutOfBounds()
+    {
+        Assert.Throws<RuntimeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "State the item at (1, 5) of m converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_TypeAnnotation_Parameter()
+    {
+        // matrix as a function parameter type — type travels with the value
+        Assert.Equal("9", Run(
+            "Pull a book on collections.\n" +
+            "Bind number to get-center, given (the matrix m):\n" +
+            "    return the item at (2, 2) of m.\n" +
+            "Done.\n" +
+            "Define grid as a matrix with ((1, 2, 3), (4, 5, 6), (7, 8, 9)).\n" +
+            "State cast get-center on (grid) converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_TypeAnnotation_ReturnType()
+    {
+        Assert.Equal("1", Run(
+            "Pull a book on collections.\n" +
+            "Bind matrix to make-identity, given ():\n" +
+            "    return a matrix with ((1, 0), (0, 1)).\n" +
+            "Done.\n" +
+            "Define result as cast make-identity.\n" +
+            "State the item at (1, 1) of result converted to text."));
+    }
+
+    [Fact]
+    public void Matrix_ValueTravels_ThroughFunctionWithoutPull()
+    {
+        // The caller pulls collections; the pass-through function does NOT pull it
+        // but still receives and returns the matrix value (M2 invariant).
+        Assert.Equal("7", Run(
+            "Pull a book on collections.\n" +
+            "Bind matrix to identity, given (the matrix m):\n" +
+            "    Pull a book on collections.\n" +
+            "    return m.\n" +
+            "Done.\n" +
+            "Define g as a matrix with ((1, 2), (3, 7)).\n" +
+            "Define r as cast identity on (g).\n" +
+            "State the item at (2, 2) of r converted to text."));
+    }
 }

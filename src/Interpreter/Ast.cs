@@ -380,6 +380,23 @@ public sealed record WithRabbitStatement(
     int Line
 ) : IStatement;
 
+// a matrix with ((r1e1, r1e2, ...), (r2e1, r2e2, ...), ...)
+// 2D numeric grid; dimensions inferred from literal; rectangularity enforced.
+// Constructable only where the 'collections' book has been pulled.
+public sealed record MatrixLiteral(
+    IReadOnlyList<IReadOnlyList<IExpression>> Rows,
+    int Line
+) : IExpression;
+
+// the item at (row, column) of <matrix> — 1-based; number result.
+// Out-of-bounds mirrors series indexing (RuntimeException).
+public sealed record MatrixAccess(
+    IExpression Matrix,
+    IExpression Row,
+    IExpression Column,
+    int Line
+) : IExpression;
+
 // Pull a book on <name>.                  — binds the book under <name>
 // Pull a book on <name> as [the] <local>. — binds the book under <local>
 // Books are singleton capability bags; Pull just introduces a scope-local alias.

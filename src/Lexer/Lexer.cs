@@ -191,6 +191,8 @@ public sealed class Lexer
             "rabbit"     => TokenType.Rabbit,
             "pull"       => TokenType.Pull,
             "book"       => TokenType.Book,
+            "matrix"     => TokenType.Matrix,
+            "at"         => TokenType.At,
             _           => TokenType.Identifier,
         };
 

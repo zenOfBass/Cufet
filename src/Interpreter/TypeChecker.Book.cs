@@ -26,6 +26,13 @@ public sealed partial class TypeChecker
         };
         books["math"] = new BookType("math", mathMembers);
 
+        // collections book — introduces the matrix type; operation functions are a follow-on.
+        var collectionsTypes = new Dictionary<string, CufetType>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["matrix"] = MatrixType.Instance,
+        };
+        books["collections"] = new BookType("collections", [], collectionsTypes);
+
         return books;
     }
 
@@ -49,6 +56,10 @@ public sealed partial class TypeChecker
                 "Choose a different local name."));
 
         Scope[ps.LocalName] = new TypeInfo(bookType, new VariableReference(ps.LocalName, ps.Line), ps.Line);
+
+        // Register any types the book introduces into the current type scope.
+        foreach (var (typeName, typeObj) in bookType.IntroducedTypes)
+            RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
     }
 
     private CufetType InferBookPossessiveAccess(PossessiveAccess poss, BookType bt)
@@ -62,5 +73,88 @@ public sealed partial class TypeChecker
             null, poss.Line,
             $"access '{poss.Member}' from book '{bt.Name}'",
             available.Length > 0 ? $"Available: {available}." : $"Book '{bt.Name}' has no members."));
+    }
+
+    // ── Matrix type inference ─────────────────────────────────────────────────
+
+    private CufetType InferMatrixLiteral(MatrixLiteral lit)
+    {
+        if (!TryLookupScopedType("matrix", out _))
+            throw new TypeException(FormatTypeError(
+                "'matrix' is not available in this scope",
+                null, lit.Line,
+                "construct a matrix without pulling the 'collections' book first",
+                "Add 'Pull a book on collections.' before this line."));
+
+        if (lit.Rows.Count == 0)
+            throw new TypeException(FormatTypeError(
+                "a matrix must have at least one row",
+                null, lit.Line,
+                "create a matrix with no rows",
+                "Provide at least one row: 'a matrix with ((1, 2), (3, 4))'."));
+
+        int cols = lit.Rows[0].Count;
+        if (cols == 0)
+            throw new TypeException(FormatTypeError(
+                "each matrix row must have at least one element",
+                null, lit.Line,
+                "create a matrix row with no elements",
+                "Provide at least one number in each row."));
+
+        for (int i = 1; i < lit.Rows.Count; i++)
+        {
+            if (lit.Rows[i].Count != cols)
+                throw new TypeException(FormatTypeError(
+                    $"matrix rows must be equal length; row {i + 1} has {lit.Rows[i].Count} element(s), expected {cols}",
+                    $"Row 1 has {cols} element(s)",
+                    lit.Line,
+                    "create a matrix with unequal row lengths",
+                    "Make all rows the same length to form a rectangle."));
+        }
+
+        foreach (var row in lit.Rows)
+        {
+            foreach (var elem in row)
+            {
+                var t = InferType(elem);
+                if (t != null && t != CufetType.Number)
+                    throw new TypeException(FormatTypeError(
+                        $"matrix elements must be numbers, but found a {FormatType(t)}",
+                        null, lit.Line,
+                        $"put a {FormatType(t)} inside a matrix",
+                        "All matrix elements must be numbers."));
+            }
+        }
+
+        return MatrixType.Instance;
+    }
+
+    private CufetType InferMatrixAccess(MatrixAccess ma)
+    {
+        var matType = InferType(ma.Matrix);
+        if (matType != null && matType is not MatrixType)
+            throw new TypeException(FormatTypeError(
+                $"'the item at (row, column) of' requires a matrix, but found a {FormatType(matType)}",
+                null, ma.Line,
+                $"index a {FormatType(matType)} with matrix indexing syntax",
+                "Use 'the item at (row, column) of' with a matrix value."));
+
+        var rowType = InferType(ma.Row);
+        if (rowType != null && rowType != CufetType.Number)
+            throw new TypeException(FormatTypeError(
+                $"matrix row index must be a number, but found a {FormatType(rowType)}",
+                null, ma.Line,
+                $"use a {FormatType(rowType)} as a matrix row index",
+                "Row and column indices must be numbers (e.g. 1, 2, 3)."));
+
+        var colType = InferType(ma.Column);
+        if (colType != null && colType != CufetType.Number)
+            throw new TypeException(FormatTypeError(
+                $"matrix column index must be a number, but found a {FormatType(colType)}",
+                null, ma.Line,
+                $"use a {FormatType(colType)} as a matrix column index",
+                "Row and column indices must be numbers (e.g. 1, 2, 3)."));
+
+        return CufetType.Number;
     }
 }

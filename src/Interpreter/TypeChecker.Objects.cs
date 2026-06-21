@@ -202,7 +202,7 @@ public sealed partial class TypeChecker
         var saved = SaveScopes();
 
         // Method scope: functions visible, plus 'one' (self) + parameters.
-        foreach (var scope in saved)
+        foreach (var scope in saved.V)
             foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
         Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine);
         foreach (var (type, name) in method.Parameters)

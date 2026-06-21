@@ -254,15 +254,21 @@ public sealed class ExceptionMarkerType : CufetType
 // book '<name>' — a bundled standard-library capability bag. Singleton; no state.
 // Members are either FunctionType (callable via 'of') or scalar types (constants read via 's).
 // Equality is by name only.
+// IntroducedTypes: type names this book registers into the pulling scope (e.g. "matrix" → MatrixType).
 public sealed class BookType : CufetType
 {
     public string Name { get; }
     public IReadOnlyList<(string MemberName, CufetType MemberType)> Members { get; }
+    public IReadOnlyDictionary<string, CufetType> IntroducedTypes { get; }
 
-    public BookType(string name, IReadOnlyList<(string MemberName, CufetType MemberType)> members)
+    public BookType(string name,
+        IReadOnlyList<(string MemberName, CufetType MemberType)> members,
+        IReadOnlyDictionary<string, CufetType>? introducedTypes = null)
     {
-        Name    = name;
-        Members = members;
+        Name           = name;
+        Members        = members;
+        IntroducedTypes = introducedTypes
+            ?? new Dictionary<string, CufetType>(StringComparer.OrdinalIgnoreCase);
     }
 
     public CufetType? FindMember(string memberName) =>
@@ -270,6 +276,16 @@ public sealed class BookType : CufetType
 
     public override bool Equals(object? obj) => obj is BookType b && b.Name == Name;
     public override int GetHashCode() => HashCode.Combine(typeof(BookType), Name);
+}
+
+// matrix — a 2D numeric grid introduced by the 'collections' book.
+// Reference-typed (always). Scope-local nameable/constructable (requires pulling 'collections').
+// Values travel freely once created. Singleton type identity (all matrices share one type).
+public sealed class MatrixType : CufetType
+{
+    public static readonly MatrixType Instance = new();
+    public override bool Equals(object? obj) => obj is MatrixType;
+    public override int GetHashCode() => typeof(MatrixType).GetHashCode();
 }
 
 public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false);
@@ -285,6 +301,9 @@ public sealed partial class TypeChecker
     // Every Done.-bounded block (if/while/for/try) pushes a scope on entry and pops on exit.
     // Function bodies replace the whole chain (see CheckBind/CheckMethodBody).
     private readonly List<Dictionary<string, TypeInfo>>      _scopes        = [new()];
+    // Parallel type-name scope chain — book-introduced types (e.g. "matrix") registered here
+    // when a type-introducing book is pulled. Same push/pop pattern as _scopes.
+    private readonly List<Dictionary<string, CufetType>>     _typeScopes    = [new()];
     private readonly Dictionary<string, ObjectType>          _objectDefs    = new();
     private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new();
     // Active narrowings: variable name → narrowed type (set inside checked branches).
@@ -312,24 +331,52 @@ public sealed partial class TypeChecker
         return false;
     }
 
-    private void EnterScope() => _scopes.Add(new Dictionary<string, TypeInfo>());
-    private void ExitScope()  => _scopes.RemoveAt(_scopes.Count - 1);
-
-    // Save the scope chain and replace it with a fresh single scope (for function isolation).
-    // Returns the saved chain for later restoration via RestoreScopes.
-    private List<Dictionary<string, TypeInfo>> SaveScopes()
+    private void EnterScope()
     {
-        var saved = _scopes.ToList();
+        _scopes.Add(new Dictionary<string, TypeInfo>());
+        _typeScopes.Add(new Dictionary<string, CufetType>());
+    }
+
+    private void ExitScope()
+    {
+        _scopes.RemoveAt(_scopes.Count - 1);
+        _typeScopes.RemoveAt(_typeScopes.Count - 1);
+    }
+
+    // Save both scope chains and replace them with fresh single scopes (for function isolation).
+    // V = value scopes, T = type scopes. Call sites iterate V to re-import outer bindings.
+    private (List<Dictionary<string, TypeInfo>> V, List<Dictionary<string, CufetType>> T) SaveScopes()
+    {
+        var savedV = _scopes.ToList();
+        var savedT = _typeScopes.ToList();
         _scopes.Clear();
+        _typeScopes.Clear();
         _scopes.Add(new Dictionary<string, TypeInfo> { ["input"] = BuiltinInput });
-        return saved;
+        _typeScopes.Add(new Dictionary<string, CufetType>());
+        return (savedV, savedT);
     }
 
-    private void RestoreScopes(List<Dictionary<string, TypeInfo>> saved)
+    private void RestoreScopes(
+        (List<Dictionary<string, TypeInfo>> V, List<Dictionary<string, CufetType>> T) saved)
     {
         _scopes.Clear();
-        foreach (var s in saved) _scopes.Add(s);
+        _typeScopes.Clear();
+        foreach (var s in saved.V) _scopes.Add(s);
+        foreach (var t in saved.T) _typeScopes.Add(t);
     }
+
+    // Walk type scope chain innermost-first; returns true when typeName is registered.
+    private bool TryLookupScopedType(string typeName, out CufetType type)
+    {
+        for (int i = _typeScopes.Count - 1; i >= 0; i--)
+            if (_typeScopes[i].TryGetValue(typeName, out type!)) return true;
+        type = null!;
+        return false;
+    }
+
+    // Register a book-introduced type into the current (innermost) type scope.
+    private void RegisterScopedType(string typeName, CufetType type) =>
+        _typeScopes[^1][typeName] = type;
 
     // Return context — set when entering a Bind or method body.
     private bool       _inFunction              = false;
@@ -763,6 +810,8 @@ public sealed partial class TypeChecker
         ReadExpression re                                                                                 => InferReadExpr(re),
         FileReadExpression fre                                                                           => InferFileReadExpr(fre),
         RunExpression run                                                                                => InferRunExpr(run),
+        MatrixLiteral ml                                                                                 => InferMatrixLiteral(ml),
+        MatrixAccess  ma                                                                                 => InferMatrixAccess(ma),
         _                                                                                                => null,
     };
 
@@ -985,6 +1034,7 @@ public sealed partial class TypeChecker
         FailureType { Inner: var inner }     => $"{FormatType(inner)} or failure",
         ExceptionMarkerType                  => "exception",
         BookType bt                          => $"book '{bt.Name}'",
+        MatrixType                           => "matrix",
         _                                    => "<unknown>",
     };
 
@@ -1026,6 +1076,7 @@ public sealed partial class TypeChecker
         FailureType { Inner: var inner }     => $"{FormatTypePlural(inner)} or failures",
         ExceptionMarkerType                  => "exceptions",
         BookType bt                          => $"book '{bt.Name}' values",
+        MatrixType                           => "matrices",
         _                                    => "<unknown>",
     };
 

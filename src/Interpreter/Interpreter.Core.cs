@@ -121,6 +121,24 @@ public sealed partial class Interpreter
         }
     }
 
+    // Runtime representation of a matrix value — a 2D numeric grid, reference-typed.
+    // Stores data row-major. Indexing is 1-based (row 1 is _data[0..Cols-1]).
+    private sealed class MatrixValue
+    {
+        public int Rows { get; }
+        public int Cols { get; }
+        private readonly decimal[] _data;
+
+        public MatrixValue(int rows, int cols, decimal[] data)
+        {
+            Rows  = rows;
+            Cols  = cols;
+            _data = data;
+        }
+
+        public decimal GetItem(int row, int col) => _data[(row - 1) * Cols + (col - 1)];
+    }
+
     // The singleton runtime representation of the void value (the absent case of any voidable T).
     // Distinct from C# null, which means "this function returned nothing" in the call machinery.
     private sealed class VoidValue
@@ -666,6 +684,8 @@ public sealed partial class Interpreter
         ReadExpression re     => EvaluateReadExpr(re),
         FileReadExpression fr => EvaluateFileReadExpr(fr),
         RunExpression run     => EvaluateRunExpr(run),
+        MatrixLiteral ml      => EvaluateMatrixLiteral(ml),
+        MatrixAccess  ma      => EvaluateMatrixAccess(ma),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 

@@ -9,13 +9,13 @@ public sealed partial class TypeChecker
         if (isNested)
         {
             // Nested function body sees the full enclosing scope so captured variables type-check.
-            foreach (var scope in saved)
+            foreach (var scope in saved.V)
                 foreach (var (k, v) in scope) Scope[k] = v;
         }
         else
         {
             // Top-level function body: only function signatures visible — no caller/global locals.
-            foreach (var scope in saved)
+            foreach (var scope in saved.V)
                 foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
         }
         foreach (var (type, name) in bind.Parameters)
@@ -60,10 +60,10 @@ public sealed partial class TypeChecker
         var saved     = SaveScopes();
         bool isNested = _inFunction;
         if (isNested)
-            foreach (var scope in saved)
+            foreach (var scope in saved.V)
                 foreach (var (k, v) in scope) Scope[k] = v;
         else
-            foreach (var scope in saved)
+            foreach (var scope in saved.V)
                 foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
         foreach (var (type, name) in lambda.Parameters)
             Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), lambda.Line);

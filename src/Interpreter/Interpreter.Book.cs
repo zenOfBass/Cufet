@@ -31,6 +31,13 @@ public sealed partial class Interpreter
         };
 
         books["math"] = new BookValue("math", mathFunctions, mathConstants);
+
+        // collections book — introduces the matrix type; operation functions are a follow-on.
+        books["collections"] = new BookValue(
+            "collections",
+            new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase));
+
         return books;
     }
 
