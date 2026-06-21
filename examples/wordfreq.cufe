@@ -1,6 +1,6 @@
 Define path as "examples/sample.txt".
 
-With a rabbit herd:
+With a rabbit den:
     Define counts as a new map from text to number.
 
     With the file path open for reading as src:
