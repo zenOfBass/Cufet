@@ -7984,7 +7984,7 @@ public class InterpreterTests
     {
         Assert.Equal("42", Run(
             "Define s as a series with (42).\n" +
-            "State the first of s sorted."));
+            "State the first of (s sorted)."));
     }
 
     [Fact]

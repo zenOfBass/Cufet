@@ -726,7 +726,7 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Of);
         SkipNoise();
-        var record = ParsePrimary();
+        var record = ParsePostfix();
         SkipNoise();
         Consume(TokenType.Becomes);
         SkipNoise();
@@ -858,7 +858,7 @@ public sealed class Parser
     {
         var line = Consume(TokenType.In).Line;
         SkipNoise();
-        var mapExpr = ParsePrimary();
+        var mapExpr = ParsePostfix();
         SkipNoise();
         Consume(TokenType.Comma);
         SkipNoise(); // eats 'the' article
@@ -1350,10 +1350,117 @@ public sealed class Parser
             var line = Advance().Line;
             return new UnaryExpression(TokenType.Minus, ParseUnary(), line);
         }
-        return ParsePrimary();
+        return ParsePostfix();
     }
 
-    private IExpression ParsePrimary()
+    // Wraps ParseCorePrimary with the postfix operators ('converted to text/number', 'trimmed',
+    // 'sorted', 'in uppercase/lowercase'). All callers inside ParseCorePrimary's own switch
+    // use ParseCorePrimary() directly so a recursive target (e.g. 'm' in 'the item at (r,c) of m')
+    // does not accidentally consume postfixes that belong to the containing expression.
+    private IExpression ParsePostfix()
+    {
+        var baseExpr = ParseCorePrimary();
+
+        // 'converted to text' / 'converted to number' postfix — binds tighter than 'joined to'
+        // (parsed here at primary level).
+        // Handles: score converted to text, car's year converted to text, (x+1) converted to text,
+        // "95" converted to number.
+        while (Peek().Type == TokenType.Converted)
+        {
+            var line = Advance().Line; // consume 'converted'
+            SkipNoise();
+            Consume(TokenType.To);
+            SkipNoise();
+            var targetTok = Peek();
+            if (targetTok.Type == TokenType.NumberKw)
+            {
+                Advance(); // consume 'number'
+                baseExpr = new NumberConvert(baseExpr, line);
+            }
+            else if (targetTok.Type == TokenType.Identifier &&
+                     targetTok.Lexeme.Equals("text", StringComparison.OrdinalIgnoreCase))
+            {
+                Advance(); // consume 'text'
+                baseExpr = new TextConvert(baseExpr, line);
+            }
+            else
+            {
+                throw new ParseException(targetTok, "text or number — expected after 'converted to'");
+            }
+            SkipNoise();
+        }
+
+        // 'trimmed' / 'in uppercase' / 'in lowercase' postfix — same tier as 'converted to
+        // text', chains naturally (e.g. '"  hi  " trimmed in uppercase').
+        // 'in' is ALSO used to lead a sub-expression that an enclosing construct will consume
+        // itself (e.g. 'the entry for <key> in <map>', 'the position of <substring> in <text>'
+        // both parse their first operand via the full expression chain, which bottoms out here
+        // before the outer construct's own 'Consume(TokenType.In)' runs). Without a lookahead,
+        // this loop would greedily swallow that 'in' and then fail expecting 'uppercase'/
+        // 'lowercase'. The fix: only treat 'in' as the case-operator when the token immediately
+        // after it is actually 'uppercase' or 'lowercase' — checked via the unguarded
+        // PeekAfterCurrent(), so a bare 'in <map-or-text-expr>' is left untouched for the
+        // enclosing construct to consume.
+        while (Peek().Type == TokenType.Trimmed ||
+               Peek().Type == TokenType.Sorted ||
+               (Peek().Type == TokenType.In && PeekAfterCurrent() is TokenType.Uppercase or TokenType.Lowercase))
+        {
+            if (Peek().Type == TokenType.Sorted)
+            {
+                var line = Advance().Line; // consume 'sorted'
+                SkipNoise();
+                string? byField = null;
+                if (Peek().Type == TokenType.By)
+                {
+                    Advance(); // consume 'by'
+                    SkipNoise(); // eats optional 'the' article before field name
+                    byField = Consume(TokenType.Identifier).Lexeme;
+                    SkipNoise();
+                }
+                bool reverse = false;
+                if (Peek().Type == TokenType.In && PeekAfterCurrent() == TokenType.Reverse)
+                {
+                    Advance(); // consume 'in'
+                    SkipNoise();
+                    Advance(); // consume 'reverse'
+                    reverse = true;
+                    SkipNoise();
+                }
+                baseExpr = new SortExpression(baseExpr, byField, reverse, line);
+            }
+            else if (Peek().Type == TokenType.Trimmed)
+            {
+                var line = Advance().Line; // consume 'trimmed'
+                baseExpr = new TextTrim(baseExpr, line);
+            }
+            else
+            {
+                var line = Advance().Line; // consume 'in'
+                SkipNoise();
+                bool toUpper = Peek().Type == TokenType.Uppercase;
+                Advance(); // consume 'uppercase'/'lowercase'
+                baseExpr = new TextCase(baseExpr, toUpper, line);
+            }
+            SkipNoise();
+        }
+
+        return baseExpr;
+    }
+
+    // Handles only unary minus then calls ParseCorePrimary — no postfix operators applied.
+    // Used for the book-'of' single-arg so math's floor of x converted to text correctly
+    // produces TextConvert(floor(x)) rather than floor(TextConvert(x)).
+    private IExpression ParseNegation()
+    {
+        if (Peek().Type == TokenType.Minus)
+        {
+            var line = Advance().Line;
+            return new UnaryExpression(TokenType.Minus, ParseCorePrimary(), line);
+        }
+        return ParseCorePrimary();
+    }
+
+    private IExpression ParseCorePrimary()
     {
         // 'the <name> of <expr>' → named record field access.
         // Checked BEFORE SkipNoise so we can still see the leading 'the'.
@@ -1369,7 +1476,7 @@ public sealed class Parser
             SkipNoise();
             Advance(); // consume 'of'
             SkipNoise();
-            return new RecordNamedAccess(identTok.Lexeme, ParsePrimary(), identTok.Line);
+            return new RecordNamedAccess(identTok.Lexeme, ParseCorePrimary(), identTok.Line);
         }
 
         SkipNoise(); // articles are noise before any value
@@ -1431,7 +1538,7 @@ public sealed class Parser
                     SkipNoise();
                     Consume(TokenType.Of);
                     SkipNoise();
-                    var textTarget = ParsePrimary();
+                    var textTarget = ParseCorePrimary();
                     bool fromStart = ordTok.Lexeme.Equals("first", StringComparison.OrdinalIgnoreCase);
                     baseExpr = new TextSubstringEdge(textTarget, count, fromStart, ordTok.Line);
                     break;
@@ -1442,7 +1549,7 @@ public sealed class Parser
                 var index = OrdinalToIndex(ordTok.Lexeme);
                 Consume(TokenType.Of);
                 SkipNoise();
-                var target = ParsePrimary();
+                var target = ParseCorePrimary();
                 baseExpr = new SeriesAccess(target, index, ordTok.Line);
                 break;
             }
@@ -1460,7 +1567,7 @@ public sealed class Parser
                     var col = ParseExpression(); SkipNoise();
                     Consume(TokenType.RParen); SkipNoise();
                     Consume(TokenType.Of); SkipNoise();
-                    var matTarget = ParsePrimary();
+                    var matTarget = ParseCorePrimary();
                     baseExpr = new MatrixAccess(matTarget, row, col, itemTok.Line);
                 }
                 else
@@ -1470,7 +1577,7 @@ public sealed class Parser
                     SkipNoise();
                     Consume(TokenType.Of);
                     SkipNoise();
-                    var target = ParsePrimary();
+                    var target = ParseCorePrimary();
                     baseExpr = new SeriesAccess(target, idx, itemTok.Line);
                 }
                 break;
@@ -1515,7 +1622,7 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.Of);
                 SkipNoise();
-                baseExpr = new TextLength(ParsePrimary(), line);
+                baseExpr = new TextLength(ParseCorePrimary(), line);
                 break;
             }
             case TokenType.Position:
@@ -1529,7 +1636,7 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.In);
                 SkipNoise();
-                baseExpr = new TextFind(substringExpr, ParsePrimary(), posLine);
+                baseExpr = new TextFind(substringExpr, ParseCorePrimary(), posLine);
                 break;
             }
             case TokenType.Characters:
@@ -1565,7 +1672,7 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.Of);
                 SkipNoise();
-                var textTarget = ParsePrimary();
+                var textTarget = ParseCorePrimary();
                 baseExpr = new TextSubstringRange(textTarget, fromExpr, toExpr, charsLine);
                 break;
             }
@@ -1582,7 +1689,7 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.In);
                 SkipNoise();
-                baseExpr = new TextReplace(ParsePrimary(), oldExpr, newExpr, replaceLine);
+                baseExpr = new TextReplace(ParseCorePrimary(), oldExpr, newExpr, replaceLine);
                 break;
             }
             case TokenType.Range:
@@ -1734,7 +1841,7 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.In);
                 SkipNoise();
-                baseExpr = new MapLookup(ParsePrimary(), keyExpr, entryLine);
+                baseExpr = new MapLookup(ParseCorePrimary(), keyExpr, entryLine);
                 break;
             }
             case TokenType.Size:
@@ -1744,7 +1851,7 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.Of);
                 SkipNoise();
-                baseExpr = new MapSize(ParsePrimary(), sizeLine);
+                baseExpr = new MapSize(ParseCorePrimary(), sizeLine);
                 break;
             }
             case TokenType.FunctionKw:
@@ -1946,95 +2053,14 @@ public sealed class Parser
             }
             else
             {
-                // ParseUnary so negation works: math's floor of -3.7 → floor(-3.7).
-                // ParseUnary is one level below multiplication, so arithmetic precedence
-                // still binds outside: math's log of x / math's log of 10 → log(x) / log(10).
-                callArgs = [ParseUnary()];
+                // ParseNegation so negation works (math's floor of -3.7 → floor(-3.7)) but
+                // postfix operators like 'converted to text' are NOT consumed here — they
+                // belong to the outer expression: math's floor of x converted to text →
+                // TextConvert(floor(x)), not floor(TextConvert(x)).
+                // Arithmetic still binds outside: math's log of x / math's log of 10 → log(x)/log(10).
+                callArgs = [ParseNegation()];
             }
             baseExpr = new CastExpression(baseExpr, callArgs, ofLine);
-            SkipNoise();
-        }
-
-        // 'converted to text' / 'converted to number' postfix — binds tighter than 'joined to'
-        // (parsed here at primary level).
-        // Handles: score converted to text, car's year converted to text, (x+1) converted to text,
-        // "95" converted to number.
-        while (Peek().Type == TokenType.Converted)
-        {
-            var line = Advance().Line; // consume 'converted'
-            SkipNoise();
-            Consume(TokenType.To);
-            SkipNoise();
-            var targetTok = Peek();
-            if (targetTok.Type == TokenType.NumberKw)
-            {
-                Advance(); // consume 'number'
-                baseExpr = new NumberConvert(baseExpr, line);
-            }
-            else if (targetTok.Type == TokenType.Identifier &&
-                     targetTok.Lexeme.Equals("text", StringComparison.OrdinalIgnoreCase))
-            {
-                Advance(); // consume 'text'
-                baseExpr = new TextConvert(baseExpr, line);
-            }
-            else
-            {
-                throw new ParseException(targetTok, "text or number — expected after 'converted to'");
-            }
-            SkipNoise();
-        }
-
-        // 'trimmed' / 'in uppercase' / 'in lowercase' postfix — same tier as 'converted to
-        // text', chains naturally (e.g. '"  hi  " trimmed in uppercase').
-        // 'in' is ALSO used to lead a sub-expression that an enclosing construct will consume
-        // itself (e.g. 'the entry for <key> in <map>', 'the position of <substring> in <text>'
-        // both parse their first operand via the full expression chain, which bottoms out here
-        // before the outer construct's own 'Consume(TokenType.In)' runs). Without a lookahead,
-        // this loop would greedily swallow that 'in' and then fail expecting 'uppercase'/
-        // 'lowercase'. The fix: only treat 'in' as the case-operator when the token immediately
-        // after it is actually 'uppercase' or 'lowercase' — checked via the unguarded
-        // PeekAfterCurrent(), so a bare 'in <map-or-text-expr>' is left untouched for the
-        // enclosing construct to consume.
-        while (Peek().Type == TokenType.Trimmed ||
-               Peek().Type == TokenType.Sorted ||
-               (Peek().Type == TokenType.In && PeekAfterCurrent() is TokenType.Uppercase or TokenType.Lowercase))
-        {
-            if (Peek().Type == TokenType.Sorted)
-            {
-                var line = Advance().Line; // consume 'sorted'
-                SkipNoise();
-                string? byField = null;
-                if (Peek().Type == TokenType.By)
-                {
-                    Advance(); // consume 'by'
-                    SkipNoise(); // eats optional 'the' article before field name
-                    byField = Consume(TokenType.Identifier).Lexeme;
-                    SkipNoise();
-                }
-                bool reverse = false;
-                if (Peek().Type == TokenType.In && PeekAfterCurrent() == TokenType.Reverse)
-                {
-                    Advance(); // consume 'in'
-                    SkipNoise();
-                    Advance(); // consume 'reverse'
-                    reverse = true;
-                    SkipNoise();
-                }
-                baseExpr = new SortExpression(baseExpr, byField, reverse, line);
-            }
-            else if (Peek().Type == TokenType.Trimmed)
-            {
-                var line = Advance().Line; // consume 'trimmed'
-                baseExpr = new TextTrim(baseExpr, line);
-            }
-            else
-            {
-                var line = Advance().Line; // consume 'in'
-                SkipNoise();
-                bool toUpper = Peek().Type == TokenType.Uppercase;
-                Advance(); // consume 'uppercase'/'lowercase'
-                baseExpr = new TextCase(baseExpr, toUpper, line);
-            }
             SkipNoise();
         }
 
@@ -2401,7 +2427,7 @@ public sealed class Parser
     private IExpression ParseCastExpression()
     {
         var line = Consume(TokenType.Cast).Line;
-        var funcExpr = ParsePrimary(); // handles leading articles and possessive postfix
+        var funcExpr = ParsePostfix(); // handles leading articles and possessive postfix
         SkipNoise();
 
         if (Peek().Type == TokenType.On)
@@ -2415,7 +2441,7 @@ public sealed class Parser
                 if (funcExpr is not VariableReference)
                     throw new ParseException(line,
                         "identifier — method name must be a plain identifier in 'Cast method on receiver'");
-                var receiver = ParsePrimary();
+                var receiver = ParsePostfix();
                 return new CastExpression(funcExpr, new IExpression[] { receiver }, line);
             }
 
