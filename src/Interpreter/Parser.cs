@@ -1852,9 +1852,33 @@ public sealed class Parser
         // PeekAfterCurrent(), so a bare 'in <map-or-text-expr>' is left untouched for the
         // enclosing construct to consume.
         while (Peek().Type == TokenType.Trimmed ||
+               Peek().Type == TokenType.Sorted ||
                (Peek().Type == TokenType.In && PeekAfterCurrent() is TokenType.Uppercase or TokenType.Lowercase))
         {
-            if (Peek().Type == TokenType.Trimmed)
+            if (Peek().Type == TokenType.Sorted)
+            {
+                var line = Advance().Line; // consume 'sorted'
+                SkipNoise();
+                string? byField = null;
+                if (Peek().Type == TokenType.By)
+                {
+                    Advance(); // consume 'by'
+                    SkipNoise(); // eats optional 'the' article before field name
+                    byField = Consume(TokenType.Identifier).Lexeme;
+                    SkipNoise();
+                }
+                bool reverse = false;
+                if (Peek().Type == TokenType.In && PeekAfterCurrent() == TokenType.Reverse)
+                {
+                    Advance(); // consume 'in'
+                    SkipNoise();
+                    Advance(); // consume 'reverse'
+                    reverse = true;
+                    SkipNoise();
+                }
+                baseExpr = new SortExpression(baseExpr, byField, reverse, line);
+            }
+            else if (Peek().Type == TokenType.Trimmed)
             {
                 var line = Advance().Line; // consume 'trimmed'
                 baseExpr = new TextTrim(baseExpr, line);

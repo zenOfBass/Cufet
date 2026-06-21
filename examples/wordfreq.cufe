@@ -17,10 +17,18 @@ With a rabbit herd:
         Done.
     Done.
 
-    State "Word frequencies:".
+    Define entries as a series of records like (the text word, the number count).
     For each pair in counts, repeat:
         Define k as the key of pair.
         Define v as the value of pair.
-        State "{k}: {v}".
+        Add a record with (the word k, the count v) to entries.
+    Done.
+
+    Define top as entries sorted by the count in reverse.
+    State "Word frequencies (most common first):".
+    For each e in top, repeat:
+        Define w as the word of e.
+        Define c as the count of e.
+        State "{w}: {c}".
     Done.
 Done.

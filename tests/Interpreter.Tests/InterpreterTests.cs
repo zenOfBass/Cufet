@@ -7897,4 +7897,187 @@ public class InterpreterTests
             "    Return \"unreachable\".\n" +
             "Done."));
     }
+
+    // ── Sort ──────────────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Sort_NumbersAscending()
+    {
+        Assert.Equal("1\n2\n3\n4\n5", Run(
+            "Define nums as a series with (3, 1, 4, 2, 5).\n" +
+            "Define sorted-nums as nums sorted.\n" +
+            "For each n in sorted-nums, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Sort_NumbersDescending()
+    {
+        Assert.Equal("5\n4\n3\n2\n1", Run(
+            "Define nums as a series with (3, 1, 4, 2, 5).\n" +
+            "Define result as nums sorted in reverse.\n" +
+            "For each n in result, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Sort_TextAlphabetical()
+    {
+        Assert.Equal("apple\nbanana\ncherry", Run(
+            "Define words as a series with (\"banana\", \"apple\", \"cherry\").\n" +
+            "Define sorted-words as words sorted.\n" +
+            "For each w in sorted-words, repeat:\n" +
+            "    State w.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Sort_TextReverseAlphabetical()
+    {
+        Assert.Equal("cherry\nbanana\napple", Run(
+            "Define words as a series with (\"banana\", \"apple\", \"cherry\").\n" +
+            "Define result as words sorted in reverse.\n" +
+            "For each w in result, repeat:\n" +
+            "    State w.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Sort_IsNonMutating()
+    {
+        // 'sorted' returns a new series; the original is unchanged.
+        Assert.Equal("3\n1\n2\n---\n1\n2\n3", Run(
+            "Define nums as a series with (3, 1, 2).\n" +
+            "Define sorted-nums as nums sorted.\n" +
+            "For each n in nums, repeat:\n" +
+            "    State n.\n" +
+            "Done.\n" +
+            "State \"---\".\n" +
+            "For each n in sorted-nums, repeat:\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Sort_IsStable()
+    {
+        // Equal elements retain original relative order. Verify count is preserved.
+        Assert.Equal("4", Run(
+            "Define nums as a series with (3, 1, 2, 1).\n" +
+            "Define result as nums sorted.\n" +
+            "State the number of result."));
+    }
+
+    [Fact]
+    public void Sort_EmptySeries()
+    {
+        Assert.Equal("0", Run(
+            "Define empty as a series of numbers with ().\n" +
+            "Define result as empty sorted.\n" +
+            "State the number of result."));
+    }
+
+    [Fact]
+    public void Sort_SingleElement()
+    {
+        Assert.Equal("42", Run(
+            "Define s as a series with (42).\n" +
+            "State the first of s sorted."));
+    }
+
+    [Fact]
+    public void Sort_ByField_Ascending()
+    {
+        Assert.Equal("1\n2\n3", Run(
+            "Define entries as a series of records like (the number score).\n" +
+            "Add a record with (the score 3) to entries.\n" +
+            "Add a record with (the score 1) to entries.\n" +
+            "Add a record with (the score 2) to entries.\n" +
+            "Define ranked as entries sorted by the score.\n" +
+            "For each e in ranked, repeat:\n" +
+            "    State the score of e.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Sort_ByField_Descending()
+    {
+        Assert.Equal("3\n2\n1", Run(
+            "Define entries as a series of records like (the number score).\n" +
+            "Add a record with (the score 1) to entries.\n" +
+            "Add a record with (the score 3) to entries.\n" +
+            "Add a record with (the score 2) to entries.\n" +
+            "Define ranked as entries sorted by the score in reverse.\n" +
+            "For each e in ranked, repeat:\n" +
+            "    State the score of e.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Sort_ByField_Text()
+    {
+        Assert.Equal("alice\nbob\ncarol", Run(
+            "Define people as a series of records like (the text name).\n" +
+            "Add a record with (the name \"carol\") to people.\n" +
+            "Add a record with (the name \"alice\") to people.\n" +
+            "Add a record with (the name \"bob\") to people.\n" +
+            "Define sorted-people as people sorted by the name.\n" +
+            "For each p in sorted-people, repeat:\n" +
+            "    State the name of p.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Sort_InWordFreqDemo()
+    {
+        // Reproduces the word-freq pattern: counts in a map, extract to series, sort descending.
+        Assert.Equal("fox: 3\nthe: 2\ncat: 1", Run(
+            "Define counts as a map with (\"the\" : 2, \"fox\" : 3, \"cat\" : 1).\n" +
+            "Define entries as a series of records like (the text word, the number count).\n" +
+            "For each pair in counts, repeat:\n" +
+            "    Define k as the key of pair.\n" +
+            "    Define v as the value of pair.\n" +
+            "    Add a record with (the word k, the count v) to entries.\n" +
+            "Done.\n" +
+            "Define top as entries sorted by the count in reverse.\n" +
+            "For each e in top, repeat:\n" +
+            "    Define w as the word of e.\n" +
+            "    Define c as the count of e.\n" +
+            "    State \"{w}: {c}\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Sort_TypeError_NonSeries()
+    {
+        Assert.Throws<TypeException>(() => Run("Define m as a map with (\"a\" : 1). State m sorted."));
+    }
+
+    [Fact]
+    public void Sort_TypeError_NoNaturalOrder()
+    {
+        // Sorting a series of records without 'by' → educational error pointing at 'by'.
+        Assert.Throws<TypeException>(() => Run(
+            "Define entries as a series of records like (the number score).\n" +
+            "State entries sorted."));
+    }
+
+    [Fact]
+    public void Sort_TypeError_UnknownField()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define entries as a series of records like (the number score).\n" +
+            "State entries sorted by the missing."));
+    }
+
+    [Fact]
+    public void Sort_TypeError_NonOrderableField()
+    {
+        // Sorting by a fact field → static error (facts have no natural order).
+        Assert.Throws<TypeException>(() => Run(
+            "Define entries as a series of records like (the fact active).\n" +
+            "State entries sorted by the active."));
+    }
 }

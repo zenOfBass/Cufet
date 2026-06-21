@@ -627,6 +627,7 @@ public sealed partial class Interpreter
         TextReplace      replace => EvaluateTextReplace(replace),
         TextCase         tcase   => EvaluateTextCase(tcase),
         TextTrim         trim    => EvaluateTextTrim(trim),
+        SortExpression   sort    => EvaluateSort(sort),
         RangeExpression re  => EvaluateRangeExpr(re),
         VoidLiteral        _  => VoidValue.Instance,
         FailureLiteral fl     => EvaluateFailureLiteral(fl),

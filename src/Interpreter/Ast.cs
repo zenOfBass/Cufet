@@ -218,6 +218,20 @@ public sealed record TextCase(IExpression Text, bool Uppercase, int Line) : IExp
 // <text> trimmed — strips standard whitespace from both ends
 public sealed record TextTrim(IExpression Text, int Line) : IExpression;
 
+// ── Sort ──────────────────────────────────────────────────────────────────────
+
+// <series> sorted                       — natural ascending order
+// <series> sorted in reverse            — natural descending order
+// <series> sorted by <field>            — ascending by named field (records/objects)
+// <series> sorted by <field> in reverse — descending by named field
+// Returns a new series (non-mutating). Delegates to host stable sort.
+public sealed record SortExpression(
+    IExpression Series,
+    string?     ByField,  // null = natural order; non-null = sort by this named field
+    bool        Reverse,
+    int         Line
+) : IExpression;
+
 // ── Range (Slice 1 + Slice 2: stepping) ────────────────────────────────────────
 
 // range <start> to <end> [counting by <step>] — materializes an inclusive series of number;

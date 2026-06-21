@@ -723,6 +723,7 @@ public sealed partial class TypeChecker
         TextReplace replace                                                                              => InferTextReplace(replace),
         TextCase tcase                                                                                   => InferTextCase(tcase),
         TextTrim trim                                                                                    => InferTextTrim(trim),
+        SortExpression sort                                                                              => InferSort(sort),
         RangeExpression re                                                                               => InferRangeExpr(re),
         ButVoidDefault bvd                                                                               => InferButVoidDefault(bvd),
         FailureLiteral fl                                                                                => InferFailureLiteral(fl),

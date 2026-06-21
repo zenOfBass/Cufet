@@ -113,10 +113,14 @@ public enum TokenType
     Lowercase,  // "lowercase"  — in "<text> in lowercase"
     Trimmed,    // "trimmed"    — in "<text> trimmed"
 
+    // ── Sort ──────────────────────────────────────────────────────────────────
+    Sorted,  // "sorted"  — in "<series> sorted", "<series> sorted in reverse", "<series> sorted by <field>"
+    Reverse, // "reverse" — in "sorted in reverse"
+
     // ── Range ─────────────────────────────────────────────────────────────────
     Range,     // "range"     — in "range <start> to <end>"; To already exists
     Counting,  // "counting"  — in "range <start> to <end> counting by <step>"
-    By,        // "by"        — in "counting by <step>"
+    By,        // "by"        — in "counting by <step>" and "sorted by <field>"
 
     // ── Voidable ──────────────────────────────────────────────────────────────
     Voidable,  // "voidable"  — in "a voidable number" type annotation
