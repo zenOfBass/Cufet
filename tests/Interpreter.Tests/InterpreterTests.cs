@@ -8814,4 +8814,342 @@ public class InterpreterTests
             "Define t as cast collections's transpose of (g).\n" +
             "State the columns of t converted to text."));
     }
+
+    // ── Layer 1: Union types ────────────────────────────────────────────────────
+
+    [Fact]
+    public void Union_IsANumber_True()
+    {
+        // Is-a type-test on a number value
+        Assert.Equal("yes", Run(
+            "Define x as 42.\n" +
+            "If x is a number:\n" +
+            "    State \"yes\".\n" +
+            "Otherwise:\n" +
+            "    State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Union_IsANumber_False()
+    {
+        Assert.Equal("no", Run(
+            "Define x as \"hello\".\n" +
+            "If x is a number:\n" +
+            "    State \"yes\".\n" +
+            "Otherwise:\n" +
+            "    State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Union_IsAText_True()
+    {
+        Assert.Equal("yes", Run(
+            "Define x as \"hello\".\n" +
+            "If x is a text:\n" +
+            "    State \"yes\".\n" +
+            "Otherwise:\n" +
+            "    State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Union_IsNotANumber_True()
+    {
+        Assert.Equal("yes", Run(
+            "Define x as \"hello\".\n" +
+            "If x is not a number:\n" +
+            "    State \"yes\".\n" +
+            "Otherwise:\n" +
+            "    State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Union_IsNotANumber_False()
+    {
+        Assert.Equal("no", Run(
+            "Define x as 42.\n" +
+            "If x is not a number:\n" +
+            "    State \"yes\".\n" +
+            "Otherwise:\n" +
+            "    State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Union_IsAFact_True()
+    {
+        Assert.Equal("yes", Run(
+            "Define x as true.\n" +
+            "If x is a fact:\n" +
+            "    State \"yes\".\n" +
+            "Otherwise:\n" +
+            "    State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Union_TypeAnnotation_UnionType_OnSeriesElement()
+    {
+        // Catalogue element type is the union; narrowing needed before type-specific op
+        Assert.Equal("42", Run(
+            "Define items as a catalogue of (number or text) with (42, \"hello\").\n" +
+            "Define it as item 1 of items.\n" +
+            "If it is a number:\n" +
+            "    State it converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Union_TypeSpecificOp_Arithmetic_TypeError()
+    {
+        // Arithmetic on un-narrowed union value → static error
+        Assert.Throws<TypeException>(() => Run(
+            "Define items as a catalogue of (number or text) with (42, \"hi\").\n" +
+            "Define v as item 1 of items.\n" +
+            "State v + 1."));
+    }
+
+    [Fact]
+    public void Union_EqualityComparison_Legal()
+    {
+        // Equality on un-narrowed union value is legal
+        Assert.Equal("yes", Run(
+            "Define items as a catalogue of (number or text) with (42, \"hi\").\n" +
+            "Define v as item 1 of items.\n" +
+            "If v is 42:\n" +
+            "    State \"yes\".\n" +
+            "Otherwise:\n" +
+            "    State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Union_AssignIncompatible_TypeError()
+    {
+        // Assigning a value not in the closed union → type error
+        Assert.Throws<TypeException>(() => Run(
+            "Define items as a catalogue of (number or text) with (42, \"hi\").\n" +
+            "Add true to items."));
+    }
+
+    // ── Layer 2: Narrowing ──────────────────────────────────────────────────────
+
+    [Fact]
+    public void Narrowing_IsANumber_ArithmeticInBranch()
+    {
+        // After narrowing, arithmetic is valid
+        Assert.Equal("43", Run(
+            "Define items as a catalogue of (number or text) with (42, \"hi\").\n" +
+            "Define v as item 1 of items.\n" +
+            "If v is a number:\n" +
+            "    State v + 1 converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Narrowing_IsAText_LengthInBranch()
+    {
+        Assert.Equal("5", Run(
+            "Define items as a catalogue of (number or text) with (42, \"hello\").\n" +
+            "Define v as item 2 of items.\n" +
+            "If v is a text:\n" +
+            "    State the length of v converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Narrowing_ClosedUnion_OtherwiseNarrows()
+    {
+        // Otherwise branch of (number or text) after 'is a number' → narrows to text
+        Assert.Equal("3", Run(
+            "Define items as a catalogue of (number or text) with (42, \"hi!\").\n" +
+            "Define v as item 2 of items.\n" +
+            "If v is a number:\n" +
+            "    State v + 1 converted to text.\n" +
+            "Otherwise:\n" +
+            "    State the length of v converted to text.\n" +  // text op valid in Otherwise
+            "Done."));
+    }
+
+    [Fact]
+    public void Narrowing_ClosedUnion_TwoArms_OtherwiseIsThird()
+    {
+        // (number or text or fact): check number then text → Otherwise narrows to fact
+        Assert.Equal("true", Run(
+            "Define items as a catalogue of (number or text or fact) with (true, 1, \"x\").\n" +
+            "Define v as item 1 of items.\n" +
+            "If v is a number:\n" +
+            "    State \"number\".\n" +
+            "Otherwise if v is a text:\n" +
+            "    State \"text\".\n" +
+            "Otherwise:\n" +
+            "    State v converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Narrowing_IsNotANumber_ClosedUnion_NarrowsToComplement()
+    {
+        // is not a number on (number or text) → true branch is text
+        Assert.Equal("5", Run(
+            "Define items as a catalogue of (number or text) with (42, \"hello\").\n" +
+            "Define v as item 2 of items.\n" +
+            "If v is not a number:\n" +
+            "    State the length of v converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Narrowing_OpenCatalogue_IsANumber_Works()
+    {
+        // Open catalogue: is a number still narrows in the true branch
+        Assert.Equal("43", Run(
+            "Define items as a catalogue with (42, \"hello\", true).\n" +
+            "Define v as item 1 of items.\n" +
+            "If v is a number:\n" +
+            "    State v + 1 converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Narrowing_ExistingIsVoid_StillWorks()
+    {
+        // Existing voidable narrowing unaffected
+        Assert.Equal("42", Run(
+            "Define v as math's square root of (-1) but void is 42.\n" +
+            "Pull a book on math.\n" +
+            "Define r as math's square root of (4).\n" +
+            "If r is not void:\n" +
+            "    State r converted to text.\n" +
+            "Done."));
+    }
+
+    // ── Layer 3: catalogue ──────────────────────────────────────────────────────
+
+    [Fact]
+    public void Catalogue_DeclaredUnion_LengthAndAccess()
+    {
+        Assert.Equal("2", Run(
+            "Define items as a catalogue of (number or text) with (42, \"hello\").\n" +
+            "State the number of items converted to text."));
+    }
+
+    [Fact]
+    public void Catalogue_DeclaredUnion_AddNumber()
+    {
+        Assert.Equal("3", Run(
+            "Define items as a catalogue of (number or text) with (42, \"hello\").\n" +
+            "Add 99 to items.\n" +
+            "State the number of items converted to text."));
+    }
+
+    [Fact]
+    public void Catalogue_DeclaredUnion_AddText()
+    {
+        Assert.Equal("3", Run(
+            "Define items as a catalogue of (number or text) with (42, \"hello\").\n" +
+            "Add \"world\" to items.\n" +
+            "State the number of items converted to text."));
+    }
+
+    [Fact]
+    public void Catalogue_DeclaredUnion_AddIncompatible_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define items as a catalogue of (number or text) with (42, \"hello\").\n" +
+            "Add true to items."));
+    }
+
+    [Fact]
+    public void Catalogue_Open_AddAny()
+    {
+        // Open catalogue accepts any type
+        Assert.Equal("3", Run(
+            "Define items as a catalogue with (42, \"hello\").\n" +
+            "Add true to items.\n" +
+            "State the number of items converted to text."));
+    }
+
+    [Fact]
+    public void Catalogue_ForEach_Narrow()
+    {
+        Assert.Equal("1", Run(
+            "Define items as a catalogue of (number or text) with (10, \"hi\", 20).\n" +
+            "Define count as 0.\n" +
+            "For each v in items, repeat:\n" +
+            "    If v is a text:\n" +
+            "        count becomes count + 1.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "State count converted to text."));
+    }
+
+    // ── Layer 3: atlas ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Atlas_DeclaredUnion_Set_And_Get()
+    {
+        Assert.Equal("42", Run(
+            "Define a as an atlas from text to (number or text) with (\"x\" : 42).\n" +
+            "Define v as the entry for \"x\" in a but void is 0.\n" +
+            "If v is a number:\n" +
+            "    State v converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Atlas_DeclaredUnion_SetTextValue()
+    {
+        Assert.Equal("hello", Run(
+            "Define a as an atlas from text to (number or text).\n" +
+            "In a, the entry for \"k\" becomes \"hello\".\n" +
+            "Define v as the entry for \"k\" in a but void is 0.\n" +
+            "If v is a text:\n" +
+            "    State v.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Atlas_DeclaredUnion_SetIncompatible_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define a as an atlas from text to (number or text).\n" +
+            "In a, the entry for \"k\" becomes true."));
+    }
+
+    [Fact]
+    public void Atlas_Open_AnyValue()
+    {
+        // Open atlas: any value can be stored
+        Assert.Equal("2", Run(
+            "Define a as an atlas.\n" +
+            "In a, the entry for \"n\" becomes 42.\n" +
+            "In a, the entry for \"t\" becomes \"hello\".\n" +
+            "State the size of a converted to text."));
+    }
+
+    [Fact]
+    public void Atlas_HasKey()
+    {
+        Assert.Equal("yes", Run(
+            "Define a as an atlas from text to (number or text) with (\"k\" : 99).\n" +
+            "If a has a key for \"k\":\n" +
+            "    State \"yes\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Union_VoidOrNormalizesToVoidable()
+    {
+        // (T or void) normalizes to voidable T — same behavior as voidable
+        Assert.Equal("5", Run(
+            "Pull a book on math.\n" +
+            "Define r as math's square root of (25).\n" +
+            "If r is not void:\n" +
+            "    State r converted to text.\n" +
+            "Done."));
+    }
 }
