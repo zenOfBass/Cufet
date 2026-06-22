@@ -354,6 +354,16 @@ public sealed record DirectoryContentsExpression(IExpression Path, int Line) : I
 public enum PathCheckKind { Exists, IsDirectory, IsFile }
 public sealed record PathCheckExpression(IExpression Path, PathCheckKind Kind, int Line) : IExpression;
 
+// ── Signals ───────────────────────────────────────────────────────────────────────────────────────
+
+// an interrupt has been requested  →  fact (boolean, infallible)
+// True when _interruptRequested is set; false otherwise.  Cooperative polling — no async.
+public sealed record InterruptRequestedExpression(int Line) : IExpression;
+
+// Acknowledge the interrupt.  →  statement; clears _interruptRequested
+// Resets the interrupt flag after the program has noticed and handled it.
+public sealed record AcknowledgeInterruptStatement(int Line) : IStatement;
+
 // write <value> to the file "<path>"   — overwrite (creates if absent); Append = false
 // append <value> to the file "<path>"  — append   (creates if absent); Append = true
 // Statements: complete on success; throw FailureUnwind on IO failure (catchable by Try/In case of failure).

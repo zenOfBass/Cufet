@@ -206,8 +206,19 @@ public sealed partial class Interpreter
             // fills one pipe buffer while Cufet is blocked draining the other.
             var stdoutTask = Task.Run(() => proc.StandardOutput.ReadToEnd());
             var stderrTask = Task.Run(() => proc.StandardError.ReadToEnd());
-            proc.WaitForExit();
+            // Poll instead of blocking: lets Ctrl-C kill the child tree and unwind.
+            // Needed because redirecting stdout/stderr can detach the child from the console
+            // process group, preventing Windows from forwarding Ctrl-C automatically.
+            while (!proc.WaitForExit(50))
+            {
+                if (_interruptRequested)
+                {
+                    proc.Kill(entireProcessTree: true);
+                    break;
+                }
+            }
             Task.WaitAll(stdoutTask, stderrTask);
+            if (_interruptRequested) throw new InterruptUnwind();
 
             return new RecordValue(
                 [],

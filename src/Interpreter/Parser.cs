@@ -58,6 +58,7 @@ public sealed class Parser
                                      ? ParseWithRabbitStatement()
                                      : ParseWithOpenStatement(),
             TokenType.Pull       => ParsePullStatement(),
+            TokenType.AcknowledgeKw => ParseAcknowledgeInterruptStatement(),
             _ => throw new ParseException(tok, "statement keyword"),
         };
     }
@@ -2240,6 +2241,23 @@ public sealed class Parser
                 baseExpr = new EnvironmentVariableExpression(ParseExprOr(), envLine);
                 break;
             }
+            case TokenType.InterruptKw:
+            {
+                // "an interrupt has been requested" — fixed-phrase fact; 'an' consumed by SkipNoise above.
+                // 'been' and 'requested' are contextual (lexeme-checked), not reserved.
+                var intLine = Advance().Line; // consume 'interrupt'
+                Consume(TokenType.Has);
+                if (Peek().Type != TokenType.Identifier ||
+                    !Peek().Lexeme.Equals("been", StringComparison.OrdinalIgnoreCase))
+                    throw new ParseException(Peek(), "expected 'been' after 'an interrupt has'");
+                Advance(); // consume 'been'
+                if (Peek().Type != TokenType.Identifier ||
+                    !Peek().Lexeme.Equals("requested", StringComparison.OrdinalIgnoreCase))
+                    throw new ParseException(Peek(), "expected 'requested' after 'an interrupt has been'");
+                Advance(); // consume 'requested'
+                baseExpr = new InterruptRequestedExpression(intLine);
+                break;
+            }
             default:
                 throw new ParseException(tok, "expression");
         }
@@ -2775,6 +2793,16 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Dot);
         return new SuppressStatement(line);
+    }
+
+    private AcknowledgeInterruptStatement ParseAcknowledgeInterruptStatement()
+    {
+        var line = Consume(TokenType.AcknowledgeKw).Line; // consume 'Acknowledge'
+        SkipNoise();                                       // consumes 'the' (Article)
+        Consume(TokenType.InterruptKw);                    // consume 'interrupt'
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new AcknowledgeInterruptStatement(line);
     }
 
     // Returns the handler keyword (Failure or Exception) following 'In case of' at

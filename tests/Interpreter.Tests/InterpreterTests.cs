@@ -8160,6 +8160,93 @@ public class InterpreterTests
             "State the path 42 exists."));
     }
 
+    // ── Signals (SIGINT / cooperative interrupt handling) ─────────────────────────────────────────
+
+    // Helper: run a Cufet program on an interpreter whose interrupt flag is pre-set.
+    // Used to test cooperative handling without synthesizing a real Ctrl-C.
+    private static string RunInterrupted(string source)
+    {
+        var tokens  = new CufetLexer(source).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        var output  = new StringWriter();
+        var interp  = new Interpreter(output);
+        interp.SimulateInterrupt();
+        RunOnLargeStack(() => interp.Execute(program));
+        return output.ToString().Replace("\r\n", "\n").TrimEnd('\n');
+    }
+
+    [Fact]
+    public void Signal_InterruptRequested_DefaultsFalse()
+    {
+        // When no interrupt has been received the expression returns false.
+        Assert.Equal("no", Run(
+            "If an interrupt has been requested, State \"yes\". Otherwise, State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Signal_InterruptRequested_WhenFlagSet_ReturnsTrue()
+    {
+        // With the flag pre-set (simulating Ctrl-C), the expression returns true.
+        Assert.Equal("yes", RunInterrupted(
+            "If an interrupt has been requested, State \"yes\". Otherwise, State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Signal_AcknowledgeInterrupt_ClearsFlag()
+    {
+        // After Acknowledge the interrupt., the flag reads false again.
+        Assert.Equal("cleared", RunInterrupted(
+            "Acknowledge the interrupt.\n" +
+            "If an interrupt has been requested, State \"still set\". Otherwise, State \"cleared\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Signal_CooperativeHandling_LoopExitsGracefully()
+    {
+        // Cooperative loop: when flag is pre-set, the first iteration detects and handles it,
+        // then Stops — no subsequent iterations run.
+        Assert.Equal("handled", RunInterrupted(
+            "Define items as a series with (1, 2, 3).\n" +
+            "For each n in items, repeat:\n" +
+            "    If an interrupt has been requested:\n" +
+            "        Acknowledge the interrupt.\n" +
+            "        State \"handled\".\n" +
+            "        Stop.\n" +
+            "    Done.\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Signal_CooperativeHandling_ContinuesAfterAcknowledge()
+    {
+        // Once acknowledged, the loop continues normally for subsequent iterations.
+        Assert.Equal("handled\n2\n3", RunInterrupted(
+            "Define items as a series with (1, 2, 3).\n" +
+            "For each n in items, repeat:\n" +
+            "    If an interrupt has been requested:\n" +
+            "        Acknowledge the interrupt.\n" +
+            "        State \"handled\".\n" +
+            "        Skip.\n" +
+            "    Done.\n" +
+            "    State n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Signal_TypeCheck_ExpressionIsFact()
+    {
+        // The expression is a fact — it type-checks in boolean contexts without error.
+        Assert.Equal("ok", Run(
+            "Define result as an interrupt has been requested.\n" +
+            "If result, State \"interrupted\". Otherwise, State \"ok\".\n" +
+            "Done."));
+    }
+
     // ── Sort ──────────────────────────────────────────────────────────────────────────────────────
 
     [Fact]

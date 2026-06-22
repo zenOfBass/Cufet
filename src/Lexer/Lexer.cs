@@ -202,6 +202,8 @@ public sealed class Lexer
             "directory"   => TokenType.DirectoryKw,
             "path"        => TokenType.PathKw,
             "environment" => TokenType.EnvironmentKw,
+            "interrupt"   => TokenType.InterruptKw,
+            "acknowledge" => TokenType.AcknowledgeKw,
             _           => TokenType.Identifier,
         };
 

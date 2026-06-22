@@ -32,6 +32,14 @@ public sealed partial class Interpreter
     private readonly TextReader _in;
     private readonly List<Dictionary<string, object>> _scopes = [new()];
 
+    // Cooperative SIGINT flag: set by the Console.CancelKeyPress handler (signal-dispatch thread),
+    // read by the interpreter's main thread at checkpoints. volatile bool is the complete solution
+    // for a single-writer / single-reader flag — no lock, no Interlocked, no barrier needed.
+    private volatile bool _interruptRequested;
+
+    // Allow tests to set the interrupt flag directly without synthesizing a real Ctrl-C.
+    internal void SimulateInterrupt() => _interruptRequested = true;
+
     private Dictionary<string, object> Scope => _scopes[^1];
 
     private bool TryLookupValue(string name, out object val)
@@ -74,6 +82,10 @@ public sealed partial class Interpreter
         public object? Value { get; }
         public ReturnException(object? value) { Value = value; }
     }
+
+    // Thrown at statement-dispatch checkpoints when _interruptRequested is true.
+    // Unwinds the call stack to the REPL top level; never escapes to the user.
+    private sealed class InterruptUnwind : Exception { }
 
     // Runtime representation of a failure value produced by 'return a failure "..."'.
     private sealed class FailureValue
@@ -219,6 +231,9 @@ public sealed partial class Interpreter
         _in  = input  ?? Console.In;
         _maxCallDepth = maxCallDepth;
         _scopes[0]["input"] = new ReadableStreamValue(_in);
+        // e.Cancel = true: convert Ctrl-C from "terminate process" into "set our flag."
+        // The handler runs on the signal-dispatch thread; volatile bool handles the cross-thread write.
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; _interruptRequested = true; };
     }
 
     public void Execute(Program program)
@@ -526,6 +541,10 @@ public sealed partial class Interpreter
             case SuppressStatement:
                 throw new SuppressSignal();
 
+            case AcknowledgeInterruptStatement:
+                _interruptRequested = false;
+                break;
+
             case ForEachStatement fe:
             {
                 var seriesVal = Evaluate(fe.Series);
@@ -693,6 +712,7 @@ public sealed partial class Interpreter
         EnvironmentVariableExpression env => EvaluateEnvVar(env),
         DirectoryContentsExpression   dce => EvaluateDirectoryContents(dce),
         PathCheckExpression           pce => EvaluatePathCheck(pce),
+        InterruptRequestedExpression      => (object)_interruptRequested,
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 

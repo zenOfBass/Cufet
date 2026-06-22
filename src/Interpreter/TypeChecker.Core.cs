@@ -720,6 +720,8 @@ public sealed partial class TypeChecker
                 break;
             case InterfaceDefinition:
                 break; // already hoisted in Pass1
+            case AcknowledgeInterruptStatement:
+                break; // always valid; no type constraints
         }
     }
 
@@ -911,6 +913,7 @@ public sealed partial class TypeChecker
         EnvironmentVariableExpression env                                                                => InferEnvVar(env),
         DirectoryContentsExpression   dce                                                                => InferDirectoryContents(dce),
         PathCheckExpression           pce                                                                => InferPathCheck(pce),
+        InterruptRequestedExpression                                                                     => CufetType.Fact,
         _                                                                                                => null,
     };
 
