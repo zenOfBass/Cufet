@@ -8181,8 +8181,7 @@ public class InterpreterTests
     {
         // When no interrupt has been received the expression returns false.
         Assert.Equal("no", Run(
-            "If an interrupt has been requested, State \"yes\". Otherwise, State \"no\".\n" +
-            "Done."));
+            "If an interrupt has been requested, State \"yes\". Otherwise, State \"no\"."));
     }
 
     [Fact]
@@ -8190,8 +8189,7 @@ public class InterpreterTests
     {
         // With the flag pre-set (simulating Ctrl-C), the expression returns true.
         Assert.Equal("yes", RunInterrupted(
-            "If an interrupt has been requested, State \"yes\". Otherwise, State \"no\".\n" +
-            "Done."));
+            "If an interrupt has been requested, State \"yes\". Otherwise, State \"no\"."));
     }
 
     [Fact]
@@ -8200,8 +8198,7 @@ public class InterpreterTests
         // After Acknowledge the interrupt., the flag reads false again.
         Assert.Equal("cleared", RunInterrupted(
             "Acknowledge the interrupt.\n" +
-            "If an interrupt has been requested, State \"still set\". Otherwise, State \"cleared\".\n" +
-            "Done."));
+            "If an interrupt has been requested, State \"still set\". Otherwise, State \"cleared\"."));
     }
 
     [Fact]
@@ -8243,8 +8240,7 @@ public class InterpreterTests
         // The expression is a fact — it type-checks in boolean contexts without error.
         Assert.Equal("ok", Run(
             "Define result as an interrupt has been requested.\n" +
-            "If result, State \"interrupted\". Otherwise, State \"ok\".\n" +
-            "Done."));
+            "If result, State \"interrupted\". Otherwise, State \"ok\"."));
     }
 
     // ── Sort ──────────────────────────────────────────────────────────────────────────────────────
