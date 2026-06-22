@@ -2176,6 +2176,19 @@ public sealed class Parser
 
                 break;
             }
+            case TokenType.EnvironmentKw:
+            {
+                // "the environment variable <text-name>"
+                // 'variable' is contextual — parsed by lexeme, not reserved.
+                var envLine = Advance().Line; // consume 'environment'
+                if (Peek().Type != TokenType.Identifier ||
+                    !Peek().Lexeme.Equals("variable", StringComparison.OrdinalIgnoreCase))
+                    throw new ParseException(Peek(), "expected 'variable' after 'environment'");
+                Advance(); // consume 'variable'
+                SkipNoise();
+                baseExpr = new EnvironmentVariableExpression(ParseExpression(), envLine);
+                break;
+            }
             default:
                 throw new ParseException(tok, "expression");
         }

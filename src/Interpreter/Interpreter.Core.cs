@@ -690,8 +690,16 @@ public sealed partial class Interpreter
         MatrixRows    mr      => EvaluateMatrixRows(mr),
         MatrixColumns mc      => EvaluateMatrixColumns(mc),
         IsTypeCheck   tc      => EvaluateIsTypeCheck(tc),
+        EnvironmentVariableExpression env => EvaluateEnvVar(env),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
+
+    private object EvaluateEnvVar(EnvironmentVariableExpression env)
+    {
+        var name = (string)Evaluate(env.Name)!;
+        var value = System.Environment.GetEnvironmentVariable(name);
+        return value ?? (object)VoidValue.Instance;
+    }
 
     private object EvaluateReadExpr(ReadExpression re)
     {

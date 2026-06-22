@@ -7987,6 +7987,55 @@ public class InterpreterTests
             "State the first of outer."));
     }
 
+    // ── Environment variables ──────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void EnvVar_SetVar_ReturnsValue()
+    {
+        System.Environment.SetEnvironmentVariable("CUFET_TEST_HELLO", "world");
+        Assert.Equal("world", Run(
+            "Define v as the environment variable \"CUFET_TEST_HELLO\" but void is \"missing\".\n" +
+            "State v."));
+    }
+
+    [Fact]
+    public void EnvVar_UnsetVar_IsVoid()
+    {
+        System.Environment.SetEnvironmentVariable("CUFET_TEST_ABSENT_XYZ", null);
+        Assert.Equal("not set", Run(
+            "Define v as the environment variable \"CUFET_TEST_ABSENT_XYZ\".\n" +
+            "If v is void:\n" +
+            "    State \"not set\".\n" +
+            "Otherwise:\n" +
+            "    State \"set\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void EnvVar_ButVoidDefault()
+    {
+        System.Environment.SetEnvironmentVariable("CUFET_TEST_DEFAULTED_XYZ", null);
+        Assert.Equal("fallback", Run(
+            "State the environment variable \"CUFET_TEST_DEFAULTED_XYZ\" but void is \"fallback\"."));
+    }
+
+    [Fact]
+    public void EnvVar_NameIsTextExpression()
+    {
+        // The name is a text variable, not a literal — dynamic lookup must work.
+        System.Environment.SetEnvironmentVariable("CUFET_TEST_DYN", "dynamic");
+        Assert.Equal("dynamic", Run(
+            "Define key as \"CUFET_TEST_DYN\".\n" +
+            "State the environment variable key but void is \"missing\"."));
+    }
+
+    [Fact]
+    public void EnvVar_NonTextName_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "State the environment variable 42."));
+    }
+
     // ── Sort ──────────────────────────────────────────────────────────────────────────────────────
 
     [Fact]

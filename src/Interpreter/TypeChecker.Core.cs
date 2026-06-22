@@ -908,8 +908,21 @@ public sealed partial class TypeChecker
         MatrixRows    mr                                                                                 => InferMatrixRows(mr),
         MatrixColumns mc                                                                                 => InferMatrixColumns(mc),
         IsTypeCheck   tc                                                                                 => InferIsTypeCheck(tc),
+        EnvironmentVariableExpression env                                                                => InferEnvVar(env),
         _                                                                                                => null,
     };
+
+    private CufetType InferEnvVar(EnvironmentVariableExpression env)
+    {
+        var nameType = InferType(env.Name);
+        if (nameType != null && nameType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "the environment variable name must be text",
+                null, env.Line,
+                $"use a {FormatType(nameType)} as an environment variable name",
+                "The variable name must be a text expression (a string literal or a text variable)."));
+        return new VoidableType(CufetType.Text);
+    }
 
     private CufetType InferReadExpr(ReadExpression re)
     {

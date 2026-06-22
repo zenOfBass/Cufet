@@ -170,6 +170,10 @@ public enum TokenType
     Entry,  // "entry" — in "the entry for X in map", "in map, the entry for X becomes V"
     Size,   // "size"  — in "the size of map"; excluded from IsFieldNameToken(forAccess: true)
 
+    // ── Environment ───────────────────────────────────────────────────────────────
+    EnvironmentKw, // "environment" — in "the environment variable <name>"; read-only OS env access
+                   //                 "variable" is contextual (lexeme-checked), not reserved
+
     // ── Semantic (parser-generated, never emitted by lexer) ───────────────
     NotEqual, // produced by "is not"; used in BinaryExpression only
 
