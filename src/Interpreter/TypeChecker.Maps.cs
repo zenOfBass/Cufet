@@ -28,6 +28,10 @@ public sealed partial class TypeChecker
                 null, mapSet.Line,
                 $"store a {FormatType(valType)} in it",
                 $"Values in this map must be {FormatTypePlural(mt.ValueType)}."));
+
+        // Region invariant: don't store a rabbit-scoped value in a longer-lived map.
+        CheckRegionStore(mapSet.Value, valType, ContainerDepthOf(mapSet.Map), mapSet.Line,
+            "store a rabbit-scoped value in a map that lives in a longer-lived region");
     }
 
     private CufetType? InferMapLiteral(MapLiteral lit)

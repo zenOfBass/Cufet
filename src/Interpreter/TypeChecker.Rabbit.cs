@@ -5,22 +5,65 @@ public sealed partial class TypeChecker
     // ── Rabbits (block-scoped memory regions) ────────────────────────────────
 
     // "With a rabbit <name>: ... Done."
-    // Enters a scope, binds the rabbit name as RabbitType, checks the body, exits the scope.
+    // Increments _rabbitDepth so every variable defined inside inherits that depth.
     // Downward-only enforcement:
     //   • Returning the rabbit → caught in CheckReturn (RabbitType guard).
     //   • A rabbit parameter declared with 'given (the rabbit r)' is RabbitType in the callee's
     //     scope; any attempt to return it hits the same CheckReturn guard.
-    // "Hold only ≥ birth-scope" (store-site enforcement) is a future layer — the static scope
-    // structure already prevents the callee from storing its own locals into the passed rabbit
-    // once the birth-scope check is added.
+    // Outward-only store invariant (CheckRegionStore):
+    //   • Called at every store site (Becomes, SeriesAdd, SeriesSet, MapSet, field sets).
+    //   • source.depth > target.depth → error (shorter-lived into longer-lived).
     private void CheckWithRabbit(WithRabbitStatement wrs)
     {
+        _rabbitDepth++;
         EnterScope();
         Scope[wrs.Name] = new TypeInfo(
             RabbitType.Instance,
             new VariableReference(wrs.Name, wrs.Line),
-            wrs.Line);
+            wrs.Line,
+            RabbitDepth: _rabbitDepth);
         try { foreach (var s in wrs.Body) CheckStatement(s); }
-        finally { ExitScope(); }
+        finally { ExitScope(); _rabbitDepth--; }
+    }
+
+    // ── Outward-only store invariant helpers ─────────────────────────────────
+
+    // Series, maps, objects, and matrices are reference types tracked by rabbit depth.
+    // Value types (number, text, fact, record) may be stored anywhere without constraint.
+    private static bool IsReferenceType(CufetType? t) =>
+        t is SeriesType or MapType or ObjectType or MatrixType;
+
+    // Returns the rabbit depth of an expression's value.
+    //   VariableReference       → stored depth from its TypeInfo.
+    //   Reference-type literal  → _rabbitDepth (born here, in current rabbit).
+    //   Anything else           → 0 (value type, function-call result, unknown — treated as safe).
+    private int ValueDepthOf(IExpression expr, CufetType? inferredType)
+    {
+        if (!IsReferenceType(inferredType)) return 0;
+        if (expr is VariableReference vr && TryLookup(vr.Name, out var ti)) return ti.RabbitDepth;
+        if (expr is SeriesLiteral or MapLiteral or MatrixLiteral or MatrixSized
+                 or ObjectLiteral or RangeExpression)
+            return _rabbitDepth;
+        return 0;
+    }
+
+    // Returns the rabbit depth of a container expression (the target of a set/insert).
+    // Falls back to _rabbitDepth when the target isn't a plain variable reference, so
+    // complex target expressions are treated as same-depth (avoids false positives).
+    private int ContainerDepthOf(IExpression expr) =>
+        expr is VariableReference vr && TryLookup(vr.Name, out var ti) ? ti.RabbitDepth : _rabbitDepth;
+
+    // Core check: source depth > target depth means a shorter-lived value would be stored
+    // in a longer-lived container — a future use-after-free in the native backend.
+    // `action` fills the "you're trying to ..." slot in the error message.
+    private void CheckRegionStore(IExpression valueExpr, CufetType? valueType, int targetDepth, int line, string action)
+    {
+        var valueDepth = ValueDepthOf(valueExpr, valueType);
+        if (valueDepth <= targetDepth) return;
+        throw new TypeException(FormatTypeError(
+            "this value lives in a shorter-lived rabbit region than its destination — it will be gone when the rabbit ends",
+            null, line,
+            action,
+            "Move the container inside the rabbit block, or restructure so this value does not outlive its rabbit."));
     }
 }

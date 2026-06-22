@@ -13,6 +13,10 @@ public sealed partial class TypeChecker
                 $"set '{stmt.Member}' on a {FormatType(targetType)}",
                 "Only objects support possessive field assignment (alice's field becomes X)."));
         CheckObjectNamedSet(ot, stmt.Member, stmt.Value, stmt.Line);
+        // Region invariant: the value being stored cannot outlive the object's rabbit region.
+        var valueType = InferType(stmt.Value);
+        CheckRegionStore(stmt.Value, valueType, ContainerDepthOf(stmt.Target), stmt.Line,
+            $"set '{stmt.Member}' to a value from a shorter-lived rabbit region than the object");
     }
 
     private void CheckObjectNamedSet(ObjectType ot, string fieldName, IExpression value, int line)
@@ -211,9 +215,11 @@ public sealed partial class TypeChecker
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
         var prevFunctionLine     = _functionDeclarationLine;
+        var prevRabbitDepth      = _rabbitDepth;
         _inFunction              = true;
         _expectedReturnType      = method.ReturnType;
         _functionDeclarationLine = method.Line;
+        _rabbitDepth             = 0; // method bodies start outside any rabbit region
 
         try
         {
@@ -232,6 +238,7 @@ public sealed partial class TypeChecker
             _inFunction              = prevInFunction;
             _expectedReturnType      = prevReturnType;
             _functionDeclarationLine = prevFunctionLine;
+            _rabbitDepth             = prevRabbitDepth;
             RestoreScopes(saved);
         }
     }

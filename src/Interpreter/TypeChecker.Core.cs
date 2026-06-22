@@ -313,7 +313,7 @@ public sealed class UnionType : CufetType
     }
 }
 
-public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false);
+public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false, int RabbitDepth = 0);
 
 public sealed class TypeException : Exception
 {
@@ -419,6 +419,9 @@ public sealed partial class TypeChecker
     private bool       _inFailureHandledContext = false;
     // When true, 'Suppress the exception.' is valid — only inside an exception handler block.
     private bool       _inExceptionHandler      = false;
+    // Current rabbit nesting depth: 0 = global/function body, 1 = inside one With-rabbit, etc.
+    // Reset to 0 on function/lambda/method entry; restored on exit.
+    private int        _rabbitDepth             = 0;
 
     public void Check(Program program)
     {
@@ -757,7 +760,7 @@ public sealed partial class TypeChecker
                 $"Remove 'a shadow' if you're just defining a new variable, or check the spelling."));
         }
 
-        Scope[define.Name] = new TypeInfo(type, define.Value, define.Line, define.Permanent);
+        Scope[define.Name] = new TypeInfo(type, define.Value, define.Line, define.Permanent, _rabbitDepth);
     }
 
     private void CheckBecomes(BecomesStatement becomes)
@@ -786,6 +789,10 @@ public sealed partial class TypeChecker
                 becomes.Line,
                 $"give it a {FormatType(rhsType)} value",
                 $"Variables keep their type for life. If you need a {FormatType(rhsType)} value here, define a new name for it instead."));
+
+        // Region invariant: don't let a shorter-lived reference escape into longer-lived storage.
+        CheckRegionStore(becomes.Value, rhsType, existing.RabbitDepth, becomes.Line,
+            $"reassign '{becomes.Name}' to a value from a shorter-lived rabbit region");
     }
 
     private void CheckReturn(ReturnStatement ret)

@@ -30,8 +30,13 @@ public sealed partial class TypeChecker
                 "Only series and maps can be looped over. Define a series if that's what you need."));
 
         var iterKey2 = forEach.IteratorName ?? "it";
+        // Iterator inherits the series's rabbit depth — elements of a rabbit-scoped
+        // series live in the same region and carry the same lifetime constraint.
+        int seriesDepth = forEach.Series is VariableReference vrSeries
+            && TryLookup(vrSeries.Name, out var seriesTi)
+            ? seriesTi.RabbitDepth : _rabbitDepth;
         EnterScope();
-        Scope[iterKey2] = new TypeInfo(seriesType.ElementType, forEach.Series, forEach.Line);
+        Scope[iterKey2] = new TypeInfo(seriesType.ElementType, forEach.Series, forEach.Line, RabbitDepth: seriesDepth);
         try
         {
             foreach (var s in forEach.Body)
@@ -54,6 +59,9 @@ public sealed partial class TypeChecker
                 add.Line,
                 $"add a {FormatType(valueType)} value to it",
                 $"Change the value to a {FormatType(seriesType.ElementType)}, or define a separate series that holds {FormatTypePlural(valueType)}."));
+
+        CheckRegionStore(add.Value, valueType, seriesInfo.RabbitDepth, add.Line,
+            $"add a rabbit-scoped value to '{add.SeriesName}' which lives in a longer-lived region");
     }
 
     private void CheckSeriesRemoveValue(SeriesRemoveValueStatement removeVal)
@@ -101,6 +109,8 @@ public sealed partial class TypeChecker
                     seriesSet.Line,
                     $"set an item to a {FormatType(valueType)} value",
                     $"Change the new value to a {FormatType(seriesType.ElementType)}."));
+            CheckRegionStore(seriesSet.Value, valueType, seriesInfo.RabbitDepth, seriesSet.Line,
+                $"set an item in '{seriesSet.SeriesName}' to a rabbit-scoped value from a shorter-lived region");
             return;
         }
 

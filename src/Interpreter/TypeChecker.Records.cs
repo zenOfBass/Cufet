@@ -10,6 +10,9 @@ public sealed partial class TypeChecker
         if (recordType is ObjectType ot)
         {
             CheckObjectNamedSet(ot, stmt.FieldName, stmt.Value, stmt.Line);
+            var objValueType = InferType(stmt.Value);
+            CheckRegionStore(stmt.Value, objValueType, ContainerDepthOf(stmt.Record), stmt.Line,
+                $"set field '{stmt.FieldName}' to a value from a shorter-lived rabbit region");
             return;
         }
 
@@ -40,6 +43,10 @@ public sealed partial class TypeChecker
                 null, stmt.Line,
                 $"set field '{stmt.FieldName}' to a {FormatType(valueType)}",
                 $"Field '{stmt.FieldName}' has type {FormatType(field.Type)}."));
+
+        // Region invariant: field value cannot outlive the record's rabbit region.
+        CheckRegionStore(stmt.Value, valueType, ContainerDepthOf(stmt.Record), stmt.Line,
+            $"set field '{stmt.FieldName}' to a value from a shorter-lived rabbit region");
     }
 
     private RecordType InferRecordLiteral(RecordLiteral lit)

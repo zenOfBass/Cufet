@@ -24,9 +24,11 @@ public sealed partial class TypeChecker
         var prevInFunction        = _inFunction;
         var prevReturnType        = _expectedReturnType;
         var prevFunctionLine      = _functionDeclarationLine;
+        var prevRabbitDepth       = _rabbitDepth;
         _inFunction               = true;
         _expectedReturnType       = bind.ReturnType;
         _functionDeclarationLine  = bind.Line;
+        _rabbitDepth              = 0; // function bodies start outside any rabbit region
 
         try
         {
@@ -38,6 +40,7 @@ public sealed partial class TypeChecker
             _inFunction               = prevInFunction;
             _expectedReturnType       = prevReturnType;
             _functionDeclarationLine  = prevFunctionLine;
+            _rabbitDepth              = prevRabbitDepth;
             RestoreScopes(saved);
         }
 
@@ -72,10 +75,12 @@ public sealed partial class TypeChecker
         var prevReturnType       = _expectedReturnType;
         var prevFunctionLine     = _functionDeclarationLine;
         var prevInferring        = _inferringLambdaReturn;
+        var prevRabbitDepth      = _rabbitDepth;
         _inFunction              = true;
         _expectedReturnType      = null; // set by first Return via CheckReturn
         _functionDeclarationLine = lambda.Line;
         _inferringLambdaReturn   = true;
+        _rabbitDepth             = 0; // lambda bodies start outside any rabbit region
 
         CufetType? inferredReturn = null;
         try
@@ -90,6 +95,7 @@ public sealed partial class TypeChecker
             _inferringLambdaReturn   = prevInferring;
             inferredReturn           = _expectedReturnType; // capture before restoring
             _expectedReturnType      = prevReturnType;
+            _rabbitDepth             = prevRabbitDepth;
             RestoreScopes(saved);
         }
 

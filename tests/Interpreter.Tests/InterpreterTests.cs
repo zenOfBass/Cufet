@@ -7898,6 +7898,94 @@ public class InterpreterTests
             "Done."));
     }
 
+    [Fact]
+    public void Rabbit_RegionStore_SeriesAdd_TypeError()
+    {
+        // Storing a series from inside a rabbit into an outer series is a static type error.
+        Assert.Throws<TypeException>(() => Run(
+            "Define outer as a series of series of number with ().\n" +
+            "With a rabbit warren:\n" +
+            "    Define inner as a series of number with (1, 2, 3).\n" +
+            "    Add inner to outer.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Rabbit_RegionStore_Becomes_TypeError()
+    {
+        // Reassigning an outer variable to a rabbit-scoped series is a static type error.
+        Assert.Throws<TypeException>(() => Run(
+            "Define outer as a series of number with (1, 2, 3).\n" +
+            "With a rabbit warren:\n" +
+            "    Define inner as a series of number with (4, 5, 6).\n" +
+            "    outer becomes inner.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Rabbit_RegionStore_ValueTypeExempt()
+    {
+        // Value types (numbers) are exempt from the region store check.
+        Assert.Equal("42", Run(
+            "Define outer as a series of number with ().\n" +
+            "With a rabbit warren:\n" +
+            "    Define x as 42.\n" +
+            "    Add x to outer.\n" +
+            "Done.\n" +
+            "State the first of outer."));
+    }
+
+    [Fact]
+    public void Rabbit_RegionStore_SameDepthIsOk()
+    {
+        // Both container and value defined in the same rabbit block — no error.
+        Assert.Equal("ok", Run(
+            "With a rabbit warren:\n" +
+            "    Define xs as a series of number with (1, 2, 3).\n" +
+            "    Define ys as a series of series of number with ().\n" +
+            "    Add xs to ys.\n" +
+            "    State \"ok\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Rabbit_RegionStore_NestedRabbit_TypeError()
+    {
+        // A value from an inner rabbit cannot escape into the outer rabbit's containers.
+        Assert.Throws<TypeException>(() => Run(
+            "With a rabbit outer:\n" +
+            "    Define outer-ys as a series of series of number with ().\n" +
+            "    With a rabbit inner:\n" +
+            "        Define inner-xs as a series of number with (1, 2).\n" +
+            "        Add inner-xs to outer-ys.\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Rabbit_RegionStore_SeriesLiteralInBecomes_TypeError()
+    {
+        // A series literal constructed inside the rabbit cannot be assigned to an outer variable.
+        Assert.Throws<TypeException>(() => Run(
+            "Define outer as a series of number with (1, 2, 3).\n" +
+            "With a rabbit warren:\n" +
+            "    outer becomes a series of number with (4, 5, 6).\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Rabbit_RegionStore_TextIsValueType()
+    {
+        // Text is a value type — adding inner text to an outer series of text is fine.
+        Assert.Equal("hello", Run(
+            "Define outer as a series of text with ().\n" +
+            "With a rabbit warren:\n" +
+            "    Define msg as \"hello\".\n" +
+            "    Add msg to outer.\n" +
+            "Done.\n" +
+            "State the first of outer."));
+    }
+
     // ── Sort ──────────────────────────────────────────────────────────────────────────────────────
 
     [Fact]
