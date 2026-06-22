@@ -71,6 +71,8 @@ public enum TokenType
     LBrace,     // "{"        — opens object literal fields
     RBrace,     // "}"        — closes object literal fields
     Unto,       // "unto"     — in "Bind <ret> to <name> unto <type>: ..." — method defined outside its object's body
+    GetKw,      // "get"      — in "Get <name> as <type>: ..." — computed property (getter)
+    SetKw,      // "set"      — in "Set <name> given (<param>): ..." — intercepting write (setter)
 
     // ── Collections — for-each ────────────────────────────────────────────
     For,      // "for"

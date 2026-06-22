@@ -7,11 +7,127 @@ public sealed partial class Interpreter
         var target = Evaluate(pss.Target);
         if (target is not ObjectValue pssOv)
             throw new RuntimeException($"Possessive assignment requires an object (line {pss.Line}).");
+
+        // Route through setter if one exists and we're not already inside it (bypass).
+        var setterDef = FindSetterInObjDefs(pssOv, pss.Member);
+        if (setterDef != null && _inSetterFor != (pssOv.TypeName, pss.Member))
+        {
+            ExecuteSetterMethod(pssOv, setterDef, pss.Value, pss.Line);
+            return;
+        }
+
         var owner = FindOwnerForNamedField(pssOv, pss.Member);
         if (owner == null)
             throw new RuntimeException($"Object of type '{pssOv.TypeName}' has no field named '{pss.Member}' (line {pss.Line}).");
         var fi = owner.NamedFields.FindIndex(f => f.Name == pss.Member);
         owner.NamedFields[fi] = (pss.Member, Evaluate(pss.Value));
+    }
+
+    // ── Getter / setter dispatch ──────────────────────────────────────────────
+
+    // Walks the object's type hierarchy (embed chain) looking for a getter with the given name.
+    private GetterDeclaration? FindGetterInObjDefs(ObjectValue ov, string name)
+    {
+        var current = ov;
+        while (current != null)
+        {
+            if (_objectDefs.TryGetValue(current.TypeName, out var def))
+            {
+                var g = def.Getters.FirstOrDefault(g => g.Name == name);
+                if (g != null) return g;
+            }
+            current = current.EmbeddedObject;
+        }
+        return null;
+    }
+
+    // Walks the object's type hierarchy (embed chain) looking for a setter with the given name.
+    private SetterDeclaration? FindSetterInObjDefs(ObjectValue ov, string name)
+    {
+        var current = ov;
+        while (current != null)
+        {
+            if (_objectDefs.TryGetValue(current.TypeName, out var def))
+            {
+                var s = def.Setters.FirstOrDefault(s => s.Name == name);
+                if (s != null) return s;
+            }
+            current = current.EmbeddedObject;
+        }
+        return null;
+    }
+
+    // Runs a getter body with 'one' bound to the receiver; returns the computed value.
+    private object ExecuteGetterMethod(ObjectValue receiver, GetterDeclaration getter, int line)
+    {
+        _callDepth++;
+        if (_callDepth > _maxCallDepth)
+        {
+            _callDepth--;
+            throw new RuntimeException($"Getter '{getter.Name}' called itself too many times (line {line}).");
+        }
+
+        var saved = SaveScopes();
+        foreach (var scope in saved)
+            foreach (var (k, v) in scope)
+                if (v is FunctionValue) Scope[k] = v;
+        Scope["one"] = receiver;
+
+        object? returnValue = null;
+        try
+        {
+            foreach (var stmt in getter.Body)
+                Execute(stmt);
+        }
+        catch (ReturnException re)
+        {
+            returnValue = re.Value;
+        }
+        finally
+        {
+            RestoreScopes(saved);
+            _callDepth--;
+        }
+
+        if (returnValue == null)
+            throw new RuntimeException($"Getter '{getter.Name}' did not return a value (line {line}).");
+        return returnValue;
+    }
+
+    // Runs a setter body: sets _inSetterFor so recursive writes to the same field bypass re-dispatch.
+    private void ExecuteSetterMethod(ObjectValue receiver, SetterDeclaration setter, IExpression valueExpr, int line)
+    {
+        var newValue = Evaluate(valueExpr);
+        var prevInSetterFor = _inSetterFor;
+        _inSetterFor = (receiver.TypeName, setter.Name);
+
+        _callDepth++;
+        if (_callDepth > _maxCallDepth)
+        {
+            _callDepth--;
+            _inSetterFor = prevInSetterFor;
+            throw new RuntimeException($"Setter '{setter.Name}' called itself too many times (line {line}).");
+        }
+
+        var saved = SaveScopes();
+        foreach (var scope in saved)
+            foreach (var (k, v) in scope)
+                if (v is FunctionValue) Scope[k] = v;
+        Scope["one"]             = receiver;
+        Scope[setter.ParamName]  = newValue;
+
+        try
+        {
+            foreach (var stmt in setter.Body)
+                Execute(stmt);
+        }
+        catch (ReturnException) { } // setter is void — discard any bare Return
+        finally
+        {
+            RestoreScopes(saved);
+            _callDepth--;
+            _inSetterFor = prevInSetterFor;
+        }
     }
 
     // ── Embedding helpers (Slice 4) ───────────────────────────────────────────
@@ -111,8 +227,13 @@ public sealed partial class Interpreter
         if (target is not ObjectValue ov)
             throw new RuntimeException(
                 $"You're trying to access '{pa.Member}' on something that isn't an object (line {pa.Line}).");
+
+        // Dispatch getter before stored field — uniform access.
+        var getter = FindGetterInObjDefs(ov, pa.Member);
+        if (getter != null) return ExecuteGetterMethod(ov, getter, pa.Line);
+
         if (TryFindNamedFieldValue(ov, pa.Member, out var found)) return found;
         throw new RuntimeException(
-            $"Object of type '{ov.TypeName}' has no field named '{pa.Member}' (line {pa.Line}).");
+            $"Object of type '{ov.TypeName}' has no field or getter named '{pa.Member}' (line {pa.Line}).");
     }
 }

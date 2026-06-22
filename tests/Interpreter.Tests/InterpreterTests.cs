@@ -5040,23 +5040,23 @@ public class InterpreterTests
     {
         // Using a voidable number where a plain number is expected is a static error.
         Assert.Throws<TypeException>(() => Run(
-            "Bind voidable number to get:\n" +
+            "Bind voidable number to fetch:\n" +
             "    return 1.\n" +
             "Done.\n" +
             "Bind void to use, given (the number n):\n" +
             "    State n.\n" +
             "Done.\n" +
-            "Cast use on (Cast get on ())."));
+            "Cast use on (Cast fetch on ())."));
     }
 
     [Fact]
     public void Void_TypeError_ButVoidIs_WrongDefaultType()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Bind voidable number to get:\n" +
+            "Bind voidable number to fetch:\n" +
             "    return void.\n" +
             "Done.\n" +
-            "Define result as Cast get on () but void is \"fallback\".\n" +
+            "Define result as Cast fetch on () but void is \"fallback\".\n" +
             "State result."));
     }
 
@@ -9673,5 +9673,289 @@ public class InterpreterTests
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on collections.\n" +
             "State cast collections's unique of (42) converted to text."));
+    }
+
+    // ── Getters & Setters ─────────────────────────────────────────────────────
+
+    // Basic getter: computed property callable with both access syntaxes.
+    [Fact]
+    public void Getter_BasicComputed_TheOfSyntax()
+    {
+        Assert.Equal("6.283185307179586", Run(
+            "Define object circle with (the number radius):\n" +
+            "    Get area as number:\n" +
+            "        Give back one's radius * one's radius * 3.141592653589793.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define c as a new circle { the radius 1 }.\n" +
+            "State the area of c."));
+    }
+
+    [Fact]
+    public void Getter_BasicComputed_PossessiveSyntax()
+    {
+        Assert.Equal("10", Run(
+            "Define object box with (the number width, the number height):\n" +
+            "    Get perimeter as number:\n" +
+            "        Give back (one's width + one's height) * 2.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define b as a new box { the width 2, the height 3 }.\n" +
+            "State b's perimeter."));
+    }
+
+    // Getter returns correct type for type-checker.
+    [Fact]
+    public void Getter_TypeCheck_ReturnTypeInferred()
+    {
+        Assert.Equal("hello world", Run(
+            "Define object greeter with (the text name):\n" +
+            "    Get message as text:\n" +
+            "        Give back \"hello \" & one's name.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define g as a new greeter { the name \"world\" }.\n" +
+            "Define msg as the message of g.\n" +
+            "State msg."));
+    }
+
+    // Getter shadows a stored field of the same name — uniform access.
+    [Fact]
+    public void Getter_UniformAccess_ShadowsStoredField()
+    {
+        // The object has a stored field 'value' AND a getter 'value'.
+        // The getter should win.
+        Assert.Equal("42", Run(
+            "Define object wrapper with (the number value):\n" +
+            "    Get value as number:\n" +
+            "        Give back one's value * 2.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define w as a new wrapper { the value 21 }.\n" +
+            "State w's value."));
+    }
+
+    // Setter: intercepting write via 'the X of obj becomes Y'.
+    [Fact]
+    public void Setter_Basic_RecordNamedSetSyntax()
+    {
+        Assert.Equal("10", Run(
+            "Define object bounded with (the number value):\n" +
+            "    Set value given (the number v):\n" +
+            "        Define clamped as v.\n" +
+            "        If clamped > 10, clamped becomes 10.\n" +
+            "        If clamped < 0, clamped becomes 0.\n" +
+            "        the value of one becomes clamped.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define b as a new bounded { the value 5 }.\n" +
+            "the value of b becomes 99.\n" +
+            "State the value of b."));
+    }
+
+    [Fact]
+    public void Setter_Basic_PossessiveSyntax()
+    {
+        Assert.Equal("0", Run(
+            "Define object bounded with (the number value):\n" +
+            "    Set value given (the number v):\n" +
+            "        Define clamped as v.\n" +
+            "        If clamped > 10, clamped becomes 10.\n" +
+            "        If clamped < 0, clamped becomes 0.\n" +
+            "        one's value becomes clamped.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define b as a new bounded { the value 5 }.\n" +
+            "b's value becomes -3.\n" +
+            "State b's value."));
+    }
+
+    // Setter self-write bypass: inside the setter body, writing 'one's field' does a raw write.
+    [Fact]
+    public void Setter_SelfWriteBypass_NoInfiniteRecursion()
+    {
+        // Without the bypass this would recurse infinitely.
+        Assert.Equal("5", Run(
+            "Define object box with (the number value):\n" +
+            "    Set value given (the number v):\n" +
+            "        one's value becomes v.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define b as a new box { the value 0 }.\n" +
+            "b's value becomes 5.\n" +
+            "State b's value."));
+    }
+
+    // Getter + setter pair: getter reads through setter's stored backing field.
+    [Fact]
+    public void GetterSetter_Pair_ComputedAndClamped()
+    {
+        Assert.Equal("100", Run(
+            "Define object gauge with (the number raw):\n" +
+            "    Get display as number:\n" +
+            "        If one's raw > 100, give back 100.\n" +
+            "        If one's raw < 0, give back 0.\n" +
+            "        Give back one's raw.\n" +
+            "    Done.\n" +
+            "    Set raw given (the number v):\n" +
+            "        one's raw becomes v.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define g as a new gauge { the raw 50 }.\n" +
+            "g's raw becomes 999.\n" +
+            "State g's display."));
+    }
+
+    // Setter type error: wrong type passed to setter.
+    [Fact]
+    public void Setter_TypeError_WrongParamType()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object box with (the number value):\n" +
+            "    Set value given (the number v):\n" +
+            "        one's value becomes v.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define b as a new box { the value 0 }.\n" +
+            "b's value becomes \"oops\"."));
+    }
+
+    // Getter that doesn't return throws at runtime.
+    [Fact]
+    public void Getter_RuntimeError_NoReturn()
+    {
+        Assert.Throws<RuntimeException>(() => Run(
+            "Define object broken with (the number x):\n" +
+            "    Get value as number:\n" +
+            "        State \"side effect\".\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define b as a new broken { the x 1 }.\n" +
+            "State b's value."));
+    }
+
+    // Getter type error: void getter not allowed.
+    [Fact]
+    public void Getter_TypeError_VoidReturnNotAllowed()
+    {
+        Assert.Throws<ParseException>(() => Run(
+            "Define object bad with (the number x):\n" +
+            "    Get value as void:\n" +
+            "        State \"hi\".\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    // Getter name collision with method.
+    [Fact]
+    public void Getter_TypeError_CollidesWithMethod()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object bad with (the number x):\n" +
+            "    Bind void to run:\n" +
+            "        State \"running\".\n" +
+            "    Done.\n" +
+            "    Get run as number:\n" +
+            "        Give back 1.\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    // Setter name collision with method.
+    [Fact]
+    public void Setter_TypeError_CollidesWithMethod()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object bad with (the number x):\n" +
+            "    Bind void to run:\n" +
+            "        State \"running\".\n" +
+            "    Done.\n" +
+            "    Set run given (the number v):\n" +
+            "        one's x becomes v.\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    // Duplicate getter names.
+    [Fact]
+    public void Getter_TypeError_DuplicateName()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object bad with (the number x):\n" +
+            "    Get value as number:\n" +
+            "        Give back 1.\n" +
+            "    Done.\n" +
+            "    Get value as number:\n" +
+            "        Give back 2.\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    // Unto form: getter declared outside the object definition.
+    [Fact]
+    public void Getter_Unto_ExternalDeclaration()
+    {
+        Assert.Equal("3.141592653589793", Run(
+            "Define object circle with (the number radius).\n" +
+            "Get pi unto circle as number:\n" +
+            "    Give back 3.141592653589793.\n" +
+            "Done.\n" +
+            "Define c as a new circle { the radius 1 }.\n" +
+            "State c's pi."));
+    }
+
+    // Unto form: setter declared outside the object definition.
+    [Fact]
+    public void Setter_Unto_ExternalDeclaration()
+    {
+        Assert.Equal("5", Run(
+            "Define object box with (the number value).\n" +
+            "Set value unto box given (the number v):\n" +
+            "    one's value becomes v.\n" +
+            "Done.\n" +
+            "Define b as a new box { the value 0 }.\n" +
+            "b's value becomes 5.\n" +
+            "State b's value."));
+    }
+
+    // Getter promoted through embed chain.
+    [Fact]
+    public void Getter_Promoted_ThroughEmbedding()
+    {
+        Assert.Equal("314", Run(
+            "Define object circle with (the number radius):\n" +
+            "    Get area as number:\n" +
+            "        Give back one's radius * one's radius * 314.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define object colored-circle with (the text color) embeds circle.\n" +
+            "Define cc as a new colored-circle { the color \"red\", the radius 1 }.\n" +
+            "State cc's area."));
+    }
+
+    // Setter promoted through embed chain.
+    [Fact]
+    public void Setter_Promoted_ThroughEmbedding()
+    {
+        Assert.Equal("7", Run(
+            "Define object box with (the number value):\n" +
+            "    Set value given (the number v):\n" +
+            "        one's value becomes v.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define object labeled-box with (the text label) embeds box.\n" +
+            "Define lb as a new labeled-box { the label \"x\", the value 0 }.\n" +
+            "lb's value becomes 7.\n" +
+            "State lb's value."));
+    }
+
+    // Accessing a nonexistent getter on an object throws a type error.
+    [Fact]
+    public void Getter_TypeError_UnknownName()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object box with (the number value).\n" +
+            "Define b as a new box { the value 1 }.\n" +
+            "State b's missing."));
     }
 }

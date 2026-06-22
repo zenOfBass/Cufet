@@ -12,10 +12,28 @@ public sealed partial class TypeChecker
                 null, stmt.Line,
                 $"set '{stmt.Member}' on a {FormatType(targetType)}",
                 "Only objects support possessive field assignment (alice's field becomes X)."));
+
+        // Setter intercepts the write if one is defined; setter param type is the expected type.
+        var setterSig = FindSetterInOtOrPromoted(ot, stmt.Member);
+        if (setterSig != null)
+        {
+            var valueType = InferType(stmt.Value);
+            if (valueType != null && valueType != setterSig.Value.ParamType)
+                throw new TypeException(FormatTypeError(
+                    $"setter for '{stmt.Member}' expects a {FormatType(setterSig.Value.ParamType)}, not a {FormatType(valueType)}",
+                    null, stmt.Line,
+                    $"set '{stmt.Member}' to a {FormatType(valueType)}",
+                    $"The setter for '{stmt.Member}' accepts a {FormatType(setterSig.Value.ParamType)}."));
+            CheckRegionStore(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Target), stmt.Line,
+                $"set '{stmt.Member}' to a value from a shorter-lived rabbit region than the object");
+            return;
+        }
+
+        // No setter — normal field write check.
         CheckObjectNamedSet(ot, stmt.Member, stmt.Value, stmt.Line);
         // Region invariant: the value being stored cannot outlive the object's rabbit region.
-        var valueType = InferType(stmt.Value);
-        CheckRegionStore(stmt.Value, valueType, ContainerDepthOf(stmt.Target), stmt.Line,
+        var valType = InferType(stmt.Value);
+        CheckRegionStore(stmt.Value, valType, ContainerDepthOf(stmt.Target), stmt.Line,
             $"set '{stmt.Member}' to a value from a shorter-lived rabbit region than the object");
     }
 
@@ -83,6 +101,30 @@ public sealed partial class TypeChecker
         return null;
     }
 
+    // Finds a getter return type in ot or its embed chain (promotion).
+    private CufetType? FindGetterInOtOrPromoted(ObjectType ot, string name)
+    {
+        var own = ot.Getters.FirstOrDefault(g => g.GetterName == name);
+        if (own != default) return own.ReturnType;
+
+        if (ot.EmbeddedTypeName != null && _objectDefs.TryGetValue(ot.EmbeddedTypeName, out var embed))
+            return FindGetterInOtOrPromoted(embed, name);
+
+        return null;
+    }
+
+    // Finds a setter signature in ot or its embed chain (promotion).
+    private (string SetterName, CufetType ParamType, string ParamName)? FindSetterInOtOrPromoted(ObjectType ot, string name)
+    {
+        var own = ot.Setters.FirstOrDefault(s => s.SetterName == name);
+        if (own != default) return own;
+
+        if (ot.EmbeddedTypeName != null && _objectDefs.TryGetValue(ot.EmbeddedTypeName, out var embed))
+            return FindSetterInOtOrPromoted(embed, name);
+
+        return null;
+    }
+
     // Collects all positional types: own first, then embedded (recursively).
     private List<CufetType> GetAllPositionalTypes(ObjectType ot)
     {
@@ -119,6 +161,24 @@ public sealed partial class TypeChecker
         return names;
     }
 
+    // Returns all getter names reachable via promotion (for collision detection).
+    private HashSet<string> GetAllPromotedGetterNames(ObjectType embedType)
+    {
+        var names = new HashSet<string>(embedType.Getters.Select(g => g.GetterName));
+        if (embedType.EmbeddedTypeName != null && _objectDefs.TryGetValue(embedType.EmbeddedTypeName, out var deeper))
+            names.UnionWith(GetAllPromotedGetterNames(deeper));
+        return names;
+    }
+
+    // Returns all setter names reachable via promotion (for collision detection).
+    private HashSet<string> GetAllPromotedSetterNames(ObjectType embedType)
+    {
+        var names = new HashSet<string>(embedType.Setters.Select(s => s.SetterName));
+        if (embedType.EmbeddedTypeName != null && _objectDefs.TryGetValue(embedType.EmbeddedTypeName, out var deeper))
+            names.UnionWith(GetAllPromotedSetterNames(deeper));
+        return names;
+    }
+
     // Validates the embedding clause for an object definition: checks existence and collisions.
     private void ValidateObjectEmbedding(ObjectDefinition od, ObjectType objType)
     {
@@ -133,6 +193,8 @@ public sealed partial class TypeChecker
 
         var promotedFields  = GetAllPromotedFieldNames(embedType);
         var promotedMethods = GetAllPromotedMethodNames(embedType);
+        var promotedGetters = GetAllPromotedGetterNames(embedType);
+        var promotedSetters = GetAllPromotedSetterNames(embedType);
 
         foreach (var f in objType.NamedFields)
         {
@@ -151,6 +213,36 @@ public sealed partial class TypeChecker
                     null, od.Line,
                     $"define '{m.MethodName}' in '{od.Name}' while embedding '{od.EmbeddedTypeName}'",
                     $"Rename one of the methods. To call the embedded method explicitly, use 'Cast {m.MethodName} on the {od.EmbeddedTypeName} of ...'."));
+        }
+        foreach (var g in objType.Getters)
+        {
+            if (promotedGetters.Contains(g.GetterName))
+                throw new TypeException(FormatTypeError(
+                    $"'{od.Name}' has its own getter '{g.GetterName}' which collides with a promoted getter from '{od.EmbeddedTypeName}'",
+                    null, od.Line,
+                    $"define getter '{g.GetterName}' in '{od.Name}' while embedding '{od.EmbeddedTypeName}'",
+                    $"Rename one of the getters."));
+            if (promotedMethods.Contains(g.GetterName))
+                throw new TypeException(FormatTypeError(
+                    $"'{od.Name}' getter '{g.GetterName}' collides with a promoted method of the same name from '{od.EmbeddedTypeName}'",
+                    null, od.Line,
+                    $"define getter '{g.GetterName}' while embedding a type with a method of the same name",
+                    $"Rename the getter or the method."));
+        }
+        foreach (var s in objType.Setters)
+        {
+            if (promotedSetters.Contains(s.SetterName))
+                throw new TypeException(FormatTypeError(
+                    $"'{od.Name}' has its own setter '{s.SetterName}' which collides with a promoted setter from '{od.EmbeddedTypeName}'",
+                    null, od.Line,
+                    $"define setter '{s.SetterName}' in '{od.Name}' while embedding '{od.EmbeddedTypeName}'",
+                    $"Rename one of the setters."));
+            if (promotedMethods.Contains(s.SetterName))
+                throw new TypeException(FormatTypeError(
+                    $"'{od.Name}' setter '{s.SetterName}' collides with a promoted method of the same name from '{od.EmbeddedTypeName}'",
+                    null, od.Line,
+                    $"define setter '{s.SetterName}' while embedding a type with a method of the same name",
+                    $"Rename the setter or the method."));
         }
     }
 
@@ -194,9 +286,52 @@ public sealed partial class TypeChecker
 
         ValidateObjectEmbedding(od, objType);
         ValidateObjectConformance(od, objType);
+        ValidateGetterSetterNames(od, objType);
 
         foreach (var method in od.Methods)
             CheckMethodBody(method, objType, od.Line);
+        foreach (var getter in od.Getters)
+            CheckGetterBody(getter, objType, od.Line);
+        foreach (var setter in od.Setters)
+            CheckSetterBody(setter, objType, od.Line);
+    }
+
+    // Validates own-type getter/setter name uniqueness and no clashes with methods.
+    // (Getter + setter of the same name = valid pair. Getter/setter vs. field = valid backing-field pattern.)
+    private void ValidateGetterSetterNames(ObjectDefinition od, ObjectType objType)
+    {
+        var seenGetters = new HashSet<string>();
+        foreach (var g in objType.Getters)
+        {
+            if (!seenGetters.Add(g.GetterName))
+                throw new TypeException(FormatTypeError(
+                    $"'{od.Name}' has two getters both named '{g.GetterName}'",
+                    null, od.Line,
+                    $"define duplicate getter '{g.GetterName}'",
+                    "Each getter name must be unique. Rename one of them."));
+            if (objType.Methods.Any(m => m.MethodName == g.GetterName))
+                throw new TypeException(FormatTypeError(
+                    $"'{od.Name}' getter '{g.GetterName}' clashes with a method of the same name",
+                    null, od.Line,
+                    $"define getter '{g.GetterName}' when a method of the same name exists",
+                    $"Rename the getter or the method — getters and methods can't share a name."));
+        }
+        var seenSetters = new HashSet<string>();
+        foreach (var s in objType.Setters)
+        {
+            if (!seenSetters.Add(s.SetterName))
+                throw new TypeException(FormatTypeError(
+                    $"'{od.Name}' has two setters both named '{s.SetterName}'",
+                    null, od.Line,
+                    $"define duplicate setter '{s.SetterName}'",
+                    "Each setter name must be unique. Rename one of them."));
+            if (objType.Methods.Any(m => m.MethodName == s.SetterName))
+                throw new TypeException(FormatTypeError(
+                    $"'{od.Name}' setter '{s.SetterName}' clashes with a method of the same name",
+                    null, od.Line,
+                    $"define setter '{s.SetterName}' when a method of the same name exists",
+                    $"Rename the setter or the method — setters and methods can't share a name."));
+        }
     }
 
     // Checks a method body — 'one' (self) bound to objType, parameters in scope, identical
@@ -250,6 +385,92 @@ public sealed partial class TypeChecker
     {
         var objType = _objectDefs[method.UntoType!];
         CheckMethodBody(method, objType, method.Line);
+    }
+
+    // Checks the body of a getter: zero-arg, must return the declared type on all paths.
+    private void CheckGetterBody(GetterDeclaration getter, ObjectType objType, int selfLine)
+    {
+        var saved = SaveScopes();
+
+        foreach (var scope in saved.V)
+            foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
+        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine);
+
+        var prevInFunction       = _inFunction;
+        var prevReturnType       = _expectedReturnType;
+        var prevFunctionLine     = _functionDeclarationLine;
+        var prevRabbitDepth      = _rabbitDepth;
+        _inFunction              = true;
+        _expectedReturnType      = getter.ReturnType;
+        _functionDeclarationLine = getter.Line;
+        _rabbitDepth             = 0;
+
+        try
+        {
+            foreach (var stmt in getter.Body)
+                CheckStatement(stmt);
+
+            if (!DefinitelyReturns(getter.Body))
+                throw new TypeException(FormatTypeError(
+                    $"getter '{getter.Name}' is declared to give back a {FormatType(getter.ReturnType)}, but it can reach its end without returning one",
+                    null, getter.Line,
+                    "define a getter that might not return a value",
+                    "Make sure every path through the getter ends with a return statement."));
+        }
+        finally
+        {
+            _inFunction              = prevInFunction;
+            _expectedReturnType      = prevReturnType;
+            _functionDeclarationLine = prevFunctionLine;
+            _rabbitDepth             = prevRabbitDepth;
+            RestoreScopes(saved);
+        }
+    }
+
+    // Checks the body of a setter: one param (the incoming value), void return (infallible).
+    private void CheckSetterBody(SetterDeclaration setter, ObjectType objType, int selfLine)
+    {
+        var saved = SaveScopes();
+
+        foreach (var scope in saved.V)
+            foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
+        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine);
+        Scope[setter.ParamName] = new TypeInfo(setter.ParamType, new VariableReference(setter.ParamName, 0), setter.Line);
+
+        var prevInFunction       = _inFunction;
+        var prevReturnType       = _expectedReturnType;
+        var prevFunctionLine     = _functionDeclarationLine;
+        var prevRabbitDepth      = _rabbitDepth;
+        _inFunction              = true;
+        _expectedReturnType      = null; // void — setters never return a value
+        _functionDeclarationLine = setter.Line;
+        _rabbitDepth             = 0;
+
+        try
+        {
+            foreach (var stmt in setter.Body)
+                CheckStatement(stmt);
+        }
+        finally
+        {
+            _inFunction              = prevInFunction;
+            _expectedReturnType      = prevReturnType;
+            _functionDeclarationLine = prevFunctionLine;
+            _rabbitDepth             = prevRabbitDepth;
+            RestoreScopes(saved);
+        }
+    }
+
+    private void CheckUntoGetter(GetterDeclaration getter)
+    {
+        var objType = _objectDefs[getter.UntoType!];
+        CheckGetterBody(getter, objType, getter.Line);
+    }
+
+    private void CheckUntoSetter(SetterDeclaration setter)
+    {
+        var objType = _objectDefs[setter.UntoType!];
+        CheckSetterBody(setter, objType, setter.Line);
     }
 
     private ObjectType InferObjectLiteral(ObjectLiteral lit)
@@ -351,9 +572,12 @@ public sealed partial class TypeChecker
                 $"use 's on a {FormatType(targetType)}",
                 "Only objects and books support the possessive 's syntax."));
 
-        // Methods take priority over fields; both search includes promoted (embed chain).
+        // Methods first, then getters (field-syntax), then fields.
         var methodSig = FindMethodInOtOrPromoted(ot, poss.Member);
         if (methodSig != null) return methodSig;
+
+        var getterType = FindGetterInOtOrPromoted(ot, poss.Member);
+        if (getterType != null) return getterType;
 
         var fieldType = FindFieldInOtOrPromoted(ot, poss.Member);
         if (fieldType != null) return fieldType;
@@ -361,11 +585,12 @@ public sealed partial class TypeChecker
         var allFields  = GetAllNamedFields(ot);
         var available  = string.Join(", ",
             allFields.Select(f => $"'{f.FieldName}'")
+            .Concat(ot.Getters.Select(g => $"'{g.GetterName}' (getter)"))
             .Concat(ot.Methods.Select(m => $"'{m.MethodName}' (method)")));
         throw new TypeException(FormatTypeError(
-            $"'{ot.Name}' has no field or method named '{poss.Member}'",
+            $"'{ot.Name}' has no field, getter, or method named '{poss.Member}'",
             null, poss.Line,
             $"access '{poss.Member}' on a {ot.Name}",
-            available.Length > 0 ? $"Available: {available}." : $"'{ot.Name}' has no fields or methods."));
+            available.Length > 0 ? $"Available: {available}." : $"'{ot.Name}' has no fields, getters, or methods."));
     }
 }

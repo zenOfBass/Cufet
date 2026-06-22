@@ -59,6 +59,8 @@ public sealed class Parser
                                      : ParseWithOpenStatement(),
             TokenType.Pull       => ParsePullStatement(),
             TokenType.AcknowledgeKw => ParseAcknowledgeInterruptStatement(),
+            TokenType.GetKw => ParseGetterUntoDeclaration(),
+            TokenType.SetKw => ParseSetterUntoDeclaration(),
             _ => throw new ParseException(tok, "statement keyword"),
         };
     }
@@ -142,6 +144,8 @@ public sealed class Parser
         }
 
         var methods = new List<BindStatement>();
+        var getters = new List<GetterDeclaration>();
+        var setters = new List<SetterDeclaration>();
         if (Peek().Type == TokenType.Colon)
         {
             Advance(); // consume ':'
@@ -151,10 +155,15 @@ public sealed class Parser
             {
                 SkipNoise();
                 if (Peek().Type is TokenType.Done or TokenType.Eof) break;
-                if (Peek().Type != TokenType.Bind)
+                if (Peek().Type == TokenType.Bind)
+                    methods.Add(ParseBindStatement());
+                else if (Peek().Type == TokenType.GetKw)
+                    getters.Add(ParseGetterDeclaration());
+                else if (Peek().Type == TokenType.SetKw)
+                    setters.Add(ParseSetterDeclaration());
+                else
                     throw new ParseException(Peek(),
-                        "Bind — only method definitions are allowed inside an object body");
-                methods.Add(ParseBindStatement());
+                        "Bind, Get, or Set — only method, getter, and setter definitions are allowed inside an object body");
             }
             _nestDepth--;
             _inObjectDef = false;
@@ -166,7 +175,7 @@ public sealed class Parser
             Consume(TokenType.Dot);
         }
 
-        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, embeddedTypeName, conformedInterfaces, line);
+        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, getters, setters, embeddedTypeName, conformedInterfaces, line);
     }
 
     // Define <name> as an interface for { <method-sigs> } / single method without {}
@@ -2804,6 +2813,96 @@ public sealed class Parser
         Consume(TokenType.Dot);
         return new AcknowledgeInterruptStatement(line);
     }
+
+    // ── Getters & Setters ─────────────────────────────────────────────────
+
+    // Get <name> [unto <type>] as <type>: ... Done.
+    // Parses both the inline form (inside an object body, no unto) and the external form
+    // (top-level, with onto).  TypeChecker validates that inline getters have no UntoType.
+    private GetterDeclaration ParseGetterDeclaration()
+    {
+        var savedInObjectDef    = _inObjectDef;
+        var savedInFreeFunction = _inFreeFunction;
+        _inObjectDef    = false; // getter body must not allow nested declarations
+        _inFreeFunction = false;
+
+        var line = Consume(TokenType.GetKw).Line;
+        SkipNoise();
+        var name = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+
+        string? untoType = null;
+        if (Peek().Type == TokenType.Unto)
+        {
+            Advance(); SkipNoise(); // consume 'unto'
+            untoType = Consume(TokenType.Identifier).Lexeme;
+            SkipNoise();
+        }
+
+        Consume(TokenType.As);
+        SkipNoise(); // skip article 'a'/'an' before type keyword
+        var returnType = ParseReturnType();
+        if (returnType == null)
+            throw new ParseException(Peek(), "a return type — getters cannot be void");
+        SkipNoise();
+        Consume(TokenType.Colon);
+        _functionDepth++;
+        _nestDepth++;
+        var body = ParseFunctionBody();
+        _nestDepth--;
+        _functionDepth--;
+
+        _inObjectDef    = savedInObjectDef;
+        _inFreeFunction = savedInFreeFunction;
+        return new GetterDeclaration(name, returnType, body, untoType, line);
+    }
+
+    // Top-level entry-point: routes to the shared parser which allows the 'unto' clause.
+    private GetterDeclaration ParseGetterUntoDeclaration() => ParseGetterDeclaration();
+
+    // Set <name> [unto <type>] given (<param>): ... Done.
+    private SetterDeclaration ParseSetterDeclaration()
+    {
+        var savedInObjectDef    = _inObjectDef;
+        var savedInFreeFunction = _inFreeFunction;
+        _inObjectDef    = false;
+        _inFreeFunction = false;
+
+        var line = Consume(TokenType.SetKw).Line;
+        SkipNoise();
+        var name = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+
+        string? untoType = null;
+        if (Peek().Type == TokenType.Unto)
+        {
+            Advance(); SkipNoise(); // consume 'unto'
+            untoType = Consume(TokenType.Identifier).Lexeme;
+            SkipNoise();
+        }
+
+        Consume(TokenType.Given);
+        SkipNoise();
+        Consume(TokenType.LParen);
+        SkipNoise();
+        var (paramType, paramName) = ParseParameter();
+        SkipNoise();
+        Consume(TokenType.RParen);
+        SkipNoise();
+        Consume(TokenType.Colon);
+        _functionDepth++;
+        _nestDepth++;
+        var body = ParseFunctionBody();
+        _nestDepth--;
+        _functionDepth--;
+
+        _inObjectDef    = savedInObjectDef;
+        _inFreeFunction = savedInFreeFunction;
+        return new SetterDeclaration(name, paramType, paramName, body, untoType, line);
+    }
+
+    // Top-level entry-point: routes to the shared parser which allows the 'unto' clause.
+    private SetterDeclaration ParseSetterUntoDeclaration() => ParseSetterDeclaration();
 
     // Returns the handler keyword (Failure or Exception) following 'In case of' at
     // the current position, skipping noise. Returns Eof if no handler pattern follows.

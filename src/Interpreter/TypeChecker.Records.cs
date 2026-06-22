@@ -9,6 +9,21 @@ public sealed partial class TypeChecker
 
         if (recordType is ObjectType ot)
         {
+            // Setter intercepts the write if one is defined.
+            var setterSig = FindSetterInOtOrPromoted(ot, stmt.FieldName);
+            if (setterSig != null)
+            {
+                var setterValueType = InferType(stmt.Value);
+                if (setterValueType != null && setterValueType != setterSig.Value.ParamType)
+                    throw new TypeException(FormatTypeError(
+                        $"setter for '{stmt.FieldName}' expects a {FormatType(setterSig.Value.ParamType)}, not a {FormatType(setterValueType)}",
+                        null, stmt.Line,
+                        $"set '{stmt.FieldName}' to a {FormatType(setterValueType)}",
+                        $"The setter for '{stmt.FieldName}' accepts a {FormatType(setterSig.Value.ParamType)}."));
+                CheckRegionStore(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Record), stmt.Line,
+                    $"set field '{stmt.FieldName}' to a value from a shorter-lived rabbit region");
+                return;
+            }
             CheckObjectNamedSet(ot, stmt.FieldName, stmt.Value, stmt.Line);
             var objValueType = InferType(stmt.Value);
             CheckRegionStore(stmt.Value, objValueType, ContainerDepthOf(stmt.Record), stmt.Line,
@@ -135,20 +150,27 @@ public sealed partial class TypeChecker
             };
         }
 
-        // Named field access also works on objects (the <name> of <object>).
-        // Includes promoted fields from embedded types and the embed handle itself.
+        // Named field/getter access on objects (the <name> of <object>).
+        // Getters intercept reads before stored fields; includes promoted members.
         if (recordType is ObjectType ot)
         {
+            // Check getter before stored field — uniform access.
+            var getterType = FindGetterInOtOrPromoted(ot, rna.FieldName);
+            if (getterType != null) return getterType;
+
             var found = FindFieldInOtOrPromoted(ot, rna.FieldName);
             if (found != null) return found;
             var allFields = GetAllNamedFields(ot);
+            var available = string.Join(", ",
+                allFields.Select(f => $"'{f.FieldName}'")
+                .Concat(ot.Getters.Select(g => $"'{g.GetterName}' (getter)")));
             throw new TypeException(FormatTypeError(
-                $"'{ot.Name}' has no field named '{rna.FieldName}'",
+                $"'{ot.Name}' has no field or getter named '{rna.FieldName}'",
                 null, rna.Line,
                 $"access field '{rna.FieldName}'",
-                allFields.Count > 0
-                    ? $"Available fields: {string.Join(", ", allFields.Select(f => $"'{f.FieldName}'"))}."
-                    : $"'{ot.Name}' has no named fields."));
+                available.Length > 0
+                    ? $"Available: {available}."
+                    : $"'{ot.Name}' has no named fields or getters."));
         }
 
         if (recordType is not RecordType rt)

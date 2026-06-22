@@ -147,15 +147,39 @@ public sealed record InterfaceDefinition(
     int Line
 ) : IStatement;
 
-// Define object <name> with (<fields>) [and as a <type>] [and <interface> ...] [: <methods> Done.]
+// Get <name> as <type>: ... Done.  — computed property; body must Return the declared type.
+// UntoType != null → declared outside its object's body with 'unto <type>' (same as Bind unto).
+public sealed record GetterDeclaration(
+    string Name,
+    CufetType ReturnType,
+    IReadOnlyList<IStatement> Body,
+    string? UntoType,
+    int Line
+) : IStatement;
+
+// Set <name> given (<param>): ... Done.  — intercepting write; body is void / infallible.
+// The setter writes the backing field via a self-bypassing raw write in the interpreter.
+// UntoType != null → declared outside its object's body with 'unto <type>'.
+public sealed record SetterDeclaration(
+    string Name,
+    CufetType ParamType,
+    string ParamName,
+    IReadOnlyList<IStatement> Body,
+    string? UntoType,
+    int Line
+) : IStatement;
+
+// Define object <name> with (<fields>) [and as a <type>] [and <interface> ...] [: <members> Done.]
 // EmbeddedTypeName != null → embedding (Slice 4); null = no embed.
 // ConformedInterfaces — interface names declared with "and <interface>" clauses (Slice 5).
-// Methods == [] when defined without a body.
+// Methods/Getters/Setters == [] when defined without a body.
 public sealed record ObjectDefinition(
     string Name,
     IReadOnlyList<CufetType> PositionalTypes,
     IReadOnlyList<(string FieldName, CufetType FieldType)> NamedFields,
     IReadOnlyList<BindStatement> Methods,
+    IReadOnlyList<GetterDeclaration> Getters,
+    IReadOnlyList<SetterDeclaration> Setters,
     string? EmbeddedTypeName,
     IReadOnlyList<string> ConformedInterfaces,
     int Line

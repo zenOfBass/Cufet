@@ -173,6 +173,8 @@ public sealed class Lexer
             "sorted"     => TokenType.Sorted,
             "reverse"    => TokenType.Reverse,
             "unto"       => TokenType.Unto,
+            "get"        => TokenType.GetKw,
+            "set"        => TokenType.SetKw,
             "failure"    => TokenType.Failure,
             "category"   => TokenType.Category,
             "try"        => TokenType.Try,

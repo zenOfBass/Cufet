@@ -40,6 +40,10 @@ public sealed partial class Interpreter
     // Allow tests to set the interrupt flag directly without synthesizing a real Ctrl-C.
     internal void SimulateInterrupt() => _interruptRequested = true;
 
+    // Non-null while executing a setter body: bypasses re-dispatch for the same (type, field) pair
+    // so 'one's field becomes X' inside the setter does a raw write instead of recursing.
+    private (string TypeName, string FieldName)? _inSetterFor = null;
+
     private Dictionary<string, object> Scope => _scopes[^1];
 
     private bool TryLookupValue(string name, out object val)
@@ -245,14 +249,25 @@ public sealed partial class Interpreter
                 _objectDefs[od.Name] = od;
         }
 
-        // Merge 'unto' methods (declared outside the object body) into their target type's
-        // method list, so dispatch finds them identically to a nested method. The
-        // TypeChecker already validated every target exists, so a miss here can't happen.
+        // Merge 'unto' methods/getters/setters (declared outside the object body) into their
+        // target type's member lists. TypeChecker already validated every target exists.
         foreach (var stmt in program.Statements)
         {
-            if (stmt is not BindStatement { UntoType: { } untoType } bind) continue;
-            if (!_objectDefs.TryGetValue(untoType, out var def)) continue;
-            _objectDefs[untoType] = def with { Methods = def.Methods.Append(bind).ToList() };
+            if (stmt is BindStatement { UntoType: { } untoType } bind)
+            {
+                if (_objectDefs.TryGetValue(untoType, out var def))
+                    _objectDefs[untoType] = def with { Methods = def.Methods.Append(bind).ToList() };
+            }
+            else if (stmt is GetterDeclaration { UntoType: { } gUntoType } getter)
+            {
+                if (_objectDefs.TryGetValue(gUntoType, out var def))
+                    _objectDefs[gUntoType] = def with { Getters = def.Getters.Append(getter).ToList() };
+            }
+            else if (stmt is SetterDeclaration { UntoType: { } sUntoType } setter)
+            {
+                if (_objectDefs.TryGetValue(sUntoType, out var def))
+                    _objectDefs[sUntoType] = def with { Setters = def.Setters.Append(setter).ToList() };
+            }
         }
 
         // Hoist top-level function definitions.
@@ -461,6 +476,13 @@ public sealed partial class Interpreter
                 var recordVal = Evaluate(rnss.Record);
                 if (recordVal is ObjectValue rnssOv)
                 {
+                    // Route through setter if one exists and we're not already inside it (bypass).
+                    var rnssSetterDef = FindSetterInObjDefs(rnssOv, rnss.FieldName);
+                    if (rnssSetterDef != null && _inSetterFor != (rnssOv.TypeName, rnss.FieldName))
+                    {
+                        ExecuteSetterMethod(rnssOv, rnssSetterDef, rnss.Value, rnss.Line);
+                        break;
+                    }
                     var owner = FindOwnerForNamedField(rnssOv, rnss.FieldName);
                     if (owner == null)
                         throw new RuntimeException($"Object of type '{rnssOv.TypeName}' has no field named '{rnss.FieldName}' (line {rnss.Line}).");
@@ -487,6 +509,8 @@ public sealed partial class Interpreter
 
             case ObjectDefinition:
             case InterfaceDefinition:
+            case GetterDeclaration:
+            case SetterDeclaration:
                 break; // already hoisted / no runtime action
 
             case BindStatement bind:
@@ -815,9 +839,13 @@ public sealed partial class Interpreter
 
         if (target is ObjectValue ov)
         {
+            // Dispatch getter before stored field — uniform access.
+            var getter = FindGetterInObjDefs(ov, rna.FieldName);
+            if (getter != null) return ExecuteGetterMethod(ov, getter, rna.Line);
+
             if (TryFindNamedFieldValue(ov, rna.FieldName, out var found)) return found;
             throw new RuntimeException(
-                $"Object of type '{ov.TypeName}' has no field named '{rna.FieldName}' (line {rna.Line}).");
+                $"Object of type '{ov.TypeName}' has no field or getter named '{rna.FieldName}' (line {rna.Line}).");
         }
 
         if (target is FailureValue fv)

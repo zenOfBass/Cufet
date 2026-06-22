@@ -113,13 +113,17 @@ public sealed class FunctionType : CufetType
     }
 }
 
-// Nominal type — equality by name only. Fields/methods carried for lookup; not part of equality.
+// Nominal type — equality by name only. Fields/methods/getters/setters carried for lookup; not part of equality.
 public sealed class ObjectType : CufetType
 {
     public string Name { get; }
     public IReadOnlyList<CufetType> PositionalTypes { get; }
     public IReadOnlyList<(string FieldName, CufetType FieldType)> NamedFields { get; }
     public IReadOnlyList<(string MethodName, FunctionType Signature)> Methods { get; }
+    // Slice 6 — getters: computed properties accessed with field syntax.
+    public IReadOnlyList<(string GetterName, CufetType ReturnType)> Getters { get; }
+    // Slice 6 — setters: intercepting writes; body is void/infallible.
+    public IReadOnlyList<(string SetterName, CufetType ParamType, string ParamName)> Setters { get; }
     // Slice 4 — embedding: null means no embed; non-null is the embedded type name (handle).
     public string? EmbeddedTypeName { get; }
     // Slice 5 — conformance: interface names declared with "and <interface>" clauses.
@@ -130,6 +134,8 @@ public sealed class ObjectType : CufetType
         IReadOnlyList<CufetType> positionalTypes,
         IReadOnlyList<(string FieldName, CufetType FieldType)> namedFields,
         IReadOnlyList<(string MethodName, FunctionType Signature)> methods,
+        IReadOnlyList<(string GetterName, CufetType ReturnType)>? getters = null,
+        IReadOnlyList<(string SetterName, CufetType ParamType, string ParamName)>? setters = null,
         string? embeddedTypeName = null,
         IReadOnlyList<string>? conformedInterfaces = null)
     {
@@ -137,6 +143,8 @@ public sealed class ObjectType : CufetType
         PositionalTypes    = positionalTypes;
         NamedFields        = namedFields.OrderBy(f => f.FieldName, StringComparer.Ordinal).ToList();
         Methods            = methods;
+        Getters            = getters ?? [];
+        Setters            = setters ?? [];
         EmbeddedTypeName   = embeddedTypeName;
         ConformedInterfaces = conformedInterfaces ?? [];
     }
@@ -448,16 +456,31 @@ public sealed partial class TypeChecker
             _interfaceDefs[ifd.Name] = ifd;
         }
 
-        // Gather 'unto'-attached methods by target type name before building ObjectTypes,
-        // so their signatures merge into the type's method set regardless of whether the
-        // 'unto' Bind appears before or after 'Define object <type>' in the file.
-        var untoMethodsByType = new Dictionary<string, List<BindStatement>>();
+        // Gather 'unto'-attached methods/getters/setters by target type name before building ObjectTypes,
+        // so their signatures merge into the type's member set regardless of declaration order.
+        var untoMethodsByType  = new Dictionary<string, List<BindStatement>>();
+        var untoGettersByType  = new Dictionary<string, List<GetterDeclaration>>();
+        var untoSettersByType  = new Dictionary<string, List<SetterDeclaration>>();
         foreach (var stmt in program.Statements)
         {
-            if (stmt is not BindStatement { UntoType: { } untoType } bind) continue;
-            if (!untoMethodsByType.TryGetValue(untoType, out var list))
-                untoMethodsByType[untoType] = list = new List<BindStatement>();
-            list.Add(bind);
+            if (stmt is BindStatement { UntoType: { } mUnt } bind)
+            {
+                if (!untoMethodsByType.TryGetValue(mUnt, out var mList))
+                    untoMethodsByType[mUnt] = mList = [];
+                mList.Add(bind);
+            }
+            else if (stmt is GetterDeclaration { UntoType: { } gUnt } getter)
+            {
+                if (!untoGettersByType.TryGetValue(gUnt, out var gList))
+                    untoGettersByType[gUnt] = gList = [];
+                gList.Add(getter);
+            }
+            else if (stmt is SetterDeclaration { UntoType: { } sUnt } setter)
+            {
+                if (!untoSettersByType.TryGetValue(sUnt, out var sList))
+                    untoSettersByType[sUnt] = sList = [];
+                sList.Add(setter);
+            }
         }
 
         foreach (var stmt in program.Statements)
@@ -466,6 +489,8 @@ public sealed partial class TypeChecker
             var methodSigs = od.Methods
                 .Select(m => (m.Name, new FunctionType(m.Parameters.Select(p => p.Type).ToList(), m.ReturnType)))
                 .ToList();
+            var getterSigs = od.Getters.Select(g => (g.Name, g.ReturnType)).ToList();
+            var setterSigs = od.Setters.Select(s => (s.Name, s.ParamType, s.ParamName)).ToList();
 
             if (untoMethodsByType.Remove(od.Name, out var untoMethods))
             {
@@ -481,23 +506,63 @@ public sealed partial class TypeChecker
                 }
             }
 
+            if (untoGettersByType.Remove(od.Name, out var untoGetters))
+            {
+                foreach (var ug in untoGetters)
+                {
+                    if (getterSigs.Any(g => g.Item1 == ug.Name))
+                        throw new TypeException(FormatTypeError(
+                            $"'{od.Name}' already has a getter '{ug.Name}'",
+                            null, ug.Line,
+                            $"declare another getter named '{ug.Name}' for '{od.Name}'",
+                            "Getter names must be unique per type. Rename one of them."));
+                    getterSigs.Add((ug.Name, ug.ReturnType));
+                }
+            }
+
+            if (untoSettersByType.Remove(od.Name, out var untoSetters))
+            {
+                foreach (var us in untoSetters)
+                {
+                    if (setterSigs.Any(s => s.Item1 == us.Name))
+                        throw new TypeException(FormatTypeError(
+                            $"'{od.Name}' already has a setter '{us.Name}'",
+                            null, us.Line,
+                            $"declare another setter named '{us.Name}' for '{od.Name}'",
+                            "Setter names must be unique per type. Rename one of them."));
+                    setterSigs.Add((us.Name, us.ParamType, us.ParamName));
+                }
+            }
+
             _objectDefs[od.Name] = new ObjectType(
                 od.Name, od.PositionalTypes, od.NamedFields, methodSigs,
+                getterSigs, setterSigs,
                 od.EmbeddedTypeName, od.ConformedInterfaces);
         }
 
-        // Anything left in untoMethodsByType targets a name that isn't a defined object type.
+        // Anything left in unto* dictionaries targets a name that isn't a defined object type.
         foreach (var (targetName, methods) in untoMethodsByType)
         {
             var reason = _interfaceDefs.ContainsKey(targetName)
                 ? $"'{targetName}' is an interface, not an object type — methods can't be attached to it with 'unto'"
                 : $"'{targetName}' is not a defined object type";
             throw new TypeException(FormatTypeError(
-                reason,
-                null, methods[0].Line,
+                reason, null, methods[0].Line,
                 $"declare a method unto '{targetName}'",
                 $"'unto' only attaches methods to object types defined in this program. Define 'object {targetName}' first, or check the spelling."));
         }
+        foreach (var (targetName, getters) in untoGettersByType)
+            throw new TypeException(FormatTypeError(
+                $"'{targetName}' is not a defined object type",
+                null, getters[0].Line,
+                $"declare a getter unto '{targetName}'",
+                $"'unto' only attaches getters to object types defined in this program. Define 'object {targetName}' first, or check the spelling."));
+        foreach (var (targetName, setters) in untoSettersByType)
+            throw new TypeException(FormatTypeError(
+                $"'{targetName}' is not a defined object type",
+                null, setters[0].Line,
+                $"declare a setter unto '{targetName}'",
+                $"'unto' only attaches setters to object types defined in this program. Define 'object {targetName}' first, or check the spelling."));
 
         foreach (var stmt in program.Statements)
         {
@@ -722,6 +787,16 @@ public sealed partial class TypeChecker
                 break; // already hoisted in Pass1
             case AcknowledgeInterruptStatement:
                 break; // always valid; no type constraints
+            case GetterDeclaration { UntoType: { } } untoGetter:
+                CheckUntoGetter(untoGetter);
+                break;
+            case GetterDeclaration:
+                break; // inline getter already checked inside CheckObjectDefinition
+            case SetterDeclaration { UntoType: { } } untoSetter:
+                CheckUntoSetter(untoSetter);
+                break;
+            case SetterDeclaration:
+                break; // inline setter already checked inside CheckObjectDefinition
         }
     }
 
