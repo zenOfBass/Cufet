@@ -2186,7 +2186,8 @@ public sealed class Parser
                     throw new ParseException(Peek(), "expected 'variable' after 'environment'");
                 Advance(); // consume 'variable'
                 SkipNoise();
-                baseExpr = new EnvironmentVariableExpression(ParseExpression(), envLine);
+                // ParseExprOr so that 'but void is' (parsed one level above) stays outside the name.
+                baseExpr = new EnvironmentVariableExpression(ParseExprOr(), envLine);
                 break;
             }
             default:

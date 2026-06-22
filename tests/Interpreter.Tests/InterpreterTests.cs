@@ -8006,6 +8006,7 @@ public class InterpreterTests
             "Define v as the environment variable \"CUFET_TEST_ABSENT_XYZ\".\n" +
             "If v is void:\n" +
             "    State \"not set\".\n" +
+            "Done.\n" +
             "Otherwise:\n" +
             "    State \"set\".\n" +
             "Done."));
@@ -8025,8 +8026,8 @@ public class InterpreterTests
         // The name is a text variable, not a literal — dynamic lookup must work.
         System.Environment.SetEnvironmentVariable("CUFET_TEST_DYN", "dynamic");
         Assert.Equal("dynamic", Run(
-            "Define key as \"CUFET_TEST_DYN\".\n" +
-            "State the environment variable key but void is \"missing\"."));
+            "Define env-key as \"CUFET_TEST_DYN\".\n" +
+            "State the environment variable env-key but void is \"missing\"."));
     }
 
     [Fact]
