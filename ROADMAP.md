@@ -276,6 +276,10 @@ language is considered stable.
   title-case / capitalize-first, leading-only / trailing-only trim, and a
   character-sequence type (`text` stays opaque — no character-level indexing).
 
+- **Number-base literals** — `0x`, `0o`, `0b` prefixes for hexadecimal,
+  octal, and binary integer literals. Lexer/parser work; values are still
+  `number` (decimal) at runtime. Standalone; no blocking dependencies.
+
 ### Types and data structures
 
 - **Recursive data structures (linked lists, trees)** — now expressible, since
@@ -283,6 +287,10 @@ language is considered stable.
   needs (a node's `next` is `a voidable node`). Unblocked by the voidable type;
   not yet built out or documented as a pattern.
 
+- **Matrix op-set** — addition, subtraction, matrix product, and scalar scaling.
+  Deliberately deferred: the intended surface is operator syntax (`m1 + m2`,
+  `m1 * m2`), not book functions — so this waits on operator overloading (see
+  OOP extensions below).
 
 ### Functions
 
@@ -321,6 +329,46 @@ see [What's built](#whats-built-the-language-today) above.*
 - **Reference-semantics opt-in** — objects (and maps' values) are value-typed; an
   explicit way to ask for shared/reference semantics (Rust-style) is deferred.
   Separate design.
+
+### OOP extensions
+
+- **Operator overloading** — user-defined types (including book-introduced types
+  like `matrix`) declaring behavior for `+`, `-`, `*`, etc. Unblocks matrix
+  arithmetic (`m1 + m2` syntax). Needs design.
+
+- **Getters and setters** — computed, property-style fields on objects; accessed
+  as fields by callers but backed by logic inside the object. Needs design.
+
+- **Explicit constructors** — user-defined construction logic beyond the current
+  field-literal `{...}` form. Needs design.
+
+- **Destructors** — user-defined cleanup at scope/region exit. **Blocked on rabbit
+  Layer 3** — destructor run-time is derived from the region model (RAII: fire at
+  the `Done.` of the enclosing region). Design after rabbit Layer 3 is built.
+
+- **Multi-directional predicate dispatch** — dispatch on multiple argument types
+  simultaneously (CLOS multimethods / Julia-style). A type-system arc larger than
+  the entire OOP slice already built. **Design-first** — needs a dedicated design
+  session before it enters the build sequence; not orderable until designed.
+
+- **Design patterns (book)** — common patterns surfaced as a pulled book. Library
+  and documentation work; no language or TypeChecker changes required.
+
+### Memory model (interpreter era)
+
+- **Rabbit — block-scoped arenas (Layer 3)** — `With a rabbit warren: ... Done.`
+  creates a named, block-scoped region; reference-typed values inside live in the
+  rabbit and are freed at `Done.`. **Fully designed** — see the memory model
+  section in Long-term direction. Ready to build now; unblocks destructors.
+
+### Concurrency (interpreter era)
+
+- **Concurrent tasks and `pull a rabbit`** — `pull a rabbit` is the task-lifetime
+  form of the rabbit: a region whose lifetime matches a concurrent task rather than
+  a lexical block. **Separate era from the native backend** — designed and built in
+  the interpreter; the native backend later implements those semantics against real
+  hardware. Requires the concurrency model (async/parallel tasks) to be established
+  first; `pull a rabbit` is the concurrency-era rabbit, not the block-scoped one.
 
 ### Tooling
 
