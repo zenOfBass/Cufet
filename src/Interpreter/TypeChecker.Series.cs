@@ -47,7 +47,7 @@ public sealed partial class TypeChecker
         if (seriesInfo.Type is not SeriesType seriesType) return;
 
         var valueType = InferType(add.Value);
-        if (valueType != null && valueType != seriesType.ElementType)
+        if (valueType != null && !IsAssignable(seriesType.ElementType, valueType))
             throw new TypeException(FormatTypeError(
                 $"'{add.SeriesName}' holds {FormatTypePlural(seriesType.ElementType)}",
                 $"You defined it on line {seriesInfo.EstablishingLine} as a series of {FormatTypePlural(seriesType.ElementType)}, so it can only accept {FormatTypePlural(seriesType.ElementType)}",
@@ -184,6 +184,24 @@ public sealed partial class TypeChecker
 
     private CufetType InferSeriesLiteral(SeriesLiteral lit)
     {
+        // When the annotation is a union type, elements don't need to be homogeneous —
+        // check each element is assignable to the union instead.
+        if (lit.Annotation is UnionType unionAnnotation)
+        {
+            foreach (var elem in lit.Elements)
+            {
+                var elemType = InferType(elem);
+                if (elemType != null && !IsAssignable(unionAnnotation, elemType))
+                    throw new TypeException(FormatTypeError(
+                        $"this item doesn't fit in a {FormatType(unionAnnotation)} collection",
+                        $"{FormatType(elemType)} is not one of the allowed types",
+                        lit.Line,
+                        $"add a {FormatType(elemType)} item",
+                        $"Only {FormatType(unionAnnotation)} values are allowed in this collection."));
+            }
+            return new SeriesType(unionAnnotation);
+        }
+
         CufetType? inferred = null;
         for (int i = 0; i < lit.Elements.Count; i++)
         {

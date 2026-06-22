@@ -36,6 +36,30 @@ public sealed partial class TypeChecker
         if (lit.Pairs.Count == 0)
             return new MapType(lit.KeyType!, lit.ValueType!);
 
+        // Atlas with explicit annotations — validate each pair against the declared types
+        // and return the declared map type (preserving union value types).
+        if (lit.KeyType != null && lit.ValueType != null)
+        {
+            foreach (var (kExpr, vExpr) in lit.Pairs)
+            {
+                var kType = InferType(kExpr);
+                if (kType != null && !IsAssignable(lit.KeyType, kType))
+                    throw new TypeException(FormatTypeError(
+                        $"this atlas uses {FormatType(lit.KeyType)} keys",
+                        null, lit.Line,
+                        $"use a {FormatType(kType)} as a key",
+                        $"Keys in this atlas must be {FormatTypePlural(lit.KeyType)}."));
+                var vType = InferType(vExpr);
+                if (vType != null && !IsAssignable(lit.ValueType, vType))
+                    throw new TypeException(FormatTypeError(
+                        $"this atlas holds {FormatTypePlural(lit.ValueType)}",
+                        null, lit.Line,
+                        $"store a {FormatType(vType)} in it",
+                        $"Values in this atlas must be {FormatTypePlural(lit.ValueType)}."));
+            }
+            return new MapType(lit.KeyType, lit.ValueType);
+        }
+
         // Populated map — infer key and value types from pairs; all must agree
         CufetType? inferredKey = null;
         CufetType? inferredVal = null;

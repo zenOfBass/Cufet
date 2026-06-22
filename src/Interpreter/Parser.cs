@@ -1143,7 +1143,8 @@ public sealed class Parser
             Advance(); SkipNoise(); // consume the article
             return new IsTypeCheck(left, ParseTypeAnnotation(), false, isLine);
         }
-        if (Peek().Type == TokenType.Not && PeekAfterCurrent() == TokenType.Article) // "is not a/an <type>"
+        if (Peek().Type == TokenType.Not &&
+            _pos + 1 < _tokens.Count && _tokens[_pos + 1].Type == TokenType.Article) // "is not a/an <type>"
         {
             Advance(); // consume 'not'
             Advance(); SkipNoise(); // consume the article

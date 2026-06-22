@@ -8820,11 +8820,11 @@ public class InterpreterTests
     [Fact]
     public void Union_IsANumber_True()
     {
-        // Is-a type-test on a number value
         Assert.Equal("yes", Run(
             "Define x as 42.\n" +
             "If x is a number:\n" +
             "    State \"yes\".\n" +
+            "Done.\n" +
             "Otherwise:\n" +
             "    State \"no\".\n" +
             "Done."));
@@ -8837,6 +8837,7 @@ public class InterpreterTests
             "Define x as \"hello\".\n" +
             "If x is a number:\n" +
             "    State \"yes\".\n" +
+            "Done.\n" +
             "Otherwise:\n" +
             "    State \"no\".\n" +
             "Done."));
@@ -8849,6 +8850,7 @@ public class InterpreterTests
             "Define x as \"hello\".\n" +
             "If x is a text:\n" +
             "    State \"yes\".\n" +
+            "Done.\n" +
             "Otherwise:\n" +
             "    State \"no\".\n" +
             "Done."));
@@ -8861,6 +8863,7 @@ public class InterpreterTests
             "Define x as \"hello\".\n" +
             "If x is not a number:\n" +
             "    State \"yes\".\n" +
+            "Done.\n" +
             "Otherwise:\n" +
             "    State \"no\".\n" +
             "Done."));
@@ -8873,6 +8876,7 @@ public class InterpreterTests
             "Define x as 42.\n" +
             "If x is not a number:\n" +
             "    State \"yes\".\n" +
+            "Done.\n" +
             "Otherwise:\n" +
             "    State \"no\".\n" +
             "Done."));
@@ -8882,9 +8886,10 @@ public class InterpreterTests
     public void Union_IsAFact_True()
     {
         Assert.Equal("yes", Run(
-            "Define x as true.\n" +
+            "Define x as (1 = 1).\n" +
             "If x is a fact:\n" +
             "    State \"yes\".\n" +
+            "Done.\n" +
             "Otherwise:\n" +
             "    State \"no\".\n" +
             "Done."));
@@ -8896,9 +8901,9 @@ public class InterpreterTests
         // Catalogue element type is the union; narrowing needed before type-specific op
         Assert.Equal("42", Run(
             "Define items as a catalogue of (number or text) with (42, \"hello\").\n" +
-            "Define it as item 1 of items.\n" +
-            "If it is a number:\n" +
-            "    State it converted to text.\n" +
+            "Define elem as item 1 of items.\n" +
+            "If elem is a number:\n" +
+            "    State elem converted to text.\n" +
             "Done."));
     }
 
@@ -8921,6 +8926,7 @@ public class InterpreterTests
             "Define v as item 1 of items.\n" +
             "If v is 42:\n" +
             "    State \"yes\".\n" +
+            "Done.\n" +
             "Otherwise:\n" +
             "    State \"no\".\n" +
             "Done."));
@@ -8932,7 +8938,7 @@ public class InterpreterTests
         // Assigning a value not in the closed union → type error
         Assert.Throws<TypeException>(() => Run(
             "Define items as a catalogue of (number or text) with (42, \"hi\").\n" +
-            "Add true to items."));
+            "Add (1 = 1) to items."));
     }
 
     // ── Layer 2: Narrowing ──────────────────────────────────────────────────────
@@ -8945,7 +8951,7 @@ public class InterpreterTests
             "Define items as a catalogue of (number or text) with (42, \"hi\").\n" +
             "Define v as item 1 of items.\n" +
             "If v is a number:\n" +
-            "    State v + 1 converted to text.\n" +
+            "    State (v + 1) converted to text.\n" +
             "Done."));
     }
 
@@ -8968,9 +8974,10 @@ public class InterpreterTests
             "Define items as a catalogue of (number or text) with (42, \"hi!\").\n" +
             "Define v as item 2 of items.\n" +
             "If v is a number:\n" +
-            "    State v + 1 converted to text.\n" +
+            "    State (v + 1) converted to text.\n" +
+            "Done.\n" +
             "Otherwise:\n" +
-            "    State the length of v converted to text.\n" +  // text op valid in Otherwise
+            "    State the length of v converted to text.\n" +
             "Done."));
     }
 
@@ -8979,12 +8986,14 @@ public class InterpreterTests
     {
         // (number or text or fact): check number then text → Otherwise narrows to fact
         Assert.Equal("true", Run(
-            "Define items as a catalogue of (number or text or fact) with (true, 1, \"x\").\n" +
+            "Define items as a catalogue of (number or text or fact) with ((1 = 1), 1, \"x\").\n" +
             "Define v as item 1 of items.\n" +
             "If v is a number:\n" +
             "    State \"number\".\n" +
+            "Done.\n" +
             "Otherwise if v is a text:\n" +
             "    State \"text\".\n" +
+            "Done.\n" +
             "Otherwise:\n" +
             "    State v converted to text.\n" +
             "Done."));
@@ -9007,19 +9016,18 @@ public class InterpreterTests
     {
         // Open catalogue: is a number still narrows in the true branch
         Assert.Equal("43", Run(
-            "Define items as a catalogue with (42, \"hello\", true).\n" +
+            "Define items as a catalogue with (42, \"hello\", (1 = 1)).\n" +
             "Define v as item 1 of items.\n" +
             "If v is a number:\n" +
-            "    State v + 1 converted to text.\n" +
+            "    State (v + 1) converted to text.\n" +
             "Done."));
     }
 
     [Fact]
     public void Narrowing_ExistingIsVoid_StillWorks()
     {
-        // Existing voidable narrowing unaffected
-        Assert.Equal("42", Run(
-            "Define v as math's square root of (-1) but void is 42.\n" +
+        // Existing voidable narrowing: is not void narrows to the inner type
+        Assert.Equal("2", Run(
             "Pull a book on math.\n" +
             "Define r as math's square root of (4).\n" +
             "If r is not void:\n" +
@@ -9060,7 +9068,7 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Define items as a catalogue of (number or text) with (42, \"hello\").\n" +
-            "Add true to items."));
+            "Add (1 = 1) to items."));
     }
 
     [Fact]
@@ -9069,7 +9077,7 @@ public class InterpreterTests
         // Open catalogue accepts any type
         Assert.Equal("3", Run(
             "Define items as a catalogue with (42, \"hello\").\n" +
-            "Add true to items.\n" +
+            "Add (1 = 1) to items.\n" +
             "State the number of items converted to text."));
     }
 
@@ -9093,8 +9101,8 @@ public class InterpreterTests
     public void Atlas_DeclaredUnion_Set_And_Get()
     {
         Assert.Equal("42", Run(
-            "Define a as an atlas from text to (number or text) with (\"x\" : 42).\n" +
-            "Define v as the entry for \"x\" in a but void is 0.\n" +
+            "Define mp as an atlas from text to (number or text) with (\"x\" : 42).\n" +
+            "Define v as the entry for \"x\" in mp but void is 0.\n" +
             "If v is a number:\n" +
             "    State v converted to text.\n" +
             "Done."));
@@ -9104,9 +9112,9 @@ public class InterpreterTests
     public void Atlas_DeclaredUnion_SetTextValue()
     {
         Assert.Equal("hello", Run(
-            "Define a as an atlas from text to (number or text).\n" +
-            "In a, the entry for \"k\" becomes \"hello\".\n" +
-            "Define v as the entry for \"k\" in a but void is 0.\n" +
+            "Define mp as an atlas from text to (number or text).\n" +
+            "In mp, the entry for \"k\" becomes \"hello\".\n" +
+            "Define v as the entry for \"k\" in mp but void is 0.\n" +
             "If v is a text:\n" +
             "    State v.\n" +
             "Done."));
@@ -9116,8 +9124,8 @@ public class InterpreterTests
     public void Atlas_DeclaredUnion_SetIncompatible_TypeError()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Define a as an atlas from text to (number or text).\n" +
-            "In a, the entry for \"k\" becomes true."));
+            "Define mp as an atlas from text to (number or text).\n" +
+            "In mp, the entry for \"k\" becomes (1 = 1)."));
     }
 
     [Fact]
@@ -9125,18 +9133,18 @@ public class InterpreterTests
     {
         // Open atlas: any value can be stored
         Assert.Equal("2", Run(
-            "Define a as an atlas.\n" +
-            "In a, the entry for \"n\" becomes 42.\n" +
-            "In a, the entry for \"t\" becomes \"hello\".\n" +
-            "State the size of a converted to text."));
+            "Define mp as an atlas.\n" +
+            "In mp, the entry for \"n\" becomes 42.\n" +
+            "In mp, the entry for \"t\" becomes \"hello\".\n" +
+            "State the size of mp converted to text."));
     }
 
     [Fact]
     public void Atlas_HasKey()
     {
         Assert.Equal("yes", Run(
-            "Define a as an atlas from text to (number or text) with (\"k\" : 99).\n" +
-            "If a has a key for \"k\":\n" +
+            "Define mp as an atlas from text to (number or text) with (\"k\" : 99).\n" +
+            "If mp has a key for \"k\":\n" +
             "    State \"yes\".\n" +
             "Done."));
     }
