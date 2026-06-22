@@ -691,6 +691,8 @@ public sealed partial class Interpreter
         MatrixColumns mc      => EvaluateMatrixColumns(mc),
         IsTypeCheck   tc      => EvaluateIsTypeCheck(tc),
         EnvironmentVariableExpression env => EvaluateEnvVar(env),
+        DirectoryContentsExpression   dce => EvaluateDirectoryContents(dce),
+        PathCheckExpression           pce => EvaluatePathCheck(pce),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 

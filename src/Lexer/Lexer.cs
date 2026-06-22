@@ -198,6 +198,9 @@ public sealed class Lexer
             "rows"       => TokenType.RowsKw,
             "columns"    => TokenType.ColumnsKw,
             "filled"     => TokenType.FilledKw,
+            "contents"    => TokenType.ContentsKw,
+            "directory"   => TokenType.DirectoryKw,
+            "path"        => TokenType.PathKw,
             "environment" => TokenType.EnvironmentKw,
             _           => TokenType.Identifier,
         };

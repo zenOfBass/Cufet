@@ -10,6 +10,58 @@ public sealed partial class Interpreter
 {
     // ── Failures (recoverable errors as values) ───────────────────────────────
 
+    // ── Directory traversal ──────────────────────────────────────────────────────
+
+    // the contents of the directory <path>  →  series of text (full paths) or failure
+    private object EvaluateDirectoryContents(DirectoryContentsExpression dce)
+    {
+        var path = (string)Evaluate(dce.Path)!;
+        try
+        {
+            return Directory.GetFileSystemEntries(path)
+                            .Select(e => (object)e)
+                            .ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw DirectoryIoFailure(path, ex);
+        }
+    }
+
+    // the path <path> exists / is a directory / is a file  →  boolean (infallible)
+    private object EvaluatePathCheck(PathCheckExpression pce)
+    {
+        var path = (string)Evaluate(pce.Path)!;
+        return pce.Kind switch
+        {
+            PathCheckKind.Exists      => (object)(Directory.Exists(path) || File.Exists(path)),
+            PathCheckKind.IsDirectory => (object)Directory.Exists(path),
+            PathCheckKind.IsFile      => (object)File.Exists(path),
+            _ => throw new InvalidOperationException($"Unknown PathCheckKind {pce.Kind}"),
+        };
+    }
+
+    private static FailureUnwind DirectoryIoFailure(string path, Exception ex)
+    {
+        string category, message;
+        if (ex is DirectoryNotFoundException)
+        {
+            category = "not-found";
+            message  = $"the directory '{path}' was not found";
+        }
+        else if (ex is UnauthorizedAccessException)
+        {
+            category = "permission-denied";
+            message  = $"permission denied reading directory '{path}'";
+        }
+        else
+        {
+            category = "disk-error";
+            message  = ex.Message;
+        }
+        return new FailureUnwind(new FailureValue(message, category));
+    }
+
     // ── File I/O ─────────────────────────────────────────────────────────────
 
     // Maps .NET IO exceptions to Cufet failure values at the I/O boundary.

@@ -6763,8 +6763,8 @@ public class InterpreterTests
     {
         // read all returns raw content; State + TrimEnd('\n') strips one trailing newline.
         Assert.Equal("hello\nworld", RunWithInput(
-            "Define contents as read all from the input.\n" +
-            "State contents.",
+            "Define file-data as read all from the input.\n" +
+            "State file-data.",
             "hello\nworld\n"));
     }
 
@@ -6772,8 +6772,8 @@ public class InterpreterTests
     public void IO_ReadAll_EmptyInput_ReturnsEmptyString()
     {
         Assert.Equal("empty", RunWithInput(
-            "Define contents as read all from the input.\n" +
-            "If contents is \"\":\n" +
+            "Define file-data as read all from the input.\n" +
+            "If file-data is \"\":\n" +
             "    State \"empty\".\n" +
             "Done.\n" +
             "Otherwise:\n" +
@@ -6787,8 +6787,8 @@ public class InterpreterTests
     {
         // read all returns plain text — should type-check and run without void handling.
         Assert.Equal("hello", RunWithInput(
-            "Define contents as read all from the input.\n" +
-            "State contents trimmed.",
+            "Define file-data as read all from the input.\n" +
+            "State file-data trimmed.",
             "hello\n"));
     }
 
@@ -6844,8 +6844,8 @@ public class InterpreterTests
             File.WriteAllText(path, "hello world");
             Assert.Equal("hello world", Run(
                 $"Try to:\n" +
-                $"    Define contents as read all from the file \"{path.Replace("\\", "\\\\")}\".\n" +
-                $"    State contents.\n" +
+                $"    Define file-data as read all from the file \"{path.Replace("\\", "\\\\")}\".\n" +
+                $"    State file-data.\n" +
                 $"Done.\n" +
                 $"In case of failure:\n" +
                 $"    State \"fail\".\n" +
@@ -6903,8 +6903,8 @@ public class InterpreterTests
             File.WriteAllText(path, "");
             Assert.Equal("empty", Run(
                 $"Try to:\n" +
-                $"    Define contents as read all from the file \"{path.Replace("\\", "\\\\")}\".\n" +
-                $"    If the length of contents is 0:\n" +
+                $"    Define file-data as read all from the file \"{path.Replace("\\", "\\\\")}\".\n" +
+                $"    If the length of file-data is 0:\n" +
                 $"        State \"empty\".\n" +
                 $"    Done.\n" +
                 $"Done.\n" +
@@ -6940,8 +6940,8 @@ public class InterpreterTests
         var path = Path.Combine(Path.GetTempPath(), "cufet_no_such_file_" + Guid.NewGuid() + ".txt");
         Assert.Equal("not-found", Run(
             $"Try to:\n" +
-            $"    Define contents as read all from the file \"{path.Replace("\\", "\\\\")}\".\n" +
-            $"    State contents.\n" +
+            $"    Define file-data as read all from the file \"{path.Replace("\\", "\\\\")}\".\n" +
+            $"    State file-data.\n" +
             $"Done.\n" +
             $"In case of failure:\n" +
             $"    State the category of the failure.\n" +
@@ -6954,8 +6954,8 @@ public class InterpreterTests
         var path = Path.Combine(Path.GetTempPath(), "cufet_no_such_file_" + Guid.NewGuid() + ".txt");
         var result = Run(
             $"Try to:\n" +
-            $"    Define contents as read all from the file \"{path.Replace("\\", "\\\\")}\".\n" +
-            $"    State contents.\n" +
+            $"    Define file-data as read all from the file \"{path.Replace("\\", "\\\\")}\".\n" +
+            $"    State file-data.\n" +
             $"Done.\n" +
             $"In case of failure:\n" +
             $"    State \"caught\".\n" +
@@ -6968,8 +6968,8 @@ public class InterpreterTests
     {
         var path = Path.Combine(Path.GetTempPath(), "cufet_no_such_file_" + Guid.NewGuid() + ".txt");
         Assert.Equal("default text", Run(
-            $"Define contents as read all from the file \"{path.Replace("\\", "\\\\")}\" but on failure \"default text\".\n" +
-            $"State contents."));
+            $"Define file-data as read all from the file \"{path.Replace("\\", "\\\\")}\" but on failure \"default text\".\n" +
+            $"State file-data."));
     }
 
     [Fact]
@@ -6982,8 +6982,8 @@ public class InterpreterTests
             Assert.Equal("from variable", Run(
                 $"Define p as \"{path.Replace("\\", "\\\\")}\".\n" +
                 $"Try to:\n" +
-                $"    Define contents as read all from the file p.\n" +
-                $"    State contents.\n" +
+                $"    Define file-data as read all from the file p.\n" +
+                $"    State file-data.\n" +
                 $"Done.\n" +
                 $"In case of failure:\n" +
                 $"    State \"fail\".\n" +
@@ -6997,8 +6997,8 @@ public class InterpreterTests
     {
         var path = "\"config.txt\"";
         Assert.Throws<TypeException>(() => Run(
-            $"Define contents as read all from the file {path}.\n" +
-            $"State contents."));
+            $"Define file-data as read all from the file {path}.\n" +
+            $"State file-data."));
     }
 
     [Fact]
@@ -7006,8 +7006,8 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Try to:\n" +
-            "    Define contents as read all from the file 42.\n" +
-            "    State contents.\n" +
+            "    Define file-data as read all from the file 42.\n" +
+            "    State file-data.\n" +
             "Done.\n" +
             "In case of failure:\n" +
             "    State \"fail\".\n" +
@@ -7130,8 +7130,8 @@ public class InterpreterTests
                 $"    State \"write failed\".\n" +
                 $"Done.\n" +
                 $"Try to:\n" +
-                $"    Define contents as read all from the file p.\n" +
-                $"    State contents.\n" +
+                $"    Define file-data as read all from the file p.\n" +
+                $"    State file-data.\n" +
                 $"Done.\n" +
                 $"In case of failure:\n" +
                 $"    State \"read failed\".\n" +
@@ -8035,6 +8035,129 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "State the environment variable 42."));
+    }
+
+    // ── Directory traversal ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void DirTraversal_PathExists_True()
+    {
+        var dir = System.IO.Path.GetTempPath();
+        Assert.Equal("yes", Run(
+            $"If the path \"{dir.Replace("\\", "\\\\")}\" exists:\n" +
+            "    State \"yes\".\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void DirTraversal_PathExists_False()
+    {
+        Assert.Equal("no", Run(
+            "If the path \"/cufet-test-nonexistent-path-xyz\" exists:\n" +
+            "    State \"yes\".\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void DirTraversal_IsDirectory_True()
+    {
+        var dir = System.IO.Path.GetTempPath().Replace("\\", "\\\\");
+        Assert.Equal("yes", Run(
+            $"If the path \"{dir}\" is a directory:\n" +
+            "    State \"yes\".\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void DirTraversal_IsFile_True()
+    {
+        var tmp = System.IO.Path.GetTempFileName().Replace("\\", "\\\\");
+        Assert.Equal("yes", Run(
+            $"If the path \"{tmp}\" is a file:\n" +
+            "    State \"yes\".\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void DirTraversal_IsDirectory_FalseForFile()
+    {
+        var tmp = System.IO.Path.GetTempFileName().Replace("\\", "\\\\");
+        Assert.Equal("no", Run(
+            $"If the path \"{tmp}\" is a directory:\n" +
+            "    State \"yes\".\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State \"no\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void DirTraversal_Contents_ContainsKnownFile()
+    {
+        // Create a temp dir with one file, list it, check the file appears in entries.
+        var dir = System.IO.Directory.CreateTempSubdirectory("cufet-test-").FullName;
+        var file = System.IO.Path.Combine(dir, "hello.txt");
+        System.IO.File.WriteAllText(file, "hi");
+        var escapedDir = dir.Replace("\\", "\\\\");
+        var escapedFile = file.Replace("\\", "\\\\");
+        try
+        {
+            Assert.Equal("found", Run(
+                $"Try to:\n" +
+                $"    Define entries as the contents of the directory \"{escapedDir}\".\n" +
+                "    For each dir-entry in entries, repeat:\n" +
+                $"        If dir-entry is \"{escapedFile}\", State \"found\".\n" +
+                "    Done.\n" +
+                "Done.\n" +
+                "In case of failure:\n" +
+                "    State the message of the failure.\n" +
+                "Done."));
+        }
+        finally
+        {
+            System.IO.Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void DirTraversal_Contents_NotFound_IsFailure()
+    {
+        // Listing a nonexistent directory yields a recoverable failure.
+        Assert.Equal("failure", Run(
+            "Try to:\n" +
+            "    Define entries as the contents of the directory \"/cufet-test-nonexistent-dir-xyz\".\n" +
+            "    State \"ok\".\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failure\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void DirTraversal_Contents_UnhandledIsTypeError()
+    {
+        // Unhandled directory listing is a static type error.
+        Assert.Throws<TypeException>(() => Run(
+            "Define entries as the contents of the directory \"/tmp\"."));
+    }
+
+    [Fact]
+    public void DirTraversal_NonTextPath_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "State the path 42 exists."));
     }
 
     // ── Sort ──────────────────────────────────────────────────────────────────────────────────────

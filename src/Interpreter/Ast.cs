@@ -341,6 +341,19 @@ public sealed record FileReadExpression(FileReadForm Form, IExpression Path, int
 // the environment variable <name>  →  voidable text (void when the variable is unset; name is a text expr)
 public sealed record EnvironmentVariableExpression(IExpression Name, int Line) : IExpression;
 
+// ── Directory traversal ───────────────────────────────────────────────────────────────────────────
+
+// the contents of the directory <path>  →  series of text or failure
+// Returns full absolute paths of every entry (files + subdirs) directly inside the directory.
+// Fails on not-found, not-a-directory, or permission-denied.
+public sealed record DirectoryContentsExpression(IExpression Path, int Line) : IExpression;
+
+// the path <path> exists         →  boolean (infallible; uncertainty resolves to false)
+// the path <path> is a directory →  boolean (infallible)
+// the path <path> is a file      →  boolean (infallible)
+public enum PathCheckKind { Exists, IsDirectory, IsFile }
+public sealed record PathCheckExpression(IExpression Path, PathCheckKind Kind, int Line) : IExpression;
+
 // write <value> to the file "<path>"   — overwrite (creates if absent); Append = false
 // append <value> to the file "<path>"  — append   (creates if absent); Append = true
 // Statements: complete on success; throw FailureUnwind on IO failure (catchable by Try/In case of failure).

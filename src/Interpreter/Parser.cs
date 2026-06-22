@@ -2176,6 +2176,56 @@ public sealed class Parser
 
                 break;
             }
+            case TokenType.ContentsKw:
+            {
+                // "the contents of the directory <path>"
+                var contentsLine = Advance().Line; // consume 'contents'
+                SkipNoise();
+                Consume(TokenType.Of);
+                SkipNoise();
+                Consume(TokenType.DirectoryKw);
+                SkipNoise();
+                // ParseJoinedTo: leaves 'but on failure' / 'or pass' for the outer ParseExpression.
+                baseExpr = new DirectoryContentsExpression(ParseJoinedTo(), contentsLine);
+                break;
+            }
+            case TokenType.PathKw:
+            {
+                // "the path <path> exists"          →  PathCheckExpression(Exists)
+                // "the path <path> is a directory"  →  PathCheckExpression(IsDirectory)
+                // "the path <path> is a file"       →  PathCheckExpression(IsFile)
+                // ParseJoinedTo for path: doesn't consume 'is' (needed for is-a-directory/file).
+                var pathLine = Advance().Line; // consume 'path'
+                SkipNoise();
+                var pathExpr = ParseJoinedTo();
+                SkipNoise();
+                if (Peek().Type == TokenType.Identifier &&
+                    Peek().Lexeme.Equals("exists", StringComparison.OrdinalIgnoreCase))
+                {
+                    Advance(); // consume 'exists' (contextual)
+                    baseExpr = new PathCheckExpression(pathExpr, PathCheckKind.Exists, pathLine);
+                }
+                else
+                {
+                    Consume(TokenType.Is);
+                    SkipNoise(); // consumes 'a' (Article) — SkipNoise eats all Articles
+                    if (Peek().Type == TokenType.DirectoryKw)
+                    {
+                        Advance(); // consume 'directory'
+                        baseExpr = new PathCheckExpression(pathExpr, PathCheckKind.IsDirectory, pathLine);
+                    }
+                    else if (Peek().Type == TokenType.File)
+                    {
+                        Advance(); // consume 'file'
+                        baseExpr = new PathCheckExpression(pathExpr, PathCheckKind.IsFile, pathLine);
+                    }
+                    else
+                    {
+                        throw new ParseException(Peek(), "expected 'directory' or 'file' after 'the path ... is a'");
+                    }
+                }
+                break;
+            }
             case TokenType.EnvironmentKw:
             {
                 // "the environment variable <text-name>"
@@ -2375,7 +2425,9 @@ public sealed class Parser
         //              as named access, but with a trailing 'in Y' the access check doesn't see
         if (forAccess && tok.Type is TokenType.Ordinal or TokenType.NumberKw or TokenType.Start
                                    or TokenType.LengthKw or TokenType.Size or TokenType.Position
-                                   or TokenType.Stream or TokenType.RowsKw or TokenType.ColumnsKw)
+                                   or TokenType.Stream or TokenType.RowsKw or TokenType.ColumnsKw
+                                   or TokenType.ContentsKw or TokenType.DirectoryKw or TokenType.PathKw
+                                   or TokenType.EnvironmentKw)
             return false;
         return true;
     }

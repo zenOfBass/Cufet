@@ -909,6 +909,8 @@ public sealed partial class TypeChecker
         MatrixColumns mc                                                                                 => InferMatrixColumns(mc),
         IsTypeCheck   tc                                                                                 => InferIsTypeCheck(tc),
         EnvironmentVariableExpression env                                                                => InferEnvVar(env),
+        DirectoryContentsExpression   dce                                                                => InferDirectoryContents(dce),
+        PathCheckExpression           pce                                                                => InferPathCheck(pce),
         _                                                                                                => null,
     };
 

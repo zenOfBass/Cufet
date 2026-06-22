@@ -170,6 +170,12 @@ public enum TokenType
     Entry,  // "entry" — in "the entry for X in map", "in map, the entry for X becomes V"
     Size,   // "size"  — in "the size of map"; excluded from IsFieldNameToken(forAccess: true)
 
+    // ── Directory traversal ───────────────────────────────────────────────────────
+    ContentsKw,   // "contents"   — in "the contents of the directory <path>"
+    DirectoryKw,  // "directory"  — in "the contents of the directory <path>" / "the path ... is a directory"
+    PathKw,       // "path"       — in "the path <path> exists/is a directory/is a file"
+                  //                 "exists" is contextual (lexeme-checked), not reserved
+
     // ── Environment ───────────────────────────────────────────────────────────────
     EnvironmentKw, // "environment" — in "the environment variable <name>"; read-only OS env access
                    //                 "variable" is contextual (lexeme-checked), not reserved

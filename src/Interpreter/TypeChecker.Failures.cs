@@ -131,6 +131,47 @@ public sealed partial class TypeChecker
         return new FailureType(successType);
     }
 
+    // ── Directory traversal ──────────────────────────────────────────────────────
+
+    // the contents of the directory <path>  →  series of text or failure
+    // Same _inTryBlock / _inFailureHandledContext pattern as InferFileReadExpr.
+    private CufetType InferDirectoryContents(DirectoryContentsExpression dce)
+    {
+        var pathType = InferType(dce.Path);
+        if (pathType != null && pathType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "a directory path must be text",
+                null, dce.Line,
+                $"use a {FormatType(pathType)} as a directory path",
+                "Write the path as a text literal like \"/home/user\", or use a text variable."));
+
+        var successType = new SeriesType(CufetType.Text);
+
+        if (_inTryBlock) return successType;
+
+        if (!_inFailureHandledContext)
+            throw new TypeException(FormatTypeError(
+                "listing a directory can fail — you must handle the failure",
+                null, dce.Line,
+                "use a directory listing's result without handling the failure",
+                "Wrap it in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'."));
+
+        return new FailureType(successType);
+    }
+
+    // the path <path> exists / is a directory / is a file  →  boolean (infallible)
+    private CufetType InferPathCheck(PathCheckExpression pce)
+    {
+        var pathType = InferType(pce.Path);
+        if (pathType != null && pathType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "a path must be text",
+                null, pce.Line,
+                $"use a {FormatType(pathType)} as a path",
+                "Write the path as a text literal, or use a text variable."));
+        return CufetType.Fact;
+    }
+
     // write <text> to the file "<path>"  /  append <text> to the file "<path>"
     // Validates operand types; failure is runtime-only (caught by enclosing Try if present).
     private void CheckFileWrite(FileWriteStatement fw)
