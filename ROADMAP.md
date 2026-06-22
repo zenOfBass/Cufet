@@ -161,6 +161,35 @@ language is considered stable.
   This is Cufet's answer to "or nothing" — no null, absence is explicit and
   checked.
 
+**Union types, narrowing, atlas, and catalogue**
+- `(A or B or C)` — **closed union type**: a parenthesized, `or`-separated list
+  of concrete types. A union value holds one of the listed types at runtime; only
+  type-agnostic operations (assignment, equality, pass/store as the same union)
+  are legal without narrowing. Type-specific ops on an un-narrowed union are a
+  static error that points to `is a <type>`.
+- `is a <type>` / `is not a <type>` — runtime type-test (generalizes `is void`):
+  `if x is a number, ...`. `is an <type>` accepted wherever the article fits;
+  both forms are identical.
+- **In-branch narrowing** — after `is a <type>`, the value is narrowed to that
+  type inside the branch and type-specific operations are legal. Narrowing is
+  variable-level (same rule as voidable narrowing); clears on reassignment.
+- **Narrowing by elimination** (closed unions) — the `Otherwise` arm after
+  checking all but one case automatically narrows to the remaining case(s). In a
+  `(number or text)` union, the `Otherwise` after `if x is a number` narrows `x`
+  to `text`. Three-case unions leave the third case for `Otherwise`.
+- **Open unions** — `a catalogue` with no type annotation / `an atlas` with no
+  type annotation accepts any value; the `Otherwise` tail is un-narrowable and
+  agnostic-only. Open is sound (narrowing still required), never `any`.
+- **`a catalogue`** — heterogeneous series whose element type is a union:
+  `a catalogue of (number or text)` (closed) or `a catalogue` (open). All series
+  operations apply; `Add` enforces the declared union type.
+- **`an atlas`** — heterogeneous map whose value type is a union:
+  `an atlas from text to (number or text)` (closed) or `an atlas` (open).
+  Retrieval yields `voidable (union)` — absent key = void; present key = union
+  value. All map operations apply; value-setting enforces the declared type.
+- **`voidable T` is preserved** — the generalization keeps `is void`,
+  `but void is`, and all existing voidable behavior working unchanged.
+
 **Functions** *(including closures and lambdas, complete)*
 - `Bind <return-type|void> to <name>, given (<params>): ... return value.`
   Top-level, hoisted (use-before-declaration and recursion work).
@@ -254,12 +283,6 @@ language is considered stable.
   needs (a node's `next` is `a voidable node`). Unblocked by the voidable type;
   not yet built out or documented as a pattern.
 
-- **Heterogeneous collections (`atlas`)** — a mixed-type map/series. Deliberately
-  *not* built, because it would require **tagged unions / sum types** (so the
-  heterogeneity is *typed*, not an `any` hole that breaks static checking). A
-  major type-system feature, far future. The name `atlas` is reserved for it.
-  Until then, records, objects, and maps cover the real needs; series stay
-  homogeneous.
 
 ### Functions
 
@@ -557,7 +580,7 @@ These two tasks are the falsifying tests that establish "Cufet as OS
 orchestrator" as a *waypoint*, not the destination.
 
 **The current interpreter is the reference implementation / executable spec.**
-The 890 tests define Cufet's semantics. A future native backend (native
+The 1011 tests define Cufet's semantics. A future native backend (native
 compilation, compile-to-C/LLVM, or a from-scratch non-managed runtime)
 implements those same semantics against real metal. Nothing built is wasted
 — this is the path most serious languages took (Lua defined its semantics
@@ -588,6 +611,7 @@ Cufet binary whose `.data` section you can `readelf` is post-native.
 | Standard input (`read a line/all/all lines from the input`) | ✅ built | Shell needs stdin; pipes need readable streams |
 | File I/O (read/write/append/scoped streams) | ✅ built | Core OS capability; `With ... open` lifecycle = RAII analog |
 | Process execution (`run` with args, capture output/exit-code) | ✅ built | Shell's `fork`/`exec`/`wait` at the scripting layer |
+| Union types + narrowing (`(A or B)`, `is a <type>`, elimination) | ✅ built | Discriminated unions — tagged values with type-safe dispatch; native analog is tag + union struct |
 
 **What's needed, in rough interpreter-era order:**
 

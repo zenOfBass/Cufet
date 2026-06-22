@@ -31,10 +31,12 @@ behind the design, see [ROADMAP.md](ROADMAP.md).
     - [Closures](#closures)
     - [Lambda literals (anonymous functions)](#lambda-literals-anonymous-functions)
   - [Voidable values (`void` and `voidable T`)](#voidable-values-void-and-voidable-t)
+  - [Union types and narrowing](#union-types-and-narrowing)
   - [Error handling (failures and exceptions)](#error-handling-failures-and-exceptions)
     - [Failure values (`failure T`)](#failure-values-failure-t)
     - [Block form: `Try to`](#block-form-try-to)
   - [Maps](#maps)
+  - [Catalogue and atlas (heterogeneous collections)](#catalogue-and-atlas-heterogeneous-collections)
   - [Input and output](#input-and-output)
     - [Reading from standard input](#reading-from-standard-input)
     - [File I/O](#file-io)
@@ -949,6 +951,90 @@ Define n as (the entry for "alice" in ages but void is 0).
 
 ---
 
+## Union types and narrowing
+
+A **union type** is a value that can be one of several listed types. Declared
+with `or` in parentheses:
+
+```
+Define x as (number or text).
+Define y as (number or text or fact).
+```
+
+**Type-agnostic operations** — without narrowing, only operations that work on
+every case are allowed: assignment, `becomes`, passing to a union-typed parameter,
+storing into a catalogue or atlas, and equality comparison (`is`/`is not`) between
+two values of the same union type.
+
+**Type-specific operations** — arithmetic, `the length of`, and anything that
+only makes sense for one type — require narrowing first. Using them on an
+un-narrowed union is a static type error that names the expected narrowing form.
+
+### `is a <type>` / `is not a <type>`
+
+The runtime type-test, generalizing `is void`:
+
+```
+If x is a number, state x + 1.
+If x is not a text, state "not text".
+```
+
+Works with any type name: `is a number`, `is a text`, `is a fact`, object type
+names, etc. `is an <type>` is accepted wherever the article fits. Both forms
+are identical.
+
+### In-branch narrowing
+
+After a successful `is a <type>` check, the value is that type inside the
+branch — type-specific operations are legal there:
+
+```
+Define x as (number or text).
+x becomes 42.
+
+If x is a number:
+    State x + 1.           ← x is a number here; arithmetic is legal
+Done.
+Otherwise:
+    State the length of x. ← x is a text here (narrowed by elimination)
+Done.
+```
+
+**Narrowing by elimination** — for a **closed** union, the `Otherwise` arm
+automatically narrows to the remaining case(s). After `if x is a number` on a
+`(number or text)` union, `Otherwise` knows `x` is `text`.
+
+For a three-case union, two tested arms leave the third for `Otherwise`:
+
+```
+Define x as (number or text or fact).
+x becomes 42.
+
+If x is a number:
+    State x + 1.
+Done.
+Otherwise if x is a text:
+    State the length of x.
+Done.
+Otherwise:
+    State x converted to text.    ← x is a fact here
+Done.
+```
+
+**`is not a <type>`** narrows the true branch to the complement — for a
+`(number or text)` union, `if x is not a number` narrows `x` to `text` in the
+true branch.
+
+**Open unions** — `Otherwise` after an open union check is *not* narrowable;
+only agnostic operations are legal there. Open is sound (narrowing still
+required), never `any`.
+
+Narrowing is **variable-level** — the same rule as voidable narrowing. The
+narrowed type clears when the variable is reassigned. To narrow a value produced
+by an expression, name it first.
+
+---
+
 ## Error handling (failures and exceptions)
 
 Cufet distinguishes two kinds of bad outcome:
@@ -1155,6 +1241,74 @@ Done.
 
 ---
 
+## Catalogue and atlas (heterogeneous collections)
+
+**Catalogue** — a series whose element type is a union: a heterogeneous ordered
+collection.
+
+**Closed** (declared element type):
+```
+Define items as a catalogue of (number or text) with (42, "hello").
+Define items as a catalogue of (number or text).    ← empty
+```
+
+**Open** (any element type):
+```
+Define items as a catalogue with (42, "hello", (1 = 1)).
+Define items as a catalogue.                         ← empty open catalogue
+```
+
+Retrieval yields a union value — narrow before using type-specifically:
+```
+Define first as the first of items.
+If first is a number:
+    State first + 1.
+Done.
+Otherwise:
+    State the length of first.
+Done.
+```
+
+All series operations apply: ordinal and parametric access, `the number of`,
+`Add`, `Remove`, `for each`, element assignment. `Add` enforces the declared
+union type; adding a value outside the union is a static type error. Open
+catalogues accept any element type.
+
+---
+
+**Atlas** — a map whose value type is a union: a heterogeneous typed key→value
+collection.
+
+**Closed** (declared key and value type):
+```
+Define mp as an atlas from text to (number or text) with ("x" : 42, "y" : "hello").
+Define mp as an atlas from text to (number or text).    ← empty
+```
+
+**Open** (any key or value):
+```
+Define mp as an atlas.
+```
+
+Retrieval yields a `voidable (union)` — the absent-key void composes with the
+union value type:
+```
+Define v as the entry for "x" in mp.          ← voidable (number or text)
+If v is not void:
+    If v is a number:
+        State v + 1.
+    Done.
+Done.
+```
+
+All map operations apply: `the entry for`, `has a key for`, `has an entry for`,
+`becomes` (set), `Remove`, `the size of`, `for each`. Value-setting enforces the
+declared union type; the open atlas accepts any value.
+
+Atlases are **reference-typed** (like maps and series).
+
+---
+
 ## Input and output
 
 ### Reading from standard input
@@ -1317,6 +1471,10 @@ Cufet has a static type checker that runs before execution. It catches:
 - Functions that might not return on every path
 - Using a `voidable` value where a plain (non-void) value is required without
   handling the void case
+- Using type-specific operations (arithmetic, `the length of`, etc.) on an
+  un-narrowed union value — narrow with `is a <type>` first
+- Adding a value to a catalogue that doesn't match the declared union element type
+- Setting an atlas value that doesn't match the declared union value type
 - Calling a method that doesn't exist on an object
 - Accessing a non-series with series operations
 - Adding or removing the wrong element type from a typed series
