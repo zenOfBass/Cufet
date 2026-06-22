@@ -32,7 +32,7 @@ public sealed partial class Interpreter
 
         books["math"] = new BookValue("math", mathFunctions, mathConstants);
 
-        // collections book — introduces the matrix type + transpose operation.
+        // collections book — introduces the matrix type + transpose operation + series aggregates.
         var collectionsFunctions = new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase)
         {
             ["transpose"] = args =>
@@ -43,6 +43,37 @@ public sealed partial class Interpreter
                     for (int c = 0; c < mv.Cols; c++)
                         data[c * mv.Rows + r] = mv.GetItem(r + 1, c + 1);
                 return (object)new MatrixValue(mv.Cols, mv.Rows, data);
+            },
+            ["minimum"] = args =>
+            {
+                var xs = (List<object>)args[0];
+                if (xs.Count == 0) return VoidValue.Instance;
+                return (object)xs.Cast<decimal>().Min();
+            },
+            ["maximum"] = args =>
+            {
+                var xs = (List<object>)args[0];
+                if (xs.Count == 0) return VoidValue.Instance;
+                return (object)xs.Cast<decimal>().Max();
+            },
+            ["average"] = args =>
+            {
+                var xs = (List<object>)args[0];
+                if (xs.Count == 0) return VoidValue.Instance;
+                return (object)(xs.Cast<decimal>().Sum() / (decimal)xs.Count);
+            },
+            ["unique"] = args =>
+            {
+                var xs     = (List<object>)args[0];
+                var result = new List<object>();
+                foreach (var elem in xs)
+                {
+                    bool seen = false;
+                    foreach (var r in result)
+                        if (ValuesEqual(r, elem)) { seen = true; break; }
+                    if (!seen) result.Add(elem);
+                }
+                return (object)result;
             },
         };
         books["collections"] = new BookValue(

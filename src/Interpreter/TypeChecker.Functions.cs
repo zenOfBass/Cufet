@@ -160,6 +160,11 @@ public sealed partial class TypeChecker
 
     private CufetType? InferCastExpr(CastExpression cast)
     {
+        // Collections aggregates (minimum/maximum/average/unique) have type-generic or
+        // educational-error constraints that can't be expressed as a plain FunctionType.
+        if (IsCollectionsAggregateCast(cast))
+            return InferCollectionsAggregateCast(cast);
+
         var (funcType, displayName, declLine, argsToValidate) = ResolveForCast(cast.Function, cast.Args, cast.Line);
         if (funcType == null) return null;
 

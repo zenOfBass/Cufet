@@ -68,6 +68,62 @@ public sealed partial class TypeChecker
             RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
     }
 
+    // Returns true when the cast is to a collections aggregate whose type cannot be expressed as
+    // a plain FunctionType (minimum/maximum/average: numeric reduction, void-on-empty;
+    // unique: element-type-preserving dedup). Handled in InferCastExpr before ResolveForCast.
+    private bool IsCollectionsAggregateCast(CastExpression cast)
+    {
+        if (cast.Function is not PossessiveAccess poss) return false;
+        if (InferType(poss.Target) is not BookType bt) return false;
+        if (!bt.Name.Equals("collections", StringComparison.OrdinalIgnoreCase)) return false;
+        var m = poss.Member.ToLowerInvariant();
+        return m is "minimum" or "maximum" or "average" or "unique";
+    }
+
+    private CufetType? InferCollectionsAggregateCast(CastExpression cast)
+    {
+        var poss   = (PossessiveAccess)cast.Function;
+        var member = poss.Member.ToLowerInvariant();
+
+        if (cast.Args.Count != 1)
+            throw new TypeException(FormatTypeError(
+                $"'{poss.Member}' takes one argument (a series), but {cast.Args.Count} were given",
+                null, cast.Line,
+                $"call '{poss.Member}' with {cast.Args.Count} arguments",
+                $"Use: cast collections' {poss.Member} of (xs)."));
+
+        var argType = InferType(cast.Args[0]);
+
+        if (member != "unique")
+        {
+            if (argType is SeriesType { ElementType: var et } && et != CufetType.Number)
+                throw new TypeException(FormatTypeError(
+                    $"'{poss.Member}' works on a series of numbers, but this series holds {FormatTypePlural(et)}",
+                    null, cast.Line,
+                    $"apply '{poss.Member}' to a series of {FormatTypePlural(et)}",
+                    $"'{poss.Member}' requires a series of number."));
+
+            if (argType != null && argType is not SeriesType)
+                throw new TypeException(FormatTypeError(
+                    $"'{poss.Member}' works on a series of numbers, but got a {FormatType(argType)}",
+                    null, cast.Line,
+                    $"apply '{poss.Member}' to a {FormatType(argType)}",
+                    $"'{poss.Member}' requires a series of number."));
+
+            return new VoidableType(CufetType.Number);
+        }
+
+        // unique: series of T → series of T (element-type-preserving).
+        if (argType != null && argType is not SeriesType)
+            throw new TypeException(FormatTypeError(
+                $"'unique' works on a series, but got a {FormatType(argType)}",
+                null, cast.Line,
+                $"apply 'unique' to a {FormatType(argType)}",
+                "'unique' requires a series of any element type."));
+
+        return argType; // same SeriesType, or null if unresolvable (runtime catches it)
+    }
+
     private CufetType InferBookPossessiveAccess(PossessiveAccess poss, BookType bt)
     {
         var memberType = bt.FindMember(poss.Member);

@@ -9160,4 +9160,173 @@ public class InterpreterTests
             "    State r converted to text.\n" +
             "Done."));
     }
+
+    // ── Collections — minimum ────────────────────────────────────────────────
+
+    [Fact]
+    public void Collections_Minimum_Basic()
+    {
+        Assert.Equal("1", Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series with (3, 1, 2).\n" +
+            "Define r as cast collections's minimum of (xs) but void is 0.\n" +
+            "State r converted to text."));
+    }
+
+    [Fact]
+    public void Collections_Minimum_SingleElement()
+    {
+        Assert.Equal("7", Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series with (7).\n" +
+            "Define r as cast collections's minimum of (xs) but void is 0.\n" +
+            "State r converted to text."));
+    }
+
+    [Fact]
+    public void Collections_Minimum_EmptyIsVoid()
+    {
+        Assert.Equal("none", Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series of number with ().\n" +
+            "Define r as cast collections's minimum of (xs).\n" +
+            "If r is void, State \"none\"."));
+    }
+
+    [Fact]
+    public void Collections_Minimum_NonNumberSeries_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series with (\"a\", \"b\").\n" +
+            "State cast collections's minimum of (xs) converted to text."));
+    }
+
+    // ── Collections — maximum ────────────────────────────────────────────────
+
+    [Fact]
+    public void Collections_Maximum_Basic()
+    {
+        Assert.Equal("9", Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series with (3, 9, 5).\n" +
+            "Define r as cast collections's maximum of (xs) but void is 0.\n" +
+            "State r converted to text."));
+    }
+
+    [Fact]
+    public void Collections_Maximum_EmptyIsVoid()
+    {
+        Assert.Equal("0", Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series of number with ().\n" +
+            "Define r as cast collections's maximum of (xs) but void is 0.\n" +
+            "State r converted to text."));
+    }
+
+    // ── Collections — average ────────────────────────────────────────────────
+
+    [Fact]
+    public void Collections_Average_Basic()
+    {
+        // (1 + 2 + 3) / 3 = 2
+        Assert.Equal("2", Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series with (1, 2, 3).\n" +
+            "Define r as cast collections's average of (xs) but void is 0.\n" +
+            "State r converted to text."));
+    }
+
+    [Fact]
+    public void Collections_Average_Decimal()
+    {
+        // (1 + 2) / 2 = 1.5
+        Assert.Equal("1.5", Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series with (1, 2).\n" +
+            "Define r as cast collections's average of (xs) but void is 0.\n" +
+            "State r converted to text."));
+    }
+
+    [Fact]
+    public void Collections_Average_EmptyIsVoid()
+    {
+        Assert.Equal("void", Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series of number with ().\n" +
+            "Define r as cast collections's average of (xs).\n" +
+            "If r is void, State \"void\"."));
+    }
+
+    [Fact]
+    public void Collections_Average_NonNumberSeries_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series with (\"a\").\n" +
+            "State cast collections's average of (xs) converted to text."));
+    }
+
+    // ── Collections — unique ─────────────────────────────────────────────────
+
+    [Fact]
+    public void Collections_Unique_RemovesDuplicates()
+    {
+        // First-occurrence order: 3, 1, 2
+        Assert.Equal("(3, 1, 2)", Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series with (3, 1, 3, 2, 1).\n" +
+            "Define r as cast collections's unique of (xs).\n" +
+            "State r."));
+    }
+
+    [Fact]
+    public void Collections_Unique_NoDuplicates()
+    {
+        Assert.Equal("(1, 2, 3)", Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series with (1, 2, 3).\n" +
+            "Define r as cast collections's unique of (xs).\n" +
+            "State r."));
+    }
+
+    [Fact]
+    public void Collections_Unique_Empty()
+    {
+        Assert.Equal("()", Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series of number with ().\n" +
+            "Define r as cast collections's unique of (xs).\n" +
+            "State r."));
+    }
+
+    [Fact]
+    public void Collections_Unique_TextSeries()
+    {
+        Assert.Equal("(hello, world)", Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series with (\"hello\", \"world\", \"hello\").\n" +
+            "Define r as cast collections's unique of (xs).\n" +
+            "State r."));
+    }
+
+    [Fact]
+    public void Collections_Unique_PreservesElementType()
+    {
+        // Result type should still be series of number — can be piped into minimum.
+        Assert.Equal("1", Run(
+            "Pull a book on collections.\n" +
+            "Define xs as a series with (3, 1, 3, 2).\n" +
+            "Define u as cast collections's unique of (xs).\n" +
+            "Define r as cast collections's minimum of (u) but void is 0.\n" +
+            "State r converted to text."));
+    }
+
+    [Fact]
+    public void Collections_Unique_NonSeries_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "State cast collections's unique of (42) converted to text."));
+    }
 }
