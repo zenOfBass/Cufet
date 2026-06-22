@@ -7963,13 +7963,14 @@ public class InterpreterTests
     }
 
     [Fact]
-    public void Rabbit_RegionStore_SeriesLiteralInBecomes_TypeError()
+    public void Rabbit_RegionStore_RangeEscapeInAdd_TypeError()
     {
-        // A series literal constructed inside the rabbit cannot be assigned to an outer variable.
+        // A range (series) created inside the rabbit cannot be added to an outer container.
         Assert.Throws<TypeException>(() => Run(
-            "Define outer as a series of number with (1, 2, 3).\n" +
+            "Define outer as a series of series of number with ().\n" +
             "With a rabbit warren:\n" +
-            "    outer becomes a series of number with (4, 5, 6).\n" +
+            "    Define inner as range 1 to 3.\n" +
+            "    Add inner to outer.\n" +
             "Done."));
     }
 
