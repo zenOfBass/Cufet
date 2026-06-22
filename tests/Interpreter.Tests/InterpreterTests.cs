@@ -9681,10 +9681,10 @@ public class InterpreterTests
     [Fact]
     public void Getter_BasicComputed_TheOfSyntax()
     {
-        Assert.Equal("6.283185307179586", Run(
+        Assert.Equal("3.141592653589793", Run(
             "Define object circle with (the number radius):\n" +
             "    Get area as number:\n" +
-            "        Give back one's radius * one's radius * 3.141592653589793.\n" +
+            "        return one's radius * one's radius * 3.141592653589793.\n" +
             "    Done.\n" +
             "Done.\n" +
             "Define c as a new circle { the radius 1 }.\n" +
@@ -9697,7 +9697,7 @@ public class InterpreterTests
         Assert.Equal("10", Run(
             "Define object box with (the number width, the number height):\n" +
             "    Get perimeter as number:\n" +
-            "        Give back (one's width + one's height) * 2.\n" +
+            "        return (one's width + one's height) * 2.\n" +
             "    Done.\n" +
             "Done.\n" +
             "Define b as a new box { the width 2, the height 3 }.\n" +
@@ -9711,7 +9711,7 @@ public class InterpreterTests
         Assert.Equal("hello world", Run(
             "Define object greeter with (the text name):\n" +
             "    Get message as text:\n" +
-            "        Give back \"hello \" & one's name.\n" +
+            "        return \"hello \" joined to one's name.\n" +
             "    Done.\n" +
             "Done.\n" +
             "Define g as a new greeter { the name \"world\" }.\n" +
@@ -9719,20 +9719,20 @@ public class InterpreterTests
             "State msg."));
     }
 
-    // Getter shadows a stored field of the same name — uniform access.
+    // Getter intercepts reads before stored fields — uniform access property.
+    // The object has a stored field 'raw' and a getter 'display' that computes from it.
+    // Reading 'display' dispatches through the getter, not a raw field lookup.
     [Fact]
-    public void Getter_UniformAccess_ShadowsStoredField()
+    public void Getter_UniformAccess_DispatchesThroughGetter()
     {
-        // The object has a stored field 'value' AND a getter 'value'.
-        // The getter should win.
-        Assert.Equal("42", Run(
-            "Define object wrapper with (the number value):\n" +
-            "    Get value as number:\n" +
-            "        Give back one's value * 2.\n" +
+        Assert.Equal("6", Run(
+            "Define object scaler with (the number raw):\n" +
+            "    Get display as number:\n" +
+            "        return one's raw * 2.\n" +
             "    Done.\n" +
             "Done.\n" +
-            "Define w as a new wrapper { the value 21 }.\n" +
-            "State w's value."));
+            "Define s as a new scaler { the raw 3 }.\n" +
+            "State s's display."));
     }
 
     // Setter: intercepting write via 'the X of obj becomes Y'.
@@ -9743,8 +9743,8 @@ public class InterpreterTests
             "Define object bounded with (the number value):\n" +
             "    Set value given (the number v):\n" +
             "        Define clamped as v.\n" +
-            "        If clamped > 10, clamped becomes 10.\n" +
-            "        If clamped < 0, clamped becomes 0.\n" +
+            "        If clamped is greater than 10, clamped becomes 10.\n" +
+            "        If clamped is less than 0, clamped becomes 0.\n" +
             "        the value of one becomes clamped.\n" +
             "    Done.\n" +
             "Done.\n" +
@@ -9760,8 +9760,8 @@ public class InterpreterTests
             "Define object bounded with (the number value):\n" +
             "    Set value given (the number v):\n" +
             "        Define clamped as v.\n" +
-            "        If clamped > 10, clamped becomes 10.\n" +
-            "        If clamped < 0, clamped becomes 0.\n" +
+            "        If clamped is greater than 10, clamped becomes 10.\n" +
+            "        If clamped is less than 0, clamped becomes 0.\n" +
             "        one's value becomes clamped.\n" +
             "    Done.\n" +
             "Done.\n" +
@@ -9793,9 +9793,9 @@ public class InterpreterTests
         Assert.Equal("100", Run(
             "Define object gauge with (the number raw):\n" +
             "    Get display as number:\n" +
-            "        If one's raw > 100, give back 100.\n" +
-            "        If one's raw < 0, give back 0.\n" +
-            "        Give back one's raw.\n" +
+            "        If one's raw is greater than 100, return 100.\n" +
+            "        If one's raw is less than 0, return 0.\n" +
+            "        return one's raw.\n" +
             "    Done.\n" +
             "    Set raw given (the number v):\n" +
             "        one's raw becomes v.\n" +
@@ -9820,11 +9820,11 @@ public class InterpreterTests
             "b's value becomes \"oops\"."));
     }
 
-    // Getter that doesn't return throws at runtime.
+    // Getter that doesn't return is caught by the type-checker.
     [Fact]
-    public void Getter_RuntimeError_NoReturn()
+    public void Getter_TypeError_NoReturn()
     {
-        Assert.Throws<RuntimeException>(() => Run(
+        Assert.Throws<TypeException>(() => Run(
             "Define object broken with (the number x):\n" +
             "    Get value as number:\n" +
             "        State \"side effect\".\n" +
@@ -9852,11 +9852,11 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Define object bad with (the number x):\n" +
-            "    Bind void to run:\n" +
-            "        State \"running\".\n" +
+            "    Bind void to calculate:\n" +
+            "        State \"calculating\".\n" +
             "    Done.\n" +
-            "    Get run as number:\n" +
-            "        Give back 1.\n" +
+            "    Get calculate as number:\n" +
+            "        return 1.\n" +
             "    Done.\n" +
             "Done."));
     }
@@ -9867,10 +9867,10 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Define object bad with (the number x):\n" +
-            "    Bind void to run:\n" +
-            "        State \"running\".\n" +
+            "    Bind void to calculate:\n" +
+            "        State \"calculating\".\n" +
             "    Done.\n" +
-            "    Set run given (the number v):\n" +
+            "    Set calculate given (the number v):\n" +
             "        one's x becomes v.\n" +
             "    Done.\n" +
             "Done."));
@@ -9883,10 +9883,10 @@ public class InterpreterTests
         Assert.Throws<TypeException>(() => Run(
             "Define object bad with (the number x):\n" +
             "    Get value as number:\n" +
-            "        Give back 1.\n" +
+            "        return 1.\n" +
             "    Done.\n" +
             "    Get value as number:\n" +
-            "        Give back 2.\n" +
+            "        return 2.\n" +
             "    Done.\n" +
             "Done."));
     }
@@ -9898,7 +9898,7 @@ public class InterpreterTests
         Assert.Equal("3.141592653589793", Run(
             "Define object circle with (the number radius).\n" +
             "Get pi unto circle as number:\n" +
-            "    Give back 3.141592653589793.\n" +
+            "    return 3.141592653589793.\n" +
             "Done.\n" +
             "Define c as a new circle { the radius 1 }.\n" +
             "State c's pi."));
@@ -9925,10 +9925,10 @@ public class InterpreterTests
         Assert.Equal("314", Run(
             "Define object circle with (the number radius):\n" +
             "    Get area as number:\n" +
-            "        Give back one's radius * one's radius * 314.\n" +
+            "        return one's radius * one's radius * 314.\n" +
             "    Done.\n" +
             "Done.\n" +
-            "Define object colored-circle with (the text color) embeds circle.\n" +
+            "Define object colored-circle with (the text color) and as a circle.\n" +
             "Define cc as a new colored-circle { the color \"red\", the radius 1 }.\n" +
             "State cc's area."));
     }
@@ -9943,7 +9943,7 @@ public class InterpreterTests
             "        one's value becomes v.\n" +
             "    Done.\n" +
             "Done.\n" +
-            "Define object labeled-box with (the text label) embeds box.\n" +
+            "Define object labeled-box with (the text label) and as a box.\n" +
             "Define lb as a new labeled-box { the label \"x\", the value 0 }.\n" +
             "lb's value becomes 7.\n" +
             "State lb's value."));
