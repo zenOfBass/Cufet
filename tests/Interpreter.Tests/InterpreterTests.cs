@@ -10133,7 +10133,7 @@ public class InterpreterTests
             "Bind unmaking a handle to cleanup:\n" +
             "    State \"closed\".\n" +
             "Done.\n" +
-            "If true:\n" +
+            "If 1 is 1:\n" +
             "    Define h as a new handle { the label \"x\" }.\n" +
             "    State \"open\".\n" +
             "Done."));
@@ -10148,10 +10148,10 @@ public class InterpreterTests
             "Bind unmaking a res to teardown:\n" +
             "    State \"unmake \" joined to one's name.\n" +
             "Done.\n" +
-            "If true:\n" +
-            "    Define a as a new res { the name \"A\" }.\n" +
+            "If 1 is 1:\n" +
+            "    Define first-res as a new res { the name \"A\" }.\n" +
             "    State \"A\".\n" +
-            "    Define b as a new res { the name \"B\" }.\n" +
+            "    Define second-res as a new res { the name \"B\" }.\n" +
             "    State \"B\".\n" +
             "Done."));
     }
@@ -10165,7 +10165,7 @@ public class InterpreterTests
             "Bind unmaking a conn to close-conn:\n" +
             "    State \"releasing \" joined to one's id.\n" +
             "Done.\n" +
-            "If true:\n" +
+            "If 1 is 1:\n" +
             "    Define c as a new conn { the id \"handle-42\" }.\n" +
             "Done."));
     }
@@ -10176,7 +10176,7 @@ public class InterpreterTests
     {
         Assert.Equal("done", Run(
             "Define object plain with (the number value).\n" +
-            "If true:\n" +
+            "If 1 is 1:\n" +
             "    Define p as a new plain { the value 1 }.\n" +
             "Done.\n" +
             "State \"done\"."));
@@ -10191,7 +10191,7 @@ public class InterpreterTests
             "Bind unmaking a resource to free-resource:\n" +
             "    State \"closed\".\n" +
             "Done.\n" +
-            "If true:\n" +
+            "If 1 is 1:\n" +
             "    Define r as a new resource { the tag \"x\" }.\n" +
             "    State \"open\".\n" +
             "Done.\n" +
@@ -10207,11 +10207,11 @@ public class InterpreterTests
             "Bind unmaking a box to destroy-box:\n" +
             "    State \"unmake \" joined to one's tag.\n" +
             "Done.\n" +
-            "If true:\n" +
-            "    Define outer as a new box { the tag \"outer\" }.\n" +
+            "If 1 is 1:\n" +
+            "    Define outer-box as a new box { the tag \"outer\" }.\n" +
             "    State \"outer\".\n" +
-            "    If true:\n" +
-            "        Define inner as a new box { the tag \"inner\" }.\n" +
+            "    If 1 is 1:\n" +
+            "        Define inner-box as a new box { the tag \"inner\" }.\n" +
             "        State \"inner\".\n" +
             "    Done.\n" +
             "Done."));
@@ -10246,7 +10246,7 @@ public class InterpreterTests
     public void Destructor_TypeError_ReturnFailureInBody()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Define object file-handle with (the text path).\n" +
+            "Define object file-handle with (the text location).\n" +
             "Bind unmaking a file-handle to bad-close:\n" +
             "    return a failure \"cannot close\".\n" +
             "Done."));
@@ -10258,15 +10258,15 @@ public class InterpreterTests
     {
         Assert.Equal("flushing\ndone", Run(
             "Define object buffer with (the text data):\n" +
-            "    Bind flush:\n" +
+            "    Bind void to flush:\n" +
             "        State \"flushing\".\n" +
             "    Done.\n" +
             "Done.\n" +
             "Bind unmaking a buffer to drain-buffer:\n" +
             "    Cast flush on one.\n" +
             "Done.\n" +
-            "If true:\n" +
-            "    Define b as a new buffer { the data \"x\" }.\n" +
+            "If 1 is 1:\n" +
+            "    Define buf as a new buffer { the data \"x\" }.\n" +
             "Done.\n" +
             "State \"done\"."));
     }
