@@ -175,6 +175,7 @@ public sealed class Lexer
             "unto"       => TokenType.Unto,
             "get"        => TokenType.GetKw,
             "set"        => TokenType.SetKw,
+            "making"     => TokenType.MakingKw,
             "failure"    => TokenType.Failure,
             "category"   => TokenType.Category,
             "try"        => TokenType.Try,

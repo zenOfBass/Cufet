@@ -73,6 +73,7 @@ public enum TokenType
     Unto,       // "unto"     — in "Bind <ret> to <name> unto <type>: ..." — method defined outside its object's body
     GetKw,      // "get"      — in "Get <name> as <type>: ..." — computed property (getter)
     SetKw,      // "set"      — in "Set <name> given (<param>): ..." — intercepting write (setter)
+    MakingKw,   // "making"   — in "Bind making a <type> to <name>, given (...)" — named constructor
 
     // ── Collections — for-each ────────────────────────────────────────────
     For,      // "for"

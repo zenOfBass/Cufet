@@ -124,6 +124,8 @@ public sealed class ObjectType : CufetType
     public IReadOnlyList<(string GetterName, CufetType ReturnType)> Getters { get; }
     // Slice 6 — setters: intercepting writes; body is void/infallible.
     public IReadOnlyList<(string SetterName, CufetType ParamType, string ParamName)> Setters { get; }
+    // Slice 7 — named constructors: free functions registered with the type via 'making a <type>'.
+    public IReadOnlyList<string> Constructors { get; }
     // Slice 4 — embedding: null means no embed; non-null is the embedded type name (handle).
     public string? EmbeddedTypeName { get; }
     // Slice 5 — conformance: interface names declared with "and <interface>" clauses.
@@ -137,7 +139,8 @@ public sealed class ObjectType : CufetType
         IReadOnlyList<(string GetterName, CufetType ReturnType)>? getters = null,
         IReadOnlyList<(string SetterName, CufetType ParamType, string ParamName)>? setters = null,
         string? embeddedTypeName = null,
-        IReadOnlyList<string>? conformedInterfaces = null)
+        IReadOnlyList<string>? conformedInterfaces = null,
+        IReadOnlyList<string>? constructors = null)
     {
         Name               = name;
         PositionalTypes    = positionalTypes;
@@ -145,6 +148,7 @@ public sealed class ObjectType : CufetType
         Methods            = methods;
         Getters            = getters ?? [];
         Setters            = setters ?? [];
+        Constructors       = constructors ?? [];
         EmbeddedTypeName   = embeddedTypeName;
         ConformedInterfaces = conformedInterfaces ?? [];
     }
@@ -574,6 +578,54 @@ public sealed partial class TypeChecker
                 new VariableReference(bind.Name, 0),
                 bind.Line);
         }
+
+        // Gather named constructors ('Bind making a <type> to <name>'), validate their target types,
+        // register them on ObjectType.Constructors, and fix up their scope entries so the return type
+        // is the canonical ObjectType instance (not the shell produced by the parser).
+        var ctorsByType = new Dictionary<string, List<BindStatement>>();
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is not BindStatement bind || bind.ConstructsTypeName == null) continue;
+            if (!ctorsByType.TryGetValue(bind.ConstructsTypeName, out var cList))
+                ctorsByType[bind.ConstructsTypeName] = cList = [];
+            cList.Add(bind);
+        }
+        foreach (var (typeName, ctors) in ctorsByType)
+        {
+            if (!_objectDefs.TryGetValue(typeName, out var ot))
+                throw new TypeException(FormatTypeError(
+                    $"'{typeName}' is not a defined object type — 'making a {typeName}' has no type to register on",
+                    null, ctors[0].Line,
+                    $"declare a constructor for '{typeName}'",
+                    $"Define 'object {typeName}' before declaring constructors for it, or check the spelling."));
+
+            var newCtorNames = ot.Constructors.ToList();
+            foreach (var ctor in ctors)
+            {
+                if (newCtorNames.Contains(ctor.Name))
+                    throw new TypeException(FormatTypeError(
+                        $"'{typeName}' already has a constructor named '{ctor.Name}'",
+                        null, ctor.Line,
+                        $"declare another constructor named '{ctor.Name}' for '{typeName}'",
+                        "Constructor names must be unique per type. Rename one of them."));
+                newCtorNames.Add(ctor.Name);
+
+                // Fix up scope entry: resolve the shell ObjectType to the canonical instance.
+                var resolvedReturn = ctor.ReturnType is FailureType ft
+                    ? (CufetType)new FailureType(ot)
+                    : ot;
+                var paramTypes = ctor.Parameters.Select(p => p.Type).ToList();
+                Scope[ctor.Name] = new TypeInfo(
+                    new FunctionType(paramTypes, resolvedReturn),
+                    new VariableReference(ctor.Name, 0),
+                    ctor.Line);
+            }
+
+            _objectDefs[typeName] = new ObjectType(
+                ot.Name, ot.PositionalTypes, ot.NamedFields, ot.Methods,
+                ot.Getters, ot.Setters, ot.EmbeddedTypeName, ot.ConformedInterfaces,
+                newCtorNames);
+        }
     }
 
     private void CheckStatement(IStatement stmt)
@@ -721,6 +773,9 @@ public sealed partial class TypeChecker
                 break;
             case BindStatement { UntoType: { } } unto:
                 CheckUntoMethod(unto);
+                break;
+            case BindStatement { ConstructsTypeName: { } } ctor:
+                CheckConstructor(ctor);
                 break;
             case BindStatement bind:
                 // Top-level Bind: already in Scope (= global scope) from Pass1Hoist — skip.

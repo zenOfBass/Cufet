@@ -109,12 +109,16 @@ public sealed record ForEachStatement(
 // UntoType != null means this Bind is a method of that object type, declared outside its
 // body (`Bind ... unto <type>: ...`) — identical to a nested method in every way except
 // declaration location.
+// ConstructsTypeName != null means this Bind is a named constructor for that type
+// (`Bind making a <type> to <name>, given (...)`) — a free function that builds and returns
+// an instance of <type>, registered on the type's Constructors list.
 public sealed record BindStatement(
     string Name,
     CufetType? ReturnType,
     IReadOnlyList<(CufetType Type, string Name)> Parameters,
     IReadOnlyList<IStatement> Body,
     string? UntoType,
+    string? ConstructsTypeName,
     int Line
 ) : IStatement;
 

@@ -2,6 +2,32 @@ namespace Cufet.Interpreter;
 
 public sealed partial class TypeChecker
 {
+    // Validates a named constructor ('Bind making a <type> to <name>, given (...): ...').
+    // Resolves the return type to the canonical ObjectType instance, then delegates to CheckBind.
+    private void CheckConstructor(BindStatement ctor)
+    {
+        if (ctor.UntoType != null)
+            throw new TypeException(FormatTypeError(
+                $"a constructor can't also be an 'unto' method",
+                null, ctor.Line,
+                $"declare 'Bind making a {ctor.ConstructsTypeName} to {ctor.Name} unto ...'",
+                "Constructors are free functions — they can't be attached to a type with 'unto'."));
+
+        if (!_objectDefs.TryGetValue(ctor.ConstructsTypeName!, out var objType))
+            throw new TypeException(FormatTypeError(
+                $"'{ctor.ConstructsTypeName}' is not a defined object type",
+                null, ctor.Line,
+                $"declare a constructor for '{ctor.ConstructsTypeName}'",
+                $"Define 'object {ctor.ConstructsTypeName}' before declaring constructors for it."));
+
+        // Resolve the shell ObjectType in the return type to the canonical instance before
+        // type-checking the body — otherwise IsAssignable against returned object literals fails.
+        var resolvedReturn = ctor.ReturnType is FailureType
+            ? (CufetType)new FailureType(objType)
+            : objType;
+        CheckBind(ctor with { ReturnType = resolvedReturn });
+    }
+
     private void CheckBind(BindStatement bind)
     {
         var saved     = SaveScopes();

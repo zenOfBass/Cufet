@@ -2470,8 +2470,35 @@ public sealed class Parser
         var savedInFreeFunction = _inFreeFunction;
         _inObjectDef    = false;               // method body must not allow nested Binds
         SkipNoise();
-        var returnType = ParseReturnType();
-        SkipNoise();
+
+        // 'Bind making a <type> [or failure] to <name>, given (...): ...'
+        // — named constructor; 'making a <type>' sits in the return-type slot.
+        string? constructsTypeName = null;
+        CufetType? returnType;
+        if (Peek().Type == TokenType.MakingKw)
+        {
+            Advance(); SkipNoise(); // consume 'making'; SkipNoise eats the 'a' article
+            constructsTypeName = Consume(TokenType.Identifier).Lexeme;
+            SkipNoise();
+            // Shell ObjectType used as return type; TypeChecker resolves to canonical instance.
+            CufetType inner = new ObjectType(constructsTypeName, [], [], []);
+            if (Peek().Type == TokenType.Or && PeekAfterCurrent() == TokenType.Failure)
+            {
+                Advance(); SkipNoise(); // consume 'or'
+                Consume(TokenType.Failure); SkipNoise();
+                returnType = new FailureType(inner);
+            }
+            else
+            {
+                returnType = inner;
+            }
+        }
+        else
+        {
+            returnType = ParseReturnType();
+            SkipNoise();
+        }
+
         Consume(TokenType.To);
         SkipNoise();
         var name = Consume(TokenType.Identifier).Lexeme;
@@ -2516,7 +2543,7 @@ public sealed class Parser
         }
 
         // True for free functions, false for method bodies (nested or 'unto').
-        _inFreeFunction = untoType == null && !savedInObjectDef;
+        _inFreeFunction = untoType == null && constructsTypeName == null && !savedInObjectDef;
 
         Consume(TokenType.Colon);
         _functionDepth++;
@@ -2527,7 +2554,7 @@ public sealed class Parser
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
 
-        return new BindStatement(name, returnType, parameters, body, untoType, bindTok.Line);
+        return new BindStatement(name, returnType, parameters, body, untoType, constructsTypeName, bindTok.Line);
     }
 
     // null return → void (this function returns nothing)

@@ -9958,4 +9958,167 @@ public class InterpreterTests
             "Define b as a new box { the value 1 }.\n" +
             "State b's missing."));
     }
+
+    // ── Constructors (named, 'Bind making a <type> to <name>') ───────────────
+
+    // Basic infallible constructor: builds and returns an object.
+    [Fact]
+    public void Constructor_Basic_InfallibleReturnsObject()
+    {
+        Assert.Equal("Alice\n30", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Bind making a person to make-person, given (the text nm, the number yrs):\n" +
+            "    return a new person { the name nm, the age yrs }.\n" +
+            "Done.\n" +
+            "Define p as cast make-person on (\"Alice\", 30).\n" +
+            "State p's name.\n" +
+            "State p's age."));
+    }
+
+    // Constructor result is usable as a normal object (field access, method calls).
+    [Fact]
+    public void Constructor_Result_FieldsAccessible()
+    {
+        Assert.Equal("6", Run(
+            "Define object box with (the number width, the number height):\n" +
+            "    Get area as number:\n" +
+            "        return one's width * one's height.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Bind making a box to make-box, given (the number w, the number h):\n" +
+            "    return a new box { the width w, the height h }.\n" +
+            "Done.\n" +
+            "Define b as cast make-box on (2, 3).\n" +
+            "State b's area."));
+    }
+
+    // Multiple named constructors on the same type.
+    [Fact]
+    public void Constructor_MultipleOnSameType()
+    {
+        Assert.Equal("5\n25", Run(
+            "Define object circle with (the number radius).\n" +
+            "Bind making a circle to unit-circle:\n" +
+            "    return a new circle { the radius 1 }.\n" +
+            "Done.\n" +
+            "Bind making a circle to big-circle, given (the number r):\n" +
+            "    return a new circle { the radius r }.\n" +
+            "Done.\n" +
+            "Define c1 as cast unit-circle on ().\n" +
+            "Define c2 as cast big-circle on (5).\n" +
+            "State c2's radius.\n" +
+            "State c2's radius * c2's radius."));
+    }
+
+    // Fallible constructor: returns the object or a failure.
+    [Fact]
+    public void Constructor_Fallible_SuccessPath()
+    {
+        Assert.Equal("5", Run(
+            "Define object point with (the number x, the number y).\n" +
+            "Bind making a point or failure to positive-point, given (the number px, the number py):\n" +
+            "    If px is less than 0, return a failure \"x must be non-negative\".\n" +
+            "    If py is less than 0, return a failure \"y must be non-negative\".\n" +
+            "    return a new point { the x px, the y py }.\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define p as cast positive-point on (5, 3).\n" +
+            "    State p's x.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Constructor_Fallible_FailurePath()
+    {
+        Assert.Equal("bad input", Run(
+            "Define object point with (the number x, the number y).\n" +
+            "Bind making a point or failure to positive-point, given (the number px, the number py):\n" +
+            "    If px is less than 0, return a failure \"bad input\".\n" +
+            "    return a new point { the x px, the y py }.\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define p as cast positive-point on (-1, 3).\n" +
+            "    State p's x.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State the message of the failure.\n" +
+            "Done."));
+    }
+
+    // Implicit {…} construction still works alongside named constructors.
+    [Fact]
+    public void Constructor_ImplicitFormStillWorks()
+    {
+        Assert.Equal("direct", Run(
+            "Define object tag with (the text label).\n" +
+            "Bind making a tag to make-tag, given (the text s):\n" +
+            "    return a new tag { the label s }.\n" +
+            "Done.\n" +
+            "Define t as a new tag { the label \"direct\" }.\n" +
+            "State t's label."));
+    }
+
+    // Constructor registered on object type (type knows about it).
+    [Fact]
+    public void Constructor_RegisteredOnType_CanCallWithCast()
+    {
+        Assert.Equal("hello", Run(
+            "Define object wrapper with (the text value).\n" +
+            "Bind making a wrapper to wrap, given (the text v):\n" +
+            "    return a new wrapper { the value v }.\n" +
+            "Done.\n" +
+            "Define w as cast wrap on (\"hello\").\n" +
+            "State w's value."));
+    }
+
+    // Type error: constructor target type does not exist.
+    [Fact]
+    public void Constructor_TypeError_UnknownType()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind making a ghost to make-ghost:\n" +
+            "    return a new ghost { }.\n" +
+            "Done."));
+    }
+
+    // Type error: constructor body returns wrong type.
+    [Fact]
+    public void Constructor_TypeError_BodyReturnsWrongType()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object box with (the number value).\n" +
+            "Bind making a box to bad-box:\n" +
+            "    return 42.\n" +
+            "Done."));
+    }
+
+    // Type error: duplicate constructor name on the same type.
+    [Fact]
+    public void Constructor_TypeError_DuplicateName()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object box with (the number value).\n" +
+            "Bind making a box to make-box:\n" +
+            "    return a new box { the value 1 }.\n" +
+            "Done.\n" +
+            "Bind making a box to make-box:\n" +
+            "    return a new box { the value 2 }.\n" +
+            "Done."));
+    }
+
+    // Type error: fallible constructor result must be handled.
+    [Fact]
+    public void Constructor_TypeError_FallibleResultUnhandled()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object point with (the number x, the number y).\n" +
+            "Bind making a point or failure to safe-point, given (the number x, the number y):\n" +
+            "    return a new point { the x x, the y y }.\n" +
+            "Done.\n" +
+            "Define p as cast safe-point on (1, 2).\n" +
+            "State p's x."));
+    }
 }
