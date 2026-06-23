@@ -609,10 +609,7 @@ shows Cufet's own `.data`/`.text`/`.bss` sections, where memory is real and
 manually managed, where OS signals are caught at the signal wire, not
 intercepted by a managed runtime.
 
-The concrete north star is Nathan's Operating Systems coursework — a shell
-program, process creation, signal handling, memory inspection — *done in
-Cufet the way it would be done in C++*. Pressure-testing against the actual
-homework assignments revealed the honest finish line:
+The concrete north star is a shell program, process creation, signal handling, memory inspection — *done in Cufet the way it would be done in C++*. Pressure-testing against the actual homework assignments revealed the honest finish line:
 
 - **Task 3 (memory layout — `readelf`/`nm` on a real binary to find
   globals in `.data`, locals on the stack):** a simulated memory arena
@@ -663,10 +660,10 @@ Cufet binary whose `.data` section you can `readelf` is post-native.
 
 **What's needed, in rough interpreter-era order:**
 
-4. **Environment variables** — read `$PATH`, `$HOME`, etc.
-5. **Signal handling** — `SIGINT`/`SIGTERM` via interpreter hooks; `SIGFPE`
+1. **Environment variables** — read `$PATH`, `$HOME`, etc.
+2. **Signal handling** — `SIGINT`/`SIGTERM` via interpreter hooks; `SIGFPE`
    and friends are native-backend concerns.
-6. **Directory traversal** — list directory contents, check existence, walk trees.
+3. **Directory traversal** — list directory contents, check existence, walk trees.
 
 **Then the native-backend era:**
 
