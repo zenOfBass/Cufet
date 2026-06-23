@@ -473,6 +473,44 @@ public sealed partial class TypeChecker
         CheckSetterBody(setter, objType, setter.Line);
     }
 
+    // Checks a destructor body: 'one' (self) bound to objType, no params, void/infallible.
+    // Infallibility is enforced naturally: 'return a failure' in void context is already a TypeError;
+    // unhandled fallible operations are already rejected outside _inTryBlock/_inFailureHandledContext.
+    private void CheckUnmake(UnmakerDeclaration ud)
+    {
+        if (!_objectDefs.TryGetValue(ud.UnmakesTypeName, out var objType))
+            throw new TypeException(FormatTypeError(
+                $"'{ud.UnmakesTypeName}' is not a defined object type",
+                null, ud.Line,
+                $"declare a destructor for '{ud.UnmakesTypeName}'",
+                $"Define 'object {ud.UnmakesTypeName}' before declaring a destructor for it."));
+
+        var saved = SaveScopes();
+        foreach (var scope in saved.V)
+            foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
+        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), ud.Line);
+
+        var prevInFunction       = _inFunction;
+        var prevReturnType       = _expectedReturnType;
+        var prevFunctionLine     = _functionDeclarationLine;
+        var prevRabbitDepth      = _rabbitDepth;
+        _inFunction              = true;
+        _expectedReturnType      = null; // void — 'return a failure' is caught as "returning a value from void"
+        _functionDeclarationLine = ud.Line;
+        _rabbitDepth             = 0;
+
+        try { foreach (var stmt in ud.Body) CheckStatement(stmt); }
+        finally
+        {
+            _inFunction              = prevInFunction;
+            _expectedReturnType      = prevReturnType;
+            _functionDeclarationLine = prevFunctionLine;
+            _rabbitDepth             = prevRabbitDepth;
+            RestoreScopes(saved);
+        }
+        // No DefinitelyReturns check — destructors are void, return is optional.
+    }
+
     private ObjectType InferObjectLiteral(ObjectLiteral lit)
     {
         if (!_objectDefs.TryGetValue(lit.TypeName, out var objType))

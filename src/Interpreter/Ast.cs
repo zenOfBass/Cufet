@@ -122,6 +122,17 @@ public sealed record BindStatement(
     int Line
 ) : IStatement;
 
+// Bind unmaking a <UnmakesTypeName> to <Name>: ... Done.
+// Declares the destructor for <UnmakesTypeName>. Exactly one per type. No parameters.
+// Body accesses 'one's <fields>' to release owned resources.
+// Infallible — no 'return a failure'; enforced at type-check time.
+public sealed record UnmakerDeclaration(
+    string Name,
+    string UnmakesTypeName,
+    IReadOnlyList<IStatement> Body,
+    int Line
+) : IStatement;
+
 // Cast <expr> on (<args>) — function may be a name, a variable holding a function, etc.
 // As expression: value is the return value of the function.
 public sealed record CastExpression(

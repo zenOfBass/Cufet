@@ -126,6 +126,8 @@ public sealed class ObjectType : CufetType
     public IReadOnlyList<(string SetterName, CufetType ParamType, string ParamName)> Setters { get; }
     // Slice 7 — named constructors: free functions registered with the type via 'making a <type>'.
     public IReadOnlyList<string> Constructors { get; }
+    // Slice 8 — destructor: the name of the 'Bind unmaking a <type>' declaration, if any.
+    public string? Unmaker { get; }
     // Slice 4 — embedding: null means no embed; non-null is the embedded type name (handle).
     public string? EmbeddedTypeName { get; }
     // Slice 5 — conformance: interface names declared with "and <interface>" clauses.
@@ -140,7 +142,8 @@ public sealed class ObjectType : CufetType
         IReadOnlyList<(string SetterName, CufetType ParamType, string ParamName)>? setters = null,
         string? embeddedTypeName = null,
         IReadOnlyList<string>? conformedInterfaces = null,
-        IReadOnlyList<string>? constructors = null)
+        IReadOnlyList<string>? constructors = null,
+        string? unmaker = null)
     {
         Name               = name;
         PositionalTypes    = positionalTypes;
@@ -149,6 +152,7 @@ public sealed class ObjectType : CufetType
         Getters            = getters ?? [];
         Setters            = setters ?? [];
         Constructors       = constructors ?? [];
+        Unmaker            = unmaker;
         EmbeddedTypeName   = embeddedTypeName;
         ConformedInterfaces = conformedInterfaces ?? [];
     }
@@ -624,7 +628,35 @@ public sealed partial class TypeChecker
             _objectDefs[typeName] = new ObjectType(
                 ot.Name, ot.PositionalTypes, ot.NamedFields, ot.Methods,
                 ot.Getters, ot.Setters, ot.EmbeddedTypeName, ot.ConformedInterfaces,
-                newCtorNames);
+                newCtorNames, ot.Unmaker);
+        }
+
+        // Gather destructors ('Bind unmaking a <type> to <name>'), validate, register on ObjectType.Unmaker.
+        // Exactly one destructor per type; a second 'unmaking a <type>' is a declaration-time error.
+        var unmakeByType = new Dictionary<string, UnmakerDeclaration>();
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is not UnmakerDeclaration ud) continue;
+            if (unmakeByType.ContainsKey(ud.UnmakesTypeName))
+                throw new TypeException(FormatTypeError(
+                    $"'{ud.UnmakesTypeName}' already has a destructor — 'Bind unmaking a {ud.UnmakesTypeName}' appeared twice",
+                    null, ud.Line,
+                    $"declare a second destructor for '{ud.UnmakesTypeName}'",
+                    "Remove the duplicate. Each type has exactly one destructor — one way to die."));
+            unmakeByType[ud.UnmakesTypeName] = ud;
+        }
+        foreach (var (typeName, ud) in unmakeByType)
+        {
+            if (!_objectDefs.TryGetValue(typeName, out var ot))
+                throw new TypeException(FormatTypeError(
+                    $"'{typeName}' is not a defined object type — 'unmaking a {typeName}' has no type to register on",
+                    null, ud.Line,
+                    $"declare a destructor for '{typeName}'",
+                    $"Define 'object {typeName}' before declaring a destructor for it, or check the spelling."));
+            _objectDefs[typeName] = new ObjectType(
+                ot.Name, ot.PositionalTypes, ot.NamedFields, ot.Methods,
+                ot.Getters, ot.Setters, ot.EmbeddedTypeName, ot.ConformedInterfaces,
+                ot.Constructors, ud.Name);
         }
     }
 
@@ -852,6 +884,9 @@ public sealed partial class TypeChecker
                 break;
             case SetterDeclaration:
                 break; // inline setter already checked inside CheckObjectDefinition
+            case UnmakerDeclaration ud:
+                CheckUnmake(ud);
+                break;
         }
     }
 

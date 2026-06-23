@@ -31,6 +31,8 @@ public sealed partial class Interpreter
     private readonly TextWriter _out;
     private readonly TextReader _in;
     private readonly List<Dictionary<string, object>> _scopes = [new()];
+    // Parallel to _scopes: definition order per scope, for LIFO destructor firing.
+    private readonly List<List<string>> _scopeDefOrder = [[]];
 
     // Cooperative SIGINT flag: set by the Console.CancelKeyPress handler (signal-dispatch thread),
     // read by the interpreter's main thread at checkpoints. volatile bool is the complete solution
@@ -61,21 +63,35 @@ public sealed partial class Interpreter
         return null;
     }
 
-    private void EnterScope() => _scopes.Add(new Dictionary<string, object>());
-    private void ExitScope()  => _scopes.RemoveAt(_scopes.Count - 1);
-
-    private List<Dictionary<string, object>> SaveScopes()
+    private void EnterScope()
     {
-        var saved = _scopes.ToList();
+        _scopes.Add(new Dictionary<string, object>());
+        _scopeDefOrder.Add([]);
+    }
+
+    private void ExitScope()
+    {
+        RunScopeUnmakers(_scopeDefOrder[^1], _scopes[^1]);
+        _scopes.RemoveAt(_scopes.Count - 1);
+        _scopeDefOrder.RemoveAt(_scopeDefOrder.Count - 1);
+    }
+
+    private (List<Dictionary<string, object>> Scopes, List<List<string>> DefOrders) SaveScopes()
+    {
+        var saved = (_scopes.ToList(), _scopeDefOrder.ToList());
         _scopes.Clear();
         _scopes.Add(new Dictionary<string, object> { ["input"] = new ReadableStreamValue(_in) });
+        _scopeDefOrder.Clear();
+        _scopeDefOrder.Add([]);
         return saved;
     }
 
-    private void RestoreScopes(List<Dictionary<string, object>> saved)
+    private void RestoreScopes((List<Dictionary<string, object>> Scopes, List<List<string>> DefOrders) saved)
     {
         _scopes.Clear();
-        foreach (var s in saved) _scopes.Add(s);
+        foreach (var s in saved.Scopes) _scopes.Add(s);
+        _scopeDefOrder.Clear();
+        foreach (var d in saved.DefOrders) _scopeDefOrder.Add(d);
     }
 
     // Used internally to implement Stop/Skip — never escape the loop handlers.
@@ -225,6 +241,7 @@ public sealed partial class Interpreter
     }
 
     private readonly Dictionary<string, ObjectDefinition> _objectDefs = new();
+    private readonly Dictionary<string, UnmakerDeclaration> _unmakeDefs = new();
 
     private int _callDepth = 0;
     private readonly int _maxCallDepth;
@@ -247,6 +264,13 @@ public sealed partial class Interpreter
         {
             if (stmt is ObjectDefinition od)
                 _objectDefs[od.Name] = od;
+        }
+
+        // Hoist destructor declarations.
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is UnmakerDeclaration ud)
+                _unmakeDefs[ud.UnmakesTypeName] = ud;
         }
 
         // Merge 'unto' methods/getters/setters (declared outside the object body) into their
@@ -309,6 +333,7 @@ public sealed partial class Interpreter
                 var val = Evaluate(d.Value);
                 Scope[d.Name] = val is RecordValue rv ? rv.DeepCopy() :
                                 val is ObjectValue ov ? ov.DeepCopy() : val;
+                _scopeDefOrder[^1].Add(d.Name);
                 break;
             }
 
@@ -511,6 +536,7 @@ public sealed partial class Interpreter
             case InterfaceDefinition:
             case GetterDeclaration:
             case SetterDeclaration:
+            case UnmakerDeclaration:
                 break; // already hoisted / no runtime action
 
             case BindStatement bind:

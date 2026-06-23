@@ -74,6 +74,7 @@ public enum TokenType
     GetKw,      // "get"      — in "Get <name> as <type>: ..." — computed property (getter)
     SetKw,      // "set"      — in "Set <name> given (<param>): ..." — intercepting write (setter)
     MakingKw,   // "making"   — in "Bind making a <type> to <name>, given (...)" — named constructor
+    UnmakingKw, // "unmaking" — in "Bind unmaking a <type> to <name>: ..."      — destructor
 
     // ── Collections — for-each ────────────────────────────────────────────
     For,      // "for"

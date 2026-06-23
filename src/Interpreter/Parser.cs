@@ -46,7 +46,9 @@ public sealed class Parser
             TokenType.Add        => ParseSeriesAddStatement(),
             TokenType.Remove     => ParseSeriesRemoveStatement(),
             TokenType.For        => ParseForEachStatement(),
-            TokenType.Bind       => ParseBindStatement(),
+            TokenType.Bind       => PeekAfterCurrent() == TokenType.UnmakingKw
+                                     ? ParseUnmakerDeclaration()
+                                     : ParseBindStatement(),
             TokenType.Cast       => ParseCastStatementWrapper(),
             TokenType.Return     => ParseReturnStatement(),
             TokenType.Try        => ParseTryStatement(),
@@ -2930,6 +2932,46 @@ public sealed class Parser
 
     // Top-level entry-point: routes to the shared parser which allows the 'unto' clause.
     private SetterDeclaration ParseSetterUntoDeclaration() => ParseSetterDeclaration();
+
+    // Bind unmaking a <type> to <name>: ... Done.
+    // Top-level only. No parameters. Infallible (enforced in TypeChecker).
+    private UnmakerDeclaration ParseUnmakerDeclaration()
+    {
+        if (_nestDepth > 0)
+            throw new ParseException(Peek(),
+                "— destructors must be declared at the top level, not inside a block");
+
+        var savedInObjectDef   = _inObjectDef;
+        var savedInFreeFunction = _inFreeFunction;
+        _inObjectDef    = false;
+        _inFreeFunction = false;
+
+        var line = Consume(TokenType.Bind).Line;
+        Consume(TokenType.UnmakingKw);
+        SkipNoise(); // eats 'a' article
+        var typeName = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+        Consume(TokenType.To);
+        SkipNoise();
+        var name = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+
+        if (Peek().Type == TokenType.Given)
+            throw new ParseException(Peek(),
+                "— destructors take no parameters (omit 'given (...)' entirely)");
+
+        Consume(TokenType.Colon);
+        _nestDepth++;
+        _functionDepth++;
+        var body = ParseLoopBody();
+        _functionDepth--;
+        _nestDepth--;
+
+        _inObjectDef    = savedInObjectDef;
+        _inFreeFunction = savedInFreeFunction;
+
+        return new UnmakerDeclaration(name, typeName, body, line);
+    }
 
     // Returns the handler keyword (Failure or Exception) following 'In case of' at
     // the current position, skipping noise. Returns Eof if no handler pattern follows.

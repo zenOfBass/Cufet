@@ -68,7 +68,7 @@ public sealed partial class Interpreter
         }
 
         var saved = SaveScopes();
-        foreach (var scope in saved)
+        foreach (var scope in saved.Scopes)
             foreach (var (k, v) in scope)
                 if (v is FunctionValue) Scope[k] = v;
         Scope["one"] = receiver;
@@ -110,7 +110,7 @@ public sealed partial class Interpreter
         }
 
         var saved = SaveScopes();
-        foreach (var scope in saved)
+        foreach (var scope in saved.Scopes)
             foreach (var (k, v) in scope)
                 if (v is FunctionValue) Scope[k] = v;
         Scope["one"]             = receiver;
@@ -235,5 +235,46 @@ public sealed partial class Interpreter
         if (TryFindNamedFieldValue(ov, pa.Member, out var found)) return found;
         throw new RuntimeException(
             $"Object of type '{ov.TypeName}' has no field or getter named '{pa.Member}' (line {pa.Line}).");
+    }
+
+    // Fires unmakers for all objects defined in this scope, in reverse definition order (LIFO).
+    private void RunScopeUnmakers(List<string> defOrder, Dictionary<string, object> scope)
+    {
+        for (int i = defOrder.Count - 1; i >= 0; i--)
+        {
+            var name = defOrder[i];
+            if (scope.TryGetValue(name, out var val) && val is ObjectValue ov
+                && _unmakeDefs.TryGetValue(ov.TypeName, out var ud))
+                ExecuteUnmake(ud, ov);
+        }
+    }
+
+    // Runs the unmake body with 'one' bound to the receiver. Void and infallible.
+    private void ExecuteUnmake(UnmakerDeclaration ud, ObjectValue receiver)
+    {
+        _callDepth++;
+        if (_callDepth > _maxCallDepth)
+        {
+            _callDepth--;
+            return; // infallible — swallow instead of throwing
+        }
+
+        var saved = SaveScopes();
+        foreach (var scope in saved.Scopes)
+            foreach (var (k, v) in scope)
+                if (v is FunctionValue) Scope[k] = v;
+        Scope["one"] = receiver;
+
+        try
+        {
+            foreach (var stmt in ud.Body)
+                Execute(stmt);
+        }
+        catch (ReturnException) { } // void — discard any bare return
+        finally
+        {
+            RestoreScopes(saved);
+            _callDepth--;
+        }
     }
 }

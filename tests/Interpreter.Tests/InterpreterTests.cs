@@ -10121,4 +10121,153 @@ public class InterpreterTests
             "Define p as cast safe-point on (1, 2).\n" +
             "State p's x."));
     }
+
+    // ── Destructors ('Bind unmaking a <type> to <name>') ─────────────────────
+
+    // Basic RAII: unmake fires when the defining scope exits.
+    [Fact]
+    public void Destructor_Basic_FiresOnScopeExit()
+    {
+        Assert.Equal("open\nclosed", Run(
+            "Define object handle with (the text label).\n" +
+            "Bind unmaking a handle to cleanup:\n" +
+            "    State \"closed\".\n" +
+            "Done.\n" +
+            "If true:\n" +
+            "    Define h as a new handle { the label \"x\" }.\n" +
+            "    State \"open\".\n" +
+            "Done."));
+    }
+
+    // LIFO ordering: second-defined object is unmade first.
+    [Fact]
+    public void Destructor_LIFO_OrderReversed()
+    {
+        Assert.Equal("A\nB\nunmake B\nunmake A", Run(
+            "Define object res with (the text name).\n" +
+            "Bind unmaking a res to teardown:\n" +
+            "    State \"unmake \" joined to one's name.\n" +
+            "Done.\n" +
+            "If true:\n" +
+            "    Define a as a new res { the name \"A\" }.\n" +
+            "    State \"A\".\n" +
+            "    Define b as a new res { the name \"B\" }.\n" +
+            "    State \"B\".\n" +
+            "Done."));
+    }
+
+    // Body uses 'one's field' to access the object being unmade.
+    [Fact]
+    public void Destructor_Body_AccessesOnesFields()
+    {
+        Assert.Equal("releasing handle-42", Run(
+            "Define object conn with (the text id).\n" +
+            "Bind unmaking a conn to close-conn:\n" +
+            "    State \"releasing \" joined to one's id.\n" +
+            "Done.\n" +
+            "If true:\n" +
+            "    Define c as a new conn { the id \"handle-42\" }.\n" +
+            "Done."));
+    }
+
+    // Only objects with a registered unmake are affected; others are skipped silently.
+    [Fact]
+    public void Destructor_NoUnmake_SkippedSilently()
+    {
+        Assert.Equal("done", Run(
+            "Define object plain with (the number value).\n" +
+            "If true:\n" +
+            "    Define p as a new plain { the value 1 }.\n" +
+            "Done.\n" +
+            "State \"done\"."));
+    }
+
+    // Unmake does not fire for objects that were never defined in that scope.
+    [Fact]
+    public void Destructor_OnlyDefinedObjectsUnmade()
+    {
+        Assert.Equal("open\nclosed\nafter", Run(
+            "Define object resource with (the text tag).\n" +
+            "Bind unmaking a resource to free-resource:\n" +
+            "    State \"closed\".\n" +
+            "Done.\n" +
+            "If true:\n" +
+            "    Define r as a new resource { the tag \"x\" }.\n" +
+            "    State \"open\".\n" +
+            "Done.\n" +
+            "State \"after\"."));
+    }
+
+    // Multiple scopes: outer object unmade after inner scope's objects.
+    [Fact]
+    public void Destructor_NestedScopes_OuterAfterInner()
+    {
+        Assert.Equal("outer\ninner\nunmake inner\nunmake outer", Run(
+            "Define object box with (the text tag).\n" +
+            "Bind unmaking a box to destroy-box:\n" +
+            "    State \"unmake \" joined to one's tag.\n" +
+            "Done.\n" +
+            "If true:\n" +
+            "    Define outer as a new box { the tag \"outer\" }.\n" +
+            "    State \"outer\".\n" +
+            "    If true:\n" +
+            "        Define inner as a new box { the tag \"inner\" }.\n" +
+            "        State \"inner\".\n" +
+            "    Done.\n" +
+            "Done."));
+    }
+
+    // Type error: second 'Bind unmaking a <type>' for the same type.
+    [Fact]
+    public void Destructor_TypeError_DuplicateUnmaker()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object widget with (the number x).\n" +
+            "Bind unmaking a widget to first-cleanup:\n" +
+            "    State \"first\".\n" +
+            "Done.\n" +
+            "Bind unmaking a widget to second-cleanup:\n" +
+            "    State \"second\".\n" +
+            "Done."));
+    }
+
+    // Type error: 'Bind unmaking a <type>' for an undeclared type.
+    [Fact]
+    public void Destructor_TypeError_UnknownType()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind unmaking a ghost to haunt:\n" +
+            "    State \"boo\".\n" +
+            "Done."));
+    }
+
+    // Type error: destructor body contains 'return a failure' — infallibility enforced.
+    [Fact]
+    public void Destructor_TypeError_ReturnFailureInBody()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object file-handle with (the text path).\n" +
+            "Bind unmaking a file-handle to bad-close:\n" +
+            "    return a failure \"cannot close\".\n" +
+            "Done."));
+    }
+
+    // Unmake body can call methods on one.
+    [Fact]
+    public void Destructor_Body_CanCallMethodOnOne()
+    {
+        Assert.Equal("flushing\ndone", Run(
+            "Define object buffer with (the text data):\n" +
+            "    Bind flush:\n" +
+            "        State \"flushing\".\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Bind unmaking a buffer to drain-buffer:\n" +
+            "    Cast flush on one.\n" +
+            "Done.\n" +
+            "If true:\n" +
+            "    Define b as a new buffer { the data \"x\" }.\n" +
+            "Done.\n" +
+            "State \"done\"."));
+    }
 }

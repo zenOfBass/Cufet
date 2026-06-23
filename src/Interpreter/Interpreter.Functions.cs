@@ -70,7 +70,7 @@ public sealed partial class Interpreter
         else
         {
             // Top-level function: only function-typed bindings from caller are visible.
-            foreach (var scope in saved)
+            foreach (var scope in saved.Scopes)
                 foreach (var (k, v) in scope)
                     if (v is FunctionValue) Scope[k] = v;
         }
@@ -141,7 +141,7 @@ public sealed partial class Interpreter
         var saved     = SaveScopes();
 
         // Method scope: only function-typed bindings from caller visible.
-        foreach (var scope in saved)
+        foreach (var scope in saved.Scopes)
             foreach (var (k, v) in scope)
                 if (v is FunctionValue) Scope[k] = v;
 
