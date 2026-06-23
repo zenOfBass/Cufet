@@ -254,6 +254,37 @@ language is considered stable.
   the same program (not foreign-type extension); a method-name clash between
   nested and `unto` (or between two `unto`s) on the same type is a static
   error — not overloading.
+- **Getters** (`Get <name> as <type>:` nested, or `Get <name> unto <type> as <type>:`
+  outside) — computed read-only property; accessed via possessive or named form,
+  indistinguishable from a stored field. Must return. `Get ... as void:` is a parse
+  error.
+- **Setters** (`Set <name> given (the <type> <param>):` nested, or `Set <name> unto
+  <type> given (...):` outside) — intercepts `obj's <name> becomes value`. Infallible
+  and transform-only (see design decisions). `one's <this-name> becomes X` inside the
+  setter body is a direct write, bypassing re-dispatch.
+- **Named constructors** (`Bind making a <type> to <name>[, given (<params>)]:`) —
+  registered constructor function returning `<type>`; fallible form `Bind making a
+  <type> or failure to <name>:`. Called via `Cast <name> on (args)`. One type may have
+  multiple named constructors alongside the default `{...}` literal.
+- **Destructors** (`Bind unmaking a <type> to <name>:` — no parameters, infallible,
+  top-level only) — fires automatically in LIFO order when an object's scope exits
+  (RAII). `one` is the object being destroyed. One destructor per type; duplicate is a
+  static error. Infallible: `return a failure` in the body is a static error. See design
+  decisions for the close/flush companion convention and the ownership rule.
+
+**Shell prerequisites** *(complete)*
+- **Environment variables** — `the environment variable "NAME"` → `voidable text`
+  (void if not set). Read-only access to the process environment.
+- **Directory traversal** — `the contents of the directory path` → `series of text or
+  failure` (entry names only, unsorted; failure categories: `"not-found"`,
+  `"permission-denied"`). Path predicates: `the path "x" exists` / `is a directory` /
+  `is a file` → `fact` (never fail).
+- **Signal handling (cooperative)** — `an interrupt has been requested` (→ `fact`;
+  true once per `SIGINT`, stays true until cleared) / `Acknowledge the interrupt.`
+  (clears the flag). Programs poll the flag explicitly. Not preemptive — a tight loop
+  without polling is not mid-computation interruptible in the interpreter era.
+  **Preemptive interruptibility is an explicit tracked debt, owed during the concurrency
+  arc.**
 
 ---
 
@@ -332,19 +363,22 @@ see [What's built](#whats-built-the-language-today) above.*
 
 ### OOP extensions
 
-- **Operator overloading** — user-defined types (including book-introduced types
-  like `matrix`) declaring behavior for `+`, `-`, `*`, etc. Unblocks matrix
-  arithmetic (`m1 + m2` syntax). Needs design.
+- **Operator overloading** — **the next arc after 0.7.0.** User-defined types
+  declaring behavior for `+`, `-`, `*`, etc. Directly unblocks matrix arithmetic
+  (operator syntax, not book functions — see design decisions). Key design question
+  to resolve first: **can overloaded operators be fallible?** That answer is
+  load-bearing for how the operator call site composes with failure handling.
 
-- **Getters and setters** — computed, property-style fields on objects; accessed
-  as fields by callers but backed by logic inside the object. Needs design.
+- **Fallible setters (Option B)** — setters that can reject a value are deliberately
+  deferred to a future **effect-tracking arc**. The current infallible-setter rule
+  keeps `becomes` infallible everywhere; a fallible setter would require effect
+  annotations on every assignment expression. Not designed, not near-term.
 
-- **Explicit constructors** — user-defined construction logic beyond the current
-  field-literal `{...}` form. Needs design.
-
-- **Destructors** — user-defined cleanup at scope/region exit. **Blocked on rabbit
-  Layer 3** — destructor run-time is derived from the region model (RAII: fire at
-  the `Done.` of the enclosing region). Design after rabbit Layer 3 is built.
+- **Matrix arithmetic** — addition, subtraction, matrix product, and scalar scaling.
+  Deferred until after operator overloading; **will use operator syntax (`a + b`), NOT
+  book functions** (hard decision — one canonical way to express addition). Once
+  operator overloading is built, matrix arithmetic slots in as the first user-defined
+  type that exercises it.
 
 - **Multi-directional predicate dispatch** — dispatch on multiple argument types
   simultaneously (CLOS multimethods / Julia-style). A type-system arc larger than
@@ -369,6 +403,15 @@ see [What's built](#whats-built-the-language-today) above.*
   the interpreter; the native backend later implements those semantics against real
   hardware. Requires the concurrency model (async/parallel tasks) to be established
   first; `pull a rabbit` is the concurrency-era rabbit, not the block-scoped one.
+
+- **Pipes** — **deferred until after concurrency.** The sequential form of pipes
+  (`result of A | B | C`) is proven viable as a shell scripting primitive, but is
+  deliberately not built in isolation. Reason: the streaming / infinite-producer
+  cases (pipe to a slow consumer, pipe to `head`, etc.) genuinely need concurrent
+  tasks — designing pipes without concurrency would produce a half-thing. The full
+  pipe model (sequential + streaming) will be designed once concurrency exists.
+  **Also unblocks: preemptive SIGINT** — the concurrency arc is where the cooperative
+  signal handling stopgap gets replaced by real preemptive interruptibility.
 
 ### Tooling
 
@@ -488,6 +531,43 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   interface can be built early as the stable seam; the real external-code
   loader comes later without touching program code.
 
+- **Cufet's identity: teaching systems language — both, deliberately.** Cufet is
+  not purely educational (like Scratch) and not purely industrial (like Zig). It is
+  *both simultaneously*, and doing both is the central design challenge. Decisions
+  must serve learners (readable surface, warm errors, forgiving defaults) *and*
+  systems programmers (static types, real memory, no hidden costs, native-backend
+  trajectory). When these pull against each other, name the tension and resolve it
+  explicitly — don't drift toward either pole without notice. This is the lens for
+  every frequency/feature call.
+
+- **Possessive is always `'s`**, even for words ending in *s* — `series's`,
+  `process's`. No English plural-possessive exception (`series'` is wrong in
+  Cufet). One rule, no edge case.
+
+- **Destructor close/flush companion convention** (guidance, prevents silent data
+  loss): `unmake` is the infallible last-resort backstop. For cleanup that *can* fail
+  (flushing a buffered writer, committing a transaction), the object should expose a
+  fallible method (`close`/`flush`/`commit`) and the caller handles the failure
+  *before* the object's scope ends. Relying on `unmake` alone to flush risks silent
+  data loss — the destructor swallows all outcomes. (Same pattern as Rust `Drop`+
+  `.close()` / Java `Closeable.close()`+`finalize`.)
+
+- **Destructor ownership rule:** `unmake` closes what the object *opened*, not what
+  it *borrowed*. A resource injected from outside is owned by the caller — closing it
+  in the destructor is a double-close bug.
+
+- **Setters are infallible and transform-only (Option A — settled).** A setter may
+  clamp, convert, normalize, or derive — but it cannot reject. Validation-that-rejects
+  belongs to the caller, before the assignment. This keeps `becomes` infallible
+  everywhere it appears. Fallible setters (Option B) are deferred to a future
+  effect-tracking arc.
+
+- **`sum` is not a series aggregate and will not become one.** Addition is already
+  expressed with `+`; a `sum` function would duplicate it and violate the
+  one-canonical-way rule. Collections aggregates may exist in future arcs, but `sum`
+  is permanently excluded. Revisiting requires a new rationale — "it's convenient"
+  is not one.
+
 ---
 
 ## Known minor issues
@@ -516,6 +596,22 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   via the stream form always creates or truncates; append mode for streams is
   deferred (use `append ... to the file` for whole-value appends in the
   meantime).
+
+- **SIGINT is cooperative-poll-only (tracked debt, not final).** A loop that never
+  calls `an interrupt has been requested` or `run`/`Cast` cannot be interrupted
+  mid-computation — the interpreter only checks the flag at explicit poll points.
+  True preemptive mid-loop interruptibility requires native threading infrastructure.
+  **This is an explicit owed feature:** "implement preemptive SIGINT" is a named
+  line-item of the concurrency arc, not a deferred maybe.
+
+- **Destructor RAII is semantic-only in the interpreter era (native-escape not
+  solved).** In the interpreter, `unmake` fires when an object's binding goes out
+  of scope — GC handles the actual memory. For the native backend, an object that
+  *escapes outward* (returned or stored into a longer-lived rabbit) requires the
+  rabbit-passing pattern: the caller allocates/passes a rabbit; the callee fills it.
+  The native-allocation mechanism for escaped objects is deferred to the native
+  backend and is **not** solved by the destructor slice. The design docs must not
+  imply that destructor semantics for escaping objects "just work" in native.
 
 ---
 
@@ -625,7 +721,7 @@ These two tasks are the falsifying tests that establish "Cufet as OS
 orchestrator" as a *waypoint*, not the destination.
 
 **The current interpreter is the reference implementation / executable spec.**
-The 1011 tests define Cufet's semantics. A future native backend (native
+The 1094 tests (140 lexer + 954 interpreter) define Cufet's semantics. A future native backend (native
 compilation, compile-to-C/LLVM, or a from-scratch non-managed runtime)
 implements those same semantics against real metal. Nothing built is wasted
 — this is the path most serious languages took (Lua defined its semantics
@@ -657,13 +753,20 @@ Cufet binary whose `.data` section you can `readelf` is post-native.
 | File I/O (read/write/append/scoped streams) | ✅ built | Core OS capability; `With ... open` lifecycle = RAII analog |
 | Process execution (`run` with args, capture output/exit-code) | ✅ built | Shell's `fork`/`exec`/`wait` at the scripting layer |
 | Union types + narrowing (`(A or B)`, `is a <type>`, elimination) | ✅ built | Discriminated unions — tagged values with type-safe dispatch; native analog is tag + union struct |
+| Environment variables (`the environment variable "X"`) | ✅ built | Shell needs to read `$PATH`, `$HOME`, etc.; pre-process-launch setup |
+| Directory traversal (`the contents of the directory`, `the path … exists/is a file/is a directory`) | ✅ built | Shell needs to list directories, test paths; directory walk is a core shell primitive |
+| Cooperative signal handling (`an interrupt has been requested` / `Acknowledge the interrupt.`) | ✅ built | SIGINT interruptibility in the interpreter era; preemptive form deferred to native |
+| Getters / setters (uniform property access, Dart-style) | ✅ built | Controlled field access without syntax change; relevant to native struct layout control |
+| Named constructors (`Bind making a <type>`) | ✅ built | User-defined construction logic; factory pattern without a new keyword |
+| Destructors / RAII (`Bind unmaking a <type>`, LIFO scope-exit) | ✅ built | First step toward native RAII; destructor semantics define the cleanup contract the native backend must implement |
 
-**What's needed, in rough interpreter-era order:**
+**All interpreter-era scripting prerequisites are now complete.** The remaining work
+before the native-backend era:
 
-1. **Environment variables** — read `$PATH`, `$HOME`, etc.
-2. **Signal handling** — `SIGINT`/`SIGTERM` via interpreter hooks; `SIGFPE`
-   and friends are native-backend concerns.
-3. **Directory traversal** — list directory contents, check existence, walk trees.
+- **Operator overloading** — next arc; unblocks matrix arithmetic.
+- **Matrix arithmetic** — immediately after (operator syntax, not book functions).
+- **Concurrency / async tasks** — unblocks pipes and preemptive SIGINT.
+- **Pipes** — after concurrency (streaming cases need it).
 
 **Then the native-backend era:**
 

@@ -1,6 +1,6 @@
 # Cufet Language Reference
 
-The complete reference for Cufet `0.6.0`. For a quick introduction and taste of
+The complete reference for Cufet `0.7.0`. For a quick introduction and taste of
 the language, see [README.md](README.md). For what's planned and the reasoning
 behind the design, see [ROADMAP.md](ROADMAP.md).
 
@@ -27,6 +27,9 @@ behind the design, see [ROADMAP.md](ROADMAP.md).
     - [Embedding (composition)](#embedding-composition)
     - [Interfaces (polymorphism)](#interfaces-polymorphism)
     - [Methods defined outside the object body (`unto`)](#methods-defined-outside-the-object-body-unto)
+    - [Getters and setters](#getters-and-setters)
+    - [Named constructors](#named-constructors)
+    - [Destructors](#destructors)
   - [Functions](#functions)
     - [Closures](#closures)
     - [Lambda literals (anonymous functions)](#lambda-literals-anonymous-functions)
@@ -41,6 +44,9 @@ behind the design, see [ROADMAP.md](ROADMAP.md).
     - [Reading from standard input](#reading-from-standard-input)
     - [File I/O](#file-io)
     - [Process execution](#process-execution)
+    - [Environment variables](#environment-variables)
+    - [Directory traversal](#directory-traversal)
+  - [Signal handling](#signal-handling)
   - [Type system](#type-system)
   - [Identifiers](#identifiers)
 
@@ -756,6 +762,113 @@ Done.
   conformance check looks for "does the type have a matching method?", not
   "where was it declared?"
 
+### Getters and setters
+
+A **getter** is a computed read-only property. Callers access it exactly like a
+stored field — no distinction at the call site (Dart-style uniform access):
+
+```
+Define object circle with (the number radius):
+    Get area as number:
+        Return one's radius * one's radius * 3.14159.
+    Done.
+Done.
+
+State circle's area.         ← calls the getter; indistinguishable from a field
+State the area of circle.    ← same
+```
+
+- `Get <name> as <type>:` declares a getter inside the object body.
+  `Get <name> unto <type> as <type>:` declares it outside (same semantics, pure organization).
+- The body must return a value. `Get ... as void:` is a parse error.
+- A getter name cannot collide with a stored field on the same type — a static error.
+- Getters are **infallible** — no `return a failure`.
+
+A **setter** intercepts assignments to a named property:
+
+```
+Define object temp-sensor with (the number celsius):
+    Set display given (the number v):
+        one's celsius becomes v.
+    Done.
+Done.
+
+The display of sensor becomes 100.    ← fires the setter
+```
+
+- `Set <name> given (the <type> <param>):` intercepts `obj's <name> becomes value` and
+  `the <name> of obj becomes value`. `Set <name> unto <type> given (...):` is the
+  outside-body form.
+- **Infallible and transform-only** — a setter may clamp, convert, or normalize,
+  but cannot reject. Validation-that-rejects belongs to the caller before the assignment.
+- Inside the setter body, `one's <this-name> becomes X` writes directly to the underlying
+  storage, bypassing the setter (no infinite recursion).
+
+### Named constructors
+
+A named constructor is a function that builds and returns an object. It is declared
+with `making a <type>` in the return-type slot:
+
+```
+Define object point with (the number x, the number y).
+
+Bind making a point to origin:
+    Return a new point { the x 0, the y 0 }.
+Done.
+
+Bind making a point or failure to from-pair, given (the text s):
+    Define parts as s split by ",".
+    If the number of parts is not 2, return a failure "expected x,y".
+    Define x as item 1 of parts converted to number.
+    Define y as item 2 of parts converted to number.
+    If x is void or y is void, return a failure "non-numeric coordinates".
+    Return a new point { the x x, the y y }.
+Done.
+
+Define origin-pt as cast origin.
+Define p as cast from-pair on ("3,4").
+```
+
+- `Bind making a <type> to <name>[, given (<params>)]:` — the implicit return type
+  is `<type>`.
+- Fallible form: `Bind making a <type> or failure to <name>:` — the body may
+  `return a failure ...`.
+- Called via the standard `Cast <name> on (args)` syntax — no new call syntax.
+- A type can have multiple named constructors; the `{...}` literal is still available.
+
+### Destructors
+
+A destructor runs automatically when an object goes out of scope — RAII at the
+`Done.` that closes its declaring block:
+
+```
+Bind unmaking a conn to disconnect:
+    State "closing " joined to one's host.
+    Cast close on one.
+Done.
+
+If 1 is 1:
+    Define db as cast open-conn on ("localhost").
+    Cast query on (db, "SELECT 1").
+Done.                              ← destructor fires here, before leaving the block
+```
+
+Rules:
+
+- `Bind unmaking a <type> to <name>: ... Done.` — top-level only, no parameters.
+- **One per type** — a second destructor for the same type is a static error.
+- **Infallible** — `return a failure` in the body is a static error. For cleanup
+  that *can* fail, expose a fallible method (`close`/`flush`/`commit`) and call it
+  *before* the scope ends. Relying on the destructor for fallible cleanup risks silent
+  data loss — the destructor swallows all outcomes.
+- **LIFO order** — when multiple objects in the same scope have destructors, they
+  fire in reverse definition order (last-defined, first-destroyed).
+- **`one` is the object being destroyed** — its fields and methods are accessible
+  via `one's <field>` and `Cast <method> on one`.
+- **Ownership rule** — destroy what you opened, not what you borrowed. A resource
+  passed in from outside is the caller's responsibility; closing it in the destructor
+  is a double-close bug.
+
 ---
 
 ## Functions
@@ -1456,6 +1569,105 @@ expression.
 > with `converted to text` in possessive-access position). Workaround: extract
 > first — `Define code as result's exit-code. State code converted to text.`
 
+### Environment variables
+
+`the environment variable "NAME"` reads a process environment variable by name,
+returning `voidable text`:
+
+```
+Define home as the environment variable "HOME".
+If home is not void:
+    State "home is " joined to home.
+Done.
+Otherwise:
+    State "HOME is not set".
+Done.
+
+Define path-val as the environment variable "PATH" but void is "".
+```
+
+- Returns `voidable text` — `void` if the variable is not set.
+- The name is any text expression (literal, variable, or interpolated string).
+- Read-only — Cufet does not expose setting environment variables.
+
+### Directory traversal
+
+**List a directory** — `the contents of the directory path` returns the names of
+entries (files and subdirectories) inside the directory as a `series of text or
+failure`. Entry names are plain names, not full paths. Order is not guaranteed.
+
+```
+Try to:
+    Define entries as the contents of the directory "/tmp".
+    For each name in entries, repeat:
+        State name.
+    Done.
+Done.
+In case of failure:
+    State "cannot read: " joined to the message of the failure.
+Done.
+```
+
+Failure categories: `"not-found"`, `"permission-denied"`.
+
+**Path existence and kind tests** — three boolean predicates (all return `fact`,
+never fail, never void):
+
+```
+If the path "/tmp/myfile" exists:
+    If the path "/tmp/myfile" is a file:
+        State "regular file".
+    Done.
+    Otherwise if the path "/tmp/myfile" is a directory:
+        State "directory".
+    Done.
+Done.
+```
+
+| Test | Returns `true` when |
+|---|---|
+| `the path expr exists` | the path names any existing filesystem entry |
+| `the path expr is a file` | the path names an existing regular file |
+| `the path expr is a directory` | the path names an existing directory |
+
+The path expression is any `text`. A path that exists but is neither a regular file
+nor a directory (device node, dangling symlink, etc.) makes `exists` true but both
+`is a file` and `is a directory` false.
+
+---
+
+## Signal handling
+
+Cufet provides **cooperative (poll-based) interrupt handling**. When the process
+receives `SIGINT` (e.g. Ctrl+C), a flag is set; the program checks it at controlled
+points:
+
+```
+While 1 is 1, repeat:
+    If an interrupt has been requested:
+        State "shutting down.".
+        Acknowledge the interrupt.
+        Stop.
+    Done.
+
+    Define line as read a line from the input.
+    If line is void, stop.
+    State line.
+Done.
+```
+
+- **`an interrupt has been requested`** — `fact`; true when a `SIGINT` has arrived
+  since the last `Acknowledge the interrupt.` (or since program start). Stays true
+  until acknowledged.
+- **`Acknowledge the interrupt.`** — statement; clears the pending interrupt flag.
+  Subsequent checks return false until the next `SIGINT`.
+- **Cooperative, not preemptive.** A loop that never polls `an interrupt has been
+  requested` and never calls `run` or anything that yields cannot be interrupted
+  mid-computation in the interpreter era. This is a known limitation — preemptive
+  interruptibility is a tracked debt, deferred to the concurrency arc.
+- `SIGTERM` and raw `sigaction`-level signal handling are not exposed in the
+  interpreter era; they require the native backend.
+
 ---
 
 ## Type system
@@ -1510,6 +1722,10 @@ Cufet has a static type checker that runs before execution. It catches:
 - File reads (`read all from the file`, `read all lines from the file`) and
   process execution (`run`) outside a `Try` block or propagation context —
   their failable return types must be handled
+- Declaring a second destructor (`Bind unmaking a <type>`) for a type that
+  already has one — duplicate unmaker is a static error
+- Using `return a failure` inside a destructor body — destructors are infallible
+- `Get ... as void:` — getters must return a typed value; void is a parse error
 
 **Records use structural typing** — shape is identity. Two records with the same
 fields and types are the same type regardless of where they were declared. Named
