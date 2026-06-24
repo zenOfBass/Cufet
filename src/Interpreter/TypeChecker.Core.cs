@@ -979,7 +979,10 @@ public sealed partial class TypeChecker
             var retType = ret.Value != null ? InferType(ret.Value) : null;
             // Inside a fallible overload body, failure returns skip the type-set so the
             // success type drives _expectedReturnType; _overloadBodyIsFallible wraps it.
-            if (_overloadBodyIsFallible && retType is FailureMarkerType)
+            // 'Return a failure.' (no message) parses as VariableReference("the failure"),
+            // so check the AST node directly in addition to the inferred type.
+            if (_overloadBodyIsFallible &&
+                (retType is FailureMarkerType || IsFailureExpr(ret.Value)))
                 return;
             // For fallible overload bodies, wrap the inferred success type immediately so
             // subsequent failure returns validate against FailureType(T) rather than T.

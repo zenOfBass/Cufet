@@ -10276,15 +10276,18 @@ public class InterpreterTests
     private static string OverloadPreamble =>
         "Define object vec2 with (the number x, the number y).\n";
 
+    private static string AddOverload =>
+        "Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n" +
+        "    Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.\n" +
+        "Done.\n";
+
     // Basic infallible overload: result is used as a value.
     [Fact]
     public void OverloadOp_Add_Basic()
     {
         Assert.Equal("3\n7", Run(
             OverloadPreamble +
-            "Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
-            "    Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
-            "Done.\n" +
+            AddOverload +
             "Define p as a new vec2 { the x 1, the y 3 }.\n" +
             "Define q as a new vec2 { the x 2, the y 4 }.\n" +
             "Define r as p + q.\n" +
@@ -10297,8 +10300,8 @@ public class InterpreterTests
     {
         Assert.Equal("1", Run(
             OverloadPreamble +
-            "Bind overloading -, given (the a is a vec2, the b is a vec2):\n" +
-            "    Return a new vec2 { the x a's x - b's x, the y a's y - b's y }.\n" +
+            "Bind overloading -, given (the lhs is a vec2, the rhs is a vec2):\n" +
+            "    Return a new vec2 { the x lhs's x - rhs's x, the y lhs's y - rhs's y }.\n" +
             "Done.\n" +
             "Define p as a new vec2 { the x 3, the y 0 }.\n" +
             "Define q as a new vec2 { the x 2, the y 0 }.\n" +
@@ -10310,8 +10313,8 @@ public class InterpreterTests
     {
         Assert.Equal("6", Run(
             OverloadPreamble +
-            "Bind overloading *, given (the a is a vec2, the b is a vec2):\n" +
-            "    Return a new vec2 { the x a's x * b's x, the y a's y * b's y }.\n" +
+            "Bind overloading *, given (the lhs is a vec2, the rhs is a vec2):\n" +
+            "    Return a new vec2 { the x lhs's x * rhs's x, the y lhs's y * rhs's y }.\n" +
             "Done.\n" +
             "Define p as a new vec2 { the x 2, the y 0 }.\n" +
             "Define q as a new vec2 { the x 3, the y 0 }.\n" +
@@ -10323,11 +10326,11 @@ public class InterpreterTests
     {
         Assert.Equal("4", Run(
             OverloadPreamble +
-            "Bind overloading /, given (the a is a vec2, the b is a vec2):\n" +
-            "    Return a new vec2 { the x a's x / b's x, the y a's y / b's y }.\n" +
+            "Bind overloading /, given (the lhs is a vec2, the rhs is a vec2):\n" +
+            "    Return a new vec2 { the x lhs's x / rhs's x, the y lhs's y / rhs's y }.\n" +
             "Done.\n" +
-            "Define p as a new vec2 { the x 8, the y 0 }.\n" +
-            "Define q as a new vec2 { the x 2, the y 0 }.\n" +
+            "Define p as a new vec2 { the x 8, the y 6 }.\n" +
+            "Define q as a new vec2 { the x 2, the y 3 }.\n" +
             "State (p / q)'s x."));
     }
 
@@ -10342,11 +10345,11 @@ public class InterpreterTests
             "    Define sumy as left's y + right's y.\n" +
             "    Return a new vec2 { the x sumx, the y sumy }.\n" +
             "Done.\n" +
-            "Define a as a new vec2 { the x 3, the y 7 }.\n" +
-            "Define b as a new vec2 { the x 7, the y 13 }.\n" +
-            "Define c as a + b.\n" +
-            "State c's x.\n" +
-            "State c's y."));
+            "Define p as a new vec2 { the x 3, the y 7 }.\n" +
+            "Define q as a new vec2 { the x 7, the y 13 }.\n" +
+            "Define r as p + q.\n" +
+            "State r's x.\n" +
+            "State r's y."));
     }
 
     // Multiple overloads for different operators on the same type.
@@ -10355,11 +10358,11 @@ public class InterpreterTests
     {
         Assert.Equal("5\n1", Run(
             OverloadPreamble +
-            "Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
-            "    Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
+            "Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n" +
+            "    Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.\n" +
             "Done.\n" +
-            "Bind overloading -, given (the a is a vec2, the b is a vec2):\n" +
-            "    Return a new vec2 { the x a's x - b's x, the y a's y - b's y }.\n" +
+            "Bind overloading -, given (the lhs is a vec2, the rhs is a vec2):\n" +
+            "    Return a new vec2 { the x lhs's x - rhs's x, the y lhs's y - rhs's y }.\n" +
             "Done.\n" +
             "Define p as a new vec2 { the x 3, the y 4 }.\n" +
             "Define q as a new vec2 { the x 2, the y 3 }.\n" +
@@ -10367,23 +10370,27 @@ public class InterpreterTests
             "State (p - q)'s x."));
     }
 
+    private static string FallibleMulOverload =>
+        "Bind overloading *, given (the lhs is a vec2, the rhs is a vec2):\n" +
+        "    If lhs's x is 0 or rhs's x is 0:\n" +
+        "        Return a failure \"zero operand\".\n" +
+        "    Done.\n" +
+        "    Return a new vec2 { the x lhs's x * rhs's x, the y lhs's y * rhs's y }.\n" +
+        "Done.\n";
+
     // Fallible overload: success path inside Try.
     [Fact]
     public void OverloadOp_Fallible_SuccessPathInsideTry()
     {
         Assert.Equal("6", Run(
             OverloadPreamble +
-            "Bind overloading *, given (the a is a vec2, the b is a vec2):\n" +
-            "    If a's x is 0 or b's x is 0:\n" +
-            "        Return a failure.\n" +
-            "    Done.\n" +
-            "    Return a new vec2 { the x a's x * b's x, the y a's y * b's y }.\n" +
-            "Done.\n" +
+            FallibleMulOverload +
             "Define p as a new vec2 { the x 2, the y 0 }.\n" +
             "Define q as a new vec2 { the x 3, the y 0 }.\n" +
             "Try to:\n" +
             "    Define r as p * q.\n" +
             "    State r's x.\n" +
+            "Done.\n" +
             "In case of failure:\n" +
             "    State \"failed\".\n" +
             "Done."));
@@ -10395,17 +10402,13 @@ public class InterpreterTests
     {
         Assert.Equal("failed", Run(
             OverloadPreamble +
-            "Bind overloading *, given (the a is a vec2, the b is a vec2):\n" +
-            "    If a's x is 0 or b's x is 0:\n" +
-            "        Return a failure.\n" +
-            "    Done.\n" +
-            "    Return a new vec2 { the x a's x * b's x, the y a's y * b's y }.\n" +
-            "Done.\n" +
+            FallibleMulOverload +
             "Define p as a new vec2 { the x 0, the y 0 }.\n" +
             "Define q as a new vec2 { the x 3, the y 0 }.\n" +
             "Try to:\n" +
             "    Define r as p * q.\n" +
             "    State r's x.\n" +
+            "Done.\n" +
             "In case of failure:\n" +
             "    State \"failed\".\n" +
             "Done."));
@@ -10417,11 +10420,11 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             OverloadPreamble +
-            "Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
-            "    If a's x is 0:\n" +
-            "        Return a failure.\n" +
+            "Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n" +
+            "    If lhs's x is 0:\n" +
+            "        Return a failure \"zero\".\n" +
             "    Done.\n" +
-            "    Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
+            "    Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.\n" +
             "Done.\n" +
             "Define p as a new vec2 { the x 1, the y 0 }.\n" +
             "Define q as a new vec2 { the x 2, the y 0 }.\n" +
@@ -10434,11 +10437,11 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             OverloadPreamble +
-            "Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
-            "    Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
+            "Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n" +
+            "    Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.\n" +
             "Done.\n" +
-            "Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
-            "    Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
+            "Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n" +
+            "    Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.\n" +
             "Done.\n"));
     }
 
@@ -10447,7 +10450,7 @@ public class InterpreterTests
     public void OverloadOp_TypeError_UnknownType()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Bind overloading +, given (the a is a ghost, the b is a ghost):\n" +
+            "Bind overloading +, given (the lhs is a ghost, the rhs is a ghost):\n" +
             "    Return a new ghost { }.\n" +
             "Done.\n"));
     }
@@ -10459,9 +10462,7 @@ public class InterpreterTests
         Assert.Throws<TypeException>(() => Run(
             OverloadPreamble +
             "Define object other with (the number v).\n" +
-            "Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
-            "    Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
-            "Done.\n" +
+            AddOverload +
             "Define p as a new vec2 { the x 1, the y 0 }.\n" +
             "Define q as a new other { the v 2 }.\n" +
             "Define r as p + q.\n"));  // different types — no overload applies
@@ -10474,8 +10475,8 @@ public class InterpreterTests
         Assert.Throws<ParseException>(() => Run(
             OverloadPreamble +
             "If 1 is 1:\n" +
-            "    Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
-            "        Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
+            "    Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n" +
+            "        Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.\n" +
             "    Done.\n" +
             "Done.\n"));
     }
@@ -10487,7 +10488,7 @@ public class InterpreterTests
         Assert.Throws<ParseException>(() => Run(
             OverloadPreamble +
             "Define object other with (the number v).\n" +
-            "Bind overloading +, given (the a is a vec2, the b is a other):\n" +
+            "Bind overloading +, given (the lhs is a vec2, the rhs is a other):\n" +
             "    Return a new vec2 { the x 0, the y 0 }.\n" +
             "Done.\n"));
     }

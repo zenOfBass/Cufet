@@ -723,7 +723,7 @@ public sealed partial class TypeChecker
     {
         foreach (var s in stmts)
         {
-            if (s is ReturnStatement { Value: FailureLiteral or FailurePropagate }) return true;
+            if (s is ReturnStatement rs2 && IsFailureExpr(rs2.Value)) return true;
 
             List<IReadOnlyList<IStatement>>? children = s switch
             {
@@ -756,4 +756,15 @@ public sealed partial class TypeChecker
         }
         return false;
     }
+
+    // True for any expression that represents a failure return:
+    //   'return a failure "msg"'  → FailureLiteral
+    //   'return a failure.'       → VariableReference("the failure") (no message string)
+    //   'or pass the failure off' → FailurePropagate
+    private static bool IsFailureExpr(IExpression? expr) => expr switch
+    {
+        FailureLiteral or FailurePropagate                          => true,
+        VariableReference { Name: "the failure" }                   => true,
+        _                                                           => false
+    };
 }
