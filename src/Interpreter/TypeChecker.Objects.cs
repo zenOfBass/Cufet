@@ -1,3 +1,5 @@
+using Cufet.Lexer;
+
 namespace Cufet.Interpreter;
 
 public sealed partial class TypeChecker
@@ -722,20 +724,32 @@ public sealed partial class TypeChecker
         foreach (var s in stmts)
         {
             if (s is ReturnStatement { Value: FailureLiteral or FailurePropagate }) return true;
-            IReadOnlyList<IStatement>[]? children = s switch
+
+            List<IReadOnlyList<IStatement>>? children = s switch
             {
-                IfStatement ifs       => [..ifs.Arms.Select(a => a.Body),
-                                          ..ifs.ElseBody != null ? [ifs.ElseBody] : []],
-                WhileStatement ws     => [ws.Body],
+                WhileStatement ws       => [ws.Body],
                 RepeatUntilStatement ru => [ru.Body],
-                ForEachStatement fe   => [fe.Body],
-                TryStatement ts       => [ts.Body,
-                                          ..ts.FailureHandler  != null ? [ts.FailureHandler]  : [],
-                                          ..ts.ExceptionHandler != null ? [ts.ExceptionHandler] : []],
-                WithOpenStatement wo  => [wo.Body],
-                WithRabbitStatement wr => [wr.Body],
-                _                     => null
+                ForEachStatement fe     => [fe.Body],
+                WithOpenStatement wo    => [wo.Body],
+                WithRabbitStatement wr  => [wr.Body],
+                _                       => null
             };
+
+            if (children == null)
+            {
+                if (s is IfStatement ifs)
+                {
+                    children = [..ifs.Arms.Select(a => a.Body)];
+                    if (ifs.ElseBody != null) children.Add(ifs.ElseBody);
+                }
+                else if (s is TryStatement ts)
+                {
+                    children = [ts.Body];
+                    if (ts.FailureHandler   != null) children.Add(ts.FailureHandler);
+                    if (ts.ExceptionHandler != null) children.Add(ts.ExceptionHandler);
+                }
+            }
+
             if (children != null)
                 foreach (var child in children)
                     if (HasDirectFailureReturn(child)) return true;

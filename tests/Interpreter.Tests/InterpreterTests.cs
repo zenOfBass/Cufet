@@ -10270,4 +10270,225 @@ public class InterpreterTests
             "Done.\n" +
             "State \"done\"."));
     }
+
+    // ── Operator overloading ──────────────────────────────────────────────
+
+    private static string OverloadPreamble =>
+        "Define object vec2 with (the number x, the number y).\n";
+
+    // Basic infallible overload: result is used as a value.
+    [Fact]
+    public void OverloadOp_Add_Basic()
+    {
+        Assert.Equal("3\n7", Run(
+            OverloadPreamble +
+            "Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
+            "    Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
+            "Done.\n" +
+            "Define p as a new vec2 { the x 1, the y 3 }.\n" +
+            "Define q as a new vec2 { the x 2, the y 4 }.\n" +
+            "Define r as p + q.\n" +
+            "State r's x.\n" +
+            "State r's y."));
+    }
+
+    [Fact]
+    public void OverloadOp_Subtract_Basic()
+    {
+        Assert.Equal("1", Run(
+            OverloadPreamble +
+            "Bind overloading -, given (the a is a vec2, the b is a vec2):\n" +
+            "    Return a new vec2 { the x a's x - b's x, the y a's y - b's y }.\n" +
+            "Done.\n" +
+            "Define p as a new vec2 { the x 3, the y 0 }.\n" +
+            "Define q as a new vec2 { the x 2, the y 0 }.\n" +
+            "State (p - q)'s x."));
+    }
+
+    [Fact]
+    public void OverloadOp_Multiply_Basic()
+    {
+        Assert.Equal("6", Run(
+            OverloadPreamble +
+            "Bind overloading *, given (the a is a vec2, the b is a vec2):\n" +
+            "    Return a new vec2 { the x a's x * b's x, the y a's y * b's y }.\n" +
+            "Done.\n" +
+            "Define p as a new vec2 { the x 2, the y 0 }.\n" +
+            "Define q as a new vec2 { the x 3, the y 0 }.\n" +
+            "State (p * q)'s x."));
+    }
+
+    [Fact]
+    public void OverloadOp_Divide_Basic()
+    {
+        Assert.Equal("4", Run(
+            OverloadPreamble +
+            "Bind overloading /, given (the a is a vec2, the b is a vec2):\n" +
+            "    Return a new vec2 { the x a's x / b's x, the y a's y / b's y }.\n" +
+            "Done.\n" +
+            "Define p as a new vec2 { the x 8, the y 0 }.\n" +
+            "Define q as a new vec2 { the x 2, the y 0 }.\n" +
+            "State (p / q)'s x."));
+    }
+
+    // Body accesses left and right operands by their declared parameter names.
+    [Fact]
+    public void OverloadOp_BodyCanAccessOperandsByName()
+    {
+        Assert.Equal("10\n20", Run(
+            OverloadPreamble +
+            "Bind overloading +, given (the left is a vec2, the right is a vec2):\n" +
+            "    Define sumx as left's x + right's x.\n" +
+            "    Define sumy as left's y + right's y.\n" +
+            "    Return a new vec2 { the x sumx, the y sumy }.\n" +
+            "Done.\n" +
+            "Define a as a new vec2 { the x 3, the y 7 }.\n" +
+            "Define b as a new vec2 { the x 7, the y 13 }.\n" +
+            "Define c as a + b.\n" +
+            "State c's x.\n" +
+            "State c's y."));
+    }
+
+    // Multiple overloads for different operators on the same type.
+    [Fact]
+    public void OverloadOp_MultipleOperatorsOnSameType()
+    {
+        Assert.Equal("5\n1", Run(
+            OverloadPreamble +
+            "Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
+            "    Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
+            "Done.\n" +
+            "Bind overloading -, given (the a is a vec2, the b is a vec2):\n" +
+            "    Return a new vec2 { the x a's x - b's x, the y a's y - b's y }.\n" +
+            "Done.\n" +
+            "Define p as a new vec2 { the x 3, the y 4 }.\n" +
+            "Define q as a new vec2 { the x 2, the y 3 }.\n" +
+            "State (p + q)'s x.\n" +
+            "State (p - q)'s x."));
+    }
+
+    // Fallible overload: success path inside Try.
+    [Fact]
+    public void OverloadOp_Fallible_SuccessPathInsideTry()
+    {
+        Assert.Equal("6", Run(
+            OverloadPreamble +
+            "Bind overloading *, given (the a is a vec2, the b is a vec2):\n" +
+            "    If a's x is 0 or b's x is 0:\n" +
+            "        Return a failure.\n" +
+            "    Done.\n" +
+            "    Return a new vec2 { the x a's x * b's x, the y a's y * b's y }.\n" +
+            "Done.\n" +
+            "Define p as a new vec2 { the x 2, the y 0 }.\n" +
+            "Define q as a new vec2 { the x 3, the y 0 }.\n" +
+            "Try to:\n" +
+            "    Define r as p * q.\n" +
+            "    State r's x.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    // Fallible overload: failure path inside Try.
+    [Fact]
+    public void OverloadOp_Fallible_FailurePathInsideTry()
+    {
+        Assert.Equal("failed", Run(
+            OverloadPreamble +
+            "Bind overloading *, given (the a is a vec2, the b is a vec2):\n" +
+            "    If a's x is 0 or b's x is 0:\n" +
+            "        Return a failure.\n" +
+            "    Done.\n" +
+            "    Return a new vec2 { the x a's x * b's x, the y a's y * b's y }.\n" +
+            "Done.\n" +
+            "Define p as a new vec2 { the x 0, the y 0 }.\n" +
+            "Define q as a new vec2 { the x 3, the y 0 }.\n" +
+            "Try to:\n" +
+            "    Define r as p * q.\n" +
+            "    State r's x.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done."));
+    }
+
+    // Strict-fallible rule: using a fallible overload without a Try block is a type error.
+    [Fact]
+    public void OverloadOp_Fallible_StrictFallibleEnforced()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            OverloadPreamble +
+            "Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
+            "    If a's x is 0:\n" +
+            "        Return a failure.\n" +
+            "    Done.\n" +
+            "    Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
+            "Done.\n" +
+            "Define p as a new vec2 { the x 1, the y 0 }.\n" +
+            "Define q as a new vec2 { the x 2, the y 0 }.\n" +
+            "Define r as p + q.\n"));  // no Try — must be a type error
+    }
+
+    // Duplicate overload for the same type+operator is a type error.
+    [Fact]
+    public void OverloadOp_TypeError_DuplicateOverload()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            OverloadPreamble +
+            "Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
+            "    Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
+            "Done.\n" +
+            "Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
+            "    Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
+            "Done.\n"));
+    }
+
+    // Overload for an undeclared type is a type error.
+    [Fact]
+    public void OverloadOp_TypeError_UnknownType()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Bind overloading +, given (the a is a ghost, the b is a ghost):\n" +
+            "    Return a new ghost { }.\n" +
+            "Done.\n"));
+    }
+
+    // Mixed-type operands fall through to the numeric error path.
+    [Fact]
+    public void OverloadOp_MixedType_NotDispatched()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            OverloadPreamble +
+            "Define object other with (the number v).\n" +
+            "Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
+            "    Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
+            "Done.\n" +
+            "Define p as a new vec2 { the x 1, the y 0 }.\n" +
+            "Define q as a new other { the v 2 }.\n" +
+            "Define r as p + q.\n"));  // different types — no overload applies
+    }
+
+    // Overload must be top-level (inside a block is a parse error).
+    [Fact]
+    public void OverloadOp_ParseError_NotTopLevel()
+    {
+        Assert.Throws<ParseException>(() => Run(
+            OverloadPreamble +
+            "If 1 is 1:\n" +
+            "    Bind overloading +, given (the a is a vec2, the b is a vec2):\n" +
+            "        Return a new vec2 { the x a's x + b's x, the y a's y + b's y }.\n" +
+            "    Done.\n" +
+            "Done.\n"));
+    }
+
+    // Both operand types must match (parse-time check).
+    [Fact]
+    public void OverloadOp_ParseError_MixedOperandTypes()
+    {
+        Assert.Throws<ParseException>(() => Run(
+            OverloadPreamble +
+            "Define object other with (the number v).\n" +
+            "Bind overloading +, given (the a is a vec2, the b is a other):\n" +
+            "    Return a new vec2 { the x 0, the y 0 }.\n" +
+            "Done.\n"));
+    }
 }

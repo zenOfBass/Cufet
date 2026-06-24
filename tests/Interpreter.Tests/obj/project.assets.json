@@ -426,11 +426,11 @@
           "build/netcoreapp3.1/xunit.runner.visualstudio.props": {}
         }
       },
-      "Cufet.Interpreter/0.6.0": {
+      "Cufet.Interpreter/0.7.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "dependencies": {
-          "Cufet.Lexer": "0.6.0"
+          "Cufet.Lexer": "0.7.0"
         },
         "compile": {
           "bin/placeholder/Cufet.Interpreter.dll": {}
@@ -439,7 +439,7 @@
           "bin/placeholder/Cufet.Interpreter.dll": {}
         }
       },
-      "Cufet.Lexer/0.6.0": {
+      "Cufet.Lexer/0.7.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "compile": {
@@ -929,12 +929,12 @@
         "xunit.runner.visualstudio.nuspec"
       ]
     },
-    "Cufet.Interpreter/0.6.0": {
+    "Cufet.Interpreter/0.7.0": {
       "type": "project",
       "path": "../../src/Interpreter/Cufet.Interpreter.csproj",
       "msbuildProject": "../../src/Interpreter/Cufet.Interpreter.csproj"
     },
-    "Cufet.Lexer/0.6.0": {
+    "Cufet.Lexer/0.7.0": {
       "type": "project",
       "path": "../../src/Lexer/Cufet.Lexer.csproj",
       "msbuildProject": "../../src/Lexer/Cufet.Lexer.csproj"
@@ -942,7 +942,7 @@
   },
   "projectFileDependencyGroups": {
     "net10.0": [
-      "Cufet.Interpreter >= 0.6.0",
+      "Cufet.Interpreter >= 0.7.0",
       "Microsoft.NET.Test.Sdk >= 17.6.0",
       "xunit >= 2.4.2",
       "xunit.runner.visualstudio >= 2.4.5"
