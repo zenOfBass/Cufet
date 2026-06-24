@@ -97,16 +97,18 @@ public sealed partial class TypeChecker
         foreach (var (type, name) in lambda.Parameters)
             Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), lambda.Line);
 
-        var prevInFunction       = _inFunction;
-        var prevReturnType       = _expectedReturnType;
-        var prevFunctionLine     = _functionDeclarationLine;
-        var prevInferring        = _inferringLambdaReturn;
-        var prevRabbitDepth      = _rabbitDepth;
-        _inFunction              = true;
-        _expectedReturnType      = null; // set by first Return via CheckReturn
-        _functionDeclarationLine = lambda.Line;
-        _inferringLambdaReturn   = true;
-        _rabbitDepth             = 0; // lambda bodies start outside any rabbit region
+        var prevInFunction        = _inFunction;
+        var prevReturnType        = _expectedReturnType;
+        var prevFunctionLine      = _functionDeclarationLine;
+        var prevInferring         = _inferringLambdaReturn;
+        var prevRabbitDepth       = _rabbitDepth;
+        var prevOverloadFallible  = _overloadBodyIsFallible;
+        _inFunction               = true;
+        _expectedReturnType       = null; // set by first Return via CheckReturn
+        _functionDeclarationLine  = lambda.Line;
+        _inferringLambdaReturn    = true;
+        _rabbitDepth              = 0; // lambda bodies start outside any rabbit region
+        _overloadBodyIsFallible   = false; // nested lambdas are standalone, not part of the overload
 
         CufetType? inferredReturn = null;
         try
@@ -122,6 +124,7 @@ public sealed partial class TypeChecker
             inferredReturn           = _expectedReturnType; // capture before restoring
             _expectedReturnType      = prevReturnType;
             _rabbitDepth             = prevRabbitDepth;
+            _overloadBodyIsFallible  = prevOverloadFallible;
             RestoreScopes(saved);
         }
 

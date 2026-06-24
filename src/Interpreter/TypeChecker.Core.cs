@@ -349,6 +349,9 @@ public sealed partial class TypeChecker
     private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new();
     // Active narrowings: variable name → narrowed type (set inside checked branches).
     private readonly Dictionary<string, CufetType>           _narrowedVars  = new();
+    // Registered operator overload return types: (typeName, op) → return type (T or FailureType(T)).
+    // Populated by Pass2CheckOverloads before any expression type-checking begins.
+    private readonly Dictionary<(string TypeName, TokenType Op), CufetType> _overloadReturnTypes = new();
 
     // ── Scope chain helpers ────────────────────────────────────────────────
     // The current (innermost) scope.
@@ -426,6 +429,10 @@ public sealed partial class TypeChecker
     // When true, the first Return statement encountered sets _expectedReturnType
     // instead of validating against it. Used during lambda return-type inference.
     private bool       _inferringLambdaReturn   = false;
+    // When true (inside an overload body check), failure returns are skipped during
+    // _inferringLambdaReturn so the success type drives _expectedReturnType, and the
+    // success type is immediately wrapped in FailureType(T) once found.
+    private bool       _overloadBodyIsFallible  = false;
     // When true, CastExpression results of type FailureType(T) are auto-unwrapped to T
     // because control only reaches the next line inside a Try block if the call succeeded.
     private bool       _inTryBlock              = false;
@@ -443,6 +450,7 @@ public sealed partial class TypeChecker
     {
         _scopes[0]["input"] = BuiltinInput;
         Pass1Hoist(program);
+        Pass2CheckOverloads(program); // body-check all overloads; populates _overloadReturnTypes
         foreach (var stmt in program.Statements)
             CheckStatement(stmt);
     }
@@ -887,6 +895,8 @@ public sealed partial class TypeChecker
             case UnmakerDeclaration ud:
                 CheckUnmake(ud);
                 break;
+            case OperatorOverloadDeclaration:
+                break; // already body-checked in Pass2CheckOverloads
         }
     }
 
@@ -966,8 +976,16 @@ public sealed partial class TypeChecker
     {
         if (_inferringLambdaReturn)
         {
-            // First return in a lambda body: set the inferred return type.
-            _expectedReturnType    = ret.Value != null ? InferType(ret.Value) : null;
+            var retType = ret.Value != null ? InferType(ret.Value) : null;
+            // Inside a fallible overload body, failure returns skip the type-set so the
+            // success type drives _expectedReturnType; _overloadBodyIsFallible wraps it.
+            if (_overloadBodyIsFallible && retType is FailureMarkerType)
+                return;
+            // For fallible overload bodies, wrap the inferred success type immediately so
+            // subsequent failure returns validate against FailureType(T) rather than T.
+            _expectedReturnType    = _overloadBodyIsFallible && retType != null
+                                         ? new FailureType(retType)
+                                         : retType;
             _inferringLambdaReturn = false;
             return;
         }
@@ -1146,6 +1164,27 @@ public sealed partial class TypeChecker
 
         var l = left;
         var r = right;
+
+        // Operator overload: same-type object operands with a registered overload take
+        // priority over the numeric path. Dispatch before the switch.
+        if (bin.Op is TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash)
+        {
+            if (l is ObjectType lo && r is ObjectType ro && lo.Name == ro.Name &&
+                _overloadReturnTypes.TryGetValue((lo.Name, bin.Op), out var overloadReturn))
+            {
+                if (overloadReturn is FailureType ft)
+                {
+                    if (!_inTryBlock && !_inFailureHandledContext)
+                        throw new TypeException(FormatTypeError(
+                            $"'{FormatOp(bin.Op)}' on '{lo.Name}' can fail — you must handle the failure",
+                            null, bin.Line,
+                            $"use '{FormatOp(bin.Op)}' on '{lo.Name}' without handling the potential failure",
+                            "Wrap this in a 'Try to: / In case of failure:' block, or use 'but on failure <default>'."));
+                    return _inTryBlock ? ft.Inner : (CufetType)ft;
+                }
+                return overloadReturn;
+            }
+        }
 
         return bin.Op switch
         {

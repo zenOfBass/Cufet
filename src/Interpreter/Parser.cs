@@ -48,7 +48,9 @@ public sealed class Parser
             TokenType.For        => ParseForEachStatement(),
             TokenType.Bind       => PeekAfterCurrent() == TokenType.UnmakingKw
                                      ? ParseUnmakerDeclaration()
-                                     : ParseBindStatement(),
+                                     : PeekAfterCurrent() == TokenType.OverloadingKw
+                                       ? ParseOverloadDeclaration()
+                                       : ParseBindStatement(),
             TokenType.Cast       => ParseCastStatementWrapper(),
             TokenType.Return     => ParseReturnStatement(),
             TokenType.Try        => ParseTryStatement(),
@@ -2971,6 +2973,80 @@ public sealed class Parser
         _inFreeFunction = savedInFreeFunction;
 
         return new UnmakerDeclaration(name, typeName, body, line);
+    }
+
+    // Bind overloading <op>, given (the <left> is a <type>, the <right> is a <type>): ... Done.
+    // Top-level only. No name — invoked by the operator. Same-type binary; arithmetic ops only.
+    // Fallibility inferred from body (TypeChecker pass); return type inferred from body.
+    private OperatorOverloadDeclaration ParseOverloadDeclaration()
+    {
+        if (_nestDepth > 0)
+            throw new ParseException(Peek(),
+                "— operator overloads must be declared at the top level, not inside a block");
+
+        var savedInObjectDef    = _inObjectDef;
+        var savedInFreeFunction = _inFreeFunction;
+        _inObjectDef    = false;
+        _inFreeFunction = false;
+
+        var line = Consume(TokenType.Bind).Line;
+        Consume(TokenType.OverloadingKw);
+        SkipNoise();
+
+        // The operator token: +, -, *, /
+        var opTok = Peek();
+        if (opTok.Type is not (TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash))
+            throw new ParseException(opTok,
+                "expected an arithmetic operator (+, -, *, /) after 'overloading'");
+        Advance();
+        var op = opTok.Type;
+
+        SkipNoise();
+        if (Peek().Type == TokenType.Comma) Advance(); // optional comma before 'given'
+        SkipNoise();
+        Consume(TokenType.Given);
+        SkipNoise();
+        Consume(TokenType.LParen);
+        SkipNoise();
+
+        // Left operand: the <leftname> is a <typename>
+        // SkipNoise eats the leading 'the' article
+        var leftName = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+        Consume(TokenType.Is);
+        SkipNoise(); // eats 'a' article
+        var typeName = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+
+        Consume(TokenType.Comma);
+        SkipNoise();
+
+        // Right operand: the <rightname> is a <typename>
+        var rightName = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+        Consume(TokenType.Is);
+        SkipNoise(); // eats 'a' article
+        var rightTypeName = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+
+        Consume(TokenType.RParen);
+        SkipNoise();
+
+        if (typeName != rightTypeName)
+            throw new ParseException(Peek(),
+                $"— both operands of an operator overload must be the same type (left is '{typeName}', right is '{rightTypeName}')");
+
+        Consume(TokenType.Colon);
+        _nestDepth++;
+        _functionDepth++;
+        var body = ParseLoopBody();
+        _functionDepth--;
+        _nestDepth--;
+
+        _inObjectDef    = savedInObjectDef;
+        _inFreeFunction = savedInFreeFunction;
+
+        return new OperatorOverloadDeclaration(op, leftName, rightName, typeName, body, line);
     }
 
     // Returns the handler keyword (Failure or Exception) following 'In case of' at

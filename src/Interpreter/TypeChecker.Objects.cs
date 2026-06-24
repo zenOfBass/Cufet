@@ -631,4 +631,115 @@ public sealed partial class TypeChecker
             $"access '{poss.Member}' on a {ot.Name}",
             available.Length > 0 ? $"Available: {available}." : $"'{ot.Name}' has no fields, getters, or methods."));
     }
+
+    // ── Operator overloads (Pass2) ─────────────────────────────────────────────
+
+    // Type-checks all OperatorOverloadDeclarations; populates _overloadReturnTypes.
+    // Called after Pass1Hoist so all ObjectTypes are registered before body-checking.
+    private void Pass2CheckOverloads(Program program)
+    {
+        var seen = new HashSet<(string, TokenType)>();
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is not OperatorOverloadDeclaration oad) continue;
+
+            if (!_objectDefs.TryGetValue(oad.OperandTypeName, out var objType))
+                throw new TypeException(FormatTypeError(
+                    $"'{oad.OperandTypeName}' is not a defined object type — operator overload has no type to register on",
+                    null, oad.Line,
+                    $"declare an overload for '{oad.OperandTypeName}'",
+                    $"Define 'object {oad.OperandTypeName}' before declaring operator overloads for it, or check the spelling."));
+
+            var key = (oad.OperandTypeName, oad.Operator);
+            if (!seen.Add(key))
+                throw new TypeException(FormatTypeError(
+                    $"'{oad.OperandTypeName}' already has an overload for '{FormatOp(oad.Operator)}'",
+                    null, oad.Line,
+                    $"declare a second '{FormatOp(oad.Operator)}' overload for '{oad.OperandTypeName}'",
+                    "Each operator can only be overloaded once per type. Remove the duplicate."));
+
+            CheckOperatorOverload(oad, objType);
+        }
+    }
+
+    private void CheckOperatorOverload(OperatorOverloadDeclaration oad, ObjectType objType)
+    {
+        bool isFallible = HasDirectFailureReturn(oad.Body);
+
+        var saved = SaveScopes();
+        foreach (var scope in saved.V)
+            foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
+        Scope[oad.LeftName]  = new TypeInfo(objType, new VariableReference(oad.LeftName, 0), oad.Line);
+        Scope[oad.RightName] = new TypeInfo(objType, new VariableReference(oad.RightName, 0), oad.Line);
+
+        var prevInFunction       = _inFunction;
+        var prevReturnType       = _expectedReturnType;
+        var prevFunctionLine     = _functionDeclarationLine;
+        var prevRabbitDepth      = _rabbitDepth;
+        var prevInferring        = _inferringLambdaReturn;
+        var prevOvFallible       = _overloadBodyIsFallible;
+
+        _inFunction              = true;
+        _expectedReturnType      = null;
+        _functionDeclarationLine = oad.Line;
+        _rabbitDepth             = 0;
+        _inferringLambdaReturn   = true;
+        _overloadBodyIsFallible  = isFallible;
+
+        try
+        {
+            foreach (var stmt in oad.Body)
+                CheckStatement(stmt);
+
+            if (!DefinitelyReturns(oad.Body))
+                throw new TypeException(FormatTypeError(
+                    $"'{FormatOp(oad.Operator)}' overload for '{oad.OperandTypeName}' can reach its end without returning a value",
+                    null, oad.Line,
+                    "define an operator overload that might not return a value",
+                    "Make sure every path through the overload ends with a return statement."));
+        }
+        finally
+        {
+            var inferredReturn       = _expectedReturnType;
+            _inFunction              = prevInFunction;
+            _expectedReturnType      = prevReturnType;
+            _functionDeclarationLine = prevFunctionLine;
+            _rabbitDepth             = prevRabbitDepth;
+            _inferringLambdaReturn   = prevInferring;
+            _overloadBodyIsFallible  = prevOvFallible;
+            RestoreScopes(saved);
+
+            if (inferredReturn != null)
+                _overloadReturnTypes[(oad.OperandTypeName, oad.Operator)] = inferredReturn;
+        }
+    }
+
+    // Walks a statement list looking for any direct 'return a failure' or 'or pass the
+    // failure off' statement. Does NOT recurse into nested Bind/lambda bodies (those are
+    // separate function scopes). Used to pre-detect overload fallibility before body-check.
+    private static bool HasDirectFailureReturn(IReadOnlyList<IStatement> stmts)
+    {
+        foreach (var s in stmts)
+        {
+            if (s is ReturnStatement { Value: FailureLiteral or FailurePropagate }) return true;
+            IReadOnlyList<IStatement>[]? children = s switch
+            {
+                IfStatement ifs       => [..ifs.Arms.Select(a => a.Body),
+                                          ..ifs.ElseBody != null ? [ifs.ElseBody] : []],
+                WhileStatement ws     => [ws.Body],
+                RepeatUntilStatement ru => [ru.Body],
+                ForEachStatement fe   => [fe.Body],
+                TryStatement ts       => [ts.Body,
+                                          ..ts.FailureHandler  != null ? [ts.FailureHandler]  : [],
+                                          ..ts.ExceptionHandler != null ? [ts.ExceptionHandler] : []],
+                WithOpenStatement wo  => [wo.Body],
+                WithRabbitStatement wr => [wr.Body],
+                _                     => null
+            };
+            if (children != null)
+                foreach (var child in children)
+                    if (HasDirectFailureReturn(child)) return true;
+        }
+        return false;
+    }
 }

@@ -242,6 +242,7 @@ public sealed partial class Interpreter
 
     private readonly Dictionary<string, ObjectDefinition> _objectDefs = new();
     private readonly Dictionary<string, UnmakerDeclaration> _unmakeDefs = new();
+    private readonly Dictionary<(string TypeName, TokenType Op), OperatorOverloadDeclaration> _overloadDefs = new();
 
     private int _callDepth = 0;
     private readonly int _maxCallDepth;
@@ -271,6 +272,13 @@ public sealed partial class Interpreter
         {
             if (stmt is UnmakerDeclaration ud)
                 _unmakeDefs[ud.UnmakesTypeName] = ud;
+        }
+
+        // Hoist operator overload declarations.
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is OperatorOverloadDeclaration oad)
+                _overloadDefs[(oad.OperandTypeName, oad.Operator)] = oad;
         }
 
         // Merge 'unto' methods/getters/setters (declared outside the object body) into their
@@ -537,6 +545,7 @@ public sealed partial class Interpreter
             case GetterDeclaration:
             case SetterDeclaration:
             case UnmakerDeclaration:
+            case OperatorOverloadDeclaration:
                 break; // already hoisted / no runtime action
 
             case BindStatement bind:
@@ -1066,6 +1075,13 @@ public sealed partial class Interpreter
 
         var lv2 = Evaluate(b.Left);
         var rv2 = Evaluate(b.Right);
+
+        // Operator overload dispatch: same-type object operands take priority over numeric path.
+        if (b.Op is TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash &&
+            lv2 is ObjectValue loV && rv2 is ObjectValue roV && loV.TypeName == roV.TypeName &&
+            _overloadDefs.TryGetValue((loV.TypeName, b.Op), out var oad))
+            return ExecuteOperatorOverload(oad, lv2, rv2, b.Line);
+
         return b.Op switch
         {
             TokenType.Plus     => (object)(ToNumber(lv2, "+") + ToNumber(rv2, "+")),
@@ -1086,6 +1102,58 @@ public sealed partial class Interpreter
             _ => throw new InvalidOperationException($"Unknown binary operator: {b.Op}"),
         };
     }
+
+    // Executes an operator overload body with `left` and `right` bound to the operand names.
+    // May throw FailureUnwind if the overload returns a failure.
+    private object ExecuteOperatorOverload(OperatorOverloadDeclaration oad, object left, object right, int line)
+    {
+        _callDepth++;
+        if (_callDepth > _maxCallDepth)
+        {
+            _callDepth--;
+            throw new RuntimeException(
+                $"Operator '{OpSymbol(oad.Operator)}' overload for '{oad.OperandTypeName}' caused infinite recursion (line {line}).");
+        }
+
+        var saved = SaveScopes();
+        foreach (var scope in saved.Scopes)
+            foreach (var (k, v) in scope)
+                if (v is FunctionValue) Scope[k] = v;
+        Scope[oad.LeftName]  = left;
+        Scope[oad.RightName] = right;
+
+        object? returnValue = null;
+        try
+        {
+            foreach (var stmt in oad.Body)
+                Execute(stmt);
+        }
+        catch (ReturnException re)
+        {
+            if (re.Value is FailureValue fv)
+                throw new FailureUnwind(fv);
+            returnValue = re.Value;
+        }
+        finally
+        {
+            RestoreScopes(saved);
+            _callDepth--;
+        }
+
+        if (returnValue == null)
+            throw new RuntimeException(
+                $"Operator '{OpSymbol(oad.Operator)}' overload for '{oad.OperandTypeName}' did not return a value (line {line}).");
+        return returnValue;
+    }
+
+    private static string OpSymbol(TokenType op) => op switch
+    {
+        TokenType.Plus  => "+",
+        TokenType.Minus => "-",
+        TokenType.Star  => "*",
+        TokenType.Slash => "/",
+        _               => op.ToString()
+    };
 
     // Deep value equality: same semantics as the spec's "is" / "is not" for records and objects.
     // Scalars use object.Equals; series compare element-wise; records compare structurally

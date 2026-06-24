@@ -122,6 +122,20 @@ public sealed record BindStatement(
     int Line
 ) : IStatement;
 
+// Bind overloading <Op>, given (the <LeftName> is a <OperandTypeName>, the <RightName> is a <OperandTypeName>): ... Done.
+// Declares the behaviour of <Op> for two same-type <OperandTypeName> operands.
+// No name — invoked by writing the operator. Same-type binary only.
+// Fallible when the body contains 'return a failure'; the type checker infers this and
+// makes `a <op> b` a fallible expression (FailureType(T)) subject to the strict-fallible rule.
+public sealed record OperatorOverloadDeclaration(
+    TokenType Operator,       // Plus, Minus, Star, or Slash
+    string LeftName,          // parameter name for the left operand
+    string RightName,         // parameter name for the right operand
+    string OperandTypeName,   // type name string (both operands; resolved in TypeChecker)
+    IReadOnlyList<IStatement> Body,
+    int Line
+) : IStatement;
+
 // Bind unmaking a <UnmakesTypeName> to <Name>: ... Done.
 // Declares the destructor for <UnmakesTypeName>. Exactly one per type. No parameters.
 // Body accesses 'one's <fields>' to release owned resources.
