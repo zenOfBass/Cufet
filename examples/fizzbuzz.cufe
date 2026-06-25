@@ -1,6 +1,4 @@
-Define the counter as 1.
-
-While the counter is 100 or less, repeat:
+For each counter in the range 1 to 100, repeat:
     If the counter % 15 is 0, state "FizzBuzz".
     Otherwise if the counter % 3 is 0, state "Fizz".
     Otherwise if the counter % 5 is 0, state "Buzz".

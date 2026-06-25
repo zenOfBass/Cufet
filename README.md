@@ -8,15 +8,14 @@ like prose; every control-flow boundary is explicit. No hidden scoping, no
 ambiguous syntax, no semicolons. It is Turing complete.
 
 ```
-Define i as 1.
-
-While i is 100 or less, repeat:
-    If i % 15 is 0, state "FizzBuzz".
-    Otherwise if i % 3 is 0, state "Fizz".
-    Otherwise if i % 5 is 0, state "Buzz".
-    Otherwise, state i.
-    i becomes i + 1.
+For each counter in the range 1 to 100, repeat:
+    If the counter % 15 is 0, state "FizzBuzz".
+    Otherwise if the counter % 3 is 0, state "Fizz".
+    Otherwise if the counter % 5 is 0, state "Buzz".
+    Otherwise, state the counter.
+    The counter becomes the counter + 1.
 Done.
+
 ```
 
 ---
