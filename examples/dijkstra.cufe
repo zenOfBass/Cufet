@@ -155,7 +155,7 @@ Done.
 
 Try to:
     Define g         as cast build-sample-graph.
-    Define distances as cast dijkstra on (g, "A") or pass the failure off.
+    Define distances as cast dijkstra on (g, "A").
     State "Shortest distances from A:".
     Cast print-distances on (distances).
 Done.
@@ -163,5 +163,5 @@ In case of failure:
     State "Error: " joined to the message of the failure.
 Done.
 In case of exception (the exception):
-    State "Runtime error: " joined to the exception.
+    State "Runtime error: " joined to the message of the exception.
 Done.

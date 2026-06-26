@@ -560,7 +560,7 @@ public sealed partial class TypeChecker
         foreach (var (name, expr) in lit.NamedValues)
         {
             var fieldType = FindFieldInOtOrPromoted(objType, name);
-            if (fieldType == null || fieldType is ObjectType)
+            if (fieldType == null)
                 throw new TypeException(FormatTypeError(
                     $"'{lit.TypeName}' has no field named '{name}'",
                     null, lit.Line,
