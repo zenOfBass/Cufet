@@ -1,0 +1,158 @@
+Define object node with (the text name).
+Define object edge with (the node dest, the number weight).
+Define object pq-entry with (the node entry-node, the number entry-dist).
+
+Define object graph with (the series of node nodes, the map from node to series of edge adjacency):
+    Bind void to add-node, given (the text name):
+        Define n     as a new node { the name name }.
+        Define fresh as a series of edge with ().
+        Add n to nodes.
+        In adjacency, the entry for n becomes fresh.
+    Done.
+
+    Bind voidable node to find-node, given (the text name):
+        For each n in nodes, repeat:
+            If n's name is name, return n.
+        Done.
+        Return void.
+    Done.
+
+    Bind void to add-edge, given (the text src, the text dest, the number weight):
+        Define src-node  as cast find-node on (one, src).
+        Define dest-node as cast find-node on (one, dest).
+        If src-node is void or dest-node is void, return.
+        Define fallback as a series of edge with ().
+        Define edges    as the entry for src-node in adjacency but void is fallback.
+        Add a new edge { the dest dest-node, the weight weight } to edges.
+        In adjacency, the entry for src-node becomes edges.
+    Done.
+
+    Bind voidable series of edge to neighbors, given (the node n):
+        Return the entry for n in adjacency.
+    Done.
+Done.
+
+Define object priority-queue with (the series of pq-entry items):
+    Bind void to insert, given (the node n, the number distance):
+        Add a new pq-entry { the entry-node n, the entry-dist distance } to items.
+    Done.
+
+    Bind node to extract-min:
+        Define min-dist  as (the first of items)'s entry-dist.
+        Define min-index as 1.
+        Define i         as 2.
+        Define bound     as the number of items + 1.
+        While i is less than bound, repeat:
+            If (item i of items)'s entry-dist is less than min-dist:
+                min-dist  becomes (item i of items)'s entry-dist.
+                min-index becomes i.
+            Done.
+            i becomes i + 1.
+        Done.
+        Define result as (item min-index of items)'s entry-node.
+        Remove item min-index from items.
+        Return result.
+    Done.
+
+    Bind fact to is-empty:
+        If the number of items is 0:
+            Return true.
+        Done.
+        Return false.
+    Done.
+Done.
+
+Bind making a graph to new-graph:
+    Define empty-nodes as a series of node with ().
+    Define empty-adj   as a new map from node to series of edge.
+    Return a new graph { the nodes empty-nodes, the adjacency empty-adj }.
+Done.
+
+Bind making a priority-queue to new-pq:
+    Define empty-items as a series of pq-entry with ().
+    Return a new priority-queue { the items empty-items }.
+Done.
+
+Bind graph to build-sample-graph:
+    Define g as cast new-graph.
+    Cast add-node on (g, "A").
+    Cast add-node on (g, "B").
+    Cast add-node on (g, "C").
+    Cast add-node on (g, "D").
+    Cast add-node on (g, "E").
+
+    Cast add-edge on (g, "A", "B", 4).
+    Cast add-edge on (g, "A", "C", 2).
+    Cast add-edge on (g, "B", "C", 1).
+    Cast add-edge on (g, "B", "D", 5).
+    Cast add-edge on (g, "C", "D", 8).
+    Cast add-edge on (g, "C", "E", 10).
+    Cast add-edge on (g, "D", "E", 2).
+
+    Return g.
+Done.
+
+Bind map from node to number or failure to dijkstra, given (the graph g, the text start-name):
+    Define origin as cast find-node on (g, start-name).
+    If origin is void:
+        Return a failure "start node not found" of category "dijkstra".
+    Done.
+
+    Define distances as a new map from node to number.
+    Define visited  as a new map from node to fact.
+    Define pq       as cast new-pq.
+
+    For each n in g's nodes, repeat:
+        In visited, the entry for n becomes false.
+    Done.
+    In distances, the entry for origin becomes 0.
+    Cast insert on (pq, origin, 0).
+
+    While (cast is-empty on pq) is false, repeat:
+        Define current      as cast extract-min on pq.
+        Define current-dist as (the entry for current in distances) but void is 0.
+
+        If the entry for current in visited is true:
+            Skip.
+        Done.
+        In visited, the entry for current becomes true.
+
+        Define edge-list as cast neighbors on (g, current).
+        If edge-list is not void:
+            For each e in edge-list, repeat:
+                Define alt      as current-dist + e's weight.
+                Define neighbor as e's dest.
+                Define current-stored as the entry for neighbor in distances.
+                If alt is less than (current-stored but void is alt + 1):
+                    In distances, the entry for neighbor becomes alt.
+                    If the entry for neighbor in visited is not true:
+                        Cast insert on (pq, neighbor, alt).
+                    Done.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    Return distances.
+Done.
+
+Bind void to print-distances, given (the map from node to number distances):
+    For each pair in distances, repeat:
+        Define node-name as (the key of pair)'s name.
+        Define dist      as the value of pair.
+        State node-name joined to ": " joined to dist converted to text.
+    Done.
+Done.
+
+Try to:
+    Define g         as cast build-sample-graph.
+    Define distances as cast dijkstra on (g, "A") or pass the failure off.
+    State "Shortest distances from A:".
+    Cast print-distances on (distances).
+Done.
+In case of failure:
+    State "Error: " joined to the message of the failure.
+Done.
+In case of exception (the exception):
+    State "Runtime error: " joined to the exception.
+Done.
