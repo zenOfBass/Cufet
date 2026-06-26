@@ -164,6 +164,10 @@ tests/
   Interpreter.Tests/
 ```
 
+See [REFERENCE.md](REFERENCE.md) for the complete language reference.
+See [GRAMMAR.md](GRAMMAR.md) for the grammar and constraints reference — reserved
+keywords, object field scope rules, expression vs condition contexts, and sharp
+edges for writing Cufet correctly upfront.
 See [ROADMAP.md](ROADMAP.md) for what's built, what's planned, and the design
 decisions behind the language.
 
