@@ -62,10 +62,7 @@ Define object priority-queue with (the series of pq-entry items):
 
     Bind fact to is-empty:
         Define my-items as one's items.
-        If the number of my-items is 0:
-            Return true.
-        Done.
-        Return false.
+        Return the number of my-items = 0.
     Done.
 Done.
 
@@ -108,23 +105,20 @@ Bind map from node to number or failure to dijkstra, given (the graph g, the tex
     Define origin     as origin-v but void is dummy-node.
 
     Define distances as a new map from node to number.
-    Define visited  as a new map from node to fact.
+    Define visited  as a new map from node to number.
     Define pq       as cast new-pq.
 
-    For each n in g's nodes, repeat:
-        In visited, the entry for n becomes false.
-    Done.
     In distances, the entry for origin becomes 0.
     Cast insert on (pq, origin, 0).
 
-    While (cast is-empty on pq) is false, repeat:
+    While not (cast is-empty on pq), repeat:
         Define current      as cast extract-min on pq.
         Define current-dist as (the entry for current in distances) but void is 0.
 
-        If (the entry for current in visited but void is false) is true:
+        If visited has a key for current:
             Skip.
         Done.
-        In visited, the entry for current becomes true.
+        In visited, the entry for current becomes 1.
 
         Define edge-list as cast neighbors on (g, current).
         If edge-list is not void:
@@ -134,7 +128,7 @@ Bind map from node to number or failure to dijkstra, given (the graph g, the tex
                 Define stored   as the entry for neighbor in distances.
                 If alt is less than (stored but void is alt + 1):
                     In distances, the entry for neighbor becomes alt.
-                    If (the entry for neighbor in visited but void is false) is false:
+                    If not (visited has a key for neighbor):
                         Cast insert on (pq, neighbor, alt).
                     Done.
                 Done.
