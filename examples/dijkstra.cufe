@@ -4,58 +4,65 @@ Define object pq-entry with (the node entry-node, the number entry-dist).
 
 Define object graph with (the series of node nodes, the map from node to series of edge adjacency):
     Bind void to add-node, given (the text name):
-        Define n     as a new node { the name name }.
-        Define fresh as a series of edge with ().
-        Add n to nodes.
-        In adjacency, the entry for n becomes fresh.
+        Define n        as a new node { the name name }.
+        Define fresh    as a series of edge with ().
+        Define my-nodes as one's nodes.
+        Add n to my-nodes.
+        In one's adjacency, the entry for n becomes fresh.
     Done.
 
     Bind voidable node to find-node, given (the text name):
-        For each n in nodes, repeat:
+        For each n in one's nodes, repeat:
             If n's name is name, return n.
         Done.
         Return void.
     Done.
 
     Bind void to add-edge, given (the text src, the text dest, the number weight):
-        Define src-node  as cast find-node on (one, src).
-        Define dest-node as cast find-node on (one, dest).
-        If src-node is void or dest-node is void, return.
-        Define fallback as a series of edge with ().
-        Define edges    as the entry for src-node in adjacency but void is fallback.
+        Define src-node-v  as cast find-node on (one, src).
+        Define dest-node-v as cast find-node on (one, dest).
+        If src-node-v is void or dest-node-v is void, return.
+        Define dummy      as a new node { the name "" }.
+        Define src-node   as src-node-v  but void is dummy.
+        Define dest-node  as dest-node-v but void is dummy.
+        Define fallback   as a series of edge with ().
+        Define edges      as the entry for src-node in one's adjacency but void is fallback.
         Add a new edge { the dest dest-node, the weight weight } to edges.
-        In adjacency, the entry for src-node becomes edges.
+        In one's adjacency, the entry for src-node becomes edges.
     Done.
 
     Bind voidable series of edge to neighbors, given (the node n):
-        Return the entry for n in adjacency.
+        Return the entry for n in one's adjacency.
     Done.
 Done.
 
 Define object priority-queue with (the series of pq-entry items):
     Bind void to insert, given (the node n, the number distance):
-        Add a new pq-entry { the entry-node n, the entry-dist distance } to items.
+        Define my-items as one's items.
+        Add a new pq-entry { the entry-node n, the entry-dist distance } to my-items.
     Done.
 
     Bind node to extract-min:
-        Define min-dist  as (the first of items)'s entry-dist.
+        Define my-items  as one's items.
+        Define min-dist  as (the first of my-items)'s entry-dist.
         Define min-index as 1.
         Define i         as 2.
-        Define bound     as the number of items + 1.
+        Define bound     as the number of my-items + 1.
         While i is less than bound, repeat:
-            If (item i of items)'s entry-dist is less than min-dist:
-                min-dist  becomes (item i of items)'s entry-dist.
+            If (item i of my-items)'s entry-dist is less than min-dist:
+                min-dist  becomes (item i of my-items)'s entry-dist.
                 min-index becomes i.
             Done.
             i becomes i + 1.
         Done.
-        Define result as (item min-index of items)'s entry-node.
-        Remove item min-index from items.
+        Define result as (item min-index of my-items)'s entry-node.
+        Remove item min-index from my-items.
         Return result.
     Done.
 
     Bind fact to is-empty:
-        If the number of items is 0:
+        Define my-items as one's items.
+        If the number of my-items is 0:
             Return true.
         Done.
         Return false.
@@ -93,10 +100,12 @@ Bind graph to build-sample-graph:
 Done.
 
 Bind map from node to number or failure to dijkstra, given (the graph g, the text start-name):
-    Define origin as cast find-node on (g, start-name).
-    If origin is void:
+    Define origin-v as cast find-node on (g, start-name).
+    If origin-v is void:
         Return a failure "start node not found" of category "dijkstra".
     Done.
+    Define dummy-node as a new node { the name "" }.
+    Define origin     as origin-v but void is dummy-node.
 
     Define distances as a new map from node to number.
     Define visited  as a new map from node to fact.
@@ -112,7 +121,7 @@ Bind map from node to number or failure to dijkstra, given (the graph g, the tex
         Define current      as cast extract-min on pq.
         Define current-dist as (the entry for current in distances) but void is 0.
 
-        If the entry for current in visited is true:
+        If (the entry for current in visited but void is false) is true:
             Skip.
         Done.
         In visited, the entry for current becomes true.
@@ -122,10 +131,10 @@ Bind map from node to number or failure to dijkstra, given (the graph g, the tex
             For each e in edge-list, repeat:
                 Define alt      as current-dist + e's weight.
                 Define neighbor as e's dest.
-                Define current-stored as the entry for neighbor in distances.
-                If alt is less than (current-stored but void is alt + 1):
+                Define stored   as the entry for neighbor in distances.
+                If alt is less than (stored but void is alt + 1):
                     In distances, the entry for neighbor becomes alt.
-                    If the entry for neighbor in visited is not true:
+                    If (the entry for neighbor in visited but void is false) is false:
                         Cast insert on (pq, neighbor, alt).
                     Done.
                 Done.
