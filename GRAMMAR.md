@@ -387,35 +387,48 @@ Return (the number of items) is 0.    ← ERROR: parenthesized sub-expr is compl
 Define empty as count is 0.           ← ERROR: same reason
 ```
 
-Use an `If` to produce a `fact` in return position:
+Use a symbol comparison in expression position:
 ```
 Bind fact to is-empty:
-    If the number of my-items is 0:
-        Return true.
-    Done.
-    Return false.
+    Define my-items as one's items.
+    Return the number of my-items = 0.
 Done.
 ```
 
-Or use a symbol comparison in expression position:
+### There are no boolean literals
+
+`true` and `false` are NOT keywords — they are ordinary identifiers. If they are
+not in scope, using them causes a runtime "not defined" error. **Never write
+`Return true.` or `In map, the entry for k becomes false.`**
+
+Produce boolean values via expressions instead:
+
+| Intent | Expression |
+|---|---|
+| always-true literal | `1 = 1` |
+| always-false literal | `1 = 0` |
+| empty-series check | `the number of items = 0` |
+| negate a fact | `not (fact-expr)` in condition context |
+
+### Negating a fact in condition context
+
+`not (fact-expr)` is valid after `If`/`While`/`until`:
+
 ```
-Define empty as count = 0.
-Return count = 0.
+While not (cast is-empty on pq), repeat:
+If not (visited has a key for neighbor):
 ```
 
-### Boolean results from conditions
+### `is true` / `is false` are variable lookups, not keywords
 
-A condition produces a `fact`. That `fact` can then be compared in an expression
-via `is true` / `is false` in another condition, or via `= true` / `= false` in
-expression position:
+`(expr) is false` in a condition looks up `false` as a variable reference — it is
+**not** a special "check if false" form. This will fail at runtime unless you have
+`Define false as ...` in scope. Use `not (expr)` instead:
 
 ```
-While (cast is-empty on pq) is false, repeat: ...
-Define done as (cast is-empty on pq) = true.
+While not (cast is-empty on pq), repeat:   ← CORRECT
+While (cast is-empty on pq) is false, repeat:  ← RUNTIME ERROR: 'false' not defined
 ```
-
-The parenthesized call result is a `fact`; the outer `is false` / `is true` is
-then a valid condition check.
 
 ---
 
@@ -610,6 +623,23 @@ This asymmetry: `(expr) is ...` is valid in condition context (after `If`/`While
 but not in expression context (after `Return`/`Define`/etc.).
 
 In expression position, use a symbol comparison or an `If`-return pattern.
+
+### `or pass the failure off` is invalid inside a `Try` block
+
+Inside a `Try to: ... In case of failure:` block, fallible cast results are
+**auto-unwrapped** — the type checker strips `FailureType(T)` to `T` because
+the Try block IS the failure handler. Using `or pass the failure off` on an
+already-unwrapped `T` is a type error:
+
+```
+Try to:
+    Define x as cast compute on (args).              ← OK: failure auto-caught by Try
+    Define x as cast compute on (args) or pass the failure off.  ← TYPE ERROR
+Done.
+In case of failure:
+    ...
+Done.
+```
 
 ### `or pass the failure off` is a postfix expression operator
 
