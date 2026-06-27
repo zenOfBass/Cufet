@@ -374,14 +374,13 @@ While x is less than bound, repeat:
 combined negated word comparison. Use the converse: `is less than` instead of
 `is not greater than`, `is greater than` instead of `is not less than`.
 
-**`is more than` is not a comparison — it silently compares equality.** The word
-comparison `is MORE than` is not handled; the parser falls through to the default
-case and treats it as `is EXPR` (equality). `While count is more than 0, repeat:`
-compiles without error but tests `count = 0`. Always use `is greater than`:
+**`is more than` is a compile error — use `is greater than` instead.** The parser
+catches `is more than` and emits: *"did you mean 'is greater than'?"* Always use
+the canonical form:
 
 ```
 While count is greater than 0, repeat:   ← CORRECT (>)
-While count is more than 0, repeat:      ← SILENT BUG (= 0, not > 0)
+While count is more than 0, repeat:      ← COMPILE ERROR
 ```
 
 ### Critical: conditions are not general expressions

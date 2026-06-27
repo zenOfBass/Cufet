@@ -1194,6 +1194,12 @@ public sealed class Parser
                 SkipNoise();
                 return new BinaryExpression(left, TokenType.Lt, ParseJoinedTo(), line);
             }
+            case TokenType.More:
+            {
+                throw new ParseException(Advance().Line,
+                    "'is more than' isn't a comparison Cufet recognises — did you mean 'is greater than'? " +
+                    "For example: 'While count is greater than 0, repeat:'.");
+            }
             default:
             {
                 // "is expr" or "is expr or more/less"
