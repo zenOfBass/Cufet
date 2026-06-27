@@ -1,0 +1,21 @@
+Pull a rabbit.
+    Define kinds  as a series of text   with ("num", "num", "num", "mul", "add").
+    Define values as a series of number with (2, 3, 4, 0, 0).
+    Define lefts  as a series of number with (-1, -1, -1, 2, 1).
+    Define rights as a series of number with (-1, -1, -1, 3, 4).
+
+    Bind number to eval, given (the number idx, the series of text kinds, the series of number values, the series of number lefts, the series of number rights):
+        Define k as item idx of kinds.
+        If k is "num", return item idx of values.
+        Define left-idx  as item idx of lefts.
+        Define right-idx as item idx of rights.
+        Define lv as Cast eval on (left-idx,  kinds, values, lefts, rights).
+        Define rv as Cast eval on (right-idx, kinds, values, lefts, rights).
+        If k is "add", return lv + rv.
+        If k is "mul", return lv * rv.
+        return 0.
+    Done.
+
+    Define result as Cast eval on (5, kinds, values, lefts, rights).
+    State "2 + 3 * 4 = {result}".
+Done.
