@@ -370,9 +370,19 @@ If x is 5 or less:
 While x is less than bound, repeat:
 ```
 
-**`is not greater than` is not valid** — there is no combined negated word
-comparison. Use the converse: `is less than` instead of `is not greater than`,
-`is greater than` instead of `is not less than`.
+**`is not greater than` and `is not more than` are not valid** — there is no
+combined negated word comparison. Use the converse: `is less than` instead of
+`is not greater than`, `is greater than` instead of `is not less than`.
+
+**`is more than` is not a comparison — it silently compares equality.** The word
+comparison `is MORE than` is not handled; the parser falls through to the default
+case and treats it as `is EXPR` (equality). `While count is more than 0, repeat:`
+compiles without error but tests `count = 0`. Always use `is greater than`:
+
+```
+While count is greater than 0, repeat:   ← CORRECT (>)
+While count is more than 0, repeat:      ← SILENT BUG (= 0, not > 0)
+```
 
 ### Critical: conditions are not general expressions
 
@@ -514,6 +524,34 @@ Done.
 
 Call it with `cast new-graph`.
 
+### Getters: `Get name as type:`
+
+Computed properties are declared inside an object body with `Get name as type:`.
+The body has access to `one` (the receiver). Accessed via `obj's name` or
+`the name of obj` — uniform access, same syntax as stored fields.
+
+```
+Define object card with (the text suit, the text rank):
+    Get label as text:
+        Return one's rank joined to " of " joined to one's suit.
+    Done.
+Done.
+
+Define c as a new card { the suit "Spades", the rank "Ace" }.
+State c's label.                ← "Ace of Spades"
+State the label of c.           ← same thing
+```
+
+The same bare-name constraint applies inside getter bodies. `the number of one's X`
+fails — extract to a local first:
+
+```
+Get count as number:
+    Define my-items as one's items.     ← extract; then use bare name
+    Return the number of my-items.
+Done.
+```
+
 ### `Bind overloading` is top-level only
 
 Operator overload declarations cannot appear inside any block:
@@ -537,12 +575,15 @@ Function declarations (`Bind`) are allowed:
 They are **not** allowed inside `If` arms, loop bodies, `Try` blocks, or `With`
 blocks.
 
-### `a series of T with ()` as an expression
+### `a series of T with (...)` as an expression
 
-An empty series literal can appear anywhere an expression is expected:
+A series literal (empty or pre-populated) can appear anywhere an expression is
+expected:
 
 ```
 Define xs as a series of number with ().
+Define suits as a series of text with ("Spades", "Hearts", "Diamonds", "Clubs").
+Define primes as a series of number with (2, 3, 5, 7, 11).
 Return a series of text with ().
 In adjacency, the entry for n becomes a series of edge with ().   ← in a map-set
 ```
@@ -603,6 +644,23 @@ The parser checks whether a **string literal** immediately follows `failure`:
 Getting these wrong causes type errors or runtime "undefined variable" errors. The
 safe rule: always use `Return a failure "message".` when originating; use
 `Return a failure.` (or `Return the failure.`) only in handler bodies.
+
+### `size` is reserved — cannot name getters or fields
+
+`size` is `TokenType.Size` (used for `the size of map`). It cannot be used as a
+getter name, field name, or variable name. For a computed count property on a
+collection type, use `count`, `length`, or `card-count` instead:
+
+```
+Get count as number:                      ← OK
+    Define my-cards as one's cards.
+    Return the number of my-cards.
+Done.
+
+Get size as number:                       ← PARSE ERROR: 'size' is reserved
+    ...
+Done.
+```
 
 ### `start` is a reserved keyword
 

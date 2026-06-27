@@ -1,26 +1,26 @@
-Define object card with (the text suit, the text rank):
+Define the object card with (the text suit, the text rank):
     Get label as text:
         Return one's rank joined to " of " joined to one's suit.
     Done.
 Done.
 
-Define object deck with (the series of card cards):
+Define the object deck with (the series of card cards):
     Get count as number:
         Define my-cards as one's cards.
         Return the number of my-cards.
     Done.
 
     Bind void to shuffle, given (the number seed):
-        Define my-cards     as one's cards.
+        Define my-cards as one's cards.
         Define current-seed as seed.
-        Define i            as the number of my-cards.
+        Define i as the number of my-cards.
         While i is greater than 1, repeat:
             current-seed becomes (current-seed * 6521 + 791) % 1000000.
-            Define j      as (current-seed % i) + 1.
-            Define temp   as item i of my-cards.
+            Define j as (current-seed % i) + 1.
+            Define temp as item i of my-cards.
             Define card-j as item j of my-cards.
-            item i of my-cards becomes card-j.
-            item j of my-cards becomes temp.
+            The item i of my-cards becomes card-j.
+            The item j of my-cards becomes temp.
             i becomes i - 1.
         Done.
     Done.
@@ -48,7 +48,7 @@ Bind making a deck to new-deck:
     Return a new deck { the cards cards }.
 Done.
 
-Define d     as cast new-deck.
+Define d as cast new-deck.
 Define dummy as a new card { the suit "?", the rank "?" }.
 
 State "Fresh deck count:" joined to (the count of d converted to text).
@@ -58,9 +58,9 @@ State "Shuffled. Dealing 5 cards:".
 Define i as 1.
 While i is less than 6, repeat:
     Define drawn as cast deal on d.
-    Define got   as drawn but void is dummy.
+    Define got as drawn but void is dummy.
     State "  " joined to got's label.
-    i becomes i + 1.
+    The i becomes i + 1.
 Done.
 
 State "Cards remaining: " joined to (the count of d converted to text).
