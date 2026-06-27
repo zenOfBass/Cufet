@@ -262,24 +262,38 @@ public sealed partial class Interpreter
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; _interruptRequested = true; };
     }
 
+    // Flattens statements through Pull...Done scope bodies so that hoisting passes see
+    // Bind/Object/etc. declarations inside Pull scopes (hoisting is transparent to Pull scopes).
+    private static IEnumerable<IStatement> FlattenHoistable(IEnumerable<IStatement> stmts)
+    {
+        foreach (var s in stmts)
+        {
+            yield return s;
+            if (s is PullStatement ps)
+                foreach (var inner in FlattenHoistable(ps.Body)) yield return inner;
+            if (s is PullRabbitStatement prs)
+                foreach (var inner in FlattenHoistable(prs.Body)) yield return inner;
+        }
+    }
+
     public void Execute(Program program)
     {
         // Hoist object definitions (before functions, so method bodies can reference them).
-        foreach (var stmt in program.Statements)
+        foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is ObjectDefinition od)
                 _objectDefs[od.Name] = od;
         }
 
         // Hoist destructor declarations.
-        foreach (var stmt in program.Statements)
+        foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is UnmakerDeclaration ud)
                 _unmakeDefs[ud.UnmakesTypeName] = ud;
         }
 
         // Hoist operator overload declarations.
-        foreach (var stmt in program.Statements)
+        foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is OperatorOverloadDeclaration oad)
                 _overloadDefs[(oad.OperandTypeName, oad.Operator)] = oad;
@@ -287,7 +301,7 @@ public sealed partial class Interpreter
 
         // Merge 'unto' methods/getters/setters (declared outside the object body) into their
         // target type's member lists. TypeChecker already validated every target exists.
-        foreach (var stmt in program.Statements)
+        foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is BindStatement { UntoType: { } untoType } bind)
             {
@@ -307,7 +321,7 @@ public sealed partial class Interpreter
         }
 
         // Hoist top-level function definitions.
-        foreach (var stmt in program.Statements)
+        foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is BindStatement { UntoType: null } bind)
                 Scope[bind.Name] = new FunctionValue

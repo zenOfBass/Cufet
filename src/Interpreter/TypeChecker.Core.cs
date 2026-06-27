@@ -487,13 +487,27 @@ public sealed partial class TypeChecker
     private static readonly TypeInfo BuiltinInput =
         new TypeInfo(new ReadableStreamType(CufetType.Text), new VariableReference("input", 0), 0);
 
+    // Flattens statements through Pull...Done scope bodies so that Bind/Object/etc. declarations
+    // inside Pull scopes are visible to the hoisting passes (hoisting is transparent to Pull scopes).
+    private static IEnumerable<IStatement> FlattenHoistable(IEnumerable<IStatement> stmts)
+    {
+        foreach (var s in stmts)
+        {
+            yield return s;
+            if (s is PullStatement ps)
+                foreach (var inner in FlattenHoistable(ps.Body)) yield return inner;
+            if (s is PullRabbitStatement prs)
+                foreach (var inner in FlattenHoistable(prs.Body)) yield return inner;
+        }
+    }
+
     // Pass 1: register interfaces (1a), then object types — merged with their 'unto' methods
     // (1b) — then function signatures, excluding 'unto' methods, which are not free
     // functions (1c). Interfaces registered first so object conformance declarations can be
     // validated against them.
     private void Pass1Hoist(Program program)
     {
-        foreach (var stmt in program.Statements)
+        foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is not InterfaceDefinition ifd) continue;
             _interfaceDefs[ifd.Name] = ifd;
@@ -504,7 +518,7 @@ public sealed partial class TypeChecker
         var untoMethodsByType  = new Dictionary<string, List<BindStatement>>();
         var untoGettersByType  = new Dictionary<string, List<GetterDeclaration>>();
         var untoSettersByType  = new Dictionary<string, List<SetterDeclaration>>();
-        foreach (var stmt in program.Statements)
+        foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is BindStatement { UntoType: { } mUnt } bind)
             {
@@ -526,7 +540,7 @@ public sealed partial class TypeChecker
             }
         }
 
-        foreach (var stmt in program.Statements)
+        foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is not ObjectDefinition od) continue;
             var methodSigs = od.Methods
@@ -607,7 +621,7 @@ public sealed partial class TypeChecker
                 $"declare a setter unto '{targetName}'",
                 $"'unto' only attaches setters to object types defined in this program. Define 'object {targetName}' first, or check the spelling."));
 
-        foreach (var stmt in program.Statements)
+        foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is not BindStatement bind) continue;
             if (bind.UntoType != null) continue; // 'unto' methods are not free functions
@@ -622,7 +636,7 @@ public sealed partial class TypeChecker
         // register them on ObjectType.Constructors, and fix up their scope entries so the return type
         // is the canonical ObjectType instance (not the shell produced by the parser).
         var ctorsByType = new Dictionary<string, List<BindStatement>>();
-        foreach (var stmt in program.Statements)
+        foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is not BindStatement bind || bind.ConstructsTypeName == null) continue;
             if (!ctorsByType.TryGetValue(bind.ConstructsTypeName, out var cList))
@@ -669,7 +683,7 @@ public sealed partial class TypeChecker
         // Gather destructors ('Bind unmaking a <type> to <name>'), validate, register on ObjectType.Unmaker.
         // Exactly one destructor per type; a second 'unmaking a <type>' is a declaration-time error.
         var unmakeByType = new Dictionary<string, UnmakerDeclaration>();
-        foreach (var stmt in program.Statements)
+        foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is not UnmakerDeclaration ud) continue;
             if (unmakeByType.ContainsKey(ud.UnmakesTypeName))
@@ -1408,6 +1422,9 @@ public sealed partial class TypeChecker
                 bool allArmsReturn = ifStmt.Arms.All(a => DefinitelyReturns(a.Body));
                 if (allArmsReturn && DefinitelyReturns(ifStmt.ElseBody)) return true;
             }
+            // Pull...Done scopes are transparent: if the Pull body definitely returns, so does the Pull.
+            if (stmt is PullStatement ps && DefinitelyReturns(ps.Body)) return true;
+            if (stmt is PullRabbitStatement prs && DefinitelyReturns(prs.Body)) return true;
             // Loops are not counted: while/for-each may execute zero times,
             // repeat-until exits after one iteration without requiring a return.
         }

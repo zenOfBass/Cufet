@@ -1072,17 +1072,17 @@ public sealed class Parser
     }
 
     // Body parser for Pull...Done. scopes. Allows zero statements (unlike ParseLoopBody).
+    // Does NOT increment _nestDepth — Pull scopes are transparent to the Bind-placement check,
+    // so Bind declarations remain valid at whatever nesting depth they had before the Pull.
     private IReadOnlyList<IStatement> ParsePullBody()
     {
         var stmts = new List<IStatement>();
-        _nestDepth++;
         while (true)
         {
             SkipNoise();
             if (Peek().Type is TokenType.Done or TokenType.Eof) break;
             stmts.Add(ParseStatement());
         }
-        _nestDepth--;
         Consume(TokenType.Done);
         Consume(TokenType.Dot);
         return stmts;

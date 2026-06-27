@@ -641,7 +641,7 @@ public sealed partial class TypeChecker
     private void Pass2CheckOverloads(Program program)
     {
         var seen = new HashSet<(string, TokenType)>();
-        foreach (var stmt in program.Statements)
+        foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is not OperatorOverloadDeclaration oad) continue;
 
