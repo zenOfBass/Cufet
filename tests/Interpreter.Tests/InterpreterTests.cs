@@ -2942,9 +2942,9 @@ public class InterpreterTests
         // the city of the home of person — two-hop chain
         Assert.Equal("OK", Run(
             "Define person as a record with (\n" +
-            "    the home a record with (the city \"Norman\", the state \"OK\")\n" +
+            "    the home a record with (the city \"Norman\", the region \"OK\")\n" +
             ").\n" +
-            "State the state of the home of person."));
+            "State the region of the home of person."));
     }
 
     [Fact]

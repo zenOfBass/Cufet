@@ -2429,8 +2429,9 @@ public sealed class Parser
     }
 
     // Returns true when the current position starts a named record access: 'the' <name> 'of'.
-    // Ordinal and NumberKw are excluded so 'the first of s' and 'the number of s' still parse
-    // as series operations. All other word tokens (including keywords like State) are valid names.
+    // Reserved keywords are excluded by IsFieldNameToken — no keyword can be a user-defined
+    // field name — so 'the first of s', 'the series of T name', 'the number of s', etc. never
+    // false-positive as named access regardless of which keywords exist.
     private bool IsNamedAccessPattern()
     {
         int i = _pos; // at 'the'
@@ -2442,8 +2443,15 @@ public sealed class Parser
     }
 
     // Decides whether a token can serve as a record field name.
-    // forAccess=true: also excludes Ordinal and NumberKw to keep 'the first/number of s' as series ops.
-    // forAccess=false: allows Ordinal/NumberKw (in a field literal the value comes after, not 'of').
+    // forAccess=true: excludes the entire reserved-keyword set. No keyword can be a user-defined
+    //   field name (field names are identifiers; keywords are not). Three exceptions:
+    //   - Key ("the key of mapping") and Category ("the category of the failure") appear in
+    //     named-access patterns on language-defined types.
+    //   - Characters ("the characters of r") is disambiguated from substring syntax by 'from':
+    //     'the characters from N to M of text' has 'from' after the keyword, so IsNamedAccessPattern
+    //     returns false (it requires 'of' immediately after the name). 'the characters of r' works.
+    // forAccess=false: permissive — all word tokens allowed for field-literal positions where the
+    //   field name is followed by its value (not 'of'), so there is no access-pattern ambiguity.
     private static bool IsFieldNameToken(Token tok, bool forAccess)
     {
         // Exclude structural delimiters, operators, and value literals.
@@ -2460,17 +2468,19 @@ public sealed class Parser
         if (tok.Type == TokenType.Article &&
             tok.Lexeme.Equals("the", StringComparison.OrdinalIgnoreCase))
             return false;
-        // For access patterns, exclude keywords that carry special meaning in 'the X of s' series syntax:
-        //   Ordinal → 'the first of s' (positional access)
-        //   NumberKw → 'the number of s' (series length)
-        //   Start → 'to the start of s' (add-to-start)
-        //   Position → 'the position of X in Y' (find) — directly followed by 'of', same shape
-        //              as named access, but with a trailing 'in Y' the access check doesn't see
-        if (forAccess && tok.Type is TokenType.Ordinal or TokenType.NumberKw or TokenType.Start
-                                   or TokenType.LengthKw or TokenType.Size or TokenType.Position
-                                   or TokenType.Stream or TokenType.RowsKw or TokenType.ColumnsKw
-                                   or TokenType.ContentsKw or TokenType.DirectoryKw or TokenType.PathKw
-                                   or TokenType.EnvironmentKw or TokenType.Series or TokenType.CatalogueKw)
+        // For access patterns, exclude the entire reserved-keyword set at once.
+        // Field names are always user-defined identifiers — no keyword can ever be one, so no
+        // keyword can legitimately appear in 'the <keyword> of <expr>'. This kills the
+        // keyword-as-field-name mis-fire class completely and covers all future keywords
+        // automatically (no per-keyword patches needed when new keywords are added).
+        // Three narrow exceptions: Key, Category, and Characters (see comment on forAccess=true above).
+        if (forAccess &&
+            tok.Type is not TokenType.Identifier
+                      and not TokenType.Category
+                      and not TokenType.Key
+                      and not TokenType.Characters &&
+            !(tok.Type == TokenType.Article &&
+              !tok.Lexeme.Equals("the", StringComparison.OrdinalIgnoreCase)))
             return false;
         return true;
     }

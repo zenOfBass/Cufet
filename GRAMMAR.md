@@ -625,6 +625,31 @@ traps:
 These are reserved structural keywords. If an object needs a source/destination
 field, use `src`, `dest`, `origin`, `target`, etc.
 
+### Reserved keywords are never valid field names
+
+The parser's `the <name> of <expr>` heuristic (which disambiguates named field
+access from other `the X of Y` constructs like series length, type annotations,
+etc.) now excludes the **entire reserved-keyword set** uniformly: no keyword can
+ever be a user-defined field name, because field names are identifiers and
+keywords are not.
+
+**Practical consequence:** adding a new keyword to the language cannot introduce
+a new field-name mis-fire. The exclusion is automatic and complete — you will
+not see a repeat of the `the series of number board` n-queens mis-parse.
+
+**Three narrow exceptions kept valid:**
+- `key` — for `the key of mapping` (key-value pair access)
+- `category` — for `the category of the failure` (failure type property)
+- `characters` — for `the characters of r` (user-defined field), disambiguated
+  from the substring syntax `the characters from N to M of text` by the presence
+  of `from` after the keyword (which causes `IsNamedAccessPattern` to return false
+  since it requires `of` immediately after the name)
+
+**Tracked debt (pre-native):** the heuristic itself remains lookahead-based. The
+proper architectural fix — Approach B, explicit type-annotation contexts — is
+deferred to the dedicated pre-native parser-hardening pass, when the parser's
+syntax is feature-complete and can be hardened once on its final shape.
+
 ---
 
 ## 6. Sharp edges
@@ -664,6 +689,13 @@ Done.
 
 The lexer produces `TokenType.Start` for the word `start`. It cannot be used as a
 variable name, field name, or function name. Use `origin`, `src`, `begin`, etc.
+
+### `state` is a reserved keyword
+
+The lexer produces `TokenType.State` for the word `state` (the print-output
+statement). It cannot be used as a field name, variable name, or function name.
+Use `region`, `status`, `condition`, etc. when the concept of "state" (as a noun)
+is needed.
 
 ### Comparisons after parenthesized sub-expressions
 
