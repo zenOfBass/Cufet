@@ -19,11 +19,12 @@ automatically so it can never drift; for now it is maintained by hand.
 
 - [1. Reserved keywords](#1-reserved-keywords)
 - [2. Object methods and field access](#2-object-methods-and-field-access)
-- [3. Expression context vs condition context](#3-expression-context-vs-condition-context)
-- [4. Which operations accept expressions vs bare names](#4-which-operations-accept-expressions-vs-bare-names)
-- [5. Where constructs are allowed](#5-where-constructs-are-allowed)
-- [6. Sharp edges](#6-sharp-edges)
-- [7. Writing Cufet: the mental model](#7-writing-cufet-the-mental-model)
+- [3. Value vs. reference semantics](#3-value-vs-reference-semantics)
+- [4. Expression context vs condition context](#4-expression-context-vs-condition-context)
+- [5. Which operations accept expressions vs bare names](#5-which-operations-accept-expressions-vs-bare-names)
+- [6. Where constructs are allowed](#6-where-constructs-are-allowed)
+- [7. Sharp edges](#7-sharp-edges)
+- [8. Writing Cufet: the mental model](#8-writing-cufet-the-mental-model)
 
 ---
 
@@ -353,7 +354,114 @@ This produces a `PossessiveSetStatement` and is valid in method bodies.
 
 ---
 
-## 3. Expression context vs condition context
+## 3. Value vs. reference semantics
+
+Every Cufet type falls into one of two categories that determine what `Define` and
+`becomes` do when they store a value.
+
+**Value types** — copied on every assignment:
+
+| Type | Notes |
+|---|---|
+| `number` | scalar |
+| `text` | scalar |
+| `fact` | scalar |
+| `record` | deep copy of all fields |
+| any object type | deep copy of all fields, including embedded object chain |
+
+**Reference types** — aliased (shared) on every assignment:
+
+| Type | Notes |
+|---|---|
+| `series of T` | all add/remove/set ops mutate the shared list |
+| `map from K to V` | all entry-set/remove ops mutate the shared map |
+| `matrix` | element mutations are reflected everywhere |
+
+### The mental model
+
+> **Value type?** `Define b as a.` gives `b` a fresh, independent copy. Changes to `b`
+> leave `a` untouched.
+>
+> **Reference type?** `Define b as a.` gives `b` another name for the same collection.
+> Mutating through either name mutates both.
+
+```
+── Value type (objects, records) ────────────────────────────────────────────────
+Define alice as a new person { the name "Alice", the age 30 }.
+Define bob   as alice.
+the age of bob becomes 31.
+State the age of alice.    ← "30"  — bob is a deep copy; alice is unaffected
+
+── Reference type (series, maps) ────────────────────────────────────────────────
+Define xs as a series of number with (1, 2, 3).
+Define ys as xs.
+Add 4 to ys.
+State the number of xs.    ← "4"   — ys aliases xs; Add mutated the shared list
+```
+
+The same rule applies when passing arguments to functions and returning values.
+
+### The series-element gotcha
+
+Pulling an element from a series follows the same type rule:
+
+```
+Define elem as item N of my-series.
+```
+
+Whether `elem` is a copy or an alias depends on **the element's type**, not on the
+series itself.
+
+**Value-typed element (record, object, number, text, fact) — you get a copy:**
+
+```
+Define deck as a series of records like (the text suit, the text rank) with (
+    a record with (the suit "Clubs",    the rank "Ace"),
+    a record with (the suit "Diamonds", the rank "2")
+).
+Define card as item 1 of deck.
+the suit of card becomes "Spades".
+State the suit of item 1 of deck.    ← "Clubs"  — card is a copy; deck is unchanged
+```
+
+`card` received a full copy of the record at position 1. Mutating `card` does not
+touch the series. To actually replace the element, use `item N of series becomes`:
+
+```
+Define updated as a record with (the suit "Spades", the rank "Ace").
+item 1 of deck becomes updated.
+State the suit of item 1 of deck.    ← "Spades"  — the series element was replaced
+```
+
+**Reference-typed element (nested series, map) — you get an alias:**
+
+If the element stored in the series is itself a collection (e.g. a `series of series
+of number`), then pulling it gives you an alias to that inner collection. Mutating
+through the alias is reflected back in the outer series.
+
+### Why this is correct, not a bug
+
+The value/reference split is the **memory model**, and it is what makes the rest of
+Cufet work correctly:
+
+**`Add x to one's cards.` mutates the object's actual field** — series are
+reference-typed, so evaluating `one's cards` returns the live list stored in the
+field. All series operations mutate that list in place; no write-back step is needed.
+This is why the series-ops-take-`IExpression` work (gap #3) operates on `one's
+field` directly.
+
+**`Define bob as alice.` gives `bob` an independent life** — objects and records are
+value-typed, so every assignment is a deep copy. Mutations to `bob`'s fields never
+affect `alice`.
+
+The question to ask: *what type is this?* — the type tells you whether you're looking
+at an independent copy or a shared alias. Cufet picks the option that matches the
+mental model of each kind: scalars and named composites (records, objects) copy;
+collections (series, maps, matrices) share.
+
+---
+
+## 4. Expression context vs condition context
 
 Cufet has two distinct comparison syntaxes that are **not interchangeable**.
 
@@ -456,7 +564,7 @@ While (cast is-empty on pq) is false, repeat:  ← RUNTIME ERROR: 'false' not de
 
 ---
 
-## 4. Which operations accept expressions vs bare names
+## 5. Which operations accept expressions vs bare names
 
 Every series and map operation now accepts an **IExpression** for the container
 argument — `one's field`, `alice's cards`, a variable name, or any expression that
@@ -544,7 +652,7 @@ Define picked as a random item from xs but void is "".  ← OK for series of tex
 
 ---
 
-## 5. Where constructs are allowed
+## 6. Where constructs are allowed
 
 ### `Define` is forbidden inside object bodies
 
@@ -705,7 +813,7 @@ syntax is feature-complete and can be hardened once on its final shape.
 
 ---
 
-## 6. Sharp edges
+## 7. Sharp edges
 
 ### `Return a failure.` re-propagates; `Return a failure "msg".` originates
 
@@ -832,7 +940,7 @@ Do **not** name the iterator `entry` — it is a reserved keyword. `pair`, `kv`,
 
 ---
 
-## 7. Writing Cufet: the mental model
+## 8. Writing Cufet: the mental model
 
 ### Two grammars, one language
 
