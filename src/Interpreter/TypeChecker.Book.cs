@@ -39,7 +39,101 @@ public sealed partial class TypeChecker
         };
         books["collections"] = new BookType("collections", collectionsMembers, collectionsTypes);
 
+        // chance book — effectful randomness (stateful global RNG).
+        // Functions are NOT registered here as book members because they use natural-language
+        // surface syntax (RandomNumber/RandomItem/RandomlyShuffled/RandomGuess AST nodes) rather
+        // than the cast-book's-member-on dispatch path.
+        books["chance"] = new BookType("chance", []);
+
         return books;
+    }
+
+    // Returns true when any variable in scope has type BookType("chance") — i.e. chance is pulled
+    // under any local alias. Used to validate all chance-book expressions.
+    private bool IsChancePulled()
+    {
+        for (int i = _scopes.Count - 1; i >= 0; i--)
+            foreach (var info in _scopes[i].Values)
+                if (info.Type is BookType { Name: var n } &&
+                    n.Equals("chance", StringComparison.OrdinalIgnoreCase))
+                    return true;
+        return false;
+    }
+
+    private void RequireChancePulled(int line, string construct)
+    {
+        if (!IsChancePulled())
+            throw new TypeException(FormatTypeError(
+                $"the chance book is not in scope",
+                null, line,
+                $"use '{construct}' without pulling the chance book",
+                "Add 'Pull a book on chance.' before this line."));
+    }
+
+    // ── Chance book — type inference ─────────────────────────────────────────────
+
+    private CufetType InferRandomNumber(RandomNumber rn)
+    {
+        RequireChancePulled(rn.Line, "a random number from ... to ...");
+        var lowType = InferType(rn.Low);
+        if (lowType != null && lowType != CufetType.Number)
+            throw new TypeException(FormatTypeError(
+                $"the lower bound of a random number range must be a number, but found a {FormatType(lowType)}",
+                null, rn.Line,
+                $"use a {FormatType(lowType)} as a range bound",
+                "Use numbers for both bounds (e.g. 'a random number from 1 to 6')."));
+        var highType = InferType(rn.High);
+        if (highType != null && highType != CufetType.Number)
+            throw new TypeException(FormatTypeError(
+                $"the upper bound of a random number range must be a number, but found a {FormatType(highType)}",
+                null, rn.Line,
+                $"use a {FormatType(highType)} as a range bound",
+                "Use numbers for both bounds (e.g. 'a random number from 1 to 6')."));
+        return CufetType.Number;
+    }
+
+    private CufetType InferRandomItem(RandomItem ri)
+    {
+        RequireChancePulled(ri.Line, "a random item from ...");
+        var seriesType = InferType(ri.Series);
+        if (seriesType == null) return new VoidableType(CufetType.Number); // can't infer — fall back
+        if (seriesType is SeriesType st) return new VoidableType(st.ElementType);
+        throw new TypeException(FormatTypeError(
+            $"'a random item from' requires a series, but found a {FormatType(seriesType)}",
+            null, ri.Line,
+            $"pick a random item from a {FormatType(seriesType)}",
+            "'a random item from' works on any series or catalogue."));
+    }
+
+    private CufetType InferRandomlyShuffled(RandomlyShuffled rs)
+    {
+        RequireChancePulled(rs.Line, "randomly shuffled ...");
+        var seriesType = InferType(rs.Series);
+        if (seriesType == null) return new SeriesType(CufetType.Number); // fallback
+        if (seriesType is SeriesType) return seriesType; // same series type (element-type-preserving)
+        throw new TypeException(FormatTypeError(
+            $"'randomly shuffled' requires a series, but found a {FormatType(seriesType)}",
+            null, rs.Line,
+            $"shuffle a {FormatType(seriesType)}",
+            "'randomly shuffled' works on any series or catalogue."));
+    }
+
+    private CufetType InferRandomGuess(RandomGuess rg)
+    {
+        RequireChancePulled(rg.Line, "a random guess");
+        return CufetType.Fact;
+    }
+
+    private void CheckSeedChanceStatement(SeedChanceStatement ss)
+    {
+        RequireChancePulled(ss.Line, "Seed the chance with ...");
+        var seedType = InferType(ss.Seed);
+        if (seedType != null && seedType != CufetType.Number)
+            throw new TypeException(FormatTypeError(
+                $"the seed must be a number, but found a {FormatType(seedType)}",
+                null, ss.Line,
+                $"seed chance with a {FormatType(seedType)}",
+                "Use a whole number as the seed (e.g. 'Seed the chance with 42.')."));
     }
 
     private void CheckPullStatement(PullStatement ps)

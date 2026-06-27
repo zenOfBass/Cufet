@@ -65,6 +65,7 @@ public sealed class Parser
             TokenType.AcknowledgeKw => ParseAcknowledgeInterruptStatement(),
             TokenType.GetKw => ParseGetterUntoDeclaration(),
             TokenType.SetKw => ParseSetterUntoDeclaration(),
+            TokenType.SeedKw => ParseSeedChanceStatement(),
             _ => throw new ParseException(tok, "statement keyword"),
         };
     }
@@ -1713,6 +1714,59 @@ public sealed class Parser
                 }
                 break;
             }
+            case TokenType.Random:
+            {
+                // 'a random number from <low> to <high>' — inclusive whole-number range
+                // 'a random item from <series>'          — voidable random element
+                // 'a random guess'                       — fact (coin flip)
+                // The leading article 'a' is already consumed by SkipNoise above.
+                var randomLine = Advance().Line; // consume 'random'
+                SkipNoise();
+                if (Peek().Type == TokenType.NumberKw)
+                {
+                    Advance(); // consume 'number'
+                    SkipNoise();
+                    Consume(TokenType.From);
+                    SkipNoise();
+                    var low = ParseAddition();
+                    SkipNoise();
+                    Consume(TokenType.To);
+                    SkipNoise();
+                    var high = ParseAddition();
+                    baseExpr = new RandomNumber(low, high, randomLine);
+                }
+                else if (Peek().Type == TokenType.Item)
+                {
+                    Advance(); // consume 'item'
+                    SkipNoise();
+                    Consume(TokenType.From);
+                    SkipNoise();
+                    // ParseCorePrimary so postfix ops like 'converted to text' bind to the
+                    // outer RandomItem, not to the series target.
+                    baseExpr = new RandomItem(ParseCorePrimary(), randomLine);
+                }
+                else if (Peek().Type == TokenType.Guess)
+                {
+                    Advance(); // consume 'guess'
+                    baseExpr = new RandomGuess(randomLine);
+                }
+                else
+                {
+                    throw new ParseException(Peek(), "number, item, or guess — expected after 'random'");
+                }
+                break;
+            }
+            case TokenType.Randomly:
+            {
+                // 'randomly shuffled <series>' — non-mutating shuffle; returns new series of same type.
+                var randomlyLine = Advance().Line; // consume 'randomly'
+                SkipNoise();
+                Consume(TokenType.Shuffled);
+                SkipNoise();
+                // ParseCorePrimary so postfix ops bind to the outer RandomlyShuffled.
+                baseExpr = new RandomlyShuffled(ParseCorePrimary(), randomlyLine);
+                break;
+            }
             case TokenType.NumberKw:
             {
                 var numLine = Advance().Line;
@@ -2865,6 +2919,25 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Dot);
         return new AcknowledgeInterruptStatement(line);
+    }
+
+    // Seed the chance with <number>.
+    private SeedChanceStatement ParseSeedChanceStatement()
+    {
+        var line = Consume(TokenType.SeedKw).Line; // consume 'Seed'
+        SkipNoise();                               // eats 'the'
+        var chanceTok = Peek();
+        if (chanceTok.Type != TokenType.Identifier ||
+            !chanceTok.Lexeme.Equals("chance", StringComparison.OrdinalIgnoreCase))
+            throw new ParseException(chanceTok, "'chance' — expected after 'Seed the'");
+        Advance(); // consume 'chance'
+        SkipNoise();
+        Consume(TokenType.With);
+        SkipNoise();
+        var seed = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new SeedChanceStatement(seed, line);
     }
 
     // ── Getters & Setters ─────────────────────────────────────────────────

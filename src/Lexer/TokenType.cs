@@ -119,8 +119,15 @@ public enum TokenType
     Trimmed,    // "trimmed"    — in "<text> trimmed"
 
     // ── Sort ──────────────────────────────────────────────────────────────────
-    Sorted,  // "sorted"  — in "<series> sorted", "<series> sorted in reverse", "<series> sorted by <field>"
-    Reverse, // "reverse" — in "sorted in reverse"
+    Sorted,   // "sorted"   — in "<series> sorted", "<series> sorted in reverse", "<series> sorted by <field>"
+    Reverse,  // "reverse"  — in "sorted in reverse"
+
+    // ── Chance book (randomness) ───────────────────────────────────────────────
+    Random,   // "random"   — in "a random number/item/guess"
+    Randomly, // "randomly" — in "randomly shuffled <series>"
+    Shuffled, // "shuffled" — in "randomly shuffled <series>" (past-participle transform, like Sorted)
+    Guess,    // "guess"    — in "a random guess"
+    SeedKw,   // "seed"     — in "Seed the chance with <number>."
 
     // ── Range ─────────────────────────────────────────────────────────────────
     Range,     // "range"     — in "range <start> to <end>"; To already exists

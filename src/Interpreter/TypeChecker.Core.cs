@@ -909,6 +909,9 @@ public sealed partial class TypeChecker
                 break; // already hoisted in Pass1
             case AcknowledgeInterruptStatement:
                 break; // always valid; no type constraints
+            case SeedChanceStatement ss2:
+                CheckSeedChanceStatement(ss2);
+                break;
             case GetterDeclaration { UntoType: { } } untoGetter:
                 CheckUntoGetter(untoGetter);
                 break;
@@ -1135,6 +1138,10 @@ public sealed partial class TypeChecker
         DirectoryContentsExpression   dce                                                                => InferDirectoryContents(dce),
         PathCheckExpression           pce                                                                => InferPathCheck(pce),
         InterruptRequestedExpression                                                                     => CufetType.Fact,
+        RandomNumber  rn                                                                                 => InferRandomNumber(rn),
+        RandomItem    ri                                                                                 => InferRandomItem(ri),
+        RandomlyShuffled rs                                                                              => InferRandomlyShuffled(rs),
+        RandomGuess   rg                                                                                 => InferRandomGuess(rg),
         _                                                                                                => null,
     };
 

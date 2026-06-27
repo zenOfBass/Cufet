@@ -34,6 +34,10 @@ public sealed partial class Interpreter
     // Parallel to _scopes: definition order per scope, for LIFO destructor firing.
     private readonly List<List<string>> _scopeDefOrder = [[]];
 
+    // Per-interpreter RNG — entropy-seeded by default (real randomness); re-seedable via
+    // 'Seed the chance with N.' for reproducibility. Not static: parallel tests must not share state.
+    private Random _rng = new Random();
+
     // Cooperative SIGINT flag: set by the Console.CancelKeyPress handler (signal-dispatch thread),
     // read by the interpreter's main thread at checkpoints. volatile bool is the complete solution
     // for a single-writer / single-reader flag — no lock, no Interlocked, no barrier needed.
@@ -609,6 +613,10 @@ public sealed partial class Interpreter
                 _interruptRequested = false;
                 break;
 
+            case SeedChanceStatement ss:
+                _rng = new Random((int)(decimal)Evaluate(ss.Seed));
+                break;
+
             case ForEachStatement fe:
             {
                 var seriesVal = Evaluate(fe.Series);
@@ -786,8 +794,43 @@ public sealed partial class Interpreter
         DirectoryContentsExpression   dce => EvaluateDirectoryContents(dce),
         PathCheckExpression           pce => EvaluatePathCheck(pce),
         InterruptRequestedExpression      => (object)_interruptRequested,
+        RandomNumber  rn                  => EvaluateRandomNumber(rn),
+        RandomItem    ri                  => EvaluateRandomItem(ri),
+        RandomlyShuffled rs               => EvaluateRandomlyShuffled(rs),
+        RandomGuess   rg                  => (object)(_rng.Next(0, 2) == 1),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
+
+    private object EvaluateRandomNumber(RandomNumber rn)
+    {
+        var low  = (decimal)Evaluate(rn.Low);
+        var high = (decimal)Evaluate(rn.High);
+        if (low > high)
+            throw new RuntimeException(
+                $"Random number range is invalid: low ({low}) is greater than high ({high}) (line {rn.Line}).");
+        var lo = (int)low;
+        var hi = (int)high;
+        return (object)(decimal)_rng.Next(lo, hi + 1);
+    }
+
+    private object EvaluateRandomItem(RandomItem ri)
+    {
+        var list = (List<object>)Evaluate(ri.Series);
+        if (list.Count == 0) return VoidValue.Instance;
+        return list[_rng.Next(0, list.Count)];
+    }
+
+    private object EvaluateRandomlyShuffled(RandomlyShuffled rs)
+    {
+        var list = (List<object>)Evaluate(rs.Series);
+        var copy = new List<object>(list);
+        for (int i = copy.Count - 1; i > 0; i--)
+        {
+            int j = _rng.Next(0, i + 1);
+            (copy[i], copy[j]) = (copy[j], copy[i]);
+        }
+        return (object)copy;
+    }
 
     private object EvaluateEnvVar(EnvironmentVariableExpression env)
     {

@@ -81,6 +81,14 @@ public sealed partial class Interpreter
             collectionsFunctions,
             new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase));
 
+        // chance book — effectful randomness. Functions are dispatched via dedicated AST nodes
+        // (RandomNumber/RandomItem/RandomlyShuffled/RandomGuess) using the per-interpreter _rng.
+        // Pull just registers the book in scope; all real work happens in Interpreter.Core.
+        books["chance"] = new BookValue(
+            "chance",
+            new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase));
+
         return books;
     }
 

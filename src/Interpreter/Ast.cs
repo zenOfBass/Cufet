@@ -500,4 +500,25 @@ public sealed record PullStatement(
 // Negated: true = "is not a <type>".
 public sealed record IsTypeCheck(IExpression Target, CufetType Type, bool Negated, int Line) : IExpression;
 
+// ── Chance book (randomness) ─────────────────────────────────────────────────────────────────
+
+// a random number from <Low> to <High> — inclusive whole-number range; requires chance pulled.
+// Low > High → RuntimeException (bug, not a recoverable failure).
+public sealed record RandomNumber(IExpression Low, IExpression High, int Line) : IExpression;
+
+// a random item from <Series> — uniformly random element; voidable on empty series/catalogue.
+// Generic in element type (series of T → voidable T); works on catalogues.
+public sealed record RandomItem(IExpression Series, int Line) : IExpression;
+
+// randomly shuffled <Series> — returns a new series in random order; source unchanged.
+// Generic in element type (series of T → series of T); works on catalogues.
+public sealed record RandomlyShuffled(IExpression Series, int Line) : IExpression;
+
+// a random guess — fact (true or false, 50/50); requires chance pulled.
+public sealed record RandomGuess(int Line) : IExpression;
+
+// Seed the chance with <Seed>. — reseeds the per-interpreter RNG for reproducibility.
+// Default (no seed) = entropy-seeded (real randomness). Requires chance pulled.
+public sealed record SeedChanceStatement(IExpression Seed, int Line) : IStatement;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

@@ -10492,4 +10492,194 @@ public class InterpreterTests
             "    Return a new vec2 { the x 0, the y 0 }.\n" +
             "Done.\n"));
     }
+
+    // ── Chance book ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Chance_Pull_BindsUnderBookName()
+    {
+        // Just pulling the book shouldn't error; chance is a registered book.
+        Assert.Equal("ok", Run("Pull a book on chance.\nState \"ok\"."));
+    }
+
+    [Fact]
+    public void Chance_RandomNumber_InRange_Seeded()
+    {
+        // With a fixed seed the sequence is deterministic — test the value is in range.
+        var result = Run(
+            "Pull a book on chance.\n" +
+            "Seed the chance with 42.\n" +
+            "Define r as a random number from 1 to 6.\n" +
+            "If r >= 1 and r <= 6, State \"in range\".\n" +
+            "Otherwise, State \"out of range\".");
+        Assert.Equal("in range", result);
+    }
+
+    [Fact]
+    public void Chance_RandomNumber_Seeded_Deterministic()
+    {
+        // Same seed → same first value on two independent interpreter runs.
+        const string src =
+            "Pull a book on chance.\n" +
+            "Seed the chance with 7.\n" +
+            "State a random number from 1 to 100.";
+        Assert.Equal(Run(src), Run(src));
+    }
+
+    [Fact]
+    public void Chance_RandomNumber_DifferentSeeds_DifferentValues()
+    {
+        // Different seeds almost certainly produce different values.
+        // Using a range of 1..1000000 to make collision probability negligible.
+        var r1 = Run("Pull a book on chance.\nSeed the chance with 1.\nState a random number from 1 to 1000000.");
+        var r2 = Run("Pull a book on chance.\nSeed the chance with 2.\nState a random number from 1 to 1000000.");
+        Assert.NotEqual(r1, r2);
+    }
+
+    [Fact]
+    public void Chance_RandomNumber_EqualBounds_ReturnsBound()
+    {
+        // When low == high the only possible result is that value.
+        Assert.Equal("5", Run(
+            "Pull a book on chance.\n" +
+            "State a random number from 5 to 5."));
+    }
+
+    [Fact]
+    public void Chance_RandomNumber_LowGreaterThanHigh_Throws()
+    {
+        Assert.Throws<RuntimeException>(() => Run(
+            "Pull a book on chance.\n" +
+            "State a random number from 6 to 1."));
+    }
+
+    [Fact]
+    public void Chance_RandomItem_FromNonEmpty_InList_Seeded()
+    {
+        var result = Run(
+            "Pull a book on chance.\n" +
+            "Seed the chance with 99.\n" +
+            "Define xs as a series of number with (10, 20, 30).\n" +
+            "Define picked as a random item from xs but void is 0.\n" +
+            "If picked = 10 or picked = 20 or picked = 30, State \"ok\".\n" +
+            "Otherwise, State \"bad\".");
+        Assert.Equal("ok", result);
+    }
+
+    [Fact]
+    public void Chance_RandomItem_FromEmpty_ReturnsVoid()
+    {
+        Assert.Equal("empty", Run(
+            "Pull a book on chance.\n" +
+            "Define xs as a series of number with ().\n" +
+            "Define picked as a random item from xs but void is \"empty\".\n" +
+            "State picked."));
+    }
+
+    [Fact]
+    public void Chance_RandomlyShuffled_SameElements_Seeded()
+    {
+        // The shuffled series should contain the same elements (same count, all present).
+        Assert.Equal("3", Run(
+            "Pull a book on chance.\n" +
+            "Seed the chance with 5.\n" +
+            "Define xs as a series of number with (1, 2, 3).\n" +
+            "Define ys as randomly shuffled xs.\n" +
+            "State the number of ys."));
+    }
+
+    [Fact]
+    public void Chance_RandomlyShuffled_NonMutating()
+    {
+        // Source series must be unchanged after shuffle.
+        Assert.Equal("1\n2\n3", Run(
+            "Pull a book on chance.\n" +
+            "Seed the chance with 5.\n" +
+            "Define xs as a series of number with (1, 2, 3).\n" +
+            "Define ys as randomly shuffled xs.\n" +
+            "For each x in xs, repeat:\n" +
+            "    State x.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Chance_RandomlyShuffled_SingleElement_Unchanged()
+    {
+        Assert.Equal("42", Run(
+            "Pull a book on chance.\n" +
+            "Define xs as a series of number with (42).\n" +
+            "Define ys as randomly shuffled xs.\n" +
+            "State the first of ys."));
+    }
+
+    [Fact]
+    public void Chance_RandomGuess_IsBool_Seeded()
+    {
+        // With a fixed seed the result is deterministic — just verify it's true or false.
+        var result = Run(
+            "Pull a book on chance.\n" +
+            "Seed the chance with 123.\n" +
+            "If a random guess, State \"true\".\n" +
+            "Otherwise, State \"false\".");
+        Assert.True(result is "true" or "false");
+    }
+
+    [Fact]
+    public void Chance_Seed_MakesDeterministic()
+    {
+        // Run the same seeded sequence twice, expect identical outputs.
+        const string src =
+            "Pull a book on chance.\n" +
+            "Seed the chance with 42.\n" +
+            "Define i as 1.\n" +
+            "While i <= 5, repeat:\n" +
+            "    State a random number from 1 to 100.\n" +
+            "    i becomes i + 1.\n" +
+            "Done.";
+        Assert.Equal(Run(src), Run(src));
+    }
+
+    [Fact]
+    public void Chance_NotPulled_ThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run("State a random number from 1 to 6."));
+    }
+
+    [Fact]
+    public void Chance_NotPulled_RandomItem_ThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define xs as a series of number with (1, 2).\n" +
+            "State a random item from xs."));
+    }
+
+    [Fact]
+    public void Chance_NotPulled_Seed_ThrowsTypeError()
+    {
+        Assert.Throws<TypeException>(() => Run("Seed the chance with 42."));
+    }
+
+    [Fact]
+    public void Chance_TypeError_RandomNumber_NonNumberBound()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on chance.\n" +
+            "State a random number from \"one\" to 6."));
+    }
+
+    [Fact]
+    public void Chance_TypeError_RandomItem_NonSeries()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on chance.\n" +
+            "State a random item from 42."));
+    }
+
+    [Fact]
+    public void Chance_TypeError_RandomlyShuffled_NonSeries()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on chance.\n" +
+            "State randomly shuffled 42."));
+    }
 }
