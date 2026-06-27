@@ -1,9 +1,9 @@
-Define path as "examples/sample.txt".
+Define sample-text as "examples/sample.txt".
 
-Pull a rabbit as den.
+Pull a rabbit.
     Define counts as a new map from text to number.
 
-    With the file path open for reading as src:
+    With the file sample-text open for reading as src:
         Define content as read all from src.
         Define normalized as replace "\n" with " " in content.
         Define words as normalized split by " ".
