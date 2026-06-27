@@ -6,32 +6,29 @@ Done.
 
 Define the object deck with (the series of card cards):
     Get count as number:
-        Define my-cards as one's cards.
-        Return the number of my-cards.
+        Return the number of one's cards.
     Done.
 
     Bind void to shuffle, given (the number seed):
-        Define my-cards as one's cards.
         Define current-seed as seed.
-        Define i as the number of my-cards.
+        Define i as the number of one's cards.
         While i is greater than 1, repeat:
             current-seed becomes (current-seed * 6521 + 791) % 1000000.
             Define j as (current-seed % i) + 1.
-            Define temp as item i of my-cards.
-            Define card-j as item j of my-cards.
-            The item i of my-cards becomes card-j.
-            The item j of my-cards becomes temp.
+            Define temp as item i of one's cards.
+            Define card-j as item j of one's cards.
+            item i of one's cards becomes card-j.
+            item j of one's cards becomes temp.
             i becomes i - 1.
         Done.
     Done.
 
     Bind voidable card to deal:
-        Define my-cards as one's cards.
-        If the number of my-cards is 0:
+        If the number of one's cards is 0:
             Return void.
         Done.
-        Define top as the first of my-cards.
-        Remove first item from my-cards.
+        Define top as the first of one's cards.
+        Remove first item from one's cards.
         Return top.
     Done.
 Done.

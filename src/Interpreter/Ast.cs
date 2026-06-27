@@ -19,29 +19,29 @@ public sealed record SeriesLiteral(IReadOnlyList<IExpression> Elements, CufetTyp
 // (e.g., nested ordinal access for chained 'the first of the first of s').
 public sealed record SeriesAccess(IExpression Target, IExpression? Index, int Line) : IExpression;
 
-// the number of <series>
-public sealed record SeriesLength(string SeriesName) : IExpression;
+// the number of <series-expr>
+public sealed record SeriesLength(IExpression Series, int Line) : IExpression;
 
 // Add X to series (append: AfterIndex=null, ToStart=false)
 // Add X to the start (prepend: AfterIndex=null, ToStart=true)
 // Add X after position (insert: AfterIndex=expr, ToStart=false)
 public sealed record SeriesAddStatement(
     IExpression Value,
-    string SeriesName,
+    IExpression Series,
     IExpression? AfterIndex,
     bool ToStart,
     int Line
 ) : IStatement;
 
 // Remove by position (Index == null → last)
-public sealed record SeriesRemoveAtStatement(string SeriesName, IExpression? Index, int Line) : IStatement;
+public sealed record SeriesRemoveAtStatement(IExpression Series, IExpression? Index, int Line) : IStatement;
 
 // Remove first occurrence by value
-public sealed record SeriesRemoveValueStatement(string SeriesName, IExpression Value, int Line) : IStatement;
+public sealed record SeriesRemoveValueStatement(IExpression Series, IExpression Value, int Line) : IStatement;
 
 // Element assignment (Index == null → last)
 public sealed record SeriesSetStatement(
-    string SeriesName,
+    IExpression Series,
     IExpression? Index,
     IExpression Value,
     int Line

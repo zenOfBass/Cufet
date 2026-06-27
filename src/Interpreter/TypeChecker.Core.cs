@@ -1494,6 +1494,7 @@ public sealed partial class TypeChecker
         NumberLiteral    { Value: var v } => v.ToString(),
         StringLiteral    { Value: var v } => $"\"{v}\"",
         VariableReference { Name: var n } => n,
+        PossessiveAccess pa               => $"{FormatExpr(pa.Target)}'s {pa.Member}",
         _                                 => "<expression>",
     };
 

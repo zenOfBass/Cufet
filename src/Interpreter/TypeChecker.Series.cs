@@ -48,47 +48,48 @@ public sealed partial class TypeChecker
     private void CheckSeriesAdd(SeriesAddStatement add)
     {
         if (add.AfterIndex != null) CheckIndex(add.AfterIndex, add.Line);
-        if (!TryLookup(add.SeriesName, out var seriesInfo)) return;
-        if (seriesInfo.Type is not SeriesType seriesType) return;
+        var containerType = InferType(add.Series);
+        if (containerType is not SeriesType seriesType) return;
 
         var valueType = InferType(add.Value);
         if (valueType != null && !IsAssignable(seriesType.ElementType, valueType))
             throw new TypeException(FormatTypeError(
-                $"'{add.SeriesName}' holds {FormatTypePlural(seriesType.ElementType)}",
-                $"You defined it on line {seriesInfo.EstablishingLine} as a series of {FormatTypePlural(seriesType.ElementType)}, so it can only accept {FormatTypePlural(seriesType.ElementType)}",
+                $"{FormatExpr(add.Series)} holds {FormatTypePlural(seriesType.ElementType)}",
+                $"It is a series of {FormatTypePlural(seriesType.ElementType)}, so it can only accept {FormatTypePlural(seriesType.ElementType)}",
                 add.Line,
                 $"add a {FormatType(valueType)} value to it",
                 $"Change the value to a {FormatType(seriesType.ElementType)}, or define a separate series that holds {FormatTypePlural(valueType)}."));
 
-        CheckRegionStore(add.Value, valueType, seriesInfo.RabbitDepth, add.Line,
-            $"add a rabbit-scoped value to '{add.SeriesName}' which lives in a longer-lived region");
+        CheckRegionStore(add.Value, valueType, ContainerDepthOf(add.Series), add.Line,
+            $"add a rabbit-scoped value to a series in a longer-lived region");
     }
 
     private void CheckSeriesRemoveValue(SeriesRemoveValueStatement removeVal)
     {
-        if (!TryLookup(removeVal.SeriesName, out var seriesInfo)) return;
+        var containerType = InferType(removeVal.Series);
+        if (containerType == null) return;
 
         // Map remove: "remove key from map" — key must match map's key type.
-        if (seriesInfo.Type is MapType mapType)
+        if (containerType is MapType mapType)
         {
             var keyType = InferType(removeVal.Value);
             if (keyType != null && !IsAssignable(mapType.KeyType, keyType))
                 throw new TypeException(FormatTypeError(
-                    $"'{removeVal.SeriesName}' uses {FormatType(mapType.KeyType)} keys",
-                    $"You defined it on line {seriesInfo.EstablishingLine} as a map from {FormatType(mapType.KeyType)} to {FormatType(mapType.ValueType)}",
+                    $"{FormatExpr(removeVal.Series)} uses {FormatType(mapType.KeyType)} keys",
+                    $"It is a map from {FormatType(mapType.KeyType)} to {FormatType(mapType.ValueType)}",
                     removeVal.Line,
                     $"remove using a {FormatType(keyType)} key",
                     $"Keys in this map are {FormatTypePlural(mapType.KeyType)}."));
             return;
         }
 
-        if (seriesInfo.Type is not SeriesType seriesType) return;
+        if (containerType is not SeriesType seriesType) return;
 
         var valueType = InferType(removeVal.Value);
         if (valueType != null && valueType != seriesType.ElementType)
             throw new TypeException(FormatTypeError(
-                $"'{removeVal.SeriesName}' holds {FormatTypePlural(seriesType.ElementType)}",
-                $"You defined it on line {seriesInfo.EstablishingLine} as a series of {FormatTypePlural(seriesType.ElementType)}, so only {FormatTypePlural(seriesType.ElementType)} can be removed from it",
+                $"{FormatExpr(removeVal.Series)} holds {FormatTypePlural(seriesType.ElementType)}",
+                $"It is a series of {FormatTypePlural(seriesType.ElementType)}, so only {FormatTypePlural(seriesType.ElementType)} can be removed from it",
                 removeVal.Line,
                 $"remove a {FormatType(valueType)} value from it",
                 $"Make sure the value you're removing is a {FormatType(seriesType.ElementType)}."));
@@ -97,24 +98,25 @@ public sealed partial class TypeChecker
     private void CheckSeriesSet(SeriesSetStatement seriesSet)
     {
         if (seriesSet.Index != null) CheckIndex(seriesSet.Index, seriesSet.Line);
-        if (!TryLookup(seriesSet.SeriesName, out var seriesInfo)) return;
+        var containerType = InferType(seriesSet.Series);
+        if (containerType == null) return;
 
-        if (seriesInfo.Type is SeriesType seriesType)
+        if (containerType is SeriesType seriesType)
         {
             var valueType = InferType(seriesSet.Value);
             if (valueType != null && valueType != seriesType.ElementType)
                 throw new TypeException(FormatTypeError(
-                    $"'{seriesSet.SeriesName}' holds {FormatTypePlural(seriesType.ElementType)}",
-                    $"You defined it on line {seriesInfo.EstablishingLine} as a series of {FormatTypePlural(seriesType.ElementType)}, so its items can only be set to {FormatTypePlural(seriesType.ElementType)}",
+                    $"{FormatExpr(seriesSet.Series)} holds {FormatTypePlural(seriesType.ElementType)}",
+                    $"It is a series of {FormatTypePlural(seriesType.ElementType)}, so its items can only be set to {FormatTypePlural(seriesType.ElementType)}",
                     seriesSet.Line,
                     $"set an item to a {FormatType(valueType)} value",
                     $"Change the new value to a {FormatType(seriesType.ElementType)}."));
-            CheckRegionStore(seriesSet.Value, valueType, seriesInfo.RabbitDepth, seriesSet.Line,
-                $"set an item in '{seriesSet.SeriesName}' to a rabbit-scoped value from a shorter-lived region");
+            CheckRegionStore(seriesSet.Value, valueType, ContainerDepthOf(seriesSet.Series), seriesSet.Line,
+                $"set an item in a series to a rabbit-scoped value from a shorter-lived region");
             return;
         }
 
-        if (seriesInfo.Type is ObjectType ot)
+        if (containerType is ObjectType ot)
         {
             if (seriesSet.Index == null)
                 throw new TypeException(FormatTypeError(
@@ -126,7 +128,7 @@ public sealed partial class TypeChecker
             if (seriesSet.Index is NumberLiteral { Value: var ov })
             {
                 var idx     = (int)ov;
-                var display = $"'{seriesSet.SeriesName}'";
+                var display = FormatExpr(seriesSet.Series);
                 var allPos  = GetAllPositionalTypes(ot);
                 if (idx < 1 || idx > allPos.Count)
                     throw new TypeException(FormatTypeError(
@@ -151,7 +153,7 @@ public sealed partial class TypeChecker
             return;
         }
 
-        if (seriesInfo.Type is RecordType rt)
+        if (containerType is RecordType rt)
         {
             if (seriesSet.Index == null)
                 throw new TypeException(FormatTypeError(
@@ -163,7 +165,7 @@ public sealed partial class TypeChecker
             if (seriesSet.Index is NumberLiteral { Value: var v })
             {
                 var idx = (int)v;
-                var display = $"'{seriesSet.SeriesName}'";
+                var display = FormatExpr(seriesSet.Series);
                 if (idx < 1 || idx > rt.PositionalTypes.Count)
                     throw new TypeException(FormatTypeError(
                         rt.PositionalTypes.Count == 0
@@ -323,11 +325,12 @@ public sealed partial class TypeChecker
 
     private CufetType InferSeriesLength(SeriesLength sl)
     {
-        if (TryLookup(sl.SeriesName, out var info) && info.Type is RecordType)
+        var containerType = InferType(sl.Series);
+        if (containerType is RecordType)
             throw new TypeException(FormatTypeError(
                 $"'the number of' works on series, not records",
-                null, 0,
-                $"get the number of items in '{sl.SeriesName}' (a record)",
+                null, sl.Line,
+                $"get the number of items in {FormatExpr(sl.Series)} (a record)",
                 "Records don't have a length. Access individual fields by name or position."));
         return CufetType.Number;
     }

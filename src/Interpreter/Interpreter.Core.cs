@@ -433,74 +433,79 @@ public sealed partial class Interpreter
 
             case SeriesAddStatement sa:
             {
-                var list  = ExpectSeries(sa.SeriesName, sa.Line);
+                var saTarget = Evaluate(sa.Series);
+                if (saTarget is not List<object> list)
+                    throw new RuntimeException($"Expected a series for 'Add' on line {sa.Line}.");
                 var value = Evaluate(sa.Value);
                 if (sa.ToStart)
                     list.Insert(0, value);
                 else if (sa.AfterIndex == null)
                     list.Add(value);
                 else
-                    list.Insert(ResolveIndex(sa.AfterIndex, list, sa.SeriesName, sa.Line) + 1, value);
+                    list.Insert(ResolveIndex(sa.AfterIndex, list, SeriesDisplayName(sa.Series), sa.Line) + 1, value);
                 break;
             }
 
             case SeriesRemoveAtStatement sra:
             {
-                var list = ExpectSeries(sra.SeriesName, sra.Line);
-                list.RemoveAt(ResolveIndex(sra.Index, list, sra.SeriesName, sra.Line));
+                var sraTarget = Evaluate(sra.Series);
+                if (sraTarget is not List<object> list)
+                    throw new RuntimeException($"Expected a series for 'Remove' on line {sra.Line}.");
+                list.RemoveAt(ResolveIndex(sra.Index, list, SeriesDisplayName(sra.Series), sra.Line));
                 break;
             }
 
             case SeriesRemoveValueStatement srv:
             {
-                if (TryLookupValue(srv.SeriesName, out var srvEnvVal) && srvEnvVal is Dictionary<object, object> srvDict)
+                var srvTarget = Evaluate(srv.Series);
+                if (srvTarget is Dictionary<object, object> srvDict)
                 {
                     var key = Evaluate(srv.Value);
                     if (!srvDict.Remove(key))
-                        throw new RuntimeException($"Key not found in '{srv.SeriesName}' on line {srv.Line}.");
+                        throw new RuntimeException($"Key not found in map on line {srv.Line}.");
                     break;
                 }
-                var list  = ExpectSeries(srv.SeriesName, srv.Line);
+                if (srvTarget is not List<object> list)
+                    throw new RuntimeException($"Expected a series or map for 'Remove' on line {srv.Line}.");
                 var value = Evaluate(srv.Value);
                 if (!list.Remove(value))
-                    throw new RuntimeException($"Value not found in '{srv.SeriesName}' on line {srv.Line}.");
+                    throw new RuntimeException($"Value not found in {SeriesDisplayName(srv.Series)} on line {srv.Line}.");
                 break;
             }
 
             case SeriesSetStatement ss:
             {
-                if (TryLookupValue(ss.SeriesName, out var ssEnvVal))
+                var ssTarget = Evaluate(ss.Series);
+                if (ssTarget is ObjectValue ssOv)
                 {
-                    if (ssEnvVal is ObjectValue ssOv)
-                    {
-                        if (ss.Index == null)
-                            throw new RuntimeException($"'last' is not supported for objects on line {ss.Line}.");
-                        if (Evaluate(ss.Index) is not decimal ssD)
-                            throw new RuntimeException($"Object position must be a number on line {ss.Line}.");
-                        var ssIdx = (int)ssD;
-                        var ssOwner = FindOwnerForPositional(ssOv, ssIdx);
-                        if (ssOwner == null)
-                            throw new RuntimeException($"Object '{ssOv.TypeName}' has no positional field at position {ssIdx} (line {ss.Line}).");
-                        ssOwner.Value.owner.PositionalFields[ssOwner.Value.idx] = Evaluate(ss.Value);
-                        break;
-                    }
-                    if (ssEnvVal is RecordValue ssRrv)
-                    {
-                        if (ss.Index == null)
-                            throw new RuntimeException($"'last' is not supported for records on line {ss.Line}.");
-                        if (Evaluate(ss.Index) is not decimal ssD)
-                            throw new RuntimeException($"Record position must be a number on line {ss.Line}.");
-                        var ssIdx = (int)ssD;
-                        if (ssIdx < 1 || ssIdx > ssRrv.PositionalFields.Count)
-                            throw new RuntimeException(ssRrv.PositionalFields.Count == 0
-                                ? $"This record has no positional fields (line {ss.Line})."
-                                : $"This record has {ssRrv.PositionalFields.Count} positional field(s); there is no position {ssIdx} (line {ss.Line}).");
-                        ssRrv.PositionalFields[ssIdx - 1] = Evaluate(ss.Value);
-                        break;
-                    }
+                    if (ss.Index == null)
+                        throw new RuntimeException($"'last' is not supported for objects on line {ss.Line}.");
+                    if (Evaluate(ss.Index) is not decimal ssD)
+                        throw new RuntimeException($"Object position must be a number on line {ss.Line}.");
+                    var ssIdx = (int)ssD;
+                    var ssOwner = FindOwnerForPositional(ssOv, ssIdx);
+                    if (ssOwner == null)
+                        throw new RuntimeException($"Object '{ssOv.TypeName}' has no positional field at position {ssIdx} (line {ss.Line}).");
+                    ssOwner.Value.owner.PositionalFields[ssOwner.Value.idx] = Evaluate(ss.Value);
+                    break;
                 }
-                var list = ExpectSeries(ss.SeriesName, ss.Line);
-                list[ResolveIndex(ss.Index, list, ss.SeriesName, ss.Line)] = Evaluate(ss.Value);
+                if (ssTarget is RecordValue ssRrv)
+                {
+                    if (ss.Index == null)
+                        throw new RuntimeException($"'last' is not supported for records on line {ss.Line}.");
+                    if (Evaluate(ss.Index) is not decimal ssD)
+                        throw new RuntimeException($"Record position must be a number on line {ss.Line}.");
+                    var ssIdx = (int)ssD;
+                    if (ssIdx < 1 || ssIdx > ssRrv.PositionalFields.Count)
+                        throw new RuntimeException(ssRrv.PositionalFields.Count == 0
+                            ? $"This record has no positional fields (line {ss.Line})."
+                            : $"This record has {ssRrv.PositionalFields.Count} positional field(s); there is no position {ssIdx} (line {ss.Line}).");
+                    ssRrv.PositionalFields[ssIdx - 1] = Evaluate(ss.Value);
+                    break;
+                }
+                if (ssTarget is not List<object> list)
+                    throw new RuntimeException($"Expected a series for item assignment on line {ss.Line}.");
+                list[ResolveIndex(ss.Index, list, SeriesDisplayName(ss.Series), ss.Line)] = Evaluate(ss.Value);
                 break;
             }
 
@@ -680,6 +685,13 @@ public sealed partial class Interpreter
         return list;
     }
 
+    private static string SeriesDisplayName(IExpression expr) => expr switch
+    {
+        VariableReference vr => $"'{vr.Name}'",
+        PossessiveAccess  pa => $"{SeriesDisplayName(pa.Target)}'s {pa.Member}",
+        _                    => "the series",
+    };
+
     // Returns 0-based index. indexExpr==null means "last element".
     private int ResolveIndex(IExpression? indexExpr, List<object> list, string seriesName, int line)
     {
@@ -726,7 +738,9 @@ public sealed partial class Interpreter
         BinaryExpression b    => EvaluateBinary(b),
         SeriesLiteral    sl   => (object)sl.Elements.Select(Evaluate).ToList(),
         SeriesAccess     sa   => EvaluateSeriesAccess(sa),
-        SeriesLength     sl   => (decimal)ExpectSeries(sl.SeriesName).Count,
+        SeriesLength     sl   => Evaluate(sl.Series) is List<object> slList
+                                     ? (decimal)slList.Count
+                                     : throw new RuntimeException($"Expected a series for 'the number of' on line {sl.Line}."),
         RecordLiteral    rl   => (object)new RecordValue(
                                      rl.PositionalFields.Select(Evaluate).ToList(),
                                      rl.NamedFields.Select(f => (f.Name, Evaluate(f.Value))).ToList()),

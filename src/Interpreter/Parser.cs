@@ -727,9 +727,13 @@ public sealed class Parser
 
     // ── Series operations ─────────────────────────────────────────────────
 
-    // Parses "ORDINAL 'of' IDENTIFIER" or "'item' expr 'of' IDENTIFIER".
-    // Returns (seriesName, index, line) where index==null means "last element".
-    private (string name, IExpression? index, int line) ParseAccessTarget()
+    // Parses "ORDINAL 'of' SERIES-EXPR" or "'item' expr 'of' SERIES-EXPR".
+    // Returns (series, index, line) where index==null means "last element".
+    // ParseCorePrimary is used for the series target (not ParsePostfix) so that
+    // 'item i of my-series converted to text' binds as TextConvert(SeriesAccess(...))
+    // rather than SeriesAccess(TextConvert(my-series), ...). Possessive access
+    // ('one's cards', 'alice's cards') is handled inside ParseCorePrimary.
+    private (IExpression series, IExpression? index, int line) ParseAccessTarget()
     {
         if (Peek().Type == TokenType.Ordinal)
         {
@@ -738,8 +742,8 @@ public sealed class Parser
             SkipNoise();
             Consume(TokenType.Of);
             SkipNoise();
-            var name = Consume(TokenType.Identifier).Lexeme;
-            return (name, index, ordTok.Line);
+            var series = ParseCorePrimary();
+            return (series, index, ordTok.Line);
         }
         else
         {
@@ -749,8 +753,8 @@ public sealed class Parser
             SkipNoise();
             Consume(TokenType.Of);
             SkipNoise();
-            var name = Consume(TokenType.Identifier).Lexeme;
-            return (name, idx, itemTok.Line);
+            var series = ParseCorePrimary();
+            return (series, idx, itemTok.Line);
         }
     }
 
@@ -795,14 +799,14 @@ public sealed class Parser
 
     private SeriesSetStatement ParseSeriesSetStatement()
     {
-        var (name, idx, line) = ParseAccessTarget();
+        var (series, idx, line) = ParseAccessTarget();
         SkipNoise();
         Consume(TokenType.Becomes);
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new SeriesSetStatement(name, idx, value, line);
+        return new SeriesSetStatement(series, idx, value, line);
     }
 
     private SeriesAddStatement ParseSeriesAddStatement()
@@ -823,17 +827,17 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.Of);
                 SkipNoise();
-                var sname = Consume(TokenType.Identifier).Lexeme;
+                var seriesExpr = ParseCorePrimary();
                 SkipNoise();
                 Consume(TokenType.Dot);
-                return new SeriesAddStatement(value, sname, null, true, line);
+                return new SeriesAddStatement(value, seriesExpr, null, true, line);
             }
             else
             {
-                var sname = Consume(TokenType.Identifier).Lexeme;
+                var seriesExpr = ParseCorePrimary();
                 SkipNoise();
                 Consume(TokenType.Dot);
-                return new SeriesAddStatement(value, sname, null, false, line);
+                return new SeriesAddStatement(value, seriesExpr, null, false, line);
             }
         }
         else
@@ -856,10 +860,10 @@ public sealed class Parser
             SkipNoise();
             Consume(TokenType.Of);
             SkipNoise();
-            var sname = Consume(TokenType.Identifier).Lexeme;
+            var seriesExpr = ParseCorePrimary();
             SkipNoise();
             Consume(TokenType.Dot);
-            return new SeriesAddStatement(value, sname, afterIdx, false, line);
+            return new SeriesAddStatement(value, seriesExpr, afterIdx, false, line);
         }
     }
 
@@ -877,10 +881,10 @@ public sealed class Parser
             SkipNoise();
             Consume(TokenType.From);
             SkipNoise();
-            var sname = Consume(TokenType.Identifier).Lexeme;
+            var seriesExpr = ParseCorePrimary();
             SkipNoise();
             Consume(TokenType.Dot);
-            return new SeriesRemoveAtStatement(sname, idx, line);
+            return new SeriesRemoveAtStatement(seriesExpr, idx, line);
         }
         else if (Peek().Type == TokenType.Item)
         {
@@ -890,10 +894,10 @@ public sealed class Parser
             SkipNoise();
             Consume(TokenType.From);
             SkipNoise();
-            var sname = Consume(TokenType.Identifier).Lexeme;
+            var seriesExpr = ParseCorePrimary();
             SkipNoise();
             Consume(TokenType.Dot);
-            return new SeriesRemoveAtStatement(sname, idx, line);
+            return new SeriesRemoveAtStatement(seriesExpr, idx, line);
         }
         else
         {
@@ -901,10 +905,10 @@ public sealed class Parser
             SkipNoise();
             Consume(TokenType.From);
             SkipNoise();
-            var sname = Consume(TokenType.Identifier).Lexeme;
+            var seriesExpr = ParseCorePrimary();
             SkipNoise();
             Consume(TokenType.Dot);
-            return new SeriesRemoveValueStatement(sname, val, line);
+            return new SeriesRemoveValueStatement(seriesExpr, val, line);
         }
     }
 
@@ -1620,8 +1624,10 @@ public sealed class Parser
                     break;
                 }
 
-                // Inline ordinal access: 'first of <target-expr>' where target is parsed as
-                // a primary expression, enabling chains like 'the first of the first of s'.
+                // Inline ordinal access: 'first of <target-expr>' where target is parsed via
+                // ParseCorePrimary so that postfix operators (like 'converted to text') bind
+                // to the outer SeriesAccess, not to the inner target expression. Possessive
+                // access ('one's cards', 'alice's hand') is handled inside ParseCorePrimary.
                 var index = OrdinalToIndex(ordTok.Lexeme);
                 Consume(TokenType.Of);
                 SkipNoise();
@@ -1648,7 +1654,8 @@ public sealed class Parser
                 }
                 else
                 {
-                    // Series indexing: "item <N> of <series>"
+                    // Series indexing: "item <N> of <series>" — ParseCorePrimary so
+                    // postfix ops bind to the outer access, not to the inner target.
                     var idx = ParseExpression();
                     SkipNoise();
                     Consume(TokenType.Of);
@@ -1708,12 +1715,11 @@ public sealed class Parser
             }
             case TokenType.NumberKw:
             {
-                Advance();
+                var numLine = Advance().Line;
                 SkipNoise();
                 Consume(TokenType.Of);
                 SkipNoise();
-                var name = Consume(TokenType.Identifier).Lexeme;
-                baseExpr = new SeriesLength(name);
+                baseExpr = new SeriesLength(ParseCorePrimary(), numLine);
                 break;
             }
             case TokenType.LengthKw:
