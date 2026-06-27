@@ -205,6 +205,16 @@ as identifiers, but that is fine — they read as natural articles.
 | `columns` | ColumnsKw |
 | `filled` | FilledKw |
 
+### Chance and randomness
+
+| Word | Token | Notes |
+|---|---|---|
+| `random` | Random | `a random number from low to high` / `a random item from series` / `a random guess` |
+| `randomly` | Randomly | `randomly shuffled series` |
+| `shuffled` | Shuffled | companion to `randomly` |
+| `guess` | Guess | `a random guess` — yields a `fact` |
+| `seed` | SeedKw | `Seed the chance with N.` — statement keyword |
+
 ### Comparison and logic (condition context only)
 
 These are reserved but only meaningful inside conditions (`If`, `While`, `until`).
@@ -488,6 +498,49 @@ Add 1 to (x + y).   ← TYPE ERROR: (x + y) is not a series
 | `expr has a key for K` | read |
 | `the size of expr` | read |
 | `For each pair in expr, repeat:` | read |
+
+### Chance book operations
+
+All randomness operations require `chance` to be in scope — `Pull a book on chance.`
+must appear before any chance expression or `Seed` statement. Using them without a
+pull is a **static type error** (TypeException).
+
+| Syntax | Return type | Notes |
+|---|---|---|
+| `a random number from low to high` | `number` | Whole numbers, inclusive; `low > high` → RuntimeException |
+| `a random item from series` | `voidable T` | Empty series → `void`; pair with `but void is default` |
+| `randomly shuffled series` | `series of T` | Non-mutating; returns a new series |
+| `a random guess` | `fact` | 50/50 true/false |
+
+**Seed statement** — reseeds the per-interpreter RNG:
+
+```
+Seed the chance with 42.
+```
+
+The seed must be a `number`. Seeding makes the sequence reproducible; without an
+explicit seed the RNG is entropy-seeded on interpreter creation.
+
+**Bound-expression level** — `low` and `high` in `a random number from low to high`
+are parsed at addition level (same precedence as `the characters from N to M of text`).
+Arithmetic works; logical/comparison forms do not:
+
+```
+State a random number from 1 to n + 5.    ← OK
+State a random number from 1 to 6.        ← OK
+```
+
+**Series target** — `a random item from <series>` and `randomly shuffled <series>`
+parse their target with `ParseCorePrimary`. Identifiers, possessive access
+(`one's cards`), parenthesized expressions, and series literals all work.
+
+**Type-matching `but void is`** — `a random item from series` returns `voidable T`.
+The fallback in `but void is` must match the element type `T`:
+
+```
+Define picked as a random item from xs but void is 0.   ← OK for series of number
+Define picked as a random item from xs but void is "".  ← OK for series of text
+```
 
 ---
 

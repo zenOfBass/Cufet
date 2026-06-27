@@ -10510,7 +10510,7 @@ public class InterpreterTests
             "Pull a book on chance.\n" +
             "Seed the chance with 42.\n" +
             "Define r as a random number from 1 to 6.\n" +
-            "If r >= 1 and r <= 6, State \"in range\".\n" +
+            "If r is greater than 0 and r is less than 7, State \"in range\".\n" +
             "Otherwise, State \"out of range\".");
         Assert.Equal("in range", result);
     }
@@ -10561,7 +10561,7 @@ public class InterpreterTests
             "Seed the chance with 99.\n" +
             "Define xs as a series of number with (10, 20, 30).\n" +
             "Define picked as a random item from xs but void is 0.\n" +
-            "If picked = 10 or picked = 20 or picked = 30, State \"ok\".\n" +
+            "If picked is 10 or picked is 20 or picked is 30, State \"ok\".\n" +
             "Otherwise, State \"bad\".");
         Assert.Equal("ok", result);
     }
@@ -10571,7 +10571,7 @@ public class InterpreterTests
     {
         Assert.Equal("empty", Run(
             "Pull a book on chance.\n" +
-            "Define xs as a series of number with ().\n" +
+            "Define xs as a series of text with ().\n" +
             "Define picked as a random item from xs but void is \"empty\".\n" +
             "State picked."));
     }
@@ -10632,7 +10632,7 @@ public class InterpreterTests
             "Pull a book on chance.\n" +
             "Seed the chance with 42.\n" +
             "Define i as 1.\n" +
-            "While i <= 5, repeat:\n" +
+            "While i is less than 6, repeat:\n" +
             "    State a random number from 1 to 100.\n" +
             "    i becomes i + 1.\n" +
             "Done.";
