@@ -1033,7 +1033,7 @@ public class InterpreterTests
     [Fact]
     public void SeriesSetOnNonSeriesThrows()
     {
-        Assert.Throws<RuntimeException>(() => Run(
+        Assert.Throws<TypeException>(() => Run(
             "Define x as 5. the first of x becomes 99."));
     }
 

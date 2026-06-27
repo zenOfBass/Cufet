@@ -49,7 +49,14 @@ public sealed partial class TypeChecker
     {
         if (add.AfterIndex != null) CheckIndex(add.AfterIndex, add.Line);
         var containerType = InferType(add.Series);
-        if (containerType is not SeriesType seriesType) return;
+        if (containerType == null) return;
+        if (containerType is not SeriesType seriesType)
+            throw new TypeException(FormatTypeError(
+                $"{FormatExpr(add.Series)} is not a series",
+                $"It evaluates to {FormatTypePlural(containerType)}, which can't be added to",
+                add.Line,
+                "add to a non-series expression",
+                "Only a series (like 'my-list' or 'one's cards') can be the target of 'Add ... to'."));
 
         var valueType = InferType(add.Value);
         if (valueType != null && !IsAssignable(seriesType.ElementType, valueType))
@@ -83,7 +90,13 @@ public sealed partial class TypeChecker
             return;
         }
 
-        if (containerType is not SeriesType seriesType) return;
+        if (containerType is not SeriesType seriesType)
+            throw new TypeException(FormatTypeError(
+                $"{FormatExpr(removeVal.Series)} is not a series or map",
+                $"It evaluates to {FormatTypePlural(containerType)}, which can't have items removed",
+                removeVal.Line,
+                "remove from a non-series expression",
+                "Only a series or map can be the target of 'Remove ... from'."));
 
         var valueType = InferType(removeVal.Value);
         if (valueType != null && valueType != seriesType.ElementType)
@@ -186,12 +199,29 @@ public sealed partial class TypeChecker
                         $"set position {idx} to a {FormatType(valueType)}",
                         $"Position {idx} has type {FormatType(fieldType)}."));
             }
+            return;
         }
+
+        throw new TypeException(FormatTypeError(
+            $"{FormatExpr(seriesSet.Series)} is not a series, object, or record",
+            $"It evaluates to {FormatTypePlural(containerType)}, which can't have items assigned by position",
+            seriesSet.Line,
+            "set an item in a non-series expression",
+            "Only a series, object, or record can be the target of 'item N of ... becomes'."));
     }
 
     private void CheckSeriesRemoveAt(SeriesRemoveAtStatement removeAt)
     {
         if (removeAt.Index != null) CheckIndex(removeAt.Index, removeAt.Line);
+        var containerType = InferType(removeAt.Series);
+        if (containerType == null) return;
+        if (containerType is not SeriesType)
+            throw new TypeException(FormatTypeError(
+                $"{FormatExpr(removeAt.Series)} is not a series",
+                $"It evaluates to {FormatTypePlural(containerType)}, which can't have items removed by position",
+                removeAt.Line,
+                "remove an item from a non-series expression",
+                "Only a series can be the target of 'Remove first/last/item N from'."));
     }
 
     private CufetType InferSeriesLiteral(SeriesLiteral lit)
