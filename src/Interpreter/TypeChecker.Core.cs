@@ -450,9 +450,36 @@ public sealed partial class TypeChecker
     {
         _scopes[0]["input"] = BuiltinInput;
         Pass1Hoist(program);
+        Pass2ResolveTypes();          // resolve all placeholder ObjectType refs in _objectDefs + global scope
         Pass2CheckOverloads(program); // body-check all overloads; populates _overloadReturnTypes
         foreach (var stmt in program.Statements)
             CheckStatement(stmt);
+    }
+
+    // Resolves every placeholder ObjectType reference stored inside _objectDefs (field types,
+    // method signatures, getter/setter types) and in global-scope function signatures, so that
+    // by the time inference begins no placeholder can survive into a type-check result.
+    // Runs after Pass1Hoist (all types registered) and before any body-checking.
+    private void Pass2ResolveTypes()
+    {
+        var names = _objectDefs.Keys.ToList();
+        foreach (var name in names)
+        {
+            var ot = _objectDefs[name];
+            var positionals = ot.PositionalTypes.Select(ResolveParamType).ToList();
+            var named       = ot.NamedFields.Select(f => (f.FieldName, ResolveParamType(f.FieldType))).ToList();
+            var methods     = ot.Methods.Select(m => (m.MethodName, (FunctionType)ResolveParamType(m.Signature))).ToList();
+            var getters     = ot.Getters.Select(g => (g.GetterName, ResolveParamType(g.ReturnType))).ToList();
+            var setters     = ot.Setters.Select(s => (s.SetterName, ResolveParamType(s.ParamType), s.ParamName)).ToList();
+            _objectDefs[name] = new ObjectType(
+                ot.Name, positionals, named, methods, getters, setters,
+                ot.EmbeddedTypeName, ot.ConformedInterfaces, ot.Constructors, ot.Unmaker);
+        }
+        // Also resolve function signatures registered in global scope by Pass1Hoist so
+        // InferType on function references returns fully-resolved FunctionTypes directly.
+        foreach (var (key, ti) in Scope.ToList())
+            if (ti.Type is FunctionType)
+                Scope[key] = ti with { Type = ResolveParamType(ti.Type) };
     }
 
     // Built-in stream binding — seeded into every scope (global and each fresh function scope)
@@ -1042,10 +1069,18 @@ public sealed partial class TypeChecker
                 "Positions are counted 1, 2, 3 and so on. Use a whole number."));
     }
 
+    // Public entry point: infers a type and resolves any ObjectType placeholder that survived
+    // into the result (belt-and-suspenders after Pass2ResolveTypes handles _objectDefs).
+    private CufetType? InferType(IExpression expr)
+    {
+        var t = InferTypeCore(expr);
+        return t is null ? null : ResolveParamType(t);
+    }
+
     // Returns null for genuine inference gaps (undeclared variable, unhandled expression form).
     // Returns a concrete CufetType for anything we can type statically.
     // Throws TypeException for operand type mismatches.
-    private CufetType? InferType(IExpression expr) => expr switch
+    private CufetType? InferTypeCore(IExpression expr) => expr switch
     {
         NumberLiteral                                                                                    => CufetType.Number,
         StringLiteral                                                                                    => CufetType.Text,
@@ -1283,7 +1318,7 @@ public sealed partial class TypeChecker
 
         if (leftType is VoidableType v)
         {
-            var inner = ResolveParamType(v.Inner);
+            var inner = v.Inner;
             if (defaultType != null && !IsAssignable(inner, defaultType))
                 throw new TypeException(FormatTypeError(
                     $"the default value is a {FormatType(defaultType)}, but the voidable holds {FormatTypePlural(inner)}",

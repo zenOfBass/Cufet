@@ -261,7 +261,7 @@ public sealed partial class TypeChecker
         var targetType = InferType(acc.Target);
         if (targetType == null) return null;
 
-        if (targetType is SeriesType st) return ResolveParamType(st.ElementType);
+        if (targetType is SeriesType st) return st.ElementType;
 
         if (targetType is RecordType rt)
         {
