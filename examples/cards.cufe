@@ -1,0 +1,66 @@
+Define object card with (the text suit, the text rank):
+    Get label as text:
+        Return one's rank joined to " of " joined to one's suit.
+    Done.
+Done.
+
+Define object deck with (the series of card cards):
+    Get count as number:
+        Define my-cards as one's cards.
+        Return the number of my-cards.
+    Done.
+
+    Bind void to shuffle, given (the number seed):
+        Define my-cards     as one's cards.
+        Define current-seed as seed.
+        Define i            as the number of my-cards.
+        While i is greater than 1, repeat:
+            current-seed becomes (current-seed * 6521 + 791) % 1000000.
+            Define j      as (current-seed % i) + 1.
+            Define temp   as item i of my-cards.
+            Define card-j as item j of my-cards.
+            item i of my-cards becomes card-j.
+            item j of my-cards becomes temp.
+            i becomes i - 1.
+        Done.
+    Done.
+
+    Bind voidable card to deal:
+        Define my-cards as one's cards.
+        If the number of my-cards is 0:
+            Return void.
+        Done.
+        Define top as the first of my-cards.
+        Remove first item from my-cards.
+        Return top.
+    Done.
+Done.
+
+Bind making a deck to new-deck:
+    Define suits as a series of text with ("Spades", "Hearts", "Diamonds", "Clubs").
+    Define ranks as a series of text with ("Ace", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Jack", "Queen", "King").
+    Define cards as a series of card with ().
+    For each suit in suits, repeat:
+        For each rank in ranks, repeat:
+            Add a new card { the suit suit, the rank rank } to cards.
+        Done.
+    Done.
+    Return a new deck { the cards cards }.
+Done.
+
+Define d     as cast new-deck.
+Define dummy as a new card { the suit "?", the rank "?" }.
+
+State "Fresh deck count:" joined to (the count of d converted to text).
+Cast shuffle on (d, 42).
+State "Shuffled. Dealing 5 cards:".
+
+Define i as 1.
+While i is less than 6, repeat:
+    Define drawn as cast deal on d.
+    Define got   as drawn but void is dummy.
+    State "  " joined to got's label.
+    i becomes i + 1.
+Done.
+
+State "Cards remaining: " joined to (the count of d converted to text).

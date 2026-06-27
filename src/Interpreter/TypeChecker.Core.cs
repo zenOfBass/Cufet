@@ -1283,13 +1283,14 @@ public sealed partial class TypeChecker
 
         if (leftType is VoidableType v)
         {
-            if (defaultType != null && !IsAssignable(v.Inner, defaultType))
+            var inner = ResolveParamType(v.Inner);
+            if (defaultType != null && !IsAssignable(inner, defaultType))
                 throw new TypeException(FormatTypeError(
-                    $"the default value is a {FormatType(defaultType)}, but the voidable holds {FormatTypePlural(v.Inner)}",
+                    $"the default value is a {FormatType(defaultType)}, but the voidable holds {FormatTypePlural(inner)}",
                     null, bvd.Line,
-                    $"use a {FormatType(defaultType)} as the default for a voidable {FormatType(v.Inner)}",
-                    $"The default after 'but void is' must be a {FormatType(v.Inner)}."));
-            return v.Inner;
+                    $"use a {FormatType(defaultType)} as the default for a voidable {FormatType(inner)}",
+                    $"The default after 'but void is' must be a {FormatType(inner)}."));
+            return inner;
         }
         if (leftType is VoidType)
             return defaultType; // always-void: result is always the default
