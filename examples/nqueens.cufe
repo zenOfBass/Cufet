@@ -1,0 +1,42 @@
+Bind fact to is-safe, given (the series of number board, the number col):
+    Define row      as the number of board + 1.
+    Define i        as 1.
+    While i is less than row, repeat:
+        Define other-col as item i of board.
+        Define diff      as row - i.
+        If other-col is col:
+            Return 1 = 0.
+        Done.
+        If col - other-col is diff:
+            Return 1 = 0.
+        Done.
+        If other-col - col is diff:
+            Return 1 = 0.
+        Done.
+        i becomes i + 1.
+    Done.
+    Return 1 = 1.
+Done.
+
+Bind void to solve, given (the series of number board, the number n):
+    If the number of board is n:
+        Define out as "".
+        For each q in board, repeat:
+            out becomes out joined to (q converted to text) joined to " ".
+        Done.
+        State "Solution: " joined to out.
+        Return.
+    Done.
+    Define col as 1.
+    While col is less than n + 1, repeat:
+        If cast is-safe on (board, col):
+            Add col to board.
+            Cast solve on (board, n).
+            Remove item (the number of board) from board.
+        Done.
+        col becomes col + 1.
+    Done.
+Done.
+
+Define board as a series of number with ().
+Cast solve on (board, 4).

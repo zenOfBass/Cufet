@@ -2458,7 +2458,7 @@ public sealed class Parser
                                    or TokenType.LengthKw or TokenType.Size or TokenType.Position
                                    or TokenType.Stream or TokenType.RowsKw or TokenType.ColumnsKw
                                    or TokenType.ContentsKw or TokenType.DirectoryKw or TokenType.PathKw
-                                   or TokenType.EnvironmentKw)
+                                   or TokenType.EnvironmentKw or TokenType.Series or TokenType.CatalogueKw)
             return false;
         return true;
     }
