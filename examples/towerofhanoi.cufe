@@ -1,0 +1,10 @@
+Bind void to hanoi, given (the number n, the text source, the text target, the text aux):
+    If n is 0:
+        Return.
+    Done.
+    Cast hanoi on (n - 1, source, aux, target).
+    State "Move disk " joined to (n converted to text) joined to " from " joined to source joined to " to " joined to target.
+    Cast hanoi on (n - 1, aux, target, source).
+Done.
+
+Cast hanoi on (3, "A", "C", "B").
