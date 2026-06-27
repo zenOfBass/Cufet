@@ -731,7 +731,8 @@ public sealed partial class TypeChecker
                 RepeatUntilStatement ru => [ru.Body],
                 ForEachStatement fe     => [fe.Body],
                 WithOpenStatement wo    => [wo.Body],
-                WithRabbitStatement wr  => [wr.Body],
+                PullRabbitStatement pr  => [pr.Body],
+                PullStatement pl        => [pl.Body],
                 _                       => null
             };
 
