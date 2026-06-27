@@ -13,7 +13,7 @@ Bind fact to is-safe, given (the series of number board, the number col):
         If other-col - col is diff:
             Return 1 = 0.
         Done.
-        i becomes i + 1.
+        The i becomes i + 1.
     Done.
     Return 1 = 1.
 Done.
@@ -22,7 +22,7 @@ Bind void to solve, given (the series of number board, the number n):
     If the number of board is n:
         Define out as "".
         For each q in board, repeat:
-            out becomes out joined to (q converted to text) joined to " ".
+            The out becomes out joined to (q converted to text) joined to " ".
         Done.
         State "Solution: " joined to out.
         Return.
@@ -34,7 +34,7 @@ Bind void to solve, given (the series of number board, the number n):
             Cast solve on (board, n).
             Remove item (the number of board) from board.
         Done.
-        col becomes col + 1.
+        The col becomes col + 1.
     Done.
 Done.
 
