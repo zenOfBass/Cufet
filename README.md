@@ -14,7 +14,6 @@ For each counter in the range 1 to 100, repeat:
     Otherwise if the counter % 5 is 0, state "Buzz".
     Otherwise, state the counter.
 Done.
-
 ```
 
 ---
