@@ -138,24 +138,30 @@ public sealed partial class TypeChecker
 
     private void CheckPullStatement(PullStatement ps)
     {
-        if (!BuiltinBooks.TryGetValue(ps.BookName, out var bookType))
-        {
-            var available = string.Join(", ", BuiltinBooks.Keys.OrderBy(k => k).Select(k => $"'{k}'"));
-            throw new TypeException(FormatTypeError(
-                $"there is no book named '{ps.BookName}'",
-                null, ps.Line,
-                $"pull a book named '{ps.BookName}'",
-                $"Available books: {available}."));
-        }
-
         EnterScope();
-        Scope[ps.LocalName] = new TypeInfo(bookType, new VariableReference(ps.LocalName, ps.Line), ps.Line);
+        try
+        {
+            foreach (var (bookName, localName) in ps.Books)
+            {
+                if (!BuiltinBooks.TryGetValue(bookName, out var bookType))
+                {
+                    var available = string.Join(", ", BuiltinBooks.Keys.OrderBy(k => k).Select(k => $"'{k}'"));
+                    throw new TypeException(FormatTypeError(
+                        $"there is no book named '{bookName}'",
+                        null, ps.Line,
+                        $"pull a book named '{bookName}'",
+                        $"Available books: {available}."));
+                }
 
-        // Register any types the book introduces into the Pull...Done scope.
-        foreach (var (typeName, typeObj) in bookType.IntroducedTypes)
-            RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
+                Scope[localName] = new TypeInfo(bookType, new VariableReference(localName, ps.Line), ps.Line);
 
-        try { foreach (var s in ps.Body) CheckStatement(s); }
+                // Register any types the book introduces into the Pull...Done scope.
+                foreach (var (typeName, typeObj) in bookType.IntroducedTypes)
+                    RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
+            }
+
+            foreach (var s in ps.Body) CheckStatement(s);
+        }
         finally { ExitScope(); }
     }
 

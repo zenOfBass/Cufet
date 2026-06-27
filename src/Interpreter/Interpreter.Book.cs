@@ -101,12 +101,15 @@ public sealed partial class Interpreter
 
     private void ExecutePullStatement(PullStatement ps)
     {
-        if (!BuiltinBookValues.TryGetValue(ps.BookName, out var bookValue))
-            throw new RuntimeException($"No book named '{ps.BookName}' (line {ps.Line}).");
         EnterScope();
-        Scope[ps.LocalName] = bookValue;
         try
         {
+            foreach (var (bookName, localName) in ps.Books)
+            {
+                if (!BuiltinBookValues.TryGetValue(bookName, out var bookValue))
+                    throw new RuntimeException($"No book named '{bookName}' (line {ps.Line}).");
+                Scope[localName] = bookValue;
+            }
             foreach (var s in ps.Body)
                 Execute(s);
         }

@@ -154,8 +154,9 @@ public enum TokenType
     Rabbit,   // "rabbit" — in "With a rabbit <name>: ... Done." and "given (the rabbit <name>)"
 
     // ── Books (standard-library capability units) ─────────────────────────────
-    Pull,   // "pull"   — in "Pull a book on <name> [as <local>]."
-    Book,   // "book"   — in "Pull a book on <name>"
+    Pull,   // "pull"   — in "Pull a book on <name> [as <local>]." / "Pull books on <n>, <n>, ..."
+    Book,   // "book"   — in "Pull a book on <name>" (singular)
+    Books,  // "books"  — in "Pull books on <n1>, <n2>, and <n3>." (plural)
     CatalogueKw, // "catalogue" — heterogeneous series: element type is a union
     AtlasKw,     // "atlas"     — heterogeneous map:    value  type is a union
 

@@ -193,6 +193,7 @@ as identifiers, but that is fine — they read as natural articles.
 | `interrupt` | InterruptKw |
 | `acknowledge` | AcknowledgeKw |
 | `book` | Book |
+| `books` | Books |
 | `catalogue` | CatalogueKw |
 | `atlas` | AtlasKw |
 
@@ -649,6 +650,55 @@ The fallback in `but void is` must match the element type `T`:
 Define picked as a random item from xs but void is 0.   ← OK for series of number
 Define picked as a random item from xs but void is "".  ← OK for series of text
 ```
+
+### `Pull ... Done.` — books and rabbits
+
+`Pull` opens a scope; `Done.` closes it and frees whatever was pulled.
+
+**Single book:**
+```
+Pull a book on math.
+    Define r as the square root of 16.
+Done.
+```
+
+**Multiple books (shared scope, one `Done.`):**
+```
+Pull books on math, collections, and chance.
+    Define m as a matrix with ((1, 2), (3, 4)).
+    Define n as a random number from 1 to 6.
+Done.
+```
+Plural `books` for two or more; singular `a book` for one. Number matches count.
+
+**Per-book aliasing (each entry independently optional):**
+```
+Pull books on math as m, collections as c, and chance.
+    ...
+Done.
+```
+
+**Rabbit (singular only):**
+```
+Pull a rabbit as den.
+    ...
+Done.
+```
+Anonymous form (`Pull a rabbit.`) omits the name. Rabbits stay singular — multiple arenas
+usually want independent lifetimes (nest two `Pull a rabbit` blocks with separate `Done.`s).
+
+**Nesting** — any `Pull ... Done.` scope can nest inside another:
+```
+Pull a book on math.
+    Pull a rabbit.
+        ...
+    Done.
+Done.
+```
+
+**Bind transparency** — `Bind` declarations inside a `Pull ... Done.` body are treated as
+top-level (the pull scope does not count as a "block" for `Bind`-placement purposes).
+Hoisting passes (functions, objects, overloads) see through pull bodies automatically.
 
 ---
 

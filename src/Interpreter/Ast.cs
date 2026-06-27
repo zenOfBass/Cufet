@@ -488,13 +488,12 @@ public sealed record MatrixRows(IExpression Target, int Line) : IExpression;
 // the columns of <matrix> — column count as number; access syntax (no pull needed).
 public sealed record MatrixColumns(IExpression Target, int Line) : IExpression;
 
-// Pull a book on <name>. ... Done.                  — binds the book for the Done.-delimited scope
-// Pull a book on <name> as [the] <local>. ... Done. — binds under <local>
-// Books are singleton capability bags; the Pull...Done scope is the book's lifetime.
+// Pull a book on <name> [as <local>]. ... Done.              — single book, Done.-delimited scope
+// Pull books on <n1> [as <l1>], <n2> [as <l2>], and <n3>. ... Done. — multiple books, shared scope
+// Books is never empty; single-book pull = one-element list; plural = two-or-more.
 public sealed record PullStatement(
-    string BookName,                    // the canonical name of the book (e.g. "math")
-    string LocalName,                   // the scope-binding name (default = BookName)
-    IReadOnlyList<IStatement> Body,     // statements between Pull and Done.
+    IReadOnlyList<(string BookName, string LocalName)> Books,  // one entry per pulled book
+    IReadOnlyList<IStatement> Body,                            // statements between Pull and Done.
     int Line
 ) : IStatement;
 

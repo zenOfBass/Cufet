@@ -1028,12 +1028,13 @@ public sealed class Parser
     }
 
     // Pull a rabbit [as <name>]. ... Done.
-    // Pull a book on <name> [as [the] <local>]. ... Done.
-    // Both forms open a Done.-delimited scope; the pulled thing is live until Done.
+    // Pull a book on <name> [as <local>]. ... Done.
+    // Pull books on <n1> [as <l1>], <n2> [as <l2>], and <n3>. ... Done.
+    // All forms open a Done.-delimited scope; the pulled thing(s) are live until Done.
     private IStatement ParsePullStatement()
     {
         var line = Consume(TokenType.Pull).Line; // consume 'Pull'
-        SkipNoise();                             // eats 'a'
+        SkipNoise();                             // eats 'a' (singular forms); no-op for 'books'
 
         if (Peek().Type == TokenType.Rabbit)
         {
@@ -1052,10 +1053,44 @@ public sealed class Parser
             return new PullRabbitStatement(name, body, line);
         }
 
+        if (Peek().Type == TokenType.Books)
+        {
+            // Plural: Pull books on <n1> [as <l1>], <n2> [as <l2>], and <n3>. ... Done.
+            Advance(); // consume 'books'
+            SkipNoise();
+            Consume(TokenType.On);
+            SkipNoise();
+            var books = new List<(string BookName, string LocalName)>();
+            books.Add(ParsePullBookEntry());
+            while (Peek().Type == TokenType.Comma || Peek().Type == TokenType.And)
+            {
+                if (Peek().Type == TokenType.Comma) Advance(); // consume ','
+                SkipNoise();
+                if (Peek().Type == TokenType.And) Advance();   // consume optional 'and'
+                SkipNoise();
+                if (Peek().Type == TokenType.Dot) break;       // safety: trailing comma
+                books.Add(ParsePullBookEntry());
+            }
+            Consume(TokenType.Dot);
+            var pluralBody = ParsePullBody();
+            return new PullStatement(books, pluralBody, line);
+        }
+
+        // Singular: Pull a book on <name> [as <local>]. ... Done.
         Consume(TokenType.Book); // consume 'book'
         SkipNoise();
         Consume(TokenType.On);   // consume 'on'
         SkipNoise();
+        var entry = ParsePullBookEntry();
+        Consume(TokenType.Dot);
+        var bookBody = ParsePullBody(); // consumes Done.
+        return new PullStatement([entry], bookBody, line);
+    }
+
+    // Parses one book entry in a Pull statement: <name> [as <local>]
+    // Leaves the parser positioned after the entry (no trailing SkipNoise needed by caller).
+    private (string BookName, string LocalName) ParsePullBookEntry()
+    {
         var bookName = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
         string localName = bookName;
@@ -1066,9 +1101,7 @@ public sealed class Parser
             localName = Consume(TokenType.Identifier).Lexeme;
             SkipNoise();
         }
-        Consume(TokenType.Dot);
-        var bookBody = ParsePullBody(); // consumes Done.
-        return new PullStatement(bookName, localName, bookBody, line);
+        return (bookName, localName);
     }
 
     // Body parser for Pull...Done. scopes. Allows zero statements (unlike ParseLoopBody).
