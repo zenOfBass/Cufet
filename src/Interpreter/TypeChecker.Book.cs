@@ -148,18 +148,15 @@ public sealed partial class TypeChecker
                 $"Available books: {available}."));
         }
 
-        if (Scope.ContainsKey(ps.LocalName))
-            throw new TypeException(FormatTypeError(
-                $"'{ps.LocalName}' is already defined in this scope",
-                null, ps.Line,
-                $"bind book '{ps.BookName}' to '{ps.LocalName}'",
-                "Choose a different local name."));
-
+        EnterScope();
         Scope[ps.LocalName] = new TypeInfo(bookType, new VariableReference(ps.LocalName, ps.Line), ps.Line);
 
-        // Register any types the book introduces into the current type scope.
+        // Register any types the book introduces into the Pull...Done scope.
         foreach (var (typeName, typeObj) in bookType.IntroducedTypes)
             RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
+
+        try { foreach (var s in ps.Body) CheckStatement(s); }
+        finally { ExitScope(); }
     }
 
     // Returns true when the cast is to a collections aggregate whose type cannot be expressed as

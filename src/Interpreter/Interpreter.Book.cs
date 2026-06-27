@@ -103,7 +103,17 @@ public sealed partial class Interpreter
     {
         if (!BuiltinBookValues.TryGetValue(ps.BookName, out var bookValue))
             throw new RuntimeException($"No book named '{ps.BookName}' (line {ps.Line}).");
+        EnterScope();
         Scope[ps.LocalName] = bookValue;
+        try
+        {
+            foreach (var s in ps.Body)
+                Execute(s);
+        }
+        finally
+        {
+            ExitScope();
+        }
     }
 
     private object? DispatchBookFunction(BookValue bv, string memberName, IReadOnlyList<IExpression> args, int line)

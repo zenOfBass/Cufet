@@ -893,8 +893,8 @@ public sealed partial class TypeChecker
             case WithOpenStatement wos:
                 CheckWithOpen(wos);
                 break;
-            case WithRabbitStatement wrs:
-                CheckWithRabbit(wrs);
+            case PullRabbitStatement prs:
+                CheckPullRabbit(prs);
                 break;
             case PullStatement ps:
                 CheckPullStatement(ps);

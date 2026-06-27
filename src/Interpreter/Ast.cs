@@ -448,13 +448,14 @@ public sealed record WriteToStreamStatement(IExpression Value, IExpression Strea
 // Args is empty when no 'with arguments' clause is present.
 public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpression> Args, int Line) : IExpression;
 
-// With a rabbit <name>: ... Done.
-// Creates a named block-scoped region (arena). Reference-typed values created in the block
-// live in the rabbit's region; freed at Done. The rabbit may be passed DOWN to callees as a
-// parameter but may never be returned (downward-only rule, enforced statically).
+// Pull a rabbit [as <name>]. ... Done.
+// Opens a Done.-delimited arena scope. Reference-typed values created in the scope live in
+// the rabbit's region; freed at Done. (ExitScope fires destructors.) Name is optional —
+// supply it only when the rabbit needs to be passed as a parameter to a callee.
+// The rabbit may be passed DOWN to callees but may never be returned (downward-only rule).
 // In the interpreter (GC-backed) the region is semantic — values become unreachable at Done.
-public sealed record WithRabbitStatement(
-    string Name,
+public sealed record PullRabbitStatement(
+    string? Name,
     IReadOnlyList<IStatement> Body,
     int Line
 ) : IStatement;
@@ -487,12 +488,13 @@ public sealed record MatrixRows(IExpression Target, int Line) : IExpression;
 // the columns of <matrix> — column count as number; access syntax (no pull needed).
 public sealed record MatrixColumns(IExpression Target, int Line) : IExpression;
 
-// Pull a book on <name>.                  — binds the book under <name>
-// Pull a book on <name> as [the] <local>. — binds the book under <local>
-// Books are singleton capability bags; Pull just introduces a scope-local alias.
+// Pull a book on <name>. ... Done.                  — binds the book for the Done.-delimited scope
+// Pull a book on <name> as [the] <local>. ... Done. — binds under <local>
+// Books are singleton capability bags; the Pull...Done scope is the book's lifetime.
 public sealed record PullStatement(
-    string BookName,   // the canonical name of the book (e.g. "math")
-    string LocalName,  // the scope-binding name (default = BookName)
+    string BookName,                    // the canonical name of the book (e.g. "math")
+    string LocalName,                   // the scope-binding name (default = BookName)
+    IReadOnlyList<IStatement> Body,     // statements between Pull and Done.
     int Line
 ) : IStatement;
 

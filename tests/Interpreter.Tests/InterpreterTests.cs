@@ -7815,7 +7815,7 @@ public class InterpreterTests
     {
         // The rabbit name is in scope inside the With block; code inside the block runs normally.
         Assert.Equal("inside", Run(
-            "With a rabbit warren:\n" +
+            "Pull a rabbit as warren.\n" +
             "    State \"inside\".\n" +
             "Done."));
     }
@@ -7825,7 +7825,7 @@ public class InterpreterTests
     {
         // A series created inside the rabbit block is accessible within the block.
         Assert.Equal("hello", Run(
-            "With a rabbit warren:\n" +
+            "Pull a rabbit as warren.\n" +
             "    Define words as a series of text with (\"hello\", \"world\").\n" +
             "    State the first of words.\n" +
             "Done."));
@@ -7837,7 +7837,7 @@ public class InterpreterTests
         // Control flow continues normally after the With block ends.
         Assert.Equal("before\nafter", Run(
             "State \"before\".\n" +
-            "With a rabbit warren:\n" +
+            "Pull a rabbit as warren.\n" +
             "    Define x as 42.\n" +
             "Done.\n" +
             "State \"after\"."));
@@ -7851,7 +7851,7 @@ public class InterpreterTests
             "Bind number to compute, given (the rabbit r, the number x):\n" +
             "    Return x * 7.\n" +
             "Done.\n" +
-            "With a rabbit warren:\n" +
+            "Pull a rabbit as warren.\n" +
             "    Define result as Cast compute on (warren, 1).\n" +
             "    State result.\n" +
             "Done."));
@@ -7866,7 +7866,7 @@ public class InterpreterTests
             "    Define labels as a series of text with (\"alpha\", \"beta\").\n" +
             "    Return the first of labels.\n" +
             "Done.\n" +
-            "With a rabbit warren:\n" +
+            "Pull a rabbit as warren.\n" +
             "    Define label as Cast make-label on (warren).\n" +
             "    State label.\n" +
             "Done."));
@@ -7877,10 +7877,10 @@ public class InterpreterTests
     {
         // Two sequential With blocks don't interfere with each other.
         Assert.Equal("first\nsecond", Run(
-            "With a rabbit alpha:\n" +
+            "Pull a rabbit as alpha.\n" +
             "    State \"first\".\n" +
             "Done.\n" +
-            "With a rabbit beta:\n" +
+            "Pull a rabbit as beta.\n" +
             "    State \"second\".\n" +
             "Done."));
     }
@@ -7891,7 +7891,7 @@ public class InterpreterTests
         // Returning a rabbit from a function is a static type error (downward-only rule).
         Assert.Throws<TypeException>(() => Run(
             "Bind text to escape-rabbit:\n" +
-            "    With a rabbit warren:\n" +
+            "    Pull a rabbit as warren.\n" +
             "        Return warren.\n" +
             "    Done.\n" +
             "    Return \"unreachable\".\n" +
@@ -7904,7 +7904,7 @@ public class InterpreterTests
         // Storing a series from inside a rabbit into an outer series is a static type error.
         Assert.Throws<TypeException>(() => Run(
             "Define outer as a series of series of number with ().\n" +
-            "With a rabbit warren:\n" +
+            "Pull a rabbit as warren.\n" +
             "    Define inner as a series of number with (1, 2, 3).\n" +
             "    Add inner to outer.\n" +
             "Done."));
@@ -7916,7 +7916,7 @@ public class InterpreterTests
         // Reassigning an outer variable to a rabbit-scoped series is a static type error.
         Assert.Throws<TypeException>(() => Run(
             "Define outer as a series of number with (1, 2, 3).\n" +
-            "With a rabbit warren:\n" +
+            "Pull a rabbit as warren.\n" +
             "    Define inner as a series of number with (4, 5, 6).\n" +
             "    outer becomes inner.\n" +
             "Done."));
@@ -7928,7 +7928,7 @@ public class InterpreterTests
         // Value types (numbers) are exempt from the region store check.
         Assert.Equal("42", Run(
             "Define outer as a series of number with ().\n" +
-            "With a rabbit warren:\n" +
+            "Pull a rabbit as warren.\n" +
             "    Define x as 42.\n" +
             "    Add x to outer.\n" +
             "Done.\n" +
@@ -7940,7 +7940,7 @@ public class InterpreterTests
     {
         // Both container and value defined in the same rabbit block — no error.
         Assert.Equal("ok", Run(
-            "With a rabbit warren:\n" +
+            "Pull a rabbit as warren.\n" +
             "    Define xs as a series of number with (1, 2, 3).\n" +
             "    Define ys as a series of series of number with ().\n" +
             "    Add xs to ys.\n" +
@@ -7953,9 +7953,9 @@ public class InterpreterTests
     {
         // A value from an inner rabbit cannot escape into the outer rabbit's containers.
         Assert.Throws<TypeException>(() => Run(
-            "With a rabbit outer:\n" +
+            "Pull a rabbit as outer.\n" +
             "    Define outer-ys as a series of series of number with ().\n" +
-            "    With a rabbit inner:\n" +
+            "    Pull a rabbit as inner.\n" +
             "        Define inner-xs as a series of number with (1, 2).\n" +
             "        Add inner-xs to outer-ys.\n" +
             "    Done.\n" +
@@ -7968,7 +7968,7 @@ public class InterpreterTests
         // A range (series) created inside the rabbit cannot be added to an outer container.
         Assert.Throws<TypeException>(() => Run(
             "Define outer as a series of series of number with ().\n" +
-            "With a rabbit warren:\n" +
+            "Pull a rabbit as warren.\n" +
             "    Define inner as range 1 to 3.\n" +
             "    Add inner to outer.\n" +
             "Done."));
@@ -7980,7 +7980,7 @@ public class InterpreterTests
         // Text is a value type — adding inner text to an outer series of text is fine.
         Assert.Equal("hello", Run(
             "Define outer as a series of text with ().\n" +
-            "With a rabbit warren:\n" +
+            "Pull a rabbit as warren.\n" +
             "    Define msg as \"hello\".\n" +
             "    Add msg to outer.\n" +
             "Done.\n" +
@@ -8433,7 +8433,8 @@ public class InterpreterTests
     {
         Assert.Equal("3", Run(
             "Pull a book on math.\n" +
-            "State math's floor of 3.7."));
+            "State math's floor of 3.7.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8441,7 +8442,8 @@ public class InterpreterTests
     {
         Assert.Equal("3", Run(
             "Pull a book on math as the m.\n" +
-            "State m's floor of 3.7."));
+            "State m's floor of 3.7.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8449,7 +8451,8 @@ public class InterpreterTests
     {
         Assert.Equal("3", Run(
             "Pull a book on math.\n" +
-            "State math's floor of 3.99."));
+            "State math's floor of 3.99.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8457,7 +8460,8 @@ public class InterpreterTests
     {
         Assert.Equal("-4", Run(
             "Pull a book on math.\n" +
-            "State math's floor of -3.1."));
+            "State math's floor of -3.1.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8465,7 +8469,8 @@ public class InterpreterTests
     {
         Assert.Equal("4", Run(
             "Pull a book on math.\n" +
-            "State math's ceiling of 3.01."));
+            "State math's ceiling of 3.01.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8473,7 +8478,8 @@ public class InterpreterTests
     {
         Assert.Equal("-3", Run(
             "Pull a book on math.\n" +
-            "State math's ceiling of -3.9."));
+            "State math's ceiling of -3.9.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8481,7 +8487,8 @@ public class InterpreterTests
     {
         Assert.Equal("3", Run(
             "Pull a book on math.\n" +
-            "State math's round of 2.5."));
+            "State math's round of 2.5.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8489,7 +8496,8 @@ public class InterpreterTests
     {
         Assert.Equal("-3", Run(
             "Pull a book on math.\n" +
-            "State math's round of -2.5."));
+            "State math's round of -2.5.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8497,7 +8505,8 @@ public class InterpreterTests
     {
         Assert.Equal("5", Run(
             "Pull a book on math.\n" +
-            "State math's absolute value of 5."));
+            "State math's absolute value of 5.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8505,7 +8514,8 @@ public class InterpreterTests
     {
         Assert.Equal("7", Run(
             "Pull a book on math.\n" +
-            "State math's absolute value of -7."));
+            "State math's absolute value of -7.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8514,7 +8524,8 @@ public class InterpreterTests
         Assert.Equal("3", Run(
             "Pull a book on math.\n" +
             "Define r as math's square root of 9.\n" +
-            "State (r but void is 0) converted to text."));
+            "State (r but void is 0) converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8523,7 +8534,8 @@ public class InterpreterTests
         Assert.Equal("void", Run(
             "Pull a book on math.\n" +
             "Define r as math's square root of -1.\n" +
-            "If r is void, state \"void\". Otherwise, state \"not void\"."));
+            "If r is void, state \"void\". Otherwise, state \"not void\".\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8532,7 +8544,8 @@ public class InterpreterTests
         // log(1) = 0 exactly; unwrap the voidable and check
         Assert.Equal("0", Run(
             "Pull a book on math.\n" +
-            "State (math's log of 1 but void is -1) converted to text."));
+            "State (math's log of 1 but void is -1) converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8541,7 +8554,8 @@ public class InterpreterTests
         Assert.Equal("void", Run(
             "Pull a book on math.\n" +
             "Define r as math's log of 0.\n" +
-            "If r is void, state \"void\". Otherwise, state \"not void\"."));
+            "If r is void, state \"void\". Otherwise, state \"not void\".\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8550,7 +8564,8 @@ public class InterpreterTests
         Assert.Equal("void", Run(
             "Pull a book on math.\n" +
             "Define r as math's log of -5.\n" +
-            "If r is void, state \"void\". Otherwise, state \"not void\"."));
+            "If r is void, state \"void\". Otherwise, state \"not void\".\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8559,7 +8574,8 @@ public class InterpreterTests
         Assert.Equal("8", Run(
             "Pull a book on math.\n" +
             "Define r as math's power of (2, 3).\n" +
-            "State (r but void is 0) converted to text."));
+            "State (r but void is 0) converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8568,7 +8584,8 @@ public class InterpreterTests
         Assert.Equal("void", Run(
             "Pull a book on math.\n" +
             "Define r as math's power of (-1, 0.5).\n" +
-            "If r is void, state \"void\". Otherwise, state \"not void\"."));
+            "If r is void, state \"void\". Otherwise, state \"not void\".\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8576,7 +8593,8 @@ public class InterpreterTests
     {
         Assert.Equal("yes", Run(
             "Pull a book on math.\n" +
-            "If math's pi is greater than 3.14, state \"yes\". Otherwise, state \"no\"."));
+            "If math's pi is greater than 3.14, state \"yes\". Otherwise, state \"no\".\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8584,7 +8602,8 @@ public class InterpreterTests
     {
         Assert.Equal("yes", Run(
             "Pull a book on math.\n" +
-            "If math's e is greater than 2.71, state \"yes\". Otherwise, state \"no\"."));
+            "If math's e is greater than 2.71, state \"yes\". Otherwise, state \"no\".\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8594,7 +8613,8 @@ public class InterpreterTests
         Assert.Equal("3", Run(
             "Pull a book on math.\n" +
             "Define r as math's square root of 9.\n" +
-            "State (math's floor of (r but void is 0)) converted to text."));
+            "State (math's floor of (r but void is 0)) converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8606,14 +8626,15 @@ public class InterpreterTests
             "Define num as math's log of math's e.\n" +
             "Define den as math's log of 10.\n" +
             "Define ratio as (num but void is 0) / (den but void is 1).\n" +
-            "If ratio is greater than 0.43, state \"yes\". Otherwise, state \"no\"."));
+            "If ratio is greater than 0.43, state \"yes\". Otherwise, state \"no\".\n" +
+            "Done."));
     }
 
     [Fact]
     public void Math_TypeError_UnknownBook()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Pull a book on physics."));
+            "Pull a book on physics.\nDone."));
     }
 
     [Fact]
@@ -8621,7 +8642,8 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on math.\n" +
-            "State math's cosine of 0."));
+            "State math's cosine of 0.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8629,7 +8651,8 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on math.\n" +
-            "State math's floor of \"hello\"."));
+            "State math's floor of \"hello\".\n" +
+            "Done."));
     }
 
     // ── Books / Collections — Matrix ────────────────────────────────────────────
@@ -8639,14 +8662,16 @@ public class InterpreterTests
     {
         // Pulling collections should succeed and bind under the book name.
         Assert.Equal("", Run(
-            "Pull a book on collections."));
+            "Pull a book on collections.\n" +
+            "Done."));
     }
 
     [Fact]
     public void Matrix_Pull_BindsUnderLocalName()
     {
         Assert.Equal("", Run(
-            "Pull a book on collections as col."));
+            "Pull a book on collections as col.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8655,7 +8680,8 @@ public class InterpreterTests
         // A 2×2 identity matrix — just check it constructs without error.
         Assert.Equal("", Run(
             "Pull a book on collections.\n" +
-            "Define m as a matrix with ((1, 0), (0, 1))."));
+            "Define m as a matrix with ((1, 0), (0, 1)).\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8663,7 +8689,8 @@ public class InterpreterTests
     {
         Assert.Equal("", Run(
             "Pull a book on collections.\n" +
-            "Define m as a matrix with ((1, 2, 3), (4, 5, 6), (7, 8, 9))."));
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6), (7, 8, 9)).\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8674,7 +8701,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define m as a matrix with ((1, 2), (3, 4)).\n" +
             "Define v as the item at (1, 1) of m.\n" +
-            "State v converted to text."));
+            "State v converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8684,7 +8712,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define m as a matrix with ((1, 2), (3, 4)).\n" +
             "Define v as the item at (2, 2) of m.\n" +
-            "State v converted to text."));
+            "State v converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8694,7 +8723,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define m as a matrix with ((1, 2, 3), (4, 5, 6), (7, 8, 9)).\n" +
             "Define v as the item at (2, 2) of m.\n" +
-            "State v converted to text."));
+            "State v converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8705,7 +8735,8 @@ public class InterpreterTests
             "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
             "Define v as the item at (1, 3) of m.\n" +
             "Define w as v * 2.\n" +
-            "State w converted to text."));
+            "State w converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8717,7 +8748,8 @@ public class InterpreterTests
             "Define r as 3.\n" +
             "Define c as 2.\n" +
             "Define v as the item at (r, c) of m.\n" +
-            "State v converted to text."));
+            "State v converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8727,7 +8759,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define m as a matrix with ((-1, -2), (-3, -5)).\n" +
             "Define v as the item at (2, 2) of m.\n" +
-            "State v converted to text."));
+            "State v converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8741,7 +8774,8 @@ public class InterpreterTests
             "Define mat2 as a matrix with ((5, 6), (7, 8)).\n" +
             "Define s as a series with (mat1, mat2).\n" +
             "Define v as the item at (1, 2) of first of s.\n" +
-            "State v converted to text."));
+            "State v converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8757,7 +8791,8 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on collections.\n" +
-            "Define m as a matrix with ((1, 2), (3, 4, 5))."));
+            "Define m as a matrix with ((1, 2), (3, 4, 5)).\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8765,7 +8800,8 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on collections.\n" +
-            "Define m as a matrix with ((1, \"hello\"), (3, 4))."));
+            "Define m as a matrix with ((1, \"hello\"), (3, 4)).\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8775,7 +8811,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define m as a matrix with ((1, 2), (3, 4)).\n" +
             "Define v as the item at (3, 1) of m.\n" +
-            "State v converted to text."));
+            "State v converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8785,7 +8822,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define m as a matrix with ((1, 2), (3, 4)).\n" +
             "Define v as the item at (1, 5) of m.\n" +
-            "State v converted to text."));
+            "State v converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8798,7 +8836,8 @@ public class InterpreterTests
             "    return the item at (2, 2) of m.\n" +
             "Done.\n" +
             "Define grid as a matrix with ((1, 2, 3), (4, 5, 6), (7, 8, 9)).\n" +
-            "State cast get-center on (grid) converted to text."));
+            "State cast get-center on (grid) converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8810,10 +8849,12 @@ public class InterpreterTests
             "Bind matrix to make-identity, given ():\n" +
             "    Pull a book on collections.\n" +
             "    return a matrix with ((1, 0), (0, 1)).\n" +
+            "    Done.\n" +
             "Done.\n" +
             "Define result as cast make-identity.\n" +
             "Define v as the item at (1, 1) of result.\n" +
-            "State v converted to text."));
+            "State v converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8826,11 +8867,13 @@ public class InterpreterTests
             "Bind matrix to identity, given (the matrix m):\n" +
             "    Pull a book on collections.\n" +
             "    return m.\n" +
+            "    Done.\n" +
             "Done.\n" +
             "Define g as a matrix with ((1, 2), (3, 7)).\n" +
             "Define r as cast identity on (g).\n" +
             "Define v as the item at (2, 2) of r.\n" +
-            "State v converted to text."));
+            "State v converted to text.\n" +
+            "Done."));
     }
 
     // ── Matrix — dimension queries ────────────────────────────────────────────
@@ -8841,7 +8884,8 @@ public class InterpreterTests
         Assert.Equal("3", Run(
             "Pull a book on collections.\n" +
             "Define m as a matrix with ((1, 2, 3), (4, 5, 6), (7, 8, 9)).\n" +
-            "State the rows of m converted to text."));
+            "State the rows of m converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8850,7 +8894,8 @@ public class InterpreterTests
         Assert.Equal("3", Run(
             "Pull a book on collections.\n" +
             "Define m as a matrix with ((1, 2, 3), (4, 5, 6), (7, 8, 9)).\n" +
-            "State the columns of m converted to text."));
+            "State the columns of m converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8860,7 +8905,8 @@ public class InterpreterTests
         Assert.Equal("2", Run(
             "Pull a book on collections.\n" +
             "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
-            "State the rows of m converted to text."));
+            "State the rows of m converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8870,7 +8916,8 @@ public class InterpreterTests
         Assert.Equal("3", Run(
             "Pull a book on collections.\n" +
             "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
-            "State the columns of m converted to text."));
+            "State the columns of m converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8883,7 +8930,8 @@ public class InterpreterTests
             "    return the rows of mat.\n" +
             "Done.\n" +
             "Define m as a matrix with ((1, 2), (3, 4)).\n" +
-            "State cast get-rows on (m) converted to text."));
+            "State cast get-rows on (m) converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8895,7 +8943,8 @@ public class InterpreterTests
             "    return the columns of mat.\n" +
             "Done.\n" +
             "Define m as a matrix with ((10, 20, 30, 40), (50, 60, 70, 80)).\n" +
-            "State cast get-cols on (m) converted to text."));
+            "State cast get-cols on (m) converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8925,7 +8974,8 @@ public class InterpreterTests
             "Define m as a matrix with ((1, 2), (3, 4)).\n" +
             "Define t as cast collections's transpose of (m).\n" +
             "Define v as the item at (1, 2) of t.\n" +
-            "State v converted to text."));
+            "State v converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8938,7 +8988,8 @@ public class InterpreterTests
             "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
             "Define t as cast collections's transpose of (m).\n" +
             "Define v as the item at (1, 2) of t.\n" +
-            "State v converted to text."));
+            "State v converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8949,7 +9000,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
             "Define t as cast collections's transpose of (m).\n" +
-            "State the rows of t converted to text."));
+            "State the rows of t converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8959,7 +9011,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
             "Define t as cast collections's transpose of (m).\n" +
-            "State the columns of t converted to text."));
+            "State the columns of t converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8970,7 +9023,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
             "Define t as cast collections's transpose of (m).\n" +
-            "State the rows of m converted to text."));
+            "State the rows of m converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8983,7 +9037,8 @@ public class InterpreterTests
             "Define t as cast collections's transpose of (m).\n" +
             "Define tt as cast collections's transpose of (t).\n" +
             "Define v as the item at (2, 3) of tt.\n" +
-            "State v converted to text."));
+            "State v converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -8992,7 +9047,8 @@ public class InterpreterTests
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on collections.\n" +
             "Define n as 42.\n" +
-            "Define t as cast collections's transpose of (n)."));
+            "Define t as cast collections's transpose of (n).\n" +
+            "Done."));
     }
 
     // ── Matrix — sized constructor ──────────────────────────────────────────────
@@ -9003,7 +9059,8 @@ public class InterpreterTests
         Assert.Equal("3", Run(
             "Pull a book on collections.\n" +
             "Define g as a matrix with 3 by 4.\n" +
-            "State the rows of g converted to text."));
+            "State the rows of g converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9012,7 +9069,8 @@ public class InterpreterTests
         Assert.Equal("4", Run(
             "Pull a book on collections.\n" +
             "Define g as a matrix with 3 by 4.\n" +
-            "State the columns of g converted to text."));
+            "State the columns of g converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9021,7 +9079,8 @@ public class InterpreterTests
         Assert.Equal("0", Run(
             "Pull a book on collections.\n" +
             "Define g as a matrix with 2 by 3.\n" +
-            "State the item at (1, 1) of g converted to text."));
+            "State the item at (1, 1) of g converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9031,7 +9090,8 @@ public class InterpreterTests
         Assert.Equal("0", Run(
             "Pull a book on collections.\n" +
             "Define g as a matrix with 2 by 3.\n" +
-            "State the item at (2, 3) of g converted to text."));
+            "State the item at (2, 3) of g converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9040,7 +9100,8 @@ public class InterpreterTests
         Assert.Equal("7", Run(
             "Pull a book on collections.\n" +
             "Define g as a matrix with 2 by 2 filled with 7.\n" +
-            "State the item at (1, 1) of g converted to text."));
+            "State the item at (1, 1) of g converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9050,7 +9111,8 @@ public class InterpreterTests
         Assert.Equal("7", Run(
             "Pull a book on collections.\n" +
             "Define g as a matrix with 2 by 2 filled with 7.\n" +
-            "State the item at (2, 2) of g converted to text."));
+            "State the item at (2, 2) of g converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9059,7 +9121,8 @@ public class InterpreterTests
         Assert.Equal("-1.5", Run(
             "Pull a book on collections.\n" +
             "Define g as a matrix with 2 by 2 filled with -1.5.\n" +
-            "State the item at (1, 2) of g converted to text."));
+            "State the item at (1, 2) of g converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9069,7 +9132,8 @@ public class InterpreterTests
         Assert.Equal("0", Run(
             "Pull a book on collections.\n" +
             "Define g as a matrix with 3 by 3 filled with 0.\n" +
-            "State the item at (2, 2) of g converted to text."));
+            "State the item at (2, 2) of g converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9078,7 +9142,8 @@ public class InterpreterTests
         Assert.Equal("1", Run(
             "Pull a book on collections.\n" +
             "Define g as a matrix with 1 by 1.\n" +
-            "State the rows of g converted to text."));
+            "State the rows of g converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9089,7 +9154,8 @@ public class InterpreterTests
             "Define r as 2.\n" +
             "Define c as 3.\n" +
             "Define g as a matrix with r by c.\n" +
-            "State the rows of g converted to text."));
+            "State the rows of g converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9104,7 +9170,8 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on collections.\n" +
-            "Define g as a matrix with 0 by 4."));
+            "Define g as a matrix with 0 by 4.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9112,7 +9179,8 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on collections.\n" +
-            "Define g as a matrix with -1 by 3."));
+            "Define g as a matrix with -1 by 3.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9120,7 +9188,8 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on collections.\n" +
-            "Define g as a matrix with 2.5 by 4."));
+            "Define g as a matrix with 2.5 by 4.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9128,7 +9197,8 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on collections.\n" +
-            "Define g as a matrix with 2 by 2 filled with \"oops\"."));
+            "Define g as a matrix with 2 by 2 filled with \"oops\".\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9137,7 +9207,8 @@ public class InterpreterTests
         Assert.Throws<RuntimeException>(() => Run(
             "Pull a book on collections.\n" +
             "Define r as 0.\n" +
-            "Define g as a matrix with r by 4."));
+            "Define g as a matrix with r by 4.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9146,7 +9217,8 @@ public class InterpreterTests
         Assert.Throws<RuntimeException>(() => Run(
             "Pull a book on collections.\n" +
             "Define r as 2.5.\n" +
-            "Define g as a matrix with r by 4."));
+            "Define g as a matrix with r by 4.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9157,7 +9229,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define g as a matrix with 2 by 3 filled with 1.\n" +
             "Define t as cast collections's transpose of (g).\n" +
-            "State the columns of t converted to text."));
+            "State the columns of t converted to text.\n" +
+            "Done."));
     }
 
     // ── Layer 1: Union types ────────────────────────────────────────────────────
@@ -9377,6 +9450,7 @@ public class InterpreterTests
             "Define r as math's square root of (4).\n" +
             "If r is not void:\n" +
             "    State r converted to text.\n" +
+            "Done.\n" +
             "Done."));
     }
 
@@ -9503,6 +9577,7 @@ public class InterpreterTests
             "Define r as math's square root of (25).\n" +
             "If r is not void:\n" +
             "    State r converted to text.\n" +
+            "Done.\n" +
             "Done."));
     }
 
@@ -9515,7 +9590,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define xs as a series with (3, 1, 2).\n" +
             "Define r as cast collections's minimum of (xs) but void is 0.\n" +
-            "State r converted to text."));
+            "State r converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9525,7 +9601,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define xs as a series with (7).\n" +
             "Define r as cast collections's minimum of (xs) but void is 0.\n" +
-            "State r converted to text."));
+            "State r converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9535,7 +9612,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define xs as a series of number with ().\n" +
             "Define r as cast collections's minimum of (xs).\n" +
-            "If r is void, State \"none\"."));
+            "If r is void, State \"none\".\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9544,7 +9622,8 @@ public class InterpreterTests
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on collections.\n" +
             "Define xs as a series with (\"a\", \"b\").\n" +
-            "State cast collections's minimum of (xs) converted to text."));
+            "State cast collections's minimum of (xs) converted to text.\n" +
+            "Done."));
     }
 
     // ── Collections — maximum ────────────────────────────────────────────────
@@ -9556,7 +9635,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define xs as a series with (3, 9, 5).\n" +
             "Define r as cast collections's maximum of (xs) but void is 0.\n" +
-            "State r converted to text."));
+            "State r converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9566,7 +9646,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define xs as a series of number with ().\n" +
             "Define r as cast collections's maximum of (xs) but void is 0.\n" +
-            "State r converted to text."));
+            "State r converted to text.\n" +
+            "Done."));
     }
 
     // ── Collections — average ────────────────────────────────────────────────
@@ -9579,7 +9660,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define xs as a series with (1, 2, 3).\n" +
             "Define r as cast collections's average of (xs) but void is 0.\n" +
-            "State r converted to text."));
+            "State r converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9590,7 +9672,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define xs as a series with (1, 2).\n" +
             "Define r as cast collections's average of (xs) but void is 0.\n" +
-            "State r converted to text."));
+            "State r converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9600,7 +9683,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define xs as a series of number with ().\n" +
             "Define r as cast collections's average of (xs).\n" +
-            "If r is void, State \"void\"."));
+            "If r is void, State \"void\".\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9609,7 +9693,8 @@ public class InterpreterTests
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on collections.\n" +
             "Define xs as a series with (\"a\").\n" +
-            "State cast collections's average of (xs) converted to text."));
+            "State cast collections's average of (xs) converted to text.\n" +
+            "Done."));
     }
 
     // ── Collections — unique ─────────────────────────────────────────────────
@@ -9622,7 +9707,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define xs as a series with (3, 1, 3, 2, 1).\n" +
             "Define r as cast collections's unique of (xs).\n" +
-            "State r."));
+            "State r.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9632,7 +9718,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define xs as a series with (1, 2, 3).\n" +
             "Define r as cast collections's unique of (xs).\n" +
-            "State r."));
+            "State r.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9642,7 +9729,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define xs as a series of number with ().\n" +
             "Define r as cast collections's unique of (xs).\n" +
-            "State r."));
+            "State r.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9652,7 +9740,8 @@ public class InterpreterTests
             "Pull a book on collections.\n" +
             "Define xs as a series with (\"hello\", \"world\", \"hello\").\n" +
             "Define r as cast collections's unique of (xs).\n" +
-            "State r."));
+            "State r.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9664,7 +9753,8 @@ public class InterpreterTests
             "Define xs as a series with (3, 1, 3, 2).\n" +
             "Define u as cast collections's unique of (xs).\n" +
             "Define r as cast collections's minimum of (u) but void is 0.\n" +
-            "State r converted to text."));
+            "State r converted to text.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -9672,7 +9762,8 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on collections.\n" +
-            "State cast collections's unique of (42) converted to text."));
+            "State cast collections's unique of (42) converted to text.\n" +
+            "Done."));
     }
 
     // ── Getters & Setters ─────────────────────────────────────────────────────
@@ -10499,7 +10590,7 @@ public class InterpreterTests
     public void Chance_Pull_BindsUnderBookName()
     {
         // Just pulling the book shouldn't error; chance is a registered book.
-        Assert.Equal("ok", Run("Pull a book on chance.\nState \"ok\"."));
+        Assert.Equal("ok", Run("Pull a book on chance.\nState \"ok\".\nDone."));
     }
 
     [Fact]
@@ -10511,7 +10602,8 @@ public class InterpreterTests
             "Seed the chance with 42.\n" +
             "Define r as a random number from 1 to 6.\n" +
             "If r is greater than 0 and r is less than 7, State \"in range\".\n" +
-            "Otherwise, State \"out of range\".");
+            "Otherwise, State \"out of range\".\n" +
+            "Done.");
         Assert.Equal("in range", result);
     }
 
@@ -10522,7 +10614,8 @@ public class InterpreterTests
         const string src =
             "Pull a book on chance.\n" +
             "Seed the chance with 7.\n" +
-            "State a random number from 1 to 100.";
+            "State a random number from 1 to 100.\n" +
+            "Done.";
         Assert.Equal(Run(src), Run(src));
     }
 
@@ -10531,8 +10624,8 @@ public class InterpreterTests
     {
         // Different seeds almost certainly produce different values.
         // Using a range of 1..1000000 to make collision probability negligible.
-        var r1 = Run("Pull a book on chance.\nSeed the chance with 1.\nState a random number from 1 to 1000000.");
-        var r2 = Run("Pull a book on chance.\nSeed the chance with 2.\nState a random number from 1 to 1000000.");
+        var r1 = Run("Pull a book on chance.\nSeed the chance with 1.\nState a random number from 1 to 1000000.\nDone.");
+        var r2 = Run("Pull a book on chance.\nSeed the chance with 2.\nState a random number from 1 to 1000000.\nDone.");
         Assert.NotEqual(r1, r2);
     }
 
@@ -10542,7 +10635,8 @@ public class InterpreterTests
         // When low == high the only possible result is that value.
         Assert.Equal("5", Run(
             "Pull a book on chance.\n" +
-            "State a random number from 5 to 5."));
+            "State a random number from 5 to 5.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -10550,7 +10644,8 @@ public class InterpreterTests
     {
         Assert.Throws<RuntimeException>(() => Run(
             "Pull a book on chance.\n" +
-            "State a random number from 6 to 1."));
+            "State a random number from 6 to 1.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -10562,7 +10657,8 @@ public class InterpreterTests
             "Define xs as a series of number with (10, 20, 30).\n" +
             "Define picked as a random item from xs but void is 0.\n" +
             "If picked is 10 or picked is 20 or picked is 30, State \"ok\".\n" +
-            "Otherwise, State \"bad\".");
+            "Otherwise, State \"bad\".\n" +
+            "Done.");
         Assert.Equal("ok", result);
     }
 
@@ -10573,7 +10669,8 @@ public class InterpreterTests
             "Pull a book on chance.\n" +
             "Define xs as a series of text with ().\n" +
             "Define picked as a random item from xs but void is \"empty\".\n" +
-            "State picked."));
+            "State picked.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -10585,7 +10682,8 @@ public class InterpreterTests
             "Seed the chance with 5.\n" +
             "Define xs as a series of number with (1, 2, 3).\n" +
             "Define ys as randomly shuffled xs.\n" +
-            "State the number of ys."));
+            "State the number of ys.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -10599,6 +10697,7 @@ public class InterpreterTests
             "Define ys as randomly shuffled xs.\n" +
             "For each x in xs, repeat:\n" +
             "    State x.\n" +
+            "Done.\n" +
             "Done."));
     }
 
@@ -10609,7 +10708,8 @@ public class InterpreterTests
             "Pull a book on chance.\n" +
             "Define xs as a series of number with (42).\n" +
             "Define ys as randomly shuffled xs.\n" +
-            "State the first of ys."));
+            "State the first of ys.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -10620,7 +10720,8 @@ public class InterpreterTests
             "Pull a book on chance.\n" +
             "Seed the chance with 123.\n" +
             "If a random guess, State \"true\".\n" +
-            "Otherwise, State \"false\".");
+            "Otherwise, State \"false\".\n" +
+            "Done.");
         Assert.True(result is "true" or "false");
     }
 
@@ -10635,6 +10736,7 @@ public class InterpreterTests
             "While i is less than 6, repeat:\n" +
             "    State a random number from 1 to 100.\n" +
             "    i becomes i + 1.\n" +
+            "Done.\n" +
             "Done.";
         Assert.Equal(Run(src), Run(src));
     }
@@ -10664,7 +10766,8 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on chance.\n" +
-            "State a random number from \"one\" to 6."));
+            "State a random number from \"one\" to 6.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -10672,7 +10775,8 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on chance.\n" +
-            "State a random item from 42."));
+            "State a random item from 42.\n" +
+            "Done."));
     }
 
     [Fact]
@@ -10680,6 +10784,7 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Pull a book on chance.\n" +
-            "State randomly shuffled 42."));
+            "State randomly shuffled 42.\n" +
+            "Done."));
     }
 }

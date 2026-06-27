@@ -4,7 +4,7 @@ public sealed partial class TypeChecker
 {
     // ── Rabbits (block-scoped memory regions) ────────────────────────────────
 
-    // "With a rabbit <name>: ... Done."
+    // "Pull a rabbit [as <name>]. ... Done."
     // Increments _rabbitDepth so every variable defined inside inherits that depth.
     // Downward-only enforcement:
     //   • Returning the rabbit → caught in CheckReturn (RabbitType guard).
@@ -13,16 +13,17 @@ public sealed partial class TypeChecker
     // Outward-only store invariant (CheckRegionStore):
     //   • Called at every store site (Becomes, SeriesAdd, SeriesSet, MapSet, field sets).
     //   • source.depth > target.depth → error (shorter-lived into longer-lived).
-    private void CheckWithRabbit(WithRabbitStatement wrs)
+    private void CheckPullRabbit(PullRabbitStatement prs)
     {
         _rabbitDepth++;
         EnterScope();
-        Scope[wrs.Name] = new TypeInfo(
-            RabbitType.Instance,
-            new VariableReference(wrs.Name, wrs.Line),
-            wrs.Line,
-            RabbitDepth: _rabbitDepth);
-        try { foreach (var s in wrs.Body) CheckStatement(s); }
+        if (prs.Name != null)
+            Scope[prs.Name] = new TypeInfo(
+                RabbitType.Instance,
+                new VariableReference(prs.Name, prs.Line),
+                prs.Line,
+                RabbitDepth: _rabbitDepth);
+        try { foreach (var s in prs.Body) CheckStatement(s); }
         finally { ExitScope(); _rabbitDepth--; }
     }
 

@@ -590,8 +590,8 @@ public sealed partial class Interpreter
                 ExecuteWithOpen(wos);
                 break;
 
-            case WithRabbitStatement wrs:
-                ExecuteWithRabbit(wrs);
+            case PullRabbitStatement prs:
+                ExecutePullRabbit(prs);
                 break;
 
             case PullStatement ps:

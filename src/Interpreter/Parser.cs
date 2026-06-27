@@ -58,9 +58,7 @@ public sealed class Parser
             TokenType.In         => ParseMapSetStatement(),
             TokenType.Write      => ParseWriteStatement(),
             TokenType.Append     => ParseFileWriteStatement(),
-            TokenType.With       => PeekAfterCurrent() == TokenType.Rabbit
-                                     ? ParseWithRabbitStatement()
-                                     : ParseWithOpenStatement(),
+            TokenType.With       => ParseWithOpenStatement(),
             TokenType.Pull       => ParsePullStatement(),
             TokenType.AcknowledgeKw => ParseAcknowledgeInterruptStatement(),
             TokenType.GetKw => ParseGetterUntoDeclaration(),
@@ -1029,30 +1027,34 @@ public sealed class Parser
         return new WithOpenStatement(mode, pathExpr, bindingName, body, line);
     }
 
-    // "With a rabbit <name>: ... Done."
-    // Creates a named block-scoped region; freed at Done. Same With/lifecycle shape as streams.
-    private WithRabbitStatement ParseWithRabbitStatement()
-    {
-        var line = Advance().Line; // consume 'With'
-        SkipNoise();               // eats 'a'
-        Consume(TokenType.Rabbit); // consume 'rabbit'
-        var name = Consume(TokenType.Identifier).Lexeme;
-        Consume(TokenType.Colon);
-        _nestDepth++;
-        var body = ParseLoopBody(); // consumes Done.
-        _nestDepth--;
-        return new WithRabbitStatement(name, body, line);
-    }
-
-    // Pull a book on <name>.
-    // Pull a book on <name> as [the] <local>.
-    private PullStatement ParsePullStatement()
+    // Pull a rabbit [as <name>]. ... Done.
+    // Pull a book on <name> [as [the] <local>]. ... Done.
+    // Both forms open a Done.-delimited scope; the pulled thing is live until Done.
+    private IStatement ParsePullStatement()
     {
         var line = Consume(TokenType.Pull).Line; // consume 'Pull'
         SkipNoise();                             // eats 'a'
-        Consume(TokenType.Book);                 // consume 'book'
+
+        if (Peek().Type == TokenType.Rabbit)
+        {
+            Advance(); // consume 'rabbit'
+            SkipNoise();
+            string? name = null;
+            if (Peek().Type == TokenType.As)
+            {
+                Advance();   // consume 'as'
+                SkipNoise(); // eats optional 'the'
+                name = Consume(TokenType.Identifier).Lexeme;
+                SkipNoise();
+            }
+            Consume(TokenType.Dot);
+            var body = ParsePullBody(); // consumes Done.
+            return new PullRabbitStatement(name, body, line);
+        }
+
+        Consume(TokenType.Book); // consume 'book'
         SkipNoise();
-        Consume(TokenType.On);                   // consume 'on'
+        Consume(TokenType.On);   // consume 'on'
         SkipNoise();
         var bookName = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
@@ -1065,7 +1067,25 @@ public sealed class Parser
             SkipNoise();
         }
         Consume(TokenType.Dot);
-        return new PullStatement(bookName, localName, line);
+        var bookBody = ParsePullBody(); // consumes Done.
+        return new PullStatement(bookName, localName, bookBody, line);
+    }
+
+    // Body parser for Pull...Done. scopes. Allows zero statements (unlike ParseLoopBody).
+    private IReadOnlyList<IStatement> ParsePullBody()
+    {
+        var stmts = new List<IStatement>();
+        _nestDepth++;
+        while (true)
+        {
+            SkipNoise();
+            if (Peek().Type is TokenType.Done or TokenType.Eof) break;
+            stmts.Add(ParseStatement());
+        }
+        _nestDepth--;
+        Consume(TokenType.Done);
+        Consume(TokenType.Dot);
+        return stmts;
     }
 
     // Condition grammar (conditional context — after If / Otherwise if):
