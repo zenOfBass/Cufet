@@ -1,9 +1,9 @@
 Bind fact to is-safe, given (the series of number board, the number col):
-    Define row      as the number of board + 1.
-    Define i        as 1.
+    Define row as the number of board + 1.
+    Define i as 1.
     While i is less than row, repeat:
         Define other-col as item i of board.
-        Define diff      as row - i.
+        Define diff as row - i.
         If other-col is col:
             Return 1 = 0.
         Done.
