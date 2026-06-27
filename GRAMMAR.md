@@ -248,64 +248,66 @@ at both type-check and runtime.
 ```
 Define object stack with (the series of number items):
     Bind void to push, given (the number val):
-        Define my-items as one's items.   ← get the field
-        Add val to my-items.              ← mutate via the local alias
+        Add val to one's items.
     Done.
 
     Bind number to pop:
-        Define my-items as one's items.
-        Define top as the last of my-items.
-        Remove the last item from my-items.
+        Define top as the last of one's items.
+        Remove the last item from one's items.
         Return top.
     Done.
 
     Bind fact to is-empty:
-        If the number of one's items is 0:   ← WRONG: SeriesLength takes a bare name
-            Return true.
-        Done.
-        Return false.
+        Return the number of one's items is 0.
     Done.
 Done.
 ```
 
-Wait — `the number of one's items` fails. See the next section for why.
+Series operations take `one's field` directly — no local alias needed.
 
-### Local alias pattern for series operations
+### Local alias pattern (no longer needed for series)
 
-Several series operations take a **bare variable name** (not an expression). For
-those, extract the field into a local variable first:
+Series operations used to require extracting a field into a local variable first.
+That restriction is gone: **all** series operations now accept any expression that
+evaluates to a series, including `one's field`, `alice's cards`, etc.
 
+The old pattern:
 ```
-Define my-items as one's items.    ← extract; my-items is the same List reference
-Add val to my-items.               ← OK (bare name)
-Remove the last item from my-items.← OK (bare name)
-the number of my-items             ← OK (bare name)
-```
-
-The local alias shares the **same reference** as the object's field, so all
-mutations are immediately visible through `one` — no write-back needed.
-
-### Map operations: `one's field` is fine directly
-
-Map operations take `IExpression` for the map argument, so possessive access works
-without a local alias:
-
-```
-In one's adjacency, the entry for n becomes fresh.          ← OK
-Define val as the entry for key in one's adjacency.         ← OK
-If one's cache has a key for key:                           ← OK
+Define my-items as one's items.    ← was required; now unnecessary
+Add val to my-items.
 ```
 
-### Series read expressions: `one's field` is fine directly
+Is now simply:
+```
+Add val to one's items.
+```
 
-`the first of`, `the last of`, `item N of`, and `SeriesAccess` generally all take
-an `IExpression` for the target, so these work:
+Local aliases are still fine to write if you prefer them for clarity (e.g. when
+you reference the same field many times in one method), but they are not required.
+
+### Map and series operations: `one's field` works everywhere
+
+Both map and series operations take `IExpression` for the container argument.
+Possessive access works without any local alias:
 
 ```
-Define top as the last of one's items.         ← OK
-Define val as item 3 of one's items.           ← OK
-For each x in one's nodes, repeat: ...         ← OK (ForEach takes IExpression)
+In one's adjacency, the entry for n becomes fresh.          ← OK (map set)
+Define val as the entry for key in one's adjacency.         ← OK (map read)
+If one's cache has a key for key:                           ← OK (map check)
+
+Add card to one's cards.                                    ← OK (series add)
+Remove first item from one's cards.                         ← OK (series remove)
+item i of one's cards becomes updated.                      ← OK (series set)
+the number of one's cards                                   ← OK (series length)
+Define top as the first of one's items.                     ← OK (series read)
+Define val as item 3 of one's items.                        ← OK (series read)
+For each x in one's nodes, repeat: ...                      ← OK (for-each)
 ```
+
+**Mutating ops require an addressable target** — a variable or field access, not
+a computed expression. Writing `Add x to (sorted one's cards)` would mutate the
+temporary sorted copy and lose the result. The type checker catches this when the
+expression's type is not a series.
 
 ### Field mutation: `one's field becomes X`
 
@@ -321,20 +323,23 @@ This produces a `PossessiveSetStatement` and is valid in method bodies.
 
 ### Summary table
 
-| Operation | Needs local alias? | Direct `one's field` OK? |
+| Operation | Accepts expression? | Notes |
 |---|---|---|
-| `Add X to series` | **Yes** | No — bare name only |
-| `Remove item N from series` | **Yes** | No — bare name only |
-| `Remove X from series` (by value) | **Yes** | No — bare name only |
-| `series[N] becomes X` | **Yes** | No — bare name only |
-| `the number of series` | **Yes** | No — bare name only |
-| `the first/last of series` | No | Yes — IExpression |
-| `item N of series` | No | Yes — IExpression |
-| `For each x in series` | No | Yes — IExpression |
-| `In map, the entry for K becomes V` | No | Yes — IExpression for map |
-| `the entry for K in map` | No | Yes — IExpression for map |
-| `map has a key for K` | No | Yes — IExpression for map |
-| `one's field becomes X` | No | Yes — PossessiveSetStatement |
+| `Add X to series` | Yes — IExpression | target must evaluate to a series |
+| `Add X to the start of series` | Yes — IExpression | same |
+| `Add X after item N of series` | Yes — IExpression | same |
+| `Remove item N from series` | Yes — IExpression | same |
+| `Remove X from series` (by value) | Yes — IExpression | also works on maps |
+| `item N of series becomes X` | Yes — IExpression | target must be series/object/record |
+| `the number of series` | Yes — IExpression | same |
+| `the first/last of series` | Yes — IExpression | read |
+| `item N of series` | Yes — IExpression | read |
+| `For each x in series` | Yes — IExpression | read |
+| `sorted`/`in reverse` on series | Yes — IExpression | read |
+| `In map, the entry for K becomes V` | Yes — IExpression | map mutation |
+| `the entry for K in map` | Yes — IExpression | map read |
+| `map has a key for K` | Yes — IExpression | map read |
+| `one's field becomes X` | Yes — PossessiveSetStatement | field mutation |
 
 ---
 
@@ -443,49 +448,46 @@ While (cast is-empty on pq) is false, repeat:  ← RUNTIME ERROR: 'false' not de
 
 ## 4. Which operations accept expressions vs bare names
 
-This section lists every place the parser requires a bare identifier (variable
-name or field name) where you might want to pass `one's field` or another
-complex expression.
+Every series and map operation now accepts an **IExpression** for the container
+argument — `one's field`, `alice's cards`, a variable name, or any expression that
+evaluates to the right type. There are no bare-name-only positions left in the
+series/map layer.
 
-### Series operations — bare name required (string parameter in AST)
+### Series operations — all accept IExpression
 
-| Syntax | The bare-name position |
+| Syntax | Read or mutate? |
 |---|---|
-| `Add X to name.` | `name` |
-| `Add X to the start of name.` | `name` |
-| `Add X after item N of name.` | `name` |
-| `Remove the last item from name.` | `name` |
-| `Remove item N from name.` | `name` |
-| `Remove X from name.` (by value) | `name` |
-| `item N of name becomes X.` | `name` |
-| `the number of name` | `name` |
+| `Add X to expr.` | mutate |
+| `Add X to the start of expr.` | mutate |
+| `Add X after item N of expr.` | mutate |
+| `Remove the last item from expr.` | mutate |
+| `Remove item N from expr.` | mutate |
+| `Remove X from expr.` (by value) | mutate |
+| `item N of expr becomes X.` | mutate |
+| `the number of expr` | read |
+| `the first/last of expr` | read |
+| `item N of expr` | read |
+| `For each x in expr, repeat:` | read |
+| `expr sorted` / `expr sorted by field` / `in reverse` | read |
 
-For all of these, if your series is an object field, **extract it first**:
+**Mutating ops** (`Add`, `Remove`, `item N of ... becomes`) require an
+addressable target — a variable or field reference (`my-series`, `one's cards`,
+`alice's hand`), not a computed expression. Passing a non-series expression
+(e.g. a number) is a **static type error**:
+
 ```
-Define my-items as one's items.
-Add x to my-items.
+Add 1 to (x + y).   ← TYPE ERROR: (x + y) is not a series
 ```
-
-### Series operations — IExpression (safe with `one's field`)
-
-| Syntax | Notes |
-|---|---|
-| `the first of expr` | SeriesAccess |
-| `the last of expr` | SeriesAccess |
-| `item N of expr` | SeriesAccess |
-| `For each x in expr, repeat:` | Series is IExpression |
-| `sorted by field` on expr | SortExpression |
-| `in reverse` on expr | SortExpression |
 
 ### Map operations — all accept IExpression
 
-| Syntax | Map position |
+| Syntax | Read or mutate? |
 |---|---|
-| `In map, the entry for K becomes V.` | IExpression |
-| `the entry for K in map` | IExpression |
-| `map has a key for K` | IExpression |
-| `the size of map` | IExpression |
-| `For each pair in map, repeat:` | IExpression |
+| `In expr, the entry for K becomes V.` | mutate |
+| `the entry for K in expr` | read |
+| `expr has a key for K` | read |
+| `the size of expr` | read |
+| `For each pair in expr, repeat:` | read |
 
 ---
 
@@ -541,13 +543,11 @@ State c's label.                ← "Ace of Spades"
 State the label of c.           ← same thing
 ```
 
-The same bare-name constraint applies inside getter bodies. `the number of one's X`
-fails — extract to a local first:
+Getters access fields through `one` exactly like methods:
 
 ```
 Get count as number:
-    Define my-items as one's items.     ← extract; then use bare name
-    Return the number of my-items.
+    Return the number of one's items.
 Done.
 ```
 
@@ -652,8 +652,7 @@ collection type, use `count`, `length`, or `card-count` instead:
 
 ```
 Get count as number:                      ← OK
-    Define my-cards as one's cards.
-    Return the number of my-cards.
+    Return the number of one's cards.
 Done.
 
 Get size as number:                       ← PARSE ERROR: 'size' is reserved
