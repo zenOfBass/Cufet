@@ -272,6 +272,27 @@ language is considered stable.
   static error. Infallible: `return a failure` in the body is a static error. See design
   decisions for the close/flush companion convention and the ownership rule.
 
+**Operator overloading** *(complete)*
+- User-defined types may declare behavior for `+`, `-`, `*`, etc. via `Bind <return-type> to operator overload, given (<params>):`. Overloaded operators may be **fallible** (`number or failure`) — the open design question whose answer was load-bearing for matrix arithmetic. Strict-fallible rule enforced: an expression whose type is a `failure T` must be inside a `Try to:` block or use `but on failure <default>`, or the type checker raises a static error. Same pattern as user-declared fallible functions.
+
+**Books — specialized capability via `Pull`** *(complete)*
+- `Pull a book on <name>.` — scope-local import; the book appears as a typed variable (`BookType`) for the duration of the enclosing scope. `Pull a book on math as the m.` binds under a custom local alias. **Plural form:** `Pull books on <X>, <Y>, and <Z>.` pulls multiple books in one statement.
+- **`Pull…Done.` unification** — books, rabbits, and other acquired resources use a unified `Pull <thing>: … Done.` scoped-block syntax. `Pull <thing>.` (dot) is the scope-local form (available for the rest of the enclosing block). Both forms coexist.
+- **Type-introducing books** — books can register types (not just functions/constants) into the pulling scope. `BookType.IntroducedTypes` carries the map; `CheckPullStatement` registers each via `RegisterScopedType` in a `_typeScopes` parallel scope chain. Only the pulling scope sees the type; values of that type travel freely as first-class values after that.
+- **Three bundled books:**
+  - **`math`** — pure functions: `absolute value`, `square root`, `floor`, `ceiling`, `round`, `log`, `power`, `sine`, `cosine`, `tangent`. Constants: `pi`, `e`. Partial functions (`square root` of negative, `log` of ≤ 0) return `voidable number`. `log` = natural log; `round` = away-from-zero.
+  - **`collections`** — introduces the `matrix` type. Matrix literal: `a matrix with ((row1), (row2), …)`, rows must be rectangular and all-number (static check). Index: `the item at (row, column) of m` (1-based). Sized constructor: `a matrix with N by M` (zeroed). `the rows of` / `the columns of` (→ number). Matrix arithmetic (see below).
+  - **`chance`** — effectful (internal RNG state, per-interpreter so test-isolated). `a random number from low to high` (whole numbers only; `low > high` is a runtime error), `a random item from series` (→ `voidable T`), `randomly shuffled series` (non-mutating Fisher-Yates copy), `a random guess` (50/50 fact). `Seed the chance with N.` reseeds for reproducibility. Separation from `math` is intentional: `math` is pure; `chance` is effectful; the two categories are kept distinct as a named design decision.
+
+**Matrix arithmetic** *(complete, collections-book scope)*
+- `m + n` — element-wise addition; requires identical dimensions; `matrix or failure` (failure category `"dimension-mismatch"`).
+- `m - n` — element-wise subtraction; identical dimensions required; `matrix or failure`.
+- `m * n` — matrix product (standard triple-loop dot product, NOT element-wise); requires `left.columns == right.rows`; yields an `m×p` result from `m×n * n×p`; `matrix or failure`.
+- All three are **strictly fallible** (same rule as user-defined overloads: must be inside `Try to:` or `but on failure <default>`, else a static `TypeException`).
+- `matrix / matrix` — undefined; falls through to "arithmetic requires numbers" type error (matrix inversion is explicitly deferred; will be a named `collections` function, not an operator, if ever added).
+- Scalar multiply (`matrix * number`) and Hadamard product are deferred. Hadamard, if ever added, will be a named collections function, not an operator — the one-canonical-way principle: `*` means matrix product, full stop.
+- Scope-locality is enforced by type: `MatrixType` is only in scope inside a `Pull a book on collections.` block, so any `matrix op matrix` expression is implicitly inside a Pull block — no explicit scope depth counter needed.
+
 **Shell prerequisites** *(complete)*
 - **Environment variables** — `the environment variable "NAME"` → `voidable text`
   (void if not set). Read-only access to the process environment.
@@ -318,10 +339,9 @@ language is considered stable.
   needs (a node's `next` is `a voidable node`). Unblocked by the voidable type;
   not yet built out or documented as a pattern.
 
-- **Matrix op-set** — addition, subtraction, matrix product, and scalar scaling.
-  Deliberately deferred: the intended surface is operator syntax (`m1 + m2`,
-  `m1 * m2`), not book functions — so this waits on operator overloading (see
-  OOP extensions below).
+- **Matrix op extensions** — scalar scaling (`matrix * number`, mixed-type dispatch
+  deferred), Hadamard product (named `collections` function if ever added, not an
+  operator). Matrix arithmetic (`+`, `-`, `*`) is complete — see What's built.
 
 ### Functions
 
@@ -336,17 +356,7 @@ see [What's built](#whats-built-the-language-today) above.*
 
 ### Organization and external code
 
-- **`book` and module loading** — Cufet's mechanism for pulling rare or
-  specialized capability into a program. A `book` is an object-like value
-  (possessive/`of` member access, singleton, stateless capability-bag), but
-  pulling one is a *module-loading operation* — it fetches code not already in
-  the program. Namespaces were evaluated and rejected (see Design decisions
-  above). The `module` interface defines the contract any loadable thing must
-  satisfy; `book` conforms to it. **Downstream of both a standard library
-  existing and a code-loading mechanism** — a std-lib/module-era feature, not
-  near-term. The `module` interface itself (just an interface definition, no
-  loader required) is buildable early as the stable boundary program code is
-  written against.
+- **External book loading** — the bundled-book mechanism (`Pull a book on math/collections/chance.`) is complete (see What's built). What remains is *external* loading: resolving a book name to an external file/package and fetching code not bundled with the interpreter. This requires a standard-library delivery mechanism (package manager, bundled std-lib directory) and is a std-lib/module-era feature. The `module` interface (a named C# interface defining the contract for any loadable thing) is buildable early as the stable seam program code depends on.
 
 ### Objects and voidable (extensions to the complete core)
 
@@ -363,30 +373,20 @@ see [What's built](#whats-built-the-language-today) above.*
 
 ### OOP extensions
 
-- **Operator overloading** — **the next arc after 0.7.0.** User-defined types
-  declaring behavior for `+`, `-`, `*`, etc. Directly unblocks matrix arithmetic
-  (operator syntax, not book functions — see design decisions). Key design question
-  to resolve first: **can overloaded operators be fallible?** That answer is
-  load-bearing for how the operator call site composes with failure handling.
-
 - **Fallible setters (Option B)** — setters that can reject a value are deliberately
   deferred to a future **effect-tracking arc**. The current infallible-setter rule
   keeps `becomes` infallible everywhere; a fallible setter would require effect
   annotations on every assignment expression. Not designed, not near-term.
 
-- **Matrix arithmetic** — addition, subtraction, matrix product, and scalar scaling.
-  Deferred until after operator overloading; **will use operator syntax (`a + b`), NOT
-  book functions** (hard decision — one canonical way to express addition). Once
-  operator overloading is built, matrix arithmetic slots in as the first user-defined
-  type that exercises it.
-
 - **Multi-directional predicate dispatch** — dispatch on multiple argument types
   simultaneously (CLOS multimethods / Julia-style). A type-system arc larger than
   the entire OOP slice already built. **Design-first** — needs a dedicated design
-  session before it enters the build sequence; not orderable until designed.
+  session before it enters the build sequence; not orderable until designed. Post-native-backend candidate if the design is sufficiently complex.
 
 - **Design patterns (book)** — common patterns surfaced as a pulled book. Library
   and documentation work; no language or TypeChecker changes required.
+
+- **Scalar matrix multiply** (`matrix * number`) and **Hadamard product** — deferred. Scalar multiply requires mixed-type dispatch (not yet designed). Hadamard, if added, will be a named `collections` function, not an operator (the `*` operator means matrix product, one canonical way). Neither blocks any planned near-term work.
 
 ### Memory model (interpreter era)
 
@@ -568,6 +568,97 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   is permanently excluded. Revisiting requires a new rationale — "it's convenient"
   is not one.
 
+- **`chance` is separate from `math` — effectful vs. pure.** `math` is a pure
+  function book (same inputs, same outputs, no side effects). `chance` has internal
+  RNG state — it is effectful by design. Keeping the two separate is a named
+  structural choice: as Cufet gains more books, the effectful/pure distinction will
+  matter for reasoning about code, testing, and eventually (in the native era) for
+  safe concurrency. Per-interpreter RNG (`Random _rng` on the `Interpreter` instance,
+  not static) gives free test isolation: each `new Interpreter()` gets its own entropy
+  seed.
+
+- **`Pull … Done.` unification — one surface for scoped resources.** Books, rabbits,
+  and other acquired resources all use a unified `Pull <thing>: … Done.` block syntax.
+  The `pull` verb signals "resource whose lifetime is managed here" and `Done.` closes
+  it cleanly. The dot form (`Pull a book on X.`) keeps the short non-block form for
+  scope-local imports. The two forms coexist and compose cleanly.
+
+- **Matrix arithmetic is operator syntax, not book functions — settled.** `m + n`,
+  `m - n`, `m * n` are the surface, not `collections' add of (m, n)`. The
+  one-canonical-way principle: there is one way to say "add these matrices," and it
+  is the `+` operator. This was a hard decision — book functions would have been
+  faster to build — but building them first as a stopgap would have required
+  deprecating them after operator overloading landed. The right sequencing was to
+  build operator overloading first, then matrix arithmetic as its first exercise.
+  `*` means matrix product (standard dot product), full stop; Hadamard product, if
+  ever added, will be a named `collections` function precisely because `*` is taken.
+
+- **Region model soundness — the adversarial arc (all three holes closed, 2026-06-26–28).**
+  The outward-only invariant ("a value may escape to a longer-lived region but never
+  inward to a shorter-lived one") is the whole safety story for the regions model.
+  Its teeth were tested adversarially — deliberately probing whether the invariant
+  held against real attacks — and three holes were found and closed.
+
+  *How the holes were found:* the reference-linked-rabbit concept car (a rabbit
+  containing objects that reference each other) was used as an adversarial probe:
+  "does the downward-only invariant actually prevent unsound escapes, or can we
+  launder depth through legitimate-looking code?" It found hole #1 (function-call
+  depth laundering). Investigating #1 surfaced #2 and #3.
+
+  **Hole #1 — return-depth laundering through function calls.**
+  A function call (`cast f on (ref-param)`) fell through `ValueDepthOf` to depth 0,
+  making the return value appear shallower than it was. A function that "returned its
+  parameter" would appear to return a depth-0 fresh value, not the depth-N
+  rabbit-allocated value it actually returned. *Closed via return-depth inference:*
+  `ReturnDepthSignature` on `FunctionType` — a list of which parameter indices (0-based)
+  flow into the return. Computed by `ComputeReturnDepthSignature` at the end of
+  `CheckBind`. `ValueDepthOf` reads the signature and uses `max(subset)` of the
+  actual argument depths. Conservative fallback (unknown callee → max of all ref-type
+  inputs) is always safe: over-strict, never under-strict.
+
+  **Hole #3 — methods/getters residue of #1.**
+  Methods and getters had `ReturnDepthSignature == null` → depth 0, the same
+  laundering vector as free functions. Possessive field reads (`alice's cards`,
+  `the items of obj`) also fell through `ValueDepthOf` to 0. *Closed* by extending
+  the signature machinery to method/getter bodies with the receiver as a depth source
+  (`ReceiverDepthIndex = -1` sentinel means "receiver's depth flows to return").
+  `_possessiveDepthCache` / `_rnaDepthCache` populated from `InferPossessiveAccess`
+  / `InferRecordNamedAccess`.
+
+  **Hole #2 — capture-store laundering.**
+  A nested function that captures a reference-type *parameter* of its enclosing
+  function can store it into outer state. Parameters are registered at `RabbitDepth = 0`
+  (the function's own perspective), regardless of what the caller passes. If the
+  caller passes a rabbit-allocated (depth-N) value, the captured parameter appears at
+  depth 0 inside the nested function; the depth check passes (`0 > 0` is false → no
+  error). At runtime the value is depth-N → use-after-free in native. *Closed
+  conservatively:* `TypeInfo.IsParameter` flag set at all parameter-registration sites
+  (free-function params, receiver `one`, method params, setter params, lambda params).
+  In nested-scope import (`isNested = true`), any captured `TypeInfo` where
+  `IsParameter && IsReferenceType` is upgraded to `RabbitDepth = CapturedParameterDepth
+  = int.MaxValue`. The existing `CheckRegionStore` then rejects any outward store
+  (MaxValue > any real depth). No new check logic; no call-site changes.
+
+  *Key insights (the load-bearing reasoning for future contributors):*
+  - **The depth model is integers joined by `max`** — not Rust's arbitrary lifetime
+    parameters. This is why inference was tractable (depth is a simple number; `max`
+    is associative and monotone) and why no user-facing annotations were needed
+    (identity functions — `f(x) = x` — stay annotation-free because inference derives
+    their signature).
+  - **Conservative bias is mandatory for soundness.** Over-estimate depth (→ stricter
+    → never permit unsafe) rather than under-estimate (→ might permit unsafe). The only
+    cost of over-strictness is rejecting contrived-safe code, which can be addressed
+    with an explicit annotation. The cost of under-strictness is a soundness hole.
+  - **The conservative prohibition (hole #2) is triply rare** — requires: (a) double
+    nesting, (b) a reference-type parameter capture, and (c) an outward store. The
+    over-rejection cost is nil; the workaround is trivial (pass the value as an
+    explicit parameter to the nested function instead of capturing it).
+  - **This was adversarial-find-and-fix, not formal proof.** The invariant is sound
+    with respect to the three holes found. A fresh-eyes red-team or a formal proof
+    remains a reasonable pre-native rung if a contributor wants to take it on.
+
+  *Status:* all three holes closed; no known remaining pre-native soundness gaps.
+
 ---
 
 ## Known minor issues
@@ -721,7 +812,7 @@ These two tasks are the falsifying tests that establish "Cufet as OS
 orchestrator" as a *waypoint*, not the destination.
 
 **The current interpreter is the reference implementation / executable spec.**
-The 1094 tests (140 lexer + 954 interpreter) define Cufet's semantics. A future native backend (native
+The 1143 tests (140 lexer + 1003 interpreter) define Cufet's semantics. A future native backend (native
 compilation, compile-to-C/LLVM, or a from-scratch non-managed runtime)
 implements those same semantics against real metal. Nothing built is wasted
 — this is the path most serious languages took (Lua defined its semantics
@@ -759,14 +850,19 @@ Cufet binary whose `.data` section you can `readelf` is post-native.
 | Getters / setters (uniform property access, Dart-style) | ✅ built | Controlled field access without syntax change; relevant to native struct layout control |
 | Named constructors (`Bind making a <type>`) | ✅ built | User-defined construction logic; factory pattern without a new keyword |
 | Destructors / RAII (`Bind unmaking a <type>`, LIFO scope-exit) | ✅ built | First step toward native RAII; destructor semantics define the cleanup contract the native backend must implement |
+| Operator overloading (user-defined `+`, `-`, `*`, etc.; fallible overloads) | ✅ built | Enables domain types to use arithmetic syntax; fallible overloads proven viable |
+| Books / `Pull` mechanism (bundled: `math`, `collections`, `chance`) | ✅ built | Module-loading boundary established; type-introducing books work; external loader deferred |
+| Matrix type + arithmetic (`+`, `-`, `*`; fallible; dimension-mismatch failures) | ✅ built | First type-introducing book; demonstrates the operator-overloading + fallibility pattern |
+| Region-model soundness (three-hole adversarial arc — all holes closed) | ✅ built | Outward-only invariant now sound w.r.t. function-call laundering, method/getter laundering, and capture-store laundering |
 
-**All interpreter-era scripting prerequisites are now complete.** The remaining work
+**All interpreter-era language prerequisites are now complete.** The remaining arcs
 before the native-backend era:
 
-- **Operator overloading** — next arc; unblocks matrix arithmetic.
-- **Matrix arithmetic** — immediately after (operator syntax, not book functions).
-- **Concurrency / async tasks** — unblocks pipes and preemptive SIGINT.
-- **Pipes** — after concurrency (streaming cases need it).
+- **Concurrency / async tasks** — unblocks pipes and preemptive SIGINT; gates `pull a rabbit` (task-lifetime rabbit).
+- **Pipes** — after concurrency (streaming/infinite-producer cases need concurrent tasks).
+- Then: **native backend** (the mountain — probably larger than everything built so far combined).
+- Then: **multi-directional predicate dispatch** — design-first arc; the type-system mountain.
+- Then: close gaps, polish, **finish line**.
 
 **Then the native-backend era:**
 

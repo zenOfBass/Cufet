@@ -1,4 +1,4 @@
-﻿# Cufet `0.7.0`
+﻿# Cufet `0.8.0`
 
 *From the Mvskoke (Muskogee) word for rabbit—the trickster who brings the gift of fire to humankind.*
 
@@ -169,6 +169,8 @@ keywords, object field scope rules, expression vs condition contexts, and sharp
 edges for writing Cufet correctly upfront.
 See [ROADMAP.md](ROADMAP.md) for what's built, what's planned, and the design
 decisions behind the language.
+See [CHANGELOG.md](CHANGELOG.md) for version history.
+See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute.
 
 ---
 
