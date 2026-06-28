@@ -608,6 +608,47 @@ Add 1 to (x + y).   ← TYPE ERROR: (x + y) is not a series
 | `the size of expr` | read |
 | `For each pair in expr, repeat:` | read |
 
+### Collections book — matrix arithmetic
+
+Matrix arithmetic operators (`+`, `-`, `*`) are available inside `Pull a book on collections.`
+blocks. All three are **fallible** — dimension mismatch produces a failure that must be handled.
+
+| Expression | Semantics | Dimension requirement | Failure category |
+|---|---|---|---|
+| `a + b` | element-wise add | `a` and `b` have identical dimensions | `"dimension-mismatch"` |
+| `a - b` | element-wise subtract | `a` and `b` have identical dimensions | `"dimension-mismatch"` |
+| `a * b` | matrix product | `a.columns == b.rows` | `"dimension-mismatch"` |
+
+`*` is **matrix product** (the standard dot-product triple-loop, yielding an `m×p` result
+from an `m×n` left and an `n×p` right). It is NOT element-wise multiplication.
+
+**Strict-fallible rule applies** — using any of these operators outside a `Try to:` block or
+without `but on failure <default>` is a static type error:
+
+```
+Pull a book on collections.
+    Define a as a matrix with ((1, 2), (3, 4)).
+    Define b as a matrix with ((5, 6), (7, 8)).
+    Define c as a + b.             ← TYPE ERROR: matrix '+' can fail — you must handle the failure
+    Try to:
+        Define c as a + b.         ← OK — inside Try block
+    Done.
+    In case of failure:
+        State "dimension mismatch".
+    Done.
+    Define c as a + b but on failure (a matrix with 2 by 2).  ← OK — inline handler
+Done.
+```
+
+**Not defined — clear static errors:**
+- `matrix / matrix` — matrix division is not a single operation (would need matrix inversion,
+  which is deferred). Produces a type error: "arithmetic requires numbers on both sides."
+- `matrix * number` (scalar multiply) — mixed-type binary is not supported. Produces the same
+  arithmetic type error. Scalar scaling is deferred.
+- Element-wise multiply (Hadamard product) — deferred; if ever added, it will be a named
+  collections function (`Cast collections's element-wise-multiply on (a, b)`), NOT an operator
+  (`*` is reserved for matrix product — one canonical way).
+
 ### Chance book operations
 
 All randomness operations require `chance` to be in scope — `Pull a book on chance.`

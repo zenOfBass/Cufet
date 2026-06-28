@@ -1,3 +1,5 @@
+using Cufet.Lexer;
+
 namespace Cufet.Interpreter;
 
 public sealed partial class Interpreter
@@ -72,6 +74,55 @@ public sealed partial class Interpreter
         if (fill != 0m)
             Array.Fill(data, fill);
         return (object)new MatrixValue(rows, cols, data);
+    }
+
+    private object ExecuteMatrixOp(TokenType op, MatrixValue a, MatrixValue b, int line) => op switch
+    {
+        TokenType.Plus  => MatrixAdd(a, b),
+        TokenType.Minus => MatrixSubtract(a, b),
+        TokenType.Star  => MatrixMultiply(a, b),
+        _ => throw new RuntimeException($"Unsupported matrix operator on line {line}."),
+    };
+
+    private static object MatrixAdd(MatrixValue a, MatrixValue b)
+    {
+        if (a.Rows != b.Rows || a.Cols != b.Cols)
+            throw new FailureUnwind(new FailureValue(
+                "matrices must have equal dimensions for addition", "dimension-mismatch"));
+        var data = new decimal[a.Rows * a.Cols];
+        for (int r = 1; r <= a.Rows; r++)
+            for (int c = 1; c <= a.Cols; c++)
+                data[(r - 1) * a.Cols + (c - 1)] = a.GetItem(r, c) + b.GetItem(r, c);
+        return (object)new MatrixValue(a.Rows, a.Cols, data);
+    }
+
+    private static object MatrixSubtract(MatrixValue a, MatrixValue b)
+    {
+        if (a.Rows != b.Rows || a.Cols != b.Cols)
+            throw new FailureUnwind(new FailureValue(
+                "matrices must have equal dimensions for subtraction", "dimension-mismatch"));
+        var data = new decimal[a.Rows * a.Cols];
+        for (int r = 1; r <= a.Rows; r++)
+            for (int c = 1; c <= a.Cols; c++)
+                data[(r - 1) * a.Cols + (c - 1)] = a.GetItem(r, c) - b.GetItem(r, c);
+        return (object)new MatrixValue(a.Rows, a.Cols, data);
+    }
+
+    private static object MatrixMultiply(MatrixValue a, MatrixValue b)
+    {
+        if (a.Cols != b.Rows)
+            throw new FailureUnwind(new FailureValue(
+                "left matrix columns must equal right matrix rows for matrix product", "dimension-mismatch"));
+        var data = new decimal[a.Rows * b.Cols];
+        for (int r = 1; r <= a.Rows; r++)
+            for (int c = 1; c <= b.Cols; c++)
+            {
+                decimal sum = 0;
+                for (int k = 1; k <= a.Cols; k++)
+                    sum += a.GetItem(r, k) * b.GetItem(k, c);
+                data[(r - 1) * b.Cols + (c - 1)] = sum;
+            }
+        return (object)new MatrixValue(a.Rows, b.Cols, data);
     }
 
     private object EvaluateMatrixRows(MatrixRows mr)

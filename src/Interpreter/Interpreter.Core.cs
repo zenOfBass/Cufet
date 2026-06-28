@@ -1153,6 +1153,11 @@ public sealed partial class Interpreter
             _overloadDefs.TryGetValue((loV.TypeName, b.Op), out var oad))
             return ExecuteOperatorOverload(oad, lv2, rv2, b.Line);
 
+        // Matrix arithmetic: +, -, * built-in for (matrix, matrix) operands.
+        if (b.Op is TokenType.Plus or TokenType.Minus or TokenType.Star &&
+            lv2 is MatrixValue lmv && rv2 is MatrixValue rmv)
+            return ExecuteMatrixOp(b.Op, lmv, rmv, b.Line);
+
         return b.Op switch
         {
             TokenType.Plus     => (object)(ToNumber(lv2, "+") + ToNumber(rv2, "+")),

@@ -9233,6 +9233,267 @@ public class InterpreterTests
             "Done."));
     }
 
+    // ── Matrix — arithmetic (+, -, *) ────────────────────────────────────────────
+
+    [Fact]
+    public void Matrix_Add_SameDimensions_Success()
+    {
+        // [[1,2],[3,4]] + [[5,6],[7,8]] = [[6,8],[10,12]]; item(1,1) = 6
+        Assert.Equal("6", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "Define n as a matrix with ((5, 6), (7, 8)).\n" +
+            "Try to:\n" +
+            "    Define p as m + n.\n" +
+            "    State the item at (1, 1) of p converted to text.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Add_SameDimensions_BottomRight()
+    {
+        // [[1,2],[3,4]] + [[5,6],[7,8]] = [[6,8],[10,12]]; item(2,2) = 12
+        Assert.Equal("12", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "Define n as a matrix with ((5, 6), (7, 8)).\n" +
+            "Try to:\n" +
+            "    Define p as m + n.\n" +
+            "    State the item at (2, 2) of p converted to text.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Add_DimMismatch_ProducesFailure()
+    {
+        Assert.Equal("failed", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "Define n as a matrix with ((5, 6, 7), (8, 9, 10)).\n" +
+            "Try to:\n" +
+            "    Define p as m + n.\n" +
+            "    State \"ok\".\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Add_DimMismatch_Category()
+    {
+        Assert.Equal("dimension-mismatch", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "Define n as a matrix with ((5, 6, 7), (8, 9, 10)).\n" +
+            "Try to:\n" +
+            "    Define p as m + n.\n" +
+            "    State \"ok\".\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State the category of the failure but void is \"none\".\n" +
+            "Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Add_StrictFallible_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "Define n as a matrix with ((5, 6), (7, 8)).\n" +
+            "Define p as m + n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Add_ButOnFailure_DefaultTaken()
+    {
+        // dimensions mismatch → but on failure supplies the 1×1 default
+        Assert.Equal("1", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "Define n as a matrix with ((5, 6, 7)).\n" +
+            "Define p as m + n but on failure (a matrix with 1 by 1).\n" +
+            "State the rows of p converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Subtract_SameDimensions_Success()
+    {
+        // [[10,20],[30,40]] - [[1,2],[3,4]] = [[9,18],[27,36]]; item(2,1) = 27
+        Assert.Equal("27", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((10, 20), (30, 40)).\n" +
+            "Define n as a matrix with ((1, 2), (3, 4)).\n" +
+            "Try to:\n" +
+            "    Define p as m - n.\n" +
+            "    State the item at (2, 1) of p converted to text.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Subtract_DimMismatch_ProducesFailure()
+    {
+        Assert.Equal("failed", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "Define n as a matrix with ((1, 2, 3), (4, 5, 6), (7, 8, 9)).\n" +
+            "Try to:\n" +
+            "    Define p as m - n.\n" +
+            "    State \"ok\".\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Subtract_StrictFallible_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "Define n as a matrix with ((5, 6), (7, 8)).\n" +
+            "Define p as m - n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Multiply_Square_Product()
+    {
+        // [[1,2],[3,4]] * [[5,6],[7,8]]; [1,1] = 1*5+2*7 = 19
+        Assert.Equal("19", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "Define n as a matrix with ((5, 6), (7, 8)).\n" +
+            "Try to:\n" +
+            "    Define p as m * n.\n" +
+            "    State the item at (1, 1) of p converted to text.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Multiply_NonSquare_Dimensions()
+    {
+        // 2×3 * 3×2 → 2×2; verify result has 2 rows, 2 columns
+        Assert.Equal("2\n2", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
+            "Define n as a matrix with ((7, 8), (9, 10), (11, 12)).\n" +
+            "Try to:\n" +
+            "    Define p as m * n.\n" +
+            "    State the rows of p converted to text.\n" +
+            "    State the columns of p converted to text.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Multiply_NonSquare_Element()
+    {
+        // 2×3 * 3×2; p[1,1] = 1*7+2*9+3*11 = 7+18+33 = 58
+        Assert.Equal("58", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
+            "Define n as a matrix with ((7, 8), (9, 10), (11, 12)).\n" +
+            "Try to:\n" +
+            "    Define p as m * n.\n" +
+            "    State the item at (1, 1) of p converted to text.\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Multiply_NonConforming_ProducesFailure()
+    {
+        // 2×3 * 2×2: m.cols(3) ≠ n.rows(2) → dimension-mismatch
+        Assert.Equal("failed", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
+            "Define n as a matrix with ((1, 2), (3, 4)).\n" +
+            "Try to:\n" +
+            "    Define p as m * n.\n" +
+            "    State \"ok\".\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Multiply_NonConforming_Category()
+    {
+        Assert.Equal("dimension-mismatch", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n" +
+            "Define n as a matrix with ((1, 2), (3, 4)).\n" +
+            "Try to:\n" +
+            "    Define p as m * n.\n" +
+            "    State \"ok\".\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State the category of the failure but void is \"none\".\n" +
+            "Done.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Multiply_StrictFallible_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "Define n as a matrix with ((5, 6), (7, 8)).\n" +
+            "Define p as m * n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Matrix_Divide_TypeError()
+    {
+        // No / overload for matrices → type error ("arithmetic requires numbers")
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with ((1, 2), (3, 4)).\n" +
+            "Define n as a matrix with ((5, 6), (7, 8)).\n" +
+            "Try to:\n" +
+            "    Define p as m / n.\n" +
+            "    State \"ok\".\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"failed\".\n" +
+            "Done.\n" +
+            "Done."));
+    }
+
     // ── Layer 1: Union types ────────────────────────────────────────────────────
 
     [Fact]

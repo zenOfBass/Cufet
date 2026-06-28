@@ -1277,6 +1277,22 @@ public sealed partial class TypeChecker
                 }
                 return overloadReturn;
             }
+
+            // Matrix arithmetic: +, -, * are defined for (matrix, matrix) and always fallible
+            // (dimension mismatch → failure). The matrix type is only in scope inside a
+            // Pull a book on collections block, so scope-locality is enforced by the type itself.
+            if (l is MatrixType && r is MatrixType &&
+                bin.Op is TokenType.Plus or TokenType.Minus or TokenType.Star)
+            {
+                var matReturn = new FailureType(MatrixType.Instance);
+                if (!_inTryBlock && !_inFailureHandledContext)
+                    throw new TypeException(FormatTypeError(
+                        $"matrix '{FormatOp(bin.Op)}' can fail — you must handle the failure",
+                        null, bin.Line,
+                        $"use '{FormatOp(bin.Op)}' on matrices without handling the potential failure",
+                        "Wrap this in a 'Try to: / In case of failure:' block, or use 'but on failure <default>'."));
+                return _inTryBlock ? MatrixType.Instance : (CufetType)matReturn;
+            }
         }
 
         return bin.Op switch
