@@ -1061,10 +1061,28 @@ carries the depth of the deepest reference-type input (receiver or argument). Th
 is sound (over-strict, never under-strict) — it may reject contrived-safe code
 but will never permit an unsafe escape.
 
-**Open gap (capture-store, pre-native):** a nested function that CAPTURES a
-rabbit-allocated variable from the enclosing scope and STORES it into outer state
-is not yet caught — its body is analyzed at definition-time depth (0), not
-call-time depth. This is the one remaining tracked pre-native soundness gap.
+**Capture-store prohibition:** a nested function (`isNested = true`) that captures
+a reference-type **parameter** of its enclosing function cannot store that captured
+parameter into any outer state. Parameters are registered at `RabbitDepth = 0` (the
+function's own perspective), but callers may pass rabbit-allocated (depth-N) values.
+The checker treats captured reference-type parameters as maximally deep so that any
+outward store is rejected:
+
+```
+Bind void to run-with, given (the series of number s):
+    Define sink as a series of number with ().
+    Bind void to stash, given ():
+        sink becomes s.              ← TYPE ERROR: captured parameter 's' treated as
+    Done.                               maximally deep — caller may pass a rabbit value
+    Cast stash on ().
+Done.
+```
+
+Legal: capturing a reference-type parameter and only **reading** it (no outward
+store) is fine. Capturing a **local variable** (not a parameter) is also fine — locals
+have a known depth from when they were defined. The workaround for the rare case
+where the pattern is genuinely safe: pass the value as an explicit parameter to the
+nested function rather than capturing it.
 
 ---
 

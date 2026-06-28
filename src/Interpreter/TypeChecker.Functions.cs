@@ -216,8 +216,15 @@ public sealed partial class TypeChecker
         if (isNested)
         {
             // Nested function body sees the full enclosing scope so captured variables type-check.
+            // Reference-type parameters from outer scopes are upgraded to CapturedParameterDepth:
+            // they were registered at RabbitDepth=0 (the outer function's perspective), but callers
+            // may pass rabbit-allocated values (depth N > 0). Treating them as maximally deep causes
+            // CheckRegionStore to reject any outward store — the capture-store soundness hole.
             foreach (var scope in saved.V)
-                foreach (var (k, v) in scope) Scope[k] = v;
+                foreach (var (k, v) in scope)
+                    Scope[k] = v.IsParameter && IsReferenceType(v.Type)
+                        ? v with { RabbitDepth = CapturedParameterDepth }
+                        : v;
         }
         else
         {
@@ -226,7 +233,7 @@ public sealed partial class TypeChecker
                 foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
         }
         foreach (var (type, name) in bind.Parameters)
-            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), bind.Line);
+            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), bind.Line, IsParameter: true);
 
         var prevInFunction        = _inFunction;
         var prevReturnType        = _expectedReturnType;
@@ -285,12 +292,15 @@ public sealed partial class TypeChecker
         bool isNested = _inFunction;
         if (isNested)
             foreach (var scope in saved.V)
-                foreach (var (k, v) in scope) Scope[k] = v;
+                foreach (var (k, v) in scope)
+                    Scope[k] = v.IsParameter && IsReferenceType(v.Type)
+                        ? v with { RabbitDepth = CapturedParameterDepth }
+                        : v;
         else
             foreach (var scope in saved.V)
                 foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
         foreach (var (type, name) in lambda.Parameters)
-            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), lambda.Line);
+            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), lambda.Line, IsParameter: true);
 
         var prevInFunction        = _inFunction;
         var prevReturnType        = _expectedReturnType;

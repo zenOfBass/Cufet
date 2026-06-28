@@ -336,7 +336,7 @@ public sealed class UnionType : CufetType
     }
 }
 
-public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false, int RabbitDepth = 0);
+public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false, int RabbitDepth = 0, bool IsParameter = false);
 
 public sealed class TypeException : Exception
 {
@@ -461,6 +461,13 @@ public sealed partial class TypeChecker
     // Index -1 in ReturnDepthSignature: the receiver ('one') contributes to return depth.
     // Used for method and getter signatures; never present in free-function signatures.
     private const int ReceiverDepthIndex = -1;
+
+    // Assigned to captured reference-type parameters in nested function scopes.
+    // Parameters are always registered at RabbitDepth=0 (the function's own perspective),
+    // but callers may pass rabbit-allocated (depth-N) values. Upgrading to this sentinel
+    // makes CheckRegionStore reject any store of a captured parameter into outer state,
+    // preventing the depth-0 sentinel from hiding a potential depth-N escape.
+    private const int CapturedParameterDepth = int.MaxValue;
 
     // Populated by InferPossessiveAccess; read by ValueDepthOf for 'obj's member' accesses.
     private readonly Dictionary<PossessiveAccess, int> _possessiveDepthCache = new();

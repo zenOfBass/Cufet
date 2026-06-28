@@ -1,0 +1,35 @@
+Bind number to run-size, given (the series of number s):
+    Define count as 0.
+    Bind void to measure, given ():
+        count becomes the number of s.
+    Done.
+    Cast measure on ().
+    return count.
+Done.
+
+Bind void to run-value, given (the number n):
+    Define tally as 0.
+    Bind void to add-n, given ():
+        tally becomes tally + n.
+    Done.
+    Cast add-n on ().
+    State "Tally: {tally}".
+Done.
+
+Bind void to run-local, given ():
+    Define store as a series of number with ().
+    Define fresh as a series of number with (7, 8, 9).
+    Bind void to fill, given ():
+        store becomes fresh.
+    Done.
+    Cast fill on ().
+    State "Local capture store: {the number of store}".
+Done.
+
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Define n as Cast run-size on (inner).
+    State "Read-only capture (size): {n}".
+Done.
+Cast run-value on (42).
+Cast run-local on ().

@@ -374,9 +374,9 @@ public sealed partial class TypeChecker
         // Method scope: functions visible, plus 'one' (self) + parameters.
         foreach (var scope in saved.V)
             foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
-        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine);
+        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine, IsParameter: true);
         foreach (var (type, name) in method.Parameters)
-            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), method.Line);
+            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), method.Line, IsParameter: true);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
@@ -435,7 +435,7 @@ public sealed partial class TypeChecker
 
         foreach (var scope in saved.V)
             foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
-        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine);
+        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine, IsParameter: true);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
@@ -483,8 +483,8 @@ public sealed partial class TypeChecker
 
         foreach (var scope in saved.V)
             foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
-        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine);
-        Scope[setter.ParamName] = new TypeInfo(setter.ParamType, new VariableReference(setter.ParamName, 0), setter.Line);
+        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine, IsParameter: true);
+        Scope[setter.ParamName] = new TypeInfo(setter.ParamType, new VariableReference(setter.ParamName, 0), setter.Line, IsParameter: true);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
@@ -537,7 +537,7 @@ public sealed partial class TypeChecker
         var saved = SaveScopes();
         foreach (var scope in saved.V)
             foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
-        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), ud.Line);
+        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), ud.Line, IsParameter: true);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;

@@ -1,0 +1,13 @@
+Bind void to run-with, given (the series of number s):
+    Define sink as a series of number with ().
+    Bind void to stash, given ():
+        sink becomes s.
+    Done.
+    Cast stash on ().
+Done.
+
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Cast run-with on (inner).
+Done.
+State "Count (GC saves us, native crashes): 0".
