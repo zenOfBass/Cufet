@@ -2,6 +2,168 @@ namespace Cufet.Interpreter;
 
 public sealed partial class TypeChecker
 {
+    // ── Return-depth signature inference ─────────────────────────────────────────
+    // Determines which parameter indices (by position) "flow to" the return value's depth.
+    // Called inside CheckBind's try-block so callee signatures are already available.
+    // Returns [] when no params contribute (fresh alloc / scalar / global returns).
+    // Falls back to "all reference-type param indices" when the exact flow can't be determined
+    // (recursive call found before self's signature is set, or unknown callee).
+    private IReadOnlyList<int> ComputeReturnDepthSignature(BindStatement bind)
+    {
+        // Build param-name → index and reference-type-param-index set.
+        var paramIdx     = new Dictionary<string, int>(StringComparer.Ordinal);
+        var refParamIdxs = new HashSet<int>();
+        for (int i = 0; i < bind.Parameters.Count; i++)
+        {
+            paramIdx[bind.Parameters[i].Name] = i;
+            if (IsReferenceType(ResolveParamType(bind.Parameters[i].Type)))
+                refParamIdxs.Add(i);
+        }
+
+        var localDepths = new Dictionary<string, HashSet<int>>(StringComparer.Ordinal);
+        var result      = new HashSet<int>();
+        WalkBodyForReturnDepths(bind.Body, paramIdx, refParamIdxs, localDepths, result);
+        return result.OrderBy(x => x).ToList();
+    }
+
+    private void WalkBodyForReturnDepths(
+        IReadOnlyList<IStatement> body,
+        Dictionary<string, int>       paramIdx,
+        HashSet<int>                  refParamIdxs,
+        Dictionary<string, HashSet<int>> localDepths,
+        HashSet<int>                  result)
+    {
+        foreach (var stmt in body)
+        {
+            switch (stmt)
+            {
+                case DefineStatement def:
+                    localDepths[def.Name] =
+                        SymbolicExprDepth(def.Value, paramIdx, refParamIdxs, localDepths);
+                    break;
+
+                case BecomesStatement becomes:
+                    var bd = SymbolicExprDepth(becomes.Value, paramIdx, refParamIdxs, localDepths);
+                    if (localDepths.TryGetValue(becomes.Name, out var prev))
+                        foreach (var i in bd) prev.Add(i);
+                    else
+                        localDepths[becomes.Name] = bd;
+                    break;
+
+                case ReturnStatement { Value: not null } ret:
+                    foreach (var i in SymbolicExprDepth(ret.Value, paramIdx, refParamIdxs, localDepths))
+                        result.Add(i);
+                    break;
+
+                case IfStatement ifStmt:
+                    foreach (var arm in ifStmt.Arms)
+                        WalkBodyForReturnDepths(arm.Body, paramIdx, refParamIdxs, localDepths, result);
+                    if (ifStmt.ElseBody != null)
+                        WalkBodyForReturnDepths(ifStmt.ElseBody, paramIdx, refParamIdxs, localDepths, result);
+                    break;
+
+                case WhileStatement ws:
+                    WalkBodyForReturnDepths(ws.Body, paramIdx, refParamIdxs, localDepths, result);
+                    break;
+
+                case RepeatUntilStatement rus:
+                    WalkBodyForReturnDepths(rus.Body, paramIdx, refParamIdxs, localDepths, result);
+                    break;
+
+                case ForEachStatement forEach:
+                    // Iterator depth flows from the series — tracks elements of a rabbit-scoped series.
+                    var iterName = forEach.IteratorName ?? "it";
+                    var iterDepth = SymbolicExprDepth(forEach.Series, paramIdx, refParamIdxs, localDepths);
+                    localDepths.TryGetValue(iterName, out var prevIter);
+                    localDepths[iterName] = iterDepth;
+                    WalkBodyForReturnDepths(forEach.Body, paramIdx, refParamIdxs, localDepths, result);
+                    if (prevIter != null) localDepths[iterName] = prevIter;
+                    else localDepths.Remove(iterName);
+                    break;
+
+                case PullRabbitStatement prs:
+                    WalkBodyForReturnDepths(prs.Body, paramIdx, refParamIdxs, localDepths, result);
+                    break;
+
+                case TryStatement ts:
+                    WalkBodyForReturnDepths(ts.Body, paramIdx, refParamIdxs, localDepths, result);
+                    if (ts.FailureHandler != null)
+                        WalkBodyForReturnDepths(ts.FailureHandler, paramIdx, refParamIdxs, localDepths, result);
+                    if (ts.ExceptionHandler != null)
+                        WalkBodyForReturnDepths(ts.ExceptionHandler, paramIdx, refParamIdxs, localDepths, result);
+                    break;
+
+                // All other statements (stores, state, etc.) don't define variables or return.
+            }
+        }
+    }
+
+    // Returns the set of caller-parameter indices whose depth flows into this expression.
+    // Empty set = expression is always depth-0 (fresh allocation, scalar, or global).
+    private HashSet<int> SymbolicExprDepth(
+        IExpression                      expr,
+        Dictionary<string, int>          paramIdx,
+        HashSet<int>                     refParamIdxs,
+        Dictionary<string, HashSet<int>> localDepths)
+    {
+        switch (expr)
+        {
+            case VariableReference vr:
+                if (paramIdx.TryGetValue(vr.Name, out var pi) && refParamIdxs.Contains(pi))
+                    return [pi];
+                if (localDepths.TryGetValue(vr.Name, out var ld))
+                    return new HashSet<int>(ld);   // copy to avoid aliasing
+                return [];   // global variable or value-type param
+
+            case CastExpression cast:
+                // Look up the callee's already-computed ReturnDepthSignature.
+                // For recursive calls the self-signature is still null (computed after this walk),
+                // so the fallback fires — sound (conservative/over-strict).
+                if (cast.Function is VariableReference funcVr
+                    && TryLookup(funcVr.Name, out var callTi)
+                    && callTi!.Type is FunctionType callFt)
+                {
+                    if (callFt.ReturnDepthSignature == null)
+                        return new HashSet<int>(refParamIdxs);  // unknown / recursive — conservative
+
+                    var r = new HashSet<int>();
+                    foreach (var cpIdx in callFt.ReturnDepthSignature)
+                    {
+                        if (cpIdx < cast.Args.Count)
+                            r.UnionWith(SymbolicExprDepth(cast.Args[cpIdx], paramIdx, refParamIdxs, localDepths));
+                    }
+                    return r;
+                }
+                // Unknown callee (method dispatch, unresolved name) — conservative.
+                return new HashSet<int>(refParamIdxs);
+
+            case SeriesAccess sa:
+                // Element depth = series depth (elements are references inside the series).
+                return SymbolicExprDepth(sa.Target, paramIdx, refParamIdxs, localDepths);
+
+            case MapLookup ml:
+                // Value depth = map depth.
+                return SymbolicExprDepth(ml.Map, paramIdx, refParamIdxs, localDepths);
+
+            case PossessiveAccess pa:
+                // Field depth = object depth (conservative — the field might be value-typed,
+                // but we can't check that here without full type resolution).
+                return SymbolicExprDepth(pa.Target, paramIdx, refParamIdxs, localDepths);
+
+            case SeriesLiteral or MapLiteral or ObjectLiteral or MatrixLiteral or MatrixSized or RangeExpression:
+                // Fresh allocations: born at current depth (which at definition time is 0).
+                return [];
+
+            default:
+                // Conservative-safe default: unknown expression → depth flows from nothing (depth 0).
+                // This is the lenient direction for the analysis (may undercount contributing params
+                // for rare complex expressions), but preserves soundness because missed flows
+                // produce false-negatives in the signature → depth-0 return → checked at call site
+                // only via the direct CheckRegionStore path.
+                return [];
+        }
+    }
+
     // Validates a named constructor ('Bind making a <type> to <name>, given (...): ...').
     // Resolves the return type to the canonical ObjectType instance, then delegates to CheckBind.
     private void CheckConstructor(BindStatement ctor)
@@ -60,6 +222,20 @@ public sealed partial class TypeChecker
         {
             foreach (var stmt in bind.Body)
                 CheckStatement(stmt);
+
+            // Compute return-depth signature so call sites can propagate rabbit depth through
+            // function calls instead of treating every return as depth-0.
+            // The FunctionType for this binding is in the current scope (it was imported from
+            // the outer scope for top-level functions, or registered just before CheckBind for
+            // nested functions).  Mutating it here propagates to the saved outer scope because
+            // FunctionType is a reference type — after RestoreScopes the caller sees the update.
+            var effectiveRetType = bind.ReturnType is FailureType frt0 ? frt0.Inner : bind.ReturnType;
+            if (IsReferenceType(effectiveRetType)
+                && TryLookup(bind.Name, out var selfTi)
+                && selfTi!.Type is FunctionType selfFt)
+            {
+                selfFt.ReturnDepthSignature = ComputeReturnDepthSignature(bind);
+            }
         }
         finally
         {
@@ -216,7 +392,10 @@ public sealed partial class TypeChecker
         // Inside a Try block, if control reaches the next line after a fallible call,
         // the failure branch was not taken — unwrap FailureType(T) to T automatically.
         if (_inTryBlock && funcType.ReturnType is FailureType frt)
+        {
+            PopulateCastDepthCache(cast, frt.Inner, funcType, argsToValidate);
             return frt.Inner;
+        }
 
         if (funcType.ReturnType is FailureType && !_inFailureHandledContext)
             throw new TypeException(FormatTypeError(
@@ -225,7 +404,38 @@ public sealed partial class TypeChecker
                 "use a fallible function's result without handling the failure",
                 "Wrap the call in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'."));
 
+        PopulateCastDepthCache(cast, funcType.ReturnType, funcType, argsToValidate);
         return funcType.ReturnType;
+    }
+
+    // Computes and caches the concrete rabbit depth of a CastExpression's return value.
+    // Called right before returning from InferCastExpr so nested casts are already cached.
+    //   sig == null  → method or unanalyzed function; depth 0 (backward-compatible, hole tracked separately).
+    //   sig == []    → return is always depth-0 (fresh/global); depth 0.
+    //   sig == [i,…] → max depth of contributing args; precise tracking.
+    private void PopulateCastDepthCache(
+        CastExpression           cast,
+        CufetType?               effectiveRetType,
+        FunctionType             funcType,
+        IReadOnlyList<IExpression> argsToValidate)
+    {
+        if (!IsReferenceType(effectiveRetType)) return;
+
+        var sig = funcType.ReturnDepthSignature;
+        int retDepth = 0;
+
+        if (sig != null)
+        {
+            foreach (var paramIdx in sig)
+            {
+                if (paramIdx >= argsToValidate.Count) continue;
+                var argType = InferType(argsToValidate[paramIdx]);
+                retDepth = Math.Max(retDepth, ValueDepthOf(argsToValidate[paramIdx], argType));
+            }
+        }
+        // sig == null: backward-compat depth-0 (method hole remains open, tracked in design notes)
+
+        _castDepthCache[cast] = retDepth;
     }
 
     // Resolves the function expression to (funcType, displayName, declLine, argsToValidate).

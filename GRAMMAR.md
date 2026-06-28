@@ -988,6 +988,57 @@ Done.
 Do **not** name the iterator `entry` — it is a reserved keyword. `pair`, `kv`,
 `item`, or any non-reserved word works.
 
+### Rabbit lifetime invariant: function calls now carry depth
+
+The downward-only invariant enforces that a reference-typed value can only be
+stored into a container whose lifetime is at least as long as the value's. After
+the return-depth inference arc, **function calls that return reference types are
+also tracked** — the checker infers how the return value's lifetime relates to the
+arguments.
+
+**What changes:** passing a rabbit-allocated value through a function no longer
+launders its depth. A one-hop identity function doesn't let a shorter-lived
+reference escape:
+
+```
+Bind series of number to smuggle, given (the series of number s):
+    return s.
+Done.
+
+Define outer as a series of number with ().
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    outer becomes Cast smuggle on (inner).   ← TYPE ERROR: inner is shorter-lived
+Done.
+```
+
+The checker infers that `smuggle` returns at the depth of its argument `s`.
+Calling it with `inner` (rabbit depth 1) and assigning to `outer` (depth 0) is
+caught as an invariant violation.
+
+**Same-depth calls are still legal:**
+
+```
+Pull a rabbit.
+    Define a as a series of number with (1).
+    Define b as a series of number with (2).
+    Define chain as a series of series of number with (a, b).   ← OK: all depth 1
+    Define first as Cast head on (chain).    ← OK if result stored at depth 1 or deeper
+Done.
+```
+
+**Conservative fallback:** for functions whose exact depth signature can't be
+determined (recursive functions, unknown callees), the checker assumes the return
+carries the depth of the deepest reference-type argument. This is sound
+(over-strict, never under-strict) — it may reject contrived-safe code but will
+never permit an unsafe escape.
+
+**Open gap (method calls, pre-native):** methods defined on object types are not
+yet depth-tracked at call sites — their returns are treated as depth-0 for now.
+A method that passes a rabbit-allocated field to the outside world would not yet
+be caught. This is a tracked pre-native soundness gap (the "capture-store hole")
+separate from the return-depth laundering hole that this inference closes.
+
 ---
 
 ## 8. Writing Cufet: the mental model

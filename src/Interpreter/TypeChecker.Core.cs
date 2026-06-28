@@ -93,6 +93,13 @@ public sealed class FunctionType : CufetType
     public IReadOnlyList<CufetType> ParameterTypes { get; }
     public CufetType? ReturnType { get; }   // null = void
 
+    // Which parameter indices (by position) contribute to the return value's rabbit depth.
+    // null  = not yet computed (method, or function still being analyzed → depth 0 at call sites).
+    // []    = computed; return is always depth-0 (fresh allocation, scalar, global).
+    // [i,…] = computed; return depth = max(depth of args at those indices).
+    // Not part of type equality — same signature with different depth signatures are still the same type.
+    public IReadOnlyList<int>? ReturnDepthSignature { get; set; } = null;
+
     public FunctionType(IReadOnlyList<CufetType> parameterTypes, CufetType? returnType)
     {
         ParameterTypes = parameterTypes;
@@ -445,6 +452,11 @@ public sealed partial class TypeChecker
     // Current rabbit nesting depth: 0 = global/function body, 1 = inside one With-rabbit, etc.
     // Reset to 0 on function/lambda/method entry; restored on exit.
     private int        _rabbitDepth             = 0;
+
+    // Populated by InferCastExpr; read by ValueDepthOf for CastExpression nodes.
+    // Stores the concrete rabbit depth of each CastExpression's return value, derived from
+    // the callee's ReturnDepthSignature evaluated with the actual argument depths at the call site.
+    private readonly Dictionary<CastExpression, int> _castDepthCache = new();
 
     public void Check(Program program)
     {

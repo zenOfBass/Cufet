@@ -37,7 +37,10 @@ public sealed partial class TypeChecker
     // Returns the rabbit depth of an expression's value.
     //   VariableReference       → stored depth from its TypeInfo.
     //   Reference-type literal  → _rabbitDepth (born here, in current rabbit).
-    //   Anything else           → 0 (value type, function-call result, unknown — treated as safe).
+    //   CastExpression          → depth from _castDepthCache (set by InferCastExpr using the
+    //                             callee's ReturnDepthSignature); 0 if not in cache (method /
+    //                             non-reference return).
+    //   Anything else           → 0 (value type, unknown — treated as safe).
     private int ValueDepthOf(IExpression expr, CufetType? inferredType)
     {
         if (!IsReferenceType(inferredType)) return 0;
@@ -45,6 +48,8 @@ public sealed partial class TypeChecker
         if (expr is SeriesLiteral or MapLiteral or MatrixLiteral or MatrixSized
                  or ObjectLiteral or RangeExpression)
             return _rabbitDepth;
+        if (expr is CastExpression cast && _castDepthCache.TryGetValue(cast, out var cachedDepth))
+            return cachedDepth;
         return 0;
     }
 
