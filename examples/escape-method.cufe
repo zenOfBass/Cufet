@@ -1,0 +1,13 @@
+Define object bag with (the series of number items).
+
+Bind series of number to get-items unto bag:
+    return one's items.
+Done.
+
+Define outer as a series of number with ().
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Define b as a new bag { the items inner }.
+    outer becomes Cast get-items on (b).
+Done.
+State "Count (GC saves us, native crashes): {the number of outer}".

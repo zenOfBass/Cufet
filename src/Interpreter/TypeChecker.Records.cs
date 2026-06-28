@@ -156,10 +156,20 @@ public sealed partial class TypeChecker
         {
             // Check getter before stored field — uniform access.
             var getterType = FindGetterInOtOrPromoted(ot, rna.FieldName);
-            if (getterType != null) return getterType;
+            if (getterType != null)
+            {
+                if (IsReferenceType(getterType))
+                    _rnaDepthCache[rna] = ComputeMemberAccessDepth(ot, rna.FieldName, rna.Record);
+                return getterType;
+            }
 
             var found = FindFieldInOtOrPromoted(ot, rna.FieldName);
-            if (found != null) return found;
+            if (found != null)
+            {
+                if (IsReferenceType(found))
+                    _rnaDepthCache[rna] = ComputeMemberAccessDepth(ot, rna.FieldName, rna.Record);
+                return found;
+            }
             var allFields = GetAllNamedFields(ot);
             var available = string.Join(", ",
                 allFields.Select(f => $"'{f.FieldName}'")

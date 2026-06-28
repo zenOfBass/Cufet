@@ -988,17 +988,15 @@ Done.
 Do **not** name the iterator `entry` — it is a reserved keyword. `pair`, `kv`,
 `item`, or any non-reserved word works.
 
-### Rabbit lifetime invariant: function calls now carry depth
+### Rabbit lifetime invariant: free functions, methods, and getters all carry depth
 
 The downward-only invariant enforces that a reference-typed value can only be
-stored into a container whose lifetime is at least as long as the value's. After
-the return-depth inference arc, **function calls that return reference types are
-also tracked** — the checker infers how the return value's lifetime relates to the
-arguments.
+stored into a container whose lifetime is at least as long as the value's. The
+return-depth inference system extends this to all call sites: **free functions,
+object methods, and getters** that return reference types are tracked — the checker
+infers how the return value's lifetime relates to the arguments and the receiver.
 
-**What changes:** passing a rabbit-allocated value through a function no longer
-launders its depth. A one-hop identity function doesn't let a shorter-lived
-reference escape:
+**Free function depth laundering is caught:**
 
 ```
 Bind series of number to smuggle, given (the series of number s):
@@ -1012,11 +1010,41 @@ Pull a rabbit.
 Done.
 ```
 
-The checker infers that `smuggle` returns at the depth of its argument `s`.
-Calling it with `inner` (rabbit depth 1) and assigning to `outer` (depth 0) is
-caught as an invariant violation.
+**Method depth laundering is caught:**
 
-**Same-depth calls are still legal:**
+```
+Define object bag with (the series of number items).
+Bind series of number to get-items unto bag:
+    return one's items.
+Done.
+
+Define outer as a series of number with ().
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Define b as a new bag { the items inner }.
+    outer becomes Cast get-items on (b).   ← TYPE ERROR: b (and its fields) is shorter-lived
+Done.
+```
+
+**Getter depth laundering is caught:**
+
+```
+Define object bag with (the series of number items):
+    Get payload as series of number:
+        return one's items.
+    Done.
+Done.
+
+Define outer as a series of number with ().
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Define b as a new bag { the items inner }.
+    outer becomes b's payload.   ← TYPE ERROR: b is in a shorter-lived rabbit
+Done.
+```
+
+**Same-depth calls are still legal** (storing within the same rabbit, or into a
+longer-lived container):
 
 ```
 Pull a rabbit.
@@ -1027,17 +1055,16 @@ Pull a rabbit.
 Done.
 ```
 
-**Conservative fallback:** for functions whose exact depth signature can't be
+**Conservative fallback:** for calls whose exact depth signature can't be
 determined (recursive functions, unknown callees), the checker assumes the return
-carries the depth of the deepest reference-type argument. This is sound
-(over-strict, never under-strict) — it may reject contrived-safe code but will
-never permit an unsafe escape.
+carries the depth of the deepest reference-type input (receiver or argument). This
+is sound (over-strict, never under-strict) — it may reject contrived-safe code
+but will never permit an unsafe escape.
 
-**Open gap (method calls, pre-native):** methods defined on object types are not
-yet depth-tracked at call sites — their returns are treated as depth-0 for now.
-A method that passes a rabbit-allocated field to the outside world would not yet
-be caught. This is a tracked pre-native soundness gap (the "capture-store hole")
-separate from the return-depth laundering hole that this inference closes.
+**Open gap (capture-store, pre-native):** a nested function that CAPTURES a
+rabbit-allocated variable from the enclosing scope and STORES it into outer state
+is not yet caught — its body is analyzed at definition-time depth (0), not
+call-time depth. This is the one remaining tracked pre-native soundness gap.
 
 ---
 

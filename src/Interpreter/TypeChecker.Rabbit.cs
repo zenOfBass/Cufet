@@ -38,8 +38,11 @@ public sealed partial class TypeChecker
     //   VariableReference       → stored depth from its TypeInfo.
     //   Reference-type literal  → _rabbitDepth (born here, in current rabbit).
     //   CastExpression          → depth from _castDepthCache (set by InferCastExpr using the
-    //                             callee's ReturnDepthSignature); 0 if not in cache (method /
-    //                             non-reference return).
+    //                             callee's ReturnDepthSignature + receiver depth at the call site).
+    //   PossessiveAccess        → depth from _possessiveDepthCache (set by InferPossessiveAccess;
+    //                             = receiver depth for fields; getter-sig-derived for getters).
+    //   RecordNamedAccess       → depth from _rnaDepthCache (set by InferRecordNamedAccess;
+    //                             same logic as possessive, for 'the member of obj' syntax).
     //   Anything else           → 0 (value type, unknown — treated as safe).
     private int ValueDepthOf(IExpression expr, CufetType? inferredType)
     {
@@ -50,6 +53,10 @@ public sealed partial class TypeChecker
             return _rabbitDepth;
         if (expr is CastExpression cast && _castDepthCache.TryGetValue(cast, out var cachedDepth))
             return cachedDepth;
+        if (expr is PossessiveAccess poss && _possessiveDepthCache.TryGetValue(poss, out var possDepth))
+            return possDepth;
+        if (expr is RecordNamedAccess rna && _rnaDepthCache.TryGetValue(rna, out var rnaDepth))
+            return rnaDepth;
         return 0;
     }
 

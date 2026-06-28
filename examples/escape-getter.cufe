@@ -1,0 +1,13 @@
+Define object bag with (the series of number items):
+    Get payload as series of number:
+        return one's items.
+    Done.
+Done.
+
+Define outer as a series of number with ().
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Define b as a new bag { the items inner }.
+    outer becomes b's payload.
+Done.
+State "Count (GC saves us, native crashes): {the number of outer}".

@@ -458,6 +458,21 @@ public sealed partial class TypeChecker
     // the callee's ReturnDepthSignature evaluated with the actual argument depths at the call site.
     private readonly Dictionary<CastExpression, int> _castDepthCache = new();
 
+    // Index -1 in ReturnDepthSignature: the receiver ('one') contributes to return depth.
+    // Used for method and getter signatures; never present in free-function signatures.
+    private const int ReceiverDepthIndex = -1;
+
+    // Populated by InferPossessiveAccess; read by ValueDepthOf for 'obj's member' accesses.
+    private readonly Dictionary<PossessiveAccess, int> _possessiveDepthCache = new();
+
+    // Populated by InferRecordNamedAccess (object type path); read by ValueDepthOf for
+    // 'the member of obj' accesses.
+    private readonly Dictionary<RecordNamedAccess, int> _rnaDepthCache = new();
+
+    // Getter return-depth signatures: [objTypeName][getterName] → ReturnDepthSignature.
+    // Stored separately from ObjectType.Getters (getters have no FunctionType wrapper).
+    private readonly Dictionary<string, Dictionary<string, IReadOnlyList<int>>> _getterDepthSigs = new();
+
     public void Check(Program program)
     {
         _scopes[0]["input"] = BuiltinInput;

@@ -8,7 +8,9 @@ public sealed partial class TypeChecker
     // Returns [] when no params contribute (fresh alloc / scalar / global returns).
     // Falls back to "all reference-type param indices" when the exact flow can't be determined
     // (recursive call found before self's signature is set, or unknown callee).
-    private IReadOnlyList<int> ComputeReturnDepthSignature(BindStatement bind)
+    // includeReceiver = true for method bodies: adds 'one' → ReceiverDepthIndex to paramIdx
+    // so that 'return one's field' correctly taint-propagates the receiver's depth.
+    private IReadOnlyList<int> ComputeReturnDepthSignature(BindStatement bind, bool includeReceiver = false)
     {
         // Build param-name → index and reference-type-param-index set.
         var paramIdx     = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -19,10 +21,27 @@ public sealed partial class TypeChecker
             if (IsReferenceType(ResolveParamType(bind.Parameters[i].Type)))
                 refParamIdxs.Add(i);
         }
+        if (includeReceiver)
+        {
+            // 'one' is the receiver — always a reference type (ObjectType).
+            paramIdx["one"] = ReceiverDepthIndex;
+            refParamIdxs.Add(ReceiverDepthIndex);
+        }
 
         var localDepths = new Dictionary<string, HashSet<int>>(StringComparer.Ordinal);
         var result      = new HashSet<int>();
         WalkBodyForReturnDepths(bind.Body, paramIdx, refParamIdxs, localDepths, result);
+        return result.OrderBy(x => x).ToList();
+    }
+
+    // Getter variant: no explicit params, only the receiver ('one') as a depth source.
+    private IReadOnlyList<int> ComputeGetterReturnDepthSignature(GetterDeclaration getter)
+    {
+        var paramIdx     = new Dictionary<string, int>(StringComparer.Ordinal) { ["one"] = ReceiverDepthIndex };
+        var refParamIdxs = new HashSet<int> { ReceiverDepthIndex };
+        var localDepths  = new Dictionary<string, HashSet<int>>(StringComparer.Ordinal);
+        var result       = new HashSet<int>();
+        WalkBodyForReturnDepths(getter.Body, paramIdx, refParamIdxs, localDepths, result);
         return result.OrderBy(x => x).ToList();
     }
 
@@ -129,7 +148,7 @@ public sealed partial class TypeChecker
                     var r = new HashSet<int>();
                     foreach (var cpIdx in callFt.ReturnDepthSignature)
                     {
-                        if (cpIdx < cast.Args.Count)
+                        if (cpIdx >= 0 && cpIdx < cast.Args.Count)
                             r.UnionWith(SymbolicExprDepth(cast.Args[cpIdx], paramIdx, refParamIdxs, localDepths));
                     }
                     return r;
@@ -389,11 +408,21 @@ public sealed partial class TypeChecker
                 "use its result as a value",
                 "Cast it as a statement instead, or change its return type if you need a result."));
 
+        // Determine the receiver for depth tracking:
+        //   TryMethodDispatch consumed the receiver from args → receiver is cast.Args[0].
+        //   Possessive-form method call (Cast alice's greet on (...)) → receiver is the PossessiveAccess target.
+        //   Free-function call → no receiver.
+        IExpression? receiverExpr = null;
+        if (argsToValidate.Count < cast.Args.Count)
+            receiverExpr = cast.Args[0];
+        else if (cast.Function is PossessiveAccess methodPa)
+            receiverExpr = methodPa.Target;
+
         // Inside a Try block, if control reaches the next line after a fallible call,
         // the failure branch was not taken — unwrap FailureType(T) to T automatically.
         if (_inTryBlock && funcType.ReturnType is FailureType frt)
         {
-            PopulateCastDepthCache(cast, frt.Inner, funcType, argsToValidate);
+            PopulateCastDepthCache(cast, frt.Inner, funcType, argsToValidate, receiverExpr);
             return frt.Inner;
         }
 
@@ -404,20 +433,22 @@ public sealed partial class TypeChecker
                 "use a fallible function's result without handling the failure",
                 "Wrap the call in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'."));
 
-        PopulateCastDepthCache(cast, funcType.ReturnType, funcType, argsToValidate);
+        PopulateCastDepthCache(cast, funcType.ReturnType, funcType, argsToValidate, receiverExpr);
         return funcType.ReturnType;
     }
 
     // Computes and caches the concrete rabbit depth of a CastExpression's return value.
     // Called right before returning from InferCastExpr so nested casts are already cached.
-    //   sig == null  → method or unanalyzed function; depth 0 (backward-compatible, hole tracked separately).
+    //   sig == null  → unanalyzed (shouldn't happen for methods now); depth 0 as fallback.
     //   sig == []    → return is always depth-0 (fresh/global); depth 0.
-    //   sig == [i,…] → max depth of contributing args; precise tracking.
+    //   sig == [i,…] → max depth of contributing args; ReceiverDepthIndex (-1) → receiver depth.
+    // receiverExpr is the object the method was called on (null for free-function calls).
     private void PopulateCastDepthCache(
-        CastExpression           cast,
-        CufetType?               effectiveRetType,
-        FunctionType             funcType,
-        IReadOnlyList<IExpression> argsToValidate)
+        CastExpression             cast,
+        CufetType?                 effectiveRetType,
+        FunctionType               funcType,
+        IReadOnlyList<IExpression> argsToValidate,
+        IExpression?               receiverExpr = null)
     {
         if (!IsReferenceType(effectiveRetType)) return;
 
@@ -426,14 +457,20 @@ public sealed partial class TypeChecker
 
         if (sig != null)
         {
-            foreach (var paramIdx in sig)
+            foreach (var pIdx in sig)
             {
-                if (paramIdx >= argsToValidate.Count) continue;
-                var argType = InferType(argsToValidate[paramIdx]);
-                retDepth = Math.Max(retDepth, ValueDepthOf(argsToValidate[paramIdx], argType));
+                if (pIdx == ReceiverDepthIndex)
+                {
+                    if (receiverExpr != null)
+                        retDepth = Math.Max(retDepth, ValueDepthOf(receiverExpr, InferType(receiverExpr)));
+                }
+                else if (pIdx >= 0 && pIdx < argsToValidate.Count)
+                {
+                    var argType = InferType(argsToValidate[pIdx]);
+                    retDepth = Math.Max(retDepth, ValueDepthOf(argsToValidate[pIdx], argType));
+                }
             }
         }
-        // sig == null: backward-compat depth-0 (method hole remains open, tracked in design notes)
 
         _castDepthCache[cast] = retDepth;
     }

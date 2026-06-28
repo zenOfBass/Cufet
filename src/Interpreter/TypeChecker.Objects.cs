@@ -115,6 +115,35 @@ public sealed partial class TypeChecker
         return null;
     }
 
+    // Finds the ObjectType in ot's embed chain that directly owns the getter (not promoted).
+    // Returns null if name is not a getter on any type in the chain.
+    private ObjectType? FindGetterOwnerOt(ObjectType ot, string name)
+    {
+        if (ot.Getters.Any(g => g.GetterName == name)) return ot;
+        if (ot.EmbeddedTypeName != null && _objectDefs.TryGetValue(ot.EmbeddedTypeName, out var embed))
+            return FindGetterOwnerOt(embed, name);
+        return null;
+    }
+
+    // Computes the concrete rabbit depth for a getter or field access on an object.
+    // For stored fields: depth = receiver depth (fields live inside the object).
+    // For getters: uses the getter's ReturnDepthSignature — if ReceiverDepthIndex is present,
+    //   depth = receiver depth; otherwise depth = 0 (fresh alloc). Falls back to receiver
+    //   depth when the sig is not yet available (getter body not yet analyzed).
+    private int ComputeMemberAccessDepth(ObjectType ot, string memberName, IExpression targetExpr)
+    {
+        var receiverDepth = ValueDepthOf(targetExpr, InferType(targetExpr));
+        var ownerOt = FindGetterOwnerOt(ot, memberName);
+        if (ownerOt != null
+            && _getterDepthSigs.TryGetValue(ownerOt.Name, out var gDict)
+            && gDict.TryGetValue(memberName, out var gSig))
+        {
+            return gSig.Any(i => i == ReceiverDepthIndex) ? receiverDepth : 0;
+        }
+        // No sig (stored field, or getter not yet analyzed): conservative = receiver depth.
+        return receiverDepth;
+    }
+
     // Finds a setter signature in ot or its embed chain (promotion).
     private (string SetterName, CufetType ParamType, string ParamName)? FindSetterInOtOrPromoted(ObjectType ot, string name)
     {
@@ -363,6 +392,16 @@ public sealed partial class TypeChecker
             foreach (var stmt in method.Body)
                 CheckStatement(stmt);
 
+            // Compute and store the method's return-depth signature so call sites can
+            // propagate rabbit depth through method calls instead of treating every return as depth-0.
+            var effectiveRetType = method.ReturnType is FailureType frt0 ? frt0.Inner : method.ReturnType;
+            if (IsReferenceType(effectiveRetType))
+            {
+                var methodFt = FindMethodInOtOrPromoted(objType, method.Name);
+                if (methodFt != null)
+                    methodFt.ReturnDepthSignature = ComputeReturnDepthSignature(method, includeReceiver: true);
+            }
+
             if (method.ReturnType != null && !DefinitelyReturns(method.Body))
                 throw new TypeException(FormatTypeError(
                     $"method '{method.Name}' is declared to give back a {FormatType(method.ReturnType)}, but it can reach its end without returning one",
@@ -411,6 +450,14 @@ public sealed partial class TypeChecker
         {
             foreach (var stmt in getter.Body)
                 CheckStatement(stmt);
+
+            // Compute and store the getter's return-depth signature.
+            if (IsReferenceType(getter.ReturnType))
+            {
+                if (!_getterDepthSigs.TryGetValue(objType.Name, out var dict))
+                    _getterDepthSigs[objType.Name] = dict = new Dictionary<string, IReadOnlyList<int>>();
+                dict[getter.Name] = ComputeGetterReturnDepthSignature(getter);
+            }
 
             if (!DefinitelyReturns(getter.Body))
                 throw new TypeException(FormatTypeError(
@@ -614,13 +661,23 @@ public sealed partial class TypeChecker
 
         // Methods first, then getters (field-syntax), then fields.
         var methodSig = FindMethodInOtOrPromoted(ot, poss.Member);
-        if (methodSig != null) return methodSig;
+        if (methodSig != null) return methodSig;  // method ref: depth tracked at call site via _castDepthCache
 
         var getterType = FindGetterInOtOrPromoted(ot, poss.Member);
-        if (getterType != null) return getterType;
+        if (getterType != null)
+        {
+            if (IsReferenceType(getterType))
+                _possessiveDepthCache[poss] = ComputeMemberAccessDepth(ot, poss.Member, poss.Target);
+            return getterType;
+        }
 
         var fieldType = FindFieldInOtOrPromoted(ot, poss.Member);
-        if (fieldType != null) return fieldType;
+        if (fieldType != null)
+        {
+            if (IsReferenceType(fieldType))
+                _possessiveDepthCache[poss] = ComputeMemberAccessDepth(ot, poss.Member, poss.Target);
+            return fieldType;
+        }
 
         var allFields  = GetAllNamedFields(ot);
         var available  = string.Join(", ",
