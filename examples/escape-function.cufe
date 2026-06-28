@@ -1,0 +1,11 @@
+Bind series of number to smuggle, given (the series of number s):
+    return s.
+Done.
+
+Define outer as a series of number with ().
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    outer becomes Cast smuggle on (inner).
+Done.
+Define outer-count as the number of outer.
+State "Count (GC saves us, native crashes): {outer-count}".

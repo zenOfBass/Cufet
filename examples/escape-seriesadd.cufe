@@ -1,0 +1,5 @@
+Define outer as a series of series of number with ().
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Add inner to outer.
+Done.

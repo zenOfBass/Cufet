@@ -1,0 +1,22 @@
+Pull a rabbit.
+    Define n1 as a series of number with (10).
+    Define n2 as a series of number with (20).
+    Define n3 as a series of number with (30).
+    Define chain as a series of series of number with (n1, n2, n3).
+
+    Add 99 to n1.
+
+    Define first-node as item 1 of chain.
+    Define alias-len as the number of first-node.
+    State "n1 through chain[0] has {alias-len} elements (expect 2 — reference confirmed).".
+
+    Define total as 0.
+    For each node in chain, repeat:
+        For each v in node, repeat:
+            total becomes total + v.
+        Done.
+    Done.
+
+    Define result as total.
+    State "Sum (10+99+20+30 = 159): {result}".
+Done.
