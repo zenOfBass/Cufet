@@ -690,12 +690,44 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   deferred (use `append ... to the file` for whole-value appends in the
   meantime).
 
+- **Concurrency model: cooperative, message-passing, structured (engine in place).**
+  The model is settled and the scheduler infrastructure is built. Three interlocking
+  decisions:
+
+  - *Message-passing, not shared mutable state.* Tasks communicate by passing values
+    (deep-copied at channel boundaries); they do not share mutable reference-typed
+    state. This preserves the outward-only region invariant by construction — no
+    cross-task aliasing, no use-after-free.
+
+  - *Structured concurrency.* Tasks are scoped: a task cannot outlive its spawning
+    scope. Tasks join before the spawning scope's `Done.`. This composes directly with
+    the existing `Done.`-bounded region discipline — no new lifetime concept is needed.
+
+  - *Cooperative scheduling.* Exactly one task runs at a time; tasks interleave only
+    at explicit yield points. Implementation: C# async/await with `CufetScheduler`
+    (a custom `SynchronizationContext`) routes all continuations back to the scheduler
+    queue on the same thread rather than the thread pool. No interpreter-internal data
+    races by construction. True parallelism is deferred to the native-backend era.
+
+  Yield points: I/O operations (async I/O, wired at task-body execution slice);
+  `Receive from` on an empty channel; explicit `Yield.` statement. Slice 5 inserts
+  the SIGINT interrupt check inside the scheduler's drain loop — every yield point
+  becomes a potential interrupt point, replacing the current explicit-poll model.
+
+  The engine is validated: two async units interleave correctly at yield points and
+  both complete (scheduler isolation test). Sequential programs run through the
+  scheduler as a single synchronous unit — behavior is identical; `Execute(Program)`
+  is the same public API, now wrapping `CufetScheduler.Run`. No user-facing syntax
+  yet — that is slice 2 (structured task spawn + `Done.`-join).
+
 - **SIGINT is cooperative-poll-only (tracked debt, not final).** A loop that never
   calls `an interrupt has been requested` or `run`/`Cast` cannot be interrupted
   mid-computation — the interpreter only checks the flag at explicit poll points.
   True preemptive mid-loop interruptibility requires native threading infrastructure.
   **This is an explicit owed feature:** "implement preemptive SIGINT" is a named
-  line-item of the concurrency arc, not a deferred maybe.
+  line-item of the concurrency arc, not a deferred maybe. Slice 5 of the concurrency
+  arc (SIGINT-at-yield) is the first meaningful improvement: the scheduler drain
+  loop checks the flag at each dequeue — every yield point is an interrupt point.
 
 - **Destructor RAII is semantic-only in the interpreter era (native-escape not
   solved).** In the interpreter, `unmake` fires when an object's binding goes out

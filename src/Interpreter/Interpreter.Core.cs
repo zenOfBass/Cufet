@@ -278,6 +278,12 @@ public sealed partial class Interpreter
 
     public void Execute(Program program)
     {
+        var scheduler = new CufetScheduler();
+        scheduler.Run(() => { ExecuteCore(program); return Task.CompletedTask; });
+    }
+
+    private void ExecuteCore(Program program)
+    {
         // Hoist object definitions (before functions, so method bodies can reference them).
         foreach (var stmt in FlattenHoistable(program.Statements))
         {
