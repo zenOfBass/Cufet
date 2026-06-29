@@ -50,6 +50,11 @@ public sealed partial class Interpreter
     // so 'one's field becomes X' inside the setter does a raw write instead of recursing.
     private (string TypeName, string FieldName)? _inSetterFor = null;
 
+    // Active cooperative scheduler — set for the duration of Execute(Program), null otherwise.
+    // ExecuteLaunchTask enqueues task bodies via _scheduler.Enqueue; ExecutePullRabbit joins
+    // them via _scheduler.JoinTasks before releasing the rabbit scope.
+    private CufetScheduler? _scheduler;
+
     private Dictionary<string, object> Scope => _scopes[^1];
 
     private bool TryLookupValue(string name, out object val)
@@ -278,8 +283,9 @@ public sealed partial class Interpreter
 
     public void Execute(Program program)
     {
-        var scheduler = new CufetScheduler();
-        scheduler.Run(() => { ExecuteCore(program); return Task.CompletedTask; });
+        _scheduler = new CufetScheduler();
+        _scheduler.Run(() => { ExecuteCore(program); return Task.CompletedTask; });
+        _scheduler = null;
     }
 
     private void ExecuteCore(Program program)
@@ -612,6 +618,10 @@ public sealed partial class Interpreter
 
             case PullRabbitStatement prs:
                 ExecutePullRabbit(prs);
+                break;
+
+            case LaunchTaskStatement lts:
+                ExecuteLaunchTask(lts);
                 break;
 
             case PullStatement ps:

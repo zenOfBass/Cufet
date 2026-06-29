@@ -54,6 +54,56 @@ internal sealed class CufetScheduler : SynchronizationContext
         finally { SetSynchronizationContext(prev); }
     }
 
+    // Enqueue a new task mid-run (slice-2+ task spawn).
+    // The unit is not started immediately — it is added to the ready queue and will
+    // run on the next drain turn. Returns a Task that completes when the unit finishes.
+    // Exceptions from the unit are stored on the returned Task and re-thrown by JoinTasks.
+    internal Task Enqueue(Func<Task> unit)
+    {
+        var tcs = new TaskCompletionSource();
+        _ready.Enqueue(() =>
+        {
+            Task inner;
+            try   { inner = unit(); }
+            catch (Exception ex) { tcs.SetException(ex); return; }
+
+            if (inner.IsCompletedSuccessfully)
+            {
+                tcs.SetResult();
+            }
+            else if (inner.IsFaulted)
+            {
+                tcs.SetException(inner.Exception!.InnerException ?? inner.Exception!);
+            }
+            else
+            {
+                // Async inner task (slice 3+): chain completion back through the scheduler queue
+                // via GetAwaiter().OnCompleted, which uses the current SynchronizationContext.
+                inner.GetAwaiter().OnCompleted(() =>
+                {
+                    if (inner.IsFaulted)
+                        tcs.SetException(inner.Exception!.InnerException ?? inner.Exception!);
+                    else
+                        tcs.SetResult();
+                });
+            }
+        });
+        return tcs.Task;
+    }
+
+    // Drain all tasks in the list to completion, then re-throw any exceptions.
+    // Called by ExecutePullRabbit at the rabbit's Done. to join spawned tasks.
+    // Re-entrant-safe: this is called from within the main synchronous unit while
+    // the outer scheduler.Run is still on the call stack. The drain loop is the same
+    // queue, so pending continuations (task bodies) are processed here inline.
+    internal void JoinTasks(Task[] tasks)
+    {
+        if (tasks.Length == 0) return;
+        Drain(tasks);
+        foreach (var t in tasks)
+            t.GetAwaiter().GetResult();
+    }
+
     // Run N async units concurrently to completion on the calling thread.
     // Units interleave at yield points; all are started before the drain loop runs.
     // Used for the slice-1 isolation validator and future multi-task test scenarios.

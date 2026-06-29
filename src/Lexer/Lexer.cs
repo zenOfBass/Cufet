@@ -199,6 +199,8 @@ public sealed class Lexer
             "stream"     => TokenType.Stream,
             "open"       => TokenType.Open,
             "rabbit"     => TokenType.Rabbit,
+            "have"       => TokenType.HaveKw,
+            "task"       => TokenType.TaskKw,
             "pull"       => TokenType.Pull,
             "book"       => TokenType.Book,
             "books"      => TokenType.Books,

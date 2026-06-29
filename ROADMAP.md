@@ -717,8 +717,21 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   The engine is validated: two async units interleave correctly at yield points and
   both complete (scheduler isolation test). Sequential programs run through the
   scheduler as a single synchronous unit — behavior is identical; `Execute(Program)`
-  is the same public API, now wrapping `CufetScheduler.Run`. No user-facing syntax
-  yet — that is slice 2 (structured task spawn + `Done.`-join).
+  is the same public API, now wrapping `CufetScheduler.Run`.
+
+  Slice 2 (built): structured task spawn `Have rabbit start a task [as <name>]: ... Done.`
+  Tasks enqueue via `CufetScheduler.Enqueue`; the enclosing rabbit's `Done.` handler calls
+  `JoinTasks` before releasing the scope. Sound by construction: tasks are shorter-lived than
+  their rabbit; existing `CheckRegionStore` catches outward-escape attempts from task bodies.
+
+- **Captured-state mutation in tasks: named constraint, deferred enforcement.**
+  Task bodies may read variables from their enclosing rabbit scope. Mutating captured
+  reference-typed variables (series, map, object, matrix) from the enclosing scope is not
+  enforced against in the interpreter era — the cooperative scheduler makes this safe (one
+  task runs at a time; no actual races). The native era will introduce true parallelism; at
+  that point unsynchronized mutation is a data race. The constraint is named here so the
+  native-era enforcer (borrow checker or ownership analysis) does not inherit an unguarded
+  pattern: **task bodies must not mutate captured reference-type state from outer scopes.**
 
 - **SIGINT is cooperative-poll-only (tracked debt, not final).** A loop that never
   calls `an interrupt has been requested` or `run`/`Cast` cannot be interrupted

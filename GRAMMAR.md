@@ -743,6 +743,63 @@ Hoisting passes (functions, objects, overloads) see through pull bodies automati
 
 ---
 
+### `Have rabbit start a task` — structured cooperative task spawn
+
+Spawns a cooperative structured task inside the enclosing rabbit's scope.
+
+**Syntax:**
+```
+Pull a rabbit.
+    Have rabbit start a task:
+        ... task body ...
+    Done.
+    Have rabbit start a task as <name>:
+        ... task body ...
+    Done.
+    ... more statements ...
+Done.   ← all tasks spawned in this rabbit JOIN here
+```
+
+- **Requires an active rabbit** — `Have rabbit start a task` must appear inside a
+  `Pull a rabbit. ... Done.` block. Using it outside any rabbit is a parse error.
+- **Optional name** (`as <name>`) — binds an identity for future result-await (slice 4);
+  inert in the current release. Either form is valid.
+
+**Semantics:**
+
+- **Cooperative** — tasks run on the cooperative scheduler (one at a time; interleave only
+  at explicit yield points). No true parallelism in the interpreter era.
+- **Structured (the key guarantee)** — every task spawned inside a rabbit **joins at that
+  rabbit's `Done.`**: the `Done.` handler waits for all spawned tasks to complete before
+  releasing the scope. A task **cannot outlive its enclosing rabbit**.
+- **Sound by construction** — because tasks join before `Done.`, they are shorter-lived than
+  their rabbit. The existing region depth machinery (`CheckRegionStore`) handles escapes:
+  a task-local reference-type value cannot be stored into a longer-lived container.
+
+**Sharp edge — captured-state mutation (native-era concern, deferred enforcement):**
+Task bodies may read variables from the enclosing rabbit scope. They should not **mutate**
+captured reference-typed variables from that scope. Under the cooperative scheduler this is
+safe (one task runs at a time — no actual races). The native era will introduce true
+parallelism, at which point unsynchronized mutation becomes a data race. Slice 2 names this
+constraint but does not enforce it; native-era tooling will.
+
+**Example:**
+```
+Pull a rabbit.
+    Have rabbit start a task:
+        State "task A".
+    Done.
+    Have rabbit start a task as worker:
+        State "task B".
+    Done.
+    State "during rabbit".
+Done.
+State "after".
+```
+Output: `during rabbit`, `task A`, `task B`, `after` — both tasks complete before `after`.
+
+---
+
 ## 6. Where constructs are allowed
 
 ### `Define` is forbidden inside object bodies

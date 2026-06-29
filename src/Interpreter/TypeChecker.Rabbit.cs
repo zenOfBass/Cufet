@@ -27,6 +27,29 @@ public sealed partial class TypeChecker
         finally { ExitScope(); _rabbitDepth--; }
     }
 
+    // "Have rabbit start a task [as <name>]: ... Done."
+    // Static checks:
+    //   1. Must be inside an active rabbit (_rabbitDepth > 0) — enforced redundantly here
+    //      and in the parser (parse error fires first; this is a belt-and-suspenders guard).
+    //   2. Task body type-checks as a scope at the current rabbit depth. The task is
+    //      structured (joins before its rabbit's Done.), so it is shorter-lived than the
+    //      rabbit → no new soundness machinery needed. The existing region depth checks in
+    //      CheckRegionStore fire if the task body tries to store a task-local reference
+    //      into a longer-lived container, exactly as they would for any nested scope.
+    // Note: name (slice-4 result-await identity) is recorded but not type-checked yet.
+    private void CheckLaunchTask(LaunchTaskStatement lts)
+    {
+        if (_rabbitDepth == 0)
+            throw new TypeException(FormatTypeError(
+                "'Have rabbit start a task' requires an active rabbit",
+                null, lts.Line,
+                "spawning a task outside any rabbit scope",
+                "Wrap the task spawn in 'Pull a rabbit. ... Done.'"));
+        EnterScope();
+        try { foreach (var s in lts.Body) CheckStatement(s); }
+        finally { ExitScope(); }
+    }
+
     // ── Outward-only store invariant helpers ─────────────────────────────────
 
     // Series, maps, objects, and matrices are reference types tracked by rabbit depth.

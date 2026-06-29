@@ -460,6 +460,21 @@ public sealed record PullRabbitStatement(
     int Line
 ) : IStatement;
 
+// Have rabbit start a task [as <name>]: ... Done.
+// Spawns a cooperative structured task inside the enclosing rabbit's scope.
+// Semantics (slice 2):
+//   • Runs on the CufetScheduler (cooperative, single-threaded, yield-point interleaving).
+//   • Structured: the task body is enqueued and joins at the enclosing rabbit's Done.
+//     Tasks cannot outlive their rabbit — sound by construction (shorter-lived scope,
+//     existing region depth/CheckRegionStore covers outward escapes).
+//   • Name (optional): binds an identity for slice-4 result-await; inert in slice 2.
+// Requires an active rabbit in scope (enforced by parser + type checker).
+public sealed record LaunchTaskStatement(
+    string? Name,
+    IReadOnlyList<IStatement> Body,
+    int Line
+) : IStatement;
+
 // a matrix with ((r1e1, r1e2, ...), (r2e1, r2e2, ...), ...)
 // 2D numeric grid; dimensions inferred from literal; rectangularity enforced.
 // Constructable only where the 'collections' book has been pulled.

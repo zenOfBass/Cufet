@@ -9,6 +9,7 @@ public sealed class Parser
     private int _loopDepth;
     private int _nestDepth;       // any block depth — used to enforce Bind top-level only
     private int _functionDepth;   // incremented inside a Bind body — for return validation
+    private int _rabbitDepth;     // incremented inside a Pull a rabbit. ... Done. scope
     private bool _inObjectDef;    // bypasses _nestDepth guard for Bind inside object method blocks
     private bool _inFreeFunction; // true inside a top-level (non-method) Bind body; allows nested Bind
 
@@ -60,6 +61,7 @@ public sealed class Parser
             TokenType.Append     => ParseFileWriteStatement(),
             TokenType.With       => ParseWithOpenStatement(),
             TokenType.Pull       => ParsePullStatement(),
+            TokenType.HaveKw     => ParseLaunchTaskStatement(),
             TokenType.AcknowledgeKw => ParseAcknowledgeInterruptStatement(),
             TokenType.GetKw => ParseGetterUntoDeclaration(),
             TokenType.SetKw => ParseSetterUntoDeclaration(),
@@ -1049,7 +1051,9 @@ public sealed class Parser
                 SkipNoise();
             }
             Consume(TokenType.Dot);
+            _rabbitDepth++;
             var body = ParsePullBody(); // consumes Done.
+            _rabbitDepth--;
             return new PullRabbitStatement(name, body, line);
         }
 
@@ -1102,6 +1106,34 @@ public sealed class Parser
             SkipNoise();
         }
         return (bookName, localName);
+    }
+
+    // "Have rabbit start a task [as <name>]: ... Done."
+    // Requires an active Pull a rabbit. ... Done. scope (_rabbitDepth > 0).
+    // Name is optional — binds identity for slice-4 result-await; inert in slice 2.
+    private LaunchTaskStatement ParseLaunchTaskStatement()
+    {
+        var tok = Peek();
+        if (_rabbitDepth == 0)
+            throw new ParseException(tok,
+                "'Have rabbit start a task' requires an active rabbit — wrap it in 'Pull a rabbit. ... Done.'");
+        var line = Consume(TokenType.HaveKw).Line;
+        Consume(TokenType.Rabbit);
+        Consume(TokenType.Start);
+        SkipNoise();                // eats 'a'
+        Consume(TokenType.TaskKw);
+        SkipNoise();
+        string? name = null;
+        if (Peek().Type == TokenType.As)
+        {
+            Advance();   // consume 'as'
+            SkipNoise();
+            name = Consume(TokenType.Identifier).Lexeme;
+            SkipNoise();
+        }
+        Consume(TokenType.Colon);
+        var body = ParsePullBody(); // consumes Done.
+        return new LaunchTaskStatement(name, body, line);
     }
 
     // Body parser for Pull...Done. scopes. Allows zero statements (unlike ParseLoopBody).

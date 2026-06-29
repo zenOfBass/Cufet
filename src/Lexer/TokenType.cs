@@ -151,7 +151,12 @@ public enum TokenType
     Suppress,  // "suppress"  — in "Suppress the exception."
 
     // ── Rabbits (block-scoped memory regions) ────────────────────────────────
-    Rabbit,   // "rabbit" — in "With a rabbit <name>: ... Done." and "given (the rabbit <name>)"
+    Rabbit,   // "rabbit" — in "Pull a rabbit [as <name>]." and "given (the rabbit <name>)"
+              //             and "Have rabbit start a task [as <name>]: ... Done."
+
+    // ── Concurrency (structured tasks) ───────────────────────────────────────
+    HaveKw,   // "Have"   — in "Have rabbit start a task [as <name>]: ... Done."
+    TaskKw,   // "task"   — in "Have rabbit start a task"
 
     // ── Books (standard-library capability units) ─────────────────────────────
     Pull,   // "pull"   — in "Pull a book on <name> [as <local>]." / "Pull books on <n>, <n>, ..."

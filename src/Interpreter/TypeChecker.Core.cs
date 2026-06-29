@@ -944,6 +944,9 @@ public sealed partial class TypeChecker
             case PullRabbitStatement prs:
                 CheckPullRabbit(prs);
                 break;
+            case LaunchTaskStatement lts:
+                CheckLaunchTask(lts);
+                break;
             case PullStatement ps:
                 CheckPullStatement(ps);
                 break;
