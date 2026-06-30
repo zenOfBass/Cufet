@@ -1,7 +1,7 @@
 Define sample-text as "examples/sample.txt".
 
 Pull a rabbit.
-    Define counts as a new map from text to number.
+    Define counts as a map from text to number with ().
 
     With the file sample-text open for reading as src:
         Define content as read all from src.

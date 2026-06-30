@@ -2011,17 +2011,6 @@ public sealed class Parser
             {
                 var newLine = Advance().Line; // consume 'new'
                 SkipNoise();
-                if (Peek().Type == TokenType.Map)
-                {
-                    // "a new map from K to V" — empty map with explicit type annotation
-                    Advance(); SkipNoise(); // consume 'map'
-                    Consume(TokenType.From); SkipNoise();
-                    var keyType = ParseTypeAnnotation(); SkipNoise();
-                    Consume(TokenType.To); SkipNoise();
-                    var valueType = ParseTypeAnnotation();
-                    baseExpr = new MapLiteral(keyType, valueType, [], newLine);
-                    break;
-                }
                 // "a new TypeName { fields }" — object literal
                 var typeName = Consume(TokenType.Identifier).Lexeme;
                 SkipNoise();
@@ -2125,9 +2114,20 @@ public sealed class Parser
             }
             case TokenType.Map:
             {
-                // "a map with ("k" : v, ...)" — populated map literal
+                // "a map [from K to V] with ("k" : v, ...)" — map literal
+                // Optional 'from K to V' gives an explicit key/value type annotation,
+                // enabling empty typed maps and typed populated maps.
                 var mapLine = Advance().Line; // consume 'map'
                 SkipNoise();
+                CufetType? mapKeyType = null;
+                CufetType? mapValType = null;
+                if (Peek().Type == TokenType.From)
+                {
+                    Advance(); SkipNoise(); // consume 'from'
+                    mapKeyType = ParseTypeAnnotation(); SkipNoise();
+                    Consume(TokenType.To); SkipNoise();
+                    mapValType = ParseTypeAnnotation(); SkipNoise();
+                }
                 Consume(TokenType.With);
                 SkipNoise();
                 Consume(TokenType.LParen);
@@ -2151,7 +2151,7 @@ public sealed class Parser
                     }
                 }
                 Consume(TokenType.RParen);
-                baseExpr = new MapLiteral(null, null, pairs, mapLine);
+                baseExpr = new MapLiteral(mapKeyType, mapValType, pairs, mapLine);
                 break;
             }
             case TokenType.Entry:

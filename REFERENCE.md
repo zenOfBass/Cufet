@@ -1274,8 +1274,9 @@ Typed key→value collections. Keys are one type, values are one type
 
 **Construction:**
 ```
-Define ages as a map with ("alice" : 30, "bob" : 25).     ← populated, key : value pairs
-Define ages as a new map from text to number.             ← empty, typed
+Define ages as a map with ("alice" : 30, "bob" : 25).          ← populated, inferred types
+Define ages as a map from text to number with ("alice" : 30).  ← populated, typed
+Define ages as a map from text to number with ().               ← empty, typed
 ```
 
 **Lookup** — returns `voidable <value-type>` (the key might be absent):
@@ -1301,7 +1302,7 @@ voidable-valued map (below): a key can be present with its value explicitly
 
 **Voidable values** — a map's value type can itself be `voidable V`:
 ```
-Define ages as a new map from text to voidable number.
+Define ages as a map from text to voidable number with ().
 In ages, the entry for "alice" becomes 30.
 In ages, the entry for "bob" becomes void.        ← present key, void value
 ```

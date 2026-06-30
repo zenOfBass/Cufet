@@ -340,8 +340,9 @@ public sealed record SuppressStatement(int Line) : IStatement;
 
 // ── Maps ──────────────────────────────────────────────────────────────────────
 
-// a map with ("k":v, ...) — populated; KeyType/ValueType null (infer from pairs)
-// a new map from K to V   — empty; KeyType/ValueType explicit; Pairs is empty
+// a map [from K to V] with ("k":v, ...)
+//   — KeyType/ValueType explicit when 'from K to V' is given; null means infer from pairs
+//   — Pairs empty = empty map; Pairs non-empty = populated map
 public sealed record MapLiteral(
     CufetType? KeyType,
     CufetType? ValueType,

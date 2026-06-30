@@ -68,7 +68,7 @@ Done.
 
 Bind making a graph to new-graph:
     Define empty-nodes as a series of node with ().
-    Define empty-adj   as a new map from node to series of edge.
+    Define empty-adj   as a map from node to series of edge with ().
     Return a new graph { the nodes empty-nodes, the adjacency empty-adj }.
 Done.
 
@@ -104,8 +104,8 @@ Bind map from node to number or failure to dijkstra, given (the graph g, the tex
     Define dummy-node as a new node { the name "" }.
     Define origin     as origin-v but void is dummy-node.
 
-    Define distances as a new map from node to number.
-    Define visited  as a new map from node to number.
+    Define distances as a map from node to number with ().
+    Define visited  as a map from node to number with ().
     Define pq       as cast new-pq.
 
     In distances, the entry for origin becomes 0.

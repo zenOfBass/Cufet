@@ -4829,7 +4829,7 @@ public class InterpreterTests
     public void TextCase_DoesNotCollideWithMapSetStatement()
     {
         Assert.Equal("42", Run(
-            "Define ages as a new map from text to number.\n" +
+            "Define ages as a map from text to number with ().\n" +
             "In ages, the entry for \"x\" becomes 42.\n" +
             "State the entry for \"x\" in ages but void is 0."));
     }
@@ -5066,7 +5066,7 @@ public class InterpreterTests
     public void Map_Empty_Construction()
     {
         Assert.Equal("0", Run(
-            "Define ages as a new map from text to number.\n" +
+            "Define ages as a map from text to number with ().\n" +
             "State the size of ages."));
     }
 
@@ -5076,6 +5076,16 @@ public class InterpreterTests
         Assert.Equal("2", Run(
             "Define ages as a map with (\"alice\" : 30, \"bob\" : 25).\n" +
             "State the size of ages."));
+    }
+
+    // Typed + populated — the form that was previously inexpressible (required `a new map from K to V`
+    // for empty + separate insertion; now `a map from K to V with (...)` handles both in one literal).
+    [Fact]
+    public void Map_TypedPopulated_Construction()
+    {
+        Assert.Equal("30", Run(
+            "Define ages as a map from text to number with (\"alice\" : 30, \"bob\" : 25).\n" +
+            "State the entry for \"alice\" in ages but void is 0."));
     }
 
     [Fact]
@@ -5108,7 +5118,7 @@ public class InterpreterTests
     public void Map_Set_AddEntry()
     {
         Assert.Equal("42", Run(
-            "Define scores as a new map from text to number.\n" +
+            "Define scores as a map from text to number with ().\n" +
             "In scores, the entry for \"x\" becomes 42.\n" +
             "State the entry for \"x\" in scores but void is 0."));
     }
@@ -5177,7 +5187,7 @@ public class InterpreterTests
     public void Map_Size_Empty()
     {
         Assert.Equal("0", Run(
-            "Define m as a new map from number to text.\n" +
+            "Define m as a map from number to text with ().\n" +
             "State the size of m."));
     }
 
@@ -5230,7 +5240,7 @@ public class InterpreterTests
     {
         // Assigning a map to a new variable — both names see mutations.
         Assert.Equal("true", Run(
-            "Define m as a new map from text to number.\n" +
+            "Define m as a map from text to number with ().\n" +
             "Define n as m.\n" +
             "In m, the entry for \"x\" becomes 7.\n" +
             "State n has a key for \"x\"."));
@@ -5295,7 +5305,7 @@ public class InterpreterTests
     public void VoidableMap_DeclareAndConstruct()
     {
         Assert.Equal("0", Run(
-            "Define ages as a new map from text to voidable number.\n" +
+            "Define ages as a map from text to voidable number with ().\n" +
             "State the size of ages."));
     }
 
@@ -5303,7 +5313,7 @@ public class InterpreterTests
     public void VoidableMap_SetPlainValueWorks()
     {
         Assert.Equal("30", Run(
-            "Define ages as a new map from text to voidable number.\n" +
+            "Define ages as a map from text to voidable number with ().\n" +
             "In ages, the entry for \"alice\" becomes 30.\n" +
             "State the entry for \"alice\" in ages but void is 0."));
     }
@@ -5312,7 +5322,7 @@ public class InterpreterTests
     public void VoidableMap_SetVoidWorks()
     {
         Assert.Equal("void", Run(
-            "Define ages as a new map from text to voidable number.\n" +
+            "Define ages as a map from text to voidable number with ().\n" +
             "In ages, the entry for \"bob\" becomes void.\n" +
             "State the entry for \"bob\" in ages."));
     }
@@ -5323,7 +5333,7 @@ public class InterpreterTests
         // If the type were 'voidable voidable number', 'is not void' would narrow to
         // 'voidable number', and using it directly as a number would be a static error.
         Assert.Equal("31", Run(
-            "Define ages as a new map from text to voidable number.\n" +
+            "Define ages as a map from text to voidable number with ().\n" +
             "In ages, the entry for \"alice\" becomes 30.\n" +
             "Define v as the entry for \"alice\" in ages.\n" +
             "If v is not void:\n" +
@@ -5339,7 +5349,7 @@ public class InterpreterTests
     {
         // The slot exists even though its value is void.
         Assert.Equal("true", Run(
-            "Define ages as a new map from text to voidable number.\n" +
+            "Define ages as a map from text to voidable number with ().\n" +
             "In ages, the entry for \"bob\" becomes void.\n" +
             "State ages has a key for \"bob\"."));
     }
@@ -5349,7 +5359,7 @@ public class InterpreterTests
     {
         // Diverges from has-a-key: a void-valued slot is not a present entry.
         Assert.Equal("false", Run(
-            "Define ages as a new map from text to voidable number.\n" +
+            "Define ages as a map from text to voidable number with ().\n" +
             "In ages, the entry for \"bob\" becomes void.\n" +
             "State ages has an entry for \"bob\"."));
     }
@@ -5358,7 +5368,7 @@ public class InterpreterTests
     public void VoidableMap_HasKey_FalseWhenAbsent()
     {
         Assert.Equal("false", Run(
-            "Define ages as a new map from text to voidable number.\n" +
+            "Define ages as a map from text to voidable number with ().\n" +
             "State ages has a key for \"carol\"."));
     }
 
@@ -5366,7 +5376,7 @@ public class InterpreterTests
     public void VoidableMap_HasEntry_TrueForRealValue()
     {
         Assert.Equal("true", Run(
-            "Define ages as a new map from text to voidable number.\n" +
+            "Define ages as a map from text to voidable number with ().\n" +
             "In ages, the entry for \"alice\" becomes 30.\n" +
             "State ages has an entry for \"alice\"."));
     }
@@ -5375,7 +5385,7 @@ public class InterpreterTests
     public void VoidableMap_CanonicalPattern_DistinguishesAbsentFromVoidValue()
     {
         Assert.Equal("present, but void\nno such key", Run(
-            "Define ages as a new map from text to voidable number.\n" +
+            "Define ages as a map from text to voidable number with ().\n" +
             "In ages, the entry for \"bob\" becomes void.\n" +
             "If ages has a key for \"bob\":\n" +
             "    Define v as the entry for \"bob\" in ages.\n" +
@@ -5401,7 +5411,7 @@ public class InterpreterTests
     public void VoidableMap_UpdateVoidEntryToRealValue()
     {
         Assert.Equal("42", Run(
-            "Define ages as a new map from text to voidable number.\n" +
+            "Define ages as a map from text to voidable number with ().\n" +
             "In ages, the entry for \"bob\" becomes void.\n" +
             "In ages, the entry for \"bob\" becomes 42.\n" +
             "State the entry for \"bob\" in ages but void is 0."));
@@ -5411,7 +5421,7 @@ public class InterpreterTests
     public void VoidableMap_TypeError_SetWrongType()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Define ages as a new map from text to voidable number.\n" +
+            "Define ages as a map from text to voidable number with ().\n" +
             "In ages, the entry for \"bob\" becomes \"oops\"."));
     }
 

@@ -827,7 +827,7 @@ Use a `Bind making a` constructor to hide that:
 ```
 Bind making a graph to new-graph:
     Define empty-nodes as a series of node with ().
-    Define empty-adj   as a new map from node to series of edge.
+    Define empty-adj   as a map from node to series of edge with ().
     Return a new graph { the nodes empty-nodes, the adjacency empty-adj }.
 Done.
 ```
@@ -908,16 +908,19 @@ Define empty as a series of edge with ().
 Define edges as the entry for src in adjacency but void is empty.
 ```
 
-### `a new map from K to V` creates an empty map
+### `a map [from K to V] with (...)` — the three map forms
 
-In expression position, only `a new map from K to V` is valid for creating an
-empty map. The bare `a map from K to V` is a **type annotation** only — it is
-not a value expression:
+`map` in expression position always requires a `with (...)` clause. The optional
+`from K to V` annotation controls whether types are explicit or inferred:
 
 ```
-Define m as a new map from text to number.    ← OK: creates empty map
-                                              ← NOT: "a map from text to number"
+Define m as a map from text to number with ().         ← empty, typed
+Define m as a map from text to number with ("k": 1).   ← typed + populated
+Define m as a map with ("k": 1).                       ← inferred types
 ```
+
+`new` is not used for map construction. `a map from K to V` without `with (...)`
+is a **type annotation** only — it names a type, not a value.
 
 ### For-each iterator names must be identifiers
 
@@ -1224,8 +1227,8 @@ possessive-set (`one's field becomes X`) or in-place map operations.
 ### Empty collection idioms
 
 ```
-Define xs as a series of number with ().      ← empty series
-Define m  as a new map from text to number.   ← empty map
+Define xs as a series of number with ().             ← empty series
+Define m  as a map from text to number with ().      ← empty map
 ```
 
 Both create empty, typed, mutable collections. Use `Bind making a` constructors
