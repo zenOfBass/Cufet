@@ -165,6 +165,10 @@ public enum TokenType
     Delivery, // "delivery" — in "the delivery from <channel>"
     Close,    // "close"    — in "Close <channel>."
 
+    // ── Concurrency (task results — slice 4) ─────────────────────────────────
+    Awaited,  // "awaited"  — in "the awaited result of <task>"
+              // "result" is contextual (parsed by lexeme) — not a reserved keyword
+
     // ── Books (standard-library capability units) ─────────────────────────────
     Pull,   // "pull"   — in "Pull a book on <name> [as <local>]." / "Pull books on <n>, <n>, ..."
     Book,   // "book"   — in "Pull a book on <name>" (singular)

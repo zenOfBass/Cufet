@@ -33,10 +33,11 @@ public sealed partial class TypeChecker
     //      and in the parser (parse error fires first; this is a belt-and-suspenders guard).
     //   2. Task body type-checks as a scope at the current rabbit depth. The task is
     //      structured (joins before its rabbit's Done.), so it is shorter-lived than the
-    //      rabbit → no new soundness machinery needed. The existing region depth checks in
-    //      CheckRegionStore fire if the task body tries to store a task-local reference
-    //      into a longer-lived container, exactly as they would for any nested scope.
-    // Note: name (slice-4 result-await identity) is recorded but not type-checked yet.
+    //      rabbit → no new soundness machinery needed.
+    //   3. (slice 4) Return type inferred from the task body (same _inferringLambdaReturn
+    //      machinery as lambdas). If the body has failure returns, _overloadBodyIsFallible
+    //      is set so the inferred type is wrapped in FailureType(T). The result type is
+    //      stored on a TaskHandleType bound to the task's name in the enclosing scope.
     private void CheckLaunchTask(LaunchTaskStatement lts)
     {
         if (_rabbitDepth == 0)
@@ -45,9 +46,43 @@ public sealed partial class TypeChecker
                 null, lts.Line,
                 "spawning a task outside any rabbit scope",
                 "Wrap the task spawn in 'Pull a rabbit. ... Done.'"));
+
+        bool bodyIsFallible = HasDirectFailureReturn(lts.Body);
+
+        var prevInFunction       = _inFunction;
+        var prevExpectedReturn   = _expectedReturnType;
+        var prevFunctionLine     = _functionDeclarationLine;
+        var prevInferring        = _inferringLambdaReturn;
+        var prevOverloadFallible = _overloadBodyIsFallible;
+
+        _inFunction              = true;
+        _expectedReturnType      = null;
+        _inferringLambdaReturn   = true;
+        _functionDeclarationLine = lts.Line;
+        _overloadBodyIsFallible  = bodyIsFallible;
+
+        CufetType? inferredResultType = null;
         EnterScope();
-        try { foreach (var s in lts.Body) CheckStatement(s); }
-        finally { ExitScope(); }
+        try
+        {
+            foreach (var s in lts.Body) CheckStatement(s);
+            inferredResultType = _expectedReturnType;
+        }
+        finally
+        {
+            _inFunction              = prevInFunction;
+            _expectedReturnType      = prevExpectedReturn;
+            _functionDeclarationLine = prevFunctionLine;
+            _inferringLambdaReturn   = prevInferring;
+            _overloadBodyIsFallible  = prevOverloadFallible;
+            ExitScope();
+        }
+
+        if (lts.Name != null)
+            Scope[lts.Name] = new TypeInfo(
+                new TaskHandleType(inferredResultType),
+                new VariableReference(lts.Name, lts.Line),
+                lts.Line);
     }
 
     // ── Outward-only store invariant helpers ─────────────────────────────────

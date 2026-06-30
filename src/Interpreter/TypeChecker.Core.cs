@@ -321,6 +321,17 @@ public sealed class ChannelType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(ChannelType), ElementType);
 }
 
+// Handle for a named task (slice 4). Holds the task's inferred result type.
+// Bound in scope when 'Have rabbit start a task as <name>:' is processed.
+// 'the awaited result of <name>' resolves this to ResultType.
+public sealed class TaskHandleType : CufetType
+{
+    public CufetType? ResultType { get; }
+    public TaskHandleType(CufetType? resultType) => ResultType = resultType;
+    public override bool Equals(object? obj) => obj is TaskHandleType t && ResultType == t.ResultType;
+    public override int GetHashCode() => HashCode.Combine(typeof(TaskHandleType), ResultType);
+}
+
 // (A or B or C) — a union type; null Cases = open (the all-types union).
 // voidable T is the preferred surface form of (T or void) — (T or void) normalizes to VoidableType(T).
 // Operations on an un-narrowed union value that require a known type → static error.
@@ -1211,6 +1222,7 @@ public sealed partial class TypeChecker
         RandomGuess   rg                                                                                 => InferRandomGuess(rg),
         ChannelCreation cc                                                                               => InferChannelCreation(cc),
         DeliveryExpression de                                                                            => InferDeliveryExpression(de),
+        AwaitedResultExpression are                                                                      => InferAwaitedResultExpression(are),
         _                                                                                                => null,
     };
 
@@ -1536,6 +1548,7 @@ public sealed partial class TypeChecker
         BookType bt                          => $"book '{bt.Name}'",
         MatrixType                           => "matrix",
         ChannelType ct                       => $"channel of {FormatType(ct.ElementType)}",
+        TaskHandleType tht                   => tht.ResultType != null ? $"task (result: {FormatType(tht.ResultType)})" : "void task",
         UnionType { Cases: null }            => "open union",
         UnionType { Cases: var cs }          => $"({string.Join(" or ", cs!.Select(FormatType))})",
         _                                    => "<unknown>",
@@ -1581,6 +1594,7 @@ public sealed partial class TypeChecker
         BookType bt                          => $"book '{bt.Name}' values",
         MatrixType                           => "matrices",
         ChannelType ct                       => $"channels of {FormatTypePlural(ct.ElementType)}",
+        TaskHandleType tht                   => tht.ResultType != null ? $"task handles (result: {FormatTypePlural(tht.ResultType)})" : "void task handles",
         UnionType { Cases: null }            => "open union values",
         UnionType { Cases: var cs }          => $"({string.Join(" or ", cs!.Select(FormatType))}) values",
         _                                    => "<unknown>",

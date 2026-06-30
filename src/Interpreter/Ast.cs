@@ -549,4 +549,9 @@ public sealed record DeliveryExpression(IExpression Channel, int Line) : IExpres
 // Close <channel>. — signals done; future deliveries drain remaining values then return void.
 public sealed record CloseStatement(IExpression Channel, int Line) : IStatement;
 
+// ── Task results (concurrency slice 4) ────────────────────────────────────────
+// "the awaited result of <task>" — yields until the named task completes, then
+// returns its result (T / voidable T / T or failure depending on the task body).
+public sealed record AwaitedResultExpression(IExpression Task, int Line) : IExpression;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

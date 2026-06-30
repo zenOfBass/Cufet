@@ -1140,7 +1140,9 @@ public sealed class Parser
             SkipNoise();
         }
         Consume(TokenType.Colon);
+        _functionDepth++;
         var body = ParsePullBody(); // consumes Done.
+        _functionDepth--;
         return new LaunchTaskStatement(name, body, line);
     }
 
@@ -2178,6 +2180,22 @@ public sealed class Parser
                 Consume(TokenType.From); SkipNoise();
                 var chanExpr = ParseExpression();
                 baseExpr = new DeliveryExpression(chanExpr, delLine);
+                break;
+            }
+            case TokenType.Awaited:
+            {
+                var awLine = Advance().Line; // consume 'awaited'
+                SkipNoise();
+                // 'result' is contextual — not a reserved keyword; skip by lexeme
+                if (Peek().Type == TokenType.Identifier &&
+                    Peek().Lexeme.Equals("result", StringComparison.OrdinalIgnoreCase))
+                    Advance();
+                SkipNoise();
+                Consume(TokenType.Of); SkipNoise();
+                // ParseExprOr (not ParseExpression) so that 'but on failure' is left for
+                // the outer ParseExpression to apply to the whole AwaitedResultExpression.
+                var taskExpr = ParseExprOr();
+                baseExpr = new AwaitedResultExpression(taskExpr, awLine);
                 break;
             }
             case TokenType.Entry:

@@ -838,6 +838,7 @@ public sealed partial class Interpreter
         RandomGuess   rg                  => (object)(_rng.Next(0, 2) == 1),
         ChannelCreation cc                => EvaluateChannelCreation(cc),
         DeliveryExpression de             => EvaluateDeliveryExpression(de),
+        AwaitedResultExpression are       => EvaluateAwaitedResultExpression(are),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 
@@ -1416,6 +1417,7 @@ public sealed partial class Interpreter
         UnionType { Cases: var cases } => cases!.Any(c => RuntimeIsType(value, c)),
         VoidableType vt => value is VoidValue || RuntimeIsType(value, vt.Inner),
         ChannelType     => value is ChannelValue,
+        TaskHandleType  => value is TaskHandle,
         _               => false,
     };
 }

@@ -9,6 +9,16 @@ public sealed partial class Interpreter
     // ExecuteLaunchTask registers its spawned task on the innermost (top) list.
     private readonly Stack<List<Task>> _rabbitTaskStacks = new();
 
+    // Runtime handle for a named task (slice 4). Created at task launch and bound to
+    // the task's name in scope. The C# Task completes when the task body finishes;
+    // the returned value (if any) is stored by RunTaskBody catching ReturnException.
+    internal sealed class TaskHandle
+    {
+        public Task? CSharpTask;
+        public object? Result;
+        public bool HasResult;
+    }
+
     // "Pull a rabbit [as <name>]. ... Done."
     // Enters a scope, optionally binds a RabbitValue as the region sentinel, executes the body,
     // joins all tasks spawned in this rabbit (structured guarantee — tasks can't outlive their
@@ -43,25 +53,52 @@ public sealed partial class Interpreter
     // "Have rabbit start a task [as <name>]: ... Done."
     // Enqueues the task body onto the cooperative scheduler; registers the returned Task
     // with the enclosing rabbit's task list so the rabbit's Done. will join it.
-    // Name is bound as an identity for slice-4 result-await; ignored here.
+    // If named, creates a TaskHandle, stores the return value at completion, and binds
+    // the handle to the task's name in the current scope for slice-4 result-await.
     private void ExecuteLaunchTask(LaunchTaskStatement lts)
     {
-        var body = lts.Body; // capture for closure — do not close over lts
+        var body   = lts.Body; // capture for closure — do not close over lts
+        TaskHandle? handle = lts.Name != null ? new TaskHandle() : null;
+
         var task = _scheduler!.Enqueue(() =>
         {
-            RunTaskBody(body);
+            RunTaskBody(body, handle);
             return Task.CompletedTask;
         });
+
+        if (handle != null)
+            handle.CSharpTask = task;
+
         _rabbitTaskStacks.Peek().Add(task);
+
+        if (lts.Name != null)
+            Scope[lts.Name] = handle!;
     }
 
     // Executes a task body in its own nested scope. The enclosing rabbit's scope is still
     // open (this runs during JoinTasks before ExitScope), so task bodies have full read
-    // access to rabbit-local variables.
-    private void RunTaskBody(IReadOnlyList<IStatement> body)
+    // access to rabbit-local variables. If a handle is provided, ReturnException is caught
+    // and the returned value is stored on the handle (rather than propagating as a fault).
+    private void RunTaskBody(IReadOnlyList<IStatement> body, TaskHandle? handle = null)
     {
         EnterScope();
-        try { foreach (var s in body) Execute(s); }
-        finally { ExitScope(); }
+        try
+        {
+            foreach (var s in body)
+                Execute(s);
+        }
+        catch (ReturnException re)
+        {
+            if (handle != null)
+            {
+                handle.Result    = re.Value;
+                handle.HasResult = true;
+            }
+            // Anonymous task with return: result silently dropped.
+        }
+        finally
+        {
+            ExitScope();
+        }
     }
 }

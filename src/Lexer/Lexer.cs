@@ -206,6 +206,7 @@ public sealed class Lexer
             "through"    => TokenType.Through,
             "delivery"   => TokenType.Delivery,
             "close"      => TokenType.Close,
+            "awaited"    => TokenType.Awaited,
             "pull"       => TokenType.Pull,
             "book"       => TokenType.Book,
             "books"      => TokenType.Books,
