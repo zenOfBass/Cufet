@@ -624,6 +624,14 @@ public sealed partial class Interpreter
                 ExecuteLaunchTask(lts);
                 break;
 
+            case SendStatement ss:
+                ExecuteSendStatement(ss);
+                break;
+
+            case CloseStatement cs:
+                ExecuteCloseStatement(cs);
+                break;
+
             case PullStatement ps:
                 ExecutePullStatement(ps);
                 break;
@@ -828,6 +836,8 @@ public sealed partial class Interpreter
         RandomItem    ri                  => EvaluateRandomItem(ri),
         RandomlyShuffled rs               => EvaluateRandomlyShuffled(rs),
         RandomGuess   rg                  => (object)(_rng.Next(0, 2) == 1),
+        ChannelCreation cc                => EvaluateChannelCreation(cc),
+        DeliveryExpression de             => EvaluateDeliveryExpression(de),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 
@@ -1405,6 +1415,7 @@ public sealed partial class Interpreter
         UnionType { Cases: null }      => true, // open union: any value matches
         UnionType { Cases: var cases } => cases!.Any(c => RuntimeIsType(value, c)),
         VoidableType vt => value is VoidValue || RuntimeIsType(value, vt.Inner),
+        ChannelType     => value is ChannelValue,
         _               => false,
     };
 }

@@ -158,6 +158,13 @@ public enum TokenType
     HaveKw,   // "Have"   — in "Have rabbit start a task [as <name>]: ... Done."
     TaskKw,   // "task"   — in "Have rabbit start a task"
 
+    // ── Concurrency (channels — slice 3) ─────────────────────────────────────
+    Channel,  // "channel"  — in "a channel of T" (type annotation and creation)
+    Send,     // "send"     — in "Send <value> through <channel>."
+    Through,  // "through"  — in "Send <value> through <channel>."
+    Delivery, // "delivery" — in "the delivery from <channel>"
+    Close,    // "close"    — in "Close <channel>."
+
     // ── Books (standard-library capability units) ─────────────────────────────
     Pull,   // "pull"   — in "Pull a book on <name> [as <local>]." / "Pull books on <n>, <n>, ..."
     Book,   // "book"   — in "Pull a book on <name>" (singular)

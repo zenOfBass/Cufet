@@ -55,7 +55,7 @@ public sealed partial class TypeChecker
     // Series, maps, objects, and matrices are reference types tracked by rabbit depth.
     // Value types (number, text, fact, record) may be stored anywhere without constraint.
     private static bool IsReferenceType(CufetType? t) =>
-        t is SeriesType or MapType or ObjectType or MatrixType;
+        t is SeriesType or MapType or ObjectType or MatrixType or ChannelType;
 
     // Returns the rabbit depth of an expression's value.
     //   VariableReference       → stored depth from its TypeInfo.
@@ -72,7 +72,7 @@ public sealed partial class TypeChecker
         if (!IsReferenceType(inferredType)) return 0;
         if (expr is VariableReference vr && TryLookup(vr.Name, out var ti)) return ti.RabbitDepth;
         if (expr is SeriesLiteral or MapLiteral or MatrixLiteral or MatrixSized
-                 or ObjectLiteral or RangeExpression)
+                 or ObjectLiteral or RangeExpression or ChannelCreation)
             return _rabbitDepth;
         if (expr is CastExpression cast && _castDepthCache.TryGetValue(cast, out var cachedDepth))
             return cachedDepth;

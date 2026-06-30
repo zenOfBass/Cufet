@@ -311,6 +311,16 @@ public sealed class MatrixType : CufetType
     public override int GetHashCode() => typeof(MatrixType).GetHashCode();
 }
 
+// channel of T — unbounded, buffered, cooperative channel. Reference-typed.
+// Deep-copies values at send; delivery yields if empty-and-open; void if empty-and-closed.
+public sealed class ChannelType : CufetType
+{
+    public CufetType ElementType { get; }
+    public ChannelType(CufetType elementType) => ElementType = elementType;
+    public override bool Equals(object? obj) => obj is ChannelType c && ElementType == c.ElementType;
+    public override int GetHashCode() => HashCode.Combine(typeof(ChannelType), ElementType);
+}
+
 // (A or B or C) — a union type; null Cases = open (the all-types union).
 // voidable T is the preferred surface form of (T or void) — (T or void) normalizes to VoidableType(T).
 // Operations on an un-narrowed union value that require a known type → static error.
@@ -947,6 +957,12 @@ public sealed partial class TypeChecker
             case LaunchTaskStatement lts:
                 CheckLaunchTask(lts);
                 break;
+            case SendStatement ss:
+                CheckSend(ss);
+                break;
+            case CloseStatement cs:
+                CheckClose(cs);
+                break;
             case PullStatement ps:
                 CheckPullStatement(ps);
                 break;
@@ -1193,6 +1209,8 @@ public sealed partial class TypeChecker
         RandomItem    ri                                                                                 => InferRandomItem(ri),
         RandomlyShuffled rs                                                                              => InferRandomlyShuffled(rs),
         RandomGuess   rg                                                                                 => InferRandomGuess(rg),
+        ChannelCreation cc                                                                               => InferChannelCreation(cc),
+        DeliveryExpression de                                                                            => InferDeliveryExpression(de),
         _                                                                                                => null,
     };
 
@@ -1517,6 +1535,7 @@ public sealed partial class TypeChecker
         ExceptionMarkerType                  => "exception",
         BookType bt                          => $"book '{bt.Name}'",
         MatrixType                           => "matrix",
+        ChannelType ct                       => $"channel of {FormatType(ct.ElementType)}",
         UnionType { Cases: null }            => "open union",
         UnionType { Cases: var cs }          => $"({string.Join(" or ", cs!.Select(FormatType))})",
         _                                    => "<unknown>",
@@ -1561,6 +1580,7 @@ public sealed partial class TypeChecker
         ExceptionMarkerType                  => "exceptions",
         BookType bt                          => $"book '{bt.Name}' values",
         MatrixType                           => "matrices",
+        ChannelType ct                       => $"channels of {FormatTypePlural(ct.ElementType)}",
         UnionType { Cases: null }            => "open union values",
         UnionType { Cases: var cs }          => $"({string.Join(" or ", cs!.Select(FormatType))}) values",
         _                                    => "<unknown>",

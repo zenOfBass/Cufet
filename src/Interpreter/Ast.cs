@@ -538,4 +538,15 @@ public sealed record RandomGuess(int Line) : IExpression;
 // Default (no seed) = entropy-seeded (real randomness). Requires chance pulled.
 public sealed record SeedChanceStatement(IExpression Seed, int Line) : IStatement;
 
+// ── Channels (concurrency slice 3) ────────────────────────────────────────────
+// a channel of T — creates a new channel; reference-typed.
+public sealed record ChannelCreation(CufetType ElementType, int Line) : IExpression;
+// Send <value> through <channel>. — queues value (non-blocking); deep-copies reference-types.
+public sealed record SendStatement(IExpression Value, IExpression Channel, int Line) : IStatement;
+// the delivery from <channel>  →  voidable T
+// Non-void if value present; yields if empty-and-open; void if empty-and-closed.
+public sealed record DeliveryExpression(IExpression Channel, int Line) : IExpression;
+// Close <channel>. — signals done; future deliveries drain remaining values then return void.
+public sealed record CloseStatement(IExpression Channel, int Line) : IStatement;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

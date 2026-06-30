@@ -145,6 +145,20 @@ internal sealed class CufetScheduler : SynchronizationContext
         }
     }
 
+    // Pump the ready queue until condition is met.
+    // Re-entrant-safe: single-threaded, so a nested drain is just queue pumping.
+    internal void DrainUntil(Func<bool> condition)
+    {
+        while (!condition())
+        {
+            if (!_ready.TryDequeue(out var work))
+                throw new InvalidOperationException(
+                    "CufetScheduler: channel deadlock — a task is waiting for delivery but no " +
+                    "running or queued tasks will send to this channel.");
+            work();
+        }
+    }
+
     private static bool AllDone(Task[] tasks)
     {
         foreach (var t in tasks)

@@ -62,6 +62,8 @@ public sealed class Parser
             TokenType.With       => ParseWithOpenStatement(),
             TokenType.Pull       => ParsePullStatement(),
             TokenType.HaveKw     => ParseLaunchTaskStatement(),
+            TokenType.Send       => ParseSendStatement(),
+            TokenType.Close      => ParseCloseStatement(),
             TokenType.AcknowledgeKw => ParseAcknowledgeInterruptStatement(),
             TokenType.GetKw => ParseGetterUntoDeclaration(),
             TokenType.SetKw => ParseSetterUntoDeclaration(),
@@ -414,6 +416,12 @@ public sealed class Parser
         {
             Advance();
             return RabbitType.Instance;
+        }
+        if (tok.Type == TokenType.Channel)
+        {
+            Advance(); SkipNoise(); // consume 'channel'
+            Consume(TokenType.Of); SkipNoise();
+            return new ChannelType(ParseTypeAnnotation());
         }
         if (tok.Type == TokenType.Matrix ||
             (tok.Type == TokenType.Identifier &&
@@ -2154,6 +2162,24 @@ public sealed class Parser
                 baseExpr = new MapLiteral(mapKeyType, mapValType, pairs, mapLine);
                 break;
             }
+            case TokenType.Channel:
+            {
+                var chanLine = Advance().Line; // consume 'channel'
+                SkipNoise();
+                Consume(TokenType.Of); SkipNoise();
+                var elemType = ParseTypeAnnotation();
+                baseExpr = new ChannelCreation(elemType, chanLine);
+                break;
+            }
+            case TokenType.Delivery:
+            {
+                var delLine = Advance().Line; // consume 'delivery'
+                SkipNoise();
+                Consume(TokenType.From); SkipNoise();
+                var chanExpr = ParseExpression();
+                baseExpr = new DeliveryExpression(chanExpr, delLine);
+                break;
+            }
             case TokenType.Entry:
             {
                 // "the entry for <key> in <map>"
@@ -2994,6 +3020,30 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Dot);
         return new SuppressStatement(line);
+    }
+
+    private SendStatement ParseSendStatement()
+    {
+        var line = Consume(TokenType.Send).Line;
+        SkipNoise();
+        var value = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Through);
+        SkipNoise();
+        var channel = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new SendStatement(value, channel, line);
+    }
+
+    private CloseStatement ParseCloseStatement()
+    {
+        var line = Consume(TokenType.Close).Line;
+        SkipNoise();
+        var channel = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new CloseStatement(channel, line);
     }
 
     private AcknowledgeInterruptStatement ParseAcknowledgeInterruptStatement()
