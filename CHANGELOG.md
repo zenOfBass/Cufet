@@ -13,7 +13,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 ## [0.8.0] — 2026-06-28
 
 The deferred-features ledger is cleared and the region model is sound. This
-release closes all six items from the concept-car gap-list, completes the
+release closes all six items from the gap-list, completes the
 three-hole adversarial soundness arc, and ships matrix arithmetic as the first
 exercise of operator overloading.
 
