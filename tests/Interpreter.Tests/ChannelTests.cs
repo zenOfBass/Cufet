@@ -47,10 +47,10 @@ public class ChannelTests
                     Send 3 through ch.
                     Close ch.
                 Done.
-                Define item as the delivery from ch.
-                While item is not void, repeat:
-                    State item.
-                    item becomes the delivery from ch.
+                Define val as the delivery from ch.
+                While val is not void, repeat:
+                    State val.
+                    val becomes the delivery from ch.
                 Done.
             Done.
             """);
@@ -102,11 +102,7 @@ public class ChannelTests
                 Define ch as a channel of number.
                 Close ch.
                 Define result as the delivery from ch.
-                If result is void:
-                    State "void".
-                Otherwise:
-                    State "not void".
-                Done.
+                If result is void, State "void". Otherwise, State "not void".
             Done.
             """);
         Assert.Equal("void", output);
@@ -209,9 +205,7 @@ public class ChannelTests
                 Define ch as a channel of number.
                 Close ch.
                 Define v as the delivery from ch.
-                If v is void:
-                    State "ok".
-                Done.
+                If v is void, State "ok".
             Done.
             """);
         Assert.Equal("ok", output);
@@ -242,17 +236,17 @@ public class ChannelTests
                 Define ch as a channel of number.
                 Have rabbit start a task:
                     Define i as 1.
-                    While i is less than or equal to 5, repeat:
+                    While i is 5 or less, repeat:
                         Send i through ch.
                         i becomes i + 1.
                     Done.
                     Close ch.
                 Done.
                 Define sum as 0.
-                Define item as the delivery from ch.
-                While item is not void, repeat:
-                    sum becomes sum + item.
-                    item becomes the delivery from ch.
+                Define val as the delivery from ch.
+                While val is not void, repeat:
+                    sum becomes sum + (val but void is 0).
+                    val becomes the delivery from ch.
                 Done.
                 State sum.
             Done.
