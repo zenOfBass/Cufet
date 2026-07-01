@@ -215,6 +215,10 @@ public enum TokenType
     AcknowledgeKw,  // "acknowledge" — in "Acknowledge the interrupt."
     YieldKw,        // "yield"       — in "Yield." — cooperative scheduler yield + interrupt checkpoint
 
+    // ── Boolean literals ──────────────────────────────────────────────────
+    TrueKw,   // "true"  — fact literal: the true fact
+    FalseKw,  // "false" — fact literal: the false fact
+
     // ── Semantic (parser-generated, never emitted by lexer) ───────────────
     NotEqual, // produced by "is not"; used in BinaryExpression only
 

@@ -2008,6 +2008,18 @@ public sealed class Parser
                 baseExpr = new VoidLiteral(line);
                 break;
             }
+            case TokenType.TrueKw:
+            {
+                var line = Advance().Line;
+                baseExpr = new BooleanLiteral(true, line);
+                break;
+            }
+            case TokenType.FalseKw:
+            {
+                var line = Advance().Line;
+                baseExpr = new BooleanLiteral(false, line);
+                break;
+            }
             case TokenType.Failure:
             {
                 // The leading article is already stripped by SkipNoise, so 'a failure "..."'

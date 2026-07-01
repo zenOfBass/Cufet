@@ -789,6 +789,7 @@ public sealed partial class Interpreter
     {
         NumberLiteral    n    => (object)n.Value,  // decimal — no floating-point surprises
         StringLiteral    s    => s.Value,
+        BooleanLiteral   b    => (object)b.Value,
         VariableReference r   => TryLookupValue(r.Name, out var val)
                                      ? val
                                      : throw new RuntimeException(UndefinedVariableMessage(r.Name, r.Line)),

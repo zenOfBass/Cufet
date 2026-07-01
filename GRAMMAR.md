@@ -217,6 +217,17 @@ as identifiers, but that is fine — they read as natural articles.
 | `guess` | Guess | `a random guess` — yields a `fact` |
 | `seed` | SeedKw | `Seed the chance with N.` — statement keyword |
 
+### Boolean literals
+
+| Word | Token | Value |
+|---|---|---|
+| `true` | TrueKw | the true `fact` |
+| `false` | FalseKw | the false `fact` |
+
+`true` and `false` are reserved keywords that produce `fact` values — the same type
+that comparisons produce. They work wherever a `fact` is valid: expression position,
+condition position, `return`, `becomes`, arguments, and boolean-typed fields/params/channels.
+
 ### Comparison and logic
 
 These are reserved and meaningful in both condition position (`If`, `While`,
@@ -537,39 +548,38 @@ While count is greater than 0, repeat:   ← CORRECT
 While count is more than 0, repeat:      ← COMPILE ERROR
 ```
 
-### There are no boolean literals
+### Boolean literals: `true` and `false`
 
-`true` and `false` are NOT keywords — they are ordinary identifiers. If they are
-not in scope, using them causes a runtime "not defined" error. **Never write
-`Return true.` or `In map, the entry for k becomes false.`**
+`true` and `false` are **reserved keywords** that produce `fact` values — the same
+type comparisons produce. Use them freely wherever a boolean is needed:
 
-Produce boolean values via expressions instead:
+```
+return true.
+Define flag as false.
+If result is false, State "failed".
+While keep-going is true, repeat: ... Done.
+Send true through ch.           ← channel of fact
+```
 
-| Intent | Expression |
-|---|---|
-| always-true literal | `1 = 1` |
-| always-false literal | `1 = 0` |
-| empty-series check | `the number of items = 0` |
-| negate a fact | `not (fact-expr)` in condition context |
+The old workaround (`1 = 1` for true, `1 = 0` for false) is no longer needed and
+is retired from documentation. It still *works* — `1 = 1` is a valid comparison
+that yields a `fact` — but `true`/`false` are the natural forms.
 
 ### Negating a fact in condition context
 
-`not (fact-expr)` is valid after `If`/`While`/`until`:
+`not (fact-expr)` negates a boolean expression:
 
 ```
 While not (cast is-empty on pq), repeat:
 If not (visited has a key for neighbor):
 ```
 
-### `is true` / `is false` are variable lookups, not keywords
-
-`(expr) is false` in a condition looks up `false` as a variable reference — it is
-**not** a special "check if false" form. This will fail at runtime unless you have
-`Define false as ...` in scope. Use `not (expr)` instead:
+`is false` and `is true` also work as direct comparisons now that `false`/`true`
+are keywords:
 
 ```
-While not (cast is-empty on pq), repeat:   ← CORRECT
-While (cast is-empty on pq) is false, repeat:  ← RUNTIME ERROR: 'false' not defined
+While (cast is-empty on pq) is false, repeat:   ← NOW CORRECT
+If result is true, State "ok".                   ← NOW CORRECT
 ```
 
 ---

@@ -13,6 +13,7 @@ behind the design, see [ROADMAP.md](ROADMAP.md).
   - [Statements](#statements)
   - [Constants](#constants)
   - [Arithmetic](#arithmetic)
+  - [Facts (boolean literals)](#facts-boolean-literals)
   - [Comparisons](#comparisons)
   - [Logic](#logic)
   - [Conditionals](#conditionals)
@@ -100,6 +101,28 @@ distinguish it from a dash inside an identifier: `a - b` is subtraction,
 
 Results print in their minimal form regardless of scale picked up along the
 way — `1.5 + 0.5` displays as `2`, not `2.0`.
+
+---
+
+## Facts (boolean literals)
+
+`true` and `false` are **keywords** that produce `fact` values — the boolean type.
+They work exactly like number or text literals: anywhere a `fact` is valid.
+
+```
+Define flag as true.
+Define done as false.
+return true.
+return false.
+If result is false, State "failed".
+While keep-going is true, repeat: ... Done.
+Send true through ch.             ← channel of fact
+Define b as (x > 5).              ← comparison also produces a fact
+```
+
+`fact` is the type produced by comparisons, logic operators, `contains`, `has a key
+for`, `an interrupt is requested`, and `a random guess` — `true`/`false` are simply
+the literal forms of that same type.
 
 ---
 

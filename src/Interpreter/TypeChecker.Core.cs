@@ -1167,6 +1167,7 @@ public sealed partial class TypeChecker
     {
         NumberLiteral                                                                                    => CufetType.Number,
         StringLiteral                                                                                    => CufetType.Text,
+        BooleanLiteral                                                                                   => CufetType.Fact,
         VoidLiteral                                                                                      => CufetType.Void,
         UnaryExpression unary                                                                            => InferUnary(unary),
         BinaryExpression bin                                                                             => InferBinary(bin),

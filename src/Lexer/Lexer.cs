@@ -224,6 +224,8 @@ public sealed class Lexer
             "interrupt"   => TokenType.InterruptKw,
             "acknowledge" => TokenType.AcknowledgeKw,
             "yield"       => TokenType.YieldKw,
+            "true"        => TokenType.TrueKw,
+            "false"       => TokenType.FalseKw,
             _           => TokenType.Identifier,
         };
 
