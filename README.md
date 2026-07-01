@@ -29,8 +29,8 @@ For each score in the scores, repeat:
     The total becomes the total + the score.
 Done.
 
-Define average as the total / the number of the scores.
-State average.
+Define the average as the total / the number of the scores.
+State the average.
 ```
 
 **Recursion reads like what it is:**
