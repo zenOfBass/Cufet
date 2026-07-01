@@ -223,6 +223,7 @@ public sealed class Lexer
             "environment" => TokenType.EnvironmentKw,
             "interrupt"   => TokenType.InterruptKw,
             "acknowledge" => TokenType.AcknowledgeKw,
+            "yield"       => TokenType.YieldKw,
             _           => TokenType.Identifier,
         };
 

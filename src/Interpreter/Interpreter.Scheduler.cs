@@ -145,6 +145,14 @@ internal sealed class CufetScheduler : SynchronizationContext
         }
     }
 
+    // Dequeue and run one unit of work if any is ready.
+    // Called by Yield to give other tasks one turn without blocking the current flow.
+    internal void DrainOne()
+    {
+        if (_ready.TryDequeue(out var work))
+            work();
+    }
+
     // Pump the ready queue until condition is met.
     // Re-entrant-safe: single-threaded, so a nested drain is just queue pumping.
     internal void DrainUntil(Func<bool> condition)

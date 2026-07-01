@@ -210,9 +210,10 @@ public enum TokenType
                    //                 "variable" is contextual (lexeme-checked), not reserved
 
     // ── Signals ───────────────────────────────────────────────────────────────────
-    InterruptKw,    // "interrupt"   — in "an interrupt has been requested"; "Acknowledge the interrupt."
-                    //                 "been"/"requested" are contextual (lexeme-checked), not reserved
+    InterruptKw,    // "interrupt"   — in "an interrupt is requested"; "Acknowledge the interrupt."
+                    //                 "requested" is contextual (lexeme-checked), not reserved
     AcknowledgeKw,  // "acknowledge" — in "Acknowledge the interrupt."
+    YieldKw,        // "yield"       — in "Yield." — cooperative scheduler yield + interrupt checkpoint
 
     // ── Semantic (parser-generated, never emitted by lexer) ───────────────
     NotEqual, // produced by "is not"; used in BinaryExpression only

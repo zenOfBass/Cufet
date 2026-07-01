@@ -65,6 +65,7 @@ public sealed class Parser
             TokenType.Send       => ParseSendStatement(),
             TokenType.Close      => ParseCloseStatement(),
             TokenType.AcknowledgeKw => ParseAcknowledgeInterruptStatement(),
+            TokenType.YieldKw       => ParseYieldStatement(),
             TokenType.GetKw => ParseGetterUntoDeclaration(),
             TokenType.SetKw => ParseSetterUntoDeclaration(),
             TokenType.SeedKw => ParseSeedChanceStatement(),
@@ -2451,17 +2452,13 @@ public sealed class Parser
             }
             case TokenType.InterruptKw:
             {
-                // "an interrupt has been requested" — fixed-phrase fact; 'an' consumed by SkipNoise above.
-                // 'been' and 'requested' are contextual (lexeme-checked), not reserved.
+                // "an interrupt is requested" — fixed-phrase fact; 'an' consumed by SkipNoise above.
+                // 'requested' is contextual (lexeme-checked), not reserved.
                 var intLine = Advance().Line; // consume 'interrupt'
-                Consume(TokenType.Has);
-                if (Peek().Type != TokenType.Identifier ||
-                    !Peek().Lexeme.Equals("been", StringComparison.OrdinalIgnoreCase))
-                    throw new ParseException(Peek(), "expected 'been' after 'an interrupt has'");
-                Advance(); // consume 'been'
+                Consume(TokenType.Is);
                 if (Peek().Type != TokenType.Identifier ||
                     !Peek().Lexeme.Equals("requested", StringComparison.OrdinalIgnoreCase))
-                    throw new ParseException(Peek(), "expected 'requested' after 'an interrupt has been'");
+                    throw new ParseException(Peek(), "expected 'requested' after 'an interrupt is'");
                 Advance(); // consume 'requested'
                 baseExpr = new InterruptRequestedExpression(intLine);
                 break;
@@ -3072,6 +3069,14 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Dot);
         return new AcknowledgeInterruptStatement(line);
+    }
+
+    private YieldStatement ParseYieldStatement()
+    {
+        var line = Consume(TokenType.YieldKw).Line; // consume 'Yield'
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new YieldStatement(line);
     }
 
     // Seed the chance with <number>.

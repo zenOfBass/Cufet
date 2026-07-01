@@ -410,13 +410,18 @@ public sealed record PathCheckExpression(IExpression Path, PathCheckKind Kind, i
 
 // ── Signals ───────────────────────────────────────────────────────────────────────────────────────
 
-// an interrupt has been requested  →  fact (boolean, infallible)
+// an interrupt is requested  →  fact (boolean, infallible)
 // True when _interruptRequested is set; false otherwise.  Cooperative polling — no async.
 public sealed record InterruptRequestedExpression(int Line) : IExpression;
 
 // Acknowledge the interrupt.  →  statement; clears _interruptRequested
 // Resets the interrupt flag after the program has noticed and handled it.
 public sealed record AcknowledgeInterruptStatement(int Line) : IStatement;
+
+// Yield.  →  statement; cooperative scheduler yield + interrupt checkpoint (slice 5)
+// Gives up the scheduler turn (lets one other ready task run), then throws InterruptUnwind
+// if the interrupt flag is set, or resumes execution here otherwise.
+public sealed record YieldStatement(int Line) : IStatement;
 
 // write <value> to the file "<path>"   — overwrite (creates if absent); Append = false
 // append <value> to the file "<path>"  — append   (creates if absent); Append = true

@@ -46,6 +46,14 @@ public sealed partial class Interpreter
     // Allow tests to set the interrupt flag directly without synthesizing a real Ctrl-C.
     internal void SimulateInterrupt() => _interruptRequested = true;
 
+    private void ExecuteYield()
+    {
+        // Give other ready tasks one turn, then check the interrupt flag before resuming.
+        _scheduler?.DrainOne();
+        if (_interruptRequested)
+            throw new InterruptUnwind();
+    }
+
     // Non-null while executing a setter body: bypasses re-dispatch for the same (type, field) pair
     // so 'one's field becomes X' inside the setter does a raw write instead of recursing.
     private (string TypeName, string FieldName)? _inSetterFor = null;
@@ -649,6 +657,10 @@ public sealed partial class Interpreter
 
             case AcknowledgeInterruptStatement:
                 _interruptRequested = false;
+                break;
+
+            case YieldStatement:
+                ExecuteYield();
                 break;
 
             case SeedChanceStatement ss:

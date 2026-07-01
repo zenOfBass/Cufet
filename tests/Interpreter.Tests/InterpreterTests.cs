@@ -8191,7 +8191,7 @@ public class InterpreterTests
     {
         // When no interrupt has been received the expression returns false.
         Assert.Equal("no", Run(
-            "If an interrupt has been requested, State \"yes\". Otherwise, State \"no\"."));
+            "If an interrupt is requested, State \"yes\". Otherwise, State \"no\"."));
     }
 
     [Fact]
@@ -8199,7 +8199,7 @@ public class InterpreterTests
     {
         // With the flag pre-set (simulating Ctrl-C), the expression returns true.
         Assert.Equal("yes", RunInterrupted(
-            "If an interrupt has been requested, State \"yes\". Otherwise, State \"no\"."));
+            "If an interrupt is requested, State \"yes\". Otherwise, State \"no\"."));
     }
 
     [Fact]
@@ -8208,7 +8208,7 @@ public class InterpreterTests
         // After Acknowledge the interrupt., the flag reads false again.
         Assert.Equal("cleared", RunInterrupted(
             "Acknowledge the interrupt.\n" +
-            "If an interrupt has been requested, State \"still set\". Otherwise, State \"cleared\"."));
+            "If an interrupt is requested, State \"still set\". Otherwise, State \"cleared\"."));
     }
 
     [Fact]
@@ -8219,7 +8219,7 @@ public class InterpreterTests
         Assert.Equal("handled", RunInterrupted(
             "Define items as a series with (1, 2, 3).\n" +
             "For each n in items, repeat:\n" +
-            "    If an interrupt has been requested:\n" +
+            "    If an interrupt is requested:\n" +
             "        Acknowledge the interrupt.\n" +
             "        State \"handled\".\n" +
             "        Stop.\n" +
@@ -8235,7 +8235,7 @@ public class InterpreterTests
         Assert.Equal("handled\n2\n3", RunInterrupted(
             "Define items as a series with (1, 2, 3).\n" +
             "For each n in items, repeat:\n" +
-            "    If an interrupt has been requested:\n" +
+            "    If an interrupt is requested:\n" +
             "        Acknowledge the interrupt.\n" +
             "        State \"handled\".\n" +
             "        Skip.\n" +
@@ -8249,8 +8249,8 @@ public class InterpreterTests
     {
         // The expression is a fact — it type-checks in boolean contexts without error.
         Assert.Equal("ok", Run(
-            "Define result as an interrupt has been requested.\n" +
-            "If result, State \"interrupted\". Otherwise, State \"ok\"."));
+            "Define r as an interrupt is requested.\n" +
+            "If r, State \"interrupted\". Otherwise, State \"ok\"."));
     }
 
     // ── Sort ──────────────────────────────────────────────────────────────────────────────────────

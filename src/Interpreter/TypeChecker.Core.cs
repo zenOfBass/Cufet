@@ -987,6 +987,8 @@ public sealed partial class TypeChecker
                 break; // already hoisted in Pass1
             case AcknowledgeInterruptStatement:
                 break; // always valid; no type constraints
+            case YieldStatement:
+                break; // cooperative yield — valid in any context
             case SeedChanceStatement ss2:
                 CheckSeedChanceStatement(ss2);
                 break;

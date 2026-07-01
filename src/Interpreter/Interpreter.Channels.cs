@@ -31,7 +31,8 @@ public sealed partial class Interpreter
         var chan = (ChannelValue)Evaluate(de.Channel);
         if (chan.HasValue) return chan.Dequeue();
         if (chan.IsClosed) return VoidValue.Instance;
-        _scheduler!.DrainUntil(() => chan.HasValue || chan.IsClosed);
+        _scheduler!.DrainUntil(() => chan.HasValue || chan.IsClosed || _interruptRequested);
+        if (_interruptRequested) throw new InterruptUnwind();
         return chan.HasValue ? chan.Dequeue() : (object)VoidValue.Instance;
     }
 

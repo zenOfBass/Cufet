@@ -15,7 +15,10 @@ public sealed partial class Interpreter
         // Yield cooperatively until the task's C# Task is complete.
         // If already done (completed task or double-await), returns immediately.
         if (!task.IsCompleted)
-            _scheduler!.DrainUntil(() => task.IsCompleted);
+        {
+            _scheduler!.DrainUntil(() => task.IsCompleted || _interruptRequested);
+            if (_interruptRequested) throw new InterruptUnwind();
+        }
 
         // Re-throw any RuntimeException (or other fault) from the task body.
         // ReturnException is caught in RunTaskBody and stored on the handle — not faulted.
