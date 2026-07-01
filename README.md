@@ -116,7 +116,7 @@ Done.
 **Read files. Run programs. Cufet now touches the world:**
 ```
 With the file "log.txt" open for writing as log:
-    write "Starting.\n" to the log.
+    Write "Starting.\n" to the log.
 
     Try to:
         Define the result as run "date".
