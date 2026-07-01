@@ -217,10 +217,10 @@ as identifiers, but that is fine — they read as natural articles.
 | `guess` | Guess | `a random guess` — yields a `fact` |
 | `seed` | SeedKw | `Seed the chance with N.` — statement keyword |
 
-### Comparison and logic (condition context only)
+### Comparison and logic
 
-These are reserved but only meaningful inside conditions (`If`, `While`, `until`).
-They still cannot be used as identifiers.
+These are reserved and meaningful in both condition position (`If`, `While`,
+`until`) and expression position. They cannot be used as identifiers.
 
 | Word | Token |
 |---|---|
@@ -238,7 +238,7 @@ These are matched by lexeme in specific positions, not by token type. Outside th
 positions they parse as regular identifiers and can be used as variable names:
 
 `line`, `lines`, `all`, `input`, `arguments`, `reading`, `writing`, `exists`,
-`variable`, `been`, `requested`
+`variable`, `requested`
 
 ---
 
@@ -462,70 +462,79 @@ collections (series, maps, matrices) share.
 
 ---
 
-## 4. Expression context vs condition context
+## 4. Comparison forms — both work everywhere
 
-Cufet has two distinct comparison syntaxes that are **not interchangeable**.
+**Both symbol forms and word forms work in both expression position and condition
+position.** They are the same operation (compare two values, produce a `fact`);
+the choice is purely stylistic.
 
-### Expression context (right side of `Define`, `becomes`, `State`, `Return`, function argument)
+### Symbol forms
 
-Symbol comparisons produce a `fact` value:
+`=`, `<`, `>`, `<=`, `>=` — terse, math-style:
 
 ```
 Define same as x = y.
 Define big  as x > 100.
 Define ok   as x >= 0 and x <= 10.
-Return x > 0.
+If x < 10, State "small".
+While count < bound, repeat:
 ```
 
-`=`, `<`, `>`, `<=`, `>=` are the operators. `=` is equality only — assignment
-is `becomes`.
+`=` is equality only — assignment is `becomes`, declaration is `Define ... as`.
 
-### Condition context (after `If`, `While`, `until`, `Repeat ... until`)
+### Word forms
 
-Word comparisons only — no symbols:
+`is`, `is not`, `is greater than`, `is less than`, `is 5 or more`, `is 5 or less`
+— verbose, sentence-style:
 
 ```
 If x is 5:
 If x is not 3:
 If x is greater than 10:
 If x is less than 10:
-If x is 5 or more:
-If x is 5 or less:
 While x is less than bound, repeat:
+Define in-range as (x is 5 or more).
 ```
+
+### Idiomatic guidance
+
+Word forms are the **recommended, taught style** for `If`/`While` conditions —
+they read like English sentences. Symbol forms are natural in expression position
+— they read like math. But either form is accepted everywhere; reach for whichever
+reads better in context.
+
+```
+If x < 10, State "small".              ← symbol in condition — works, terse
+If x is less than 10, State "small".   ← word in condition — idiomatic, recommended
+
+Define big as x > 100.                 ← symbol in expression — works, idiomatic
+Define big as (x is greater than 100). ← word in expression — works, verbose
+```
+
+### Equivalence: `=` and `is` both mean equality
+
+`=` and `is` (without a following `greater`/`less`/`not`) both perform equality
+comparison — they produce identical AST nodes. Use whichever reads better:
+
+```
+If x = 5, State "five".    ← symbol equality in condition — works
+If x is 5, State "five".   ← word equality in condition — idiomatic
+State (x = 5).             ← symbol equality in expression — idiomatic
+State (x is 5).            ← word equality in expression — works
+```
+
+### Invalid forms
 
 **`is not greater than` and `is not more than` are not valid** — there is no
 combined negated word comparison. Use the converse: `is less than` instead of
 `is not greater than`, `is greater than` instead of `is not less than`.
 
 **`is more than` is a compile error — use `is greater than` instead.** The parser
-catches `is more than` and emits: *"did you mean 'is greater than'?"* Always use
-the canonical form:
+catches `is more than` and emits: *"did you mean 'is greater than'?"*
 
 ```
-While count is greater than 0, repeat:   ← CORRECT (>)
+While count is greater than 0, repeat:   ← CORRECT
 While count is more than 0, repeat:      ← COMPILE ERROR
-```
-
-### Critical: conditions are not general expressions
-
-A word comparison (`is greater than`, `is less than`, etc.) **cannot appear** as
-the value in an expression position. It is only valid as the direct condition of
-`If`, `While`, or `until`.
-
-This **fails**:
-```
-Return (the number of items) is 0.    ← ERROR: parenthesized sub-expr is complete;
-                                         'is' is then unexpected
-Define empty as count is 0.           ← ERROR: same reason
-```
-
-Use a symbol comparison in expression position:
-```
-Bind fact to is-empty:
-    Define my-items as one's items.
-    Return the number of my-items = 0.
-Done.
 ```
 
 ### There are no boolean literals
@@ -1193,17 +1202,16 @@ nested function rather than capturing it.
 
 Cufet has two syntactic layers that compose but do not mix:
 
-**Expression grammar** — produces values, uses symbol operators (`+`, `-`, `>`,
-`=`, `and`, `or`, `not`), terminated by `.` when it forms a statement. This is
-where arithmetic, string ops, function calls, field access, and boolean arithmetic
-live.
+**Expression grammar** — produces values, uses operators (`+`, `-`, `>`, `=`,
+`and`, `or`, `not`), terminated by `.` when it forms a statement. This is where
+arithmetic, string ops, function calls, field access, and boolean arithmetic live.
 
-**Condition grammar** — produces `fact`, uses word comparisons (`is`, `is greater
-than`, etc.) and word logical operators, appears only after `If`, `While`, and
-`until`. Conditions cannot appear inside expressions.
-
-When you want a boolean value *as a value*, use symbol comparisons (`x > 0`).
-When you want to branch or loop on a condition, use word comparisons.
+**Condition grammar** — produces `fact`, appears after `If`, `While`, and
+`until`. Comparison forms are fully unified: both symbol (`<`, `>`, `=`, etc.) and
+word (`is less than`, `is greater than`, `is`, etc.) comparisons work in both
+expression position and condition position. Word forms are idiomatic in conditions
+(they read like sentences); symbol forms are idiomatic in expressions (they read
+like math). Both are accepted everywhere.
 
 ### Articles are invisible everywhere
 

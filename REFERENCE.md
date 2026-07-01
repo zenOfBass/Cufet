@@ -105,35 +105,39 @@ way — `1.5 + 0.5` displays as `2`, not `2.0`.
 
 ## Comparisons
 
-**In expression context** (right side of `Define` / `becomes` / `State`) — symbols:
+Both **symbol forms** and **word forms** work in both expression position and
+condition position — they are the same operation (compare, produce a `fact`).
 
+**Symbol forms** (`=` `<` `>` `<=` `>=`) — terse, math-style:
 ```
-State 3 > 1.       → true
-State 10 / 4.      → 2.5
-State 1 = 1.       → true
+State 3 > 1.              → true
+State 1 = 1.              → true
+If x < 10, State "small".
+While count < bound, repeat:
+Define big as x > 100.
 ```
 
-**In condition context** (after `If` / `While` / `until`) — words:
-
+**Word forms** (`is`, `is not`, `is greater than`, `is less than`, `is N or more`,
+`is N or less`) — verbose, sentence-style:
 ```
 If x is 5:
 If x is not 3:
 If x is greater than 10:
 If x is less than 10:
-If x is 5 or more:
-If x is 5 or less:
+While x is less than bound, repeat:
+Define in-range as (x is 5 or more).
 ```
 
-`=` is equality only — assignment is `becomes`, declaration is `Define`. The
-split is deliberate: comparison-as-a-value lives in the math domain (symbols);
-comparison-in-a-condition reads as a sentence (words).
+`=` is equality only — assignment is `becomes`, declaration is `Define ... as`.
+Word forms are the **idiomatic, recommended** style for `If`/`While` conditions
+because they read like English. Symbol forms are natural in expression position.
+Either works anywhere.
 
 ---
 
 ## Logic
 
-`and`, `or`, and `not` combine conditions. Words, not symbols — consistent with
-word-comparisons.
+`and`, `or`, and `not` combine conditions. These are always words (no `&&`/`||`/`!`).
 
 ```
 If x is greater than 0 and x is less than 10, state "in range".

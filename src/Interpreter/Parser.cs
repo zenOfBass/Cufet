@@ -1247,9 +1247,15 @@ public sealed class Parser
         SkipNoise();
         var left = ParseJoinedTo();
         SkipNoise();
-        if (Peek().Type == TokenType.Equal)
-            throw new ParseException(Peek().Line,
-                "you used '=' in a condition — in Cufet, conditions use 'is' (for example, 'If n is 0'). Did you mean 'is'?");
+        // Symbol comparisons now work in condition position (unified with expression position).
+        // = < > <= >= all produce the same boolean as the equivalent word-form.
+        if (Peek().Type is TokenType.Equal or TokenType.Lt or TokenType.Gt
+                        or TokenType.Lte or TokenType.Gte)
+        {
+            var opTok = Advance();
+            SkipNoise();
+            return new BinaryExpression(left, opTok.Type, ParseJoinedTo(), opTok.Line);
+        }
         if (Peek().Type != TokenType.Is) return left;
         var isLine = Consume(TokenType.Is).Line;
         // BEFORE SkipNoise: detect type-test forms that use the Article as a discriminator.
@@ -1332,6 +1338,8 @@ public sealed class Parser
     //   multiplication→ unary  ( ( "*" | "/" | "%" ) unary  )*
     //   addition      → multiplication ( ( "+" | "-" ) multiplication )*
     //   comparison    → addition ( ( "=" | "<" | ">" | "<=" | ">=" ) addition )*
+    //                 | addition ( "is" word-comparison )
+    //   both symbol and word forms work in both expression and condition position.
     //   expr-not      → "not" expr-not | comparison
     //   expr-and      → expr-not  ( "and" expr-not  )*
     //   expr-or       → expr-and  ( "or"  expr-and  )*
@@ -1415,6 +1423,8 @@ public sealed class Parser
     private IExpression ParseComparison()
     {
         var left = ParseJoinedTo();
+
+        // Symbol comparisons: = < > <= >=
         while (Peek().Type is TokenType.Equal or TokenType.Lt or TokenType.Gt
                            or TokenType.Lte or TokenType.Gte)
         {
@@ -1422,6 +1432,28 @@ public sealed class Parser
             SkipNoise();
             left = new BinaryExpression(left, opTok.Type, ParseJoinedTo(), opTok.Line);
         }
+
+        // Word-form comparisons in expression position: "is" / "is not" / "is greater than" /
+        // "is less than" / "is or more" / "is or less" / "is a <type>" / "is not a <type>".
+        // Same operations as the condition-form equivalents — both produce a boolean.
+        if (Peek().Type == TokenType.Is)
+        {
+            var isLine = Consume(TokenType.Is).Line;
+            if (Peek().Type == TokenType.Article) // "is a/an <type>"
+            {
+                Advance(); SkipNoise();
+                return new IsTypeCheck(left, ParseTypeAnnotation(), false, isLine);
+            }
+            if (Peek().Type == TokenType.Not &&
+                _pos + 1 < _tokens.Count && _tokens[_pos + 1].Type == TokenType.Article)
+            {
+                Advance(); Advance(); SkipNoise(); // consume 'not', then the article
+                return new IsTypeCheck(left, ParseTypeAnnotation(), true, isLine);
+            }
+            SkipNoise();
+            return ParseWordComparison(left, isLine);
+        }
+
         return left;
     }
 
