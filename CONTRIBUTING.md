@@ -178,9 +178,3 @@ These are open tasks that are explicitly tracked, not forgotten:
   come together here. The design needs to come first; the arc is too large to
   start building without a spec. A contributor with concurrent systems experience
   could take on the design session.
-
----
-
-*Named for the Mvskoke (Muskogee) word for rabbit — the trickster who brings the
-gift of fire to humankind. A language that makes something very powerful feel
-surprisingly natural.*
