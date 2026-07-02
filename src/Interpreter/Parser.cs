@@ -34,7 +34,7 @@ public sealed class Parser
         {
             TokenType.State      => ParseStateStatement(),
             TokenType.Define     => ParseDefineStatement(),
-            TokenType.Identifier => ParseBecomesStatement(),
+            TokenType.Identifier => IsOrdinalAccessorStatement() ? ParseSeriesSetStatement() : ParseBecomesStatement(),
             TokenType.One        => ParseOneStatement(),
             TokenType.Article    => ParseRecordNamedSetStatement(),
             TokenType.If         => ParseIfStatement(),
@@ -42,7 +42,6 @@ public sealed class Parser
             TokenType.Repeat     => ParseRepeatUntilStatement(),
             TokenType.Stop       => ParseStopStatement(tok),
             TokenType.Skip       => ParseSkipStatement(tok),
-            TokenType.Ordinal    => ParseSeriesSetStatement(),
             TokenType.Item       => ParseSeriesSetStatement(),
             TokenType.Add        => ParseSeriesAddStatement(),
             TokenType.Remove     => ParseSeriesRemoveStatement(),
@@ -745,7 +744,7 @@ public sealed class Parser
     // ('one's cards', 'alice's cards') is handled inside ParseCorePrimary.
     private (IExpression series, IExpression? index, int line) ParseAccessTarget()
     {
-        if (Peek().Type == TokenType.Ordinal)
+        if (IsOrdinalIdentifier(Peek()))
         {
             var ordTok = Advance();
             var index  = OrdinalToIndex(ordTok.Lexeme);
@@ -766,6 +765,27 @@ public sealed class Parser
             var series = ParseCorePrimary();
             return (series, idx, itemTok.Line);
         }
+    }
+
+    // Ordinals are contextual identifiers — special only in the accessor shape
+    // ("the <ordinal> of <series>"); everywhere else they're plain variable names.
+    private static bool IsOrdinalLexeme(string lexeme) =>
+        lexeme.ToLowerInvariant() is "first" or "second" or "third" or "fourth" or "fifth"
+                                  or "sixth" or "seventh" or "eighth" or "ninth" or "tenth"
+                                  or "last";
+
+    private static bool IsOrdinalIdentifier(Token tok) =>
+        tok.Type == TokenType.Identifier && IsOrdinalLexeme(tok.Lexeme);
+
+    // True when current position is an ordinal identifier followed immediately by 'of' —
+    // i.e. a series positional set statement starts here.
+    private bool IsOrdinalAccessorStatement()
+    {
+        var tok = Peek();
+        if (tok.Type != TokenType.Identifier || !IsOrdinalLexeme(tok.Lexeme)) return false;
+        int i = _pos + 1;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count && _tokens[i].Type == TokenType.Of;
     }
 
     // null return → "last" sentinel
@@ -855,7 +875,7 @@ public sealed class Parser
             Consume(TokenType.After);
             SkipNoise();
             IExpression? afterIdx;
-            if (Peek().Type == TokenType.Ordinal)
+            if (IsOrdinalIdentifier(Peek()))
             {
                 afterIdx = OrdinalToIndex(Advance().Lexeme);
                 SkipNoise();
@@ -883,7 +903,7 @@ public sealed class Parser
         int line = removeTok.Line;
         SkipNoise();
 
-        if (Peek().Type == TokenType.Ordinal)
+        if (IsOrdinalIdentifier(Peek()))
         {
             var idx = OrdinalToIndex(Advance().Lexeme);
             SkipNoise();
@@ -1673,8 +1693,9 @@ public sealed class Parser
     {
         // 'the <name> of <expr>' → named record field access.
         // Checked BEFORE SkipNoise so we can still see the leading 'the'.
-        // 'the first of s', 'the number of s' are not named access: the token immediately
-        // after 'the' is Ordinal/NumberKw, not Identifier/Article, so IsNamedAccessPattern returns false.
+        // 'the first of s' is not named access: ordinal-word identifiers are excluded from
+        // IsFieldNameToken(forAccess:true), so IsNamedAccessPattern returns false for them.
+        // 'the number of s' is also not named access: NumberKw is not Identifier/Category/Key/Characters.
         // No SkipNoise between 'the' and the field name — 'a'/'an' may be field names.
         if (Peek().Type == TokenType.Article &&
             Peek().Lexeme.Equals("the", StringComparison.OrdinalIgnoreCase) &&
@@ -1705,8 +1726,40 @@ public sealed class Parser
                 break;
             case TokenType.Identifier:
             {
-                var t = Advance();
-                baseExpr = new VariableReference(t.Lexeme, t.Line);
+                var idTok = Advance();
+                if (IsOrdinalLexeme(idTok.Lexeme))
+                {
+                    SkipNoise();
+                    // 'first/last <count> characters of <text>' — text substring from edge.
+                    // Detected by: isEdge ordinal + count expression (Number or LParen) follows.
+                    bool isEdge = idTok.Lexeme.Equals("first", StringComparison.OrdinalIgnoreCase) ||
+                                  idTok.Lexeme.Equals("last",  StringComparison.OrdinalIgnoreCase);
+                    if (isEdge && Peek().Type is TokenType.Number or TokenType.LParen)
+                    {
+                        var count = ParseAddition();
+                        SkipNoise();
+                        Consume(TokenType.Characters);
+                        SkipNoise();
+                        Consume(TokenType.Of);
+                        SkipNoise();
+                        var textTarget = ParseCorePrimary();
+                        bool fromStart = idTok.Lexeme.Equals("first", StringComparison.OrdinalIgnoreCase);
+                        baseExpr = new TextSubstringEdge(textTarget, count, fromStart, idTok.Line);
+                        break;
+                    }
+                    if (Peek().Type == TokenType.Of)
+                    {
+                        // '<ordinal> of <series>' — series positional access.
+                        var index = OrdinalToIndex(idTok.Lexeme);
+                        Consume(TokenType.Of);
+                        SkipNoise();
+                        var target = ParseCorePrimary();
+                        baseExpr = new SeriesAccess(target, index, idTok.Line);
+                        break;
+                    }
+                    // Ordinal word not in accessor shape → plain variable reference.
+                }
+                baseExpr = new VariableReference(idTok.Lexeme, idTok.Line);
                 break;
             }
             case TokenType.It:
@@ -1728,40 +1781,6 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.RParen);
                 baseExpr = inner;
-                break;
-            }
-            case TokenType.Ordinal:
-            {
-                var ordTok = Advance();
-                SkipNoise();
-                // 'first <count> characters of <text>' / 'last <count> characters of <text>' —
-                // text substring from an edge. Distinguished from plain ordinal access ('first
-                // of <series>') by a count expression appearing where 'of' would otherwise be.
-                bool isFirstOrLast = ordTok.Lexeme.Equals("first", StringComparison.OrdinalIgnoreCase) ||
-                                     ordTok.Lexeme.Equals("last", StringComparison.OrdinalIgnoreCase);
-                if (isFirstOrLast && Peek().Type != TokenType.Of)
-                {
-                    var count = ParseAddition();
-                    SkipNoise();
-                    Consume(TokenType.Characters);
-                    SkipNoise();
-                    Consume(TokenType.Of);
-                    SkipNoise();
-                    var textTarget = ParseCorePrimary();
-                    bool fromStart = ordTok.Lexeme.Equals("first", StringComparison.OrdinalIgnoreCase);
-                    baseExpr = new TextSubstringEdge(textTarget, count, fromStart, ordTok.Line);
-                    break;
-                }
-
-                // Inline ordinal access: 'first of <target-expr>' where target is parsed via
-                // ParseCorePrimary so that postfix operators (like 'converted to text') bind
-                // to the outer SeriesAccess, not to the inner target expression. Possessive
-                // access ('one's cards', 'alice's hand') is handled inside ParseCorePrimary.
-                var index = OrdinalToIndex(ordTok.Lexeme);
-                Consume(TokenType.Of);
-                SkipNoise();
-                var target = ParseCorePrimary();
-                baseExpr = new SeriesAccess(target, index, ordTok.Line);
                 break;
             }
             case TokenType.Item:
@@ -2653,9 +2672,9 @@ public sealed class Parser
     }
 
     // Returns true when the current position starts a named record access: 'the' <name> 'of'.
-    // Reserved keywords are excluded by IsFieldNameToken — no keyword can be a user-defined
-    // field name — so 'the first of s', 'the series of T name', 'the number of s', etc. never
-    // false-positive as named access regardless of which keywords exist.
+    // Reserved keywords are excluded by IsFieldNameToken, and ordinal-word identifiers
+    // (first/second/.../last) are also excluded — they're recognized as series positional
+    // accessors in this shape, not record field names.
     private bool IsNamedAccessPattern()
     {
         int i = _pos; // at 'the'
@@ -2705,6 +2724,10 @@ public sealed class Parser
                       and not TokenType.Characters &&
             !(tok.Type == TokenType.Article &&
               !tok.Lexeme.Equals("the", StringComparison.OrdinalIgnoreCase)))
+            return false;
+        // Ordinal-word identifiers are not valid field names in access position — they are
+        // recognized as series positional accessors in "the <ordinal> of <series>" shape.
+        if (forAccess && tok.Type == TokenType.Identifier && IsOrdinalLexeme(tok.Lexeme))
             return false;
         return true;
     }

@@ -582,22 +582,24 @@ public class LexerTests
     }
 
     [Theory]
-    [InlineData("first",   TokenType.Ordinal)]
-    [InlineData("second",  TokenType.Ordinal)]
-    [InlineData("third",   TokenType.Ordinal)]
-    [InlineData("fourth",  TokenType.Ordinal)]
-    [InlineData("fifth",   TokenType.Ordinal)]
-    [InlineData("sixth",   TokenType.Ordinal)]
-    [InlineData("seventh", TokenType.Ordinal)]
-    [InlineData("eighth",  TokenType.Ordinal)]
-    [InlineData("ninth",   TokenType.Ordinal)]
-    [InlineData("tenth",   TokenType.Ordinal)]
-    [InlineData("last",    TokenType.Ordinal)]
-    public void OrdinalKeywords(string word, TokenType expected)
+    [InlineData("first")]
+    [InlineData("second")]
+    [InlineData("third")]
+    [InlineData("fourth")]
+    [InlineData("fifth")]
+    [InlineData("sixth")]
+    [InlineData("seventh")]
+    [InlineData("eighth")]
+    [InlineData("ninth")]
+    [InlineData("tenth")]
+    [InlineData("last")]
+    public void OrdinalWords_AreContextualIdentifiers(string word)
     {
+        // Ordinals are no longer globally reserved — they lex as plain Identifier tokens.
+        // Context (the accessor shape "the <ordinal> of <series>") decides their meaning.
         var tokens = LexTokens(word);
         Assert.Single(tokens);
-        Assert.Equal(expected, tokens[0].Type);
+        Assert.Equal(TokenType.Identifier, tokens[0].Type);
     }
 
     [Theory]
