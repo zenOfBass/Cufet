@@ -167,10 +167,10 @@ public class OrdinalIdentifierTests
     public void Ordinal_AsParameterName()
     {
         Assert.Equal("15", Run("""
-            Bind number to add, given (the number first, the number second):
+            Bind number to combine, given (the number first, the number second):
                 return first + second.
             Done.
-            State Cast add on (10, 5).
+            State Cast combine on (10, 5).
             """));
     }
 

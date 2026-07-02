@@ -115,17 +115,9 @@ as identifiers, but that is fine — they read as natural articles.
 | `for` | For | For-each, map entry |
 | `each` | Each | For-each iterator |
 | `in` | In | For-each and map-set context |
-| `first` | Ordinal | |
-| `second` | Ordinal | |
-| `third` | Ordinal | |
-| `fourth` | Ordinal | |
-| `fifth` | Ordinal | |
-| `sixth` | Ordinal | |
-| `seventh` | Ordinal | |
-| `eighth` | Ordinal | |
-| `ninth` | Ordinal | |
-| `tenth` | Ordinal | |
-| `last` | Ordinal | |
+| ~~`first`~~ | — | Contextual identifier — see "Contextual words" below |
+| ~~`second`~~ through ~~`tenth`~~ | — | Same |
+| ~~`last`~~ | — | Same |
 | `number` | NumberKw | `the number of <series>` — not the type name `number` |
 | `sorted` | Sorted | Sort expression |
 | `reverse` | Reverse | Reverse sort |
@@ -245,11 +237,21 @@ These are reserved and meaningful in both condition position (`If`, `While`,
 
 ### Contextual words — NOT reserved
 
-These are matched by lexeme in specific positions, not by token type. Outside those
-positions they parse as regular identifiers and can be used as variable names:
+These are matched by lexeme or shape in specific positions, not by token type.
+Outside those positions they parse as regular identifiers and can be used as variable
+names, parameter names, field names, and iterator names:
 
 `line`, `lines`, `all`, `input`, `arguments`, `reading`, `writing`, `exists`,
 `variable`, `requested`
+
+**Ordinals** (`first`, `second`, `third`, `fourth`, `fifth`, `sixth`, `seventh`,
+`eighth`, `ninth`, `tenth`, `last`) — contextual in the accessor shape:
+- **Accessor position:** `the <ordinal> of <series>` / `<ordinal> of <series>` → positional series access
+- **Text-edge substring:** `first <count> characters of <text>` / `last <count> characters of <text>`
+- **Everywhere else:** ordinary identifier (`Define first as 5.`, `For each last in items,`, param name, etc.)
+
+The accessor shape takes priority in `the <ordinal> of X` — if you name an object field `first`, access
+it via `one's first` / `alice's first` (possessive), not `the first of alice` (which is always series access).
 
 ---
 
