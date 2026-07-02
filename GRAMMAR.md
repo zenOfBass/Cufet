@@ -536,11 +536,29 @@ State (x = 5).             ← symbol equality in expression — idiomatic
 State (x is 5).            ← word equality in expression — works
 ```
 
-### Invalid forms
+### Negated word forms
 
-**`is not greater than` and `is not more than` are not valid** — there is no
-combined negated word comparison. Use the converse: `is less than` instead of
-`is not greater than`, `is greater than` instead of `is not less than`.
+The negated word forms are valid — they map to the corresponding comparison:
+
+| Form | Equivalent | Meaning |
+|---|---|---|
+| `is not greater than X` | `<= X` | at most X |
+| `is not less than X` | `>= X` | at least X |
+| `is not X` | `!= X` | inequality |
+| `is not equal to X` | `!= X` | inequality (verbose form) |
+
+```
+If count is not greater than 10:           ← count <= 10
+While x is not less than 0, repeat:        ← x >= 0
+If name is not "admin":                    ← inequality
+Define ok as (score is not less than 50).  ← expression position
+If count is not equal to 0:                ← verbose inequality
+```
+
+Both `is not X` and `is not equal to X` mean the same thing — use whichever
+reads more naturally in context.
+
+### Invalid forms
 
 **`is more than` is a compile error — use `is greater than` instead.** The parser
 catches `is more than` and emits: *"did you mean 'is greater than'?"*
@@ -1029,6 +1047,28 @@ The lexer produces `TokenType.State` for the word `state` (the print-output
 statement). It cannot be used as a field name, variable name, or function name.
 Use `region`, `status`, `condition`, etc. when the concept of "state" (as a noun)
 is needed.
+
+### `=` in statement position is an assignment-mistake error
+
+`=` is **comparison only** in Cufet — assignment is `becomes` (update) or `Define ... as` (introduce).
+Writing `x = 5.` as a statement is a **parse-time educational error**:
+
+```
+x = 5.
+→ Line N: '=' is comparison, not assignment.
+  Did you mean 'x becomes 5.' (update) or 'Define x as 5.' (introduce)?
+```
+
+`=` still works as comparison in its valid positions:
+
+```
+If x = 5, State "five".        ← OK: comparison in condition
+Define b as (x = 5).           ← OK: comparison in expression
+```
+
+This design eliminates the C-family `=`-vs-`==` footgun: `=` is unambiguously
+equality everywhere it appears. The statement-position error teaches the two
+correct assignment forms at the point of the mistake.
 
 ### Comparisons after parenthesized sub-expressions
 

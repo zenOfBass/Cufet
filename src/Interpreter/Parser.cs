@@ -530,6 +530,9 @@ public sealed class Parser
         SkipNoise();
         if (Peek().Type == TokenType.Possessive)
             return ParsePossessiveSetStatement(new VariableReference(name, line));
+        if (Peek().Type == TokenType.Equal)
+            throw new ParseException(line,
+                $"'=' is comparison, not assignment. Did you mean '{name} becomes ...' (update) or 'Define {name} as ...' (introduce)?");
         Consume(TokenType.Becomes);
         SkipNoise();
         var value = ParseExpression();
@@ -1190,7 +1193,10 @@ public sealed class Parser
     //   logical-and      → cond-not ( "and" cond-not )*
     //   cond-not         → "not" cond-not | single-condition
     //   single-condition → addition ( is-comparison )?
-    //   is-comparison    → "is" "not" addition
+    //   is-comparison    → "is" "not" addition                           (inequality)
+    //                    | "is" "not" "greater" "than" addition          (<=)
+    //                    | "is" "not" "less" "than" addition             (>=)
+    //                    | "is" "not" "equal" "to" addition              (inequality, verbose)
     //                    | "is" "greater" "than" addition
     //                    | "is" "less" "than" addition
     //                    | "is" addition "or" ( "more" | "less" )
@@ -1301,8 +1307,35 @@ public sealed class Parser
         {
             case TokenType.Not:
             {
-                var line = Advance().Line;
+                var line = Advance().Line; // consume 'not'
                 SkipNoise();
+                // 'is not greater than' → <=
+                if (Peek().Type == TokenType.Greater)
+                {
+                    Advance(); SkipNoise(); // consume 'greater'
+                    Consume(TokenType.Than);
+                    SkipNoise();
+                    return new BinaryExpression(left, TokenType.Lte, ParseJoinedTo(), line);
+                }
+                // 'is not less than' → >=
+                if (Peek().Type == TokenType.Less)
+                {
+                    Advance(); SkipNoise(); // consume 'less'
+                    Consume(TokenType.Than);
+                    SkipNoise();
+                    return new BinaryExpression(left, TokenType.Gte, ParseJoinedTo(), line);
+                }
+                // 'is not equal to' — 'equal' is contextual (not a keyword; lexes as Identifier)
+                if (Peek().Type == TokenType.Identifier &&
+                    Peek().Lexeme.Equals("equal", StringComparison.OrdinalIgnoreCase) &&
+                    _pos + 1 < _tokens.Count && _tokens[_pos + 1].Type == TokenType.To)
+                {
+                    Advance(); // consume 'equal'
+                    Advance(); // consume 'to'
+                    SkipNoise();
+                    return new BinaryExpression(left, TokenType.NotEqual, ParseJoinedTo(), line);
+                }
+                // 'is not <value>' → !=
                 return new BinaryExpression(left, TokenType.NotEqual, ParseJoinedTo(), line);
             }
             case TokenType.Greater:
