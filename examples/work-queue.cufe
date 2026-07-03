@@ -1,20 +1,10 @@
-State "=== work-queue / fan-out-fan-in ===".
-State "3 workers, 30 items, 1 producer, 1 collector".
+State "=== work-queue re-drive / close-contention ===".
+State "workers-first ordering: w1+w2+w3 are genuinely blocked in DrainUntil when producer closes work".
 
 Pull a rabbit.
     Define work    as a channel of number.
     Define results as a channel of number.
     Define n       as 30.
-
-    Have rabbit start a task as producer:
-        Define i as 1.
-        While i is n or less, repeat:
-            Send i through work.
-            i becomes i + 1.
-        Done.
-        Close work.
-        State "producer: sent " joined to (n converted to text) joined to " items, closed work channel".
-    Done.
 
     Have rabbit start a task as worker-1:
         Define count-1 as 0.
@@ -50,6 +40,16 @@ Pull a rabbit.
             job becomes the delivery from work.
         Done.
         State "worker-3: processed " joined to (count-3 converted to text) joined to " items".
+    Done.
+
+    Have rabbit start a task as producer:
+        Define i as 1.
+        While i is n or less, repeat:
+            Send i through work.
+            i becomes i + 1.
+        Done.
+        Close work.
+        State "producer: sent " joined to (n converted to text) joined to " items, closed work channel".
     Done.
 
     Have rabbit start a task as collector:

@@ -1491,3 +1491,53 @@ to encapsulate initialization of objects that have collection fields.
 `For each x in series` forbids mutation of `series` during iteration. If you need
 to build a filtered/transformed result, collect into a separate series or use
 `While` with an index.
+
+### Cooperative scheduler: `Yield.` does not re-enqueue the calling task
+
+`Yield.` calls `DrainOne()` synchronously — one item from the scheduler queue is
+run as a subroutine, then control returns to the calling task. The calling task is
+NOT suspended and NOT re-enqueued. Its continuation is on the C# call stack, not
+in the scheduler queue.
+
+**Consequence 1 — fan-out work-queues do not distribute.**
+In a pattern with N workers reading from a shared channel, only ONE worker ever
+gets items. When the channel is empty and multiple workers call
+`the delivery from work`, each worker's delivery blocks in `DrainUntil`. The
+DrainUntil calls nest synchronously. Whichever worker's DrainUntil condition fires
+first (when the channel gets items) exits and processes items uninterrupted — the
+other workers' conditions are checked after the first worker finishes, finding the
+channel closed-and-empty. Example distribution with 3 workers: 30/0/0, not
+10/10/10. This is an interpreter-era limitation; a native backend with real threads
+has true parallelism.
+
+**Consequence 2 — `Yield.` in a producer with a blocking collector deadlocks.**
+```
+Have rabbit start a task as worker:     ← enqueued first
+    Define job as the delivery from work.   ← blocks → DrainUntil
+    ...
+Done.
+Have rabbit start a task as producer:   ← enqueued second
+    Send 1 through work.
+    Yield.                              ← DrainOne → runs collector
+    ...
+Done.
+Have rabbit start a task as collector:  ← enqueued third
+    Define got as the delivery from results.  ← blocks → DrainUntil → _ready empty → DEADLOCK
+    ...
+Done.
+```
+The producer is on the call stack (not in `_ready`). The collector's `DrainUntil`
+exhausts the queue with nothing left to produce results. The scheduler's deadlock
+detector fires: "channel deadlock — a task is waiting for delivery but no running
+or queued tasks will send."
+
+**Consequence 3 — close does correctly wake all blocked workers.**
+When a DrainUntil chain eventually runs the producer (which closes the channel),
+ALL outer workers' `DrainUntil` conditions (`chan.IsClosed`) become TRUE. Every
+blocked worker exits cleanly via `void`. No worker hangs at close. This is the
+coordination property the scheduler does guarantee.
+
+**The fix (future slice):** `ExecuteStatementsAsync` — task bodies use `await` at
+channel operations, re-enqueuing their continuation via the SynchronizationContext.
+True per-item interleaving then emerges naturally. Until then, treat all fan-out
+patterns as "first-to-unblock worker gets all."
