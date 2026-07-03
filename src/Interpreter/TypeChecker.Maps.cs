@@ -2,6 +2,36 @@ namespace Cufet.Interpreter;
 
 public sealed partial class TypeChecker
 {
+    // Map keys must be value types (text, number, fact). Reference types — objects, series,
+    // maps — can't be keys because their identity changes when copied (Define deep-copies
+    // ObjectValues; two List<object> instances with the same content are still different
+    // references), so lookups would silently always-miss (the map behaves empty, wrong answers,
+    // no error). Every systems language draws this line: Python non-hashable lists, Rust
+    // Hash+Eq bounds, Java hashCode/equals contract.
+    private static void RequireValidMapKeyType(CufetType keyType, int line)
+    {
+        if (keyType is NumberType or TextType or FactType) return;
+
+        var typeName = FormatType(keyType);
+        var kind = keyType switch
+        {
+            ObjectType => "an object",
+            SeriesType => "a series",
+            MapType    => "a map",
+            RecordType => "a record",
+            _          => "a reference type"
+        };
+        throw new TypeException(FormatTypeError(
+            "map keys must be value types (text, number, or fact)",
+            $"'{typeName}' is {kind} — reference types can't be map keys because their identity " +
+            "changes when copied, so lookups silently always-fail (the map behaves empty, " +
+            "computing wrong answers with no error)",
+            line,
+            $"use a '{typeName}' as a map key",
+            $"Key by a value field instead: e.g. 'map from text to ...' keyed by a name field, " +
+            "or 'map from number to ...' keyed by an id field."));
+    }
+
     private void CheckMapSet(MapSetStatement mapSet)
     {
         var mapType = InferType(mapSet.Map);
@@ -38,12 +68,16 @@ public sealed partial class TypeChecker
     {
         // Empty map — type annotation required; provided by parser
         if (lit.Pairs.Count == 0)
+        {
+            RequireValidMapKeyType(lit.KeyType!, lit.Line);
             return new MapType(lit.KeyType!, lit.ValueType!);
+        }
 
         // Atlas with explicit annotations — validate each pair against the declared types
         // and return the declared map type (preserving union value types).
         if (lit.KeyType != null && lit.ValueType != null)
         {
+            RequireValidMapKeyType(lit.KeyType, lit.Line);
             foreach (var (kExpr, vExpr) in lit.Pairs)
             {
                 var kType = InferType(kExpr);
@@ -78,12 +112,7 @@ public sealed partial class TypeChecker
             {
                 if (inferredKey == null)
                 {
-                    if (kType != CufetType.Number && kType != CufetType.Text)
-                        throw new TypeException(FormatTypeError(
-                            "map keys must be numbers or text",
-                            null, lit.Line,
-                            $"use a {FormatType(kType)} as a map key",
-                            "Map keys can only be numbers or text this version."));
+                    RequireValidMapKeyType(kType, lit.Line);
                     inferredKey = kType;
                 }
                 else if (inferredKey != kType)

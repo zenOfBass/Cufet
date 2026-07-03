@@ -5118,6 +5118,43 @@ public class InterpreterTests
 
     // ── Maps ──────────────────────────────────────────────────────────────────
 
+    // ── Map key type enforcement ──────────────────────────────────────────────────────────────────
+    // Reference types (objects, series, maps) can't be map keys: their identity changes when
+    // copied (Define deep-copies ObjectValues; two List instances with same content are different
+    // references), so lookups would silently always-miss — wrong answers, no error.
+    // The TypeChecker catches these at declaration time with an educational message.
+
+    [Fact]
+    public void Map_ObjectKey_TypeCheckError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define object point with (the number px, the number py).\n" +
+            "Define m as a map from point to number with ()."));
+    }
+
+    [Fact]
+    public void Map_SeriesKey_TypeCheckError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define m as a map from series of number to text with ()."));
+    }
+
+    [Fact]
+    public void Map_MapKey_TypeCheckError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Define m as a map from map from text to number to number with ()."));
+    }
+
+    [Fact]
+    public void Map_FactKey_IsValidValueTypeKey()
+    {
+        Assert.Equal("1", Run(
+            "Define m as a map from fact to number with ().\n" +
+            "In m, the entry for true becomes 1.\n" +
+            "State (the entry for true in m) but void is 0."));
+    }
+
     [Fact]
     public void Map_Empty_Construction()
     {

@@ -61,6 +61,14 @@ public sealed partial class Interpreter
         if (mapVal is not Dictionary<object, object> dict)
             throw new RuntimeException($"Expected a map for entry assignment on line {mapSet.Line}.");
         var key = Evaluate(mapSet.Key);
+        // Safety net: TypeChecker catches reference-type keys at compile time; guard here too
+        // in case an untyped path reaches runtime (dynamic inference gap).
+        if (key is ObjectValue or List<object> or Dictionary<object, object>)
+            throw new RuntimeException(
+                $"Map keys must be text, number, or fact (line {mapSet.Line}). " +
+                "Reference types (objects, series, maps) can't be keys — their identity changes " +
+                "when copied, causing silent lookup failures. Key by a value field instead " +
+                "(e.g. a text name or number id).");
         var val = Evaluate(mapSet.Value);
         dict[key] = val;
     }

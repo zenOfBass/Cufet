@@ -194,7 +194,7 @@ public sealed class VoidableType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(VoidableType), Inner);
 }
 
-// map from K to V — homogeneous, reference-typed. Keys must be number or text.
+// map from K to V — homogeneous, reference-typed. Keys must be value types (text, number, fact).
 public sealed class MapType : CufetType
 {
     public CufetType KeyType   { get; }
