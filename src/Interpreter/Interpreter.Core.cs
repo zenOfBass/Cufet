@@ -29,6 +29,7 @@ public sealed class WritableStreamValue
 public sealed partial class Interpreter
 {
     private readonly TextWriter _out;
+    private readonly TextWriter _err;
     private readonly TextReader _in;
     private readonly List<Dictionary<string, object>> _scopes = [new()];
     // Parallel to _scopes: definition order per scope, for LIFO destructor firing.
@@ -269,9 +270,10 @@ public sealed partial class Interpreter
     private int _callDepth = 0;
     private readonly int _maxCallDepth;
 
-    public Interpreter(TextWriter? output = null, TextReader? input = null, int maxCallDepth = 1000)
+    public Interpreter(TextWriter? output = null, TextReader? input = null, TextWriter? error = null, int maxCallDepth = 1000)
     {
         _out = output ?? Console.Out;
+        _err = error  ?? Console.Error;
         _in  = input  ?? Console.In;
         _maxCallDepth = maxCallDepth;
         _scopes[0]["input"] = new ReadableStreamValue(_in);

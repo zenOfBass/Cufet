@@ -106,6 +106,10 @@ public sealed partial class Interpreter
                 Task.WaitAll(stdoutTask, stderrTask);
                 if (_interruptRequested) throw new InterruptUnwind();
 
+                var stderrOutput = stderrTask.Result;
+                if (stderrOutput.Length > 0)
+                    _err.Write(stderrOutput);
+
                 currentInput = stdoutTask.Result;
             }
             catch (Exception ex) when (ex is Win32Exception or FileNotFoundException
