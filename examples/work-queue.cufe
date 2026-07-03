@@ -1,0 +1,81 @@
+State "=== work-queue / fan-out-fan-in ===".
+State "3 workers, 30 items, 1 producer, 1 collector".
+
+Pull a rabbit.
+    Define work    as a channel of number.
+    Define results as a channel of number.
+    Define n       as 30.
+
+    Have rabbit start a task as producer:
+        Define i as 1.
+        While i is n or less, repeat:
+            Send i through work.
+            i becomes i + 1.
+        Done.
+        Close work.
+        State "producer: sent " joined to (n converted to text) joined to " items, closed work channel".
+    Done.
+
+    Have rabbit start a task as worker-1:
+        Define count-1 as 0.
+        Define job as the delivery from work.
+        While job is not void, repeat:
+            Define v as (job but void is 0).
+            Send (v * 2) through results.
+            count-1 becomes count-1 + 1.
+            job becomes the delivery from work.
+        Done.
+        State "worker-1: processed " joined to (count-1 converted to text) joined to " items".
+    Done.
+
+    Have rabbit start a task as worker-2:
+        Define count-2 as 0.
+        Define job as the delivery from work.
+        While job is not void, repeat:
+            Define v as (job but void is 0).
+            Send (v * 2) through results.
+            count-2 becomes count-2 + 1.
+            job becomes the delivery from work.
+        Done.
+        State "worker-2: processed " joined to (count-2 converted to text) joined to " items".
+    Done.
+
+    Have rabbit start a task as worker-3:
+        Define count-3 as 0.
+        Define job as the delivery from work.
+        While job is not void, repeat:
+            Define v as (job but void is 0).
+            Send (v * 2) through results.
+            count-3 becomes count-3 + 1.
+            job becomes the delivery from work.
+        Done.
+        State "worker-3: processed " joined to (count-3 converted to text) joined to " items".
+    Done.
+
+    Have rabbit start a task as collector:
+        Define received as a series of number with ().
+        Define got as the delivery from results.
+        While got is not void, repeat:
+            Add (got but void is 0) to received.
+            If (the number of received) is n, Stop.
+            got becomes the delivery from results.
+        Done.
+        Define actual-sum as 0.
+        For each r in received, repeat:
+            actual-sum becomes actual-sum + r.
+        Done.
+        Define expected-sum as n * (n + 1).
+        State "collector: received " joined to ((the number of received) converted to text) joined to " results".
+        State "expected sum: " joined to (expected-sum converted to text).
+        State "actual sum:   " joined to (actual-sum converted to text).
+        If actual-sum is expected-sum:
+            State "correctness: PASS (all 30 items processed exactly once)".
+        Done.
+        If actual-sum is not expected-sum:
+            State "correctness: FAIL".
+        Done.
+    Done.
+Done.
+
+State "".
+State "=== Done. reached - all 5 tasks terminated cleanly ===".
