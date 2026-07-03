@@ -1235,7 +1235,7 @@ public sealed partial class TypeChecker
         ChannelCreation cc                                                                               => InferChannelCreation(cc),
         DeliveryExpression de                                                                            => InferDeliveryExpression(de),
         AwaitedResultExpression are                                                                      => InferAwaitedResultExpression(are),
-        PipeExpression pipe                                                                              => throw new TypeException($"Line {pipe.Line}: a pipe expression produces no value and cannot be used in expression position — pipes are statements, not expressions."),
+        PipeExpression pipe                                                                              => InferSubprocessPipeExpr(pipe),
         _                                                                                                => null,
     };
 

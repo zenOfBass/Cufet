@@ -871,6 +871,7 @@ public sealed partial class Interpreter
         ChannelCreation cc                => EvaluateChannelCreation(cc),
         DeliveryExpression de             => EvaluateDeliveryExpression(de),
         AwaitedResultExpression are       => EvaluateAwaitedResultExpression(are),
+        PipeExpression pipe               => EvaluatePipeExpr(pipe),
         _ => throw new InvalidOperationException($"Unknown expression type: {expr.GetType().Name}"),
     };
 

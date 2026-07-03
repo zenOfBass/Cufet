@@ -64,6 +64,40 @@ public sealed partial class TypeChecker
         // producer's output type is determined at the pipe site.
     }
 
+    // Expression-position subprocess pipe: 'run A | run B' used as a value.
+    // Returns the same FailureType(RunResultType) that a single 'run' expression returns,
+    // so all failure-handling surfaces ('but on failure', Try, 'or pass the failure off')
+    // work identically. Task pipes in expression position are a static error.
+    private CufetType? InferSubprocessPipeExpr(PipeExpression pipe)
+    {
+        var stages = FlattenPipe(pipe);
+
+        if (!stages.TrueForAll(s => s is RunExpression))
+            throw new TypeException(FormatTypeError(
+                "only subprocess pipes can be used as values",
+                null, pipe.Line,
+                "use a task-function pipe in expression position",
+                "Task pipes are statement-only. Only 'run A | run B' subprocess pipes produce a result record."));
+
+        // Validate program/argument types for each stage, suppressing the per-stage
+        // must-handle error — the pipe itself carries the FailureType wrapper.
+        var savedCtx = _inFailureHandledContext;
+        _inFailureHandledContext = true;
+        try { foreach (var s in stages) InferType(s); }
+        finally { _inFailureHandledContext = savedCtx; }
+
+        // The pipe's type mirrors a single 'run' in the same context.
+        if (_inTryBlock)
+            return RunResultType;
+        if (!_inFailureHandledContext)
+            throw new TypeException(FormatTypeError(
+                "running a program can fail — you must handle the failure",
+                null, pipe.Line,
+                "use a subprocess pipe without handling the launch failure",
+                "Wrap in 'Try to: / In case of failure:', use 'but on failure <default>', or use 'or pass the failure off'."));
+        return new FailureType(RunResultType);
+    }
+
     // Flatten PipeExpression(PipeExpression(A, B), C) → [A, B, C] (left-associative).
     private static List<IExpression> FlattenPipe(PipeExpression pipe)
     {

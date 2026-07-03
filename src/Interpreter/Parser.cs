@@ -1486,7 +1486,7 @@ public sealed class Parser
 
     private IExpression ParseExpression()
     {
-        var left = ParseExprOr();
+        var left = ParsePipeExpr();
         SkipNoise();
 
         if (Peek().Type == TokenType.But)
@@ -1520,6 +1520,23 @@ public sealed class Parser
             return new FailurePropagate(left, line);
         }
 
+        return left;
+    }
+
+    // Handles '|' in expression context: 'run "a" | run "b"' inside parens/Define/etc.
+    // Precedence: lower than all value operators; failure-handler suffixes ('but on failure',
+    // 'or pass the failure off') are applied by ParseExpression on the outside of this.
+    private IExpression ParsePipeExpr()
+    {
+        var left = ParseExprOr();
+        SkipNoise();
+        while (Peek().Type == TokenType.Pipe)
+        {
+            var pipeLine = Advance().Line; // consume '|'
+            SkipNoise();
+            left = new PipeExpression(left, ParseExprOr(), pipeLine);
+            SkipNoise();
+        }
         return left;
     }
 

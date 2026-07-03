@@ -123,6 +123,92 @@ public sealed partial class Interpreter
             _out.Write(currentInput);
     }
 
+    // ── Subprocess pipe (expression position — captures output) ──────────────────
+    // Returns the same RecordValue shape as EvaluateRunExpr so both single and piped
+    // 'run' expressions are handled identically by all downstream machinery.
+
+    private object EvaluatePipeExpr(PipeExpression pipe)
+    {
+        var stages = FlattenPipe(pipe);
+        if (stages.TrueForAll(s => s is RunExpression))
+            return EvaluateSubprocessPipeExpr(stages, pipe.Line);
+        throw new RuntimeException(
+            $"Task pipes cannot be used as values (line {pipe.Line}) — only 'run A | run B' subprocess pipes can be used in expression position.");
+    }
+
+    private object EvaluateSubprocessPipeExpr(List<IExpression> stages, int line)
+    {
+        string? currentInput    = null;
+        var    stderrAgg        = new System.Text.StringBuilder();
+        int    pipeExitCode     = 0; // rightmost non-zero (bash pipefail semantics)
+
+        foreach (var stage in stages)
+        {
+            var run     = (RunExpression)stage;
+            var program = (string)Evaluate(run.Program);
+            var args    = run.Args.Select(a => (string)Evaluate(a)).ToArray();
+
+            var psi = new ProcessStartInfo(program)
+            {
+                RedirectStandardInput  = currentInput != null,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+            };
+            foreach (var arg in args)
+                psi.ArgumentList.Add(arg);
+
+            try
+            {
+                using var proc = Process.Start(psi)
+                    ?? throw new RuntimeException($"Failed to start '{program}' (line {line}).");
+
+                if (currentInput != null)
+                {
+                    proc.StandardInput.Write(currentInput);
+                    proc.StandardInput.Close();
+                }
+
+                var stdoutTask = Task.Run(() => proc.StandardOutput.ReadToEnd());
+                var stderrTask = Task.Run(() => proc.StandardError.ReadToEnd());
+
+                while (!proc.WaitForExit(50))
+                {
+                    if (_interruptRequested)
+                    {
+                        proc.Kill(entireProcessTree: true);
+                        break;
+                    }
+                }
+                Task.WaitAll(stdoutTask, stderrTask);
+                if (_interruptRequested) throw new InterruptUnwind();
+
+                var stderrChunk = stderrTask.Result;
+                if (stderrChunk.Length > 0)
+                    stderrAgg.Append(stderrChunk);
+
+                if (proc.ExitCode != 0)
+                    pipeExitCode = proc.ExitCode;
+
+                currentInput = stdoutTask.Result;
+            }
+            catch (Exception ex) when (ex is Win32Exception or FileNotFoundException
+                                           or DirectoryNotFoundException or UnauthorizedAccessException)
+            {
+                throw LaunchFailure(program, ex);
+            }
+        }
+
+        return new RecordValue(
+            [],
+            [
+                ("errors",    (object)(stderrAgg.ToString())),
+                ("exit-code", (object)(decimal)pipeExitCode),
+                ("output",    (object)(currentInput ?? "")),
+            ]
+        );
+    }
+
     // ── output statement ─────────────────────────────────────────────────────────
     // Sends a value into the implicit output channel. Only valid inside a pipe stage.
 

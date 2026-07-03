@@ -354,4 +354,106 @@ public class PipeTests
             """);
         Assert.Equal("3\n6\n9", output);
     }
+
+    // ── Subprocess pipe (expression position — captures result record) ─────────────
+
+    // A subprocess pipe in expression position captures stdout as the 'output' field.
+    // This is command substitution: 'Define x as the output of (run "a" | run "b")'.
+    // Uses cmd.exe + findstr.exe — guaranteed on any Windows installation.
+    [Fact]
+    public void SubprocessPipe_ExprPosition_CapturesOutput()
+    {
+        var output = Run("""
+            Try to:
+                Define r as (run "cmd" with arguments ("/c", "echo", "hello") | run "findstr" with arguments ("hello")).
+                State (the output of r).
+            Done.
+            In case of failure:
+                State "caught".
+            Done.
+            """);
+        Assert.Contains("hello", output);
+    }
+
+    // Exit code 0 when all stages succeed.
+    // 'cmd /c exit 0' is the minimal Windows command that exits with a given code.
+    [Fact]
+    public void SubprocessPipe_ExprPosition_ExitCodeZeroOnSuccess()
+    {
+        var output = Run("""
+            Try to:
+                Define r as (run "cmd" with arguments ("/c", "exit", "0") | run "cmd" with arguments ("/c", "exit", "0")).
+                State (the exit-code of r) converted to text.
+            Done.
+            In case of failure:
+                State "caught".
+            Done.
+            """);
+        Assert.Equal("0", output);
+    }
+
+    // Any-stage semantics: first stage exits non-zero, last stage exits 0 —
+    // the pipe's exit-code still reflects the failing stage (rightmost non-zero = stage 1).
+    [Fact]
+    public void SubprocessPipe_ExprPosition_AnyStageFailureReflectedInExitCode()
+    {
+        var output = Run("""
+            Try to:
+                Define r as (run "cmd" with arguments ("/c", "exit", "1") | run "cmd" with arguments ("/c", "exit", "0")).
+                State (the exit-code of r) converted to text.
+            Done.
+            In case of failure:
+                State "launch-failed".
+            Done.
+            """);
+        Assert.Equal("1", output);
+    }
+
+    // Non-zero exit is observable but NOT auto-fatal: no exception thrown, pipeline completes.
+    [Fact]
+    public void SubprocessPipe_ExprPosition_NonZeroNotAutoFatal()
+    {
+        var output = Run("""
+            Try to:
+                Define r as (run "cmd" with arguments ("/c", "exit", "1") | run "cmd" with arguments ("/c", "exit", "0")).
+                State "no-throw".
+            Done.
+            In case of failure:
+                State "threw".
+            Done.
+            """);
+        Assert.Equal("no-throw", output);
+    }
+
+    // Launch failure (command not found) is still a catchable failure.
+    [Fact]
+    public void SubprocessPipe_ExprPosition_LaunchFailureCatchable()
+    {
+        var output = Run("""
+            Try to:
+                Define r as (run "nonexistent-xyz-cmd-abc" | run "cmd" with arguments ("/c", "exit", "0")).
+                State "no-error".
+            Done.
+            In case of failure:
+                State "caught: " joined to (the category of the failure but void is "unknown").
+            Done.
+            """);
+        Assert.Equal("caught: not-found", output);
+    }
+
+    // exit-code of the full pipe is rightmost non-zero: stage 2 exits 2 after stage 1 exits 1.
+    [Fact]
+    public void SubprocessPipe_ExprPosition_RightmostNonZeroExitCode()
+    {
+        var output = Run("""
+            Try to:
+                Define r as (run "cmd" with arguments ("/c", "exit", "1") | run "cmd" with arguments ("/c", "exit", "2")).
+                State (the exit-code of r) converted to text.
+            Done.
+            In case of failure:
+                State "launch-failed".
+            Done.
+            """);
+        Assert.Equal("2", output);
+    }
 }
