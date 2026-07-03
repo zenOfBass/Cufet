@@ -63,6 +63,11 @@ public sealed partial class Interpreter
     // them via _scheduler.JoinTasks before releasing the rabbit scope.
     private CufetScheduler? _scheduler;
 
+    // Non-function top-level data hidden from the current top-level function call (set in
+    // ExecuteCall when entering a top-level function from depth 0). Consulted by
+    // UndefinedVariableMessage to emit a teaching error instead of a misdirecting "isn't defined".
+    private Dictionary<string, object>? _hiddenTopLevelData;
+
     private Dictionary<string, object> Scope => _scopes[^1];
 
     private bool TryLookupValue(string name, out object val)
@@ -1342,8 +1347,17 @@ public sealed partial class Interpreter
 
     private string UndefinedVariableMessage(string name, int line)
     {
+        var located = line > 0 ? $" on line {line}" : "";
+
+        if (_hiddenTopLevelData != null && _hiddenTopLevelData.ContainsKey(name))
+            return $"'{name}' is a top-level value, but top-level functions can't see top-level data{located}.\n\n" +
+                   $"Top-level functions see other functions (for mutual recursion) but not top-level data.\n" +
+                   $"This keeps data flow explicit and prevents hidden mutations — the same principle behind Cufet's message-passing model.\n\n" +
+                   $"Fix: pass '{name}' as a parameter:\n" +
+                   $"    Bind void to your-function, given (the <type> {name}): ...\n" +
+                   $"Or define your function inside a scope where '{name}' is already bound, so it captures '{name}' as a closure.";
+
         var suggestion = FindSuggestion(name);
-        var located    = line > 0 ? $" on line {line}" : "";
         var msg = $"'{name}' isn't defined{located} — it was never given a value with Define.";
         if (suggestion != null)
             msg += $" Did you mean '{suggestion}'?";

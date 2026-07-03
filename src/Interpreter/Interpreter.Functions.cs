@@ -73,6 +73,15 @@ public sealed partial class Interpreter
             foreach (var scope in saved.Scopes)
                 foreach (var (k, v) in scope)
                     if (v is FunctionValue) Scope[k] = v;
+
+            // On first entry from the top level, record which data values are now hidden so that
+            // UndefinedVariableMessage can produce a teaching error instead of "X isn't defined".
+            if (_callDepth == 1 && saved.Scopes.Count > 0)
+            {
+                _hiddenTopLevelData = new Dictionary<string, object>();
+                foreach (var (k, v) in saved.Scopes[0])
+                    if (v is not FunctionValue) _hiddenTopLevelData[k] = v;
+            }
         }
 
         // Bind parameters.
@@ -93,6 +102,8 @@ public sealed partial class Interpreter
         {
             RestoreScopes(saved);
             _callDepth--;
+            if (_callDepth == 0 && func.CapturedEnv == null)
+                _hiddenTopLevelData = null;
         }
 
         return returnValue;

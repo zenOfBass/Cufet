@@ -1129,6 +1129,65 @@ is not type-checked against the producer's output type. The runtime enforces typ
 
 ## 8. Sharp edges
 
+### Top-level functions see other functions, but not top-level data
+
+`Bind void to f:` at the top level creates a **global procedure**, not a closure.
+When called, it runs in an isolated environment: other top-level functions are
+visible (enabling mutual recursion), but top-level `Define`d values are not.
+
+```
+Define total as 0.
+
+Bind void to show:
+    State total.          ← RUNTIME ERROR: 'total' is a top-level value,
+Done.                        not visible inside a top-level function.
+Cast show.
+```
+
+The error teaches the fix rather than saying "total isn't defined":
+
+```
+'total' is a top-level value, but top-level functions can't see top-level data.
+Top-level functions see other functions (for mutual recursion) but not top-level data.
+Fix: pass 'total' as a parameter, or define your function inside a scope where
+'total' is already bound so it captures 'total' as a closure.
+```
+
+**Fix 1 — pass as a parameter** (preferred for pure helpers):
+
+```
+Define total as 42.
+
+Bind void to show, given (the number total):
+    State total.          ← OK: 'total' is a parameter
+Done.
+Cast show on (total).
+```
+
+**Fix 2 — nested closure** (when multiple helpers share the same data):
+
+```
+Define total as 42.
+
+Bind void to run-report, given (the number t):
+    Bind void to show:    ← closure: captures 't' from run-report's scope
+        State t.
+    Done.
+    Cast show.
+Done.
+Cast run-report on (total).
+```
+
+**Why this design**: it's the same principle behind Cufet's message-passing
+concurrency — explicit data flow prevents hidden shared-mutable-state bugs. A
+function that references a global variable is implicitly coupled to global
+execution order; passing data as a parameter makes the dependency visible and
+the function independently testable. Nested closures are the right tool when
+you need a family of helpers sharing a common context.
+
+**Mutual recursion still works**: top-level functions can call each other freely,
+because they see other `Bind`-defined functions (though not `Define`d data).
+
 ### `Return a failure.` re-propagates; `Return a failure "msg".` originates
 
 The parser checks whether a **string literal** immediately follows `failure`:
