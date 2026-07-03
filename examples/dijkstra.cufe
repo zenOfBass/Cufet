@@ -1,5 +1,5 @@
-Define object edge     with (the text edge-dest, the number edge-weight).
-Define object pq-entry with (the text pq-name,  the number pq-dist).
+Define object edge with (the text edge-dest, the number edge-weight).
+Define object pq-entry with (the text pq-name, the number pq-dist).
 
 Bind void to add-edge, given (the map from text to series of edge adj, the text src, the text dest, the number weight):
     Define fallback as a series of edge with ().
@@ -11,14 +11,14 @@ Done.
 Bind text to extract-min, given (the series of pq-entry pq):
     Define min-dist as (the first of pq)'s pq-dist.
     Define min-idx  as 1.
-    Define i        as 2.
-    Define bound    as the number of pq + 1.
+    Define i as 2.
+    Define bound as the number of pq + 1.
     While i is less than bound, repeat:
         If (item i of pq)'s pq-dist is less than min-dist:
-            min-dist becomes (item i of pq)'s pq-dist.
-            min-idx  becomes i.
+            The min-dist becomes (item i of pq)'s pq-dist.
+            The min-idx becomes i.
         Done.
-        i becomes i + 1.
+        The i becomes i + 1.
     Done.
     Define min-name as (item min-idx of pq)'s pq-name.
     Remove item min-idx from pq.
@@ -26,16 +26,16 @@ Bind text to extract-min, given (the series of pq-entry pq):
 Done.
 
 Bind map from text to number to dijkstra, given (the map from text to series of edge adj, the text source):
-    Define dist    as a map from text to number with ().
+    Define dist as a map from text to number with ().
     Define visited as a map from text to number with ().
-    Define pq      as a series of pq-entry with ().
+    Define pq as a series of pq-entry with ().
 
     In dist, the entry for source becomes 0.
     Add a new pq-entry { the pq-name source, the pq-dist 0 } to pq.
 
     Define empty-edges as a series of edge with ().
     While the number of pq is greater than 0, repeat:
-        Define current      as cast extract-min on pq.
+        Define current as cast extract-min on pq.
         Define current-dist as (the entry for current in dist) but void is 0.
 
         If visited has a key for current, Skip.
@@ -44,8 +44,8 @@ Bind map from text to number to dijkstra, given (the map from text to series of 
         Define edge-list as (the entry for current in adj) but void is empty-edges.
         For each e in edge-list, repeat:
             Define neighbor as e's edge-dest.
-            Define alt      as current-dist + e's edge-weight.
-            Define stored   as the entry for neighbor in dist.
+            Define alt as current-dist + e's edge-weight.
+            Define stored as the entry for neighbor in dist.
             If alt is less than (stored but void is alt + 1):
                 In dist, the entry for neighbor becomes alt.
                 If not (visited has a key for neighbor):
