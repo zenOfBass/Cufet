@@ -1,0 +1,51 @@
+Define batch-results as a series of number with ().
+
+Pull a rabbit.
+    Have rabbit start a task as batch-1:
+        return 1 + 2 + 3 + 4 + 5.
+    Done.
+
+    Have rabbit start a task as batch-2:
+        return 6 + 7 + 8 + 9 + 10.
+    Done.
+
+    Have rabbit start a task as batch-3:
+        return 11 + 12 + 13 + 14 + 15.
+    Done.
+
+    Add (the awaited result of batch-1) to batch-results.
+    Add (the awaited result of batch-2) to batch-results.
+    Add (the awaited result of batch-3) to batch-results.
+Done.
+
+Define grand-total as 0.
+For each s in batch-results, repeat:
+    grand-total becomes grand-total + s.
+Done.
+State "Grand total (1..15): " joined to grand-total converted to text.
+
+Bind void to run-report, given (the series of number sums):
+    Bind void to emit-sums:
+        For each s in sums, repeat:
+            output s.
+        Done.
+    Done.
+
+    Bind void to keep-large:
+        for each s from the input:
+            If s is greater than 20:
+                output s.
+            Done.
+        Done.
+    Done.
+
+    Bind void to print-labelled:
+        for each s from the input:
+            State "Large batch sum: " joined to s converted to text.
+        Done.
+    Done.
+
+    emit-sums | keep-large | print-labelled.
+Done.
+
+Cast run-report on (batch-results).
