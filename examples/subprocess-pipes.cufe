@@ -1,0 +1,28 @@
+State "-- 1. basic: echo | cat --".
+run "echo" with arguments ("hello") | run "cat".
+
+State "-- 2. three-stage: seq 1..5 | grep -v 3 | wc -l --".
+run "seq" with arguments ("1", "5") | run "grep" with arguments ("-v", "3") | run "wc" with arguments ("-l").
+
+State "-- 3. real pipeline: printf 3 lines | grep line2 --".
+run "printf" with arguments ("line1\nline2\nline3\n") | run "grep" with arguments ("line2").
+
+State "-- 4. empty output: echo hello | grep xyz --".
+run "echo" with arguments ("hello") | run "grep" with arguments ("xyz").
+State "(empty above: no match, exit code 1 silently ignored)".
+
+State "-- 5. command not found: nonexistent-xyz-cmd | cat --".
+Try to:
+    run "nonexistent-xyz-cmd" | run "cat".
+Done.
+In case of failure:
+    State "caught: " joined to (the message of the failure) joined to " [" joined to (the category of the failure but void is "unknown") joined to "]".
+Done.
+
+State "-- 6. stderr isolation + non-zero exit: cat nonexistent-file | wc -l --".
+run "cat" with arguments ("nonexistent-xyz-file.txt") | run "wc" with arguments ("-l").
+State "(0 above: non-zero exit ignored, stderr not leaked into pipe)".
+
+State "-- 7. large output / no-deadlock: seq 1..50000 | wc -l --".
+run "seq" with arguments ("1", "50000") | run "wc" with arguments ("-l").
+State "(50000 above: concurrent stdout drain, no OS pipe buffer deadlock)".
