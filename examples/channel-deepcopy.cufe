@@ -1,0 +1,49 @@
+Pull a rabbit.
+    Define ch-list as a channel of series of series of number.
+    Define ch-map  as a channel of map from text to series of number.
+
+    Have rabbit start a task as list-producer:
+        Define inner as a series of number with (10, 20, 30).
+        Define outer as a series of series of number with ().
+        Add inner to outer.
+        Send outer through ch-list.
+        Add 999 to inner.
+        Define second-inner as a series of number with (7, 8, 9).
+        Add second-inner to outer.
+        Close ch-list.
+    Done.
+
+    Have rabbit start a task as map-producer:
+        Define batch as a series of number with (1, 2, 3).
+        Define data as a map from text to series of number with ().
+        In data, the entry for "batch" becomes batch.
+        Send data through ch-map.
+        Add 999 to batch.
+        Close ch-map.
+    Done.
+
+    Have rabbit start a task as list-consumer:
+        Define empty-soo as a series of series of number with ().
+        Define received as the delivery from ch-list.
+        While received is not void, repeat:
+            Define r as (received but void is empty-soo).
+            Define inner-copy as the first of r.
+            State "outer-len=" joined to (the number of r) converted to text.
+            State "inner-len=" joined to (the number of inner-copy) converted to text.
+            State "inner[1]=" joined to (the first of inner-copy) converted to text.
+            received becomes the delivery from ch-list.
+        Done.
+    Done.
+
+    Have rabbit start a task as map-consumer:
+        Define empty-map as a map from text to series of number with ().
+        Define empty-sn as a series of number with ().
+        Define received as the delivery from ch-map.
+        While received is not void, repeat:
+            Define r as (received but void is empty-map).
+            Define batch-copy as (the entry for "batch" in r but void is empty-sn).
+            State "batch-len=" joined to (the number of batch-copy) converted to text.
+            received becomes the delivery from ch-map.
+        Done.
+    Done.
+Done.
