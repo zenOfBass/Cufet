@@ -34,7 +34,13 @@ public sealed class Parser
         {
             TokenType.State      => ParseStateStatement(),
             TokenType.Define     => ParseDefineStatement(),
+            // 'output <value>.' — contextual producer statement; 'output' is NOT reserved
+            TokenType.Identifier when IsOutputStatement() => ParseOutputStatement(),
+            // 'name | name.' — pipe statement starting with a variable reference
+            TokenType.Identifier when PeekAfterCurrent() == TokenType.Pipe => ParsePipeStatement(),
             TokenType.Identifier => IsOrdinalAccessorStatement() ? ParseSeriesSetStatement() : ParseBecomesStatement(),
+            // 'run X | run Y.' — subprocess pipe (or standalone run that must be piped)
+            TokenType.Run        => ParsePipeStatement(),
             TokenType.One        => ParseOneStatement(),
             TokenType.Article    => ParseRecordNamedSetStatement(),
             TokenType.If         => ParseIfStatement(),
@@ -706,18 +712,38 @@ public sealed class Parser
 
     // ── For-each loop ─────────────────────────────────────────────────────
 
-    private ForEachStatement ParseForEachStatement()
+    private IStatement ParseForEachStatement()
     {
         var forTok = Consume(TokenType.For);
         SkipNoise();
         Consume(TokenType.Each);
         SkipNoise();
 
+        // Allow 'item' keyword as iterator name (common in pipes: 'for each item from the input:')
         string? iterName = null;
-        if (Peek().Type == TokenType.Identifier)
+        if (Peek().Type == TokenType.Identifier || Peek().Type == TokenType.Item)
         {
             iterName = Advance().Lexeme;
             SkipNoise();
+        }
+
+        // Consumer for-each: 'for each <name> from the input: <body> Done.'
+        if (Peek().Type == TokenType.From)
+        {
+            Advance(); // consume 'from'
+            SkipNoise(); // skips 'the'
+            if (Peek().Type != TokenType.Identifier ||
+                !Peek().Lexeme.Equals("input", StringComparison.OrdinalIgnoreCase))
+                throw new ParseException(Peek(), "'input' (in 'for each ... from the input:')");
+            Advance(); // consume 'input'
+            SkipNoise();
+            Consume(TokenType.Colon);
+            _loopDepth++;
+            _nestDepth++;
+            var consumerBody = ParseLoopBody();
+            _nestDepth--;
+            _loopDepth--;
+            return new ForEachFromInputStatement(iterName ?? "it", consumerBody, forTok.Line);
         }
 
         Consume(TokenType.In);
@@ -735,6 +761,65 @@ public sealed class Parser
         _nestDepth--;
         _loopDepth--;
         return new ForEachStatement(iterName, seriesExpr, body, forTok.Line);
+    }
+
+    // ── Pipe statement ────────────────────────────────────────────────────
+
+    // 'A | B | C.' — left-associative pipe chain at statement level.
+    // Operands are parsed via ParseExprOr so run-expressions, variable references,
+    // and lambda literals all work. The 'but on failure'/'or pass the failure off'
+    // wrappers are intentionally excluded (they belong to the outer context).
+    private IStatement ParsePipeStatement()
+    {
+        int line = Peek().Line;
+        IExpression left = ParsePipeOperand();
+        if (Peek().Type != TokenType.Pipe)
+            throw new ParseException(Peek(), "'|' — 'run' at statement level must be piped ('run X | run Y.'); use a Try block or expression context for standalone process execution");
+        while (Peek().Type == TokenType.Pipe)
+        {
+            int pipeLine = Advance().Line; // consume '|'
+            SkipNoise();
+            left = new PipeExpression(left, ParsePipeOperand(), pipeLine);
+        }
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return (PipeExpression)left;
+    }
+
+    // Parses one pipe stage operand: a run-expression, variable reference, or lambda.
+    // Stops before '|', 'but', 'or pass', or '.'.
+    private IExpression ParsePipeOperand()
+    {
+        SkipNoise();
+        return ParseExprOr();
+    }
+
+    // True when 'output' identifier is followed by a value expression (not becomes/possessive/=/|).
+    private bool IsOutputStatement() =>
+        Peek().Lexeme.Equals("output", StringComparison.OrdinalIgnoreCase) &&
+        PeekAfterCurrent() != TokenType.Becomes &&
+        PeekAfterCurrent() != TokenType.Possessive &&
+        PeekAfterCurrent() != TokenType.Equal &&
+        PeekAfterCurrent() != TokenType.Pipe;
+
+    // Returns true when the current token can be the first token of an expression
+    // (used to distinguish 'item <N> of series' from plain 'item' as a variable reference).
+    private bool LooksLikeIndexExprStart() => Peek().Type is
+        TokenType.Number    or TokenType.String     or TokenType.InterpolOpen or
+        TokenType.Identifier or TokenType.It        or TokenType.One          or
+        TokenType.LParen    or TokenType.Article    or
+        TokenType.TrueKw    or TokenType.FalseKw    or
+        TokenType.Minus;
+
+    // 'output <value>.' — producer emits a value to its implicit output stream.
+    private OutputStatement ParseOutputStatement()
+    {
+        int line = Advance().Line; // consume 'output' identifier
+        SkipNoise();
+        var value = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new OutputStatement(value, line);
     }
 
     // ── Series operations ─────────────────────────────────────────────────
@@ -1833,7 +1918,7 @@ public sealed class Parser
                     var matTarget = ParseCorePrimary();
                     baseExpr = new MatrixAccess(matTarget, row, col, itemTok.Line);
                 }
-                else
+                else if (LooksLikeIndexExprStart())
                 {
                     // Series indexing: "item <N> of <series>" — ParseCorePrimary so
                     // postfix ops bind to the outer access, not to the inner target.
@@ -1843,6 +1928,12 @@ public sealed class Parser
                     SkipNoise();
                     var target = ParseCorePrimary();
                     baseExpr = new SeriesAccess(target, idx, itemTok.Line);
+                }
+                else
+                {
+                    // Plain variable reference — 'item' used as an iterator name, e.g.
+                    // 'for each item from the input:' or 'for each item in series:'.
+                    baseExpr = new VariableReference("item", itemTok.Line);
                 }
                 break;
             }

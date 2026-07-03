@@ -560,4 +560,26 @@ public sealed record CloseStatement(IExpression Channel, int Line) : IStatement;
 // returns its result (T / voidable T / T or failure depending on the task body).
 public sealed record AwaitedResultExpression(IExpression Task, int Line) : IExpression;
 
+// ── Pipes ──────────────────────────────────────────────────────────────────────
+// A | B — streaming pipe statement (and IExpression so it nests for multi-stage).
+// Two branches dispatched at runtime on operand type:
+//   RunExpression operands → subprocess stdio wiring (C# Process)
+//   FunctionValue operands → channel+task wiring (Cufet stages)
+// Multi-stage: left-associative, (A|B)|C = PipeExpression(PipeExpression(A,B),C).
+public sealed record PipeExpression(IExpression Left, IExpression Right, int Line) : IExpression, IStatement;
+
+// output <value>. — producer statement: emit a value to the implicit output stream.
+// Only meaningful inside a pipe-producer context (enforced at runtime).
+// 'output' is NOT a reserved keyword — contextually recognized by shape.
+public sealed record OutputStatement(IExpression Value, int Line) : IStatement;
+
+// for each <name> from the input: <body> Done.
+// Consumer loop: iterates the implicit input stream until it closes.
+// 'input' is NOT reserved — contextually recognized in this shape.
+public sealed record ForEachFromInputStatement(
+    string IteratorName,
+    IReadOnlyList<IStatement> Body,
+    int Line
+) : IStatement;
+
 public sealed record Program(IReadOnlyList<IStatement> Statements);

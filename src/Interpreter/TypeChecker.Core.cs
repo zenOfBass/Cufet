@@ -1007,6 +1007,15 @@ public sealed partial class TypeChecker
                 break;
             case OperatorOverloadDeclaration:
                 break; // already body-checked in Pass2CheckOverloads
+            case PipeExpression pipe:
+                CheckPipe(pipe);
+                break;
+            case OutputStatement os:
+                CheckOutputStatement(os);
+                break;
+            case ForEachFromInputStatement fe:
+                CheckForEachFromInput(fe);
+                break;
         }
     }
 
@@ -1226,6 +1235,7 @@ public sealed partial class TypeChecker
         ChannelCreation cc                                                                               => InferChannelCreation(cc),
         DeliveryExpression de                                                                            => InferDeliveryExpression(de),
         AwaitedResultExpression are                                                                      => InferAwaitedResultExpression(are),
+        PipeExpression pipe                                                                              => throw new TypeException($"Line {pipe.Line}: a pipe expression produces no value and cannot be used in expression position — pipes are statements, not expressions."),
         _                                                                                                => null,
     };
 

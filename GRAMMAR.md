@@ -23,8 +23,9 @@ automatically so it can never drift; for now it is maintained by hand.
 - [4. Expression context vs condition context](#4-expression-context-vs-condition-context)
 - [5. Which operations accept expressions vs bare names](#5-which-operations-accept-expressions-vs-bare-names)
 - [6. Where constructs are allowed](#6-where-constructs-are-allowed)
-- [7. Sharp edges](#7-sharp-edges)
-- [8. Writing Cufet: the mental model](#8-writing-cufet-the-mental-model)
+- [7. Streaming pipes](#7-streaming-pipes)
+- [8. Sharp edges](#8-sharp-edges)
+- [9. Writing Cufet: the mental model](#9-writing-cufet-the-mental-model)
 
 ---
 
@@ -242,7 +243,7 @@ Outside those positions they parse as regular identifiers and can be used as var
 names, parameter names, field names, and iterator names:
 
 `line`, `lines`, `all`, `input`, `arguments`, `reading`, `writing`, `exists`,
-`variable`, `requested`
+`variable`, `requested`, `output`
 
 **Ordinals** (`first`, `second`, `third`, `fourth`, `fifth`, `sixth`, `seventh`,
 `eighth`, `ninth`, `tenth`, `last`) — contextual in the accessor shape:
@@ -961,7 +962,7 @@ Define m as a map with ("k": 1).                       ← inferred types
 `new` is not used for map construction. `a map from K to V` without `with (...)`
 is a **type annotation** only — it names a type, not a value.
 
-### For-each iterator names must be identifiers
+### For-each iterator names must be identifiers (with one exception)
 
 The iterator variable in `For each <name> in <series>` must be an `Identifier`
 token. Any reserved keyword is illegal here, even if it "feels" natural. Common
@@ -970,6 +971,11 @@ traps:
 - `entry` is reserved → use `pair`, `kv`, or another name
 - `start`, `from`, `to`, `end` are reserved → avoid them
 - `it` is reserved for the bare-`it` loop form
+
+**Exception — `item` is allowed** as an iterator name in both the series form
+(`for each item in my-list`) and the pipe consumer form (`for each item from the
+input:`). Inside the loop body, bare `item` (not followed by a number or `at`) is
+treated as a variable reference. See §7 for details.
 
 ### `to` and `from` cannot be field names
 
@@ -1003,7 +1009,125 @@ syntax is feature-complete and can be hardened once on its final shape.
 
 ---
 
-## 7. Sharp edges
+## 7. Streaming pipes
+
+The `|` operator connects Cufet functions (or OS subprocesses) into a data pipeline.
+Stages are ordinary zero-parameter functions; `|` wires their implicit input/output streams.
+
+### Two branches
+
+| Branch | Left operand | Right operand | Runtime |
+|---|---|---|---|
+| **Task pipe** | Any function expression | Any function expression | Cufet channels + sequential buffering |
+| **Subprocess pipe** | `run "prog" ...` | `run "prog" ...` | OS process stdio chaining |
+
+A pipe statement is detected at statement level (`ParseStatement`) and never appears
+in expression position — a `PipeExpression` in expression context is a static type error.
+
+### Task pipe
+
+```
+Bind void to producer:
+  output 1.
+  output 2.
+  output 3.
+Done.
+
+Bind void to consumer:
+  for each item from the input:
+    State item.
+  Done.
+Done.
+
+producer | consumer.
+```
+
+Multi-stage (any number of stages):
+
+```
+producer | doubler | consumer.
+```
+
+### Surface syntax
+
+**`output <value>.`** — emits a value to the implicit output stream. Valid only inside a
+function that is used as a pipe producer or middle stage. Using `output` outside a pipe
+context is a runtime error.
+
+**`for each <name> from the input:`** — consumer loop. Reads one value per iteration from
+the implicit input channel. Terminates automatically when the producer has finished and the
+channel is closed.
+
+- `<name>` is the iterator variable — any identifier, or the keyword `item`.
+- `Stop.` inside the body exits the loop early (as with any for-each).
+- `Skip.` skips to the next value.
+
+### Contextual recognition — `output` and `input`
+
+Neither `output` nor the word `input` in `from the input` is a globally reserved keyword.
+
+**`output`** is contextually recognized as a pipe-output statement when it appears as the
+first word of a statement and is followed by an expression — specifically, when the next
+token is NOT `becomes`, `'s`, `=`, or `|`. This means:
+
+```
+Define output as 42.      ← variable declaration — works
+output becomes 99.        ← reassignment — works
+output | consumer.        ← left side of a pipe — 'output' is the variable, not a keyword
+output 7.                 ← PIPE OUTPUT STATEMENT (only valid inside a pipe stage)
+```
+
+**`input`** in `for each <name> from the input:` is matched by lexeme (`"input"`) at the
+parse site, not by a reserved `TokenType`. Outside that exact syntactic position the word
+`input` refers to the built-in stdin readable stream (`the input`), which is always in
+scope. You cannot redefine `input` (it is pre-defined by the type checker as the stdin
+stream), but `output` is freely reusable as a variable name.
+
+### `item` as iterator name
+
+`item` is a reserved keyword (`TokenType.Item`) normally used for positional series
+access (`item 2 of my-list`) and matrix access (`item at (r, c) of m`).
+It is also accepted as the iterator name in for-each loops — including the consumer
+form. Inside a loop body, bare `item` (not followed by a number or `at`) is
+treated as a variable reference to the iterator binding.
+
+```
+for each item from the input:
+  State item.          ← 'item' is the bound iterator, not 'item N of ...'
+Done.
+```
+
+### Subprocess pipe
+
+```
+run "echo" "hello" | run "cat".
+```
+
+All stages must be `run` expressions. The `|` operator chains stdout → stdin between
+adjacent processes. The final process's stdout is written to the program's output.
+
+Failures (missing program, permission denied) surface as Cufet failures with the same
+categories as standalone `run` expressions. The must-handle requirement is **waived**
+for `run` expressions inside a pipe — the pipe itself is considered an implicit handler.
+
+`run X.` at statement level (without `|`) is a **parse error**: use a `Try to:` block
+or a `But on failure` expression for standalone process execution.
+
+### v1 scope and what is NOT in this slice
+
+**v1 semantics are sequential (buffered), not streaming:**
+The producer stage runs to completion first, filling an in-memory buffer. The consumer
+stage then reads from that buffer. True streaming (interleaved concurrent execution)
+requires a future `Yield.`-based cooperative scheduler extension.
+
+**Mixing subprocess stages with task stages** (`run X | consumer-function`) is deferred.
+
+**Cross-pipe type compatibility** is not statically checked in v1 — the consumer's body
+is not type-checked against the producer's output type. The runtime enforces types.
+
+---
+
+## 8. Sharp edges
 
 ### `Return a failure.` re-propagates; `Return a failure "msg".` originates
 
@@ -1248,7 +1372,7 @@ nested function rather than capturing it.
 
 ---
 
-## 8. Writing Cufet: the mental model
+## 9. Writing Cufet: the mental model
 
 ### Two grammars, one language
 

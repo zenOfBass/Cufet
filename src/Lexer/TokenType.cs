@@ -219,6 +219,9 @@ public enum TokenType
     TrueKw,   // "true"  — fact literal: the true fact
     FalseKw,  // "false" — fact literal: the false fact
 
+    // ── Pipes ─────────────────────────────────────────────────────────────
+    Pipe,     // "|" — streaming pipe operator: A | B wires A's output to B's input
+
     // ── Semantic (parser-generated, never emitted by lexer) ───────────────
     NotEqual, // produced by "is not"; used in BinaryExpression only
 

@@ -667,6 +667,18 @@ public sealed partial class Interpreter
                 _rng = new Random((int)(decimal)Evaluate(ss.Seed));
                 break;
 
+            case PipeExpression pipe:
+                ExecutePipe(pipe);
+                break;
+
+            case OutputStatement os:
+                ExecuteOutputStatement(os);
+                break;
+
+            case ForEachFromInputStatement fe2:
+                ExecuteForEachFromInput(fe2);
+                break;
+
             case ForEachStatement fe:
             {
                 var seriesVal = Evaluate(fe.Series);

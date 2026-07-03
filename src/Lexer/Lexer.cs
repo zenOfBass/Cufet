@@ -37,7 +37,7 @@ public sealed class Lexer
             tokens.Add(ReadNumber());
         else if (c == '"')
             ReadString(tokens);
-        else if (c is '+' or '-' or '*' or '/' or '%' or '(' or ')' or '=' or '<' or '>' or ':' or ',' or '{' or '}')
+        else if (c is '+' or '-' or '*' or '/' or '%' or '(' or ')' or '=' or '<' or '>' or ':' or ',' or '{' or '}' or '|')
             tokens.Add(ReadSymbol());
         else if (c == '\'')
             tokens.Add(ReadPossessive());
@@ -246,6 +246,7 @@ public sealed class Lexer
             case ',': return new Token(TokenType.Comma,  ",", _line);
             case '{': return new Token(TokenType.LBrace, "{", _line);
             case '}': return new Token(TokenType.RBrace, "}", _line);
+            case '|': return new Token(TokenType.Pipe,   "|", _line);
             case '<':
                 if (!AtEnd() && Peek() == '=') { Advance(); return new Token(TokenType.Lte, "<=", _line); }
                 return new Token(TokenType.Lt, "<", _line);
