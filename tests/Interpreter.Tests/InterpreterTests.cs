@@ -844,6 +844,62 @@ public class InterpreterTests
         Assert.Equal("20", Run("State (2 + 3) * 4."));
     }
 
+    // Series literal in expression position — inline, no pre-Define required.
+    [Fact]
+    public void SeriesLiteral_InlineAsArgument()
+    {
+        Assert.Equal("(1, 2, 3)", Run("""
+            Bind void to show, given (the series of number s):
+                State s.
+            Done.
+            Cast show on (a series of number with (1, 2, 3)).
+            """));
+    }
+
+    [Fact]
+    public void SeriesLiteral_InlineInButVoidIs()
+    {
+        // voidable context: if the variable is void, fallback to inline series literal
+        Assert.Equal("()", Run("""
+            Define v as a series of number with ().
+            Define ch as a channel of series of number.
+            Pull a rabbit.
+                Close ch.
+                Define got as the delivery from ch.
+                Define r as (got but void is (a series of number with ())).
+                State r.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void SeriesLiteral_InlineInAddTo()
+    {
+        // Add (a series of ...) to outer — series literal as Add value
+        Assert.Equal("2", Run("""
+            Define outer as a series of series of number with ().
+            Add (a series of number with (10, 20)) to outer.
+            State the number of (the first of outer).
+            """));
+    }
+
+    [Fact]
+    public void SeriesLiteral_NestedInExpression()
+    {
+        // a series of series of number with (...) inline — nested type annotation in expression position
+        Assert.Equal("3", Run("""
+            Define v as a series of series of number with ().
+            Define ch as a channel of series of series of number.
+            Pull a rabbit.
+                Close ch.
+                Define got as the delivery from ch.
+                Define r as (got but void is (a series of series of number with ())).
+                Add (a series of number with (1, 2, 3)) to r.
+                State the number of (the first of r).
+            Done.
+            """));
+    }
+
     // ── Series access ─────────────────────────────────────────────────────
 
     [Fact]

@@ -2202,6 +2202,9 @@ public sealed class Parser
             case TokenType.Cast:
                 baseExpr = ParseCastExpression();
                 break;
+            case TokenType.Series:
+                baseExpr = ParseSeriesLiteralExpr();
+                break;
             case TokenType.Record:
                 baseExpr = ParseRecordLiteralExpr();
                 break;

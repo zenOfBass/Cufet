@@ -8,8 +8,7 @@ Pull a rabbit.
         Add inner to outer.
         Send outer through ch-list.
         Add 999 to inner.
-        Define second-inner as a series of number with (7, 8, 9).
-        Add second-inner to outer.
+        Add (a series of number with (7, 8, 9)) to outer.
         Close ch-list.
     Done.
 
@@ -23,10 +22,9 @@ Pull a rabbit.
     Done.
 
     Have rabbit start a task as list-consumer:
-        Define empty-soo as a series of series of number with ().
         Define received as the delivery from ch-list.
         While received is not void, repeat:
-            Define r as (received but void is empty-soo).
+            Define r as (received but void is (a series of series of number with ())).
             Define inner-copy as the first of r.
             State "outer-len=" joined to (the number of r) converted to text.
             State "inner-len=" joined to (the number of inner-copy) converted to text.
@@ -36,12 +34,10 @@ Pull a rabbit.
     Done.
 
     Have rabbit start a task as map-consumer:
-        Define empty-map as a map from text to series of number with ().
-        Define empty-sn as a series of number with ().
         Define received as the delivery from ch-map.
         While received is not void, repeat:
-            Define r as (received but void is empty-map).
-            Define batch-copy as (the entry for "batch" in r but void is empty-sn).
+            Define r as (received but void is (a map from text to series of number with ())).
+            Define batch-copy as (the entry for "batch" in r but void is (a series of number with ())).
             State "batch-len=" joined to (the number of batch-copy) converted to text.
             received becomes the delivery from ch-map.
         Done.
