@@ -18,9 +18,6 @@ scoping, no ambiguous syntax. It is *both* a teaching language *and* a systems
 language — not one at the expense of the other. Decisions that pull against each
 other are named and resolved explicitly.
 
-The identity in one sentence: **a statically-typed systems language that reads like
-natural language — designed to be both genuinely powerful and genuinely learnable.**
-
 ---
 
 ## How to write Cufet
