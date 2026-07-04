@@ -224,7 +224,7 @@ exercise of operator overloading.
 
 ---
 
-## [0.7.0] — 2026-06-21
+## [0.7.0] — 2026-06-23
 
 ### Added
 
@@ -258,7 +258,7 @@ exercise of operator overloading.
 
 ---
 
-## [0.6.0] — circa 2026
+## [0.6.0] — 2026-06-21
 
 ### Added
 
@@ -288,7 +288,7 @@ exercise of operator overloading.
 
 ---
 
-## [0.5.0] — circa 2026
+## [0.5.0] — 2026-06-20
 
 ### Added
 
