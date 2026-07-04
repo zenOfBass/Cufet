@@ -38,9 +38,11 @@ before anything else.
   or any other unambiguous single-letter name.
 - `State` (capital S) is the print keyword — it's case-insensitive but the
   convention is capital-initial for keywords.
-- Arithmetic uses symbols (`+ - * / %`); comparisons in conditions use words
-  (`is greater than`, `is less than`, etc.). The two forms are not
-  interchangeable — this is settled design, not a gap.
+- Arithmetic uses symbols (`+ - * / %`). Comparisons come in two forms —
+  symbol (`= < > <= >=`) and word (`is greater than`, `is less than`, etc.)
+  — and **both work in any position** (condition or expression). Word forms
+  are idiomatic in `If`/`While` conditions; symbol forms are natural in
+  expression position. Either is valid everywhere.
 - `Define` declares; `becomes` reassigns. They are not synonyms.
 - `Done.` closes every block (loops, functions, object definitions, `Pull … Done.`).
   Lambda bodies use `Done` without the dot — the enclosing statement's `.` closes
@@ -61,15 +63,30 @@ src/
     TypeChecker.Objects.cs              — object/interface/getter/setter checking
     TypeChecker.Text.cs                 — text operations
     TypeChecker.Maps.cs                 — map operations
+    TypeChecker.Book.cs                 — books (math, collections, chance)
+    TypeChecker.Failures.cs             — failure/error-handling checks
+    TypeChecker.Sort.cs                 — series sorting
+    TypeChecker.Rabbit.cs               — structured-task spawn/join checking
+    TypeChecker.Channels.cs             — channel type checking
+    TypeChecker.Tasks.cs                — task-result type checking
+    TypeChecker.Pipes.cs                — streaming pipe type checking
     Interpreter.Core.cs                 — evaluator entry points, EvaluateBinary
     Interpreter.Functions.cs            — function call dispatch, closures
     Interpreter.Objects.cs              — object/method dispatch
     Interpreter.Maps.cs                 — map operations
     Interpreter.Matrix.cs               — matrix operations
+    Interpreter.Book.cs                 — book runtime (math, collections, chance)
+    Interpreter.Failures.cs             — failure/exception handling, file I/O, process exec
+    Interpreter.Sort.cs                 — series sorting
+    Interpreter.Scheduler.cs            — CufetScheduler (cooperative concurrency engine)
+    Interpreter.Rabbit.cs               — structured-task spawn/join runtime
+    Interpreter.Channels.cs             — channel runtime + deep-copy-at-send
+    Interpreter.Tasks.cs                — task-result runtime
+    Interpreter.Pipes.cs                — streaming pipe runtime
   App/             Cufet.App            — thin console entry point
 tests/
   Lexer.Tests/     Cufet.Lexer.Tests
-  Interpreter.Tests/  Cufet.Interpreter.Tests   (one file: InterpreterTests.cs)
+  Interpreter.Tests/  Cufet.Interpreter.Tests   (InterpreterTests.cs + many feature-specific test files)
 examples/          .cufe example programs
 ```
 
@@ -97,9 +114,12 @@ dotnet run --project src\App\Cufet.App.csproj -- myprogram.cufe
 echo "State 1 + 1." | dotnet run --project src\App\Cufet.App.csproj
 ```
 
-The current test baseline is **1003 interpreter + 140 lexer = 1143 tests**, all
-green. A contribution should leave all tests passing and should add tests for any
-new behavior.
+The current test baseline is **1187 interpreter + 140 lexer = 1327 tests**, all
+green. The exact total wobbles with feature churn; what matters is the floor:
+the load-bearing guarantee tests (soundness `escape-*`, concurrency
+`join`/`close`/`deep-copy-isolation`, fallibility, map-key constraint) must
+stay present and passing. A contribution should leave all tests passing and
+should add tests for any new behavior.
 
 ---
 
@@ -125,8 +145,10 @@ is the truth — but the docs should always catch up before merging.
 
 **One canonical way.** Cufet has one way to say each thing. `+` means arithmetic
 addition (or matrix product for matrices — same surface, one semantic per type pair).
-`joined to` means text concatenation. `is greater than` means numeric comparison in
-condition context. There are no synonyms; the rigor lives in the single fixed surface.
+`joined to` means text concatenation. `is greater than` means numeric comparison
+— and so does `>`. Both symbol and word comparison forms work in any position;
+the choice is stylistic. There are no synonyms for *operations*; the rigor lives
+in the single fixed surface for each semantic.
 When proposing a new construct, check whether an existing one already covers it.
 
 **Natural language over jargon.** Keywords read like English words in the roles
@@ -162,10 +184,11 @@ These are open tasks that are explicitly tracked, not forgotten:
   type-annotation or an expression) eliminates the remaining theoretical fragility.
   Best done once, deliberately, when the parser's syntax is feature-complete.
 
-- **True preemptive SIGINT** — the current cooperative-poll model (code polls
-  `an interrupt has been requested` explicitly) cannot mid-loop interrupt a tight
-  computation. True preemptive interruptibility requires native threading
-  infrastructure and is owed during the concurrency arc. Tracked explicitly.
+- **True preemptive SIGINT** — the cooperative concurrency core (v0.9.0) added
+  `Yield.` as an explicit yield-and-interrupt-checkpoint, so programs that yield
+  naturally are interruptible. The remaining gap: a tight loop with no `Yield.`
+  still cannot be mid-loop interrupted. True preemption requires native threading
+  infrastructure and is deferred to the native era.
 
 - **Formal soundness proof / fresh-eyes red-team** — the three-hole adversarial arc
   (all closed) was adversarial-find-and-fix, not a formal proof. A contributor with
@@ -173,8 +196,9 @@ These are open tasks that are explicitly tracked, not forgotten:
   invariant, or a fresh-eyes red-team to look for holes that the original arc missed.
   This is a reasonable pre-native rung before committing the memory model to hardware.
 
-- **Concurrency model design** — the next major arc. Async/parallel tasks,
-  `pull a rabbit` (task-lifetime rabbit), pipes, and preemptive SIGINT all
-  come together here. The design needs to come first; the arc is too large to
-  start building without a spec. A contributor with concurrent systems experience
-  could take on the design session.
+- **Pull-a-rabbit task-lifetime semantics** — the concurrency core (v0.9.0)
+  built cooperative tasks, channels, results, and pipes. The remaining native-era
+  items: pull-a-rabbit for a task's physical memory lifetime (arena/ownership
+  scope), true fan-out distribution under OS-thread scheduling, and
+  move-semantics at channel send (instead of deep copy). These require the
+  native backend; none are interpreter-era work.

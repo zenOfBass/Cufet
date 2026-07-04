@@ -963,7 +963,7 @@ Cufet binary whose `.data` section you can `readelf` is post-native.
 | Union types + narrowing (`(A or B)`, `is a <type>`, elimination) | ✅ built | Discriminated unions — tagged values with type-safe dispatch; native analog is tag + union struct |
 | Environment variables (`the environment variable "X"`) | ✅ built | Shell needs to read `$PATH`, `$HOME`, etc.; pre-process-launch setup |
 | Directory traversal (`the contents of the directory`, `the path … exists/is a file/is a directory`) | ✅ built | Shell needs to list directories, test paths; directory walk is a core shell primitive |
-| Cooperative signal handling (`an interrupt has been requested` / `Acknowledge the interrupt.`) | ✅ built | SIGINT interruptibility in the interpreter era; preemptive form deferred to native |
+| Cooperative signal handling (`an interrupt is requested` / `Acknowledge the interrupt.` / `Yield.`) | ✅ built | SIGINT interruptibility in the interpreter era; preemptive form deferred to native |
 | Getters / setters (uniform property access, Dart-style) | ✅ built | Controlled field access without syntax change; relevant to native struct layout control |
 | Named constructors (`Bind making a <type>`) | ✅ built | User-defined construction logic; factory pattern without a new keyword |
 | Destructors / RAII (`Bind unmaking a <type>`, LIFO scope-exit) | ✅ built | First step toward native RAII; destructor semantics define the cleanup contract the native backend must implement |

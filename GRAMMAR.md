@@ -20,7 +20,7 @@ automatically so it can never drift; for now it is maintained by hand.
 - [1. Reserved keywords](#1-reserved-keywords)
 - [2. Object methods and field access](#2-object-methods-and-field-access)
 - [3. Value vs. reference semantics](#3-value-vs-reference-semantics)
-- [4. Expression context vs condition context](#4-expression-context-vs-condition-context)
+- [4. Comparison forms — both work everywhere](#4-comparison-forms--both-work-everywhere)
 - [5. Which operations accept expressions vs bare names](#5-which-operations-accept-expressions-vs-bare-names)
 - [6. Where constructs are allowed](#6-where-constructs-are-allowed)
 - [7. Streaming pipes](#7-streaming-pipes)
@@ -1263,8 +1263,9 @@ Return (the number of items) is 0.    ← PARSE ERROR
 If (the number of items) is 0:        ← OK: 'is' here is a condition comparison
 ```
 
-This asymmetry: `(expr) is ...` is valid in condition context (after `If`/`While`)
-but not in expression context (after `Return`/`Define`/etc.).
+This is a **parser edge case**, not a design split between word and symbol forms.
+After a parenthesized sub-expression, the parser considers the primary complete and
+does not consume a following word-comparison keyword. Use a symbol form instead:
 
 In expression position, use a symbol comparison or an `If`-return pattern.
 

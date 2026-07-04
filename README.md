@@ -128,8 +128,52 @@ With the file "log.txt" open for writing as log:
 Done.
 ```
 
+**Structured concurrency — tasks, channels, and pipes:**
+```
+Define ch as a channel of number.
+
+Pull a rabbit.
+    Have rabbit start a task as producer:
+        Send 1 through ch.
+        Send 2 through ch.
+        Send 3 through ch.
+        Close ch.
+    Done.
+
+    Have rabbit start a task as consumer:
+        For each n in the range 1 to 3, repeat:
+            Define val as the delivery from ch.
+            If val is not void, state val.
+        Done.
+    Done.
+Done.
+```
+
+**Pipe stages — producer feeds consumer directly:**
+```
+Bind void to emit-numbers:
+    output 10.
+    output 20.
+    output 30.
+Done.
+
+Bind void to print-doubled:
+    For each n from the input, repeat:
+        State n * 2.
+    Done.
+Done.
+
+emit-numbers | print-doubled.
+```
+
+**Command substitution — compose shell commands:**
+```
+Define result as run "git" with arguments ("log", "--oneline", "-5").
+State the result's output.
+```
+
 For the complete language — every statement, the type system, records,
-objects, functions, collections, error handling, and I/O — see
+objects, functions, collections, concurrency, error handling, and I/O — see
 **[REFERENCE.md](REFERENCE.md)**.
 
 ---

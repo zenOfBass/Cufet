@@ -1672,7 +1672,7 @@ points:
 
 ```
 While 1 is 1, repeat:
-    If an interrupt has been requested:
+    If an interrupt is requested:
         State "shutting down.".
         Acknowledge the interrupt.
         Stop.
@@ -1684,15 +1684,18 @@ While 1 is 1, repeat:
 Done.
 ```
 
-- **`an interrupt has been requested`** — `fact`; true when a `SIGINT` has arrived
+- **`an interrupt is requested`** — `fact`; true when a `SIGINT` has arrived
   since the last `Acknowledge the interrupt.` (or since program start). Stays true
   until acknowledged.
 - **`Acknowledge the interrupt.`** — statement; clears the pending interrupt flag.
   Subsequent checks return false until the next `SIGINT`.
-- **Cooperative, not preemptive.** A loop that never polls `an interrupt has been
-  requested` and never calls `run` or anything that yields cannot be interrupted
-  mid-computation in the interpreter era. This is a known limitation — preemptive
-  interruptibility is a tracked debt, deferred to the concurrency arc.
+- **`Yield.`** — cooperative scheduler yield and interrupt checkpoint (v0.9.0).
+  The scheduler checks the interrupt flag at each dequeue; blocked `the delivery
+  from` and `the awaited result of` also wake on interrupt. Programs that `Yield.`
+  naturally are interruptible without polling `an interrupt is requested`.
+- **Cooperative, not fully preemptive.** A tight loop with no `Yield.` and no
+  blocking calls cannot be mid-loop interrupted. True preemption is deferred to
+  the native era (requires OS-thread infrastructure).
 - `SIGTERM` and raw `sigaction`-level signal handling are not exposed in the
   interpreter era; they require the native backend.
 
