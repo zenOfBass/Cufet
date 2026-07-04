@@ -10,6 +10,111 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
+## [0.9.0] — 2026-07-03
+
+The complete concurrency core is built, sound, and hardened by five concept cars.
+All concept-car findings are resolved. The interpreter-era language is now
+complete — native backend is the next era.
+
+### Added
+
+**★ Cooperative concurrency core ★ — the headline**
+- **Scheduler (`CufetScheduler`)** — cooperative, C# async/await, custom
+  `SynchronizationContext`. All continuations routed to a single per-thread FIFO
+  queue; no interpreter-internal data races. Sequential programs run unchanged.
+- **Structured tasks** — `Have rabbit start a task [as <name>]: … Done.` Spawn +
+  join-at-Done. A task cannot outlive its spawning rabbit. Sound by construction:
+  inherits the region model's outward-only invariant — no new soundness machinery.
+  `TaskLocalSeriesCannotEscapeToOuterScope` confirms the static error fires from
+  inside a task body.
+- **Channels** — `a channel of T`; `Send <value> through <channel>.`; `the delivery
+  from <channel>` (→ `voidable T`; void on closed-empty channel); `Close <channel>.`
+  (idempotent; send-after-close is a runtime error). **Values deep-copied at send**
+  — the cross-task aliasing guarantee. Type-checked: wrong type to Send, non-channel
+  to Send/delivery/Close are all static errors.
+- **Task results** — named tasks may `return <value>.` inside their body; `the
+  awaited result of <name>` collects the result. Suspends if the task is running;
+  immediate if already done; cached on double-await. Fallible task results
+  (`return a failure …`) infer `T or failure`; unhandled fallible result is a static
+  error. Void-returning tasks cannot be awaited for a result (static error).
+- **`Yield.` + SIGINT-at-yield** — `Yield.` is a cooperative scheduler yield and
+  interrupt checkpoint. The scheduler drain loop checks `_interruptRequested` at
+  each dequeue; blocked receives and awaits also wake on interrupt. Programs that
+  yield naturally are interruptible without polling. Renames `an interrupt has been
+  requested` → `an interrupt is requested` (old form is a parse error).
+
+**Streaming task pipes**
+- **Task pipes** — `producer | consumer.` pipelines two or more `void`-returning
+  functions. `output <value>.` (contextual keyword inside a stage) emits to the
+  implicit output channel; `for each <name> from the input, repeat:` reads from it.
+  Producer runs to completion, then consumer drains. Stage references may be
+  variables holding function values.
+- **Subprocess pipe enhancement** — `run "a" | run "b"` in expression position
+  returns a result record (`output`, `errors`, `exit-code`). Exit code is the
+  rightmost non-zero stage. Launch failure is a catchable Cufet failure; non-zero
+  exit is observable but not auto-fatal.
+
+**Map key value-type constraint (map-key concept car → Option C)**
+- Map keys must be value types (`text`, `number`, or `fact`). Declaring a map with
+  a reference-type key (object, series, map) is a static `TypeException` with an
+  educational message explaining why reference identity breaks under deep-copy
+  (lookups silently always-miss; the map behaves empty, computing wrong answers with
+  no error). Runtime guard in `ExecuteMapSet` as a safety net for any dynamic path
+  that reaches runtime. Root cause of the Dijkstra silent-wrong-answer bug.
+
+**Trap-cleanup sweep**
+- `true` / `false` — fact literals; `return true.` and `if flag is true` now work
+  without defining `true`/`false` as variables.
+- Ordinals (`first`, `second`, …, `tenth`, `last`) are now contextual identifiers —
+  recognized as positional accessors only in `the <ordinal> of <series>` shape;
+  valid as variable names, parameter names, and field names everywhere else.
+- Negated word-comparisons — `is not greater than`, `is not less than`,
+  `is not N or more`, `is not N or less` are valid in both condition and expression
+  position.
+- Comparison unification — symbol forms (`= < > <= >=`) and word forms (`is`, `is
+  greater than`, etc.) work in **both** condition and expression position. The
+  positional restriction is retired; word forms remain idiomatic in conditions.
+- `=` in a stand-alone statement now produces an educational error ("did you mean
+  `becomes`?") rather than a confusing parse failure.
+- Top-level data referenced inside a top-level function now produces an educational
+  error naming the variable and explaining the scoping rule.
+
+**Series literal in expression position**
+- `a series of number with (1, 2, 3)` is now valid in expression position (as a
+  function argument, in `but void is (…)`, etc.). Found during the channel-deepcopy
+  concept car; wired into `ParseCorePrimary`.
+
+### Changed
+
+- Test count: 1187 interpreter + 140 lexer (1327 total). New tests live in dedicated
+  files: `SchedulerTests`, `TaskSpawnTests`, `ChannelTests`, `TaskResultTests`,
+  `YieldTests`, `PipeTests`, `ComparisonUnificationTests`, `BooleanLiteralTests`,
+  `OrdinalIdentifierTests`, `NegatedWordComparisonTests`, `EqualSignStatementErrorTests`,
+  `TopLevelDataScopeErrorTests`.
+- ROADMAP.md: concurrency + pipes moved from Planned to What's built; concurrency arc
+  narrative added to Design decisions; forward roadmap updated (native backend is next);
+  Known minor issues concurrency/SIGINT sections updated; test count and table updated.
+- README.md / REFERENCE.md: bumped to 0.9.0.
+- `examples/dijkstra.cufe`: complete rewrite using text node names as map keys
+  (object-as-key design incompatible with map key value-type constraint; procedural
+  rewrite also cleaner). Verifies expected distances and prints `PASS`.
+
+### Concept-car campaign (five cars, every finding resolved)
+
+| Car | Finding | Resolution |
+|---|---|---|
+| `parallelsum` | Top-level function can't read top-level `Define` data | Educational runtime error explaining the scoping rule |
+| `channel-deepcopy` | Deep-copy safety validated under nested structures | ✅ guarantee earned; also found series-literal-in-expression gap → wired into `ParseCorePrimary` |
+| `subprocess-pipes` | stderr silently discarded; exit codes silently ignored | `errors` field added to result record (F2); result record with `exit-code` (F1) = command substitution |
+| `work-queue` | Coordination correctness validated; fan-out distribution imbalanced under cooperative scheduler | ✅ correctness confirmed; fan-out imbalance is a named interpreter-era characteristic → "verify at native" note |
+| `dijkstra` | Silent object-as-map-key miss (reference identity lost under deep-copy) | Map keys constrained to value types (Option C — educational type error) |
+
+The recurring signal: every finding was a gap, ergonomic wart, or interpreter-era
+characteristic — never a core soundness or correctness bug. The foundations held;
+the concept cars sanded edges.
+
+---
+
 ## [0.8.0] — 2026-06-28
 
 The deferred-features ledger is cleared and the region model is sound. This

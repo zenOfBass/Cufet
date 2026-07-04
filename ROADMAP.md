@@ -30,9 +30,17 @@ language is considered stable.
 - Types: static, strong, inferred. Base types `number` (decimal), `text`,
   `fact` (boolean), `series of T`, function types, record types, object types.
 - Arithmetic: `+ - * / %` with conventional precedence, whitespace-disambiguated.
-- Comparison: word forms in conditions (`is`, `is not`, `is greater than`,
-  `is less than`, `is N or more`, `is N or less`); symbol forms (`= < > <= >=`)
-  in expression position.
+- Comparison: word forms (`is`, `is not`, `is greater than`, `is less than`,
+  `is N or more`, `is N or less`) and symbol forms (`= < > <= >=`) work in
+  **both** condition and expression position. Word forms are idiomatic in
+  conditions; symbol forms idiomatic in expressions — the positional restriction
+  is retired. Negated word-comparisons (`is not greater than`, `is not less than`,
+  `is not N or more`, `is not N or less`) are also valid in both positions.
+- `true` / `false` — fact literals (alongside `yes`/`no`). Returning or storing
+  `true` / `false` works without defining them as variables first.
+- Educational error for `=` in a stand-alone statement (`x = y.` → "did you mean
+  `x becomes y`?") and for top-level data referenced inside top-level functions
+  (explains the scoping rule rather than misdirecting with "X isn't defined").
 - Logic: `and`, `or`, `not` — words, conventional precedence, short-circuit.
 - Conditionals: `If` / `Otherwise if` / `Otherwise`, inline (comma) and block
   (colon + `Done.`) forms.
@@ -53,9 +61,12 @@ language is considered stable.
   Optional stepping: `range 1 to 10 counting by 2`. The step is always a positive
   magnitude — direction still comes from start-vs-end — and the endpoint is
   included only if the step lands on it exactly.
-- Maps: `a map from text to number` — homogeneous typed key→value. Keys `number`
-  or `text`. Values can themselves be `voidable V` — a present key can hold an
-  explicitly-void value, distinct from an absent key. Lookup (`the entry for K
+- Maps: `a map from text to number` — homogeneous typed key→value. Keys must be
+  **value types** (`number`, `text`, or `fact`); reference types (objects, series,
+  maps) are a static type error at map declaration — reference identity breaks
+  across the deep-copy semantics, silently causing all lookups to miss. Values can
+  themselves be `voidable V` — a present key can hold an explicitly-void value,
+  distinct from an absent key. Lookup (`the entry for K
   in M`) always returns a **flat** `voidable V`, never `voidable voidable V`,
   even when the map's value type is already voidable. `has a key for` (slot
   present) and `has an entry for` (value present and non-void) agree for
@@ -300,12 +311,52 @@ language is considered stable.
   failure` (entry names only, unsorted; failure categories: `"not-found"`,
   `"permission-denied"`). Path predicates: `the path "x" exists` / `is a directory` /
   `is a file` → `fact` (never fail).
-- **Signal handling (cooperative)** — `an interrupt has been requested` (→ `fact`;
-  true once per `SIGINT`, stays true until cleared) / `Acknowledge the interrupt.`
-  (clears the flag). Programs poll the flag explicitly. Not preemptive — a tight loop
-  without polling is not mid-computation interruptible in the interpreter era.
-  **Preemptive interruptibility is an explicit tracked debt, owed during the concurrency
-  arc.**
+- **Signal handling (cooperative + yield-aware)** — `an interrupt is requested`
+  (→ `fact`; true once per `SIGINT`, stays true until cleared) /
+  `Acknowledge the interrupt.` (clears the flag). `Yield.` is a cooperative
+  scheduler yield that also checks the interrupt flag — every explicit yield point
+  and every blocked `the delivery from` / `the awaited result of` is an interrupt
+  point, so programs no longer need to poll manually if they yield for other
+  reasons. True preemptive interruptibility (mid-tight-loop, no yield) is deferred
+  to the native backend.
+
+**Concurrency** *(complete — cooperative, interpreter era)*
+- **Scheduler** — `CufetScheduler`, a custom C# `SynchronizationContext`. All
+  continuations routed to a single per-thread FIFO queue on the same OS thread —
+  no interpreter-internal data races by construction. Sequential programs run
+  through the scheduler unchanged (`Execute(Program)` is the same public API).
+- **Structured tasks** — `Have rabbit start a task [as <name>]: … Done.` Spawns a
+  concurrent unit; the enclosing rabbit's `Done.` joins all spawned tasks before
+  releasing the scope (join-at-Done.). Tasks are shorter-lived than their spawning
+  rabbit by construction — the existing region model covers soundness, no new
+  machinery needed. Sound by inheritance: the sequencing (soundness arc first) was
+  not accidental.
+- **Channels** — `a channel of T`; `Send <value> through <channel>.`; `the delivery
+  from <channel>` (→ `voidable T`; void when closed-empty); `Close <channel>.`
+  (idempotent; send-after-close is a runtime error). **Values deep-copied at send**
+  — the cross-task aliasing guarantee. Blocked receive suspends until a value
+  arrives or the channel closes; interrupt wakes blocked receives.
+- **Task results** — named tasks may `return <value>.` inside their body; `the
+  awaited result of <name>` collects the result (suspending if still running,
+  immediate if already done, cached on double-await). Fallible tasks (`return a
+  failure …`) yield a `T or failure` result; unhandled is a static error.
+- **`Yield.`** — explicit cooperative scheduler yield; also an interrupt checkpoint.
+  The scheduler drain loop checks `_interruptRequested` at each dequeue — every
+  `Yield.`, blocked receive, and blocked await is a potential interrupt point,
+  eliminating the need for manual `an interrupt is requested` polls in programs
+  that already yield for other reasons.
+
+**Streaming pipes**
+- **Task pipes** — `producer | consumer.` pipes two or more `void`-returning
+  functions as pipeline stages. Inside a stage body: `output <value>.` (contextual
+  keyword — emits to the implicit output channel); `for each <name> from the input,
+  repeat:` (reads from the implicit input channel). The producer runs to completion,
+  filling the channel; the consumer then drains it. Stage references may be
+  variables holding function values.
+- **Subprocess pipe enhancement** — `run "a" | run "b"` in expression position
+  (command substitution) returns a result record (`output`, `errors`, `exit-code`).
+  Exit code is the rightmost non-zero stage (0 if all succeed). Launch failure is
+  a catchable Cufet failure; non-zero exit is observable but not auto-fatal.
 
 ---
 
@@ -396,24 +447,6 @@ see [What's built](#whats-built-the-language-today) above.*
   built on top of this primitive. See the memory model section in Long-term
   direction for the design; see the soundness arc narrative for the static
   enforcement that makes it safe.
-
-### Concurrency (interpreter era)
-
-- **Concurrent tasks and `pull a rabbit`** — `pull a rabbit` is the task-lifetime
-  form of the rabbit: a region whose lifetime matches a concurrent task rather than
-  a lexical block. **Separate era from the native backend** — designed and built in
-  the interpreter; the native backend later implements those semantics against real
-  hardware. Requires the concurrency model (async/parallel tasks) to be established
-  first; `pull a rabbit` is the concurrency-era rabbit, not the block-scoped one.
-
-- **Pipes** — **deferred until after concurrency.** The sequential form of pipes
-  (`result of A | B | C`) is proven viable as a shell scripting primitive, but is
-  deliberately not built in isolation. Reason: the streaming / infinite-producer
-  cases (pipe to a slow consumer, pipe to `head`, etc.) genuinely need concurrent
-  tasks — designing pipes without concurrency would produce a half-thing. The full
-  pipe model (sequential + streaming) will be designed once concurrency exists.
-  **Also unblocks: preemptive SIGINT** — the concurrency arc is where the cooperative
-  signal handling stopgap gets replaced by real preemptive interruptibility.
 
 ### Tooling
 
@@ -661,6 +694,80 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
 
   *Status:* all three holes closed; no known remaining pre-native soundness gaps.
 
+- **Concurrency arc — message-passing + structured concurrency, cooperative (v0.9.0).**
+  The complete concurrency core (all five slices) is built, validated, and hardened
+  by five concept cars. The design decisions and coherent narrative:
+
+  *Model decision — message-passing, not shared-state+locks.*
+  Shared mutable state destroys the outward-only region invariant: cross-task
+  reference aliasing is use-after-free in native, exactly the class of bugs the
+  invariant is designed to prevent. Message-passing keeps regions sound by
+  construction — values deep-copied at channel boundaries, no cross-task aliasing.
+  This is the Hoare CSP / Dijkstra-validated model: the theory-approved choice for
+  a language where region safety is load-bearing.
+
+  *Model decision — structured concurrency.*
+  A task cannot outlive its spawning scope. Tasks join before the spawning rabbit's
+  `Done.`. This composes directly with the `Done.`-bounded region discipline — no
+  new lifetime concept needed, and the join is guaranteed even through exceptions.
+
+  *The key insight — "a structured task is just a scope with a name."*
+  A structured task joins before its rabbit's `Done.`, making it shorter-lived than
+  the spawning scope. The existing region depth model + `CheckRegionStore` handle
+  soundness: task-body locals cannot escape to the enclosing scope for the same
+  reason inner-scope values cannot escape in sequential programs. **Zero new
+  soundness machinery was needed.** The sequencing (soundness arc first, concurrency
+  arc second) was deliberate — this inheritance was the goal.
+
+  *Model decision — cooperative scheduling (interpreter era).*
+  One task runs at a time; tasks interleave only at explicit yield points. C# async/
+  await with `CufetScheduler` (custom `SynchronizationContext`) routes all
+  continuations to a single per-thread FIFO queue — no OS-thread parallelism, no
+  interpreter-internal data races by construction. Sequential programs unchanged.
+  True parallelism is deferred to the native backend.
+
+  *Five slices:*
+  1. **Scheduler** — `CufetScheduler` engine. Validated: two async units interleave
+     at yield points and both complete; exception propagation correct.
+  2. **Structured tasks** — `Have rabbit start a task [as <name>]: … Done.`
+     Spawn, task-body scope, join-at-Done.
+  3. **Channels** — `a channel of T`; `Send`/`the delivery from`/`Close`.
+     Deep-copy at send = the cross-task aliasing guarantee.
+  4. **Task results** — `return <value>.` + `the awaited result of <name>`.
+     Concurrent functions — same keyword, same fallible/void machinery.
+  5. **SIGINT-at-yield + `Yield.`** — scheduler drain loop checks interrupt at
+     each dequeue; blocked receive and await also wake on interrupt. Pays down the
+     longest-standing interpreter-era debt.
+
+  *Safety guarantee validated — channel-deepcopy concept car.*
+  Proved deep-copy holds under nested structures (record-of-series, map-of-series).
+  The central safety claim — no cross-task aliasing — is earned, not asserted. Also
+  found: series literals not accepted in expression position → wired into
+  `ParseCorePrimary`.
+
+  *Fan-out native-characteristic — work-queue concept car.*
+  Validated coordination correctness (close reaches all blocked workers, exclusive
+  delivery, no hang). Also found: fan-out distribution doesn't balance under the
+  cooperative scheduler — one worker drains everything while others starve. This is
+  an interpreter-era characteristic: the FIFO cooperative scheduler serves one
+  worker until it blocks. Native's OS-thread scheduler resolves it. Logged,
+  deferred; "verify at native" note.
+
+  *The Dijkstra connection — map-key value-type constraint (concept car #5).*
+  The Dijkstra concept car surfaced the root cause of its silent-wrong-answer bug:
+  objects used as map keys break under deep-copy semantics (reference identity
+  lost). The fix was a principled type-level constraint — map keys must be value
+  types (text, number, fact). Reference-type keys produce a static type error with
+  an educational message explaining the identity semantics. Option A (value-equality
+  objects as keys, analogous to Python's hashable/Rust's Hash+Eq) is deferred — it
+  requires a deliberate equality contract that Cufet doesn't have yet.
+
+  *Remaining named constraint (deferred to native).*
+  Task bodies may read reference-type variables from the enclosing scope. Mutating
+  them is not enforced against in the cooperative era (safe: one task at a time).
+  Named here as a load-bearing note for the native-era enforcer: **task bodies must
+  not mutate captured reference-type state from outer scopes.**
+
 ---
 
 ## Known minor issues
@@ -690,57 +797,20 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   deferred (use `append ... to the file` for whole-value appends in the
   meantime).
 
-- **Concurrency model: cooperative, message-passing, structured (engine in place).**
-  The model is settled and the scheduler infrastructure is built. Three interlocking
-  decisions:
-
-  - *Message-passing, not shared mutable state.* Tasks communicate by passing values
-    (deep-copied at channel boundaries); they do not share mutable reference-typed
-    state. This preserves the outward-only region invariant by construction — no
-    cross-task aliasing, no use-after-free.
-
-  - *Structured concurrency.* Tasks are scoped: a task cannot outlive its spawning
-    scope. Tasks join before the spawning scope's `Done.`. This composes directly with
-    the existing `Done.`-bounded region discipline — no new lifetime concept is needed.
-
-  - *Cooperative scheduling.* Exactly one task runs at a time; tasks interleave only
-    at explicit yield points. Implementation: C# async/await with `CufetScheduler`
-    (a custom `SynchronizationContext`) routes all continuations back to the scheduler
-    queue on the same thread rather than the thread pool. No interpreter-internal data
-    races by construction. True parallelism is deferred to the native-backend era.
-
-  Yield points: I/O operations (async I/O, wired at task-body execution slice);
-  `Receive from` on an empty channel; explicit `Yield.` statement. Slice 5 inserts
-  the SIGINT interrupt check inside the scheduler's drain loop — every yield point
-  becomes a potential interrupt point, replacing the current explicit-poll model.
-
-  The engine is validated: two async units interleave correctly at yield points and
-  both complete (scheduler isolation test). Sequential programs run through the
-  scheduler as a single synchronous unit — behavior is identical; `Execute(Program)`
-  is the same public API, now wrapping `CufetScheduler.Run`.
-
-  Slice 2 (built): structured task spawn `Have rabbit start a task [as <name>]: ... Done.`
-  Tasks enqueue via `CufetScheduler.Enqueue`; the enclosing rabbit's `Done.` handler calls
-  `JoinTasks` before releasing the scope. Sound by construction: tasks are shorter-lived than
-  their rabbit; existing `CheckRegionStore` catches outward-escape attempts from task bodies.
-
 - **Captured-state mutation in tasks: named constraint, deferred enforcement.**
-  Task bodies may read variables from their enclosing rabbit scope. Mutating captured
-  reference-typed variables (series, map, object, matrix) from the enclosing scope is not
-  enforced against in the interpreter era — the cooperative scheduler makes this safe (one
-  task runs at a time; no actual races). The native era will introduce true parallelism; at
-  that point unsynchronized mutation is a data race. The constraint is named here so the
-  native-era enforcer (borrow checker or ownership analysis) does not inherit an unguarded
-  pattern: **task bodies must not mutate captured reference-type state from outer scopes.**
+  Task bodies may read reference-type variables from their enclosing rabbit scope.
+  Mutating those variables (series, map, object, matrix) is not enforced against in
+  the cooperative era — one task runs at a time, so there are no actual races. The
+  native era will introduce true parallelism; the constraint is named here so the
+  native-era enforcer (borrow checker or ownership analysis) does not inherit an
+  unguarded pattern: **task bodies must not mutate captured reference-type state
+  from outer scopes.**
 
-- **SIGINT is cooperative-poll-only (tracked debt, not final).** A loop that never
-  calls `an interrupt has been requested` or `run`/`Cast` cannot be interrupted
-  mid-computation — the interpreter only checks the flag at explicit poll points.
-  True preemptive mid-loop interruptibility requires native threading infrastructure.
-  **This is an explicit owed feature:** "implement preemptive SIGINT" is a named
-  line-item of the concurrency arc, not a deferred maybe. Slice 5 of the concurrency
-  arc (SIGINT-at-yield) is the first meaningful improvement: the scheduler drain
-  loop checks the flag at each dequeue — every yield point is an interrupt point.
+- **SIGINT is yield-point-only (not preemptive).** `Yield.`, blocked channel
+  receives, and blocked task-awaits are all interrupt points — programs that yield
+  naturally are interruptible without polling. A tight loop with no yield points is
+  still not mid-computation interruptible. True preemptive interruptibility (mid-loop,
+  no yield) requires native threading and is explicitly deferred to the native backend.
 
 - **Destructor RAII is semantic-only in the interpreter era (native-escape not
   solved).** In the interpreter, `unmake` fires when an object's binding goes out
@@ -859,12 +929,12 @@ These two tasks are the falsifying tests that establish "Cufet as OS
 orchestrator" as a *waypoint*, not the destination.
 
 **The current interpreter is the reference implementation / executable spec.**
-The 1143 tests (140 lexer + 1003 interpreter) define Cufet's semantics. A future native backend (native
-compilation, compile-to-C/LLVM, or a from-scratch non-managed runtime)
-implements those same semantics against real metal. Nothing built is wasted
-— this is the path most serious languages took (Lua defined its semantics
-via tree-walker; LuaJIT implements them natively; Rust bootstrapped through
-an OCaml compiler).
+The 1327 tests (140 lexer + 1187 interpreter) define Cufet's semantics. A future
+native backend (native compilation, compile-to-C/LLVM, or a from-scratch
+non-managed runtime) implements those same semantics against real metal. Nothing
+built is wasted — this is the path most serious languages took (Lua defined its
+semantics via tree-walker; LuaJIT implements them natively; Rust bootstrapped
+through an OCaml compiler).
 
 **Shell / OS orchestration as a waypoint.** The interpreter era will be able
 to run programs, read/write files, handle stdin/stdout, and orchestrate OS
@@ -901,14 +971,21 @@ Cufet binary whose `.data` section you can `readelf` is post-native.
 | Books / `Pull` mechanism (bundled: `math`, `collections`, `chance`) | ✅ built | Module-loading boundary established; type-introducing books work; external loader deferred |
 | Matrix type + arithmetic (`+`, `-`, `*`; fallible; dimension-mismatch failures) | ✅ built | First type-introducing book; demonstrates the operator-overloading + fallibility pattern |
 | Region-model soundness (three-hole adversarial arc — all holes closed) | ✅ built | Outward-only invariant now sound w.r.t. function-call laundering, method/getter laundering, and capture-store laundering |
+| Cooperative concurrency (scheduler + tasks + channels + task results + SIGINT/Yield) | ✅ built | Message-passing + structured concurrency; sound by construction (inherits region model); cooperative scheduler = no interpreter-internal races |
+| Streaming task pipes (`producer \| consumer`, `output`, `for each from the input`) | ✅ built | Pipeline composition; subprocess pipe enhancements (command substitution, exit-code, stderr-visible) |
+| Map key value-type constraint (text/number/fact only; reference types → static error) | ✅ built | Prevents the silent-miss class of bugs (reference identity lost under deep-copy); Dijkstra bug root cause fixed |
+| Comparison unification + trap sweep (`true`/`false`, ordinals-as-identifiers, negated word-forms, educational errors) | ✅ built | Most-slipped-on rules retired; `true`/`false` work; word and symbol comparison forms position-agnostic |
 
-**All interpreter-era language prerequisites are now complete.** The remaining arcs
-before the native-backend era:
+**All interpreter-era language prerequisites are now complete.** The path forward:
 
-- **Concurrency / async tasks** — unblocks pipes and preemptive SIGINT; gates `pull a rabbit` (task-lifetime rabbit).
-- **Pipes** — after concurrency (streaming/infinite-producer cases need concurrent tasks).
-- Then: **native backend** (the mountain — probably larger than everything built so far combined).
-- Then: **multi-directional predicate dispatch** — design-first arc; the type-system mountain.
+- **Native backend** — the mountain, probably larger than everything built so far
+  combined. Bundled with native: `pull a rabbit` as a task-lifetime arena (its
+  physical-arena point only matters once GC is off), true fan-out distribution
+  (the work-queue finding — native's OS-thread scheduler resolves the cooperative-
+  era starvation), true preemptive SIGINT (non-yielding tight loops), and
+  move-semantics at channel send (ownership transfer).
+- Then: **multi-directional predicate dispatch** — design-first arc; the
+  type-system mountain. Not orderable until designed.
 - Then: close gaps, polish, **finish line**.
 
 **Then the native-backend era:**
@@ -1132,10 +1209,12 @@ parameters (deliberately not solved — handle-passing covers the real cases).
 
 - **`book` as a module conformer:** the loading face, gated by a standard
   library existing.
-- **Concurrency / `pull a rabbit`:** rabbits "for tasks doing concurrency"
-  need a concurrent task model, which Cufet does not yet have. `pull a rabbit`
-  (task-lifetime rabbit, the `pull`-verb acquisition mirroring `pull a book`)
-  is the concurrency-era form and is designed alongside the concurrency model.
+- **`pull a rabbit` as a task-lifetime arena:** the concurrency model is built
+  (v0.9.0), but `pull a rabbit` in the task-lifetime sense — a named arena whose
+  physical lifetime is a concurrent task rather than a lexical block — is native-era.
+  Its physical-arena point only matters once GC is off. The concurrency model uses
+  the block-scoped rabbit for task scope; the task-lifetime arena form is a
+  native-backend feature.
 
 ---
 
