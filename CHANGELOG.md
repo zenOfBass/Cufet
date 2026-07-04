@@ -54,7 +54,7 @@ complete — native backend is the next era.
   rightmost non-zero stage. Launch failure is a catchable Cufet failure; non-zero
   exit is observable but not auto-fatal.
 
-**Map key value-type constraint (map-key concept car → Option C)**
+**Map key value-type constraint**
 - Map keys must be value types (`text`, `number`, or `fact`). Declaring a map with
   a reference-type key (object, series, map) is a static `TypeException` with an
   educational message explaining why reference identity breaks under deep-copy
@@ -82,7 +82,7 @@ complete — native backend is the next era.
 **Series literal in expression position**
 - `a series of number with (1, 2, 3)` is now valid in expression position (as a
   function argument, in `but void is (…)`, etc.). Found during the channel-deepcopy
-  concept car; wired into `ParseCorePrimary`.
+  testing; wired into `ParseCorePrimary`.
 
 ### Changed
 
@@ -99,9 +99,9 @@ complete — native backend is the next era.
   (object-as-key design incompatible with map key value-type constraint; procedural
   rewrite also cleaner). Verifies expected distances and prints `PASS`.
 
-### Concept-car campaign (five cars, every finding resolved)
+### Test campaign (five test, every finding resolved)
 
-| Car | Finding | Resolution |
+| Program | Finding | Resolution |
 |---|---|---|
 | `parallelsum` | Top-level function can't read top-level `Define` data | Educational runtime error explaining the scoping rule |
 | `channel-deepcopy` | Deep-copy safety validated under nested structures | ✅ guarantee earned; also found series-literal-in-expression gap → wired into `ParseCorePrimary` |
@@ -111,7 +111,7 @@ complete — native backend is the next era.
 
 The recurring signal: every finding was a gap, ergonomic wart, or interpreter-era
 characteristic — never a core soundness or correctness bug. The foundations held;
-the concept cars sanded edges.
+the programs sanded edges.
 
 ---
 
