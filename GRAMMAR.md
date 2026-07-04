@@ -1487,11 +1487,23 @@ to encapsulate initialization of objects that have collection fields.
 - `map lookup` returns `voidable V` (key might not exist).
 - Declared-fallible functions return `T or failure`.
 
-### The for-each body cannot mutate the series
+### The for-each body cannot add or remove elements during iteration
 
-`For each x in series` forbids mutation of `series` during iteration. If you need
-to build a filtered/transformed result, collect into a separate series or use
-`While` with an index.
+`For each x in series` forbids **structural mutation** of the iterated collection —
+`Add` and `Remove` operations that change the series' length, or any entry-add /
+entry-remove on the iterated map. Both are caught at runtime with a named error:
+
+```
+'items' was modified during a for-each loop on line 5 — collect into a separate series,
+or use a While loop if you need to change it while looping.
+```
+
+**Element-value assignment** (`the first of items becomes 99`) is not caught — the
+loop still visits all original elements, but you observe the changed values mid-iteration.
+If you need predictable per-element values, snapshot the series first.
+
+If you need to add, remove, or filter during a loop, collect into a new series or
+use `While` with an index.
 
 ### Cooperative scheduler: `Yield.` does not re-enqueue the calling task
 

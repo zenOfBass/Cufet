@@ -690,6 +690,7 @@ public sealed partial class Interpreter
             {
                 var seriesVal = Evaluate(fe.Series);
                 string iterKey = fe.IteratorName ?? "it";
+                string? collectionDisplay = fe.Series is VariableReference dvr ? $"'{dvr.Name}'" : null;
 
                 if (seriesVal is Dictionary<object, object> dict)
                 {
@@ -699,7 +700,7 @@ public sealed partial class Interpreter
                     {
                         if (dict.Count != snapshot.Count)
                             throw new RuntimeException(
-                                $"The map was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
+                                $"{collectionDisplay ?? "The map"} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.");
                         EnterScope();
                         Scope[iterKey] = new MappingValue(kvp.Key, kvp.Value);
                         bool stopped = false;
@@ -714,13 +715,13 @@ public sealed partial class Interpreter
 
                 if (seriesVal is not List<object> list)
                     throw new RuntimeException($"Expected a series or map for 'for each' loop on line {fe.Line}.");
-                string seriesDisplay = fe.Series is VariableReference fvr ? $"'{fvr.Name}'" : "The series";
+                string seriesDisplay = collectionDisplay ?? "The series";
                 int startCount = list.Count;
                 for (int i = 0; i < startCount; i++)
                 {
                     if (list.Count != startCount)
                         throw new RuntimeException(
-                            $"{seriesDisplay} was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
+                            $"{seriesDisplay} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.");
                     EnterScope();
                     Scope[iterKey] = list[i];
                     bool stopped = false;
@@ -731,7 +732,7 @@ public sealed partial class Interpreter
                     if (stopped) break;
                     if (list.Count != startCount)
                         throw new RuntimeException(
-                            $"{seriesDisplay} was modified during a for-each loop on line {fe.Line} — use a While loop if you need to change it while looping.");
+                            $"{seriesDisplay} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.");
                 }
                 break;
             }
