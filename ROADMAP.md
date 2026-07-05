@@ -1215,8 +1215,4 @@ parameters (deliberately not solved — handle-passing covers the real cases).
   Its physical-arena point only matters once GC is off. The concurrency model uses
   the block-scoped rabbit for task scope; the task-lifetime arena form is a
   native-backend feature.
-
----
-
-*Named for the Mvskoke (Muskogee) word for rabbit, drawn from our traditional
-story in which the rabbit steals fire and brings it to the people.*
+  

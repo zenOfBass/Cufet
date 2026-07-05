@@ -36,6 +36,8 @@ behind the design, see [ROADMAP.md](ROADMAP.md).
     - [Lambda literals (anonymous functions)](#lambda-literals-anonymous-functions)
   - [Voidable values (`void` and `voidable T`)](#voidable-values-void-and-voidable-t)
   - [Union types and narrowing](#union-types-and-narrowing)
+    - [`is a <type>` / `is not a <type>`](#is-a-type--is-not-a-type)
+    - [In-branch narrowing](#in-branch-narrowing)
   - [Error handling (failures and exceptions)](#error-handling-failures-and-exceptions)
     - [Failure values (`failure T`)](#failure-values-failure-t)
     - [Block form: `Try to`](#block-form-try-to)
@@ -1794,3 +1796,4 @@ Change the value to a number, or define a separate series that holds text.
   an identifier.
 - `a`, `an`, `the` are reserved as noise (articles) and cannot be used as
   identifiers.
+  
