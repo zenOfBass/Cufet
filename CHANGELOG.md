@@ -40,6 +40,40 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   test pattern for the entire compiler era.
 - 10 new compiler tests in `Cufet.Compiler.Tests/PipelineTests.cs` (1366 total).
 
+**Compiler — Slice 2 (variables: `Define` / `becomes` / `VariableReference`)**
+- Number variables compile to C locals. `Define x as 5.` → `double cv_x = 5.0;`.
+  `x becomes x + 1.` → `cv_x = (cv_x + 1.0);`. Variables are readable in any expression.
+- Permanent variables (`… permanently.`) emit as `const double` — the TypeChecker already
+  enforces no reassignment, so the C compiler gets the same invariant for free.
+- **Name mangling:** `cv_` prefix + hyphens replaced by underscores. `grand-total` →
+  `cv_grand_total`. The `cv_` prefix guards against C keyword collisions (`double`,
+  `int`, etc.). Cufet identifiers never contain underscores, so the substitution is
+  collision-free within the language.
+- Oracle test pattern continues: compiled output must match interpreter output for every
+  test input, including hyphenated names and self-referencing reassignment.
+- 10 new compiler tests (1376 total).
+
+**Compiler — Slice 3 (control flow: `If` / `While` / `For each` over ranges)**
+- `IfStatement` → `if (cond) { … } else if (cond) { … } else { … }`. Arbitrary arm
+  count; optional else; block-scoped bodies match the interpreter's per-arm scoping.
+- `WhileStatement` → `while (cond) { … }`.
+- `RepeatUntilStatement` → `do { … } while (!(cond));`.
+- `StopStatement` / `SkipStatement` → `break;` / `continue;`. Both propagate correctly
+  through nested if-inside-loop structures.
+- `ForEachStatement` over a `RangeExpression` → a direction variable computed at runtime
+  from start and end, then a single `for` loop (no body duplication). Range semantics:
+  inclusive both bounds; ascending when start ≤ end, descending otherwise; step is a
+  positive magnitude. Matches the interpreter's range materialisation exactly.
+- All comparison and logical operators: `==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `||`,
+  unary `!`. Modulo (`%`) emits `fmod()` from `<math.h>` — C's `%` is integers-only;
+  `fmod` has matching sign-of-dividend semantics.
+- String literals in `State` emit via a new `cufet_print_text(const char*)` runtime
+  helper, enabling FizzBuzz's mixed number/string output. String variables and string
+  expressions other than literal `State` arguments remain deferred.
+- **FizzBuzz validation bar met:** the README's flagship example compiles to a native
+  binary and its output matches the interpreter's exactly.
+- 16 new compiler tests (1392 total).
+
 ---
 
 ## [0.9.0] — 2026-07-03
