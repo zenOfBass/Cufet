@@ -74,6 +74,41 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   binary and its output matches the interpreter's exactly.
 - 16 new compiler tests (1392 total).
 
+**Compiler — Slice 5A (arena allocator + series: `Pull a rabbit` / `Done.` / series)**
+- The first reference type through the compiler. `Pull a rabbit.` maps to
+  `cufet_arena_push()`; `Done.` maps to `cufet_arena_pop()`. Nested
+  `Pull … Done.` blocks nest arenas correctly via a global depth stack
+  (`CufetArena cufet_arenas[64]`, `int cufet_arena_top`).
+- Arena design: **tracked-pointer list** (not a bump buffer). Each
+  `cufet_arena_alloc(size)` calls `malloc()` and registers the pointer in the
+  arena's `void** ptrs` array. `cufet_arena_pop()` frees all tracked pointers
+  then the array itself. `free(NULL)` is a C no-op, so empty arenas are harmless.
+- Global arena wraps all of `main()` — `cufet_arena_push()`/`cufet_arena_pop()`
+  emitted unconditionally. Scalar-only programs pay zero observable cost (empty
+  arena, no allocations). Top-level series are legal at depth 0.
+- `CufetSeries { double* data; int len; int cap }`. Series creation, append,
+  prepend, 1-based insert, remove-at (-1 = last), remove-value (first match),
+  and print are all implemented. Growth: new larger buffer via `cufet_arena_alloc`,
+  old buffer stays in the arena's tracked list — no UAF (old buffer never accessed
+  after copy), no leak (both freed at pop). ASan confirms this pattern.
+- `cufet_format_number` helper extracted from `cufet_print_number`; shared by
+  `cufet_print_number` (adds `\n`) and the new `cufet_print_series` (formats
+  elements as `(e1, e2, …)\n`).
+- `ForEachStatement` over a series variable emits a `cf_ser{id}` pointer temp and
+  a `cf_i{id}` index loop; the iterator variable is declared inside the loop body.
+- `_preEmits` side-channel: `SeriesLiteral` nodes produce multiple C statements
+  but `EmitExpr` must return a single expression string. Preparatory statements
+  accumulate in `_preEmits`; `FlushPreEmits` emits them before the parent
+  statement. Transparent to all existing scalar code.
+- `GccInvoker` gains an `extraFlags` overload (`IReadOnlyList<string>`) for
+  passing `-fsanitize=address -g` in the ASan test helper.
+- **Two validation dimensions:** oracle (compiled output == interpreter output)
+  and memory-correctness (ASan: zero leaks, zero use-after-free). ASan test is
+  Linux-only (skips on Windows — ASan unreliable with MinGW).
+- **Slice 5B seam:** maps, records, and objects attach to the same arena cursor;
+  no further infrastructure changes needed.
+- 13 new compiler tests (1417 total); slices 1–4 all still pass.
+
 **Compiler — Slice 4 (scalar functions: `Bind` / `Cast` / `return`)**
 - Named scalar functions compile to C functions. `Bind number to factorial, given (the number n): … Done.`
   → a C `double cv_factorial(double cv_n) { … }` emitted before `main`.
