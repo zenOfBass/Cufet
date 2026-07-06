@@ -12,6 +12,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cufet.Lexer.Tests", "tests\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cufet.Interpreter.Tests", "tests\Interpreter.Tests\Cufet.Interpreter.Tests.csproj", "{E5F6A7B8-C9D0-1234-EF01-345678901234}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cufet.Compiler", "src\Compiler\Cufet.Compiler.csproj", "{F6A7B8C9-D0E1-2345-F012-456789ABCDE0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cufet.Compiler.Tests", "tests\Compiler.Tests\Cufet.Compiler.Tests.csproj", "{07B8C9D0-E1F2-3456-0123-567890ABCDE1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -38,5 +42,13 @@ Global
 		{E5F6A7B8-C9D0-1234-EF01-345678901234}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E5F6A7B8-C9D0-1234-EF01-345678901234}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E5F6A7B8-C9D0-1234-EF01-345678901234}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F6A7B8C9-D0E1-2345-F012-456789ABCDE0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F6A7B8C9-D0E1-2345-F012-456789ABCDE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F6A7B8C9-D0E1-2345-F012-456789ABCDE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F6A7B8C9-D0E1-2345-F012-456789ABCDE0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{07B8C9D0-E1F2-3456-0123-567890ABCDE1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{07B8C9D0-E1F2-3456-0123-567890ABCDE1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{07B8C9D0-E1F2-3456-0123-567890ABCDE1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{07B8C9D0-E1F2-3456-0123-567890ABCDE1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

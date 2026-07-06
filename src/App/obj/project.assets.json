@@ -2,6 +2,19 @@
   "version": 4,
   "targets": {
     "net10.0": {
+      "Cufet.Compiler/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v10.0",
+        "dependencies": {
+          "Cufet.Interpreter": "0.9.0"
+        },
+        "compile": {
+          "bin/placeholder/Cufet.Compiler.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/Cufet.Compiler.dll": {}
+        }
+      },
       "Cufet.Interpreter/0.9.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
@@ -28,6 +41,11 @@
     }
   },
   "libraries": {
+    "Cufet.Compiler/1.0.0": {
+      "type": "project",
+      "path": "../Compiler/Cufet.Compiler.csproj",
+      "msbuildProject": "../Compiler/Cufet.Compiler.csproj"
+    },
     "Cufet.Interpreter/0.9.0": {
       "type": "project",
       "path": "../Interpreter/Cufet.Interpreter.csproj",
@@ -41,6 +59,7 @@
   },
   "projectFileDependencyGroups": {
     "net10.0": [
+      "Cufet.Compiler >= 1.0.0",
       "Cufet.Interpreter >= 0.9.0"
     ]
   },
@@ -70,6 +89,9 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {
+            "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Compiler\\Cufet.Compiler.csproj": {
+              "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Compiler\\Cufet.Compiler.csproj"
+            },
             "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\Cufet.Interpreter.csproj": {
               "projectPath": "C:\\Users\\kick_\\Documents\\My Stuff\\Programming\\Cufet\\src\\Interpreter\\Cufet.Interpreter.csproj"
             }
