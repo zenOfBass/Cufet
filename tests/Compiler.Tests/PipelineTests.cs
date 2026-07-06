@@ -210,4 +210,139 @@ public class PipelineTests
         const string src = "State 1 + 1. Define x as 10. x becomes x - 3. State x.";
         Assert.Equal(Interpret(src), Compile(src));
     }
+
+    // ── Slice 3: control flow ────────────────────────────────────────────
+
+    [Fact]
+    public void If_TrueBranch_MatchesInterpreter()
+    {
+        const string src = "Define x as 5. If x is 5, state x. Otherwise, state 0.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void If_FalseBranch_MatchesInterpreter()
+    {
+        const string src = "Define x as 3. If x is 5, state x. Otherwise, state 0.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void If_OtherwiseIf_MatchesInterpreter()
+    {
+        const string src = "Define x as 3. If x is 5, state 5. Otherwise if x is 3, state 3. Otherwise, state 0.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void If_NoElse_MatchesInterpreter()
+    {
+        const string src = "Define x as 5. If x is 5, state x.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void While_Counting_MatchesInterpreter()
+    {
+        const string src = "Define n as 1. While n <= 3, repeat: State n. n becomes n + 1. Done.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void While_Accumulation_MatchesInterpreter()
+    {
+        // 1 + 2 + ... + 10 = 55
+        const string src = "Define n as 1. Define total as 0. While n <= 10, repeat: total becomes total + n. n becomes n + 1. Done. State total.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void ForEach_Range_Ascending_MatchesInterpreter()
+    {
+        const string src = "For each n in the range 1 to 5, repeat: State n. Done.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void ForEach_Range_Descending_MatchesInterpreter()
+    {
+        const string src = "For each n in the range 5 to 1, repeat: State n. Done.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void ForEach_Range_WithStep_MatchesInterpreter()
+    {
+        // 1, 3, 5, 7, 9
+        const string src = "For each n in the range 1 to 10 counting by 2, repeat: State n. Done.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void ForEach_Squares_MatchesInterpreter()
+    {
+        const string src = "For each n in the range 1 to 5, repeat: State n * n. Done.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Stop_ExitsLoop_MatchesInterpreter()
+    {
+        // Prints 1, 2, 3 — breaks before printing 4
+        const string src = "Define n as 1. While n <= 10, repeat: If n is 4, stop. State n. n becomes n + 1. Done.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Skip_ContinuesLoop_MatchesInterpreter()
+    {
+        // Prints 1, 3, 5 — skips even values
+        const string src = "For each n in the range 1 to 5, repeat: If n % 2 is 0, skip. State n. Done.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void RepeatUntil_MatchesInterpreter()
+    {
+        // Prints 1, 2, 3
+        const string src = "Define x as 0. Repeat: x becomes x + 1. State x. Until x is 3.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void FizzBuzz_1_to_15_MatchesInterpreter()
+    {
+        // The README flagship example — exercises For each + If/Otherwise if/Otherwise + fmod
+        const string src = """
+            For each counter in the range 1 to 15, repeat:
+                If the counter % 15 is 0, state "FizzBuzz".
+                Otherwise if the counter % 3 is 0, state "Fizz".
+                Otherwise if the counter % 5 is 0, state "Buzz".
+                Otherwise, state the counter.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Nested_IfInLoop_MatchesInterpreter()
+    {
+        // Accumulate only positive contributions: 1+3+5 = 9
+        const string src = """
+            Define total as 0.
+            For each n in the range 1 to 5, repeat:
+                If n % 2 is not 0, total becomes total + n.
+            Done.
+            State total.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void BooleanLogic_And_MatchesInterpreter()
+    {
+        // True only when both conditions hold
+        const string src = "Define x as 5. If x > 3 and x < 10, state 1. Otherwise, state 0.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
 }
