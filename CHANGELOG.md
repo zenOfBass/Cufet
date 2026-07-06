@@ -74,6 +74,28 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   binary and its output matches the interpreter's exactly.
 - 16 new compiler tests (1392 total).
 
+**Compiler — Slice 4 (scalar functions: `Bind` / `Cast` / `return`)**
+- Named scalar functions compile to C functions. `Bind number to factorial, given (the number n): … Done.`
+  → a C `double cv_factorial(double cv_n) { … }` emitted before `main`.
+- `Cast factorial on (n - 1)` → `cv_factorial((cv_n - 1.0))` in any expression position.
+  `Cast print-double on (7).` as a statement → `cv_print_double(7.0);`.
+- `return <expr>.` → `return <expr>;`. Bare `return.` → `return;`. Void functions
+  declare `void` return type in C.
+- **Forward declarations first:** all top-level function signatures are emitted as C
+  forward declarations before any function body, enabling mutual recursion and
+  forward calls with no ordering constraint on the Cufet source.
+- **Scalar boundary:** parameters and return types must be `number` (`double`) or
+  `fact` (`int`) or void — C scalar pass-by-value, no arena needed.
+  Reference-type params/returns (`series`, `text`, maps, objects) throw a clear
+  `CompilerException("not yet implemented")` so the compiler defers cleanly;
+  TypeChecker accepts these programs normally.
+- **Recursive factorial (`cast factorial on (n - 1)`) works:** C self-call via the
+  forward declaration. Matches interpreter output for all inputs tested.
+- **Mutual recursion** (`is-even` ↔ `is-odd`) works via the forward declaration pass.
+- Void function syntax requires the explicit `void` keyword: `Bind void to <name>,
+  given (…):` — the bare `Bind to <name>:` form is not valid Cufet grammar.
+- 12 new compiler tests (1404 total).
+
 ---
 
 ## [0.9.0] — 2026-07-03

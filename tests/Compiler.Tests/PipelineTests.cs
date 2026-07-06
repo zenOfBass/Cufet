@@ -345,4 +345,183 @@ public class PipelineTests
         const string src = "Define x as 5. If x > 3 and x < 10, state 1. Otherwise, state 0.";
         Assert.Equal(Interpret(src), Compile(src));
     }
+
+    // ── Slice 4: scalar functions ────────────────────────────────────────────
+
+    [Fact]
+    public void Function_Simple_DoubleValue_MatchesInterpreter()
+    {
+        const string src = """
+            Bind number to double-it, given (the number x):
+                return x * 2.
+            Done.
+            State cast double-it on (5).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Function_Simple_Triple_MatchesInterpreter()
+    {
+        const string src = """
+            Bind number to triple, given (the number x):
+                return x * 3.
+            Done.
+            State cast triple on (4).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Function_MultipleParams_MatchesInterpreter()
+    {
+        // 'add' is a reserved token; use a hyphenated name
+        const string src = """
+            Bind number to sum-up, given (the number x, the number y):
+                return x + y.
+            Done.
+            State cast sum-up on (3, 4).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Function_NestedCalls_MatchesInterpreter()
+    {
+        // cast double-it on (cast triple on (5)) → 5*3=15, 15*2=30
+        const string src = """
+            Bind number to double-it, given (the number x):
+                return x * 2.
+            Done.
+            Bind number to triple, given (the number x):
+                return x * 3.
+            Done.
+            State cast double-it on (cast triple on (5)).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Function_Recursion_Factorial_MatchesInterpreter()
+    {
+        // The README flagship recursion example — factorial(10) = 3628800
+        const string src = """
+            Bind number to factorial, given (the number n):
+                If n <= 1, return 1.
+                return n * cast factorial on (n - 1).
+            Done.
+            State cast factorial on (10).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Function_UsedInControlFlow_MatchesInterpreter()
+    {
+        // Square each number in a range — exercises function + for-each together
+        const string src = """
+            Bind number to square, given (the number n):
+                return n * n.
+            Done.
+            For each n in the range 1 to 5, repeat:
+                State cast square on (n).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Function_VoidCastStatement_MatchesInterpreter()
+    {
+        // Void function called via CastStatement; void return type declared with 'void' keyword
+        const string src = """
+            Bind void to print-double, given (the number x):
+                State x * 2.
+            Done.
+            Cast print-double on (7).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Function_FactReturn_MatchesInterpreter()
+    {
+        // Function returning a fact (boolean) used in a condition
+        const string src = """
+            Bind fact to is-positive, given (the number n):
+                return n > 0.
+            Done.
+            If cast is-positive on (5), state 1. Otherwise, state 0.
+            If cast is-positive on (-3), state 1. Otherwise, state 0.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Function_ForwardReference_MatchesInterpreter()
+    {
+        // Function A (defined first) calls function B (defined after) — requires forward decls
+        const string src = """
+            Bind number to add-one-then-double, given (the number x):
+                return cast double-it on (x + 1).
+            Done.
+            Bind number to double-it, given (the number x):
+                return x * 2.
+            Done.
+            State cast add-one-then-double on (4).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Function_MutualRecursion_MatchesInterpreter()
+    {
+        // is-even calls is-odd and vice versa — exercises forward declarations
+        const string src = """
+            Bind fact to is-even, given (the number n):
+                If n is 0, return true.
+                return cast is-odd on (n - 1).
+            Done.
+            Bind fact to is-odd, given (the number n):
+                If n is 0, return false.
+                return cast is-even on (n - 1).
+            Done.
+            If cast is-even on (4), state 1. Otherwise, state 0.
+            If cast is-even on (7), state 1. Otherwise, state 0.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Function_WithLocalVariables_MatchesInterpreter()
+    {
+        // Function body uses local variables (Define/becomes inside function)
+        const string src = """
+            Bind number to sum-to, given (the number n):
+                Define total as 0.
+                For each i in the range 1 to n, repeat:
+                    total becomes total + i.
+                Done.
+                return total.
+            Done.
+            State cast sum-to on (10).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Function_ReferenceTypeParam_ThrowsCompilerException()
+    {
+        // Series parameter is a reference type — compiler must defer with a clear error,
+        // not crash; TypeChecker accepts this valid Cufet program.
+        const string src = """
+            Bind number to count-items, given (the series of number items):
+                return the number of items.
+            Done.
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+    }
 }

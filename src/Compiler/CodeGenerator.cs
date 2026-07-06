@@ -15,8 +15,6 @@ public sealed class CodeGenerator
         sb.AppendLine("#include <stdio.h>");
         sb.AppendLine("#include <math.h>");
         sb.AppendLine();
-        // cufet_print_number: integers within double's exact range print without decimal;
-        //   non-integers via %.15g (approximation; exact decimal deferred to later slice).
         sb.AppendLine("static void cufet_print_number(double v) {");
         sb.AppendLine("    long long i = (long long)v;");
         sb.AppendLine("    if ((double)i == v && v >= -9007199254740992.0 && v <= 9007199254740992.0) {");
@@ -32,11 +30,28 @@ public sealed class CodeGenerator
         sb.AppendLine("    printf(\"%s\\n\", s);");
         sb.AppendLine("}");
         sb.AppendLine();
+
+        // Slice 4: hoist top-level scalar function declarations before main.
+        // Forward declarations come first so mutual recursion and forward calls work.
+        var topFuncs = program.Statements
+            .OfType<BindStatement>()
+            .Where(b => b.UntoType == null && b.ConstructsTypeName == null)
+            .ToList();
+
+        foreach (var bind in topFuncs)
+            sb.AppendLine($"{EmitFunctionSignature(bind)};");
+        if (topFuncs.Count > 0)
+            sb.AppendLine();
+
+        foreach (var bind in topFuncs)
+            EmitBind(sb, bind);
+
         sb.AppendLine("int main(void) {");
-
         foreach (var stmt in program.Statements)
+        {
+            if (stmt is BindStatement) continue; // already emitted above
             EmitStatement(sb, stmt, "    ");
-
+        }
         sb.AppendLine("    return 0;");
         sb.AppendLine("}");
 
@@ -54,7 +69,6 @@ public sealed class CodeGenerator
         switch (stmt)
         {
             case StateStatement s:
-                // String literals go through cufet_print_text; everything else is numeric.
                 if (s.Value is StringLiteral sl)
                     sb.AppendLine($"{indent}cufet_print_text({EscapeStringLiteral(sl.Value)});");
                 else
@@ -69,6 +83,22 @@ public sealed class CodeGenerator
             case BecomesStatement b:
                 sb.AppendLine($"{indent}{MangleName(b.Name)} = {EmitExpr(b.Value)};");
                 break;
+
+            case ReturnStatement ret:
+                if (ret.Value == null)
+                    sb.AppendLine($"{indent}return;");
+                else
+                    sb.AppendLine($"{indent}return {EmitExpr(ret.Value)};");
+                break;
+
+            case CastStatement cs:
+                if (cs.Function is not VariableReference csVr)
+                    throw new CompilerException("Method calls and function-value calls are not yet supported by the compiler.");
+                sb.AppendLine($"{indent}{MangleName(csVr.Name)}({string.Join(", ", cs.Args.Select(EmitExpr))});");
+                break;
+
+            case BindStatement:
+                throw new CompilerException("Nested function declarations and closures are not yet supported by the compiler.");
 
             case IfStatement ifStmt:
                 EmitIf(sb, ifStmt, indent);
@@ -156,6 +186,39 @@ public sealed class CodeGenerator
         sb.AppendLine($"{indent}}}");
     }
 
+    // Validates and emits the signature of a top-level scalar function.
+    // Used for both forward declarations (appending ";") and full definitions.
+    // Throws CompilerException for methods, constructors, or reference-type params/returns.
+    private string EmitFunctionSignature(BindStatement bind)
+    {
+        if (bind.UntoType != null)
+            throw new CompilerException($"Object methods declared with 'unto' are not yet supported by the compiler.");
+        if (bind.ConstructsTypeName != null)
+            throw new CompilerException($"Named constructors are not yet supported by the compiler.");
+
+        foreach (var (type, pName) in bind.Parameters)
+        {
+            if (!IsScalarType(type))
+                throw new CompilerException(
+                    $"'{bind.Name}': parameter '{pName}' has a reference type — reference-type function parameters are not yet implemented by the compiler.");
+        }
+
+        if (!IsScalarType(bind.ReturnType))
+            throw new CompilerException(
+                $"'{bind.Name}': reference-type return types are not yet implemented by the compiler.");
+
+        var paramsStr = string.Join(", ", bind.Parameters.Select(p => $"{EmitCType(p.Type)} {MangleName(p.Name)}"));
+        return $"{EmitCType(bind.ReturnType)} {MangleName(bind.Name)}({paramsStr})";
+    }
+
+    private void EmitBind(StringBuilder sb, BindStatement bind)
+    {
+        sb.AppendLine($"{EmitFunctionSignature(bind)} {{");
+        EmitBlock(sb, bind.Body, "    ");
+        sb.AppendLine("}");
+        sb.AppendLine();
+    }
+
     private string EmitExpr(IExpression expr) => expr switch
     {
         NumberLiteral n      => FormatDecimal(n.Value),
@@ -163,9 +226,17 @@ public sealed class CodeGenerator
         UnaryExpression u    => EmitUnary(u),
         BinaryExpression b   => EmitBinary(b),
         VariableReference v  => MangleName(v.Name),
+        CastExpression cast  => EmitCastExpr(cast),
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
+
+    private string EmitCastExpr(CastExpression cast)
+    {
+        if (cast.Function is not VariableReference vr)
+            throw new CompilerException("Method calls and function-value calls are not yet supported by the compiler.");
+        return $"{MangleName(vr.Name)}({string.Join(", ", cast.Args.Select(EmitExpr))})";
+    }
 
     private string EmitUnary(UnaryExpression u) => u.Op switch
     {
@@ -180,7 +251,6 @@ public sealed class CodeGenerator
         if (b.Op == TokenType.Percent)
             return $"fmod({EmitExpr(b.Left)}, {EmitExpr(b.Right)})";
 
-        // && and || short-circuit in C, matching the interpreter's short-circuit evaluation.
         string op = b.Op switch
         {
             TokenType.Plus     => "+",
@@ -203,6 +273,20 @@ public sealed class CodeGenerator
     // cv_ prefix avoids C keyword collisions (e.g. Cufet "double" → cv_double).
     // Hyphens replaced by underscores; Cufet identifiers never contain underscores, so no collision.
     private static string MangleName(string name) => "cv_" + name.Replace('-', '_');
+
+    // Scalar types (number → double, fact → int) map cleanly to C pass-by-value parameters.
+    // Text, series, maps, objects, etc. are reference types that need the arena (slice 5+).
+    private static bool IsScalarType(CufetType? type) =>
+        type == null || type is NumberType || type is FactType;
+
+    private static string EmitCType(CufetType? type) => type switch
+    {
+        null       => "void",
+        NumberType => "double",
+        FactType   => "int",
+        _ => throw new CompilerException(
+                 $"'{type!.GetType().Name}' is not a scalar type — reference-type function parameters and returns are not yet implemented by the compiler.")
+    };
 
     // Normalize trailing zeros (mirrors interpreter's Format(decimal)) then render as a C
     // double literal.  Appending ".0" ensures C parses it as floating-point, not integer.
