@@ -8,6 +8,38 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+**Comments — `[[ ... ]]`**
+- `[[` opens a comment; the first `]]` closes it. Everything between is stripped by
+  the lexer before tokenisation — dots, keywords, newlines, and any Cufet syntax inside
+  are all ignored. Single delimiters cover both single-line and multi-line comments.
+- Non-nesting: the first `]]` always closes, regardless of any `[[` inside the
+  comment. Consistent with standard lexer comment semantics.
+- Unterminated comment (`[[` with no `]]` before EOF) is a `LexerException` naming
+  the opening line.
+- `[` and `]` are otherwise completely unused in Cufet's surface syntax — zero
+  collision risk with any existing construct.
+- 12 new lexer tests + 7 new interpreter tests (1356 total).
+
+**Compiler — Slice 1 (C backend, `cufet build`)**
+- The compiler era begins. `cufet build <file.cufe>` compiles a Cufet source file to
+  a native binary via a C intermediate. The front-end (Lexer → Parser → TypeChecker)
+  is reused unchanged; `Cufet.Compiler` is a new library that consumes the same AST.
+- Slice 1 scope: `State <integer arithmetic>.` — `+`, `-`, `*`, `/`, unary negation,
+  parentheses. Everything else throws a clear "not yet implemented in this slice" error.
+- `CodeGenerator` emits a C source file with a `cufet_print_number(double)` helper
+  that matches the interpreter's `Format(decimal)` output for integer arithmetic
+  (integers print without a decimal point; `double` is used as the C numeric type —
+  a known approximation, noted and deferred to a later numeric-representation slice).
+- `GccInvoker` probes known installation paths before falling back to PATH; captures
+  `stderr` and throws `CompilerException` with the full gcc error on failure; deletes
+  the `.c` intermediate after a successful compile.
+- **Slice 1 validation bar met:** `State 1 + 1.` → gcc → native binary → prints `2`.
+  Oracle test: compiled output matches interpreter output for the same source — the
+  test pattern for the entire compiler era.
+- 10 new compiler tests in `Cufet.Compiler.Tests/PipelineTests.cs` (1366 total).
+
 ---
 
 ## [0.9.0] — 2026-07-03
