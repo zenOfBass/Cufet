@@ -13,7 +13,10 @@ public sealed class GccInvoker
 
     // Compiles cSourcePath to a native binary at outputPath.
     // Throws CompilerException if gcc is missing or the compilation fails.
-    public void Compile(string cSourcePath, string outputPath)
+    public void Compile(string cSourcePath, string outputPath) =>
+        Compile(cSourcePath, outputPath, []);
+
+    public void Compile(string cSourcePath, string outputPath, IReadOnlyList<string> extraFlags)
     {
         var psi = new ProcessStartInfo
         {
@@ -24,6 +27,8 @@ public sealed class GccInvoker
         psi.ArgumentList.Add(cSourcePath);
         psi.ArgumentList.Add("-o");
         psi.ArgumentList.Add(outputPath);
+        foreach (var flag in extraFlags)
+            psi.ArgumentList.Add(flag);
 
         Process proc;
         try

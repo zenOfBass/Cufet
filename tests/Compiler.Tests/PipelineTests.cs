@@ -524,4 +524,258 @@ public class PipelineTests
         new TypeChecker().Check(program);
         Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
     }
+
+    // ── Slice 5A: arena + series ─────────────────────────────────────────
+
+    [Fact]
+    public void Arena_SimpleSeriesCreateAndIterate_MatchesInterpreter()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define xs as a series of number with (1, 2, 3).
+                For each x in xs, repeat:
+                    State x.
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Arena_SeriesAppend_MatchesInterpreter()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define xs as a series of number with (1, 2, 3).
+                Add 4 to xs.
+                For each x in xs, repeat:
+                    State x.
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Arena_SeriesLength_MatchesInterpreter()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define xs as a series of number with (10, 20, 30).
+                State the number of xs.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Arena_SeriesFirstAndLast_MatchesInterpreter()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define xs as a series of number with (10, 20, 30).
+                State the first of xs.
+                State the last of xs.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Arena_StateSeries_MatchesInterpreter()
+    {
+        // State a whole series — exercises cufet_print_series
+        const string src = """
+            Pull a rabbit.
+                Define xs as a series of number with (1, 2, 3).
+                State xs.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Arena_NestedPull_MatchesInterpreter()
+    {
+        // Two arenas on the stack: inner frees first, outer second
+        const string src = """
+            Pull a rabbit.
+                Define xs as a series of number with (1, 2).
+                Pull a rabbit.
+                    Define ys as a series of number with (3, 4).
+                    For each y in ys, repeat:
+                        State y.
+                    Done.
+                Done.
+                For each x in xs, repeat:
+                    State x.
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Arena_SeriesGrowBeyondInitialCapacity_MatchesInterpreter()
+    {
+        // Appending 8+ elements forces the data buffer to grow (initial cap is 4)
+        const string src = """
+            Pull a rabbit.
+                Define xs as a series of number with (1, 2, 3, 4).
+                Add 5 to xs.
+                Add 6 to xs.
+                Add 7 to xs.
+                Add 8 to xs.
+                Add 9 to xs.
+                State the number of xs.
+                State the last of xs.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Arena_SeriesPrepend_MatchesInterpreter()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define xs as a series of number with (2, 3).
+                Add 1 to the start of xs.
+                For each x in xs, repeat:
+                    State x.
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Arena_SeriesRemoveAt_MatchesInterpreter()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define xs as a series of number with (1, 2, 3, 4).
+                Remove the last item from xs.
+                For each x in xs, repeat:
+                    State x.
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Arena_SeriesUsedInArithmetic_MatchesInterpreter()
+    {
+        // Series element used in arithmetic — exercises SeriesAccess in EmitExpr
+        const string src = """
+            Pull a rabbit.
+                Define xs as a series of number with (5, 10, 15).
+                State the first of xs + the last of xs.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Arena_ForEachOverSeries_WithAccumulator_MatchesInterpreter()
+    {
+        // Series iteration with an outer accumulator variable (scalar escapes Pull)
+        const string src = """
+            Define total as 0.
+            Pull a rabbit.
+                Define xs as a series of number with (1, 2, 3, 4, 5).
+                For each x in xs, repeat:
+                    total becomes total + x.
+                Done.
+            Done.
+            State total.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Arena_SliceFour_StillPasses_AfterSliceFive()
+    {
+        // Regression: scalar functions must still compile correctly now that
+        // the global arena is pushed in main.
+        const string src = """
+            Bind number to factorial, given (the number n):
+                If n <= 1, return 1.
+                return n * cast factorial on (n - 1).
+            Done.
+            State cast factorial on (10).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // Compiles source with -fsanitize=address for memory-safety verification.
+    // Skipped when not on Linux (ASan reliable only with Linux gcc).
+    private static string CompileWithASan(string source)
+    {
+        var tokens  = new CufetLexer(source).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        var cSource = new CodeGenerator().Generate(program);
+
+        var tmp     = Path.GetTempFileName();
+        File.Delete(tmp);
+        var cPath   = tmp + ".c";
+        var binPath = tmp; // no extension on Linux
+        try
+        {
+            File.WriteAllText(cPath, cSource);
+            new GccInvoker().Compile(cPath, binPath, ["-fsanitize=address", "-g"]);
+        }
+        finally { try { File.Delete(cPath); } catch { } }
+
+        try
+        {
+            var psi = new ProcessStartInfo(binPath)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+            };
+            using var proc = Process.Start(psi)!;
+            var output = proc.StandardOutput.ReadToEnd();
+            var stderr = proc.StandardError.ReadToEnd();
+            proc.WaitForExit();
+            if (proc.ExitCode != 0 || stderr.Contains("ERROR: AddressSanitizer"))
+                throw new Exception(
+                    $"ASan exit {proc.ExitCode}.\nStderr:\n{stderr}");
+            return output.Replace("\r\n", "\n").TrimEnd('\n');
+        }
+        finally { try { File.Delete(binPath); } catch { } }
+    }
+
+    [Fact]
+    public void Arena_MemorySafety_ASan_ZeroLeaksAndNoUAF()
+    {
+        // Validates arena correctness: compiled binary must pass AddressSanitizer
+        // (zero leaks, zero use-after-free, zero dangling pointer reads).
+        // Skipped on non-Linux where ASan support is unreliable.
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+
+        const string src = """
+            Pull a rabbit.
+                Define xs as a series of number with (1, 2, 3).
+                Add 4 to xs.
+                Pull a rabbit.
+                    Define ys as a series of number with (10, 20).
+                    Add 30 to ys.
+                    For each y in ys, repeat:
+                        Add y to xs.
+                    Done.
+                Done.
+                For each x in xs, repeat:
+                    State x.
+                Done.
+            Done.
+            """;
+        string expected = Interpret(src);
+        string actual   = CompileWithASan(src);
+        Assert.Equal(expected, actual);
+    }
 }
