@@ -45,17 +45,25 @@ public sealed class CodeGenerator
             case StateStatement s:
                 sb.AppendLine($"    cufet_print_number({EmitExpr(s.Value)});");
                 break;
+            case DefineStatement d:
+                string qualifier = d.Permanent ? "const double" : "double";
+                sb.AppendLine($"    {qualifier} {MangleName(d.Name)} = {EmitExpr(d.Value)};");
+                break;
+            case BecomesStatement b:
+                sb.AppendLine($"    {MangleName(b.Name)} = {EmitExpr(b.Value)};");
+                break;
             default:
                 throw new CompilerException(
-                    $"'{stmt.GetType().Name}' is not yet supported by the compiler — only 'State <arithmetic>.' is implemented in this slice.");
+                    $"'{stmt.GetType().Name}' is not yet supported by the compiler.");
         }
     }
 
     private string EmitExpr(IExpression expr) => expr switch
     {
-        NumberLiteral n    => FormatDecimal(n.Value),
-        UnaryExpression u  => EmitUnary(u),
-        BinaryExpression b => EmitBinary(b),
+        NumberLiteral n      => FormatDecimal(n.Value),
+        UnaryExpression u    => EmitUnary(u),
+        BinaryExpression b   => EmitBinary(b),
+        VariableReference v  => MangleName(v.Name),
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
@@ -79,6 +87,10 @@ public sealed class CodeGenerator
         };
         return $"({EmitExpr(b.Left)} {op} {EmitExpr(b.Right)})";
     }
+
+    // cv_ prefix avoids C keyword collisions (e.g. Cufet "double" → cv_double).
+    // Hyphens replaced by underscores; Cufet identifiers never contain underscores, so no collision.
+    private static string MangleName(string name) => "cv_" + name.Replace('-', '_');
 
     // Normalize trailing zeros (mirrors interpreter's Format(decimal)) then render as a C
     // double literal.  Appending ".0" ensures C parses it as floating-point, not integer.

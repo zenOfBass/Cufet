@@ -136,4 +136,78 @@ public class PipelineTests
         const string src = "State 0.";
         Assert.Equal(Interpret(src), Compile(src));
     }
+
+    // ── Slice 2: variables ───────────────────────────────────────────────
+
+    [Fact]
+    public void Variable_DefineAndUse_MatchesInterpreter()
+    {
+        const string src = "Define x as 5. State x.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Variable_DefineAndReassign_MatchesInterpreter()
+    {
+        const string src = "Define x as 3. x becomes 7. State x.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Variable_ChainedDefines_MatchesInterpreter()
+    {
+        const string src = "Define x as 3. Define y as x + 5. State y.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Variable_SelfReferenceReassignment_MatchesInterpreter()
+    {
+        const string src = "Define x as 1. x becomes x + 1. State x.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Variable_HyphenatedName_MatchesInterpreter()
+    {
+        const string src = "Define grand-total as 100. State grand-total.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Variable_MultipleVarsInteracting_MatchesInterpreter()
+    {
+        const string src = "Define x as 3. Define y as 4. State x + y.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Variable_FullSpecExample_MatchesInterpreter()
+    {
+        // Define x as 5. Define y as x + 3. y becomes y * 2. State y. → 16
+        const string src = "Define x as 5. Define y as x + 3. y becomes y * 2. State y.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Variable_Permanent_MatchesInterpreter()
+    {
+        const string src = "Define x as 10 permanently. State x.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Variable_VariableInArithmetic_MatchesInterpreter()
+    {
+        const string src = "Define width as 6. Define height as 7. State width * height.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Variable_MixedWithStateArithmetic_MatchesInterpreter()
+    {
+        // Slice 1 arithmetic alongside slice 2 variables
+        const string src = "State 1 + 1. Define x as 10. x becomes x - 3. State x.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
 }
