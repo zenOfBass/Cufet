@@ -418,7 +418,33 @@ public sealed class Lexer
             char c = Peek();
             if (c == '\n') { _line++; Advance(); }
             else if (char.IsWhiteSpace(c)) Advance();
+            else if (c == '[' && _pos + 1 < _source.Length && _source[_pos + 1] == '[')
+                SkipComment();
             else break;
+        }
+    }
+
+    // Consumes a [[ ... ]] comment. Called after consuming the opening '[['.
+    // Non-nesting: the first ']]' ends the comment, regardless of any inner '[['.
+    // Unterminated (no ']]' before EOF) is a lexer error.
+    private void SkipComment()
+    {
+        int startLine = _line;
+        Advance(); // consume first '['
+        Advance(); // consume second '['
+        while (true)
+        {
+            if (AtEnd())
+                throw new LexerException(startLine, "unterminated comment — expected ']]' to close it");
+            char c = Peek();
+            if (c == '\n') { _line++; Advance(); }
+            else if (c == ']' && _pos + 1 < _source.Length && _source[_pos + 1] == ']')
+            {
+                Advance(); // consume first ']'
+                Advance(); // consume second ']'
+                return;
+            }
+            else Advance();
         }
     }
 

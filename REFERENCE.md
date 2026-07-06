@@ -11,6 +11,7 @@ behind the design, see [ROADMAP.md](ROADMAP.md).
 - [Cufet Language Reference](#cufet-language-reference)
   - [Contents](#contents)
   - [Statements](#statements)
+  - [Comments](#comments)
   - [Constants](#constants)
   - [Arithmetic](#arithmetic)
   - [Facts (boolean literals)](#facts-boolean-literals)
@@ -68,6 +69,36 @@ Articles (`a`, `an`, `the`) are noise everywhere — `Define the total as 0.` an
 
 Keywords are case-insensitive (`Cast`, `cast`, and `CAST` are the same).
 Identifiers are not (see [Identifiers](#identifiers)).
+
+---
+
+## Comments
+
+Comments are delimited by `[[` and `]]`. Everything between them — including newlines, `.`s, and any Cufet syntax — is stripped by the lexer before parsing. The same delimiter works for single-line and multi-line comments.
+
+```
+[[ this is a comment ]]
+
+Define x as 5.  [[ inline comment after a statement ]]
+
+[[ a longer comment
+   spanning multiple
+   lines — same delimiter ]]
+Define y as 10.
+```
+
+**One rule for both forms.** There is no separate line-comment syntax — `[[ short ]]` and a multi-line block both use `[[`/`]]`.
+
+**Not nesting.** The first `]]` closes the comment, regardless of any `[[` inside: `[[ outer [[ inner ]] still outer? no — closed here ]]`. If you need to comment out a block that already contains comments, remove the inner ones first, or leave them in (the first `]]` ends the outer comment and the remaining `]]` will cause a parse error).
+
+**Square brackets are otherwise unused** in Cufet's surface syntax — all series/map/matrix access uses words (`item N of`, `the first of`, `the item at (r, c) of`) or parentheses, never brackets — so `[[`/`]]` collide with nothing.
+
+**Unterminated comment.** A `[[` with no matching `]]` before end of file is a lexer error:
+
+```
+[[ forgot to close
+```
+→ `Line N: unterminated comment — expected ']]' to close it.`
 
 ---
 

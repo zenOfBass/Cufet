@@ -254,6 +254,19 @@ names, parameter names, field names, and iterator names:
 The accessor shape takes priority in `the <ordinal> of X` — if you name an object field `first`, access
 it via `one's first` / `alice's first` (possessive), not `the first of alice` (which is always series access).
 
+### Comments — `[[ ... ]]`
+
+The lexer strips `[[ ... ]]` before tokenizing — comment content produces no tokens and is never parsed.
+
+```
+[[ single-line comment ]]
+[[ multi-line
+   comment — same delimiter ]]
+Define x as 5.  [[ inline ]]
+```
+
+**`[` and `]` are otherwise unused** in Cufet's surface syntax (no bracket-indexed access, no type annotations using brackets), so `[[`/`]]` collide with nothing. **Not nesting:** the first `]]` closes, regardless of inner `[[`. **Unterminated** (`[[` with no `]]` before EOF) is a lexer error.
+
 ---
 
 ## 2. Object methods and field access
