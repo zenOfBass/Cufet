@@ -1420,20 +1420,26 @@ public sealed partial class Interpreter
         _                => val.ToString()!,
     };
 
+    // Named fields print sorted by name (Ordinal) so that structurally-equal records —
+    // which are order-insensitive by type — always print identically regardless of the
+    // order fields were written at construction. This also makes the native compiler's
+    // struct-based representation exact (one struct per shape, canonical field order).
     private static string FormatRecord(RecordValue rv)
     {
         var parts = new List<string>();
-        foreach (var v in rv.PositionalFields)       parts.Add(Format(v));
-        foreach (var (name, v) in rv.NamedFields)    parts.Add($"{name}: {Format(v)}");
+        foreach (var v in rv.PositionalFields)                                        parts.Add(Format(v));
+        foreach (var (name, v) in rv.NamedFields.OrderBy(f => f.Name, StringComparer.Ordinal)) parts.Add($"{name}: {Format(v)}");
         return "record(" + string.Join(", ", parts) + ")";
     }
 
+    // Same canonical-order rule as records: named fields sorted by name so that equal
+    // objects print identically no matter the construction order.
     private static string FormatObject(ObjectValue ov)
     {
         var parts = new List<string>();
-        foreach (var v in ov.PositionalFields)       parts.Add(Format(v));
-        foreach (var (name, v) in ov.NamedFields)    parts.Add($"{name}: {Format(v)}");
-        if (ov.EmbeddedObject != null)               parts.Add(Format(ov.EmbeddedObject));
+        foreach (var v in ov.PositionalFields)                                        parts.Add(Format(v));
+        foreach (var (name, v) in ov.NamedFields.OrderBy(f => f.Name, StringComparer.Ordinal)) parts.Add($"{name}: {Format(v)}");
+        if (ov.EmbeddedObject != null)                                                parts.Add(Format(ov.EmbeddedObject));
         return $"{ov.TypeName}(" + string.Join(", ", parts) + ")";
     }
 

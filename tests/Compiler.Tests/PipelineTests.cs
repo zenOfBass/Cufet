@@ -510,19 +510,20 @@ public class PipelineTests
     }
 
     [Fact]
-    public void Function_ReferenceTypeParam_ThrowsCompilerException()
+    public void Function_ReferenceTypeParam_MatchesInterpreter()
     {
-        // Series parameter is a reference type — compiler must defer with a clear error,
-        // not crash; TypeChecker accepts this valid Cufet program.
+        // Reference-type (series) parameters are supported as of slice 5B — the series is
+        // an arena pointer whose region is the caller's, so passing it down just works.
         const string src = """
             Bind number to count-items, given (the series of number items):
                 return the number of items.
             Done.
+            Pull a rabbit.
+                Define xs as a series of number with (5, 10, 15, 20).
+                State cast count-items on (xs).
+            Done.
             """;
-        var tokens  = new CufetLexer(src).Tokenize();
-        var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
-        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+        Assert.Equal(Interpret(src), Compile(src));
     }
 
     // ── Slice 5A: arena + series ─────────────────────────────────────────
@@ -875,6 +876,154 @@ public class PipelineTests
             State cast average on (0.1, 0.2).
             """;
         Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // ── Slice 5B: records (value structs) + text-as-stored-data ──────────
+    // Records lower to C value structs — copy-on-assign reproduces the interpreter's
+    // value semantics (deep for nested records, shared for series pointers).
+
+    [Fact]
+    public void Record_ConstructAndNamedAccess_MatchesInterpreter()
+    {
+        const string src = """
+            Define alice as a record with (the name "Alice", the age 30).
+            State alice.
+            State the name of alice.
+            State the age of alice.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Record_PositionalAccess_MatchesInterpreter()
+    {
+        const string src = "Define point as a record with (3, 4). State the first of point. State the second of point.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Record_FieldsCanonicalPrintOrder_MatchesInterpreter()
+    {
+        // Fields written in non-sorted order still print sorted (canonical), matching the interpreter.
+        const string src = "State a record with (the name \"Zed\", the age 9, the city \"Tulsa\").";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Record_NamedFieldSet_MatchesInterpreter()
+    {
+        const string src = """
+            Define alice as a record with (the name "Alice", the age 30).
+            the age of alice becomes 31.
+            State alice.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Record_PositionalFieldSet_MatchesInterpreter()
+    {
+        const string src = "Define point as a record with (3, 4). the first of point becomes 10. State point.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Record_ValueSemantics_DefineCopies_MatchesInterpreter()
+    {
+        // Define copies (value semantics): mutating the copy leaves the original untouched.
+        const string src = """
+            Define alice as a record with (the name "Alice", the age 30).
+            Define bob as alice.
+            the name of bob becomes "Bob".
+            the age of bob becomes 99.
+            State alice.
+            State bob.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Record_Nested_MatchesInterpreter()
+    {
+        // A record field that is itself a record — deep-copied inline (value struct).
+        const string src = """
+            Define alice as a record with (the name "Alice", the age 30).
+            Define row as a record with (the person alice, the score 95).
+            State row.
+            State the name of the person of row.
+            State the score of row.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Record_WithSeriesField_MatchesInterpreter()
+    {
+        // A record holding a series (reference type) — the struct carries a CufetSeries*.
+        const string src = """
+            Pull a rabbit.
+                Define team as a record with (the label "A", the scores a series of number with (10, 20, 30)).
+                State team.
+                State the first of the scores of team.
+                Add 40 to the scores of team.
+                State team.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Record_TextFieldEquality_MatchesInterpreter()
+    {
+        // Text-as-stored-data: text field compared by value (strcmp), not pointer.
+        const string src = """
+            Define alice as a record with (the name "Alice", the age 30).
+            If the name of alice is "Alice", state "match". Otherwise, state "no".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Record_ReturnedFromFunction_MatchesInterpreter()
+    {
+        // A function that builds and returns a record (record return type, by value).
+        const string src = """
+            Bind the record result with (the text name, the number age) to make-person, given (the text n, the number years):
+                return a record with (the name n, the age years).
+            Done.
+            Define p as cast make-person on ("Alice", 30).
+            State p.
+            State the age of p.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Record_ReadOnlyParam_MatchesInterpreter()
+    {
+        // A function reading (not mutating) a record param — by-value matches the oracle.
+        const string src = """
+            Bind number to get-age, given (the record p with (the text name, the number age)):
+                return the age of p.
+            Done.
+            Define alice as a record with (the name "Alice", the age 42).
+            State cast get-age on (alice).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Record_SeriesOfRecordsDeferred_ThrowsCleanly()
+    {
+        // Series-of-records isn't lowered yet — must defer with a clean CompilerException,
+        // not crash. (TypeChecker accepts this valid Cufet program.)
+        const string src = """
+            Define people as a series of records like (the text name, the number age).
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
     }
 
     // Compiles source with -fsanitize=address for memory-safety verification.

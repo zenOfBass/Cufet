@@ -11,16 +11,23 @@ public sealed class CodeGenerator
     // Side-channel for pre-emit statements (e.g. series literal construction).
     // Callers must call FlushPreEmits before emitting the final statement line.
     private readonly List<string> _preEmits = new();
-    // Tracks the code-type of declared variables so StateStatement / DefineStatement
-    // can dispatch to the right C print helper and declaration keyword.
-    private readonly Dictionary<string, CodeType> _varTypes = new();
-    // Return code-type of each top-level function, so CastExpression can be typed.
-    private readonly Dictionary<string, CodeType> _funcReturnTypes = new();
+    // Full static type of each in-scope variable, so declarations, print dispatch,
+    // and struct synthesis all key off the real Cufet type (not just a coarse tag).
+    private readonly Dictionary<string, CufetType> _varTypes = new();
+    // Return type of each top-level function (null = void), so CastExpression is typed.
+    private readonly Dictionary<string, CufetType?> _funcReturnTypes = new();
 
-    // A compiled scalar is now either a number (software decimal) or a fact (int).
-    // Numbers were doubles before slice 5.5; they are CufetDec now so decimal
-    // arithmetic is bit-identical to the interpreter's System.Decimal.
-    private enum CodeType { Number, Fact, Series }
+    // Record struct registry: canonical shape signature → C struct name (cr_N).
+    // Records are structural (anonymous), so each distinct shape gets one synthesized
+    // C struct; the canonical signature dedups shapes that are structurally equal.
+    private readonly Dictionary<string, string> _recordSig2Name = new();
+    private readonly List<(string Name, RecordType Type)> _recordStructs = new();
+    private int _recordCounter;
+
+    // Cached type singletons (record-equality types, so `new NumberType() == Number`).
+    private static readonly CufetType TNumber = new NumberType();
+    private static readonly CufetType TFact   = new FactType();
+    private static readonly CufetType TText    = new TextType();
 
     // ── Emitted C runtime ─────────────────────────────────────────────────
     // Self-contained: compiles with plain `gcc file.c`, no external libraries.
@@ -227,9 +234,14 @@ static void cufet_format_number(char* buf, size_t bufsz, CufetDec d) {
     out[p] = '\0';
     snprintf(buf, bufsz, "%s", out);
 }
-static void cufet_print_number(CufetDec d) { char b[64]; cufet_format_number(b, sizeof(b), d); printf("%s\n", b); }
-static void cufet_print_fact(int b) { printf("%s\n", b ? "true" : "false"); }
-static void cufet_print_text(const char* s) { printf("%s\n", s); }
+/* write_ = format inline (no newline), for nested printing inside records/objects/series.
+   print_ = write_ + newline, for a top-level State. */
+static void cufet_write_number(CufetDec d) { char b[64]; cufet_format_number(b, sizeof(b), d); printf("%s", b); }
+static void cufet_write_fact(int b) { printf("%s", b ? "true" : "false"); }
+static void cufet_write_text(const char* s) { printf("%s", s); }
+static void cufet_print_number(CufetDec d) { cufet_write_number(d); printf("\n"); }
+static void cufet_print_fact(int b) { cufet_write_fact(b); printf("\n"); }
+static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n"); }
 
 """;
 
@@ -336,54 +348,187 @@ static void cufet_print_text(const char* s) { printf("%s\n", s); }
         sb.AppendLine("    }");
         sb.AppendLine("}");
         sb.AppendLine();
-        // Prints a series in the interpreter's format: (e1, e2, ...) with newline.
-        sb.AppendLine("static void cufet_print_series(CufetSeries* s) {");
-        sb.AppendLine("    char buf[64];");
+        // Writes a series in the interpreter's format: (e1, e2, ...) — no trailing newline,
+        // so it can be nested inside a record/object field. print_series adds the newline.
+        sb.AppendLine("static void cufet_write_series(CufetSeries* s) {");
         sb.AppendLine("    printf(\"(\");");
         sb.AppendLine("    for (int i = 0; i < s->len; i++) {");
         sb.AppendLine("        if (i > 0) printf(\", \");");
-        sb.AppendLine("        cufet_format_number(buf, sizeof(buf), s->data[i]);");
-        sb.AppendLine("        printf(\"%s\", buf);");
+        sb.AppendLine("        cufet_write_number(s->data[i]);");
         sb.AppendLine("    }");
-        sb.AppendLine("    printf(\")\\n\");");
+        sb.AppendLine("    printf(\")\");");
         sb.AppendLine("}");
+        sb.AppendLine("static void cufet_print_series(CufetSeries* s) { cufet_write_series(s); printf(\"\\n\"); }");
         sb.AppendLine();
 
-        // ── Slice 4: top-level scalar function declarations ───────────────
-        // Forward declarations first so mutual recursion and forward calls work.
+        // Function bodies + main are emitted into a separate buffer FIRST. That pass
+        // discovers every record struct shape used (via TypeOf / EmitCType), so the
+        // struct declarations — which C requires before any use — can be assembled
+        // ahead of them once all shapes are known.
+        var body = new StringBuilder();
+
         var topFuncs = program.Statements
             .OfType<BindStatement>()
             .Where(b => b.UntoType == null && b.ConstructsTypeName == null)
             .ToList();
 
         foreach (var bind in topFuncs)
-            _funcReturnTypes[bind.Name] = bind.ReturnType is FactType ? CodeType.Fact : CodeType.Number;
+            _funcReturnTypes[bind.Name] = bind.ReturnType;
 
+        foreach (var bind in topFuncs)
+            EmitBind(body, bind);
+
+        // ── main() ────────────────────────────────────────────────────────
+        // A global arena is pushed so series created at top level (outside an
+        // explicit Pull) are safely tracked and freed at program exit.
+        body.AppendLine("int main(void) {");
+        body.AppendLine("    cufet_arena_push();");
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is BindStatement) continue;       // emitted above
+            if (stmt is ObjectDefinition) continue;    // declarations; objects deferred to a later slice
+            EmitStatement(body, stmt, "    ");
+        }
+        body.AppendLine("    cufet_arena_pop();");
+        body.AppendLine("    return 0;");
+        body.AppendLine("}");
+
+        // ── Record struct declarations + their write helpers (dependency-ordered) ──
+        EmitRecordStructs(sb);
+
+        // ── Function forward declarations (mutual recursion / forward calls) ──
         foreach (var bind in topFuncs)
             sb.AppendLine($"{EmitFunctionSignature(bind)};");
         if (topFuncs.Count > 0)
             sb.AppendLine();
 
-        foreach (var bind in topFuncs)
-            EmitBind(sb, bind);
-
-        // ── main() ────────────────────────────────────────────────────────
-        // A global arena is pushed so series created at top level (outside an
-        // explicit Pull) are safely tracked and freed at program exit.
-        // Nested Pull blocks push additional arenas on top of this one.
-        sb.AppendLine("int main(void) {");
-        sb.AppendLine("    cufet_arena_push();");
-        foreach (var stmt in program.Statements)
-        {
-            if (stmt is BindStatement) continue; // already emitted above
-            EmitStatement(sb, stmt, "    ");
-        }
-        sb.AppendLine("    cufet_arena_pop();");
-        sb.AppendLine("    return 0;");
-        sb.AppendLine("}");
-
+        sb.Append(body);
         return sb.ToString();
     }
+
+    // ── Record struct synthesis ───────────────────────────────────────────
+    // A canonical structural signature dedups shapes; each distinct shape becomes
+    // one C struct `cr_N` (positional fields p0.., named fields cv_<name> sorted by
+    // name to match the interpreter's canonical print order). Records are C VALUE
+    // structs — assignment copies, which reproduces the interpreter's value semantics
+    // exactly (nested records/objects copy deeply; series fields are shared pointers).
+    private string TypeSig(CufetType t) => t switch
+    {
+        NumberType => "N",
+        FactType   => "F",
+        TextType   => "T",
+        SeriesType s => "S(" + TypeSig(s.ElementType) + ")",
+        RecordType r => "R(" + string.Join(",", r.PositionalTypes.Select(TypeSig)) + "|" +
+                        string.Join(",", r.NamedFields.Select(f => f.Name + ":" + TypeSig(f.Type))) + ")",
+        _ => throw new CompilerException(
+                 $"'{t.GetType().Name}' is not yet supported by the compiler (slice 5B: records + text; objects/maps later).")
+    };
+
+    // Ensures a struct exists for this record shape (and, recursively, for any nested
+    // record shapes in its fields). Returns the C struct name.
+    private string RegisterRecordStruct(RecordType rt)
+    {
+        string sig = TypeSig(rt);
+        if (_recordSig2Name.TryGetValue(sig, out var name)) return name;
+
+        name = $"cr_{_recordCounter++}";
+        _recordSig2Name[sig] = name;
+        _recordStructs.Add((name, rt));
+        foreach (var t in rt.PositionalTypes) RegisterNestedRecords(t);
+        foreach (var (_, t) in rt.NamedFields)  RegisterNestedRecords(t);
+        return name;
+    }
+
+    private void RegisterNestedRecords(CufetType t)
+    {
+        switch (t)
+        {
+            case RecordType rt: RegisterRecordStruct(rt); break;
+            case SeriesType st: RegisterNestedRecords(st.ElementType); break;
+        }
+    }
+
+    // Emits the record structs in dependency order (a record's nested-record fields
+    // must be declared before it — the nesting is a DAG, so a topo sort suffices),
+    // each followed by its `_write` helper for nested printing.
+    private void EmitRecordStructs(StringBuilder sb)
+    {
+        if (_recordStructs.Count == 0) return;
+
+        var byName = _recordStructs.ToDictionary(r => r.Name, r => r.Type);
+        var emitted = new HashSet<string>();
+        var ordered = new List<(string Name, RecordType Type)>();
+
+        void Visit(string name)
+        {
+            if (!emitted.Add(name)) return;
+            var rt = byName[name];
+            foreach (var dep in NestedRecordDeps(rt))
+                Visit(dep);
+            ordered.Add((name, rt));
+        }
+        foreach (var (name, _) in _recordStructs) Visit(name);
+
+        sb.AppendLine("// ── Record shapes (value structs; one per distinct structural shape) ──");
+        foreach (var (name, rt) in ordered)
+        {
+            sb.AppendLine($"typedef struct {{");
+            for (int i = 0; i < rt.PositionalTypes.Count; i++)
+                sb.AppendLine($"    {EmitCType(rt.PositionalTypes[i])} p{i};");
+            foreach (var (fname, ftype) in rt.NamedFields)
+                sb.AppendLine($"    {EmitCType(ftype)} {MangleName(fname)};");
+            sb.AppendLine($"}} {name};");
+        }
+        sb.AppendLine();
+        foreach (var (name, rt) in ordered)
+            EmitRecordWriteFn(sb, name, rt);
+        sb.AppendLine();
+    }
+
+    private IEnumerable<string> NestedRecordDeps(RecordType rt)
+    {
+        foreach (var t in rt.PositionalTypes)
+            if (t is RecordType nrt) yield return RegisterRecordStruct(nrt);
+        foreach (var (_, t) in rt.NamedFields)
+            if (t is RecordType nrt) yield return RegisterRecordStruct(nrt);
+    }
+
+    // Emits `record(...)` with fields in the interpreter's canonical order:
+    // positionals first (in order), then named fields sorted by name.
+    private void EmitRecordWriteFn(StringBuilder sb, string structName, RecordType rt)
+    {
+        sb.AppendLine($"static void {structName}_write({structName} v) {{");
+        sb.AppendLine("    printf(\"record(\");");
+        bool first = true;
+        for (int i = 0; i < rt.PositionalTypes.Count; i++)
+        {
+            if (!first) sb.AppendLine("    printf(\", \");");
+            first = false;
+            sb.AppendLine($"    {WriteCall($"v.p{i}", rt.PositionalTypes[i])};");
+        }
+        foreach (var (fname, ftype) in rt.NamedFields)
+        {
+            if (!first) sb.AppendLine("    printf(\", \");");
+            first = false;
+            sb.AppendLine($"    printf(\"{fname}: \");");
+            sb.AppendLine($"    {WriteCall($"v.{MangleName(fname)}", ftype)};");
+        }
+        sb.AppendLine("    printf(\")\");");
+        sb.AppendLine("}");
+    }
+
+    // The C expression that writes `valExpr` inline (no trailing newline), dispatching
+    // on its static type — used by record write helpers and by State.
+    private string WriteCall(string valExpr, CufetType t) => t switch
+    {
+        NumberType => $"cufet_write_number({valExpr})",
+        FactType   => $"cufet_write_fact({valExpr})",
+        TextType   => $"cufet_write_text({valExpr})",
+        SeriesType => $"cufet_write_series({valExpr})",
+        RecordType rt => $"{RegisterRecordStruct(rt)}_write({valExpr})",
+        _ => throw new CompilerException(
+                 $"printing a '{t.GetType().Name}' is not yet supported by the compiler.")
+    };
 
     private void EmitBlock(StringBuilder sb, IReadOnlyList<IStatement> body, string indent)
     {
@@ -397,21 +542,19 @@ static void cufet_print_text(const char* s) { printf("%s\n", s); }
         {
             case StateStatement s:
             {
-                if (s.Value is StringLiteral sl)
+                string valExpr = EmitExpr(s.Value);
+                FlushPreEmits(sb, indent);
+                var t = TypeOf(s.Value);
+                string printStmt = t switch
                 {
-                    sb.AppendLine($"{indent}cufet_print_text({EscapeStringLiteral(sl.Value)});");
-                }
-                else
-                {
-                    string valExpr = EmitExpr(s.Value);
-                    FlushPreEmits(sb, indent);
-                    switch (InferCodeType(s.Value))
-                    {
-                        case CodeType.Series: sb.AppendLine($"{indent}cufet_print_series({valExpr});"); break;
-                        case CodeType.Fact:   sb.AppendLine($"{indent}cufet_print_fact({valExpr});");   break;
-                        default:              sb.AppendLine($"{indent}cufet_print_number({valExpr});");  break;
-                    }
-                }
+                    NumberType    => $"cufet_print_number({valExpr})",
+                    FactType      => $"cufet_print_fact({valExpr})",
+                    TextType      => $"cufet_print_text({valExpr})",
+                    SeriesType    => $"cufet_print_series({valExpr})",
+                    RecordType rt => $"{RegisterRecordStruct(rt)}_write({valExpr}); printf(\"\\n\")",
+                    _ => throw new CompilerException($"State of a '{t.GetType().Name}' is not yet supported by the compiler.")
+                };
+                sb.AppendLine($"{indent}{printStmt};");
                 break;
             }
 
@@ -419,17 +562,12 @@ static void cufet_print_text(const char* s) { printf("%s\n", s); }
             {
                 string valExpr = EmitExpr(d.Value);
                 FlushPreEmits(sb, indent);
-                var ct = InferCodeType(d.Value);
-                _varTypes[d.Name] = ct;
-                string baseType = ct switch
-                {
-                    CodeType.Series => "CufetSeries*",
-                    CodeType.Fact   => "int",
-                    _               => "CufetDec",
-                };
-                // 'permanently' fixes the binding — const on the scalar C type
-                // (series are pointers into the arena; leave them non-const).
-                string decl = (d.Permanent && ct != CodeType.Series) ? "const " + baseType : baseType;
+                var vt = TypeOf(d.Value);
+                _varTypes[d.Name] = vt;
+                // 'permanently' fixes the binding — const on the value's C type. Series/maps
+                // are arena pointers; leave those non-const (const applies to value types).
+                bool constable = vt is NumberType or FactType or TextType or RecordType;
+                string decl = (d.Permanent && constable) ? "const " + EmitCType(vt) : EmitCType(vt);
                 sb.AppendLine($"{indent}{decl} {MangleName(d.Name)} = {valExpr};");
                 break;
             }
@@ -514,6 +652,17 @@ static void cufet_print_text(const char* s) { printf("%s\n", s); }
                 break;
             }
 
+            case SeriesSetStatement ss when TypeOf(ss.Series) is RecordType:
+            {
+                // Positional record-field assignment: item N of r / the Nth of r becomes v.
+                string baseExpr = EmitExpr(ss.Series);
+                string valExpr  = EmitExpr(ss.Value);
+                FlushPreEmits(sb, indent);
+                int idx = LiteralIndex(ss.Index);
+                sb.AppendLine($"{indent}({baseExpr}).p{idx - 1} = {valExpr};");
+                break;
+            }
+
             case SeriesSetStatement ss:
             {
                 string serExpr = EmitExpr(ss.Series);
@@ -528,6 +677,18 @@ static void cufet_print_text(const char* s) { printf("%s\n", s); }
                     FlushPreEmits(sb, indent);
                     sb.AppendLine($"{indent}{serExpr}->data[cufet_to_int({idxExpr}) - 1] = {valExpr};");
                 }
+                break;
+            }
+
+            case RecordNamedSetStatement rns:
+            {
+                // Named record-field assignment: the <field> of <record> becomes <value>.
+                // The record base is a value-struct lvalue (variable or nested field), so a
+                // plain `.field =` mutates in place — matching value semantics.
+                string baseExpr = EmitExpr(rns.Record);
+                string valExpr  = EmitExpr(rns.Value);
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}({baseExpr}).{MangleName(rns.FieldName)} = {valExpr};");
                 break;
             }
 
@@ -658,46 +819,68 @@ static void cufet_print_text(const char* s) { printf("%s\n", s); }
         _preEmits.Clear();
     }
 
-    // Returns the CodeType (Number, Fact, or Series) of an expression.
-    // Used to pick the right C declaration keyword and print helper.
-    private CodeType InferCodeType(IExpression expr) => expr switch
+    // Full static type of an expression. The program already type-checked, so this is
+    // a straightforward re-derivation (no error handling) used to pick C declaration
+    // types, print helpers, comparison strategy, and to discover record shapes.
+    private CufetType TypeOf(IExpression expr) => expr switch
     {
-        SeriesLiteral        => CodeType.Series,
-        RangeExpression      => CodeType.Series,
-        NumberLiteral        => CodeType.Number,
-        BooleanLiteral       => CodeType.Fact,
-        SeriesLength         => CodeType.Number,
-        SeriesAccess         => CodeType.Number,   // series-of-number element
-        VariableReference vr => _varTypes.TryGetValue(vr.Name, out var t) ? t : CodeType.Number,
-        UnaryExpression u    => u.Op == TokenType.Not ? CodeType.Fact : CodeType.Number,
-        BinaryExpression b   => IsArithmeticOp(b.Op) ? CodeType.Number : CodeType.Fact,
-        CastExpression c     => c.Function is VariableReference cvr && _funcReturnTypes.TryGetValue(cvr.Name, out var rt) ? rt : CodeType.Number,
-        _                    => CodeType.Number,
+        NumberLiteral         => TNumber,
+        BooleanLiteral        => TFact,
+        StringLiteral         => TText,
+        RangeExpression       => new SeriesType(TNumber),
+        SeriesLiteral sl      => new SeriesType(SeriesElementType(sl)),
+        SeriesLength          => TNumber,
+        SeriesAccess sa       => SeriesAccessType(sa),
+        UnaryExpression u     => u.Op == TokenType.Not ? TFact : TNumber,
+        BinaryExpression b    => IsArithmeticOp(b.Op) ? TNumber : TFact,
+        VariableReference vr  => _varTypes.TryGetValue(vr.Name, out var t) ? t : TNumber,
+        CastExpression c      => CastReturnType(c),
+        RecordLiteral rl      => new RecordType(
+                                     rl.PositionalFields.Select(TypeOf).ToList(),
+                                     rl.NamedFields.Select(f => (f.Name, TypeOf(f.Value))).ToList()),
+        RecordNamedAccess rna => FieldType(TypeOf(rna.Record), rna.FieldName),
+        _ => throw new CompilerException(
+                 $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
+
+    private CufetType SeriesElementType(SeriesLiteral sl) =>
+        sl.Annotation ?? (sl.Elements.Count > 0 ? TypeOf(sl.Elements[0]) : TNumber);
+
+    private CufetType SeriesAccessType(SeriesAccess sa)
+    {
+        var tt = TypeOf(sa.Target);
+        if (tt is SeriesType st) return st.ElementType;
+        if (tt is RecordType rt) return rt.PositionalTypes[LiteralIndex(sa.Index) - 1];
+        throw new CompilerException("positional access on this type is not yet supported by the compiler.");
+    }
+
+    private CufetType CastReturnType(CastExpression c) =>
+        c.Function is VariableReference cvr && _funcReturnTypes.TryGetValue(cvr.Name, out var rt) && rt != null
+            ? rt : TNumber;
+
+    private static CufetType FieldType(CufetType t, string fieldName)
+    {
+        if (t is RecordType rt) return rt.NamedFields.First(f => f.Name == fieldName).Type;
+        throw new CompilerException($"field access on '{t.GetType().Name}' is not yet supported by the compiler.");
+    }
+
+    // A compile-time positional index from an ordinal literal (the first → 1, ...).
+    private static int LiteralIndex(IExpression? index) =>
+        index is NumberLiteral n ? (int)n.Value
+            : throw new CompilerException("positional record access needs a constant index (the first/second/... of).");
 
     private static bool IsArithmeticOp(TokenType op) =>
         op is TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or TokenType.Percent;
 
-    // Validates and emits the signature of a top-level scalar function.
-    // Used for both forward declarations (appending ";") and full definitions.
-    // Throws CompilerException for methods, constructors, or reference-type params/returns.
+    // Emits the C signature of a top-level function. Reference-type params/returns are
+    // now supported: records/objects pass by value (value semantics fall out of C struct
+    // copy), text as const char*, series as an arena pointer (its region is the caller's).
     private string EmitFunctionSignature(BindStatement bind)
     {
         if (bind.UntoType != null)
             throw new CompilerException($"Object methods declared with 'unto' are not yet supported by the compiler.");
         if (bind.ConstructsTypeName != null)
             throw new CompilerException($"Named constructors are not yet supported by the compiler.");
-
-        foreach (var (type, pName) in bind.Parameters)
-        {
-            if (!IsScalarType(type))
-                throw new CompilerException(
-                    $"'{bind.Name}': parameter '{pName}' has a reference type — reference-type function parameters are not yet implemented by the compiler.");
-        }
-
-        if (!IsScalarType(bind.ReturnType))
-            throw new CompilerException(
-                $"'{bind.Name}': reference-type return types are not yet implemented by the compiler.");
 
         var paramsStr = string.Join(", ", bind.Parameters.Select(p => $"{EmitCType(p.Type)} {MangleName(p.Name)}"));
         return $"{EmitCType(bind.ReturnType)} {MangleName(bind.Name)}({paramsStr})";
@@ -707,10 +890,10 @@ static void cufet_print_text(const char* s) { printf("%s\n", s); }
     {
         // Save and restore _varTypes so function-local names don't pollute
         // the outer scope's type map (and vice versa).
-        var saved = new Dictionary<string, CodeType>(_varTypes);
+        var saved = new Dictionary<string, CufetType>(_varTypes);
         _varTypes.Clear();
         foreach (var (pType, pName) in bind.Parameters)
-            _varTypes[pName] = pType is FactType ? CodeType.Fact : CodeType.Number;
+            _varTypes[pName] = pType;
 
         sb.AppendLine($"{EmitFunctionSignature(bind)} {{");
         EmitBlock(sb, bind.Body, "    ");
@@ -723,24 +906,43 @@ static void cufet_print_text(const char* s) { printf("%s\n", s); }
 
     private string EmitExpr(IExpression expr) => expr switch
     {
-        NumberLiteral n      => EmitNumberLiteral(n.Value),
-        BooleanLiteral bl    => bl.Value ? "1" : "0",
-        UnaryExpression u    => EmitUnary(u),
-        BinaryExpression b   => EmitBinary(b),
-        VariableReference v  => MangleName(v.Name),
-        CastExpression cast  => EmitCastExpr(cast),
-        SeriesLiteral sl     => EmitSeriesLiteral(sl),
-        SeriesLength sl2     => $"cufet_dec_from_ll(({EmitExpr(sl2.Series)})->len)",
-        SeriesAccess sa      => EmitSeriesAccess(sa),
+        NumberLiteral n       => EmitNumberLiteral(n.Value),
+        BooleanLiteral bl     => bl.Value ? "1" : "0",
+        StringLiteral s       => EscapeStringLiteral(s.Value),   // text-as-stored-data: static C string
+        UnaryExpression u     => EmitUnary(u),
+        BinaryExpression b    => EmitBinary(b),
+        VariableReference v   => MangleName(v.Name),
+        CastExpression cast   => EmitCastExpr(cast),
+        SeriesLiteral sl      => EmitSeriesLiteral(sl),
+        SeriesLength sl2      => $"cufet_dec_from_ll(({EmitExpr(sl2.Series)})->len)",
+        SeriesAccess sa       => EmitSeriesAccess(sa),
+        RecordLiteral rl      => EmitRecordLiteral(rl),
+        RecordNamedAccess rna => $"({EmitExpr(rna.Record)}).{MangleName(rna.FieldName)}",
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
+
+    // A record literal becomes a C compound literal (value struct) with designated
+    // initializers, so field order in the source is irrelevant. Any series-valued field
+    // pre-emits its construction; the enclosing statement flushes those first.
+    private string EmitRecordLiteral(RecordLiteral rl)
+    {
+        string structName = RegisterRecordStruct((RecordType)TypeOf(rl));
+        var parts = new List<string>();
+        for (int i = 0; i < rl.PositionalFields.Count; i++)
+            parts.Add($".p{i} = {EmitExpr(rl.PositionalFields[i])}");
+        foreach (var (name, valExpr) in rl.NamedFields)
+            parts.Add($".{MangleName(name)} = {EmitExpr(valExpr)}");
+        return $"(({structName}){{ {string.Join(", ", parts)} }})";
+    }
 
     // Emits a series literal as a named temporary, registering construction
     // statements in _preEmits. The caller must FlushPreEmits before using
     // the returned variable name in a statement.
     private string EmitSeriesLiteral(SeriesLiteral sl)
     {
+        if (SeriesElementType(sl) is not NumberType)
+            throw new CompilerException("series of a non-number element type is not yet supported by the compiler (series are number-only this slice).");
         string tmp = $"cs_{_freshId++}";
         _preEmits.Add($"CufetSeries* {tmp} = cufet_series_new();");
         foreach (var elem in sl.Elements)
@@ -753,6 +955,10 @@ static void cufet_print_text(const char* s) { printf("%s\n", s); }
 
     private string EmitSeriesAccess(SeriesAccess sa)
     {
+        // Positional access on a record (the first/second/... of r) → a struct field.
+        if (TypeOf(sa.Target) is RecordType)
+            return $"({EmitExpr(sa.Target)}).p{LiteralIndex(sa.Index) - 1}";
+
         string targetExpr = EmitExpr(sa.Target);
         if (sa.Index == null)
             return $"({targetExpr})->data[({targetExpr})->len - 1]";
@@ -790,8 +996,9 @@ static void cufet_print_text(const char* s) { printf("%s\n", s); }
             case TokenType.Or:      return $"({L} || {R})";
         }
 
-        // Comparison / equality. Numbers compare via cufet_cmp; facts are ints.
-        if (InferCodeType(b.Left) == CodeType.Number)
+        // Comparison / equality. Numbers via cufet_cmp; text via strcmp; facts are ints.
+        var lt = TypeOf(b.Left);
+        if (lt is NumberType)
         {
             string cmp = $"cufet_cmp({L}, {R})";
             return b.Op switch
@@ -806,11 +1013,20 @@ static void cufet_print_text(const char* s) { printf("%s\n", s); }
             };
         }
 
+        if (lt is TextType)
+            return b.Op switch
+            {
+                TokenType.Equal    => $"(strcmp({L}, {R}) == 0)",
+                TokenType.NotEqual => $"(strcmp({L}, {R}) != 0)",
+                _ => throw new CompilerException($"Text comparison '{b.Op}' is not yet supported by the compiler.")
+            };
+
+        // Facts (ints). Record/object structural equality is not yet supported.
         return b.Op switch
         {
             TokenType.Equal    => $"({L} == {R})",
             TokenType.NotEqual => $"({L} != {R})",
-            _ => throw new CompilerException($"Binary operator '{b.Op}' on facts is not yet supported by the compiler.")
+            _ => throw new CompilerException($"Binary operator '{b.Op}' on '{lt.GetType().Name}' is not yet supported by the compiler.")
         };
     }
 
@@ -818,18 +1034,20 @@ static void cufet_print_text(const char* s) { printf("%s\n", s); }
     // Hyphens replaced by underscores; Cufet identifiers never contain underscores, so no collision.
     private static string MangleName(string name) => "cv_" + name.Replace('-', '_');
 
-    // Scalar types (number → CufetDec, fact → int) map cleanly to C pass-by-value parameters.
-    // Text, series, maps, objects, etc. are reference types that need the arena (slice 5+).
-    private static bool IsScalarType(CufetType? type) =>
-        type == null || type is NumberType || type is FactType;
-
-    private static string EmitCType(CufetType? type) => type switch
+    // Maps a Cufet type to its C type. Records are value structs (synthesized per shape);
+    // text is an immutable const char*; series/maps are arena pointers. Objects/maps are
+    // not yet lowered (later slices) — the default arm defers cleanly.
+    private string EmitCType(CufetType? type) => type switch
     {
         null       => "void",
         NumberType => "CufetDec",
         FactType   => "int",
+        TextType   => "const char*",
+        SeriesType st => st.ElementType is NumberType ? "CufetSeries*"
+            : throw new CompilerException("series of a non-number element type is not yet supported by the compiler (series are number-only this slice)."),
+        RecordType rt => RegisterRecordStruct(rt),
         _ => throw new CompilerException(
-                 $"'{type!.GetType().Name}' is not a scalar type — reference-type function parameters and returns are not yet implemented by the compiler.")
+                 $"'{type!.GetType().Name}' is not yet supported by the compiler (slice 5B: records + text; objects/maps later).")
     };
 
     // Emits a number literal as a CufetDec constructor, decomposing the C# decimal
