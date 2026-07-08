@@ -84,9 +84,17 @@ public sealed partial class Interpreter
             }
         }
 
-        // Bind parameters.
+        // Bind parameters. Binding is binding: arg-passing applies the SAME region-aware
+        // copy policy as Define/becomes/closure-capture — value-types (records/objects)
+        // deep-copy so a mutated param can't leak to the caller; region-types (series/maps)
+        // and immutable scalars/text share. Keeps all four binding sites uniform.
         for (int i = 0; i < func.ParameterNames.Count; i++)
-            Scope[func.ParameterNames[i]] = argValues[i];
+        {
+            var arg = argValues[i];
+            Scope[func.ParameterNames[i]] = arg is RecordValue rv ? rv.DeepCopy()
+                                          : arg is ObjectValue ov ? ov.DeepCopy()
+                                          : arg;
+        }
 
         object? returnValue = null;
         try

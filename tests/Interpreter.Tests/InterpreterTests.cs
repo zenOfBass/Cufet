@@ -11151,4 +11151,55 @@ public class InterpreterTests
             "State randomly shuffled 42.\n" +
             "Done."));
     }
+
+    // ── Binding is binding: all four binding sites (Define, becomes, closure-capture,
+    // and function-argument binding) apply the SAME region-aware copy policy —
+    // value-types (records/objects) COPY; region-types (series/maps) SHARE. These lock
+    // the arg-binding site against regressing to its old share-everything behavior. ──
+
+    [Fact]
+    public void Binding_RecordArg_MutationDoesNotLeakToCaller()
+    {
+        // A record is a value type: passing it to a function copies it, so mutating the
+        // param inside cannot change the caller's record. (Was buggy: shared, leaked.)
+        Assert.Equal("1", Run("""
+            Bind void to bump, given (the record p with (the number n)):
+                the n of p becomes 99.
+            Done.
+            Define r as a record with (the n 1).
+            Cast bump on (r).
+            State the n of r.
+            """));
+    }
+
+    [Fact]
+    public void Binding_ObjectArg_MutationDoesNotLeakToCaller()
+    {
+        // Objects are value types too: same copy-on-bind semantics as records.
+        Assert.Equal("1", Run("""
+            Define object box with (the number n).
+            Bind void to bump, given (the box b):
+                the n of b becomes 99.
+            Done.
+            Define o as a new box { the n 1 }.
+            Cast bump on (o).
+            State the n of o.
+            """));
+    }
+
+    [Fact]
+    public void Binding_SeriesArg_MutationSharesWithCaller()
+    {
+        // A series is a region type: it is SHARED, not copied, across binding — so
+        // mutating it inside a function IS visible to the caller. This is the region
+        // model, deliberate; it is the flip side of the record/object copy rule.
+        Assert.Equal("(1, 2, 3, 4)", Run("""
+            Bind void to grow, given (the series of number s):
+                Add 4 to s.
+            Done.
+            Define xs as a series of number with (1, 2, 3).
+            Cast grow on (xs).
+            State xs.
+            """));
+    }
 }

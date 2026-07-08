@@ -1026,6 +1026,43 @@ public class PipelineTests
         Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
     }
 
+    [Fact]
+    public void Record_MutatedParam_NoLeak_MatchesInterpreter()
+    {
+        // Binding is binding: a record arg is copied, so a function mutating its param
+        // does NOT change the caller's record — and compiled matches interpreted exactly
+        // (both copy). This was the pre-fix divergence; it's now locked shut.
+        const string src = """
+            Bind the record result with (the text name, the number age) to make-older, given (the record p with (the text name, the number age)):
+                the age of p becomes the age of p + 1.
+                return p.
+            Done.
+            Define alice as a record with (the name "Alice", the age 30).
+            Define older as cast make-older on (alice).
+            State alice.
+            State older.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Series_MutatedParam_Shares_MatchesInterpreter()
+    {
+        // The region-model flip side: a series arg is shared, so mutating it inside a
+        // function IS visible to the caller — compiled and interpreted agree on that too.
+        const string src = """
+            Bind void to grow, given (the series of number s):
+                Add 99 to s.
+            Done.
+            Pull a rabbit.
+                Define xs as a series of number with (1, 2, 3).
+                Cast grow on (xs).
+                State xs.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     // Compiles source with -fsanitize=address for memory-safety verification.
     // Skipped when not on Linux (ASan reliable only with Linux gcc).
     private static string CompileWithASan(string source)

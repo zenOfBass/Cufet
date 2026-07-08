@@ -24,6 +24,12 @@ public sealed class CodeGenerator
     private readonly List<(string Name, RecordType Type)> _recordStructs = new();
     private int _recordCounter;
 
+    // Object definitions by name (nominal types), collected up front. Objects are also
+    // C value structs (cd_<name>); methods become C functions taking a receiver pointer.
+    private readonly Dictionary<string, ObjectDefinition> _objectDefs = new();
+    // Inside a method body: the receiver's object type name (so `one` and its fields resolve).
+    private string? _methodReceiverType;
+
     // Cached type singletons (record-equality types, so `new NumberType() == Number`).
     private static readonly CufetType TNumber = new NumberType();
     private static readonly CufetType TFact   = new FactType();
@@ -361,10 +367,15 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         sb.AppendLine("static void cufet_print_series(CufetSeries* s) { cufet_write_series(s); printf(\"\\n\"); }");
         sb.AppendLine();
 
-        // Function bodies + main are emitted into a separate buffer FIRST. That pass
-        // discovers every record struct shape used (via TypeOf / EmitCType), so the
-        // struct declarations — which C requires before any use — can be assembled
-        // ahead of them once all shapes are known.
+        // Object definitions are nominal types — collect them all up front (they may be
+        // top-level or nested in Pull blocks) so literals and field access resolve.
+        CollectObjectDefs(program.Statements);
+        foreach (var def in _objectDefs.Values)
+            ValidateObjectSupported(def);
+
+        // Method + function bodies + main are emitted into a separate buffer FIRST. That
+        // pass discovers every record struct shape used (via TypeOf / EmitCType), so struct
+        // declarations — which C requires before any use — can be assembled ahead of them.
         var body = new StringBuilder();
 
         var topFuncs = program.Statements
@@ -374,6 +385,11 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
 
         foreach (var bind in topFuncs)
             _funcReturnTypes[bind.Name] = bind.ReturnType;
+
+        // Object method bodies (each a C function taking a receiver pointer).
+        foreach (var def in _objectDefs.Values)
+            foreach (var method in def.Methods)
+                EmitMethod(body, def, method);
 
         foreach (var bind in topFuncs)
             EmitBind(body, bind);
@@ -386,24 +402,62 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         foreach (var stmt in program.Statements)
         {
             if (stmt is BindStatement) continue;       // emitted above
-            if (stmt is ObjectDefinition) continue;    // declarations; objects deferred to a later slice
+            if (stmt is ObjectDefinition) continue;    // declarations, handled up front
             EmitStatement(body, stmt, "    ");
         }
         body.AppendLine("    cufet_arena_pop();");
         body.AppendLine("    return 0;");
         body.AppendLine("}");
 
-        // ── Record struct declarations + their write helpers (dependency-ordered) ──
-        EmitRecordStructs(sb);
+        // ── Struct declarations (records + objects) + write helpers (dependency-ordered) ──
+        EmitStructs(sb);
 
-        // ── Function forward declarations (mutual recursion / forward calls) ──
+        // ── Forward declarations: object methods, then free functions ──
+        foreach (var def in _objectDefs.Values)
+            foreach (var method in def.Methods)
+                sb.AppendLine($"{MethodSignature(def, method)};");
         foreach (var bind in topFuncs)
             sb.AppendLine($"{EmitFunctionSignature(bind)};");
-        if (topFuncs.Count > 0)
-            sb.AppendLine();
+        sb.AppendLine();
 
         sb.Append(body);
         return sb.ToString();
+    }
+
+    // Nominal C struct name for an object type.
+    private static string ObjStructName(string objectName) => "cd_" + objectName.Replace('-', '_');
+
+    // Walks all statements (including nested block bodies) collecting ObjectDefinitions.
+    private void CollectObjectDefs(IEnumerable<IStatement> stmts)
+    {
+        foreach (var stmt in stmts)
+        {
+            switch (stmt)
+            {
+                case ObjectDefinition od: _objectDefs[od.Name] = od; break;
+                case PullRabbitStatement p: CollectObjectDefs(p.Body); break;
+                case IfStatement iff:
+                    foreach (var arm in iff.Arms) CollectObjectDefs(arm.Body);
+                    if (iff.ElseBody != null) CollectObjectDefs(iff.ElseBody);
+                    break;
+                case WhileStatement w:      CollectObjectDefs(w.Body); break;
+                case RepeatUntilStatement r: CollectObjectDefs(r.Body); break;
+                case ForEachStatement fe:   CollectObjectDefs(fe.Body); break;
+            }
+        }
+    }
+
+    // Objects this slice: plain data + methods with direct dispatch. Everything fancier
+    // (embedding, interface conformance/dispatch, getters/setters, named constructors,
+    // destructors) is deferred — reject cleanly rather than miscompile.
+    private static void ValidateObjectSupported(ObjectDefinition def)
+    {
+        if (def.EmbeddedTypeName != null)
+            throw new CompilerException($"object '{def.Name}': embedding ('and as a ...') is not yet supported by the compiler.");
+        if (def.Getters.Count > 0 || def.Setters.Count > 0)
+            throw new CompilerException($"object '{def.Name}': getters/setters are not yet supported by the compiler.");
+        if (def.ConformedInterfaces.Count > 0)
+            throw new CompilerException($"object '{def.Name}': interface conformance is not yet supported by the compiler.");
     }
 
     // ── Record struct synthesis ───────────────────────────────────────────
@@ -448,43 +502,6 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         }
     }
 
-    // Emits the record structs in dependency order (a record's nested-record fields
-    // must be declared before it — the nesting is a DAG, so a topo sort suffices),
-    // each followed by its `_write` helper for nested printing.
-    private void EmitRecordStructs(StringBuilder sb)
-    {
-        if (_recordStructs.Count == 0) return;
-
-        var byName = _recordStructs.ToDictionary(r => r.Name, r => r.Type);
-        var emitted = new HashSet<string>();
-        var ordered = new List<(string Name, RecordType Type)>();
-
-        void Visit(string name)
-        {
-            if (!emitted.Add(name)) return;
-            var rt = byName[name];
-            foreach (var dep in NestedRecordDeps(rt))
-                Visit(dep);
-            ordered.Add((name, rt));
-        }
-        foreach (var (name, _) in _recordStructs) Visit(name);
-
-        sb.AppendLine("// ── Record shapes (value structs; one per distinct structural shape) ──");
-        foreach (var (name, rt) in ordered)
-        {
-            sb.AppendLine($"typedef struct {{");
-            for (int i = 0; i < rt.PositionalTypes.Count; i++)
-                sb.AppendLine($"    {EmitCType(rt.PositionalTypes[i])} p{i};");
-            foreach (var (fname, ftype) in rt.NamedFields)
-                sb.AppendLine($"    {EmitCType(ftype)} {MangleName(fname)};");
-            sb.AppendLine($"}} {name};");
-        }
-        sb.AppendLine();
-        foreach (var (name, rt) in ordered)
-            EmitRecordWriteFn(sb, name, rt);
-        sb.AppendLine();
-    }
-
     private IEnumerable<string> NestedRecordDeps(RecordType rt)
     {
         foreach (var t in rt.PositionalTypes)
@@ -493,32 +510,86 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
             if (t is RecordType nrt) yield return RegisterRecordStruct(nrt);
     }
 
-    // Emits `record(...)` with fields in the interpreter's canonical order:
-    // positionals first (in order), then named fields sorted by name.
-    private void EmitRecordWriteFn(StringBuilder sb, string structName, RecordType rt)
+    // One uniform C field spec: CField is the C member name (p0.. positional, cv_x named);
+    // Label is the original field name for named fields (printed "name: value"), null for
+    // positionals (printed as just the value).
+    private readonly record struct FieldSpec(string CField, string? Label, CufetType Type);
+
+    private List<FieldSpec> RecordFields(RecordType rt)
     {
-        sb.AppendLine($"static void {structName}_write({structName} v) {{");
-        sb.AppendLine("    printf(\"record(\");");
-        bool first = true;
-        for (int i = 0; i < rt.PositionalTypes.Count; i++)
+        var f = new List<FieldSpec>();
+        for (int i = 0; i < rt.PositionalTypes.Count; i++) f.Add(new($"p{i}", null, rt.PositionalTypes[i]));
+        foreach (var (n, t) in rt.NamedFields) f.Add(new(MangleName(n), n, t));
+        return f;
+    }
+
+    private List<FieldSpec> ObjectFields(ObjectDefinition def)
+    {
+        var f = new List<FieldSpec>();
+        for (int i = 0; i < def.PositionalTypes.Count; i++) f.Add(new($"p{i}", null, def.PositionalTypes[i]));
+        foreach (var (n, t) in def.NamedFields.OrderBy(x => x.FieldName, StringComparer.Ordinal)) f.Add(new(MangleName(n), n, t));
+        return f;
+    }
+
+    // Emits all record and object structs (both are C value structs) in dependency order —
+    // a struct's nested value-struct fields must be declared before it (nesting is a DAG) —
+    // each followed by its `_write` helper for nested/inline printing.
+    private void EmitStructs(StringBuilder sb)
+    {
+        var specs = new Dictionary<string, (List<FieldSpec> Fields, string WritePrefix)>();
+        foreach (var (name, rt) in _recordStructs) specs[name] = (RecordFields(rt), "record");
+        foreach (var def in _objectDefs.Values)    specs[ObjStructName(def.Name)] = (ObjectFields(def), def.Name);
+        if (specs.Count == 0) return;
+
+        var emitted = new HashSet<string>();
+        var order   = new List<string>();
+        void Visit(string cname)
         {
-            if (!first) sb.AppendLine("    printf(\", \");");
-            first = false;
-            sb.AppendLine($"    {WriteCall($"v.p{i}", rt.PositionalTypes[i])};");
+            if (!emitted.Add(cname)) return;
+            foreach (var fs in specs[cname].Fields)
+            {
+                string? dep = fs.Type switch
+                {
+                    RecordType rt => RegisterRecordStruct(rt),
+                    ObjectType ot => ObjStructName(ot.Name),
+                    _ => null
+                };
+                if (dep != null && specs.ContainsKey(dep)) Visit(dep);
+            }
+            order.Add(cname);
         }
-        foreach (var (fname, ftype) in rt.NamedFields)
+        foreach (var cname in specs.Keys.ToList()) Visit(cname);
+
+        sb.AppendLine("// ── Record & object shapes (value structs; nested by value, series by pointer) ──");
+        foreach (var cname in order)
         {
-            if (!first) sb.AppendLine("    printf(\", \");");
-            first = false;
-            sb.AppendLine($"    printf(\"{fname}: \");");
-            sb.AppendLine($"    {WriteCall($"v.{MangleName(fname)}", ftype)};");
+            sb.AppendLine("typedef struct {");
+            foreach (var fs in specs[cname].Fields)
+                sb.AppendLine($"    {EmitCType(fs.Type)} {fs.CField};");
+            sb.AppendLine($"}} {cname};");
         }
-        sb.AppendLine("    printf(\")\");");
-        sb.AppendLine("}");
+        sb.AppendLine();
+        foreach (var cname in order)
+        {
+            var (fields, prefix) = specs[cname];
+            sb.AppendLine($"static void {cname}_write({cname} v) {{");
+            sb.AppendLine($"    printf(\"{prefix}(\");");
+            bool first = true;
+            foreach (var fs in fields)
+            {
+                if (!first) sb.AppendLine("    printf(\", \");");
+                first = false;
+                if (fs.Label != null) sb.AppendLine($"    printf(\"{fs.Label}: \");");
+                sb.AppendLine($"    {WriteCall($"v.{fs.CField}", fs.Type)};");
+            }
+            sb.AppendLine("    printf(\")\");");
+            sb.AppendLine("}");
+        }
+        sb.AppendLine();
     }
 
     // The C expression that writes `valExpr` inline (no trailing newline), dispatching
-    // on its static type — used by record write helpers and by State.
+    // on its static type — used by record/object write helpers and by State.
     private string WriteCall(string valExpr, CufetType t) => t switch
     {
         NumberType => $"cufet_write_number({valExpr})",
@@ -526,6 +597,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         TextType   => $"cufet_write_text({valExpr})",
         SeriesType => $"cufet_write_series({valExpr})",
         RecordType rt => $"{RegisterRecordStruct(rt)}_write({valExpr})",
+        ObjectType ot => $"{ObjStructName(ot.Name)}_write({valExpr})",
         _ => throw new CompilerException(
                  $"printing a '{t.GetType().Name}' is not yet supported by the compiler.")
     };
