@@ -1198,30 +1198,179 @@ public class PipelineTests
     }
 
     [Fact]
-    public void Object_Embedding_ThrowsCleanly()
+    public void Object_Embedding_MatchesInterpreter()
     {
-        // Embedding (composition/promotion) isn't lowered yet — defer, don't miscompile.
+        // Composition-with-promotion: promoted field/method access, embed handle, promoted
+        // set, and print (own fields then embedded object) — all bit-identical.
         const string src = """
-            Define object animal with (the text name).
-            Define object dog with (the number legs) and as an animal.
+            Define object animal with (the text name, the number legs):
+                Bind text to describe:
+                    return one's name.
+                Done.
+            Done.
+            Define object dog with (the number age) and as an animal.
+            Define rex as a new dog { the age 3, the name "Rex", the legs 4 }.
+            State rex.
+            State the name of rex.
+            State rex's name.
+            State the age of rex.
+            State cast rex's describe.
+            State the animal of rex.
+            the name of rex becomes "Max".
+            State rex.
             """;
-        var tokens  = new CufetLexer(src).Tokenize();
-        var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
-        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // ── Slice 5B object core: equality, unto, constructors, getters/setters ──
+
+    [Fact]
+    public void RecordEquality_Structural_MatchesInterpreter()
+    {
+        // Structural: field order at construction doesn't matter; series fields element-wise.
+        const string src = """
+            Define alice as a record with (the name "Alice", the age 30).
+            Define alice2 as a record with (the age 30, the name "Alice").
+            Define bob as a record with (the name "Bob", the age 30).
+            If alice is alice2, state "eq". Otherwise, state "ne".
+            If alice is not bob, state "ne2". Otherwise, state "eq2".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
     }
 
     [Fact]
-    public void Object_Getter_ThrowsCleanly()
+    public void ObjectEquality_Nominal_MatchesInterpreter()
     {
+        const string src = """
+            Define object person with (the text name, the number age).
+            Define p1 as a new person { the name "Alice", the age 30 }.
+            Define p2 as a new person { the name "Alice", the age 30 }.
+            Define p3 as a new person { the name "Alice", the age 31 }.
+            If p1 is p2, state "eq". Otherwise, state "ne".
+            If p1 is p3, state "eq2". Otherwise, state "ne2".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void RecordEquality_SeriesField_MatchesInterpreter()
+    {
+        const string src = """
+            Define t1 as a record with (the items a series of number with (1, 2, 3)).
+            Define t2 as a record with (the items a series of number with (1, 2, 3)).
+            Define t3 as a record with (the items a series of number with (1, 2, 4)).
+            If t1 is t2, state "eq". Otherwise, state "ne".
+            If t1 is t3, state "eq2". Otherwise, state "ne2".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_UntoMethods_MatchesInterpreter()
+    {
+        const string src = """
+            Define object person with (the text name, the number age).
+            Bind void to birthday unto person:
+                one's age becomes one's age + 1.
+            Done.
+            Bind number to age-plus unto person, given (the number d):
+                return one's age + d.
+            Done.
+            Define alice as a new person { the name "Alice", the age 30 }.
+            Cast birthday on alice.
+            State the age of alice.
+            State cast age-plus on (alice, 100).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_NamedConstructor_MatchesInterpreter()
+    {
+        const string src = """
+            Define object person with (the text name, the number age).
+            Bind making a person to teen, given (the text n):
+                return a new person { the name n, the age 13 }.
+            Done.
+            Define alice as cast teen on ("Alice").
+            State alice.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_GettersSetters_MatchesInterpreter()
+    {
+        // Getter computes (no stored field); setter intercepts + clamps; self-write bypass.
         const string src = """
             Define object circle with (the number radius):
                 Get area as number:
                     return one's radius * one's radius * 3.
                 Done.
+                Set radius given (the number r):
+                    If r < 0, one's radius becomes 0.
+                    Otherwise, one's radius becomes r.
+                Done.
             Done.
             Define c as a new circle { the radius 2 }.
             State c's area.
+            State the area of c.
+            c's radius becomes 5.
+            State c's radius.
+            State c's area.
+            c's radius becomes -3.
+            State c's radius.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_PositionalAccessOnNamedFields_ThrowsCleanly()
+    {
+        // Named-field objects have no positional slots — the interpreter errors, and the
+        // compiler must reject cleanly (not emit broken C).
+        const string src = """
+            Define object person with (the text name, the number age).
+            Define alice as a new person { the name "Alice", the age 30 }.
+            State the first of alice.
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        try { new TypeChecker().Check(program); } catch (TypeException) { return; } // TC may reject first
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+    }
+
+    [Fact]
+    public void Object_TransitiveEmbedding_MatchesInterpreter()
+    {
+        // Multi-level embedding (employee → person → address): promoted access + set reach
+        // through two levels; equality recurses the whole chain.
+        const string src = """
+            Define object address with (the text city).
+            Define object person with (the text name) and as an address.
+            Define object employee with (the number salary) and as a person.
+            Define e as a new employee { the salary 100, the name "Alice", the city "Tulsa" }.
+            State e.
+            State the city of e.
+            the city of e becomes "Norman".
+            State the city of e.
+            Define e2 as a new employee { the salary 100, the name "Alice", the city "Norman" }.
+            If e is e2, state "eq". Otherwise, state "ne".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_Interface_StillDeferred_ThrowsCleanly()
+    {
+        // Interface conformance / dynamic dispatch remains deferred (its own slice).
+        const string src = """
+            Define greeter as an interface for the void function greet.
+            Define object robot with (the text id) and greeter:
+                Bind void to greet:
+                    State one's id.
+                Done.
+            Done.
             """;
         var tokens  = new CufetLexer(src).Tokenize();
         var program = new Parser(tokens).Parse();

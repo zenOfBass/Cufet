@@ -29,6 +29,9 @@ public sealed class CodeGenerator
     private readonly Dictionary<string, ObjectDefinition> _objectDefs = new();
     // Inside a method body: the receiver's object type name (so `one` and its fields resolve).
     private string? _methodReceiverType;
+    // Inside a setter body: the field name being set, so `one's <field> becomes X` writes raw
+    // (bypasses the setter) — preventing infinite recursion, matching the interpreter's _inSetterFor.
+    private string? _inSetterForField;
 
     // Cached type singletons (record-equality types, so `new NumberType() == Number`).
     private static readonly CufetType TNumber = new NumberType();
@@ -365,11 +368,18 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         sb.AppendLine("    printf(\")\");");
         sb.AppendLine("}");
         sb.AppendLine("static void cufet_print_series(CufetSeries* s) { cufet_write_series(s); printf(\"\\n\"); }");
+        // Element-wise value equality (used by record/object equality on series fields).
+        sb.AppendLine("static int cufet_series_eq(CufetSeries* a, CufetSeries* b) {");
+        sb.AppendLine("    if (a->len != b->len) return 0;");
+        sb.AppendLine("    for (int i = 0; i < a->len; i++) if (cufet_cmp(a->data[i], b->data[i]) != 0) return 0;");
+        sb.AppendLine("    return 1;");
+        sb.AppendLine("}");
         sb.AppendLine();
 
         // Object definitions are nominal types — collect them all up front (they may be
         // top-level or nested in Pull blocks) so literals and field access resolve.
         CollectObjectDefs(program.Statements);
+        MergeUntoMethods(program.Statements);   // fold 'Bind ... unto <type>' methods into their type
         foreach (var def in _objectDefs.Values)
             ValidateObjectSupported(def);
 
@@ -378,18 +388,24 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         // declarations — which C requires before any use — can be assembled ahead of them.
         var body = new StringBuilder();
 
+        // Free functions and named constructors (a constructor is just a function whose
+        // return type is the object type — its ReturnType already carries that). 'unto'
+        // methods are excluded here — they were merged into their object's method list.
         var topFuncs = program.Statements
             .OfType<BindStatement>()
-            .Where(b => b.UntoType == null && b.ConstructsTypeName == null)
+            .Where(b => b.UntoType == null)
             .ToList();
 
         foreach (var bind in topFuncs)
             _funcReturnTypes[bind.Name] = bind.ReturnType;
 
-        // Object method bodies (each a C function taking a receiver pointer).
+        // Object method / getter / setter bodies (each a C function taking a receiver pointer).
         foreach (var def in _objectDefs.Values)
-            foreach (var method in def.Methods)
-                EmitMethod(body, def, method);
+        {
+            foreach (var method in def.Methods) EmitMethod(body, def, method);
+            foreach (var g in def.Getters)      EmitGetter(body, def, g);
+            foreach (var s in def.Setters)      EmitSetter(body, def, s);
+        }
 
         foreach (var bind in topFuncs)
             EmitBind(body, bind);
@@ -412,10 +428,13 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         // ── Struct declarations (records + objects) + write helpers (dependency-ordered) ──
         EmitStructs(sb);
 
-        // ── Forward declarations: object methods, then free functions ──
+        // ── Forward declarations: object methods/getters/setters, then free functions ──
         foreach (var def in _objectDefs.Values)
-            foreach (var method in def.Methods)
-                sb.AppendLine($"{MethodSignature(def, method)};");
+        {
+            foreach (var method in def.Methods) sb.AppendLine($"{MethodSignature(def, method)};");
+            foreach (var g in def.Getters)      sb.AppendLine($"{GetterSignature(def, g)};");
+            foreach (var s in def.Setters)      sb.AppendLine($"{SetterSignature(def, s)};");
+        }
         foreach (var bind in topFuncs)
             sb.AppendLine($"{EmitFunctionSignature(bind)};");
         sb.AppendLine();
@@ -450,12 +469,10 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
     // Objects this slice: plain data + methods with direct dispatch. Everything fancier
     // (embedding, interface conformance/dispatch, getters/setters, named constructors,
     // destructors) is deferred — reject cleanly rather than miscompile.
-    private static void ValidateObjectSupported(ObjectDefinition def)
+    private void ValidateObjectSupported(ObjectDefinition def)
     {
-        if (def.EmbeddedTypeName != null)
-            throw new CompilerException($"object '{def.Name}': embedding ('and as a ...') is not yet supported by the compiler.");
-        if (def.Getters.Count > 0 || def.Setters.Count > 0)
-            throw new CompilerException($"object '{def.Name}': getters/setters are not yet supported by the compiler.");
+        if (def.EmbeddedTypeName != null && !_objectDefs.ContainsKey(def.EmbeddedTypeName))
+            throw new CompilerException($"object '{def.Name}': embeds '{def.EmbeddedTypeName}', which isn't a plain object type (interface embedding not supported yet).");
         if (def.ConformedInterfaces.Count > 0)
             throw new CompilerException($"object '{def.Name}': interface conformance is not yet supported by the compiler.");
     }
@@ -529,6 +546,10 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         var f = new List<FieldSpec>();
         for (int i = 0; i < def.PositionalTypes.Count; i++) f.Add(new($"p{i}", null, def.PositionalTypes[i]));
         foreach (var (n, t) in def.NamedFields.OrderBy(x => x.FieldName, StringComparer.Ordinal)) f.Add(new(MangleName(n), n, t));
+        // Embedding: the embedded object is stored as a bare value-struct field (name = the
+        // embedded type). Printed without a "name:" label, appended last — matching FormatObject.
+        if (def.EmbeddedTypeName != null)
+            f.Add(new(MangleName(def.EmbeddedTypeName), null, ObjType(def.EmbeddedTypeName)));
         return f;
     }
 
@@ -587,7 +608,31 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
             sb.AppendLine("}");
         }
         sb.AppendLine();
+
+        // Value-equality helper per struct (records: structural; objects: nominal same-type).
+        // Field-by-field, recursing into nested record/object fields and comparing series
+        // element-wise — matching the interpreter's ValuesEqual.
+        foreach (var cname in order)
+        {
+            var fields = specs[cname].Fields;
+            string cond = fields.Count == 0 ? "1"
+                : string.Join(" && ", fields.Select(fs => EqCall($"a.{fs.CField}", $"b.{fs.CField}", fs.Type)));
+            sb.AppendLine($"static int {cname}_eq({cname} a, {cname} b) {{ return {cond}; }}");
+        }
+        sb.AppendLine();
     }
+
+    // The C boolean expression comparing two values of type `t` by value.
+    private string EqCall(string a, string b, CufetType t) => t switch
+    {
+        NumberType => $"cufet_cmp({a}, {b}) == 0",
+        FactType   => $"({a} == {b})",
+        TextType   => $"strcmp({a}, {b}) == 0",
+        SeriesType => $"cufet_series_eq({a}, {b})",
+        RecordType rt => $"{RegisterRecordStruct(rt)}_eq({a}, {b})",
+        ObjectType ot => $"{ObjStructName(ot.Name)}_eq({a}, {b})",
+        _ => throw new CompilerException($"equality on a '{t.GetType().Name}' is not yet supported by the compiler.")
+    };
 
     // The C expression that writes `valExpr` inline (no trailing newline), dispatching
     // on its static type — used by record/object write helpers and by State.
@@ -735,8 +780,10 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                 string baseExpr = EmitExpr(ss.Series);
                 string valExpr  = EmitExpr(ss.Value);
                 FlushPreEmits(sb, indent);
-                int idx = LiteralIndex(ss.Index);
-                sb.AppendLine($"{indent}({baseExpr}).p{idx - 1} = {valExpr};");
+                int idx0 = TypeOf(ss.Series) is ObjectType sot
+                    ? ObjectPositionalIndex(sot.Name, ss.Index)
+                    : LiteralIndex(ss.Index) - 1;
+                sb.AppendLine($"{indent}({baseExpr}).p{idx0} = {valExpr};");
                 break;
             }
 
@@ -758,29 +805,20 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
             }
 
             case RecordNamedSetStatement rns:
-            {
-                // Named record-field assignment: the <field> of <record> becomes <value>.
-                // The record base is a value-struct lvalue (variable or nested field), so a
-                // plain `.field =` mutates in place — matching value semantics.
-                string baseExpr = EmitExpr(rns.Record);
-                string valExpr  = EmitExpr(rns.Value);
-                FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}({baseExpr}).{MangleName(rns.FieldName)} = {valExpr};");
+                // the <field> of <record/object> becomes <value> — routes through a setter
+                // if the member has one, else a raw in-place field write (value semantics).
+                EmitMemberSet(sb, indent, rns.Record, rns.FieldName, rns.Value);
                 break;
-            }
 
             case PossessiveSetStatement pss:
-            {
-                // alice's age becomes 31 / one's age becomes 31 — same in-place field write.
-                string baseExpr = EmitExpr(pss.Target);
-                string valExpr  = EmitExpr(pss.Value);
-                FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}({baseExpr}).{MangleName(pss.Member)} = {valExpr};");
+                // alice's age becomes 31 / one's age becomes 31 — same, setter-aware.
+                EmitMemberSet(sb, indent, pss.Target, pss.Member, pss.Value);
                 break;
-            }
 
             case ObjectDefinition:
-                break;   // declaration — struct + methods emitted in the prelude
+            case GetterDeclaration:
+            case SetterDeclaration:
+                break;   // declarations — structs, methods, getters, setters emitted in the prelude
 
             case IfStatement ifStmt:
                 EmitIf(sb, ifStmt, indent);
@@ -948,7 +986,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         var tt = TypeOf(sa.Target);
         if (tt is SeriesType st) return st.ElementType;
         if (tt is RecordType rt) return rt.PositionalTypes[LiteralIndex(sa.Index) - 1];
-        if (tt is ObjectType ot) return _objectDefs[ot.Name].PositionalTypes[LiteralIndex(sa.Index) - 1];
+        if (tt is ObjectType ot) return _objectDefs[ot.Name].PositionalTypes[ObjectPositionalIndex(ot.Name, sa.Index)];
         throw new CompilerException("positional access on this type is not yet supported by the compiler.");
     }
 
@@ -965,14 +1003,55 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         return TNumber;
     }
 
-    private CufetType MethodReturnType(string objName, string methodName) =>
-        _objectDefs[objName].Methods.First(m => m.Name == methodName).ReturnType ?? TNumber;
+    private CufetType MethodReturnType(string objName, string methodName)
+    {
+        var (owner, _) = ResolveMethodLevel(objName, methodName);
+        return _objectDefs[owner].Methods.First(m => m.Name == methodName).ReturnType ?? TNumber;
+    }
+
+    // Finds which level of the embed chain owns a method, and the C access suffix (a chain of
+    // .cv_<embed>) to reach the receiver object at that level.
+    private (string ObjName, string Suffix) ResolveMethodLevel(string objName, string method)
+    {
+        var def = _objectDefs[objName];
+        if (def.Methods.Any(m => m.Name == method)) return (objName, "");
+        if (def.EmbeddedTypeName != null)
+        {
+            var (owner, suffix) = ResolveMethodLevel(def.EmbeddedTypeName, method);
+            return (owner, $".{MangleName(def.EmbeddedTypeName)}{suffix}");
+        }
+        throw new CompilerException($"'{objName}' has no method '{method}'.");
+    }
 
     private CufetType FieldType(CufetType t, string fieldName)
     {
         if (t is RecordType rt) return rt.NamedFields.First(f => f.Name == fieldName).Type;
-        if (t is ObjectType ot) return _objectDefs[ot.Name].NamedFields.First(f => f.FieldName == fieldName).FieldType;
+        if (t is ObjectType ot) return ObjectMemberType(ot.Name, fieldName);
         throw new CompilerException($"field access on '{t.GetType().Name}' is not yet supported by the compiler.");
+    }
+
+    // Static type of an object member, walking the embed chain (getter → own field →
+    // embed handle → promoted field).
+    private CufetType ObjectMemberType(string objName, string member)
+    {
+        var def = _objectDefs[objName];
+        if (GetterFor(objName, member) is { } g) return g.ReturnType;
+        var nf = def.NamedFields.FirstOrDefault(f => f.FieldName == member);
+        if (nf.FieldName == member) return nf.FieldType;
+        if (def.EmbeddedTypeName == member) return ObjType(member);   // embed handle → embedded object
+        if (def.EmbeddedTypeName != null) return ObjectMemberType(def.EmbeddedTypeName, member);
+        throw new CompilerException($"'{objName}' has no member '{member}'.");
+    }
+
+    // 0-based positional index for an object, guarding the named-field case (which the
+    // interpreter rejects too — a named-field object has no positional slots).
+    private int ObjectPositionalIndex(string objName, IExpression? index)
+    {
+        int i = LiteralIndex(index);
+        var pos = _objectDefs[objName].PositionalTypes;
+        if (i < 1 || i > pos.Count)
+            throw new CompilerException($"'{objName}' has no positional field {i} — access named-field objects by name (the <field> of ...).");
+        return i - 1;
     }
 
     // A compile-time positional index from an ordinal literal (the first → 1, ...).
@@ -990,12 +1069,45 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
     {
         if (bind.UntoType != null)
             throw new CompilerException($"Object methods declared with 'unto' are not yet supported by the compiler.");
-        if (bind.ConstructsTypeName != null)
-            throw new CompilerException($"Named constructors are not yet supported by the compiler.");
-
+        // Named constructors are ordinary functions here — bind.ReturnType is the object
+        // type (or a FailureType for 'or failure', which EmitCType defers cleanly).
         var paramsStr = string.Join(", ", bind.Parameters.Select(p => $"{EmitCType(p.Type)} {MangleName(p.Name)}"));
         return $"{EmitCType(bind.ReturnType)} {MangleName(bind.Name)}({paramsStr})";
     }
+
+    // Folds 'Bind <ret> to <name> unto <type> ...' methods into their target object's
+    // method list — an unto method is identical to a nested one, only its declaration
+    // site differs, so once merged the normal method emission + dispatch handle it.
+    private void MergeUntoMethods(IEnumerable<IStatement> stmts)
+    {
+        foreach (var stmt in stmts)
+        {
+            switch (stmt)
+            {
+                case BindStatement { UntoType: { } target } b:
+                    _objectDefs[target] = UntoTargetDef(target, "methods") with { Methods = UntoTargetDef(target, "methods").Methods.Append(b).ToList() };
+                    break;
+                case GetterDeclaration { UntoType: { } target } g:
+                    _objectDefs[target] = UntoTargetDef(target, "getters") with { Getters = UntoTargetDef(target, "getters").Getters.Append(g).ToList() };
+                    break;
+                case SetterDeclaration { UntoType: { } target } s:
+                    _objectDefs[target] = UntoTargetDef(target, "setters") with { Setters = UntoTargetDef(target, "setters").Setters.Append(s).ToList() };
+                    break;
+                case PullRabbitStatement p: MergeUntoMethods(p.Body); break;
+                case IfStatement iff:
+                    foreach (var arm in iff.Arms) MergeUntoMethods(arm.Body);
+                    if (iff.ElseBody != null) MergeUntoMethods(iff.ElseBody);
+                    break;
+                case WhileStatement w:       MergeUntoMethods(w.Body); break;
+                case RepeatUntilStatement r: MergeUntoMethods(r.Body); break;
+                case ForEachStatement fe:    MergeUntoMethods(fe.Body); break;
+            }
+        }
+    }
+
+    private ObjectDefinition UntoTargetDef(string target, string kind) =>
+        _objectDefs.TryGetValue(target, out var def) ? def
+            : throw new CompilerException($"'unto {target}': {kind} on '{target}' are not yet supported by the compiler (not a plain object type).");
 
     private void EmitBind(StringBuilder sb, BindStatement bind)
     {
@@ -1015,9 +1127,103 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
     }
 
-    // C function name for a method: cm_<obj>_<method>.
+    // C function names: methods cm_, getters cg_, setters cst_ (cst_ avoids the cs_ series-temp prefix).
     private static string MethodCName(string objName, string methodName) =>
         "cm_" + objName.Replace('-', '_') + "_" + methodName.Replace('-', '_');
+    private static string GetterCName(string objName, string name) =>
+        "cg_" + objName.Replace('-', '_') + "_" + name.Replace('-', '_');
+    private static string SetterCName(string objName, string name) =>
+        "cst_" + objName.Replace('-', '_') + "_" + name.Replace('-', '_');
+
+    private GetterDeclaration? GetterFor(string objName, string member) =>
+        _objectDefs.TryGetValue(objName, out var d) ? d.Getters.FirstOrDefault(g => g.Name == member) : null;
+    private SetterDeclaration? SetterFor(string objName, string member) =>
+        _objectDefs.TryGetValue(objName, out var d) ? d.Setters.FirstOrDefault(s => s.Name == member) : null;
+
+    private void EmitGetter(StringBuilder sb, ObjectDefinition def, GetterDeclaration g)
+    {
+        var saved = new Dictionary<string, CufetType>(_varTypes);
+        var savedRecv = _methodReceiverType;
+        _varTypes.Clear();
+        _methodReceiverType = def.Name;
+        _varTypes["one"] = ObjType(def.Name);
+        sb.AppendLine($"{GetterSignature(def, g)} {{");
+        EmitBlock(sb, g.Body, "    ");
+        sb.AppendLine("}");
+        sb.AppendLine();
+        _varTypes.Clear();
+        foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
+        _methodReceiverType = savedRecv;
+    }
+
+    private void EmitSetter(StringBuilder sb, ObjectDefinition def, SetterDeclaration s)
+    {
+        var saved = new Dictionary<string, CufetType>(_varTypes);
+        var savedRecv = _methodReceiverType;
+        var savedSetter = _inSetterForField;
+        _varTypes.Clear();
+        _methodReceiverType = def.Name;
+        _inSetterForField   = s.Name;                 // one's <name> becomes X → raw write
+        _varTypes["one"] = ObjType(def.Name);
+        _varTypes[s.ParamName] = s.ParamType;
+        sb.AppendLine($"{SetterSignature(def, s)} {{");
+        EmitBlock(sb, s.Body, "    ");
+        sb.AppendLine("}");
+        sb.AppendLine();
+        _varTypes.Clear();
+        foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
+        _methodReceiverType = savedRecv;
+        _inSetterForField   = savedSetter;
+    }
+
+    private string GetterSignature(ObjectDefinition def, GetterDeclaration g) =>
+        $"{EmitCType(g.ReturnType)} {GetterCName(def.Name, g.Name)}({ObjStructName(def.Name)}* cv_one)";
+    private string SetterSignature(ObjectDefinition def, SetterDeclaration s) =>
+        $"void {SetterCName(def.Name, s.Name)}({ObjStructName(def.Name)}* cv_one, {EmitCType(s.ParamType)} {MangleName(s.ParamName)})";
+
+    // Object member READ: getter dispatch, own field, embed handle, or a promoted field
+    // reached by walking the embed chain — all resolved statically.
+    private string EmitMemberAccess(IExpression target, string member) =>
+        TypeOf(target) is ObjectType ot
+            ? EmitObjectMemberRead(EmitExpr(target), ot.Name, member)
+            : $"({EmitExpr(target)}).{MangleName(member)}";   // record field
+
+    private string EmitObjectMemberRead(string baseExpr, string objName, string member)
+    {
+        var def = _objectDefs[objName];
+        if (GetterFor(objName, member) is not null)
+            return $"{GetterCName(objName, member)}(&({baseExpr}))";
+        if (def.NamedFields.Any(f => f.FieldName == member) || def.EmbeddedTypeName == member)
+            return $"({baseExpr}).{MangleName(member)}";   // own field, or the embed handle
+        if (def.EmbeddedTypeName != null)
+            return EmitObjectMemberRead($"({baseExpr}).{MangleName(def.EmbeddedTypeName)}", def.EmbeddedTypeName, member);
+        throw new CompilerException($"'{objName}' has no member '{member}'.");
+    }
+
+    // Object member WRITE: setter dispatch (unless inside that setter for the same field on
+    // `one` — the bypass), own field, or a promoted field reached by walking the embed chain.
+    private void EmitMemberSet(StringBuilder sb, string indent, IExpression target, string member, IExpression value)
+    {
+        string baseExpr = EmitExpr(target);
+        string val      = EmitExpr(value);
+        FlushPreEmits(sb, indent);
+        string stmt = TypeOf(target) is ObjectType ot
+            ? EmitObjectMemberSet(baseExpr, ot.Name, member, val, target is VariableReference { Name: "one" })
+            : $"({baseExpr}).{MangleName(member)} = {val};";   // record field
+        sb.AppendLine($"{indent}{stmt}");
+    }
+
+    private string EmitObjectMemberSet(string baseExpr, string objName, string member, string val, bool isReceiver)
+    {
+        var def = _objectDefs[objName];
+        if (SetterFor(objName, member) is not null && !(isReceiver && _inSetterForField == member))
+            return $"{SetterCName(objName, member)}(&({baseExpr}), {val});";
+        if (def.NamedFields.Any(f => f.FieldName == member) || def.EmbeddedTypeName == member)
+            return $"({baseExpr}).{MangleName(member)} = {val};";
+        if (def.EmbeddedTypeName != null)
+            return EmitObjectMemberSet($"({baseExpr}).{MangleName(def.EmbeddedTypeName)}", def.EmbeddedTypeName, member, val, false);
+        throw new CompilerException($"'{objName}' has no member '{member}'.");
+    }
 
     // A method's C signature: takes the receiver as a pointer (so mutations to `one`
     // are visible on the caller's object — value-struct-in-place), then its params.
@@ -1063,22 +1269,41 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         SeriesLength sl2      => $"cufet_dec_from_ll(({EmitExpr(sl2.Series)})->len)",
         SeriesAccess sa       => EmitSeriesAccess(sa),
         RecordLiteral rl      => EmitRecordLiteral(rl),
-        RecordNamedAccess rna => $"({EmitExpr(rna.Record)}).{MangleName(rna.FieldName)}",
+        RecordNamedAccess rna => EmitMemberAccess(rna.Record, rna.FieldName),
         ObjectLiteral ol      => EmitObjectLiteral(ol),
-        PossessiveAccess pa   => $"({EmitExpr(pa.Target)}).{MangleName(pa.Member)}",
+        PossessiveAccess pa   => EmitMemberAccess(pa.Target, pa.Member),
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
 
-    // An object literal → a C compound literal (value struct) with designated initializers.
-    private string EmitObjectLiteral(ObjectLiteral ol)
+    // An object literal → a C compound literal (value struct). With embedding, the flat
+    // field list is routed to the right level (own vs embedded), recursively — mirroring
+    // the interpreter's BuildObjectValue.
+    private string EmitObjectLiteral(ObjectLiteral ol) =>
+        BuildObjectValue(ol.TypeName, ol.PositionalValues, ol.NamedValues);
+
+    private string BuildObjectValue(string objName, IReadOnlyList<IExpression> positionals,
+                                    IReadOnlyList<(string Name, IExpression Value)> named)
     {
+        var def = _objectDefs[objName];
         var parts = new List<string>();
-        for (int i = 0; i < ol.PositionalValues.Count; i++)
-            parts.Add($".p{i} = {EmitExpr(ol.PositionalValues[i])}");
-        foreach (var (name, valExpr) in ol.NamedValues)
-            parts.Add($".{MangleName(name)} = {EmitExpr(valExpr)}");
-        return $"(({ObjStructName(ol.TypeName)}){{ {string.Join(", ", parts)} }})";
+        int ownPos = def.PositionalTypes.Count;
+        for (int i = 0; i < ownPos; i++) parts.Add($".p{i} = {EmitExpr(positionals[i])}");
+
+        var ownFieldNames = def.NamedFields.Select(f => f.FieldName).ToHashSet();
+        var remaining = new List<(string, IExpression)>();
+        foreach (var (name, val) in named)
+        {
+            if (ownFieldNames.Contains(name)) parts.Add($".{MangleName(name)} = {EmitExpr(val)}");
+            else remaining.Add((name, val));
+        }
+
+        if (def.EmbeddedTypeName != null)
+        {
+            var restPos = positionals.Skip(ownPos).ToList();
+            parts.Add($".{MangleName(def.EmbeddedTypeName)} = {BuildObjectValue(def.EmbeddedTypeName, restPos, remaining)}");
+        }
+        return $"(({ObjStructName(objName)}){{ {string.Join(", ", parts)} }})";
     }
 
     // A record literal becomes a C compound literal (value struct) with designated
@@ -1115,8 +1340,11 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
     private string EmitSeriesAccess(SeriesAccess sa)
     {
         // Positional access on a record/object (the first/second/... of x) → a struct field.
-        if (TypeOf(sa.Target) is RecordType or ObjectType)
+        var tt = TypeOf(sa.Target);
+        if (tt is RecordType)
             return $"({EmitExpr(sa.Target)}).p{LiteralIndex(sa.Index) - 1}";
+        if (tt is ObjectType ot)
+            return $"({EmitExpr(sa.Target)}).p{ObjectPositionalIndex(ot.Name, sa.Index)}";
 
         string targetExpr = EmitExpr(sa.Target);
         if (sa.Index == null)
@@ -1140,17 +1368,18 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
             // Method dispatch: args[0] is the receiver, the rest are method params.
             if (args.Count > 0 && TypeOf(args[0]) is ObjectType ot)
             {
-                var rest = args.Skip(1).Select(EmitExpr);
-                var call = new[] { $"&({EmitExpr(args[0])})" }.Concat(rest);
-                return $"{MethodCName(ot.Name, vr.Name)}({string.Join(", ", call)})";
+                var (owner, suffix) = ResolveMethodLevel(ot.Name, vr.Name);
+                var call = new[] { $"&(({EmitExpr(args[0])}){suffix})" }.Concat(args.Skip(1).Select(EmitExpr));
+                return $"{MethodCName(owner, vr.Name)}({string.Join(", ", call)})";
             }
             throw new CompilerException($"'{vr.Name}': unresolved call — not a known function or method.");
         }
 
         if (funcExpr is PossessiveAccess pa && TypeOf(pa.Target) is ObjectType pot)   // alice's greet
         {
-            var call = new[] { $"&({EmitExpr(pa.Target)})" }.Concat(args.Select(EmitExpr));
-            return $"{MethodCName(pot.Name, pa.Member)}({string.Join(", ", call)})";
+            var (owner, suffix) = ResolveMethodLevel(pot.Name, pa.Member);
+            var call = new[] { $"&(({EmitExpr(pa.Target)}){suffix})" }.Concat(args.Select(EmitExpr));
+            return $"{MethodCName(owner, pa.Member)}({string.Join(", ", call)})";
         }
 
         throw new CompilerException("Function-value calls are not yet supported by the compiler.");
@@ -1204,7 +1433,19 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                 _ => throw new CompilerException($"Text comparison '{b.Op}' is not yet supported by the compiler.")
             };
 
-        // Facts (ints). Record/object structural equality is not yet supported.
+        // Records (structural) / objects (nominal same-type): field-by-field via _eq.
+        if (lt is RecordType or ObjectType)
+        {
+            string eq = EqCall(L, R, lt);
+            return b.Op switch
+            {
+                TokenType.Equal    => $"({eq})",
+                TokenType.NotEqual => $"(!({eq}))",
+                _ => throw new CompilerException($"'{b.Op}' on a '{lt.GetType().Name}' is not supported (only is / is not).")
+            };
+        }
+
+        // Facts (ints).
         return b.Op switch
         {
             TokenType.Equal    => $"({L} == {R})",
