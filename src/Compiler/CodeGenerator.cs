@@ -474,8 +474,9 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         SeriesType s => "S(" + TypeSig(s.ElementType) + ")",
         RecordType r => "R(" + string.Join(",", r.PositionalTypes.Select(TypeSig)) + "|" +
                         string.Join(",", r.NamedFields.Select(f => f.Name + ":" + TypeSig(f.Type))) + ")",
+        ObjectType o => "O:" + o.Name,   // nominal — identity is the name
         _ => throw new CompilerException(
-                 $"'{t.GetType().Name}' is not yet supported by the compiler (slice 5B: records + text; objects/maps later).")
+                 $"'{t.GetType().Name}' is not yet supported by the compiler (slice 5B: records + objects + text).")
     };
 
     // Ensures a struct exists for this record shape (and, recursively, for any nested
@@ -624,6 +625,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                     TextType      => $"cufet_print_text({valExpr})",
                     SeriesType    => $"cufet_print_series({valExpr})",
                     RecordType rt => $"{RegisterRecordStruct(rt)}_write({valExpr}); printf(\"\\n\")",
+                    ObjectType ot => $"{ObjStructName(ot.Name)}_write({valExpr}); printf(\"\\n\")",
                     _ => throw new CompilerException($"State of a '{t.GetType().Name}' is not yet supported by the compiler.")
                 };
                 sb.AppendLine($"{indent}{printStmt};");
@@ -664,10 +666,13 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                 break;
 
             case CastStatement cs:
-                if (cs.Function is not VariableReference csVr)
-                    throw new CompilerException("Method calls and function-value calls are not yet supported by the compiler.");
-                sb.AppendLine($"{indent}{MangleName(csVr.Name)}({string.Join(", ", cs.Args.Select(EmitExpr))});");
+            {
+                // Void free-function call or void method dispatch (statement position).
+                string call = EmitCall(cs.Function, cs.Args);
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}{call};");
                 break;
+            }
 
             case BindStatement:
                 throw new CompilerException("Nested function declarations and closures are not yet supported by the compiler.");
@@ -724,9 +729,9 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                 break;
             }
 
-            case SeriesSetStatement ss when TypeOf(ss.Series) is RecordType:
+            case SeriesSetStatement ss when TypeOf(ss.Series) is RecordType or ObjectType:
             {
-                // Positional record-field assignment: item N of r / the Nth of r becomes v.
+                // Positional field assignment on a record/object: the Nth of x becomes v.
                 string baseExpr = EmitExpr(ss.Series);
                 string valExpr  = EmitExpr(ss.Value);
                 FlushPreEmits(sb, indent);
@@ -763,6 +768,19 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                 sb.AppendLine($"{indent}({baseExpr}).{MangleName(rns.FieldName)} = {valExpr};");
                 break;
             }
+
+            case PossessiveSetStatement pss:
+            {
+                // alice's age becomes 31 / one's age becomes 31 — same in-place field write.
+                string baseExpr = EmitExpr(pss.Target);
+                string valExpr  = EmitExpr(pss.Value);
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}({baseExpr}).{MangleName(pss.Member)} = {valExpr};");
+                break;
+            }
+
+            case ObjectDefinition:
+                break;   // declaration — struct + methods emitted in the prelude
 
             case IfStatement ifStmt:
                 EmitIf(sb, ifStmt, indent);
@@ -911,9 +929,16 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                                      rl.PositionalFields.Select(TypeOf).ToList(),
                                      rl.NamedFields.Select(f => (f.Name, TypeOf(f.Value))).ToList()),
         RecordNamedAccess rna => FieldType(TypeOf(rna.Record), rna.FieldName),
+        ObjectLiteral ol      => ObjType(ol.TypeName),
+        PossessiveAccess pa   => FieldType(TypeOf(pa.Target), pa.Member),
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
+
+    // Minimal nominal ObjectType (fields looked up from _objectDefs by name when needed).
+    private static CufetType ObjType(string name) =>
+        new ObjectType(name, Array.Empty<CufetType>(), Array.Empty<(string, CufetType)>(),
+                       Array.Empty<(string, FunctionType)>());
 
     private CufetType SeriesElementType(SeriesLiteral sl) =>
         sl.Annotation ?? (sl.Elements.Count > 0 ? TypeOf(sl.Elements[0]) : TNumber);
@@ -923,16 +948,30 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         var tt = TypeOf(sa.Target);
         if (tt is SeriesType st) return st.ElementType;
         if (tt is RecordType rt) return rt.PositionalTypes[LiteralIndex(sa.Index) - 1];
+        if (tt is ObjectType ot) return _objectDefs[ot.Name].PositionalTypes[LiteralIndex(sa.Index) - 1];
         throw new CompilerException("positional access on this type is not yet supported by the compiler.");
     }
 
-    private CufetType CastReturnType(CastExpression c) =>
-        c.Function is VariableReference cvr && _funcReturnTypes.TryGetValue(cvr.Name, out var rt) && rt != null
-            ? rt : TNumber;
+    private CufetType CastReturnType(CastExpression c)
+    {
+        if (c.Function is VariableReference vr)
+        {
+            if (_funcReturnTypes.TryGetValue(vr.Name, out var rt)) return rt ?? TNumber;   // free function
+            if (c.Args.Count > 0 && TypeOf(c.Args[0]) is ObjectType ot)                    // method dispatch
+                return MethodReturnType(ot.Name, vr.Name);
+        }
+        if (c.Function is PossessiveAccess pa && TypeOf(pa.Target) is ObjectType pot)
+            return MethodReturnType(pot.Name, pa.Member);
+        return TNumber;
+    }
 
-    private static CufetType FieldType(CufetType t, string fieldName)
+    private CufetType MethodReturnType(string objName, string methodName) =>
+        _objectDefs[objName].Methods.First(m => m.Name == methodName).ReturnType ?? TNumber;
+
+    private CufetType FieldType(CufetType t, string fieldName)
     {
         if (t is RecordType rt) return rt.NamedFields.First(f => f.Name == fieldName).Type;
+        if (t is ObjectType ot) return _objectDefs[ot.Name].NamedFields.First(f => f.FieldName == fieldName).FieldType;
         throw new CompilerException($"field access on '{t.GetType().Name}' is not yet supported by the compiler.");
     }
 
@@ -976,6 +1015,39 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
     }
 
+    // C function name for a method: cm_<obj>_<method>.
+    private static string MethodCName(string objName, string methodName) =>
+        "cm_" + objName.Replace('-', '_') + "_" + methodName.Replace('-', '_');
+
+    // A method's C signature: takes the receiver as a pointer (so mutations to `one`
+    // are visible on the caller's object — value-struct-in-place), then its params.
+    private string MethodSignature(ObjectDefinition def, BindStatement method)
+    {
+        var ps = new List<string> { $"{ObjStructName(def.Name)}* cv_one" };
+        ps.AddRange(method.Parameters.Select(p => $"{EmitCType(p.Type)} {MangleName(p.Name)}"));
+        return $"{EmitCType(method.ReturnType)} {MethodCName(def.Name, method.Name)}({string.Join(", ", ps)})";
+    }
+
+    private void EmitMethod(StringBuilder sb, ObjectDefinition def, BindStatement method)
+    {
+        var saved = new Dictionary<string, CufetType>(_varTypes);
+        var savedRecv = _methodReceiverType;
+        _varTypes.Clear();
+        _methodReceiverType = def.Name;               // `one` → (*cv_one), resolves fields
+        _varTypes["one"] = ObjType(def.Name);
+        foreach (var (pType, pName) in method.Parameters)
+            _varTypes[pName] = pType;
+
+        sb.AppendLine($"{MethodSignature(def, method)} {{");
+        EmitBlock(sb, method.Body, "    ");
+        sb.AppendLine("}");
+        sb.AppendLine();
+
+        _varTypes.Clear();
+        foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
+        _methodReceiverType = savedRecv;
+    }
+
     private string EmitExpr(IExpression expr) => expr switch
     {
         NumberLiteral n       => EmitNumberLiteral(n.Value),
@@ -983,16 +1055,31 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         StringLiteral s       => EscapeStringLiteral(s.Value),   // text-as-stored-data: static C string
         UnaryExpression u     => EmitUnary(u),
         BinaryExpression b    => EmitBinary(b),
-        VariableReference v   => MangleName(v.Name),
+        // `one` inside a method is a pointer param; deref so it reads as a value-struct
+        // lvalue everywhere (field access via `.`, address taken as `&(*cv_one)` = cv_one).
+        VariableReference v   => v.Name == "one" && _methodReceiverType != null ? "(*cv_one)" : MangleName(v.Name),
         CastExpression cast   => EmitCastExpr(cast),
         SeriesLiteral sl      => EmitSeriesLiteral(sl),
         SeriesLength sl2      => $"cufet_dec_from_ll(({EmitExpr(sl2.Series)})->len)",
         SeriesAccess sa       => EmitSeriesAccess(sa),
         RecordLiteral rl      => EmitRecordLiteral(rl),
         RecordNamedAccess rna => $"({EmitExpr(rna.Record)}).{MangleName(rna.FieldName)}",
+        ObjectLiteral ol      => EmitObjectLiteral(ol),
+        PossessiveAccess pa   => $"({EmitExpr(pa.Target)}).{MangleName(pa.Member)}",
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
+
+    // An object literal → a C compound literal (value struct) with designated initializers.
+    private string EmitObjectLiteral(ObjectLiteral ol)
+    {
+        var parts = new List<string>();
+        for (int i = 0; i < ol.PositionalValues.Count; i++)
+            parts.Add($".p{i} = {EmitExpr(ol.PositionalValues[i])}");
+        foreach (var (name, valExpr) in ol.NamedValues)
+            parts.Add($".{MangleName(name)} = {EmitExpr(valExpr)}");
+        return $"(({ObjStructName(ol.TypeName)}){{ {string.Join(", ", parts)} }})";
+    }
 
     // A record literal becomes a C compound literal (value struct) with designated
     // initializers, so field order in the source is irrelevant. Any series-valued field
@@ -1027,8 +1114,8 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
 
     private string EmitSeriesAccess(SeriesAccess sa)
     {
-        // Positional access on a record (the first/second/... of r) → a struct field.
-        if (TypeOf(sa.Target) is RecordType)
+        // Positional access on a record/object (the first/second/... of x) → a struct field.
+        if (TypeOf(sa.Target) is RecordType or ObjectType)
             return $"({EmitExpr(sa.Target)}).p{LiteralIndex(sa.Index) - 1}";
 
         string targetExpr = EmitExpr(sa.Target);
@@ -1038,11 +1125,35 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         return $"({targetExpr})->data[cufet_to_int({idxExpr}) - 1]";
     }
 
-    private string EmitCastExpr(CastExpression cast)
+    private string EmitCastExpr(CastExpression cast) => EmitCall(cast.Function, cast.Args);
+
+    // Resolves a Cast to a free-function call or a direct method dispatch, and returns the
+    // C call expression. Method receiver is passed by address (&(recv)); `one` and lvalue
+    // variables work directly, and C99 compound-literal temporaries are lvalues too.
+    private string EmitCall(IExpression funcExpr, IReadOnlyList<IExpression> args)
     {
-        if (cast.Function is not VariableReference vr)
-            throw new CompilerException("Method calls and function-value calls are not yet supported by the compiler.");
-        return $"{MangleName(vr.Name)}({string.Join(", ", cast.Args.Select(EmitExpr))})";
+        if (funcExpr is VariableReference vr)
+        {
+            if (_funcReturnTypes.ContainsKey(vr.Name))   // free function
+                return $"{MangleName(vr.Name)}({string.Join(", ", args.Select(EmitExpr))})";
+
+            // Method dispatch: args[0] is the receiver, the rest are method params.
+            if (args.Count > 0 && TypeOf(args[0]) is ObjectType ot)
+            {
+                var rest = args.Skip(1).Select(EmitExpr);
+                var call = new[] { $"&({EmitExpr(args[0])})" }.Concat(rest);
+                return $"{MethodCName(ot.Name, vr.Name)}({string.Join(", ", call)})";
+            }
+            throw new CompilerException($"'{vr.Name}': unresolved call — not a known function or method.");
+        }
+
+        if (funcExpr is PossessiveAccess pa && TypeOf(pa.Target) is ObjectType pot)   // alice's greet
+        {
+            var call = new[] { $"&({EmitExpr(pa.Target)})" }.Concat(args.Select(EmitExpr));
+            return $"{MethodCName(pot.Name, pa.Member)}({string.Join(", ", call)})";
+        }
+
+        throw new CompilerException("Function-value calls are not yet supported by the compiler.");
     }
 
     private string EmitUnary(UnaryExpression u) => u.Op switch
@@ -1118,6 +1229,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         SeriesType st => st.ElementType is NumberType ? "CufetSeries*"
             : throw new CompilerException("series of a non-number element type is not yet supported by the compiler (series are number-only this slice)."),
         RecordType rt => RegisterRecordStruct(rt),
+        ObjectType ot => ObjStructName(ot.Name),
         _ => throw new CompilerException(
                  $"'{type!.GetType().Name}' is not yet supported by the compiler (slice 5B: records + text; objects/maps later).")
     };

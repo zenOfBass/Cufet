@@ -1063,6 +1063,172 @@ public class PipelineTests
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ── Slice 5B: objects (nominal value structs + methods, direct dispatch) ──
+
+    [Fact]
+    public void Object_ConstructAccessAndPrint_MatchesInterpreter()
+    {
+        const string src = """
+            Define object person with (the text name, the number age).
+            Define alice as a new person { the name "Alice", the age 30 }.
+            State alice.
+            State alice's name.
+            State the age of alice.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_VoidMutatingMethod_MatchesInterpreter()
+    {
+        // `one's age becomes ...` mutates the receiver in place (receiver passed by pointer).
+        const string src = """
+            Define object person with (the text name, the number age):
+                Bind void to birthday:
+                    one's age becomes one's age + 1.
+                Done.
+            Done.
+            Define alice as a new person { the name "Alice", the age 30 }.
+            Cast birthday on alice.
+            State the age of alice.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_ValueReturningMethod_MatchesInterpreter()
+    {
+        const string src = """
+            Define object person with (the text name, the number age):
+                Bind number to doubled-age:
+                    return one's age * 2.
+                Done.
+            Done.
+            Define alice as a new person { the name "Alice", the age 21 }.
+            State cast alice's doubled-age.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_MethodWithArgs_MatchesInterpreter()
+    {
+        // Method dispatch with extra args: receiver first, params follow.
+        const string src = """
+            Define object person with (the text name, the number age):
+                Bind number to age-in, given (the number years):
+                    return one's age + years.
+                Done.
+            Done.
+            Define alice as a new person { the name "Alice", the age 30 }.
+            State cast age-in on (alice, 5).
+            State cast alice's age-in on (10).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_ValueSemantics_DefineCopies_MatchesInterpreter()
+    {
+        // Objects are value structs: a copy is fully independent (methods on one don't
+        // touch the other), matching the interpreter's deep-copy on Define.
+        const string src = """
+            Define object person with (the text name, the number age):
+                Bind void to birthday:
+                    one's age becomes one's age + 1.
+                Done.
+            Done.
+            Define alice as a new person { the name "Alice", the age 30 }.
+            Define bob as alice.
+            the name of bob becomes "Bob".
+            Cast birthday on bob.
+            State alice.
+            State bob.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_MutatedParam_NoLeak_MatchesInterpreter()
+    {
+        // Binding is binding: an object arg is copied, so a function mutating its param
+        // (via a method) does NOT change the caller's object. Compiled == interpreted.
+        const string src = """
+            Define object person with (the text name, the number age):
+                Bind void to birthday:
+                    one's age becomes one's age + 1.
+                Done.
+            Done.
+            Bind void to age-it, given (the person p):
+                Cast birthday on p.
+            Done.
+            Define alice as a new person { the name "Alice", the age 30 }.
+            Cast age-it on (alice).
+            State the age of alice.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_AsFunctionReturn_MatchesInterpreter()
+    {
+        const string src = """
+            Define object person with (the text name, the number age).
+            Bind the person to make-alice:
+                return a new person { the name "Alice", the age 30 }.
+            Done.
+            Define alice as cast make-alice.
+            State alice.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_AsRecordField_MatchesInterpreter()
+    {
+        // A record whose field is an object (value struct nested in a value struct).
+        const string src = """
+            Define object person with (the text name, the number age).
+            Define alice as a new person { the name "Alice", the age 30 }.
+            Define row as a record with (the who alice, the score 95).
+            State row.
+            State the age of the who of row.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_Embedding_ThrowsCleanly()
+    {
+        // Embedding (composition/promotion) isn't lowered yet — defer, don't miscompile.
+        const string src = """
+            Define object animal with (the text name).
+            Define object dog with (the number legs) and as an animal.
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+    }
+
+    [Fact]
+    public void Object_Getter_ThrowsCleanly()
+    {
+        const string src = """
+            Define object circle with (the number radius):
+                Get area as number:
+                    return one's radius * one's radius * 3.
+                Done.
+            Done.
+            Define c as a new circle { the radius 2 }.
+            State c's area.
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+    }
+
     // Compiles source with -fsanitize=address for memory-safety verification.
     // Skipped when not on Linux (ASan reliable only with Linux gcc).
     private static string CompileWithASan(string source)
