@@ -30,6 +30,12 @@ public sealed class CodeGenerator
     private readonly List<(string Name, CufetType Inner)> _voidableStructs = new();
     private int _voidableCounter;
 
+    // Map struct registry — one arena container `cmap_N { K* keys; V* vals; int len, cap; }`
+    // per distinct (K,V), an association list with linear scan. Lookup returns voidable V.
+    private readonly Dictionary<string, string> _mapSig2Name = new();
+    private readonly List<(string Name, CufetType Key, CufetType Value)> _mapStructs = new();
+    private int _mapCounter;
+
     // The declared return type of the function/method/getter currently being emitted, so a
     // `return <T>` in a `voidable T` body widens the value into the voidable struct.
     private CufetType? _currentReturnType;
@@ -440,8 +446,14 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         body.AppendLine("    return 0;");
         body.AppendLine("}");
 
-        // ── Struct declarations (records + objects) + write helpers (dependency-ordered) ──
+        // ── Map struct forward declarations (so value structs can hold a map pointer) ──
+        EmitMapForwardDecls(sb);
+
+        // ── Struct declarations (records + objects + voidables) + write/eq helpers ──
         EmitStructs(sb);
+
+        // ── Map container structs + helpers (need K/V structs + voidable-V above) ──
+        EmitMapRuntime(sb);
 
         // ── Forward declarations: object methods/getters/setters, then free functions ──
         foreach (var def in _objectDefs.Values)
@@ -508,6 +520,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                         string.Join(",", r.NamedFields.Select(f => f.Name + ":" + TypeSig(f.Type))) + ")",
         ObjectType o => "O:" + o.Name,   // nominal — identity is the name
         VoidableType v => "V(" + TypeSig(v.Inner) + ")",
+        MapType m => "M(" + TypeSig(m.KeyType) + "," + TypeSig(m.ValueType) + ")",
         _ => throw new CompilerException(
                  $"'{t.GetType().Name}' is not yet supported by the compiler (slice 5B: records + objects + text).")
     };
@@ -534,7 +547,26 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
             case RecordType rt:   RegisterRecordStruct(rt); break;
             case SeriesType st:   RegisterNestedRecords(st.ElementType); break;
             case VoidableType vt: RegisterVoidableStruct(vt); break;
+            case MapType mt:      RegisterMapStruct(mt); break;
         }
+    }
+
+    // Ensures a map container struct exists for `map from K to V` (and the K/V nested structs,
+    // plus the voidable-V struct that lookups return). Returns the C struct name.
+    private string RegisterMapStruct(MapType mt)
+    {
+        // Voidable-valued maps need lookup-flattening (voidable voidable V → voidable V) — defer.
+        if (mt.ValueType is VoidableType)
+            throw new CompilerException("maps with voidable values are not yet supported by the compiler.");
+        string sig = TypeSig(mt);
+        if (_mapSig2Name.TryGetValue(sig, out var name)) return name;
+        name = $"cmap_{_mapCounter++}";
+        _mapSig2Name[sig] = name;
+        _mapStructs.Add((name, mt.KeyType, mt.ValueType));
+        RegisterNestedRecords(mt.KeyType);
+        RegisterNestedRecords(mt.ValueType);
+        RegisterVoidableStruct(new VoidableType(mt.ValueType));   // lookup returns voidable V
+        return name;
     }
 
     // Ensures a tagged struct exists for `voidable <inner>` (and its inner's nested structs).
@@ -678,6 +710,55 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         sb.AppendLine();
     }
 
+    // Forward-declares each map container (`typedef struct cmap_N_s cmap_N;`) so record/object
+    // value structs can hold a `cmap_N*` field before the full definition appears below.
+    private void EmitMapForwardDecls(StringBuilder sb)
+    {
+        if (_mapStructs.Count == 0) return;
+        foreach (var (name, _, _) in _mapStructs) sb.AppendLine($"typedef struct {name}_s {name};");
+        // `_write` is forward-declared: a record/object/voidable whose field is a map calls it
+        // from its own `_write`, which is emitted before the map runtime's full definitions.
+        foreach (var (name, _, _) in _mapStructs) sb.AppendLine($"static void {name}_write({name}* m);");
+        sb.AppendLine();
+    }
+
+    // Emits each map container's full struct + helpers: an arena-allocated association list
+    // (parallel key/value arrays) with linear scan. Keys compared by value; get returns voidable V.
+    private void EmitMapRuntime(StringBuilder sb)
+    {
+        if (_mapStructs.Count == 0) return;
+        sb.AppendLine("// ── Map containers (arena association lists; linear scan; keys by value) ──");
+        foreach (var (name, k, v) in _mapStructs)
+        {
+            string kc = EmitCType(k), vc = EmitCType(v);
+            string cvd = RegisterVoidableStruct(new VoidableType(v));
+            sb.AppendLine($"struct {name}_s {{ {kc}* keys; {vc}* vals; int len; int cap; }};");
+            sb.AppendLine($"static {name}* {name}_new(void) {{ {name}* m = ({name}*)cufet_arena_alloc(sizeof({name})); m->keys = NULL; m->vals = NULL; m->len = 0; m->cap = 0; return m; }}");
+            sb.AppendLine($"static void {name}_ensure({name}* m) {{");
+            sb.AppendLine($"    if (m->len >= m->cap) {{");
+            sb.AppendLine($"        int nc = m->cap == 0 ? 4 : m->cap * 2;");
+            sb.AppendLine($"        {kc}* nk = ({kc}*)cufet_arena_alloc((size_t)nc * sizeof({kc}));");
+            sb.AppendLine($"        {vc}* nv = ({vc}*)cufet_arena_alloc((size_t)nc * sizeof({vc}));");
+            sb.AppendLine($"        if (m->len > 0) {{ memcpy(nk, m->keys, (size_t)m->len * sizeof({kc})); memcpy(nv, m->vals, (size_t)m->len * sizeof({vc})); }}");
+            sb.AppendLine($"        m->keys = nk; m->vals = nv; m->cap = nc;");
+            sb.AppendLine($"    }}");
+            sb.AppendLine($"}}");
+            sb.AppendLine($"static int {name}_index({name}* m, {kc} k) {{ for (int i = 0; i < m->len; i++) if ({EqCall("m->keys[i]", "k", k)}) return i; return -1; }}");
+            sb.AppendLine($"static void {name}_put({name}* m, {kc} k, {vc} v) {{ int i = {name}_index(m, k); if (i >= 0) {{ m->vals[i] = v; return; }} {name}_ensure(m); m->keys[m->len] = k; m->vals[m->len] = v; m->len++; }}");
+            sb.AppendLine($"static {cvd} {name}_get({name}* m, {kc} k) {{ {cvd} r = {{0}}; int i = {name}_index(m, k); if (i >= 0) {{ r.has = 1; r.val = m->vals[i]; }} return r; }}");
+            sb.AppendLine($"static int {name}_has({name}* m, {kc} k) {{ return {name}_index(m, k) >= 0; }}");
+            sb.AppendLine($"static void {name}_write({name}* m) {{");
+            sb.AppendLine($"    printf(\"map {{\");");
+            sb.AppendLine($"    for (int i = 0; i < m->len; i++) {{");
+            sb.AppendLine($"        if (i > 0) printf(\", \");");
+            sb.AppendLine($"        {WriteCall("m->keys[i]", k)}; printf(\": \"); {WriteCall("m->vals[i]", v)};");
+            sb.AppendLine($"    }}");
+            sb.AppendLine($"    printf(\"}}\");");
+            sb.AppendLine($"}}");
+        }
+        sb.AppendLine();
+    }
+
     // The C boolean expression comparing two values of type `t` by value.
     private string EqCall(string a, string b, CufetType t) => t switch
     {
@@ -688,6 +769,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         RecordType rt => $"{RegisterRecordStruct(rt)}_eq({a}, {b})",
         ObjectType ot => $"{ObjStructName(ot.Name)}_eq({a}, {b})",
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_eq({a}, {b})",
+        MapType => $"({a} == {b})",   // maps: reference (pointer) equality, like the interpreter
         _ => throw new CompilerException($"equality on a '{t.GetType().Name}' is not yet supported by the compiler.")
     };
 
@@ -702,6 +784,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         RecordType rt => $"{RegisterRecordStruct(rt)}_write({valExpr})",
         ObjectType ot => $"{ObjStructName(ot.Name)}_write({valExpr})",
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr})",
+        MapType mt => $"{RegisterMapStruct(mt)}_write({valExpr})",
         _ => throw new CompilerException(
                  $"printing a '{t.GetType().Name}' is not yet supported by the compiler.")
     };
@@ -730,6 +813,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                     RecordType rt   => $"{RegisterRecordStruct(rt)}_write({valExpr}); printf(\"\\n\")",
                     ObjectType ot   => $"{ObjStructName(ot.Name)}_write({valExpr}); printf(\"\\n\")",
                     VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr}); printf(\"\\n\")",
+                    MapType mt      => $"{RegisterMapStruct(mt)}_write({valExpr}); printf(\"\\n\")",
                     _ => throw new CompilerException($"State of a '{t.GetType().Name}' is not yet supported by the compiler.")
                 };
                 sb.AppendLine($"{indent}{printStmt};");
@@ -878,6 +962,19 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                 EmitMemberSet(sb, indent, pss.Target, pss.Member, pss.Value);
                 break;
 
+            case MapSetStatement mss:
+            {
+                // In m, the entry for k becomes v — scan-update-or-append (cmap put).
+                string name    = MapName(mss.Map);
+                var    valType = ((MapType)TypeOf(mss.Map)).ValueType;
+                string mapExpr = EmitExpr(mss.Map);
+                string keyExpr = EmitExpr(mss.Key);
+                string valExpr = EmitAsType(mss.Value, valType);
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}{name}_put({mapExpr}, {keyExpr}, {valExpr});");
+                break;
+            }
+
             case ObjectDefinition:
             case GetterDeclaration:
             case SetterDeclaration:
@@ -909,6 +1006,10 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
 
             case ForEachStatement fe when fe.Series is RangeExpression range:
                 EmitForEachRange(sb, fe, range, indent);
+                break;
+
+            case ForEachStatement fe when TypeOf(fe.Series) is MapType:
+                EmitForEachMap(sb, fe, indent);
                 break;
 
             case ForEachStatement fe:
@@ -1023,6 +1124,38 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         sb.AppendLine($"{indent}}}");
     }
 
+    // For each pair in a map — iterates the association list in insertion order, binding the
+    // pair's key/value to cv_<pair>_key / cv_<pair>_value (see EmitMemberAccess for MappingType).
+    private void EmitForEachMap(StringBuilder sb, ForEachStatement fe, string indent)
+    {
+        var inner      = indent + "    ";
+        var loopIndent = inner  + "    ";
+        var mt = (MapType)TypeOf(fe.Series);
+        string name = RegisterMapStruct(mt);
+        int id = _forCounter++;
+        string m = $"cf_m{id}", idx = $"cf_i{id}";
+        string pair = MangleName(fe.IteratorName ?? "it");
+
+        string mapExpr = EmitExpr(fe.Series);
+        FlushPreEmits(sb, indent);
+
+        var savedType = _varTypes.TryGetValue(fe.IteratorName ?? "it", out var prev) ? prev : null;
+        _varTypes[fe.IteratorName ?? "it"] = new MappingType(mt.KeyType, mt.ValueType);
+
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{inner}{name}* {m} = {mapExpr};");
+        sb.AppendLine($"{inner}int {m}_n = {m}->len;");
+        sb.AppendLine($"{inner}for (int {idx} = 0; {idx} < {m}_n; {idx}++) {{");
+        sb.AppendLine($"{loopIndent}{EmitCType(mt.KeyType)} {pair}_key = {m}->keys[{idx}];");
+        sb.AppendLine($"{loopIndent}{EmitCType(mt.ValueType)} {pair}_value = {m}->vals[{idx}];");
+        EmitBlock(sb, fe.Body, loopIndent);
+        sb.AppendLine($"{inner}}}");
+        sb.AppendLine($"{indent}}}");
+
+        if (savedType != null) _varTypes[fe.IteratorName ?? "it"] = savedType;
+        else _varTypes.Remove(fe.IteratorName ?? "it");
+    }
+
     // Emits all accumulated pre-emit lines (series literal constructions, etc.)
     // then clears the list. Must be called before emitting the statement that
     // uses the expression returned from EmitExpr.
@@ -1058,9 +1191,23 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         PossessiveAccess pa   => FieldType(TypeOf(pa.Target), pa.Member),
         VoidLiteral           => TVoid,
         ButVoidDefault bvd    => TypeOf(bvd.Voidable) is VoidableType vt ? vt.Inner : TypeOf(bvd.Default),
+        MapLiteral ml         => MapLiteralType(ml),
+        MapLookup mlk         => new VoidableType(MapValueType(mlk.Map)),
+        MapHasKey             => TFact,
+        MapHasEntry           => TFact,
+        MapSize               => TNumber,
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
+
+    private CufetType MapLiteralType(MapLiteral ml) =>
+        ml.KeyType != null && ml.ValueType != null
+            ? new MapType(ml.KeyType, ml.ValueType)
+            : new MapType(TypeOf(ml.Pairs[0].Key), TypeOf(ml.Pairs[0].Value));
+
+    private CufetType MapValueType(IExpression mapExpr) =>
+        TypeOf(mapExpr) is MapType mt ? mt.ValueType
+            : throw new CompilerException("map operation on a non-map value.");
 
     // Minimal nominal ObjectType (fields looked up from _objectDefs by name when needed).
     private static CufetType ObjType(string name) =>
@@ -1114,6 +1261,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
 
     private CufetType FieldType(CufetType t, string fieldName)
     {
+        if (t is MappingType mp) return fieldName == "key" ? mp.KeyType : mp.ValueType;   // the key/value of pair
         if (t is RecordType rt) return rt.NamedFields.First(f => f.Name == fieldName).Type;
         if (t is ObjectType ot) return ObjectMemberType(ot.Name, fieldName);
         throw new CompilerException($"field access on '{t.GetType().Name}' is not yet supported by the compiler.");
@@ -1278,10 +1426,12 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
 
     // Object member READ: getter dispatch, own field, embed handle, or a promoted field
     // reached by walking the embed chain — all resolved statically.
-    private string EmitMemberAccess(IExpression target, string member) =>
-        TypeOf(target) is ObjectType ot
-            ? EmitObjectMemberRead(EmitExpr(target), ot.Name, member)
-            : $"({EmitExpr(target)}).{MangleName(member)}";   // record field
+    private string EmitMemberAccess(IExpression target, string member) => TypeOf(target) switch
+    {
+        ObjectType ot  => EmitObjectMemberRead(EmitExpr(target), ot.Name, member),
+        MappingType    => $"{EmitExpr(target)}_{member}",   // the key/value of pair → cv_pair_key/_value
+        _              => $"({EmitExpr(target)}).{MangleName(member)}"   // record field
+    };
 
     private string EmitObjectMemberRead(string baseExpr, string objName, string member)
     {
@@ -1373,6 +1523,11 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         ObjectLiteral ol      => EmitObjectLiteral(ol),
         PossessiveAccess pa   => EmitMemberAccess(pa.Target, pa.Member),
         ButVoidDefault bvd    => EmitButVoidDefault(bvd),
+        MapLiteral ml         => EmitMapLiteral(ml),
+        MapLookup mlk         => $"{MapName(mlk.Map)}_get({EmitExpr(mlk.Map)}, {EmitExpr(mlk.Key)})",
+        MapHasKey mhk         => $"{MapName(mhk.Map)}_has({EmitExpr(mhk.Map)}, {EmitExpr(mhk.Key)})",
+        MapHasEntry mhe       => $"{MapName(mhe.Map)}_has({EmitExpr(mhe.Map)}, {EmitExpr(mhe.Key)})",
+        MapSize ms            => $"cufet_dec_from_ll(({EmitExpr(ms.Map)})->len)",
         // A bare `void` only has meaning where a voidable is expected (return/becomes/args,
         // handled by EmitAsType) or as an `is void` operand (handled in EmitBinary).
         VoidLiteral           => throw new CompilerException("'void' is only valid where a voidable value is expected."),
@@ -1404,6 +1559,25 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         string tmp = $"cf_bv{_freshId++}";
         _preEmits.Add($"{cvd} {tmp} = {voidableExpr};");
         return $"({tmp}.has ? {tmp}.val : {EmitExpr(bvd.Default)})";
+    }
+
+    private string MapName(IExpression mapExpr) => RegisterMapStruct((MapType)TypeOf(mapExpr));
+
+    // A map literal builds an arena map into a temp and populates it (like a series literal);
+    // the enclosing statement flushes the pre-emits before using the temp.
+    private string EmitMapLiteral(MapLiteral ml)
+    {
+        var mt = (MapType)MapLiteralType(ml);
+        string name = RegisterMapStruct(mt);
+        string tmp = $"cs_{_freshId++}";
+        _preEmits.Add($"{name}* {tmp} = {name}_new();");
+        foreach (var (k, v) in ml.Pairs)
+        {
+            string keyExpr = EmitExpr(k);
+            string valExpr = EmitAsType(v, mt.ValueType);
+            _preEmits.Add($"{name}_put({tmp}, {keyExpr}, {valExpr});");
+        }
+        return tmp;
     }
 
     // An object literal → a C compound literal (value struct). With embedding, the flat
@@ -1644,6 +1818,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         RecordType rt => RegisterRecordStruct(rt),
         ObjectType ot => ObjStructName(ot.Name),
         VoidableType vt => RegisterVoidableStruct(vt),
+        MapType mt => RegisterMapStruct(mt) + "*",   // maps are arena pointers (reference type)
         _ => throw new CompilerException(
                  $"'{type!.GetType().Name}' is not yet supported by the compiler (slice 5B: records + text; objects/maps later).")
     };

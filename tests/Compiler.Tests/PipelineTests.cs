@@ -1480,6 +1480,106 @@ public class PipelineTests
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ── Slice 5D: maps (arena association list; lookup → voidable; on 5A/5B/5C) ──
+
+    [Fact]
+    public void Map_CoreOperations_MatchesInterpreter()
+    {
+        // Construct, print (insertion order), size, lookup (present/absent → voidable),
+        // has key, update, append-on-new-key, for-each key, and reference (pointer) equality.
+        const string src = """
+            Define m as a map from text to number with ("apple": 3, "banana": 5, "cherry": 7).
+            State m.
+            State the size of m.
+            State the entry for "banana" in m.
+            State the entry for "kiwi" in m.
+            State the entry for "kiwi" in m but void is 0.
+            If m has a key for "apple", state "has-apple". Otherwise, state "no-apple".
+            If m has a key for "kiwi", state "has-kiwi". Otherwise, state "no-kiwi".
+            In m, the entry for "banana" becomes 50.
+            State the entry for "banana" in m.
+            In m, the entry for "date" becomes 9.
+            State the size of m.
+            State m.
+            For each pair in m, repeat:
+                State the key of pair.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Map_FractionalDecimalValues_MatchesInterpreter()
+    {
+        // The decimal-fidelity payoff: exact fractional values through a map (5.5+ enabled).
+        const string src = """
+            Define prices as a map from text to number with ("coffee": 3.50, "tea": 2.25, "cake": 4.75).
+            State prices.
+            State (the entry for "coffee" in prices but void is 0) + (the entry for "tea" in prices but void is 0).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Map_ParamAndForEachValue_MatchesInterpreter()
+    {
+        // Map as a function parameter; For each pair with `the value of pair`.
+        const string src = """
+            Bind number to total-of, given (the map from text to number m):
+                Define sum as 0.
+                For each pair in m, repeat:
+                    sum becomes sum + the value of pair.
+                Done.
+                return sum.
+            Done.
+            Define prices as a map from text to number with ("a": 3.50, "b": 2.25, "c": 4.75).
+            State cast total-of on (prices).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Map_OfObjects_MatchesInterpreter()
+    {
+        const string src = """
+            Define object person with (the text name, the number age).
+            Pull a rabbit.
+                Define people as a map from text to person with ("alice": a new person { the name "Alice", the age 30 }).
+                In people, the entry for "bob" becomes a new person { the name "Bob", the age 25 }.
+                State people.
+                State the age of (the entry for "alice" in people but void is a new person { the name "none", the age 0 }).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Map_OfSeries_MatchesInterpreter()
+    {
+        // Map values that are themselves a reference type (series) — all in the arena.
+        const string src = """
+            Pull a rabbit.
+                Define groups as a map from text to series of number with ("evens": a series of number with (2, 4, 6)).
+                State groups.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Record_WithMapField_MatchesInterpreter()
+    {
+        // A map nested inside a record value struct (map is a pointer field).
+        const string src = """
+            Pull a rabbit.
+                Define config as a record with (the label "prod", the settings a map from text to number with ("timeout": 30)).
+                State config.
+                State the entry for "timeout" in the settings of config but void is 0.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     // Compiles source with -fsanitize=address for memory-safety verification.
     // Skipped when not on Linux (ASan reliable only with Linux gcc).
     private static string CompileWithASan(string source)
@@ -1543,6 +1643,34 @@ public class PipelineTests
                 For each x in xs, repeat:
                     State x.
                 Done.
+            Done.
+            """;
+        string expected = Interpret(src);
+        string actual   = CompileWithASan(src);
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void Map_MemorySafety_ASan_ZeroLeaksAndNoUAF()
+    {
+        // The last arena-allocated type: a map with nested reference values (series) plus
+        // growth (append past initial capacity). The map, its key/value arrays, and the nested
+        // series must all free cleanly at Done. — zero leaks / UAF. Linux-only.
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+
+        const string src = """
+            Pull a rabbit.
+                Define scores as a map from text to series of number with ("a": a series of number with (1, 2)).
+                In scores, the entry for "b" becomes a series of number with (3, 4, 5).
+                In scores, the entry for "c" becomes a series of number with (6).
+                In scores, the entry for "d" becomes a series of number with (7).
+                In scores, the entry for "e" becomes a series of number with (8).
+                For each pair in scores, repeat:
+                    State the key of pair.
+                    State the value of pair.
+                Done.
+                State the size of scores.
             Done.
             """;
         string expected = Interpret(src);
