@@ -36,6 +36,18 @@ public sealed class CodeGenerator
     private readonly List<(string Name, CufetType Key, CufetType Value)> _mapStructs = new();
     private int _mapCounter;
 
+    // Failable struct registry — `cfl_N { int is_failure; T val; const char* message, category }`
+    // per distinct inner T. A `T or failure` value: either a T (is_failure=0) or a failure.
+    private readonly Dictionary<string, string> _failableSig2Name = new();
+    private readonly List<(string Name, CufetType Inner)> _failableStructs = new();
+    private int _failableCounter;
+
+    // Inside a Try body: (handler label, the caught-failure C var) so a failing fallible call
+    // records the failure and jumps to the In-case-of-failure handler.
+    private (string Label, string FailVar)? _currentTryHandler;
+    // Inside an In-case-of-failure handler: the CufetFailure C var that `the failure` refers to.
+    private string? _currentFailVar;
+
     // The declared return type of the function/method/getter currently being emitted, so a
     // `return <T>` in a `voidable T` body widens the value into the voidable struct.
     private CufetType? _currentReturnType;
@@ -58,6 +70,7 @@ public sealed class CodeGenerator
     private static readonly CufetType TFact   = new FactType();
     private static readonly CufetType TText    = new TextType();
     private static readonly CufetType TVoid    = new VoidType();
+    private static readonly CufetType TFailMarker = new FailureMarkerType();
 
     // ── Emitted C runtime ─────────────────────────────────────────────────
     // Self-contained: compiles with plain `gcc file.c`, no external libraries.
@@ -272,6 +285,10 @@ static void cufet_write_text(const char* s) { printf("%s", s); }
 static void cufet_print_number(CufetDec d) { cufet_write_number(d); printf("\n"); }
 static void cufet_print_fact(int b) { cufet_write_fact(b); printf("\n"); }
 static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n"); }
+
+/* A caught failure (in an In-case-of-failure handler) — T-agnostic, so one handler works
+   regardless of which fallible call's T produced the failure. category NULL = absent. */
+typedef struct { const char* message; const char* category; } CufetFailure;
 
 """;
 
@@ -521,6 +538,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         ObjectType o => "O:" + o.Name,   // nominal — identity is the name
         VoidableType v => "V(" + TypeSig(v.Inner) + ")",
         MapType m => "M(" + TypeSig(m.KeyType) + "," + TypeSig(m.ValueType) + ")",
+        FailureType f => "F(" + TypeSig(f.Inner) + ")",
         _ => throw new CompilerException(
                  $"'{t.GetType().Name}' is not yet supported by the compiler (slice 5B: records + objects + text).")
     };
@@ -548,7 +566,20 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
             case SeriesType st:   RegisterNestedRecords(st.ElementType); break;
             case VoidableType vt: RegisterVoidableStruct(vt); break;
             case MapType mt:      RegisterMapStruct(mt); break;
+            case FailureType ft:  RegisterFailableStruct(ft); break;
         }
+    }
+
+    // Ensures a tagged struct exists for `<inner> or failure` (and the inner's nested structs).
+    private string RegisterFailableStruct(FailureType ft)
+    {
+        string sig = TypeSig(ft);
+        if (_failableSig2Name.TryGetValue(sig, out var name)) return name;
+        name = $"cfl_{_failableCounter++}";
+        _failableSig2Name[sig] = name;
+        _failableStructs.Add((name, ft.Inner));
+        RegisterNestedRecords(ft.Inner);
+        return name;
     }
 
     // Ensures a map container struct exists for `map from K to V` (and the K/V nested structs,
@@ -624,27 +655,29 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         foreach (var def in _objectDefs.Values)    specs[ObjStructName(def.Name)] = (ObjectFields(def), def.Name);
         var voidables = new Dictionary<string, CufetType>();
         foreach (var (name, inner) in _voidableStructs) voidables[name] = inner;
-        if (specs.Count == 0 && voidables.Count == 0) return;
+        // Failable tagged structs (cfl_N): like voidables but 4-field, and no write/eq
+        // (a `T or failure` value is never printed or compared — it's consumed at the call site).
+        var failables = new Dictionary<string, CufetType>();
+        foreach (var (name, inner) in _failableStructs) failables[name] = inner;
+        if (specs.Count == 0 && voidables.Count == 0 && failables.Count == 0) return;
 
         string? DepName(CufetType t) => t switch
         {
             RecordType rt   => RegisterRecordStruct(rt),
             ObjectType ot   => ObjStructName(ot.Name),
             VoidableType vt => RegisterVoidableStruct(vt),
+            FailureType ft  => RegisterFailableStruct(ft),
             _ => null
         };
-        bool Known(string? d) => d != null && (specs.ContainsKey(d) || voidables.ContainsKey(d));
+        bool Known(string? d) => d != null && (specs.ContainsKey(d) || voidables.ContainsKey(d) || failables.ContainsKey(d));
 
         var emitted = new HashSet<string>();
         var order   = new List<string>();
         void Visit(string cname)
         {
             if (!emitted.Add(cname)) return;
-            if (voidables.TryGetValue(cname, out var inner))
-            {
-                var d = DepName(inner);
-                if (Known(d)) Visit(d!);
-            }
+            if (voidables.TryGetValue(cname, out var vInner))       { if (Known(DepName(vInner))) Visit(DepName(vInner)!); }
+            else if (failables.TryGetValue(cname, out var fInner))  { if (Known(DepName(fInner))) Visit(DepName(fInner)!); }
             else
                 foreach (var fs in specs[cname].Fields)
                 {
@@ -653,7 +686,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                 }
             order.Add(cname);
         }
-        foreach (var cname in specs.Keys.Concat(voidables.Keys).ToList()) Visit(cname);
+        foreach (var cname in specs.Keys.Concat(voidables.Keys).Concat(failables.Keys).ToList()) Visit(cname);
 
         sb.AppendLine("// ── Record / object / voidable shapes (value structs) ──");
         foreach (var cname in order)
@@ -661,6 +694,11 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
             if (voidables.TryGetValue(cname, out var inner))
             {
                 sb.AppendLine($"typedef struct {{ int has; {EmitCType(inner)} val; }} {cname};");
+                continue;
+            }
+            if (failables.TryGetValue(cname, out var fInner))
+            {
+                sb.AppendLine($"typedef struct {{ int is_failure; {EmitCType(fInner)} val; const char* message; const char* category; }} {cname};");
                 continue;
             }
             sb.AppendLine("typedef struct {");
@@ -672,6 +710,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
 
         foreach (var cname in order)
         {
+            if (failables.ContainsKey(cname)) continue;   // fallible values are never printed
             if (voidables.TryGetValue(cname, out var inner))
             {
                 sb.AppendLine($"static void {cname}_write({cname} v) {{ if (v.has) {WriteCall("v.val", inner)}; else printf(\"void\"); }}");
@@ -697,6 +736,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         // equal, both-present compare inner) — matching the interpreter's ValuesEqual.
         foreach (var cname in order)
         {
+            if (failables.ContainsKey(cname)) continue;   // fallible values are never compared
             if (voidables.TryGetValue(cname, out var inner))
             {
                 sb.AppendLine($"static int {cname}_eq({cname} a, {cname} b) {{ if (a.has != b.has) return 0; if (!a.has) return 1; return {EqCall("a.val", "b.val", inner)}; }}");
@@ -1004,6 +1044,13 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                 sb.AppendLine($"{indent}continue;");
                 break;
 
+            case TryStatement ts:
+                EmitTryStatement(sb, ts, indent);
+                break;
+
+            case SuppressStatement:
+                throw new CompilerException("'Suppress' is part of exception handling (runtime signals), not yet supported by the compiler.");
+
             case ForEachStatement fe when fe.Series is RangeExpression range:
                 EmitForEachRange(sb, fe, range, indent);
                 break;
@@ -1054,7 +1101,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         bool had = _narrowedVars.TryGetValue(name, out var prev);
         _narrowedVars[name] = inner;
         EmitBlock(sb, body, indent);
-        if (had) _narrowedVars[name] = prev; else _narrowedVars.Remove(name);
+        if (had) _narrowedVars[name] = prev!; else _narrowedVars.Remove(name);  // had ⇒ prev non-null
     }
 
     // `x is not void` (x a voidable variable) → (x, inner); narrows x in the then-branch only.
@@ -1156,6 +1203,43 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         else _varTypes.Remove(fe.IteratorName ?? "it");
     }
 
+    // Try to: <body>. In case of failure: <handler>. — value-level failure handling.
+    // A failing fallible call in the body records the failure and gotos the handler; the
+    // handler binds `the failure`. In case of exception (runtime signals) is deferred.
+    private void EmitTryStatement(StringBuilder sb, TryStatement trySt, string indent)
+    {
+        if (trySt.ExceptionHandler != null)
+            throw new CompilerException("'In case of exception' (runtime-signal handling → sigaction) is not yet supported by the compiler.");
+        if (trySt.FailureHandler == null)
+            throw new CompilerException("a Try block needs an 'In case of failure' handler.");
+
+        int id = _forCounter++;
+        string label = $"try{id}_handler", end = $"try{id}_end", failVar = $"cf_fail{id}";
+        var inner = indent + "    ";
+
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{inner}CufetFailure {failVar};");
+
+        var savedHandler = _currentTryHandler;
+        _currentTryHandler = (label, failVar);
+        EmitBlock(sb, trySt.Body, inner);
+        _currentTryHandler = savedHandler;
+
+        sb.AppendLine($"{inner}goto {end};");
+        sb.AppendLine($"{inner}{label}:;");
+
+        var savedFailVar = _currentFailVar;
+        var savedType    = _varTypes.TryGetValue("the failure", out var prev) ? prev : null;
+        _currentFailVar = failVar;
+        _varTypes["the failure"] = TFailMarker;
+        EmitBlock(sb, trySt.FailureHandler, inner);
+        _currentFailVar = savedFailVar;
+        if (savedType != null) _varTypes["the failure"] = savedType; else _varTypes.Remove("the failure");
+
+        sb.AppendLine($"{inner}{end}:;");
+        sb.AppendLine($"{indent}}}");
+    }
+
     // Emits all accumulated pre-emit lines (series literal constructions, etc.)
     // then clears the list. Must be called before emitting the statement that
     // uses the expression returned from EmitExpr.
@@ -1196,6 +1280,9 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         MapHasKey             => TFact,
         MapHasEntry           => TFact,
         MapSize               => TNumber,
+        FailureLiteral        => TFailMarker,
+        FailureFallback ff    => TypeOf(ff.Fallible) is FailureType ft ? ft.Inner : TypeOf(ff.Default),
+        FailurePropagate fp   => TypeOf(fp.Fallible) is FailureType ft2 ? ft2.Inner : TNumber,
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
@@ -1228,6 +1315,14 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
 
     private CufetType CastReturnType(CastExpression c)
     {
+        // A fallible call's VALUE (after the call-site failure check) is the inner success T;
+        // the raw `T or failure` type is only seen by but-on-failure / propagate / a Try.
+        var rt = RawCastReturnType(c);
+        return rt is FailureType ft ? ft.Inner : rt;
+    }
+
+    private CufetType RawCastReturnType(CastExpression c)
+    {
         if (c.Function is VariableReference vr)
         {
             if (_funcReturnTypes.TryGetValue(vr.Name, out var rt)) return rt ?? TNumber;   // free function
@@ -1238,6 +1333,10 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
             return MethodReturnType(pot.Name, pa.Member);
         return TNumber;
     }
+
+    // If `expr` is a call to a fallible function/method, its `T or failure` return type; else null.
+    private FailureType? FallibleReturnType(IExpression expr) =>
+        expr is CastExpression c && RawCastReturnType(c) is FailureType ft ? ft : null;
 
     private CufetType MethodReturnType(string objName, string methodName)
     {
@@ -1261,6 +1360,8 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
 
     private CufetType FieldType(CufetType t, string fieldName)
     {
+        // the message of the failure → text; the category of the failure → voidable text.
+        if (t is FailureMarkerType) return fieldName == "message" ? TText : new VoidableType(TText);
         if (t is MappingType mp) return fieldName == "key" ? mp.KeyType : mp.ValueType;   // the key/value of pair
         if (t is RecordType rt) return rt.NamedFields.First(f => f.Name == fieldName).Type;
         if (t is ObjectType ot) return ObjectMemberType(ot.Name, fieldName);
@@ -1428,10 +1529,18 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
     // reached by walking the embed chain — all resolved statically.
     private string EmitMemberAccess(IExpression target, string member) => TypeOf(target) switch
     {
-        ObjectType ot  => EmitObjectMemberRead(EmitExpr(target), ot.Name, member),
-        MappingType    => $"{EmitExpr(target)}_{member}",   // the key/value of pair → cv_pair_key/_value
-        _              => $"({EmitExpr(target)}).{MangleName(member)}"   // record field
+        ObjectType ot     => EmitObjectMemberRead(EmitExpr(target), ot.Name, member),
+        MappingType       => $"{EmitExpr(target)}_{member}",   // the key/value of pair → cv_pair_key/_value
+        FailureMarkerType => member == "message" ? $"({EmitExpr(target)}).message" : EmitFailureCategory(EmitExpr(target)),
+        _                 => $"({EmitExpr(target)}).{MangleName(member)}"   // record field
     };
+
+    // the category of the failure → voidable text (NULL category → void).
+    private string EmitFailureCategory(string failExpr)
+    {
+        string cvd = RegisterVoidableStruct(new VoidableType(TText));
+        return $"(({failExpr}).category ? ({cvd}){{ .has = 1, .val = ({failExpr}).category }} : ({cvd}){{ .has = 0 }})";
+    }
 
     private string EmitObjectMemberRead(string baseExpr, string objName, string member)
     {
@@ -1509,9 +1618,10 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         StringLiteral s       => EscapeStringLiteral(s.Value),   // text-as-stored-data: static C string
         UnaryExpression u     => EmitUnary(u),
         BinaryExpression b    => EmitBinary(b),
-        // `one` inside a method is a pointer param; deref so it reads as a value-struct lvalue.
-        // A flow-narrowed voidable variable reads as its inner value (`.val`).
-        VariableReference v   => v.Name == "one" && _methodReceiverType != null ? "(*cv_one)"
+        // `the failure` (in a handler) → the caught CufetFailure; `one` (in a method) → the
+        // deref'd receiver; a flow-narrowed voidable var reads as its inner value (`.val`).
+        VariableReference v   => v.Name == "the failure" && _currentFailVar != null ? _currentFailVar
+                               : v.Name == "one" && _methodReceiverType != null ? "(*cv_one)"
                                : _narrowedVars.ContainsKey(v.Name) ? $"({MangleName(v.Name)}).val"
                                : MangleName(v.Name),
         CastExpression cast   => EmitCastExpr(cast),
@@ -1528,9 +1638,13 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         MapHasKey mhk         => $"{MapName(mhk.Map)}_has({EmitExpr(mhk.Map)}, {EmitExpr(mhk.Key)})",
         MapHasEntry mhe       => $"{MapName(mhe.Map)}_has({EmitExpr(mhe.Map)}, {EmitExpr(mhe.Key)})",
         MapSize ms            => $"cufet_dec_from_ll(({EmitExpr(ms.Map)})->len)",
+        FailureFallback ff    => EmitFailureFallback(ff),
+        FailurePropagate fp   => EmitFailurePropagate(fp),
         // A bare `void` only has meaning where a voidable is expected (return/becomes/args,
         // handled by EmitAsType) or as an `is void` operand (handled in EmitBinary).
         VoidLiteral           => throw new CompilerException("'void' is only valid where a voidable value is expected."),
+        // A failure literal only has meaning where a T-or-failure is expected (return/coercion).
+        FailureLiteral        => throw new CompilerException("'a failure' is only valid where a 'T or failure' is expected (e.g. a return)."),
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
@@ -1546,6 +1660,24 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
             if (TypeOf(expr) is VoidableType) return EmitExpr(expr);                     // already voidable
             return $"(({cvd}){{ .has = 1, .val = {EmitExpr(expr)} }})";                  // widen T → voidable
         }
+        if (target is FailureType ft)
+        {
+            string cfl = RegisterFailableStruct(ft);
+            if (expr is FailureLiteral fl)   // a failure "msg" [of category "cat"]
+            {
+                string msg = EmitExpr(fl.Message);
+                string cat = fl.Category != null ? EmitExpr(fl.Category) : "NULL";
+                return $"(({cfl}){{ .is_failure = 1, .message = {msg}, .category = {cat} }})";
+            }
+            var et = TypeOf(expr);
+            if (et is FailureType) return EmitExpr(expr);                                // already failable
+            if (et is FailureMarkerType)                                                // re-propagate `the failure`
+            {
+                string f = EmitExpr(expr);
+                return $"(({cfl}){{ .is_failure = 1, .message = ({f}).message, .category = ({f}).category }})";
+            }
+            return $"(({cfl}){{ .is_failure = 0, .val = {EmitExpr(expr)} }})";           // widen T → success
+        }
         return EmitExpr(expr);
     }
 
@@ -1559,6 +1691,29 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         string tmp = $"cf_bv{_freshId++}";
         _preEmits.Add($"{cvd} {tmp} = {voidableExpr};");
         return $"({tmp}.has ? {tmp}.val : {EmitExpr(bvd.Default)})";
+    }
+
+    // <fallible> but on failure <default> — the success value, else the default (lazy).
+    private string EmitFailureFallback(FailureFallback ff)
+    {
+        var (cflName, rawExpr) = EmitFallibleRaw(ff.Fallible, TypeOf(ff));
+        string tmp = $"cf_ff{_freshId++}";
+        _preEmits.Add($"{cflName} {tmp} = {rawExpr};");
+        return $"({tmp}.is_failure ? {EmitExpr(ff.Default)} : {tmp}.val)";
+    }
+
+    // <fallible> or pass the failure off — on failure, return it from the enclosing (fallible)
+    // function immediately; on success, the plain value.
+    private string EmitFailurePropagate(FailurePropagate fp)
+    {
+        var (cflName, rawExpr) = EmitFallibleRaw(fp.Fallible, TypeOf(fp));
+        string tmp = $"cf_fp{_freshId++}";
+        _preEmits.Add($"{cflName} {tmp} = {rawExpr};");
+        string enclosing = _currentReturnType is FailureType ft
+            ? RegisterFailableStruct(ft)
+            : throw new CompilerException("'or pass the failure off' requires the enclosing function to return 'T or failure'.");
+        _preEmits.Add($"if ({tmp}.is_failure) return (({enclosing}){{ .is_failure = 1, .message = {tmp}.message, .category = {tmp}.category }});");
+        return $"{tmp}.val";
     }
 
     private string MapName(IExpression mapExpr) => RegisterMapStruct((MapType)TypeOf(mapExpr));
@@ -1657,7 +1812,37 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         return $"({targetExpr})->data[cufet_to_int({idxExpr}) - 1]";
     }
 
-    private string EmitCastExpr(CastExpression cast) => EmitCall(cast.Function, cast.Args);
+    private string EmitCastExpr(CastExpression cast)
+    {
+        // A BARE fallible call (not wrapped by but-on-failure / propagate) is only valid inside
+        // a Try: on failure, record the failure and jump to the handler; otherwise yield the T.
+        if (FallibleReturnType(cast) is { } ft)
+            return EmitFallibleCheckGoto(EmitCall(cast.Function, cast.Args), RegisterFailableStruct(ft));
+        return EmitCall(cast.Function, cast.Args);
+    }
+
+    // Binds the raw fallible result to a temp; if it failed, records it into the current Try's
+    // caught-failure var and gotos the handler; the expression value is the success `.val`.
+    private string EmitFallibleCheckGoto(string rawCall, string cflName)
+    {
+        string tmp = $"cf_fl{_freshId++}";
+        _preEmits.Add($"{cflName} {tmp} = {rawCall};");
+        if (_currentTryHandler is not { } h)
+            throw new CompilerException("a fallible call must be handled (Try, 'but on failure', or 'or pass the failure off').");
+        _preEmits.Add($"if ({tmp}.is_failure) {{ {h.FailVar}.message = {tmp}.message; {h.FailVar}.category = {tmp}.category; goto {h.Label}; }}");
+        return $"{tmp}.val";
+    }
+
+    // Emits the raw fallible expression (the `cfl` tagged struct) without the call-site check —
+    // used by but-on-failure and propagate, which inspect is_failure themselves.
+    private (string CflName, string Expr) EmitFallibleRaw(IExpression expr, CufetType resultInner)
+    {
+        if (FallibleReturnType(expr) is { } ft)
+            return (RegisterFailableStruct(ft), EmitCall(((CastExpression)expr).Function, ((CastExpression)expr).Args));
+        // A bare failure literal (or other failable) as the operand — coerce into cfl of the result T.
+        var ftype = new FailureType(resultInner);
+        return (RegisterFailableStruct(ftype), EmitAsType(expr, ftype));
+    }
 
     // Resolves a Cast to a free-function call or a direct method dispatch, and returns the
     // C call expression. Method receiver is passed by address (&(recv)); `one` and lvalue
@@ -1819,6 +2004,8 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         ObjectType ot => ObjStructName(ot.Name),
         VoidableType vt => RegisterVoidableStruct(vt),
         MapType mt => RegisterMapStruct(mt) + "*",   // maps are arena pointers (reference type)
+        FailureType ft => RegisterFailableStruct(ft),
+        FailureMarkerType => "CufetFailure",         // a caught / bare failure (message + category)
         _ => throw new CompilerException(
                  $"'{type!.GetType().Name}' is not yet supported by the compiler (slice 5B: records + text; objects/maps later).")
     };

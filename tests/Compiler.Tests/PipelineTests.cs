@@ -1580,6 +1580,103 @@ public class PipelineTests
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ── Slice 6: fallibility (value-level error model; T or failure) ──
+
+    [Fact]
+    public void Fallibility_TryAndButOnFailure_MatchesInterpreter()
+    {
+        // Fallible fn (T or failure); Try/In case of failure catching a failure and reading
+        // message + category; but on failure defaulting.
+        const string src = """
+            Bind number or failure to safe-div, given (the number x, the number y):
+                If y is 0, return a failure "divide by zero" of category "math".
+                return x / y.
+            Done.
+            Try to:
+                Define r as cast safe-div on (10, 2).
+                State r.
+                Define bad as cast safe-div on (5, 0).
+                State bad.
+            Done.
+            In case of failure:
+                State the message of the failure.
+                State the category of the failure.
+            Done.
+            State cast safe-div on (20, 4) but on failure 0.
+            State cast safe-div on (20, 0) but on failure 0.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Fallibility_Propagation_MatchesInterpreter()
+    {
+        // `or pass the failure off` propagates a failure out of the enclosing fallible function;
+        // the outer Try catches it. Also: a failure with no category → `the category is void`.
+        const string src = """
+            Bind number or failure to safe-div, given (the number x, the number y):
+                If y is 0, return a failure "div by zero".
+                return x / y.
+            Done.
+            Bind number or failure to compute, given (the number n):
+                Define h as cast safe-div on (100, n) or pass the failure off.
+                return h + 1.
+            Done.
+            Try to:
+                Define r as cast compute on (0).
+                State r.
+            Done.
+            In case of failure:
+                State the message of the failure.
+                If the category of the failure is void, state "no-category". Otherwise, state "has-category".
+            Done.
+            State cast compute on (0) but on failure 0.
+            State cast compute on (5) but on failure 0.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Fallibility_ReadmeStyleParse_MatchesInterpreter()
+    {
+        // The README's parse-age shape (a validating fallible fn + Try/In case of failure),
+        // adapted to avoid the deferred text ops (converted to number / joined to).
+        const string src = """
+            Bind number or failure to parse-positive, given (the number n):
+                If n < 0, return a failure "not positive" of category "validation".
+                return n.
+            Done.
+            Try to:
+                Define good as cast parse-positive on (42).
+                State good.
+                Define bad as cast parse-positive on (0 - 7).
+                State bad.
+            Done.
+            In case of failure:
+                State the message of the failure.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Fallibility_ExceptionHandler_Deferred_ThrowsCleanly()
+    {
+        // In case of exception (runtime-signal handling → sigaction) is deferred — reject cleanly.
+        const string src = """
+            Try to:
+                State 1 / 0.
+            Done.
+            In case of exception (the exception):
+                State "caught".
+            Done.
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+    }
+
     // Compiles source with -fsanitize=address for memory-safety verification.
     // Skipped when not on Linux (ASan reliable only with Linux gcc).
     private static string CompileWithASan(string source)
