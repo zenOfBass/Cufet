@@ -24,6 +24,20 @@ public sealed class CodeGenerator
     private readonly List<(string Name, RecordType Type)> _recordStructs = new();
     private int _recordCounter;
 
+    // Voidable struct registry — one tagged struct `cvd_N { int has; T val; }` per distinct
+    // inner type. Synthesized exactly like record structs (per-type, with _write/_eq helpers).
+    private readonly Dictionary<string, string> _voidableSig2Name = new();
+    private readonly List<(string Name, CufetType Inner)> _voidableStructs = new();
+    private int _voidableCounter;
+
+    // The declared return type of the function/method/getter currently being emitted, so a
+    // `return <T>` in a `voidable T` body widens the value into the voidable struct.
+    private CufetType? _currentReturnType;
+
+    // Flow-narrowed variables: inside an `is not void` branch a voidable variable is treated
+    // as its inner T (reads emit `.val`), matching the interpreter's variable-level narrowing.
+    private readonly Dictionary<string, CufetType> _narrowedVars = new();
+
     // Object definitions by name (nominal types), collected up front. Objects are also
     // C value structs (cd_<name>); methods become C functions taking a receiver pointer.
     private readonly Dictionary<string, ObjectDefinition> _objectDefs = new();
@@ -37,6 +51,7 @@ public sealed class CodeGenerator
     private static readonly CufetType TNumber = new NumberType();
     private static readonly CufetType TFact   = new FactType();
     private static readonly CufetType TText    = new TextType();
+    private static readonly CufetType TVoid    = new VoidType();
 
     // ── Emitted C runtime ─────────────────────────────────────────────────
     // Self-contained: compiles with plain `gcc file.c`, no external libraries.
@@ -492,6 +507,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         RecordType r => "R(" + string.Join(",", r.PositionalTypes.Select(TypeSig)) + "|" +
                         string.Join(",", r.NamedFields.Select(f => f.Name + ":" + TypeSig(f.Type))) + ")",
         ObjectType o => "O:" + o.Name,   // nominal — identity is the name
+        VoidableType v => "V(" + TypeSig(v.Inner) + ")",
         _ => throw new CompilerException(
                  $"'{t.GetType().Name}' is not yet supported by the compiler (slice 5B: records + objects + text).")
     };
@@ -515,9 +531,22 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
     {
         switch (t)
         {
-            case RecordType rt: RegisterRecordStruct(rt); break;
-            case SeriesType st: RegisterNestedRecords(st.ElementType); break;
+            case RecordType rt:   RegisterRecordStruct(rt); break;
+            case SeriesType st:   RegisterNestedRecords(st.ElementType); break;
+            case VoidableType vt: RegisterVoidableStruct(vt); break;
         }
+    }
+
+    // Ensures a tagged struct exists for `voidable <inner>` (and its inner's nested structs).
+    private string RegisterVoidableStruct(VoidableType vt)
+    {
+        string sig = TypeSig(vt);
+        if (_voidableSig2Name.TryGetValue(sig, out var name)) return name;
+        name = $"cvd_{_voidableCounter++}";
+        _voidableSig2Name[sig] = name;
+        _voidableStructs.Add((name, vt.Inner));
+        RegisterNestedRecords(vt.Inner);
+        return name;
     }
 
     private IEnumerable<string> NestedRecordDeps(RecordType rt)
@@ -553,46 +582,69 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         return f;
     }
 
-    // Emits all record and object structs (both are C value structs) in dependency order —
-    // a struct's nested value-struct fields must be declared before it (nesting is a DAG) —
-    // each followed by its `_write` helper for nested/inline printing.
+    // Emits all synthesized value structs — records, objects, and voidable tagged structs —
+    // in dependency order (a struct's nested value-struct fields / a voidable's inner type
+    // must be declared before it; the graph is a DAG), each with `_write` and `_eq` helpers.
     private void EmitStructs(StringBuilder sb)
     {
         var specs = new Dictionary<string, (List<FieldSpec> Fields, string WritePrefix)>();
         foreach (var (name, rt) in _recordStructs) specs[name] = (RecordFields(rt), "record");
         foreach (var def in _objectDefs.Values)    specs[ObjStructName(def.Name)] = (ObjectFields(def), def.Name);
-        if (specs.Count == 0) return;
+        var voidables = new Dictionary<string, CufetType>();
+        foreach (var (name, inner) in _voidableStructs) voidables[name] = inner;
+        if (specs.Count == 0 && voidables.Count == 0) return;
+
+        string? DepName(CufetType t) => t switch
+        {
+            RecordType rt   => RegisterRecordStruct(rt),
+            ObjectType ot   => ObjStructName(ot.Name),
+            VoidableType vt => RegisterVoidableStruct(vt),
+            _ => null
+        };
+        bool Known(string? d) => d != null && (specs.ContainsKey(d) || voidables.ContainsKey(d));
 
         var emitted = new HashSet<string>();
         var order   = new List<string>();
         void Visit(string cname)
         {
             if (!emitted.Add(cname)) return;
-            foreach (var fs in specs[cname].Fields)
+            if (voidables.TryGetValue(cname, out var inner))
             {
-                string? dep = fs.Type switch
-                {
-                    RecordType rt => RegisterRecordStruct(rt),
-                    ObjectType ot => ObjStructName(ot.Name),
-                    _ => null
-                };
-                if (dep != null && specs.ContainsKey(dep)) Visit(dep);
+                var d = DepName(inner);
+                if (Known(d)) Visit(d!);
             }
+            else
+                foreach (var fs in specs[cname].Fields)
+                {
+                    var d = DepName(fs.Type);
+                    if (Known(d)) Visit(d!);
+                }
             order.Add(cname);
         }
-        foreach (var cname in specs.Keys.ToList()) Visit(cname);
+        foreach (var cname in specs.Keys.Concat(voidables.Keys).ToList()) Visit(cname);
 
-        sb.AppendLine("// ── Record & object shapes (value structs; nested by value, series by pointer) ──");
+        sb.AppendLine("// ── Record / object / voidable shapes (value structs) ──");
         foreach (var cname in order)
         {
+            if (voidables.TryGetValue(cname, out var inner))
+            {
+                sb.AppendLine($"typedef struct {{ int has; {EmitCType(inner)} val; }} {cname};");
+                continue;
+            }
             sb.AppendLine("typedef struct {");
             foreach (var fs in specs[cname].Fields)
                 sb.AppendLine($"    {EmitCType(fs.Type)} {fs.CField};");
             sb.AppendLine($"}} {cname};");
         }
         sb.AppendLine();
+
         foreach (var cname in order)
         {
+            if (voidables.TryGetValue(cname, out var inner))
+            {
+                sb.AppendLine($"static void {cname}_write({cname} v) {{ if (v.has) {WriteCall("v.val", inner)}; else printf(\"void\"); }}");
+                continue;
+            }
             var (fields, prefix) = specs[cname];
             sb.AppendLine($"static void {cname}_write({cname} v) {{");
             sb.AppendLine($"    printf(\"{prefix}(\");");
@@ -609,11 +661,15 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         }
         sb.AppendLine();
 
-        // Value-equality helper per struct (records: structural; objects: nominal same-type).
-        // Field-by-field, recursing into nested record/object fields and comparing series
-        // element-wise — matching the interpreter's ValuesEqual.
+        // Value equality (records: structural; objects: nominal same-type; voidables: both-void
+        // equal, both-present compare inner) — matching the interpreter's ValuesEqual.
         foreach (var cname in order)
         {
+            if (voidables.TryGetValue(cname, out var inner))
+            {
+                sb.AppendLine($"static int {cname}_eq({cname} a, {cname} b) {{ if (a.has != b.has) return 0; if (!a.has) return 1; return {EqCall("a.val", "b.val", inner)}; }}");
+                continue;
+            }
             var fields = specs[cname].Fields;
             string cond = fields.Count == 0 ? "1"
                 : string.Join(" && ", fields.Select(fs => EqCall($"a.{fs.CField}", $"b.{fs.CField}", fs.Type)));
@@ -631,6 +687,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         SeriesType => $"cufet_series_eq({a}, {b})",
         RecordType rt => $"{RegisterRecordStruct(rt)}_eq({a}, {b})",
         ObjectType ot => $"{ObjStructName(ot.Name)}_eq({a}, {b})",
+        VoidableType vt => $"{RegisterVoidableStruct(vt)}_eq({a}, {b})",
         _ => throw new CompilerException($"equality on a '{t.GetType().Name}' is not yet supported by the compiler.")
     };
 
@@ -644,6 +701,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         SeriesType => $"cufet_write_series({valExpr})",
         RecordType rt => $"{RegisterRecordStruct(rt)}_write({valExpr})",
         ObjectType ot => $"{ObjStructName(ot.Name)}_write({valExpr})",
+        VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr})",
         _ => throw new CompilerException(
                  $"printing a '{t.GetType().Name}' is not yet supported by the compiler.")
     };
@@ -669,8 +727,9 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                     FactType      => $"cufet_print_fact({valExpr})",
                     TextType      => $"cufet_print_text({valExpr})",
                     SeriesType    => $"cufet_print_series({valExpr})",
-                    RecordType rt => $"{RegisterRecordStruct(rt)}_write({valExpr}); printf(\"\\n\")",
-                    ObjectType ot => $"{ObjStructName(ot.Name)}_write({valExpr}); printf(\"\\n\")",
+                    RecordType rt   => $"{RegisterRecordStruct(rt)}_write({valExpr}); printf(\"\\n\")",
+                    ObjectType ot   => $"{ObjStructName(ot.Name)}_write({valExpr}); printf(\"\\n\")",
+                    VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr}); printf(\"\\n\")",
                     _ => throw new CompilerException($"State of a '{t.GetType().Name}' is not yet supported by the compiler.")
                 };
                 sb.AppendLine($"{indent}{printStmt};");
@@ -693,9 +752,12 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
 
             case BecomesStatement b:
             {
-                string valExpr = EmitExpr(b.Value);
+                // Coerce so `x becomes 5` / `x becomes void` widens into x's voidable type.
+                _varTypes.TryGetValue(b.Name, out var targetType);
+                string valExpr = EmitAsType(b.Value, targetType);
                 FlushPreEmits(sb, indent);
                 sb.AppendLine($"{indent}{MangleName(b.Name)} = {valExpr};");
+                _narrowedVars.Remove(b.Name);   // reassignment clears any active narrowing
                 break;
             }
 
@@ -704,7 +766,8 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
                     sb.AppendLine($"{indent}return;");
                 else
                 {
-                    string retExpr = EmitExpr(ret.Value);
+                    // Coerce so `return <T>` / `return void` widens into a voidable return type.
+                    string retExpr = EmitAsType(ret.Value, _currentReturnType);
                     FlushPreEmits(sb, indent);
                     sb.AppendLine($"{indent}return {retExpr};");
                 }
@@ -862,14 +925,15 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
     {
         var inner = indent + "    ";
         var first = ifStmt.Arms[0];
+        // Condition is emitted BEFORE narrowing so `x is not void` reads x's voidable form.
         sb.AppendLine($"{indent}if ({EmitExpr(first.Condition)}) {{");
-        EmitBlock(sb, first.Body, inner);
+        EmitNarrowedBlock(sb, NotVoidNarrow(first.Condition), first.Body, inner);
 
         for (int i = 1; i < ifStmt.Arms.Count; i++)
         {
             var arm = ifStmt.Arms[i];
             sb.AppendLine($"{indent}}} else if ({EmitExpr(arm.Condition)}) {{");
-            EmitBlock(sb, arm.Body, inner);
+            EmitNarrowedBlock(sb, NotVoidNarrow(arm.Condition), arm.Body, inner);
         }
 
         if (ifStmt.ElseBody != null)
@@ -879,6 +943,28 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         }
 
         sb.AppendLine($"{indent}}}");
+    }
+
+    // Emits a block with an optional voidable variable narrowed to its inner type inside it.
+    private void EmitNarrowedBlock(StringBuilder sb, (string Name, CufetType Inner)? narrow,
+                                   IReadOnlyList<IStatement> body, string indent)
+    {
+        if (narrow is not var (name, inner) || narrow is null) { EmitBlock(sb, body, indent); return; }
+        bool had = _narrowedVars.TryGetValue(name, out var prev);
+        _narrowedVars[name] = inner;
+        EmitBlock(sb, body, indent);
+        if (had) _narrowedVars[name] = prev; else _narrowedVars.Remove(name);
+    }
+
+    // `x is not void` (x a voidable variable) → (x, inner); narrows x in the then-branch only.
+    // (The interpreter narrows the `is not void` then-branch, not the `is void` else-branch.)
+    private (string Name, CufetType Inner)? NotVoidNarrow(IExpression cond)
+    {
+        if (cond is not BinaryExpression { Op: TokenType.NotEqual } b) return null;
+        var (varSide, other) = b.Left is VoidLiteral ? (b.Right, b.Left) : (b.Left, b.Right);
+        if (other is VoidLiteral && varSide is VariableReference vr && TypeOf(vr) is VoidableType vt)
+            return (vr.Name, vt.Inner);
+        return null;
     }
 
     // Range semantics mirror the interpreter exactly:
@@ -961,7 +1047,8 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         SeriesAccess sa       => SeriesAccessType(sa),
         UnaryExpression u     => u.Op == TokenType.Not ? TFact : TNumber,
         BinaryExpression b    => IsArithmeticOp(b.Op) ? TNumber : TFact,
-        VariableReference vr  => _varTypes.TryGetValue(vr.Name, out var t) ? t : TNumber,
+        VariableReference vr  => _narrowedVars.TryGetValue(vr.Name, out var nt) ? nt
+                               : _varTypes.TryGetValue(vr.Name, out var t) ? t : TNumber,
         CastExpression c      => CastReturnType(c),
         RecordLiteral rl      => new RecordType(
                                      rl.PositionalFields.Select(TypeOf).ToList(),
@@ -969,6 +1056,8 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         RecordNamedAccess rna => FieldType(TypeOf(rna.Record), rna.FieldName),
         ObjectLiteral ol      => ObjType(ol.TypeName),
         PossessiveAccess pa   => FieldType(TypeOf(pa.Target), pa.Member),
+        VoidLiteral           => TVoid,
+        ButVoidDefault bvd    => TypeOf(bvd.Voidable) is VoidableType vt ? vt.Inner : TypeOf(bvd.Default),
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
@@ -1114,7 +1203,9 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         // Save and restore _varTypes so function-local names don't pollute
         // the outer scope's type map (and vice versa).
         var saved = new Dictionary<string, CufetType>(_varTypes);
+        var savedRet = _currentReturnType;
         _varTypes.Clear();
+        _currentReturnType = bind.ReturnType;
         foreach (var (pType, pName) in bind.Parameters)
             _varTypes[pName] = pType;
 
@@ -1125,6 +1216,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
 
         _varTypes.Clear();
         foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
+        _currentReturnType = savedRet;
     }
 
     // C function names: methods cm_, getters cg_, setters cst_ (cst_ avoids the cs_ series-temp prefix).
@@ -1144,8 +1236,10 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
     {
         var saved = new Dictionary<string, CufetType>(_varTypes);
         var savedRecv = _methodReceiverType;
+        var savedRet = _currentReturnType;
         _varTypes.Clear();
         _methodReceiverType = def.Name;
+        _currentReturnType = g.ReturnType;
         _varTypes["one"] = ObjType(def.Name);
         sb.AppendLine($"{GetterSignature(def, g)} {{");
         EmitBlock(sb, g.Body, "    ");
@@ -1154,6 +1248,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         _varTypes.Clear();
         foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
         _methodReceiverType = savedRecv;
+        _currentReturnType = savedRet;
     }
 
     private void EmitSetter(StringBuilder sb, ObjectDefinition def, SetterDeclaration s)
@@ -1238,8 +1333,10 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
     {
         var saved = new Dictionary<string, CufetType>(_varTypes);
         var savedRecv = _methodReceiverType;
+        var savedRet = _currentReturnType;
         _varTypes.Clear();
         _methodReceiverType = def.Name;               // `one` → (*cv_one), resolves fields
+        _currentReturnType = method.ReturnType;
         _varTypes["one"] = ObjType(def.Name);
         foreach (var (pType, pName) in method.Parameters)
             _varTypes[pName] = pType;
@@ -1252,6 +1349,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         _varTypes.Clear();
         foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
         _methodReceiverType = savedRecv;
+        _currentReturnType = savedRet;
     }
 
     private string EmitExpr(IExpression expr) => expr switch
@@ -1261,9 +1359,11 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         StringLiteral s       => EscapeStringLiteral(s.Value),   // text-as-stored-data: static C string
         UnaryExpression u     => EmitUnary(u),
         BinaryExpression b    => EmitBinary(b),
-        // `one` inside a method is a pointer param; deref so it reads as a value-struct
-        // lvalue everywhere (field access via `.`, address taken as `&(*cv_one)` = cv_one).
-        VariableReference v   => v.Name == "one" && _methodReceiverType != null ? "(*cv_one)" : MangleName(v.Name),
+        // `one` inside a method is a pointer param; deref so it reads as a value-struct lvalue.
+        // A flow-narrowed voidable variable reads as its inner value (`.val`).
+        VariableReference v   => v.Name == "one" && _methodReceiverType != null ? "(*cv_one)"
+                               : _narrowedVars.ContainsKey(v.Name) ? $"({MangleName(v.Name)}).val"
+                               : MangleName(v.Name),
         CastExpression cast   => EmitCastExpr(cast),
         SeriesLiteral sl      => EmitSeriesLiteral(sl),
         SeriesLength sl2      => $"cufet_dec_from_ll(({EmitExpr(sl2.Series)})->len)",
@@ -1272,9 +1372,39 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         RecordNamedAccess rna => EmitMemberAccess(rna.Record, rna.FieldName),
         ObjectLiteral ol      => EmitObjectLiteral(ol),
         PossessiveAccess pa   => EmitMemberAccess(pa.Target, pa.Member),
+        ButVoidDefault bvd    => EmitButVoidDefault(bvd),
+        // A bare `void` only has meaning where a voidable is expected (return/becomes/args,
+        // handled by EmitAsType) or as an `is void` operand (handled in EmitBinary).
+        VoidLiteral           => throw new CompilerException("'void' is only valid where a voidable value is expected."),
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
+
+    // Coerces `expr` to `target`, performing the language's one implicit coercion: widening
+    // a plain T (or a bare `void`) into a voidable tagged struct when the target is voidable.
+    private string EmitAsType(IExpression expr, CufetType? target)
+    {
+        if (target is VoidableType vt)
+        {
+            string cvd = RegisterVoidableStruct(vt);
+            if (expr is VoidLiteral)          return $"(({cvd}){{ .has = 0 }})";
+            if (TypeOf(expr) is VoidableType) return EmitExpr(expr);                     // already voidable
+            return $"(({cvd}){{ .has = 1, .val = {EmitExpr(expr)} }})";                  // widen T → voidable
+        }
+        return EmitExpr(expr);
+    }
+
+    // `<voidable> but void is <default>` → the value if present, else the default. The
+    // voidable is bound to a temp (single eval); the default is lazy (only in the else arm).
+    private string EmitButVoidDefault(ButVoidDefault bvd)
+    {
+        var vt = (VoidableType)TypeOf(bvd.Voidable);
+        string cvd = RegisterVoidableStruct(vt);
+        string voidableExpr = EmitExpr(bvd.Voidable);
+        string tmp = $"cf_bv{_freshId++}";
+        _preEmits.Add($"{cvd} {tmp} = {voidableExpr};");
+        return $"({tmp}.has ? {tmp}.val : {EmitExpr(bvd.Default)})";
+    }
 
     // An object literal → a C compound literal (value struct). With embedding, the flat
     // field list is routed to the right level (own vs embedded), recursively — mirroring
@@ -1385,6 +1515,43 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
         throw new CompilerException("Function-value calls are not yet supported by the compiler.");
     }
 
+    // Handles is void / is not void, voidable-vs-voidable, and voidable-vs-plain-T equality.
+    // Returns null when neither operand is void/voidable (the caller falls through).
+    private string? EmitVoidableComparison(BinaryExpression b)
+    {
+        bool eq = b.Op == TokenType.Equal;
+
+        // is void / is not void — one operand is the bare `void` literal.
+        if (b.Left is VoidLiteral || b.Right is VoidLiteral)
+        {
+            var side = b.Left is VoidLiteral ? b.Right : b.Left;
+            string v = EmitExpr(side);            // evaluated once; only .has is read
+            return eq ? $"(!({v}).has)" : $"(({v}).has)";
+        }
+
+        var lt = TypeOf(b.Left);
+        var rt = TypeOf(b.Right);
+
+        if (lt is VoidableType && rt is VoidableType)            // voidable vs voidable
+        {
+            string e = EqCall(EmitExpr(b.Left), EmitExpr(b.Right), lt);
+            return eq ? $"({e})" : $"(!({e}))";
+        }
+        if (lt is VoidableType lv && rt.Equals(lv.Inner))         // voidable vs plain T
+            return VoidableVsInner(EmitExpr(b.Left), EmitExpr(b.Right), lv.Inner, eq);
+        if (rt is VoidableType rv && lt.Equals(rv.Inner))         // plain T vs voidable
+            return VoidableVsInner(EmitExpr(b.Right), EmitExpr(b.Left), rv.Inner, eq);
+
+        return null;
+    }
+
+    // A voidable equals a plain T iff it's present and the value matches.
+    private string VoidableVsInner(string voidableExpr, string tExpr, CufetType inner, bool eq)
+    {
+        string present = $"(({voidableExpr}).has && {EqCall($"({voidableExpr}).val", tExpr, inner)})";
+        return eq ? present : $"(!{present})";
+    }
+
     private string EmitUnary(UnaryExpression u) => u.Op switch
     {
         TokenType.Minus => $"cufet_neg({EmitExpr(u.Operand)})",
@@ -1394,6 +1561,11 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
 
     private string EmitBinary(BinaryExpression b)
     {
+        // Void / voidable comparisons first — a bare `void` operand has no standalone C form,
+        // so it must be handled before EmitExpr touches the operands.
+        if (b.Op is TokenType.Equal or TokenType.NotEqual && EmitVoidableComparison(b) is { } vc)
+            return vc;
+
         string L = EmitExpr(b.Left);
         string R = EmitExpr(b.Right);
 
@@ -1471,6 +1643,7 @@ static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n");
             : throw new CompilerException("series of a non-number element type is not yet supported by the compiler (series are number-only this slice)."),
         RecordType rt => RegisterRecordStruct(rt),
         ObjectType ot => ObjStructName(ot.Name),
+        VoidableType vt => RegisterVoidableStruct(vt),
         _ => throw new CompilerException(
                  $"'{type!.GetType().Name}' is not yet supported by the compiler (slice 5B: records + text; objects/maps later).")
     };

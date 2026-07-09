@@ -1378,6 +1378,108 @@ public class PipelineTests
         Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
     }
 
+    // ── Slice 5C: voidable (uniform tagged struct cvd_N { int has; T val; }) ──
+
+    [Fact]
+    public void Voidable_Number_MatchesInterpreter()
+    {
+        // Present → value, absent → "void"; is void / is not void; but void is (value / default).
+        const string src = """
+            Bind voidable number to half-if-even, given (the number n):
+                If n % 2 is 0, return n / 2.
+                return void.
+            Done.
+            Define x as cast half-if-even on (4).
+            Define y as cast half-if-even on (3).
+            State x.
+            State y.
+            If x is void, state "x-void". Otherwise, state "x-present".
+            If y is void, state "y-void". Otherwise, state "y-present".
+            If x is not void, state "x-notvoid". Otherwise, state "x-isvoid".
+            State x but void is 0.
+            State y but void is 99.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Voidable_ButVoidIs_Narrows_MatchesInterpreter()
+    {
+        // `but void is` yields a definite T (narrows voidable T → T).
+        const string src = """
+            Bind voidable number to maybe, given (the number n):
+                If n > 0, return n.
+                return void.
+            Done.
+            Define z as cast maybe on (0) but void is 42.
+            Define w as cast maybe on (7) but void is 42.
+            State z.
+            State w.
+            State z + w.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Voidable_Series_MatchesInterpreter()
+    {
+        // Uniform representation for a reference-type inner (series): present → value, absent → void.
+        const string src = """
+            Bind the voidable series of number to maybe-series, given (the number n):
+                If n > 0, return a series of number with (n, n).
+                return void.
+            Done.
+            Pull a rabbit.
+                Define s as cast maybe-series on (3).
+                Define t as cast maybe-series on (0).
+                State s.
+                State t.
+                State s but void is a series of number with (0).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Voidable_Comparisons_MatchesInterpreter()
+    {
+        // voidable-vs-plain-T (present && value matches) and voidable-vs-voidable equality.
+        const string src = """
+            Bind voidable number to maybe, given (the number n):
+                If n > 0, return n.
+                return void.
+            Done.
+            Define x as cast maybe on (5).
+            Define y as cast maybe on (5).
+            Define w as cast maybe on (0).
+            If x is 5, state "x-is-5". Otherwise, state "x-not-5".
+            If x is 6, state "x-is-6". Otherwise, state "x-not-6".
+            If x is y, state "x-eq-y". Otherwise, state "x-ne-y".
+            If x is w, state "x-eq-w". Otherwise, state "x-ne-w".
+            If w is w, state "w-eq-w". Otherwise, state "w-ne-w".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Voidable_FlowNarrowing_MatchesInterpreter()
+    {
+        // Inside an `is not void` branch, the voidable variable is narrowed to plain T —
+        // so arithmetic on it works, matching the interpreter's variable-level narrowing.
+        const string src = """
+            Bind voidable number to maybe, given (the number n):
+                If n > 0, return n.
+                return void.
+            Done.
+            Define x as cast maybe on (5).
+            If x is not void, State x + 1.
+            If x is not void, State x * 10.
+            Define v as cast maybe on (0).
+            If v is not void, State v + 100. Otherwise, State "v-absent".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     // Compiles source with -fsanitize=address for memory-safety verification.
     // Skipped when not on Linux (ASan reliable only with Linux gcc).
     private static string CompileWithASan(string source)
