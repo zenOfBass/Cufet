@@ -4939,6 +4939,97 @@ public class InterpreterTests
             "If x is void, State \"yes\". Otherwise, State \"no\"."));
     }
 
+    // ── Guard-return narrowing ────────────────────────────────────────────────
+    // After an exiting guard (`If x is void, return …` with no else), the fall-through path
+    // knows x is non-void — the natural error-handling idiom, valid without an `is not void` nest.
+
+    [Fact]
+    public void GuardNarrow_VoidGuard_NarrowsFallThrough()
+    {
+        // `Return n` after the void-guard type-checks against `number` even though n is voidable.
+        Assert.Equal("30", Run(
+            "Bind number or failure to parse-age, given (the text raw):\n" +
+            "    Define n as raw converted to number.\n" +
+            "    If n is void, return a failure \"not a number\" of category \"validation\".\n" +
+            "    Return n.\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    State cast parse-age on (\"30\").\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State the message of the failure.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void GuardNarrow_VoidGuard_FailurePathStillWorks()
+    {
+        Assert.Equal("not a number", Run(
+            "Bind number or failure to parse-age, given (the text raw):\n" +
+            "    Define n as raw converted to number.\n" +
+            "    If n is void, return a failure \"not a number\" of category \"validation\".\n" +
+            "    Return n.\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    State cast parse-age on (\"thirty\").\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State the message of the failure.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void GuardNarrow_DisjunctiveVoidGuard_NarrowsBothVars()
+    {
+        // `If x is void or y is void, return …` narrows BOTH x and y (¬(A or B) = ¬A and ¬B).
+        Assert.Equal("point(x: 3, y: 4)", Run(
+            "Define object point with (the number x, the number y).\n" +
+            "Bind making a point or failure to from-pair, given (the text sx, the text sy):\n" +
+            "    Define x as sx converted to number.\n" +
+            "    Define y as sy converted to number.\n" +
+            "    If x is void or y is void, return a failure \"non-numeric\".\n" +
+            "    Return a new point { the x x, the y y }.\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    State cast from-pair on (\"3\", \"4\").\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State the message of the failure.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void GuardNarrow_DoesNotLeakPastArm_ThrowsTypeError()
+    {
+        // A guard nested in an if-arm narrows only within that arm. After the arm, the variable
+        // is voidable again — using it as a bare number must still be a type error (no leak).
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number to f, given (the number flag, the text raw):\n" +
+            "    Define n as raw converted to number.\n" +
+            "    If flag is 1:\n" +
+            "        If n is void, return 0.\n" +
+            "        State n converted to text.\n" +
+            "    Done.\n" +
+            "    Return n.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void GuardNarrow_DoesNotLeakAcrossFunctions_ThrowsTypeError()
+    {
+        // A guard narrowing in one function must not carry into another function's same-named var.
+        Assert.Throws<TypeException>(() => Run(
+            "Bind number to g, given (the text raw):\n" +
+            "    Define n as raw converted to number.\n" +
+            "    If n is void, return 0.\n" +
+            "    Return n.\n" +
+            "Done.\n" +
+            "Bind number to h, given (the text raw):\n" +
+            "    Define n as raw converted to number.\n" +
+            "    Return n.\n" +
+            "Done."));
+    }
+
     [Fact]
     public void Void_IsVoidFalse()
     {

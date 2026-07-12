@@ -936,8 +936,65 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
 
     private void EmitBlock(StringBuilder sb, IReadOnlyList<IStatement> body, string indent)
     {
+        // Guard narrowing (mirrors the interpreter's type checker): after an exiting guard —
+        // a single-arm `if (cond) { … return … }` with no else — the statements that follow run
+        // only when `cond` was false, so a voidable var proven non-void by ¬cond reads as `.val`
+        // for the rest of the block. Undone at block end so it never leaks to a sibling block.
+        var guardNarrowed = new List<(string Name, CufetType? Prev, bool Had)>();
         foreach (var stmt in body)
+        {
             EmitStatement(sb, stmt, indent);
+            if (stmt is IfStatement { Arms.Count: 1, ElseBody: null } guard
+                && BlockAlwaysExits(guard.Arms[0].Body))
+            {
+                foreach (var (name, inner) in GuardNarrowings(guard.Arms[0].Condition))
+                {
+                    bool had = _narrowedVars.TryGetValue(name, out var prev);
+                    guardNarrowed.Add((name, had ? prev : null, had));
+                    _narrowedVars[name] = inner;
+                }
+            }
+        }
+        for (int i = guardNarrowed.Count - 1; i >= 0; i--)
+        {
+            var (name, prev, had) = guardNarrowed[i];
+            if (had) _narrowedVars[name] = prev!; else _narrowedVars.Remove(name); // had ⇒ prev non-null
+        }
+    }
+
+    // Voidable narrowings implied by the negation of a guard condition (fall-through path):
+    //   `x is void`   → x non-void → (x, inner);   `A or B` (¬ = ¬A ∧ ¬B) → collect from each.
+    // `and` is not recursed: ¬(A ∧ B) narrows neither side. Only voidable narrowing is emitted —
+    // that's all the compiler's `.val` access mechanism supports (and all the docs' idioms need).
+    private IEnumerable<(string Name, CufetType Inner)> GuardNarrowings(IExpression cond)
+    {
+        if (cond is BinaryExpression { Op: TokenType.Or } orE)
+        {
+            foreach (var g in GuardNarrowings(orE.Left))  yield return g;
+            foreach (var g in GuardNarrowings(orE.Right)) yield return g;
+            yield break;
+        }
+        if (cond is BinaryExpression { Op: TokenType.Equal } b)
+        {
+            var varSide = b.Left is VoidLiteral ? b.Right : b.Left;
+            var other   = b.Left is VoidLiteral ? b.Left  : b.Right;
+            if (other is VoidLiteral && varSide is VariableReference vr && TypeOf(vr) is VoidableType vt)
+                yield return (vr.Name, vt.Inner);
+        }
+    }
+
+    // Every path through `body` ends at a return. Mirrors the type checker's DefinitelyReturns
+    // (loops don't count — they may run zero times). Used to recognize exiting guards.
+    private static bool BlockAlwaysExits(IReadOnlyList<IStatement> body)
+    {
+        foreach (var s in body)
+        {
+            if (s is ReturnStatement) return true;
+            if (s is IfStatement { ElseBody: not null } ifs
+                && ifs.Arms.All(a => BlockAlwaysExits(a.Body)) && BlockAlwaysExits(ifs.ElseBody))
+                return true;
+        }
+        return false;
     }
 
     private void EmitStatement(StringBuilder sb, IStatement stmt, string indent)

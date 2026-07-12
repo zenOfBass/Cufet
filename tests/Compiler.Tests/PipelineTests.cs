@@ -1717,14 +1717,14 @@ public class PipelineTests
     [Fact]
     public void Text_ReadmeParseAge_MatchesInterpreter()
     {
-        // The README parse-age integration (text→number + fallibility + joined to). NOTE: the
-        // literal README uses `If n is void, return failure. Return n.` which the interpreter
-        // rejects (narrowing is is-not-void-then-branch only) — this is the working `is not void` form.
+        // The README parse-age integration verbatim (text→number + fallibility + joined to),
+        // written in the natural void-guard idiom `If n is void, return failure. Return n.`
+        // Both backends narrow n to non-void on the guard's fall-through (guard-return narrowing).
         const string src = """
             Bind number or failure to parse-age, given (the text raw):
                 Define n as raw converted to number.
-                If n is not void, return n.
-                return a failure "not a number" of category "validation".
+                If n is void, return a failure "not a number" of category "validation".
+                Return n.
             Done.
             Try to:
                 Define age as cast parse-age on ("thirty").
@@ -1740,6 +1740,52 @@ public class PipelineTests
             In case of failure:
                 State "bad input: " joined to the message of the failure.
             Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void GuardNarrowing_DisjunctiveVoidGuard_MatchesInterpreter()
+    {
+        // The REFERENCE from-pair shape: `If x is void or y is void, return failure` narrows
+        // BOTH x and y to non-void on the fall-through (¬(A or B) = ¬A and ¬B). Constructing a
+        // point whose fields are plain `number` proves both were unwrapped, not left voidable.
+        const string src = """
+            Define object point with (the number x, the number y).
+            Bind making a point or failure to from-pair, given (the text sx, the text sy):
+                Define x as sx converted to number.
+                Define y as sy converted to number.
+                If x is void or y is void, return a failure "non-numeric".
+                Return a new point { the x x, the y y }.
+            Done.
+            Try to:
+                State cast from-pair on ("3", "4").
+                State cast from-pair on ("bad", "4").
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void GuardNarrowing_DoesNotLeakPastArm_MatchesInterpreter()
+    {
+        // A guard inside an if-arm narrows only within that arm; after the arm the variable is
+        // voidable again. Handling it with `but void is` on both paths must agree with the oracle.
+        const string src = """
+            Bind number to classify, given (the number flag, the text raw):
+                Define n as raw converted to number.
+                If flag is 1:
+                    If n is void, return 0.
+                    Return n.
+                Done.
+                Return n but void is -1.
+            Done.
+            State cast classify on (1, "5").
+            State cast classify on (0, "bad").
+            State cast classify on (0, "9").
             """;
         Assert.Equal(Interpret(src), Compile(src));
     }

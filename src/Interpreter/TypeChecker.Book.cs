@@ -160,7 +160,7 @@ public sealed partial class TypeChecker
                     RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
             }
 
-            foreach (var s in ps.Body) CheckStatement(s);
+            CheckBlock(ps.Body);
         }
         finally { ExitScope(); }
     }

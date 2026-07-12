@@ -23,7 +23,7 @@ public sealed partial class TypeChecker
                 new VariableReference(prs.Name, prs.Line),
                 prs.Line,
                 RabbitDepth: _rabbitDepth);
-        try { foreach (var s in prs.Body) CheckStatement(s); }
+        try { CheckBlock(prs.Body); }
         finally { ExitScope(); _rabbitDepth--; }
     }
 
@@ -65,7 +65,7 @@ public sealed partial class TypeChecker
         EnterScope();
         try
         {
-            foreach (var s in lts.Body) CheckStatement(s);
+            CheckBlock(lts.Body);
             inferredResultType = _expectedReturnType;
         }
         finally

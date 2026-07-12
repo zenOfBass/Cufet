@@ -304,7 +304,7 @@ public sealed partial class TypeChecker
         var savedInTryBlock = _inTryBlock;
         _inTryBlock = trySt.FailureHandler != null;
         EnterScope();
-        try { foreach (var s in trySt.Body) CheckStatement(s); }
+        try { CheckBlock(trySt.Body); }
         finally { ExitScope(); _inTryBlock = savedInTryBlock; }
 
         // Failure handler: bind "the failure" as FailureMarkerType.
@@ -313,7 +313,7 @@ public sealed partial class TypeChecker
             EnterScope();
             Scope["the failure"] = new TypeInfo(CufetType.FailureMarker,
                 new VariableReference("the failure", trySt.Line), trySt.Line);
-            try { foreach (var s in trySt.FailureHandler) CheckStatement(s); }
+            try { CheckBlock(trySt.FailureHandler); }
             finally { ExitScope(); }
         }
 
@@ -325,7 +325,7 @@ public sealed partial class TypeChecker
                 new VariableReference("the exception", trySt.Line), trySt.Line);
             var savedInEx = _inExceptionHandler;
             _inExceptionHandler = true;
-            try { foreach (var s in trySt.ExceptionHandler) CheckStatement(s); }
+            try { CheckBlock(trySt.ExceptionHandler); }
             finally { _inExceptionHandler = savedInEx; ExitScope(); }
         }
     }

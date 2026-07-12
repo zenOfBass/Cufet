@@ -507,8 +507,7 @@ public sealed partial class TypeChecker
         Pass1Hoist(program);
         Pass2ResolveTypes();          // resolve all placeholder ObjectType refs in _objectDefs + global scope
         Pass2CheckOverloads(program); // body-check all overloads; populates _overloadReturnTypes
-        foreach (var stmt in program.Statements)
-            CheckStatement(stmt);
+        CheckBlock(program.Statements);
     }
 
     // Resolves every placeholder ObjectType reference stored inside _objectDefs (field types,
@@ -839,7 +838,7 @@ public sealed partial class TypeChecker
                         _narrowedVars[narrowedVar] = narrowedTo;
                     }
                     EnterScope();
-                    foreach (var s in arm.Body) CheckStatement(s);
+                    CheckBlock(arm.Body);
                     ExitScope();
                     if (narrowedVar != null && narrowedTo != null)
                     {
@@ -859,7 +858,7 @@ public sealed partial class TypeChecker
                         _narrowedVars[unionVar] = remainingUnionType;
                     }
                     EnterScope();
-                    foreach (var s in ifStmt.ElseBody) CheckStatement(s);
+                    CheckBlock(ifStmt.ElseBody);
                     ExitScope();
                     if (elseNarrowedVar != null)
                     {
@@ -872,14 +871,12 @@ public sealed partial class TypeChecker
             case WhileStatement whileStmt:
                 _ = InferType(whileStmt.Condition);
                 EnterScope();
-                foreach (var s in whileStmt.Body)
-                    CheckStatement(s);
+                CheckBlock(whileStmt.Body);
                 ExitScope();
                 break;
             case RepeatUntilStatement repeatUntil:
                 EnterScope();
-                foreach (var s in repeatUntil.Body)
-                    CheckStatement(s);
+                CheckBlock(repeatUntil.Body);
                 ExitScope();
                 _ = InferType(repeatUntil.Condition);
                 break;
@@ -1525,6 +1522,69 @@ public sealed partial class TypeChecker
             // repeat-until exits after one iteration without requiring a return.
         }
         return false;
+    }
+
+    // Checks a linear block of statements, applying "guard narrowing" between them:
+    // after an exiting guard — a single-arm `If <cond>, return …` with no else whose body
+    // definitely returns — the statements that follow run only when <cond> was false, so the
+    // fall-through path can narrow by the negation of <cond>. This makes the natural idiom
+    //   `If x is void, return a failure …`  … then use x as non-void
+    // type-check without an explicit `is not void` nesting. Narrowings established here are
+    // undone at the end of the block so they never leak to sibling blocks (which would be
+    // unsound: a guard inside one If-arm says nothing about the path where that arm was skipped).
+    private void CheckBlock(IReadOnlyList<IStatement> body)
+    {
+        var guardNarrowed = new List<(string Name, CufetType? Prev, bool Had)>();
+        foreach (var s in body)
+        {
+            CheckStatement(s);
+            if (s is IfStatement { Arms.Count: 1, ElseBody: null } guard
+                && DefinitelyReturns(guard.Arms[0].Body))
+            {
+                var narrowings = new List<(string Name, CufetType Type)>();
+                CollectGuardNarrowings(guard.Arms[0].Condition, narrowings);
+                foreach (var (name, ty) in narrowings)
+                {
+                    bool had = _narrowedVars.TryGetValue(name, out var prev);
+                    guardNarrowed.Add((name, had ? prev : null, had));
+                    _narrowedVars[name] = ty;
+                }
+            }
+        }
+        for (int i = guardNarrowed.Count - 1; i >= 0; i--)
+        {
+            var (name, prev, had) = guardNarrowed[i];
+            if (had) _narrowedVars[name] = prev!; // had ⇒ prev non-null
+            else _narrowedVars.Remove(name);
+        }
+    }
+
+    // Collects the narrowings implied by the NEGATION of a guard condition — what holds on the
+    // fall-through path once an exiting guard on `condition` has been passed.
+    //   `x is void`            → x is non-void        → narrow x to its inner type
+    //   `x is a T`             → x is not a T          → remove T from x's union
+    //   `A or B`  (¬ = ¬A ∧ ¬B) → both sides' negations hold → collect from each
+    // `and` is deliberately not recursed: ¬(A ∧ B) = ¬A ∨ ¬B narrows neither side.
+    private void CollectGuardNarrowings(IExpression condition, List<(string, CufetType)> into)
+    {
+        if (condition is BinaryExpression { Op: TokenType.Or } orExpr)
+        {
+            CollectGuardNarrowings(orExpr.Left, into);
+            CollectGuardNarrowings(orExpr.Right, into);
+            return;
+        }
+        if (condition is BinaryExpression { Op: TokenType.Equal, Right: VoidLiteral, Left: VariableReference vr }
+            && TryLookup(vr.Name, out var info) && info!.Type is VoidableType vt)
+        {
+            into.Add((vr.Name, vt.Inner));
+            return;
+        }
+        if (TryGetTypeCheckNarrowing(condition, out var tcVar, out var tcType, out bool tcNeg) && !tcNeg
+            && TryLookup(tcVar!, out var tinfo))
+        {
+            var remaining = RemoveFromUnion(tinfo!.Type, tcType!);
+            if (remaining != null) into.Add((tcVar!, remaining));
+        }
     }
 
     private static string FormatTypeError(

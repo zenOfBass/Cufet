@@ -389,8 +389,7 @@ public sealed partial class TypeChecker
 
         try
         {
-            foreach (var stmt in method.Body)
-                CheckStatement(stmt);
+            CheckBlock(method.Body);
 
             // Compute and store the method's return-depth signature so call sites can
             // propagate rabbit depth through method calls instead of treating every return as depth-0.
@@ -448,8 +447,7 @@ public sealed partial class TypeChecker
 
         try
         {
-            foreach (var stmt in getter.Body)
-                CheckStatement(stmt);
+            CheckBlock(getter.Body);
 
             // Compute and store the getter's return-depth signature.
             if (IsReferenceType(getter.ReturnType))
@@ -497,8 +495,7 @@ public sealed partial class TypeChecker
 
         try
         {
-            foreach (var stmt in setter.Body)
-                CheckStatement(stmt);
+            CheckBlock(setter.Body);
         }
         finally
         {
@@ -548,7 +545,7 @@ public sealed partial class TypeChecker
         _functionDeclarationLine = ud.Line;
         _rabbitDepth             = 0;
 
-        try { foreach (var stmt in ud.Body) CheckStatement(stmt); }
+        try { CheckBlock(ud.Body); }
         finally
         {
             _inFunction              = prevInFunction;
@@ -747,8 +744,7 @@ public sealed partial class TypeChecker
 
         try
         {
-            foreach (var stmt in oad.Body)
-                CheckStatement(stmt);
+            CheckBlock(oad.Body);
 
             if (!DefinitelyReturns(oad.Body))
                 throw new TypeException(FormatTypeError(

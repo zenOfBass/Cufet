@@ -246,8 +246,7 @@ public sealed partial class TypeChecker
 
         try
         {
-            foreach (var stmt in bind.Body)
-                CheckStatement(stmt);
+            CheckBlock(bind.Body);
 
             // Compute return-depth signature so call sites can propagate rabbit depth through
             // function calls instead of treating every return as depth-0.
@@ -318,8 +317,7 @@ public sealed partial class TypeChecker
         CufetType? inferredReturn = null;
         try
         {
-            foreach (var stmt in lambda.Body)
-                CheckStatement(stmt);
+            CheckBlock(lambda.Body);
         }
         finally
         {

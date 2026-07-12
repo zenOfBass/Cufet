@@ -16,7 +16,7 @@ public sealed partial class TypeChecker
             var iterKey = forEach.IteratorName ?? "it";
             EnterScope();
             Scope[iterKey] = new TypeInfo(new MappingType(ResolveParamType(mapType.KeyType), ResolveParamType(mapType.ValueType)), forEach.Series, forEach.Line);
-            try { foreach (var s in forEach.Body) CheckStatement(s); }
+            try { CheckBlock(forEach.Body); }
             finally { ExitScope(); }
             return;
         }
@@ -39,8 +39,7 @@ public sealed partial class TypeChecker
         Scope[iterKey2] = new TypeInfo(ResolveParamType(seriesType.ElementType), forEach.Series, forEach.Line, RabbitDepth: seriesDepth);
         try
         {
-            foreach (var s in forEach.Body)
-                CheckStatement(s);
+            CheckBlock(forEach.Body);
         }
         finally { ExitScope(); }
     }
