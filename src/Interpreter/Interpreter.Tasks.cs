@@ -29,11 +29,12 @@ public sealed partial class Interpreter
         if (handle.Result is FailureValue fv)
             throw new FailureUnwind(fv);
 
-        // The task's result type is inferred from its `return` statements, but the type checker
-        // does not require every path to return — so a value-returning task can still fall off
-        // its end without setting a result (HasResult stays false, Result stays null). Awaiting
-        // that is a runtime error: turn it into a clean Cufet failure rather than letting a C#
-        // null escape into Evaluate (which crashes Format with a NullReferenceException).
+        // Defense-in-depth: a value-returning task that fell off its end without setting a result
+        // (HasResult false, Result null) is now rejected statically — CheckLaunchTask enforces
+        // DefinitelyReturns whenever the inferred result type is non-void. This guard should be
+        // unreachable via well-typed code; it keeps a C# null from ever escaping into Evaluate
+        // (which would crash Format with a NullReferenceException) and preserves the invariant
+        // that Evaluate never returns null, so this method's return type stays non-nullable.
         if (!handle.HasResult || handle.Result is null)
             throw new RuntimeException(
                 $"the awaited task finished without returning a value — there is no result to await (line {are.Line}).");
