@@ -78,6 +78,18 @@ public sealed partial class TypeChecker
             ExitScope();
         }
 
+        // A task that returns a value on some path must return on every path — same rule as
+        // lambdas (whose result type is likewise inferred). Otherwise a task could fall off its
+        // end without setting a result, and awaiting it would have no value to give back. Tasks
+        // with no returns stay fire-and-forget (inferredResultType == null) and are exempt.
+        if (inferredResultType != null && !DefinitelyReturns(lts.Body))
+            throw new TypeException(FormatTypeError(
+                $"this task is inferred to give back a {FormatType(inferredResultType)}, but it can reach its end without returning one",
+                null,
+                lts.Line,
+                "start a task that might not return a value",
+                "Make sure every path through the task ends with a return statement — or remove the returns to make it fire-and-forget."));
+
         if (lts.Name != null)
             Scope[lts.Name] = new TypeInfo(
                 new TaskHandleType(inferredResultType),

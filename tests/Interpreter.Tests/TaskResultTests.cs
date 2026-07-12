@@ -272,14 +272,16 @@ public class TaskResultTests
         Assert.Equal("6\n3", output);
     }
 
-    // Regression: a value-returning task whose only `return` is on a conditional path can still
-    // fall off its end without returning (the type checker infers a result type but does not
-    // require all paths to return). Awaiting that result must raise a clean Cufet RuntimeException,
-    // not leak a C# null into Evaluate (which previously crashed Format with a NullReferenceException).
+    // Regression: a value-returning task must return on every path — same rule as lambdas.
+    // A task whose only `return` is on a conditional path can otherwise fall off its end without
+    // setting a result, and awaiting it would have no value to give back (previously this slipped
+    // past the checker and crashed at runtime with a NullReferenceException in Format). The task
+    // checker now rejects it statically; a runtime guard in EvaluateAwaitedResultExpression remains
+    // as defense-in-depth for any path that bypasses the checker.
     [Fact]
-    public void AwaitTaskThatFellOffEnd_RaisesCleanError()
+    public void TaskReturningOnSomePathsOnly_RejectedStatically()
     {
-        Assert.Throws<RuntimeException>(() => Run("""
+        Assert.Throws<TypeException>(() => Run("""
             Pull a rabbit.
                 Have rabbit start a task as t:
                     If 1 is 2, return 5.
@@ -288,5 +290,20 @@ public class TaskResultTests
                 State r.
             Done.
             """));
+    }
+
+    // A fire-and-forget task with no returns stays exempt from all-paths-return — it is void,
+    // and its (absent) result is simply never awaited.
+    [Fact]
+    public void FireAndForgetTask_NoReturns_IsAllowed()
+    {
+        var output = Run("""
+            Pull a rabbit.
+                Have rabbit start a task:
+                    State "side effect".
+                Done.
+            Done.
+            """);
+        Assert.Equal("side effect", output);
     }
 }
