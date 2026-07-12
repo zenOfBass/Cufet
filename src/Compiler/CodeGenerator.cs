@@ -84,6 +84,7 @@ public sealed class CodeGenerator
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 /* ───────── 256-bit unsigned helper (little-endian limbs) ───────── */
 typedef struct { unsigned long long v[4]; } cufet_u256;
@@ -292,6 +293,107 @@ typedef struct { const char* message; const char* category; } CufetFailure;
 
 """;
 
+    // Text runtime. Text is `const char*` and immutable — every operation allocates a fresh
+    // result in the current arena (freed at Done.); literals stay static. Case/trim/parse are
+    // ASCII/invariant (matching the interpreter for ASCII input).
+    private const string TextRuntime =
+"""
+static const char* cufet_str_concat(const char* a, const char* b) {
+    size_t la = strlen(a), lb = strlen(b);
+    char* r = (char*)cufet_arena_alloc(la + lb + 1);
+    memcpy(r, a, la); memcpy(r + la, b, lb + 1);
+    return r;
+}
+static const char* cufet_str_substr(const char* s, int from0, int len) {
+    if (len < 0) len = 0;
+    char* r = (char*)cufet_arena_alloc((size_t)len + 1);
+    memcpy(r, s + from0, (size_t)len); r[len] = '\0';
+    return r;
+}
+static const char* cufet_str_range(const char* s, int from1, int to1) {
+    if (from1 <= 0) { fprintf(stderr, "a character position must be 1 or greater\n"); exit(1); }
+    int len = (int)strlen(s);
+    if (to1 < 0 || to1 > len) to1 = len;      /* to1 < 0 sentinel = to end; clamp high */
+    int length = to1 - from1 + 1;              /* 1-based inclusive */
+    if (length <= 0) return "";
+    return cufet_str_substr(s, from1 - 1, length);
+}
+static const char* cufet_str_edge(const char* s, int count, int from_start) {
+    int len = (int)strlen(s);
+    int c = count < 0 ? 0 : (count > len ? len : count);
+    return from_start ? cufet_str_substr(s, 0, c) : cufet_str_substr(s, len - c, c);
+}
+static const char* cufet_str_upper(const char* s) {
+    size_t n = strlen(s); char* r = (char*)cufet_arena_alloc(n + 1);
+    for (size_t i = 0; i < n; i++) r[i] = (char)toupper((unsigned char)s[i]);
+    r[n] = '\0'; return r;
+}
+static const char* cufet_str_lower(const char* s) {
+    size_t n = strlen(s); char* r = (char*)cufet_arena_alloc(n + 1);
+    for (size_t i = 0; i < n; i++) r[i] = (char)tolower((unsigned char)s[i]);
+    r[n] = '\0'; return r;
+}
+static const char* cufet_str_trim(const char* s) {
+    const char* start = s;
+    while (*start && isspace((unsigned char)*start)) start++;
+    const char* end = s + strlen(s);
+    while (end > start && isspace((unsigned char)end[-1])) end--;
+    size_t n = (size_t)(end - start);
+    char* r = (char*)cufet_arena_alloc(n + 1);
+    memcpy(r, start, n); r[n] = '\0'; return r;
+}
+static int cufet_str_find(const char* text, const char* sub) {
+    const char* p = strstr(text, sub);
+    return p ? (int)(p - text) + 1 : 0;        /* 1-based; 0 = not found */
+}
+static const char* cufet_str_replace(const char* s, const char* olds, const char* news) {
+    size_t lo = strlen(olds);
+    if (lo == 0) { fprintf(stderr, "'replace' needs a non-empty target\n"); exit(1); }
+    size_t ln = strlen(news), ls = strlen(s), count = 0;
+    const char* p = s;
+    while ((p = strstr(p, olds))) { count++; p += lo; }
+    char* r = (char*)cufet_arena_alloc(ls + count * ln + 1);   /* upper bound */
+    char* w = r; p = s; const char* q;
+    while ((q = strstr(p, olds))) {
+        memcpy(w, p, (size_t)(q - p)); w += (q - p);
+        memcpy(w, news, ln); w += ln;
+        p = q + lo;
+    }
+    strcpy(w, p);
+    return r;
+}
+static const char* cufet_text_from_dec(CufetDec d) {
+    char buf[64]; cufet_format_number(buf, sizeof(buf), d);
+    size_t n = strlen(buf); char* r = (char*)cufet_arena_alloc(n + 1);
+    memcpy(r, buf, n + 1); return r;
+}
+/* text -> number: trim, then accept -?\d+(\.\d+)? (mirrors the lexer + decimal.TryParse).
+   Returns 1 and writes *out on success; 0 (unparseable) otherwise. */
+static int cufet_parse_number(const char* s, CufetDec* out) {
+    while (*s && isspace((unsigned char)*s)) s++;
+    const char* end = s + strlen(s);
+    while (end > s && isspace((unsigned char)end[-1])) end--;
+    if (end == s) return 0;
+    const char* p = s; int sign = 0;
+    if (*p == '-') { sign = 1; p++; }
+    if (p == end || *p < '0' || *p > '9') return 0;
+    unsigned __int128 coef = 0; int scale = 0;
+    while (p < end && *p >= '0' && *p <= '9') { coef = coef * 10 + (unsigned)(*p - '0'); p++; }
+    if (p < end && *p == '.') {
+        p++;
+        if (p == end || *p < '0' || *p > '9') return 0;
+        while (p < end && *p >= '0' && *p <= '9') { coef = coef * 10 + (unsigned)(*p - '0'); scale++; p++; }
+    }
+    if (p != end) return 0;
+    if (scale > 28) return 0;
+    unsigned __int128 max96 = (((unsigned __int128)0xFFFFFFFFu) << 64) | 0xFFFFFFFFFFFFFFFFull;
+    if (coef > max96) return 0;                /* > decimal.MaxValue -> unparseable */
+    out->coef = coef; out->scale = scale; out->sign = (coef == 0) ? 0 : sign;
+    return 1;
+}
+
+""";
+
     public string Generate(Program program)
     {
         var sb = new StringBuilder();
@@ -413,6 +515,9 @@ typedef struct { const char* message; const char* category; } CufetFailure;
         sb.AppendLine("    return 1;");
         sb.AppendLine("}");
         sb.AppendLine();
+
+        // ── Text runtime (immutable strings; results arena-allocated) ─────
+        sb.AppendLine(TextRuntime);
 
         // Object definitions are nominal types — collect them all up front (they may be
         // top-level or nested in Pull blocks) so literals and field access resolve.
@@ -1283,6 +1388,11 @@ typedef struct { const char* message; const char* category; } CufetFailure;
         FailureLiteral        => TFailMarker,
         FailureFallback ff    => TypeOf(ff.Fallible) is FailureType ft ? ft.Inner : TypeOf(ff.Default),
         FailurePropagate fp   => TypeOf(fp.Fallible) is FailureType ft2 ? ft2.Inner : TNumber,
+        TextJoin or TextConvert or TextSubstringRange or TextSubstringEdge
+            or TextReplace or TextCase or TextTrim => TText,
+        NumberConvert or TextFind => new VoidableType(TNumber),
+        TextLength            => TNumber,
+        TextContains          => TFact,
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
@@ -1640,6 +1750,18 @@ typedef struct { const char* message; const char* category; } CufetFailure;
         MapSize ms            => $"cufet_dec_from_ll(({EmitExpr(ms.Map)})->len)",
         FailureFallback ff    => EmitFailureFallback(ff),
         FailurePropagate fp   => EmitFailurePropagate(fp),
+        TextJoin tj           => $"cufet_str_concat({EmitExpr(tj.Left)}, {EmitExpr(tj.Right)})",
+        TextConvert tc        => EmitTextConvert(tc),
+        NumberConvert nc      => EmitNumberConvert(nc),
+        TextLength tl         => $"cufet_dec_from_ll((long long)strlen({EmitExpr(tl.Target)}))",
+        TextContains tcn      => $"(strstr({EmitExpr(tcn.Text)}, {EmitExpr(tcn.Substring)}) != NULL)",
+        TextFind tf           => EmitTextFind(tf),
+        TextSubstringRange r  => $"cufet_str_range({EmitExpr(r.Text)}, cufet_to_int({EmitExpr(r.From)}), {(r.To != null ? $"cufet_to_int({EmitExpr(r.To)})" : "-1")})",
+        TextSubstringEdge e   => $"cufet_str_edge({EmitExpr(e.Text)}, cufet_to_int({EmitExpr(e.Count)}), {(e.FromStart ? "1" : "0")})",
+        TextReplace rp        => $"cufet_str_replace({EmitExpr(rp.Text)}, {EmitExpr(rp.Old)}, {EmitExpr(rp.New)})",
+        TextCase tcs          => tcs.Uppercase ? $"cufet_str_upper({EmitExpr(tcs.Text)})" : $"cufet_str_lower({EmitExpr(tcs.Text)})",
+        TextTrim tt           => $"cufet_str_trim({EmitExpr(tt.Text)})",
+        TextSplit             => throw new CompilerException("'split by' (→ series of text) is not yet supported by the compiler — needs series-of-text generalization."),
         // A bare `void` only has meaning where a voidable is expected (return/becomes/args,
         // handled by EmitAsType) or as an `is void` operand (handled in EmitBinary).
         VoidLiteral           => throw new CompilerException("'void' is only valid where a voidable value is expected."),
@@ -1714,6 +1836,35 @@ typedef struct { const char* message; const char* category; } CufetFailure;
             : throw new CompilerException("'or pass the failure off' requires the enclosing function to return 'T or failure'.");
         _preEmits.Add($"if ({tmp}.is_failure) return (({enclosing}){{ .is_failure = 1, .message = {tmp}.message, .category = {tmp}.category }});");
         return $"{tmp}.val";
+    }
+
+    // converted to text — number formats to a fresh arena string; fact → static "true"/"false";
+    // text is a no-op. (The type checker restricts the operand to number/fact/text.)
+    private string EmitTextConvert(TextConvert tc) => TypeOf(tc.Value) switch
+    {
+        NumberType => $"cufet_text_from_dec({EmitExpr(tc.Value)})",
+        FactType   => $"({EmitExpr(tc.Value)} ? \"true\" : \"false\")",
+        TextType   => EmitExpr(tc.Value),
+        var t => throw new CompilerException($"'converted to text' of a '{t.GetType().Name}' is not yet supported by the compiler.")
+    };
+
+    // converted to number → voidable number (void when unparseable). Parses into a temp.
+    private string EmitNumberConvert(NumberConvert nc)
+    {
+        string cvd = RegisterVoidableStruct(new VoidableType(TNumber));
+        string s = EmitExpr(nc.Value);
+        int id = _freshId++;
+        _preEmits.Add($"CufetDec cf_pn{id}; int cf_pnok{id} = cufet_parse_number({s}, &cf_pn{id});");
+        return $"(cf_pnok{id} ? ({cvd}){{ .has = 1, .val = cf_pn{id} }} : ({cvd}){{ .has = 0 }})";
+    }
+
+    // the position of <sub> in <text> → voidable number (1-based; void when not found).
+    private string EmitTextFind(TextFind tf)
+    {
+        string cvd = RegisterVoidableStruct(new VoidableType(TNumber));
+        int id = _freshId++;
+        _preEmits.Add($"int cf_fd{id} = cufet_str_find({EmitExpr(tf.Text)}, {EmitExpr(tf.Substring)});");
+        return $"(cf_fd{id} ? ({cvd}){{ .has = 1, .val = cufet_dec_from_ll(cf_fd{id}) }} : ({cvd}){{ .has = 0 }})";
     }
 
     private string MapName(IExpression mapExpr) => RegisterMapStruct((MapType)TypeOf(mapExpr));

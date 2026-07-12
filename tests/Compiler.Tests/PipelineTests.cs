@@ -1677,6 +1677,108 @@ public class PipelineTests
         Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
     }
 
+    // ── Slice 7: text-as-full-type (immutable const char*, results arena-allocated) ──
+
+    [Fact]
+    public void Text_Operations_MatchesInterpreter()
+    {
+        const string src = """
+            State "hello" joined to " " joined to "world".
+            State 42 converted to text.
+            State (0.1 + 0.2) converted to text.
+            State true converted to text.
+            State the length of "hello".
+            If "hello world" contains "world", state "yes". Otherwise, state "no".
+            State the characters from 2 to 4 of "hello".
+            State the first 3 characters of "hello".
+            State the last 2 characters of "hello".
+            State replace "o" with "0" in "hello world".
+            State "Hello World" in uppercase.
+            State "Hello World" in lowercase.
+            State "  spaces  " trimmed.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Text_ConvertAndFind_MatchesInterpreter()
+    {
+        // converted to number → voidable number (reuses 5C); position of → voidable number.
+        const string src = """
+            State "  42.5  " converted to number but void is 0.
+            State "not a number" converted to number but void is -1.
+            State "-3.14" converted to number but void is 0.
+            State the position of "world" in "hello world" but void is 0.
+            State the position of "xyz" in "hello world" but void is 0.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Text_ReadmeParseAge_MatchesInterpreter()
+    {
+        // The README parse-age integration (text→number + fallibility + joined to). NOTE: the
+        // literal README uses `If n is void, return failure. Return n.` which the interpreter
+        // rejects (narrowing is is-not-void-then-branch only) — this is the working `is not void` form.
+        const string src = """
+            Bind number or failure to parse-age, given (the text raw):
+                Define n as raw converted to number.
+                If n is not void, return n.
+                return a failure "not a number" of category "validation".
+            Done.
+            Try to:
+                Define age as cast parse-age on ("thirty").
+                State age.
+            Done.
+            In case of failure:
+                State "bad input: " joined to the message of the failure.
+            Done.
+            Try to:
+                Define age as cast parse-age on ("42").
+                State age.
+            Done.
+            In case of failure:
+                State "bad input: " joined to the message of the failure.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Text_RuntimeStringsCompose_MatchesInterpreter()
+    {
+        // Runtime-built strings as map keys (compared by value) and record fields.
+        const string src = """
+            Pull a rabbit.
+                Define uid as "user-" joined to (42 converted to text).
+                Define m as a map from text to number with (uid: 100).
+                In m, the entry for ("user-" joined to (99 converted to text)) becomes 7.
+                State the entry for "user-42" in m but void is 0.
+                State the entry for "user-99" in m but void is 0.
+                Define r as a record with (the name ("Ms " joined to "Alice"), the age 30).
+                State r.
+                If the name of r is "Ms Alice", state "match". Otherwise, state "no-match".
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Text_SplitDeferred_ThrowsCleanly()
+    {
+        // split by → series of text needs series-of-text (deferred). Must reject cleanly.
+        const string src = """
+            Pull a rabbit.
+                Define parts as "a,b,c" split by ",".
+                State the number of parts.
+            Done.
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+    }
+
     // Compiles source with -fsanitize=address for memory-safety verification.
     // Skipped when not on Linux (ASan reliable only with Linux gcc).
     private static string CompileWithASan(string source)
@@ -1739,6 +1841,31 @@ public class PipelineTests
                 Done.
                 For each x in xs, repeat:
                     State x.
+                Done.
+            Done.
+            """;
+        string expected = Interpret(src);
+        string actual   = CompileWithASan(src);
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void Text_MemorySafety_ASan_ZeroLeaksAndNoUAF()
+    {
+        // The string runtime cooperates with the arena: a text-op-heavy Pull block allocates
+        // many runtime strings (join/case/substring/replace/convert) that must all free at
+        // Done. — zero leaks / UAF. Proves immutable arena strings are memory-clean. Linux-only.
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+
+        const string src = """
+            Pull a rabbit.
+                For each n in the range 1 to 25, repeat:
+                    Define label as "item-" joined to (n converted to text).
+                    Define up as label in uppercase.
+                    Define slice as the characters from 1 to 4 of up.
+                    Define rep as replace "T" with "x" in slice.
+                    State rep joined to " " joined to (the length of label converted to text).
                 Done.
             Done.
             """;
