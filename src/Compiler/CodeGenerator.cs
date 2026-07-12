@@ -36,6 +36,13 @@ public sealed class CodeGenerator
     private readonly List<(string Name, CufetType Key, CufetType Value)> _mapStructs = new();
     private int _mapCounter;
 
+    // Series struct registry — one arena container `cser_N { T* data; int len, cap; }` per
+    // distinct element type T. Generalizes the former number-only CufetSeries; synthesized like
+    // maps (per-type, arena pointer / reference type, forward-declared + runtime after structs).
+    private readonly Dictionary<string, string> _seriesSig2Name = new();
+    private readonly List<(string Name, CufetType Elem)> _seriesStructs = new();
+    private int _seriesCounter;
+
     // Failable struct registry — `cfl_N { int is_failure; T val; const char* message, category }`
     // per distinct inner T. A `T or failure` value: either a T (is_failure=0) or a failure.
     private readonly Dictionary<string, string> _failableSig2Name = new();
@@ -346,6 +353,28 @@ static int cufet_str_find(const char* text, const char* sub) {
     const char* p = strstr(text, sub);
     return p ? (int)(p - text) + 1 : 0;        /* 1-based; 0 = not found */
 }
+/* Splits s on each non-overlapping occurrence of delim, keeping empty parts (C# string.Split
+   with StringSplitOptions.None): N hits -> N+1 arena-allocated substrings, written to *out.
+   Delimiter-not-found -> one part (the whole string); "" -> one empty part. */
+static int cufet_str_split(const char* s, const char* delim, const char*** out) {
+    size_t dl = strlen(delim);
+    if (dl == 0) { fprintf(stderr, "'split by' needs a non-empty delimiter\n"); exit(1); }
+    int count = 1;
+    for (const char* p = s; (p = strstr(p, delim)) != NULL; p += dl) count++;
+    const char** arr = (const char**)cufet_arena_alloc((size_t)count * sizeof(const char*));
+    int idx = 0; const char* start = s; const char* p;
+    while ((p = strstr(start, delim)) != NULL) {
+        size_t len = (size_t)(p - start);
+        char* part = (char*)cufet_arena_alloc(len + 1);
+        memcpy(part, start, len); part[len] = '\0';
+        arr[idx++] = part;
+        start = p + dl;
+    }
+    { size_t len = strlen(start); char* part = (char*)cufet_arena_alloc(len + 1);
+      memcpy(part, start, len); part[len] = '\0'; arr[idx++] = part; }
+    *out = arr;
+    return count;
+}
 static const char* cufet_str_replace(const char* s, const char* olds, const char* news) {
     size_t lo = strlen(olds);
     if (lo == 0) { fprintf(stderr, "'replace' needs a non-empty target\n"); exit(1); }
@@ -441,80 +470,11 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         sb.AppendLine("}");
         sb.AppendLine();
 
-        // ── Series runtime (series of number only for this slice) ─────────
-        // CufetSeries: struct in arena; data buffer in arena (re-allocated on
-        // growth — old buffer stays in ptrs, freed at arena_pop). Elements are
-        // CufetDec so series-of-number is exact decimal, like scalars.
-        sb.AppendLine("typedef struct { CufetDec* data; int len; int cap; } CufetSeries;");
-        sb.AppendLine();
-        sb.AppendLine("static CufetSeries* cufet_series_new(void) {");
-        sb.AppendLine("    CufetSeries* s = (CufetSeries*)cufet_arena_alloc(sizeof(CufetSeries));");
-        sb.AppendLine("    s->data = NULL; s->len = 0; s->cap = 0;");
-        sb.AppendLine("    return s;");
-        sb.AppendLine("}");
-        sb.AppendLine();
-        sb.AppendLine("static void cufet_series_ensure(CufetSeries* s) {");
-        sb.AppendLine("    if (s->len >= s->cap) {");
-        sb.AppendLine("        int nc = s->cap == 0 ? 4 : s->cap * 2;");
-        sb.AppendLine("        CufetDec* nd = (CufetDec*)cufet_arena_alloc((size_t)nc * sizeof(CufetDec));");
-        sb.AppendLine("        if (s->len > 0) memcpy(nd, s->data, (size_t)s->len * sizeof(CufetDec));");
-        sb.AppendLine("        s->data = nd; s->cap = nc;");
-        sb.AppendLine("    }");
-        sb.AppendLine("}");
-        sb.AppendLine();
-        sb.AppendLine("static void cufet_series_append(CufetSeries* s, CufetDec v) {");
-        sb.AppendLine("    cufet_series_ensure(s);");
-        sb.AppendLine("    s->data[s->len++] = v;");
-        sb.AppendLine("}");
-        sb.AppendLine();
-        sb.AppendLine("static void cufet_series_prepend(CufetSeries* s, CufetDec v) {");
-        sb.AppendLine("    cufet_series_ensure(s);");
-        sb.AppendLine("    if (s->len > 0) memmove(s->data + 1, s->data, (size_t)s->len * sizeof(CufetDec));");
-        sb.AppendLine("    s->data[0] = v; s->len++;");
-        sb.AppendLine("}");
-        sb.AppendLine();
-        // Inserts v after 1-based position after1 (already the correct 0-based insertion index).
-        sb.AppendLine("static void cufet_series_insert(CufetSeries* s, int after1, CufetDec v) {");
-        sb.AppendLine("    cufet_series_ensure(s);");
-        sb.AppendLine("    int pos = after1;");
-        sb.AppendLine("    if (s->len > pos) memmove(s->data + pos + 1, s->data + pos, (size_t)(s->len - pos) * sizeof(CufetDec));");
-        sb.AppendLine("    s->data[pos] = v; s->len++;");
-        sb.AppendLine("}");
-        sb.AppendLine();
-        // idx1: 1-based; pass -1 for "last".
-        sb.AppendLine("static void cufet_series_remove_at(CufetSeries* s, int idx1) {");
-        sb.AppendLine("    int idx = (idx1 < 0) ? s->len - 1 : idx1 - 1;");
-        sb.AppendLine("    if (s->len - idx - 1 > 0) memmove(s->data + idx, s->data + idx + 1, (size_t)(s->len - idx - 1) * sizeof(CufetDec));");
-        sb.AppendLine("    s->len--;");
-        sb.AppendLine("}");
-        sb.AppendLine();
-        sb.AppendLine("static void cufet_series_remove_value(CufetSeries* s, CufetDec v) {");
-        sb.AppendLine("    for (int i = 0; i < s->len; i++) {");
-        sb.AppendLine("        if (cufet_cmp(s->data[i], v) == 0) {");
-        sb.AppendLine("            if (s->len - i - 1 > 0) memmove(s->data + i, s->data + i + 1, (size_t)(s->len - i - 1) * sizeof(CufetDec));");
-        sb.AppendLine("            s->len--; return;");
-        sb.AppendLine("        }");
-        sb.AppendLine("    }");
-        sb.AppendLine("}");
-        sb.AppendLine();
-        // Writes a series in the interpreter's format: (e1, e2, ...) — no trailing newline,
-        // so it can be nested inside a record/object field. print_series adds the newline.
-        sb.AppendLine("static void cufet_write_series(CufetSeries* s) {");
-        sb.AppendLine("    printf(\"(\");");
-        sb.AppendLine("    for (int i = 0; i < s->len; i++) {");
-        sb.AppendLine("        if (i > 0) printf(\", \");");
-        sb.AppendLine("        cufet_write_number(s->data[i]);");
-        sb.AppendLine("    }");
-        sb.AppendLine("    printf(\")\");");
-        sb.AppendLine("}");
-        sb.AppendLine("static void cufet_print_series(CufetSeries* s) { cufet_write_series(s); printf(\"\\n\"); }");
-        // Element-wise value equality (used by record/object equality on series fields).
-        sb.AppendLine("static int cufet_series_eq(CufetSeries* a, CufetSeries* b) {");
-        sb.AppendLine("    if (a->len != b->len) return 0;");
-        sb.AppendLine("    for (int i = 0; i < a->len; i++) if (cufet_cmp(a->data[i], b->data[i]) != 0) return 0;");
-        sb.AppendLine("    return 1;");
-        sb.AppendLine("}");
-        sb.AppendLine();
+        // ── Series runtime ────────────────────────────────────────────────
+        // Generalized to per-element-type structs (cser_N) synthesized like maps: forward-declared
+        // here-adjacent (EmitSeriesForwardDecls, before the value structs) and fully defined after
+        // (EmitSeriesRuntime). Nothing series-specific is emitted in the preamble now — a series of
+        // number is just cser_<number>, one of many element types.
 
         // ── Text runtime (immutable strings; results arena-allocated) ─────
         sb.AppendLine(TextRuntime);
@@ -568,13 +528,15 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         body.AppendLine("    return 0;");
         body.AppendLine("}");
 
-        // ── Map struct forward declarations (so value structs can hold a map pointer) ──
+        // ── Series + map struct forward declarations (so value structs can hold their pointers) ──
+        EmitSeriesForwardDecls(sb);
         EmitMapForwardDecls(sb);
 
         // ── Struct declarations (records + objects + voidables) + write/eq helpers ──
         EmitStructs(sb);
 
-        // ── Map container structs + helpers (need K/V structs + voidable-V above) ──
+        // ── Series + map container structs + helpers (need element/K/V structs above) ──
+        EmitSeriesRuntime(sb);
         EmitMapRuntime(sb);
 
         // ── Forward declarations: object methods/getters/setters, then free functions ──
@@ -668,12 +630,31 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         switch (t)
         {
             case RecordType rt:   RegisterRecordStruct(rt); break;
-            case SeriesType st:   RegisterNestedRecords(st.ElementType); break;
+            case SeriesType st:   RegisterSeriesStruct(st); break;
             case VoidableType vt: RegisterVoidableStruct(vt); break;
             case MapType mt:      RegisterMapStruct(mt); break;
             case FailureType ft:  RegisterFailableStruct(ft); break;
         }
     }
+
+    // Ensures a series container struct exists for `series of T` (and T's nested structs).
+    // Returns the C struct name. Series is a reference type (arena pointer, shared on assign).
+    private string RegisterSeriesStruct(SeriesType st)
+    {
+        string sig = TypeSig(st);
+        if (_seriesSig2Name.TryGetValue(sig, out var name)) return name;
+        name = $"cser_{_seriesCounter++}";
+        _seriesSig2Name[sig] = name;
+        _seriesStructs.Add((name, st.ElementType));
+        RegisterNestedRecords(st.ElementType);
+        return name;
+    }
+
+    // The C series-struct name for a series-typed expression (used to pick the per-type ops).
+    private string SeriesStructOf(IExpression seriesExpr) =>
+        TypeOf(seriesExpr) is SeriesType st
+            ? RegisterSeriesStruct(st)
+            : throw new CompilerException("series operation on a non-series value.");
 
     // Ensures a tagged struct exists for `<inner> or failure` (and the inner's nested structs).
     private string RegisterFailableStruct(FailureType ft)
@@ -855,6 +836,61 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         sb.AppendLine();
     }
 
+    // Forward-declares each series container (`typedef struct cser_N_s cser_N;`) so record/object
+    // value structs (and other series/maps) can hold a `cser_N*` field before its full definition.
+    private void EmitSeriesForwardDecls(StringBuilder sb)
+    {
+        if (_seriesStructs.Count == 0) return;
+        foreach (var (name, _) in _seriesStructs) sb.AppendLine($"typedef struct {name}_s {name};");
+        // `_write` AND `_eq` are forward-declared so a struct/voidable/map whose field or element is
+        // a series can call them from its own `_write`/`_eq` (emitted in EmitStructs, before the
+        // series runtime's full definitions). Unlike maps (pointer equality), series equality is a
+        // real element-wise function call, so `_eq` needs the forward declaration too.
+        foreach (var (name, _) in _seriesStructs) sb.AppendLine($"static void {name}_write({name}* s);");
+        foreach (var (name, _) in _seriesStructs) sb.AppendLine($"static int {name}_eq({name}* a, {name}* b);");
+        sb.AppendLine();
+    }
+
+    // Emits each series container's full struct + helpers: an arena-allocated growable array of T
+    // (T stored by value — a value struct copies into the slot, a reference type stores its pointer,
+    // matching the interpreter). By-value ops (remove-by-value, equality) use the element's own
+    // equality. Generalizes the former number-only CufetSeries to every element type.
+    private void EmitSeriesRuntime(StringBuilder sb)
+    {
+        if (_seriesStructs.Count == 0) return;
+        sb.AppendLine("// ── Series containers (arena growable arrays; per element type) ──");
+        foreach (var (name, elem) in _seriesStructs)
+        {
+            string ec = EmitCType(elem);
+            sb.AppendLine($"struct {name}_s {{ {ec}* data; int len; int cap; }};");
+            sb.AppendLine($"static {name}* {name}_new(void) {{ {name}* s = ({name}*)cufet_arena_alloc(sizeof({name})); s->data = NULL; s->len = 0; s->cap = 0; return s; }}");
+            sb.AppendLine($"static void {name}_ensure({name}* s) {{");
+            sb.AppendLine($"    if (s->len >= s->cap) {{");
+            sb.AppendLine($"        int nc = s->cap == 0 ? 4 : s->cap * 2;");
+            sb.AppendLine($"        {ec}* nd = ({ec}*)cufet_arena_alloc((size_t)nc * sizeof({ec}));");
+            sb.AppendLine($"        if (s->len > 0) memcpy(nd, s->data, (size_t)s->len * sizeof({ec}));");
+            sb.AppendLine($"        s->data = nd; s->cap = nc;");
+            sb.AppendLine($"    }}");
+            sb.AppendLine($"}}");
+            sb.AppendLine($"static void {name}_append({name}* s, {ec} v) {{ {name}_ensure(s); s->data[s->len++] = v; }}");
+            sb.AppendLine($"static void {name}_prepend({name}* s, {ec} v) {{ {name}_ensure(s); if (s->len > 0) memmove(s->data + 1, s->data, (size_t)s->len * sizeof({ec})); s->data[0] = v; s->len++; }}");
+            // after1: the correct 0-based insertion index (1-based position it inserts after).
+            sb.AppendLine($"static void {name}_insert({name}* s, int after1, {ec} v) {{ {name}_ensure(s); int pos = after1; if (s->len > pos) memmove(s->data + pos + 1, s->data + pos, (size_t)(s->len - pos) * sizeof({ec})); s->data[pos] = v; s->len++; }}");
+            // idx1: 1-based; pass -1 for "last".
+            sb.AppendLine($"static void {name}_remove_at({name}* s, int idx1) {{ int idx = (idx1 < 0) ? s->len - 1 : idx1 - 1; if (s->len - idx - 1 > 0) memmove(s->data + idx, s->data + idx + 1, (size_t)(s->len - idx - 1) * sizeof({ec})); s->len--; }}");
+            sb.AppendLine($"static void {name}_remove_value({name}* s, {ec} v) {{ for (int i = 0; i < s->len; i++) {{ if ({EqCall("s->data[i]", "v", elem)}) {{ if (s->len - i - 1 > 0) memmove(s->data + i, s->data + i + 1, (size_t)(s->len - i - 1) * sizeof({ec})); s->len--; return; }} }} }}");
+            // Writes as (e1, e2, ...) — no trailing newline, so it nests inside record/object fields.
+            sb.AppendLine($"static void {name}_write({name}* s) {{");
+            sb.AppendLine($"    printf(\"(\");");
+            sb.AppendLine($"    for (int i = 0; i < s->len; i++) {{ if (i > 0) printf(\", \"); {WriteCall("s->data[i]", elem)}; }}");
+            sb.AppendLine($"    printf(\")\");");
+            sb.AppendLine($"}}");
+            // Element-wise, in-order value equality (series are ordered sequences — no canonicalization).
+            sb.AppendLine($"static int {name}_eq({name}* a, {name}* b) {{ if (a->len != b->len) return 0; for (int i = 0; i < a->len; i++) if (!({EqCall("a->data[i]", "b->data[i]", elem)})) return 0; return 1; }}");
+        }
+        sb.AppendLine();
+    }
+
     // Forward-declares each map container (`typedef struct cmap_N_s cmap_N;`) so record/object
     // value structs can hold a `cmap_N*` field before the full definition appears below.
     private void EmitMapForwardDecls(StringBuilder sb)
@@ -910,7 +946,7 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         NumberType => $"cufet_cmp({a}, {b}) == 0",
         FactType   => $"({a} == {b})",
         TextType   => $"strcmp({a}, {b}) == 0",
-        SeriesType => $"cufet_series_eq({a}, {b})",
+        SeriesType st => $"{RegisterSeriesStruct(st)}_eq({a}, {b})",
         RecordType rt => $"{RegisterRecordStruct(rt)}_eq({a}, {b})",
         ObjectType ot => $"{ObjStructName(ot.Name)}_eq({a}, {b})",
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_eq({a}, {b})",
@@ -925,7 +961,7 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         NumberType => $"cufet_write_number({valExpr})",
         FactType   => $"cufet_write_fact({valExpr})",
         TextType   => $"cufet_write_text({valExpr})",
-        SeriesType => $"cufet_write_series({valExpr})",
+        SeriesType st => $"{RegisterSeriesStruct(st)}_write({valExpr})",
         RecordType rt => $"{RegisterRecordStruct(rt)}_write({valExpr})",
         ObjectType ot => $"{ObjStructName(ot.Name)}_write({valExpr})",
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr})",
@@ -1011,7 +1047,7 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
                     NumberType    => $"cufet_print_number({valExpr})",
                     FactType      => $"cufet_print_fact({valExpr})",
                     TextType      => $"cufet_print_text({valExpr})",
-                    SeriesType    => $"cufet_print_series({valExpr})",
+                    SeriesType st => $"{RegisterSeriesStruct(st)}_write({valExpr}); printf(\"\\n\")",
                     RecordType rt   => $"{RegisterRecordStruct(rt)}_write({valExpr}); printf(\"\\n\")",
                     ObjectType ot   => $"{ObjStructName(ot.Name)}_write({valExpr}); printf(\"\\n\")",
                     VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr}); printf(\"\\n\")",
@@ -1081,45 +1117,48 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
 
             case SeriesAddStatement sa:
             {
+                string ser = SeriesStructOf(sa.Series);
                 string valExpr = EmitExpr(sa.Value);
                 FlushPreEmits(sb, indent);
                 string serExpr = EmitExpr(sa.Series);
                 FlushPreEmits(sb, indent);
                 if (sa.ToStart)
-                    sb.AppendLine($"{indent}cufet_series_prepend({serExpr}, {valExpr});");
+                    sb.AppendLine($"{indent}{ser}_prepend({serExpr}, {valExpr});");
                 else if (sa.AfterIndex == null)
-                    sb.AppendLine($"{indent}cufet_series_append({serExpr}, {valExpr});");
+                    sb.AppendLine($"{indent}{ser}_append({serExpr}, {valExpr});");
                 else
                 {
                     string idxExpr = EmitExpr(sa.AfterIndex);
                     FlushPreEmits(sb, indent);
-                    sb.AppendLine($"{indent}cufet_series_insert({serExpr}, cufet_to_int({idxExpr}), {valExpr});");
+                    sb.AppendLine($"{indent}{ser}_insert({serExpr}, cufet_to_int({idxExpr}), {valExpr});");
                 }
                 break;
             }
 
             case SeriesRemoveAtStatement sra:
             {
+                string ser = SeriesStructOf(sra.Series);
                 string serExpr = EmitExpr(sra.Series);
                 FlushPreEmits(sb, indent);
                 if (sra.Index == null)
-                    sb.AppendLine($"{indent}cufet_series_remove_at({serExpr}, -1);");
+                    sb.AppendLine($"{indent}{ser}_remove_at({serExpr}, -1);");
                 else
                 {
                     string idxExpr = EmitExpr(sra.Index);
                     FlushPreEmits(sb, indent);
-                    sb.AppendLine($"{indent}cufet_series_remove_at({serExpr}, cufet_to_int({idxExpr}));");
+                    sb.AppendLine($"{indent}{ser}_remove_at({serExpr}, cufet_to_int({idxExpr}));");
                 }
                 break;
             }
 
             case SeriesRemoveValueStatement srv:
             {
+                string ser = SeriesStructOf(srv.Series);
                 string valExpr = EmitExpr(srv.Value);
                 FlushPreEmits(sb, indent);
                 string serExpr = EmitExpr(srv.Series);
                 FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}cufet_series_remove_value({serExpr}, {valExpr});");
+                sb.AppendLine($"{indent}{ser}_remove_value({serExpr}, {valExpr});");
                 break;
             }
 
@@ -1315,22 +1354,33 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
     {
         var inner      = indent + "    ";
         var loopIndent = inner  + "    ";
+        var st         = (SeriesType)TypeOf(fe.Series);
+        string name    = RegisterSeriesStruct(st);
+        var elem       = st.ElementType;
         int id = _forCounter++;
         string ser = $"cf_ser{id}";
         string idx = $"cf_i{id}";
-        string iterName = MangleName(fe.IteratorName ?? "it");
+        string rawName  = fe.IteratorName ?? "it";
+        string iterName = MangleName(rawName);
 
         string serExpr = EmitExpr(fe.Series);
         FlushPreEmits(sb, indent);
 
+        // The iterator's type is the element type — track it so the body's TypeOf resolves
+        // print/access/equality correctly (mirrors the map-pair foreach).
+        var savedType = _varTypes.TryGetValue(rawName, out var prev) ? prev : null;
+        _varTypes[rawName] = elem;
+
         sb.AppendLine($"{indent}{{");
-        sb.AppendLine($"{inner}CufetSeries* {ser} = {serExpr};");
+        sb.AppendLine($"{inner}{name}* {ser} = {serExpr};");
         sb.AppendLine($"{inner}int {ser}_n = {ser}->len;");
         sb.AppendLine($"{inner}for (int {idx} = 0; {idx} < {ser}_n; {idx}++) {{");
-        sb.AppendLine($"{loopIndent}CufetDec {iterName} = {ser}->data[{idx}];");
+        sb.AppendLine($"{loopIndent}{EmitCType(elem)} {iterName} = {ser}->data[{idx}];");
         EmitBlock(sb, fe.Body, loopIndent);
         sb.AppendLine($"{inner}}}");
         sb.AppendLine($"{indent}}}");
+
+        if (savedType != null) _varTypes[rawName] = savedType; else _varTypes.Remove(rawName);
     }
 
     // For each pair in a map — iterates the association list in insertion order, binding the
@@ -1447,6 +1497,7 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         FailurePropagate fp   => TypeOf(fp.Fallible) is FailureType ft2 ? ft2.Inner : TNumber,
         TextJoin or TextConvert or TextSubstringRange or TextSubstringEdge
             or TextReplace or TextCase or TextTrim => TText,
+        TextSplit             => new SeriesType(TText),
         NumberConvert or TextFind => new VoidableType(TNumber),
         TextLength            => TNumber,
         TextContains          => TFact,
@@ -1818,7 +1869,7 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         TextReplace rp        => $"cufet_str_replace({EmitExpr(rp.Text)}, {EmitExpr(rp.Old)}, {EmitExpr(rp.New)})",
         TextCase tcs          => tcs.Uppercase ? $"cufet_str_upper({EmitExpr(tcs.Text)})" : $"cufet_str_lower({EmitExpr(tcs.Text)})",
         TextTrim tt           => $"cufet_str_trim({EmitExpr(tt.Text)})",
-        TextSplit             => throw new CompilerException("'split by' (→ series of text) is not yet supported by the compiler — needs series-of-text generalization."),
+        TextSplit ts          => EmitTextSplit(ts),
         // A bare `void` only has meaning where a voidable is expected (return/becomes/args,
         // handled by EmitAsType) or as an `is void` operand (handled in EmitBinary).
         VoidLiteral           => throw new CompilerException("'void' is only valid where a voidable value is expected."),
@@ -1924,6 +1975,21 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         return $"(cf_fd{id} ? ({cvd}){{ .has = 1, .val = cufet_dec_from_ll(cf_fd{id}) }} : ({cvd}){{ .has = 0 }})";
     }
 
+    // `<text> split by <delim>` → a series of text (arena series of arena substrings). Matches
+    // the interpreter's C# string.Split(string): N delimiter hits → N+1 parts, empties kept,
+    // trailing/leading delimiter → empty parts, delimiter-not-found → single whole-string element.
+    private string EmitTextSplit(TextSplit ts)
+    {
+        string name = RegisterSeriesStruct(new SeriesType(TText));
+        string textExpr  = EmitExpr(ts.Text);
+        string delimExpr = EmitExpr(ts.Delimiter);
+        int id = _freshId++;
+        string tmp = $"cs_{id}", parts = $"cf_sp{id}", n = $"cf_spn{id}", j = $"cf_spj{id}";
+        _preEmits.Add($"{name}* {tmp} = {name}_new();");
+        _preEmits.Add($"{{ const char** {parts}; int {n} = cufet_str_split({textExpr}, {delimExpr}, &{parts}); for (int {j} = 0; {j} < {n}; {j}++) {name}_append({tmp}, {parts}[{j}]); }}");
+        return tmp;
+    }
+
     private string MapName(IExpression mapExpr) => RegisterMapStruct((MapType)TypeOf(mapExpr));
 
     // A map literal builds an arena map into a temp and populates it (like a series literal);
@@ -1992,14 +2058,14 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
     // the returned variable name in a statement.
     private string EmitSeriesLiteral(SeriesLiteral sl)
     {
-        if (SeriesElementType(sl) is not NumberType)
-            throw new CompilerException("series of a non-number element type is not yet supported by the compiler (series are number-only this slice).");
+        var st   = new SeriesType(SeriesElementType(sl));
+        string name = RegisterSeriesStruct(st);
         string tmp = $"cs_{_freshId++}";
-        _preEmits.Add($"CufetSeries* {tmp} = cufet_series_new();");
+        _preEmits.Add($"{name}* {tmp} = {name}_new();");
         foreach (var elem in sl.Elements)
         {
             string elemExpr = EmitExpr(elem);
-            _preEmits.Add($"cufet_series_append({tmp}, {elemExpr});");
+            _preEmits.Add($"{name}_append({tmp}, {elemExpr});");
         }
         return tmp;
     }
@@ -2172,8 +2238,11 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
                 _ => throw new CompilerException($"Text comparison '{b.Op}' is not yet supported by the compiler.")
             };
 
-        // Records (structural) / objects (nominal same-type): field-by-field via _eq.
-        if (lt is RecordType or ObjectType)
+        // Records (structural) / objects (nominal) / series (element-wise, in-order): value
+        // equality via _eq. Series are ordered sequences — two series are equal iff same elements
+        // in the same order, matching the interpreter's List value-equality (NOT pointer equality;
+        // maps below stay pointer/reference equality, which is what the interpreter does for them).
+        if (lt is RecordType or ObjectType or SeriesType)
         {
             string eq = EqCall(L, R, lt);
             return b.Op switch
@@ -2184,7 +2253,7 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
             };
         }
 
-        // Facts (ints).
+        // Facts (ints) and maps (reference/pointer equality — matches the interpreter's Dictionary).
         return b.Op switch
         {
             TokenType.Equal    => $"({L} == {R})",
@@ -2206,8 +2275,7 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         NumberType => "CufetDec",
         FactType   => "int",
         TextType   => "const char*",
-        SeriesType st => st.ElementType is NumberType ? "CufetSeries*"
-            : throw new CompilerException("series of a non-number element type is not yet supported by the compiler (series are number-only this slice)."),
+        SeriesType st => RegisterSeriesStruct(st) + "*",   // series are arena pointers (reference type)
         RecordType rt => RegisterRecordStruct(rt),
         ObjectType ot => ObjStructName(ot.Name),
         VoidableType vt => RegisterVoidableStruct(vt),

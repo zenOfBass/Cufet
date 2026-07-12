@@ -11293,4 +11293,46 @@ public class InterpreterTests
             State xs.
             """));
     }
+
+    // ── Container insertion is a binding site too (slice 8): value-types copy in, region-types
+    // share; remove-by-value uses value equality (same notion as `is`), not reference identity. ──
+
+    [Fact]
+    public void SeriesInsert_ValueType_Copies()
+    {
+        // Inserting a record into a series copies it — mutating the original afterward does not
+        // change the stored element. (Was buggy: shared the reference.)
+        Assert.Equal("(record(x: 1))", Run("""
+            Define r as a record with (the x 1).
+            Define s as a series with (r).
+            The x of r becomes 99.
+            State s.
+            """));
+    }
+
+    [Fact]
+    public void SeriesRemove_ByValue_UsesValueEquality()
+    {
+        // Remove-by-value matches a value-equal-but-distinct record (the same equality `is` uses),
+        // not reference identity. (Was buggy: List.Remove used object.Equals → not found.)
+        Assert.Equal("1", Run("""
+            Define s as a series with (a record with (the x 1), a record with (the x 2)).
+            Remove a record with (the x 1) from s.
+            State the number of s.
+            """));
+    }
+
+    [Fact]
+    public void MapInsert_ValueType_Copies()
+    {
+        // An object stored as a map value is copied on insert — mutating the original does not
+        // change the stored value. (Objects/records are value types; maps share, values copy in.)
+        Assert.Equal("box(x: 1)", Run("""
+            Define object box with (the number x).
+            Define o as a new box { the x 1 }.
+            Define m as a map from text to box with ("k": o).
+            the x of o becomes 99.
+            State the entry for "k" in m but void is (a new box { the x 0 }).
+            """));
+    }
 }

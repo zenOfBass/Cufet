@@ -89,12 +89,7 @@ public sealed partial class Interpreter
         // deep-copy so a mutated param can't leak to the caller; region-types (series/maps)
         // and immutable scalars/text share. Keeps all four binding sites uniform.
         for (int i = 0; i < func.ParameterNames.Count; i++)
-        {
-            var arg = argValues[i];
-            Scope[func.ParameterNames[i]] = arg is RecordValue rv ? rv.DeepCopy()
-                                          : arg is ObjectValue ov ? ov.DeepCopy()
-                                          : arg;
-        }
+            Scope[func.ParameterNames[i]] = BindCopy(argValues[i]);
 
         object? returnValue = null;
         try

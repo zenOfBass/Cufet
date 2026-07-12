@@ -15,7 +15,7 @@ public sealed partial class Interpreter
         foreach (var (kExpr, vExpr) in lit.Pairs)
         {
             var k = Evaluate(kExpr);
-            var v = Evaluate(vExpr);
+            var v = BindCopy(Evaluate(vExpr));   // value types copy on insert (binding is binding)
             dict[k] = v;
         }
         return dict;
@@ -69,7 +69,7 @@ public sealed partial class Interpreter
                 "Reference types (objects, series, maps) can't be keys — their identity changes " +
                 "when copied, causing silent lookup failures. Key by a value field instead " +
                 "(e.g. a text name or number id).");
-        var val = Evaluate(mapSet.Value);
+        var val = BindCopy(Evaluate(mapSet.Value));   // value types copy on insert (binding is binding)
         dict[key] = val;
     }
 }

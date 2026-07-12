@@ -79,6 +79,16 @@ public sealed partial class Interpreter
         return false;
     }
 
+    // "Binding is binding": a value type (record/object) is COPIED at every site where it is
+    // stored — Define, becomes, closure capture, argument binding, AND container insertion
+    // (series/map element stores). Region types (series/maps) are shared by reference. This is
+    // the single policy that keeps value semantics consistent everywhere a value comes to rest,
+    // and it matches the native compiler (where a value struct copies on every store). Records
+    // and objects DeepCopy so nested value fields copy too; series/maps and scalars pass through.
+    private static object BindCopy(object v) =>
+        v is RecordValue rv ? rv.DeepCopy() :
+        v is ObjectValue ov ? ov.DeepCopy() : v;
+
     private Dictionary<string, object>? FindOwningScope(string name)
     {
         for (int i = _scopes.Count - 1; i >= 0; i--)
@@ -383,9 +393,7 @@ public sealed partial class Interpreter
                 if (Scope.ContainsKey(d.Name))
                     throw new RuntimeException($"'{d.Name}' is already defined on line {d.Line}.");
             {
-                var val = Evaluate(d.Value);
-                Scope[d.Name] = val is RecordValue rv ? rv.DeepCopy() :
-                                val is ObjectValue ov ? ov.DeepCopy() : val;
+                Scope[d.Name] = BindCopy(Evaluate(d.Value));
                 _scopeDefOrder[^1].Add(d.Name);
                 break;
             }
@@ -400,9 +408,7 @@ public sealed partial class Interpreter
                     if (suggestion != null) msg += $" Did you mean '{suggestion}'?";
                     throw new RuntimeException(msg);
                 }
-                var val = Evaluate(b.Value);
-                ownerScope[b.Name] = val is RecordValue rv ? rv.DeepCopy() :
-                                     val is ObjectValue ov ? ov.DeepCopy() : val;
+                ownerScope[b.Name] = BindCopy(Evaluate(b.Value));
                 break;
             }
 
@@ -481,7 +487,7 @@ public sealed partial class Interpreter
                 var saTarget = Evaluate(sa.Series);
                 if (saTarget is not List<object> list)
                     throw new RuntimeException($"Expected a series for 'Add' on line {sa.Line}.");
-                var value = Evaluate(sa.Value);
+                var value = BindCopy(Evaluate(sa.Value));   // value types copy on insert (binding is binding)
                 if (sa.ToStart)
                     list.Insert(0, value);
                 else if (sa.AfterIndex == null)
@@ -513,8 +519,13 @@ public sealed partial class Interpreter
                 if (srvTarget is not List<object> list)
                     throw new RuntimeException($"Expected a series or map for 'Remove' on line {srv.Line}.");
                 var value = Evaluate(srv.Value);
-                if (!list.Remove(value))
+                // Remove-by-value uses value equality (the same notion as `is`), NOT reference
+                // identity — a value-equal-but-distinct record/object must match. List.Remove would
+                // use object.Equals (reference) for records/objects, diverging from series equality.
+                int removeAt = list.FindIndex(e => ValuesEqual(e, value));
+                if (removeAt < 0)
                     throw new RuntimeException($"Value not found in {SeriesDisplayName(srv.Series)} on line {srv.Line}.");
+                list.RemoveAt(removeAt);
                 break;
             }
 
@@ -550,7 +561,7 @@ public sealed partial class Interpreter
                 }
                 if (ssTarget is not List<object> list)
                     throw new RuntimeException($"Expected a series for item assignment on line {ss.Line}.");
-                list[ResolveIndex(ss.Index, list, SeriesDisplayName(ss.Series), ss.Line)] = Evaluate(ss.Value);
+                list[ResolveIndex(ss.Index, list, SeriesDisplayName(ss.Series), ss.Line)] = BindCopy(Evaluate(ss.Value));
                 break;
             }
 
@@ -747,8 +758,7 @@ public sealed partial class Interpreter
         var captured = new Dictionary<string, object>();
         foreach (var scope in _scopes)
             foreach (var (k, v) in scope)
-                captured[k] = v is RecordValue rv ? rv.DeepCopy() :
-                              v is ObjectValue ov ? ov.DeepCopy() : v;
+                captured[k] = BindCopy(v);
         return captured;
     }
 
@@ -815,7 +825,7 @@ public sealed partial class Interpreter
                                      : throw new RuntimeException(UndefinedVariableMessage(r.Name, r.Line)),
         UnaryExpression  u    => EvaluateUnary(u),
         BinaryExpression b    => EvaluateBinary(b),
-        SeriesLiteral    sl   => (object)sl.Elements.Select(Evaluate).ToList(),
+        SeriesLiteral    sl   => (object)sl.Elements.Select(e => BindCopy(Evaluate(e))).ToList(),
         SeriesAccess     sa   => EvaluateSeriesAccess(sa),
         SeriesLength     sl   => Evaluate(sl.Series) is List<object> slList
                                      ? (decimal)slList.Count

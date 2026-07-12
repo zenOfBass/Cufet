@@ -1013,17 +1013,40 @@ public class PipelineTests
     }
 
     [Fact]
-    public void Record_SeriesOfRecordsDeferred_ThrowsCleanly()
+    public void Series_OfRecords_MatchesInterpreter()
     {
-        // Series-of-records isn't lowered yet — must defer with a clean CompilerException,
-        // not crash. (TypeChecker accepts this valid Cufet program.)
+        // Series of records (slice 8): value-type elements copy on insert (binding is binding),
+        // remove-by-value uses value equality (same as `is`), and series equality is element-wise.
         const string src = """
-            Define people as a series of records like (the text name, the number age).
+            Define people as a series with (a record with (the name "Alice", the age 30), a record with (the name "Bob", the age 25)).
+            State people.
+            Add a record with (the name "Carol", the age 40) to people.
+            State the number of people.
+            For each p in people, repeat:
+                State the name of p.
+            Done.
+            Remove a record with (the name "Bob", the age 25) from people.
+            State the number of people.
+            Define pa as a series with (a record with (the x 1)).
+            Define pb as a series with (a record with (the x 1)).
+            If pa is pb, state "eq". Otherwise, state "neq".
             """;
-        var tokens  = new CufetLexer(src).Tokenize();
-        var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
-        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Series_OfRecords_InsertCopies_MatchesInterpreter()
+    {
+        // The element is COPIED into the series (value semantics) — mutating the original record
+        // afterward does not change the stored element. Interpreter and compiler both copy now.
+        const string src = """
+            Define r as a record with (the x 1).
+            Define s as a series with (r).
+            The x of r becomes 99.
+            State s.
+            State r.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
     }
 
     [Fact]
@@ -1810,19 +1833,104 @@ public class PipelineTests
     }
 
     [Fact]
-    public void Text_SplitDeferred_ThrowsCleanly()
+    public void Text_SplitBy_MatchesInterpreter()
     {
-        // split by → series of text needs series-of-text (deferred). Must reject cleanly.
+        // split by → series of text (slice 8). Matches C# string.Split(string): empties kept,
+        // trailing/leading delimiter → empty parts, delimiter-not-found → single whole element.
         const string src = """
-            Pull a rabbit.
-                Define parts as "a,b,c" split by ",".
-                State the number of parts.
+            State "a,b,c" split by ",".
+            State "a,,c," split by ",".
+            State ",lead" split by ",".
+            State "no-delimiter" split by ",".
+            State "" split by ",".
+            State the number of ("x=1;y=2;z=3" split by ";").
+            Define parts as "10,20,30,40" split by ",".
+            Define total as 0.
+            For each part in parts, repeat:
+                total becomes total + (part converted to number but void is 0).
             Done.
+            State total.
             """;
-        var tokens  = new CufetLexer(src).Tokenize();
-        var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
-        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // ── Slice 8: series-of-T generalization (per-element-type cser_N; split by rides on it) ──
+
+    [Fact]
+    public void Series_OfText_MatchesInterpreter()
+    {
+        const string src = """
+            Define words as a series with ("banana", "apple", "cherry").
+            Add "date" to words.
+            Add "acai" to the start of words.
+            State words.
+            State item 2 of words.
+            State the number of words.
+            Remove "apple" from words.
+            State words.
+            For each w in words, repeat:
+                State w in uppercase.
+            Done.
+            Define w2 as a series with ("acai", "banana", "cherry", "date").
+            If words is w2, state "eq". Otherwise, state "neq".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Series_OfObjects_MatchesInterpreter()
+    {
+        const string src = """
+            Define object point with (the number x, the number y).
+            Define pts as a series with (a new point { the x 1, the y 2 }, a new point { the x 3, the y 4 }).
+            State pts.
+            Add a new point { the x 5, the y 6 } to pts.
+            For each p in pts, repeat:
+                State the x of p.
+            Done.
+            Remove a new point { the x 3, the y 4 } from pts.
+            State the number of pts.
+            Define pa as a series with (a new point { the x 1, the y 2 }).
+            Define pb as a series with (a new point { the x 1, the y 2 }).
+            If pa is pb, state "eq". Otherwise, state "neq".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Series_Nested_MatchesInterpreter()
+    {
+        // Series of series: elements are reference-type pointers (shared), equality is deep.
+        const string src = """
+            Define grid as a series with (a series with (1, 2, 3), a series with (4, 5, 6)).
+            State grid.
+            Add a series with (7, 8, 9) to grid.
+            State the number of grid.
+            For each row in grid, repeat:
+                State the number of row.
+            Done.
+            State item 1 of grid.
+            Define ga as a series with (a series with (1, 2)).
+            Define gb as a series with (a series with (1, 2)).
+            If ga is gb, state "eq". Otherwise, state "neq".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Series_OfMaps_MatchesInterpreter()
+    {
+        const string src = """
+            Define m1 as a map from text to number with ("a": 1, "b": 2).
+            Define m2 as a map from text to number with ("c": 3).
+            Define ms as a series with (m1, m2).
+            State the number of ms.
+            For each m in ms, repeat:
+                State the size of m.
+            Done.
+            State the entry for "a" in item 1 of ms but void is 0.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
     }
 
     // Compiles source with -fsanitize=address for memory-safety verification.
@@ -1941,6 +2049,40 @@ public class PipelineTests
                     State the value of pair.
                 Done.
                 State the size of scores.
+            Done.
+            """;
+        string expected = Interpret(src);
+        string actual   = CompileWithASan(src);
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void Series_Heterogeneous_MemorySafety_ASan_ZeroLeaksAndNoUAF()
+    {
+        // Generalized series across element types in one Pull block: a series of text (arena
+        // strings from split), a series of records (value structs), and a nested series of series.
+        // The whole structure — series bookkeeping plus each element's own allocations — must free
+        // cleanly at Done. This is the "generalized series is arena-clean" proof. Linux-only.
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+
+        const string src = """
+            Pull a rabbit.
+                Define words as "alpha,beta,gamma,delta" split by ",".
+                Add "epsilon" to words.
+                For each w in words, repeat:
+                    State w in uppercase.
+                Done.
+                Define people as a series with (a record with (the name "Alice", the age 30)).
+                Add a record with (the name "Bob", the age 25) to people.
+                For each p in people, repeat:
+                    State the name of p.
+                Done.
+                Define grid as a series with (a series with (1, 2), a series with (3, 4, 5)).
+                Add a series with (6) to grid.
+                For each row in grid, repeat:
+                    State the number of row.
+                Done.
             Done.
             """;
         string expected = Interpret(src);
