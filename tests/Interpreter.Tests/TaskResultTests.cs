@@ -271,4 +271,22 @@ public class TaskResultTests
             """);
         Assert.Equal("6\n3", output);
     }
+
+    // Regression: a value-returning task whose only `return` is on a conditional path can still
+    // fall off its end without returning (the type checker infers a result type but does not
+    // require all paths to return). Awaiting that result must raise a clean Cufet RuntimeException,
+    // not leak a C# null into Evaluate (which previously crashed Format with a NullReferenceException).
+    [Fact]
+    public void AwaitTaskThatFellOffEnd_RaisesCleanError()
+    {
+        Assert.Throws<RuntimeException>(() => Run("""
+            Pull a rabbit.
+                Have rabbit start a task as t:
+                    If 1 is 2, return 5.
+                Done.
+                Define r as the awaited result of t.
+                State r.
+            Done.
+            """));
+    }
 }

@@ -2,7 +2,7 @@ namespace Cufet.Interpreter;
 
 public sealed partial class Interpreter
 {
-    private object? EvaluateAwaitedResultExpression(AwaitedResultExpression are)
+    private object EvaluateAwaitedResultExpression(AwaitedResultExpression are)
     {
         var handleObj = Evaluate(are.Task);
         if (handleObj is not TaskHandle handle)
@@ -28,6 +28,15 @@ public sealed partial class Interpreter
         // Try blocks at the await site can catch it — same pattern as EvaluateCastExpr.
         if (handle.Result is FailureValue fv)
             throw new FailureUnwind(fv);
+
+        // The task's result type is inferred from its `return` statements, but the type checker
+        // does not require every path to return — so a value-returning task can still fall off
+        // its end without setting a result (HasResult stays false, Result stays null). Awaiting
+        // that is a runtime error: turn it into a clean Cufet failure rather than letting a C#
+        // null escape into Evaluate (which crashes Format with a NullReferenceException).
+        if (!handle.HasResult || handle.Result is null)
+            throw new RuntimeException(
+                $"the awaited task finished without returning a value — there is no result to await (line {are.Line}).");
 
         return handle.Result;
     }
