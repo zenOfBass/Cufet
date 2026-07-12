@@ -101,8 +101,8 @@ Done.
 ```
 Bind number or failure to parse-age, given (the text raw):
     Define n as raw converted to number.
-    If n is void, return a failure "not a number" of category "validation".
-    Return n.
+    If n is not void, return n.
+    Return a failure "not a number" of category "validation".
 Done.
 
 Try to:
