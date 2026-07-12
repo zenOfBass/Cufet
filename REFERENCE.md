@@ -1112,6 +1112,23 @@ Inside a branch that has checked a **variable** is not void, the checker narrows
 that variable to its plain `T`, so it can be used directly. Narrowing is keyed on
 the variable and is cleared if the variable is reassigned within the branch.
 
+**Guard narrowing** — an exiting guard narrows the *fall-through* path. When a
+one-line `If x is void, return …` (no `Otherwise`) whose body always returns is
+passed, the statements after it run only when `x` was **not** void, so `x` is
+narrowed to plain `T` from that point to the end of the block:
+```
+Bind number or failure to parse-age, given (the text raw):
+    Define n as raw converted to number.
+    If n is void, return a failure "not a number".
+    Return n.                        ← n is a plain number here, not voidable
+Done.
+```
+A disjunctive guard narrows every variable it names: after
+`If x is void or y is void, return …`, both `x` and `y` are non-void on the
+fall-through. The narrowing lives only in the block that contains the guard —
+a guard nested inside an `If`-arm says nothing about the path where that arm was
+skipped, so it never leaks past the arm.
+
 > To narrow a value produced by an expression (like a map lookup), name it first
 > — `Define s as the entry for "alice" in ages.` then check `s`. A bare literal
 > buried inside a lookup is a value worth naming anyway; narrowing follows the
