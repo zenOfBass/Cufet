@@ -1933,6 +1933,92 @@ public class PipelineTests
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ── Slice 9A: file I/O (whole-file read/write + path checks; OS-error → Cufet failure) ──
+
+    // A path in the system temp dir — NOT a Controlled-Folder-Access-protected location like
+    // Documents (where an unsigned freshly-compiled binary is blocked from writing). Forward-
+    // slashed so the interpreter (.NET) and the compiled binary (fopen) resolve it identically.
+    private static string WritableTempPath() =>
+        Path.Combine(Path.GetTempPath(), "cufet-io-" + Guid.NewGuid().ToString("N") + ".txt")
+            .Replace('\\', '/');
+
+    // Runs a source template (with {PATH} substituted for a fresh writable temp file) through the
+    // oracle and asserts the compiled output matches the interpreter; cleans the file up after.
+    private static void AssertFileOracle(string template)
+    {
+        var path = WritableTempPath();
+        var src  = template.Replace("{PATH}", path);
+        try { Assert.Equal(Interpret(src), Compile(src)); }
+        finally { try { File.Delete(path.Replace('/', Path.DirectorySeparatorChar)); } catch { } }
+    }
+
+    [Fact]
+    public void File_WriteReadRoundtrip_MatchesInterpreter()
+    {
+        AssertFileOracle("""
+            Write "hello world" to the file "{PATH}".
+            Try to:
+                Define c as read all from the file "{PATH}".
+                State c.
+                State the length of c.
+            Done.
+            In case of failure:
+                State "read failed".
+            Done.
+            """);
+    }
+
+    [Fact]
+    public void File_AppendAndReadLines_MatchesInterpreter()
+    {
+        // ReadAllLines semantics: 3 lines, no trailing empty (append adds two more lines).
+        AssertFileOracle("""
+            Write "first" to the file "{PATH}".
+            Append "\nsecond\nthird" to the file "{PATH}".
+            Try to:
+                Define lines as read all lines from the file "{PATH}".
+                State the number of lines.
+                For each ln in lines, repeat:
+                    State "line: " joined to ln.
+                Done.
+            Done.
+            In case of failure:
+                State "fail".
+            Done.
+            """);
+    }
+
+    [Fact]
+    public void File_PathChecks_MatchesInterpreter()
+    {
+        AssertFileOracle("""
+            Write "x" to the file "{PATH}".
+            If the path "{PATH}" exists, state "exists". Otherwise, state "gone".
+            If the path "{PATH}" is a file, state "is-file". Otherwise, state "not-file".
+            If the path "{PATH}" is a directory, state "is-dir". Otherwise, state "not-dir".
+            If the path "no-such-path-zzz" exists, state "exists". Otherwise, state "gone".
+            """);
+    }
+
+    [Fact]
+    public void File_NotFound_FailureMatchesInterpreter()
+    {
+        // The OS-error bridge: a missing file → not-found failure with the templated message
+        // (category + message reproduced bit-identically by the errno path).
+        AssertFileOracle("""
+            Define fallback as read all from the file "no-such-file-abc.txt" but on failure "DEFAULT".
+            State fallback.
+            Try to:
+                Define x as read all from the file "no-such-file-abc.txt".
+                State x.
+            Done.
+            In case of failure:
+                State "cat: " joined to (the category of the failure but void is "none").
+                State "msg: " joined to the message of the failure.
+            Done.
+            """);
+    }
+
     // Compiles source with -fsanitize=address for memory-safety verification.
     // Skipped when not on Linux (ASan reliable only with Linux gcc).
     private static string CompileWithASan(string source)
@@ -2054,6 +2140,42 @@ public class PipelineTests
         string expected = Interpret(src);
         string actual   = CompileWithASan(src);
         Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void File_ReadResults_MemorySafety_ASan_ZeroLeaksAndNoUAF()
+    {
+        // File-read results are arena-allocated (the text buffer, the line array, each line string)
+        // and must free at Done. — zero leaks / UAF. Proves the OS-error bridge + read results
+        // cooperate with the arena, reusing the string/series arena model. Linux-only.
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+
+        var path = Path.Combine(Path.GetTempPath(), "cufet-io-asan-" + Guid.NewGuid().ToString("N") + ".txt")
+            .Replace('\\', '/');
+        var src = $$"""
+            Pull a rabbit.
+                Write "line one\nline two\nline three" to the file "{{path}}".
+                For each n in the range 1 to 20, repeat:
+                    Try to:
+                        Define whole as read all from the file "{{path}}".
+                        Define lines as read all lines from the file "{{path}}".
+                        State the length of whole.
+                        State the number of lines.
+                    Done.
+                    In case of failure:
+                        State "fail".
+                    Done.
+                Done.
+            Done.
+            """;
+        try
+        {
+            string expected = Interpret(src);
+            string actual   = CompileWithASan(src);
+            Assert.Equal(expected, actual);
+        }
+        finally { try { File.Delete(path.Replace('/', Path.DirectorySeparatorChar)); } catch { } }
     }
 
     [Fact]
