@@ -49,11 +49,33 @@ public sealed class CodeGenerator
     private readonly List<(string Name, CufetType Inner)> _failableStructs = new();
     private int _failableCounter;
 
-    // Inside a Try body: (handler label, the caught-failure C var) so a failing fallible call
-    // records the failure and jumps to the In-case-of-failure handler.
-    private (string Label, string FailVar)? _currentTryHandler;
+    // Inside a Try body: (handler label, the caught-failure C var, open-file depth at Try entry)
+    // so a failing fallible call records the failure, closes files opened since the Try, and jumps
+    // to the In-case-of-failure handler.
+    private (string Label, string FailVar, int FileDepth)? _currentTryHandler;
     // Inside an In-case-of-failure handler: the CufetFailure C var that `the failure` refers to.
     private string? _currentFailVar;
+
+    // Close-on-all-paths cleanup (slice 9B): open file handles (their `fclose(...)` C statements)
+    // in open order. Files are closed on EVERY exit from their scope — normal end, return,
+    // failure-goto, and loop break/continue — so a write is always flushed (no data loss).
+    // (Arenas are deliberately NOT tracked here: the nonlocal-exit `arena_pop` is unsafe because
+    // escaping return values and failure messages live in the arena — see project-design-decisions.)
+    private readonly List<string> _openFiles = new();
+    // The _openFiles depth at each enclosing loop's entry, so break/continue closes files opened
+    // inside the loop body before jumping out of it.
+    private readonly List<int> _loopFileDepths = new();
+
+    // The `fclose(...)` statements for files opened at or after `fromDepth`, innermost-first (LIFO),
+    // as one inline C string. Used at return / failure-goto / propagate / break / continue. Does
+    // NOT mutate _openFiles (nonlocal exits jump past the normal scope-exit that pops them).
+    private string FileCleanupStmts(int fromDepth)
+    {
+        if (_openFiles.Count <= fromDepth) return "";
+        var sb = new StringBuilder();
+        for (int i = _openFiles.Count - 1; i >= fromDepth; i--) sb.Append(_openFiles[i]).Append(' ');
+        return sb.ToString();
+    }
 
     // The declared return type of the function/method/getter currently being emitted, so a
     // `return <T>` in a `voidable T` body widens the value into the voidable struct.
@@ -516,6 +538,41 @@ static int cufet_file_write(const char* path, const char* text, int append, Cufe
 static int cufet_path_exists(const char* path)  { struct stat st; return stat(path, &st) == 0; }
 static int cufet_path_is_dir(const char* path)  { struct stat st; return stat(path, &st) == 0 && S_ISDIR(st.st_mode); }
 static int cufet_path_is_file(const char* path) { struct stat st; return stat(path, &st) == 0 && S_ISREG(st.st_mode); }
+
+/* ── Streams (slice 9B): a stream is a FILE* (an opened file, or stdin). Read results are
+   arena-allocated; the FILE* itself is closed by the With-block cleanup (not the arena). ── */
+/* Reads one line, matching StreamReader.ReadLine: content up to \r, \n, or \r\n (terminator
+   dropped and \r\n consumed together); NULL at end-of-stream with no content. */
+static const char* cufet_stream_read_line(FILE* f) {
+    int c = fgetc(f);
+    if (c == EOF) return NULL;
+    size_t cap = 16, len = 0;
+    char* buf = (char*)malloc(cap);
+    while (c != EOF && c != '\n' && c != '\r') {
+        if (len + 1 >= cap) { cap *= 2; buf = (char*)realloc(buf, cap); }
+        buf[len++] = (char)c;
+        c = fgetc(f);
+    }
+    if (c == '\r') { int n = fgetc(f); if (n != '\n' && n != EOF) ungetc(n, f); }
+    char* r = (char*)cufet_arena_alloc(len + 1);
+    memcpy(r, buf, len); r[len] = '\0';
+    free(buf);
+    return r;
+}
+/* Reads the rest of the stream to end (ReadToEnd — "" at end-of-stream, never NULL). */
+static const char* cufet_stream_read_all(FILE* f) {
+    size_t cap = 256, len = 0;
+    char* buf = (char*)malloc(cap);
+    int c;
+    while ((c = fgetc(f)) != EOF) {
+        if (len + 1 >= cap) { cap *= 2; buf = (char*)realloc(buf, cap); }
+        buf[len++] = (char)c;
+    }
+    char* r = (char*)cufet_arena_alloc(len + 1);
+    memcpy(r, buf, len); r[len] = '\0';
+    free(buf);
+    return r;
+}
 
 """;
 
@@ -1182,13 +1239,15 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
 
             case ReturnStatement ret:
                 if (ret.Value == null)
-                    sb.AppendLine($"{indent}return;");
+                    sb.AppendLine($"{indent}{FileCleanupStmts(0)}return;");
                 else
                 {
                     // Coerce so `return <T>` / `return void` widens into a voidable return type.
+                    // Value is materialized first (preemits), THEN open files close (a returned
+                    // arena value never references a FILE*), THEN return.
                     string retExpr = EmitAsType(ret.Value, _currentReturnType);
                     FlushPreEmits(sb, indent);
-                    sb.AppendLine($"{indent}return {retExpr};");
+                    sb.AppendLine($"{indent}{FileCleanupStmts(0)}return {retExpr};");
                 }
                 break;
 
@@ -1204,6 +1263,21 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
             case FileWriteStatement fw:
                 EmitFileWrite(sb, fw, indent);
                 break;
+
+            case WithOpenStatement wos:
+                EmitWithOpen(sb, wos, indent);
+                break;
+
+            case WriteToStreamStatement wts:
+            {
+                // write <text> to <stream> — incremental, no newline added (fputs); flushed at close.
+                string v = EmitExpr(wts.Value);
+                FlushPreEmits(sb, indent);
+                string strm = EmitExpr(wts.Stream);
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}fputs({v}, {strm});");
+                break;
+            }
 
             case BindStatement:
                 throw new CompilerException("Nested function declarations and closures are not yet supported by the compiler.");
@@ -1328,22 +1402,22 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
 
             case WhileStatement ws:
                 sb.AppendLine($"{indent}while ({EmitExpr(ws.Condition)}) {{");
-                EmitBlock(sb, ws.Body, indent + "    ");
+                EmitLoopBody(sb, ws.Body, indent + "    ");
                 sb.AppendLine($"{indent}}}");
                 break;
 
             case RepeatUntilStatement ru:
                 sb.AppendLine($"{indent}do {{");
-                EmitBlock(sb, ru.Body, indent + "    ");
+                EmitLoopBody(sb, ru.Body, indent + "    ");
                 sb.AppendLine($"{indent}}} while (!({EmitExpr(ru.Condition)}));");
                 break;
 
             case StopStatement:
-                sb.AppendLine($"{indent}break;");
+                sb.AppendLine($"{indent}{FileCleanupStmts(CurrentLoopFileDepth())}break;");
                 break;
 
             case SkipStatement:
-                sb.AppendLine($"{indent}continue;");
+                sb.AppendLine($"{indent}{FileCleanupStmts(CurrentLoopFileDepth())}continue;");
                 break;
 
             case TryStatement ts:
@@ -1444,7 +1518,7 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
         sb.AppendLine($"{inner}CufetDec {st} = {stepExpr};");
         sb.AppendLine($"{inner}int {d}  = cufet_cmp({s}, {e}) <= 0 ? 1 : -1;");
         sb.AppendLine($"{inner}for (CufetDec {iterName} = {s}; {d} > 0 ? cufet_cmp({iterName}, {e}) <= 0 : cufet_cmp({iterName}, {e}) >= 0; {iterName} = {d} > 0 ? cufet_add({iterName}, {st}) : cufet_sub({iterName}, {st})) {{");
-        EmitBlock(sb, fe.Body, loopIndent);
+        EmitLoopBody(sb, fe.Body, loopIndent);
         sb.AppendLine($"{inner}}}");
         sb.AppendLine($"{indent}}}");
     }
@@ -1477,7 +1551,7 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
         sb.AppendLine($"{inner}int {ser}_n = {ser}->len;");
         sb.AppendLine($"{inner}for (int {idx} = 0; {idx} < {ser}_n; {idx}++) {{");
         sb.AppendLine($"{loopIndent}{EmitCType(elem)} {iterName} = {ser}->data[{idx}];");
-        EmitBlock(sb, fe.Body, loopIndent);
+        EmitLoopBody(sb, fe.Body, loopIndent);
         sb.AppendLine($"{inner}}}");
         sb.AppendLine($"{indent}}}");
 
@@ -1508,7 +1582,7 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
         sb.AppendLine($"{inner}for (int {idx} = 0; {idx} < {m}_n; {idx}++) {{");
         sb.AppendLine($"{loopIndent}{EmitCType(mt.KeyType)} {pair}_key = {m}->keys[{idx}];");
         sb.AppendLine($"{loopIndent}{EmitCType(mt.ValueType)} {pair}_value = {m}->vals[{idx}];");
-        EmitBlock(sb, fe.Body, loopIndent);
+        EmitLoopBody(sb, fe.Body, loopIndent);
         sb.AppendLine($"{inner}}}");
         sb.AppendLine($"{indent}}}");
 
@@ -1534,7 +1608,7 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
         sb.AppendLine($"{inner}CufetFailure {failVar};");
 
         var savedHandler = _currentTryHandler;
-        _currentTryHandler = (label, failVar);
+        _currentTryHandler = (label, failVar, _openFiles.Count);   // files opened in the body close on unwind
         EmitBlock(sb, trySt.Body, inner);
         _currentTryHandler = savedHandler;
 
@@ -1577,7 +1651,8 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
         SeriesAccess sa       => SeriesAccessType(sa),
         UnaryExpression u     => u.Op == TokenType.Not ? TFact : TNumber,
         BinaryExpression b    => IsArithmeticOp(b.Op) ? TNumber : TFact,
-        VariableReference vr  => _narrowedVars.TryGetValue(vr.Name, out var nt) ? nt
+        VariableReference vr  => vr.Name == "input" ? new ReadableStreamType(TText)   // `the input` = stdin
+                               : _narrowedVars.TryGetValue(vr.Name, out var nt) ? nt
                                : _varTypes.TryGetValue(vr.Name, out var t) ? t : TNumber,
         CastExpression c      => CastReturnType(c),
         RecordLiteral rl      => new RecordType(
@@ -1594,8 +1669,10 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
         MapHasEntry           => TFact,
         MapSize               => TNumber,
         FailureLiteral        => TFailMarker,
-        FailureFallback ff    => TypeOf(ff.Fallible) is FailureType ft ? ft.Inner : TypeOf(ff.Default),
-        FailurePropagate fp   => TypeOf(fp.Fallible) is FailureType ft2 ? ft2.Inner : TNumber,
+        // The operand's raw `T or failure` type comes from FallibleReturnType (TypeOf already
+        // unwraps a fallible expr to its inner T, so `TypeOf(...) is FailureType` would never hit).
+        FailureFallback ff    => FallibleReturnType(ff.Fallible) is { } ft ? ft.Inner : TypeOf(ff.Default),
+        FailurePropagate fp   => FallibleReturnType(fp.Fallible) is { } ft2 ? ft2.Inner : TypeOf(fp.Fallible),
         TextJoin or TextConvert or TextSubstringRange or TextSubstringEdge
             or TextReplace or TextCase or TextTrim => TText,
         TextSplit             => new SeriesType(TText),
@@ -1606,6 +1683,14 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
         // raw `T or failure` is only seen by FallibleReturnType, for Try / but-on-failure / propagate).
         FileReadExpression fr => FileReadSuccessType(fr),
         PathCheckExpression   => TFact,
+        // Stream reads (infallible): read a line → voidable text (void at EOF); read all → text;
+        // read all lines → series of text.
+        ReadExpression re     => re.Form switch
+        {
+            ReadForm.Line     => new VoidableType(TText),
+            ReadForm.AllLines => new SeriesType(TText),
+            _                 => TText,
+        },
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
@@ -1954,6 +2039,7 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
         // deref'd receiver; a flow-narrowed voidable var reads as its inner value (`.val`).
         VariableReference v   => v.Name == "the failure" && _currentFailVar != null ? _currentFailVar
                                : v.Name == "one" && _methodReceiverType != null ? "(*cv_one)"
+                               : v.Name == "input" ? "stdin"   // `the input` = the stdin stream
                                : _narrowedVars.ContainsKey(v.Name) ? $"({MangleName(v.Name)}).val"
                                : MangleName(v.Name),
         CastExpression cast   => EmitCastExpr(cast),
@@ -1985,6 +2071,7 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
         TextTrim tt           => $"cufet_str_trim({EmitExpr(tt.Text)})",
         TextSplit ts          => EmitTextSplit(ts),
         FileReadExpression fr => EmitFileRead(fr),
+        ReadExpression re     => EmitReadExpr(re),
         PathCheckExpression pc => pc.Kind switch
         {
             PathCheckKind.Exists      => $"cufet_path_exists({EmitExpr(pc.Path)})",
@@ -2064,7 +2151,7 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
         string enclosing = _currentReturnType is FailureType ft
             ? RegisterFailableStruct(ft)
             : throw new CompilerException("'or pass the failure off' requires the enclosing function to return 'T or failure'.");
-        _preEmits.Add($"if ({tmp}.is_failure) return (({enclosing}){{ .is_failure = 1, .message = {tmp}.message, .category = {tmp}.category }});");
+        _preEmits.Add($"if ({tmp}.is_failure) {{ {FileCleanupStmts(0)}return (({enclosing}){{ .is_failure = 1, .message = {tmp}.message, .category = {tmp}.category }}); }}");
         return $"{tmp}.val";
     }
 
@@ -2161,10 +2248,83 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
         string ok = $"cf_w{id}", err = $"cf_we{id}";
         sb.AppendLine($"{indent}{{ CufetFailure {err}; int {ok} = cufet_file_write({pathExpr}, {valExpr}, {(fw.Append ? 1 : 0)}, &{err});");
         if (_currentTryHandler is { } h)
-            sb.AppendLine($"{indent}  if (!{ok}) {{ {h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; goto {h.Label}; }} }}");
+            sb.AppendLine($"{indent}  if (!{ok}) {{ {h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; {FileCleanupStmts(h.FileDepth)}goto {h.Label}; }} }}");
         else
             sb.AppendLine($"{indent}  if (!{ok}) {{ fprintf(stderr, \"%s\\n\", {err}.message); exit(1); }} }}");
     }
+
+    // Stream reads (infallible). `read a line from s` → voidable text (void at EOF); `read all
+    // from s` → text; `read all lines from s` → series of text. Results are arena-allocated.
+    private string EmitReadExpr(ReadExpression re)
+    {
+        string src = EmitExpr(re.Source);
+        switch (re.Form)
+        {
+            case ReadForm.All:
+                return $"cufet_stream_read_all({src})";
+            case ReadForm.Line:
+            {
+                string cvd = RegisterVoidableStruct(new VoidableType(TText));
+                int id = _freshId++;
+                _preEmits.Add($"const char* cf_rl{id} = cufet_stream_read_line({src});");
+                return $"(cf_rl{id} ? ({cvd}){{ .has = 1, .val = cf_rl{id} }} : ({cvd}){{ .has = 0 }})";
+            }
+            case ReadForm.AllLines:
+            {
+                string ser = RegisterSeriesStruct(new SeriesType(TText));
+                int id = _freshId++;
+                string sv = $"cs_{id}", ln = $"cf_rln{id}";
+                _preEmits.Add($"{ser}* {sv} = {ser}_new(); {{ const char* {ln}; while (({ln} = cufet_stream_read_line({src})) != NULL) {ser}_append({sv}, {ln}); }}");
+                return sv;
+            }
+            default: throw new CompilerException($"unknown read form {re.Form}");
+        }
+    }
+
+    // `With the file "<path>" open for reading/writing as s: … Done.` — opens the file, registers
+    // its close in the cleanup stack, runs the body, and closes on EVERY exit path (normal end,
+    // return, failure-goto, break/continue). An open failure becomes a Cufet failure (goto the
+    // enclosing Try, or abort). Guaranteed-close is what makes a buffered write always flush.
+    private void EmitWithOpen(StringBuilder sb, WithOpenStatement wos, string indent)
+    {
+        var inner = indent + "    ";
+        int id = _freshId++;
+        string pathExpr = EmitExpr(wos.Path);
+        FlushPreEmits(sb, indent);
+        string sVar = MangleName(wos.BindingName);
+        string pathTmp = $"cf_op{id}", err = $"cf_oe{id}";
+        string mode = wos.Mode == OpenMode.Reading ? "rb" : "wb";
+
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{inner}const char* {pathTmp} = {pathExpr};");
+        sb.AppendLine($"{inner}FILE* {sVar} = fopen({pathTmp}, \"{mode}\");");
+        if (_currentTryHandler is { } h)
+            sb.AppendLine($"{inner}if (!{sVar}) {{ CufetFailure {err} = cufet_file_failure({pathTmp}, errno); {FileCleanupStmts(h.FileDepth)}{h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; goto {h.Label}; }}");
+        else
+            sb.AppendLine($"{inner}if (!{sVar}) {{ CufetFailure {err} = cufet_file_failure({pathTmp}, errno); fprintf(stderr, \"%s\\n\", {err}.message); exit(1); }}");
+
+        var savedType = _varTypes.TryGetValue(wos.BindingName, out var pt) ? pt : null;
+        _varTypes[wos.BindingName] = wos.Mode == OpenMode.Reading
+            ? new ReadableStreamType(TText) : new WritableStreamType(TText);
+        _openFiles.Add($"fclose({sVar});");
+        EmitBlock(sb, wos.Body, inner);
+        _openFiles.RemoveAt(_openFiles.Count - 1);   // pop; emit the normal-exit close
+        sb.AppendLine($"{inner}fclose({sVar});");
+        sb.AppendLine($"{indent}}}");
+
+        if (savedType != null) _varTypes[wos.BindingName] = savedType; else _varTypes.Remove(wos.BindingName);
+    }
+
+    // Emits a loop body, remembering the open-file depth at loop entry so a break/continue inside
+    // closes files opened within the loop before jumping out.
+    private void EmitLoopBody(StringBuilder sb, IReadOnlyList<IStatement> body, string indent)
+    {
+        _loopFileDepths.Add(_openFiles.Count);
+        EmitBlock(sb, body, indent);
+        _loopFileDepths.RemoveAt(_loopFileDepths.Count - 1);
+    }
+
+    private int CurrentLoopFileDepth() => _loopFileDepths.Count > 0 ? _loopFileDepths[^1] : 0;
 
     private string MapName(IExpression mapExpr) => RegisterMapStruct((MapType)TypeOf(mapExpr));
 
@@ -2279,7 +2439,8 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
         _preEmits.Add($"{cflName} {tmp} = {rawCall};");
         if (_currentTryHandler is not { } h)
             throw new CompilerException("a fallible call must be handled (Try, 'but on failure', or 'or pass the failure off').");
-        _preEmits.Add($"if ({tmp}.is_failure) {{ {h.FailVar}.message = {tmp}.message; {h.FailVar}.category = {tmp}.category; goto {h.Label}; }}");
+        // Close any files opened since the Try before unwinding to the handler (flush-on-failure).
+        _preEmits.Add($"if ({tmp}.is_failure) {{ {h.FailVar}.message = {tmp}.message; {h.FailVar}.category = {tmp}.category; {FileCleanupStmts(h.FileDepth)}goto {h.Label}; }}");
         return $"{tmp}.val";
     }
 
@@ -2460,6 +2621,7 @@ static int cufet_path_is_file(const char* path) { struct stat st; return stat(pa
         MapType mt => RegisterMapStruct(mt) + "*",   // maps are arena pointers (reference type)
         FailureType ft => RegisterFailableStruct(ft),
         FailureMarkerType => "CufetFailure",         // a caught / bare failure (message + category)
+        ReadableStreamType or WritableStreamType => "FILE*",   // a stream is an open FILE* (or stdin)
         _ => throw new CompilerException(
                  $"'{type!.GetType().Name}' is not yet supported by the compiler (slice 5B: records + text; objects/maps later).")
     };

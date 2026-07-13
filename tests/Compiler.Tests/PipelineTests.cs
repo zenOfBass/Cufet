@@ -10,8 +10,8 @@ namespace Cufet.Compiler.Tests;
 
 public class PipelineTests
 {
-    // Compiles source to a temp native binary, runs it, returns stdout trimmed.
-    private static string Compile(string source)
+    // Compiles source to a temp native binary, runs it (optionally feeding stdin), returns stdout.
+    private static string Compile(string source, string? stdin = null)
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
@@ -40,9 +40,11 @@ public class PipelineTests
             var psi = new ProcessStartInfo(binPath)
             {
                 RedirectStandardOutput = true,
+                RedirectStandardInput  = stdin != null,
                 UseShellExecute = false,
             };
             using var proc = Process.Start(psi)!;
+            if (stdin != null) { proc.StandardInput.Write(stdin); proc.StandardInput.Close(); }
             var output = proc.StandardOutput.ReadToEnd();
             proc.WaitForExit();
             return output.Replace("\r\n", "\n").TrimEnd('\n');
@@ -53,14 +55,15 @@ public class PipelineTests
         }
     }
 
-    // Interprets source and returns stdout trimmed — the oracle.
-    private static string Interpret(string source)
+    // Interprets source and returns stdout trimmed — the oracle. Optionally feeds stdin.
+    private static string Interpret(string source, string? stdin = null)
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
         new TypeChecker().Check(program);
         var sb = new StringWriter();
-        new CufetInterpreter(sb).Execute(program);
+        var reader = stdin != null ? new StringReader(stdin) : null;
+        new CufetInterpreter(sb, reader).Execute(program);
         return sb.ToString().Replace("\r\n", "\n").TrimEnd('\n');
     }
 
@@ -1942,14 +1945,16 @@ public class PipelineTests
         Path.Combine(Path.GetTempPath(), "cufet-io-" + Guid.NewGuid().ToString("N") + ".txt")
             .Replace('\\', '/');
 
-    // Runs a source template (with {PATH} substituted for a fresh writable temp file) through the
-    // oracle and asserts the compiled output matches the interpreter; cleans the file up after.
-    private static void AssertFileOracle(string template)
+    // Runs a source template through the oracle, substituting {PATH}, {PATH2}, {PATH3} with fresh
+    // writable temp files; asserts compiled == interpreted and cleans the files up after.
+    private static void AssertFileOracle(string template, string? stdin = null)
     {
-        var path = WritableTempPath();
-        var src  = template.Replace("{PATH}", path);
-        try { Assert.Equal(Interpret(src), Compile(src)); }
-        finally { try { File.Delete(path.Replace('/', Path.DirectorySeparatorChar)); } catch { } }
+        var paths = new List<string>();
+        var src = template;
+        foreach (var token in new[] { "{PATH}", "{PATH2}", "{PATH3}" })
+            if (src.Contains(token)) { var p = WritableTempPath(); paths.Add(p); src = src.Replace(token, p); }
+        try { Assert.Equal(Interpret(src, stdin), Compile(src, stdin)); }
+        finally { foreach (var p in paths) try { File.Delete(p.Replace('/', Path.DirectorySeparatorChar)); } catch { } }
     }
 
     [Fact]
@@ -2017,6 +2022,140 @@ public class PipelineTests
                 State "msg: " joined to the message of the failure.
             Done.
             """);
+    }
+
+    // ── Slice 9B: streams + With…open + stdin (close-on-all-paths cleanup) ──
+
+    [Fact]
+    public void With_ReadWriteStreams_MatchesInterpreter()
+    {
+        AssertFileOracle("""
+            With the file "{PATH}" open for writing as out:
+                write "alpha\n" to out.
+                write "beta\n" to out.
+                write "gamma" to out.
+            Done.
+            With the file "{PATH}" open for reading as inp:
+                Define first as read a line from inp.
+                State first but void is "?".
+                Define second as read a line from inp.
+                State second but void is "?".
+                State read all from inp.
+            Done.
+            With the file "{PATH}" open for reading as inp2:
+                Define lines as read all lines from inp2.
+                State the number of lines.
+                For each ln in lines, repeat:
+                    State "L: " joined to ln.
+                Done.
+            Done.
+            """);
+    }
+
+    [Fact]
+    public void With_ReadLine_EofIsVoid_MatchesInterpreter()
+    {
+        // read a line from a stream → voidable text; void at end-of-stream (a present empty line
+        // is "", not void).
+        AssertFileOracle("""
+            With the file "{PATH}" open for writing as out:
+                write "only-line" to out.
+            Done.
+            With the file "{PATH}" open for reading as inp:
+                Define a1 as read a line from inp.
+                Define a2 as read a line from inp.
+                If a1 is void, state "1-void". Otherwise, state a1.
+                If a2 is void, state "2-void". Otherwise, state a2.
+            Done.
+            """);
+    }
+
+    [Fact]
+    public void With_WriteThenReturn_FlushesOnAllExits_MatchesInterpreter()
+    {
+        // The data-loss proof: a write inside a With block must be flushed+closed on EVERY exit —
+        // normal end, return-out-of-block, propagated-failure, and Try-failure-goto. A skipped
+        // fclose would lose the buffered write; reading the file back proves it landed.
+        AssertFileOracle("""
+            Bind text to write-then-return, given (the text loc):
+                With the file loc open for writing as out:
+                    write "RETURN-DATA" to out.
+                    return "bailed".
+                Done.
+                return "normal".
+            Done.
+            State cast write-then-return on ("{PATH}").
+            State (read all from the file "{PATH}" but on failure "LOST").
+
+            Bind text or failure to write-then-propagate, given (the text loc):
+                With the file loc open for writing as out:
+                    write "PROPAGATE-DATA" to out.
+                    Define x as read all from the file "no-such-qq.txt" or pass the failure off.
+                    write " unreached" to out.
+                    return "ok".
+                Done.
+                return "normal".
+            Done.
+            Try to:
+                State cast write-then-propagate on ("{PATH2}").
+            Done.
+            In case of failure:
+                State "caught".
+            Done.
+            State (read all from the file "{PATH2}" but on failure "LOST").
+
+            Try to:
+                With the file "{PATH3}" open for writing as out:
+                    write "TRYGOTO-DATA" to out.
+                    Define y as read all from the file "no-such-qq.txt".
+                    write " unreached" to out.
+                Done.
+            Done.
+            In case of failure:
+                State "try-caught".
+            Done.
+            State (read all from the file "{PATH3}" but on failure "LOST").
+            """);
+    }
+
+    [Fact]
+    public void With_NestedReturn_ClosesBothLifo_MatchesInterpreter()
+    {
+        // A return out of a nested With closes both files (LIFO); code after the inner block is
+        // unreached, so the outer file holds only what was written before the inner block.
+        AssertFileOracle("""
+            Bind text to nested, given (the text locone, the text loctwo):
+                With the file locone open for writing as outA:
+                    write "AAA" to outA.
+                    With the file loctwo open for writing as outB:
+                        write "BBB" to outB.
+                        return "inner".
+                    Done.
+                    write " unreachedA" to outA.
+                Done.
+                return "normal".
+            Done.
+            State cast nested on ("{PATH}", "{PATH2}").
+            State (read all from the file "{PATH}" but on failure "LOST-A").
+            State (read all from the file "{PATH2}" but on failure "LOST-B").
+            """);
+    }
+
+    [Fact]
+    public void Stdin_ReadLineAndLines_MatchesInterpreter()
+    {
+        // `the input` is stdin; read a line + read all lines consume it. Both backends fed the
+        // same input via the harness.
+        const string src = """
+            Define first as read a line from the input.
+            State "first: " joined to (first but void is "EOF").
+            Define rest as read all lines from the input.
+            State the number of rest.
+            For each ln in rest, repeat:
+                State "got: " joined to ln.
+            Done.
+            """;
+        Assert.Equal(Interpret(src, "hello\nworld\nthree\n"), Compile(src, "hello\nworld\nthree\n"));
     }
 
     // Compiles source with -fsanitize=address for memory-safety verification.
@@ -2165,6 +2304,39 @@ public class PipelineTests
                     Done.
                     In case of failure:
                         State "fail".
+                    Done.
+                Done.
+            Done.
+            """;
+        try
+        {
+            string expected = Interpret(src);
+            string actual   = CompileWithASan(src);
+            Assert.Equal(expected, actual);
+        }
+        finally { try { File.Delete(path.Replace('/', Path.DirectorySeparatorChar)); } catch { } }
+    }
+
+    [Fact]
+    public void With_StreamsAndCleanup_MemorySafety_ASan_ZeroLeaksAndNoUAF()
+    {
+        // Streams + close-on-all-paths inside a Pull: each iteration opens a file, writes, reopens,
+        // reads (arena strings + line series), and closes on normal exit — plus arena churn. No
+        // leaks / UAF (the FILE* handles all close; the arena frees at Done). Linux-only.
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+
+        var path = Path.Combine(Path.GetTempPath(), "cufet-io-with-asan-" + Guid.NewGuid().ToString("N") + ".txt")
+            .Replace('\\', '/');
+        var src = $$"""
+            Pull a rabbit.
+                For each n in the range 1 to 15, repeat:
+                    With the file "{{path}}" open for writing as out:
+                        write "line-a\nline-b\nline-c" to out.
+                    Done.
+                    With the file "{{path}}" open for reading as inp:
+                        Define lines as read all lines from inp.
+                        State the number of lines.
                     Done.
                 Done.
             Done.
