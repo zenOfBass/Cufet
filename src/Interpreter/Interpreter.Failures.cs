@@ -81,8 +81,11 @@ public sealed partial class Interpreter
         }
         else
         {
+            // Deterministic, platform-independent fallback (NOT ex.Message, whose text is
+            // host/runtime-specific and can't be reproduced by the native compiler's errno path).
+            // The native backend produces this identical string for any non-ENOENT/EACCES errno.
             category = "disk-error";
-            message  = ex.Message;
+            message  = $"accessing the file '{path}' failed";
         }
         return new FailureUnwind(new FailureValue(message, category));
     }

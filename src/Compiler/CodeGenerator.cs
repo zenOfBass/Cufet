@@ -92,6 +92,8 @@ public sealed class CodeGenerator
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
+#include <sys/stat.h>
 
 /* ───────── 256-bit unsigned helper (little-endian limbs) ───────── */
 typedef struct { unsigned long long v[4]; } cufet_u256;
@@ -423,6 +425,100 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
 
 """;
 
+    // File I/O runtime (sub-slice A): whole-file read/write + path checks. Results are arena-
+    // allocated (text buffers, line arrays) and freed at Done. OS errors (errno) become Cufet
+    // failure values with a deterministic, path-templated message matching the interpreter.
+    private const string FileRuntime =
+"""
+/* Arena-format a one-%s-arg message (deterministic; no host-specific strerror text). */
+static const char* cufet_arena_msg(const char* fmt, const char* arg) {
+    int n = snprintf(NULL, 0, fmt, arg);
+    if (n < 0) n = 0;
+    char* buf = (char*)cufet_arena_alloc((size_t)n + 1);
+    snprintf(buf, (size_t)n + 1, fmt, arg);
+    return buf;
+}
+/* errno -> Cufet failure (category + templated message), matching the interpreter's FileIoFailure:
+   ENOENT -> not-found; EACCES/EPERM -> permission-denied; else -> deterministic disk-error. */
+static CufetFailure cufet_file_failure(const char* path, int e) {
+    CufetFailure f;
+    if (e == ENOENT) {
+        f.category = "not-found";
+        f.message  = cufet_arena_msg("the file '%s' was not found", path);
+    } else if (e == EACCES || e == EPERM) {
+        f.category = "permission-denied";
+        f.message  = cufet_arena_msg("permission denied accessing '%s'", path);
+    } else {
+        f.category = "disk-error";
+        f.message  = cufet_arena_msg("accessing the file '%s' failed", path);
+    }
+    return f;
+}
+/* Reads the whole file into an arena buffer (binary — no newline translation, matching .NET
+   ReadAllText's byte fidelity). NUL-terminates and reports the true byte length via *len. */
+static int cufet_file_slurp(const char* path, char** buf, long* len, CufetFailure* err) {
+    FILE* f = fopen(path, "rb");
+    if (!f) { *err = cufet_file_failure(path, errno); return 0; }
+    if (fseek(f, 0, SEEK_END) != 0) { *err = cufet_file_failure(path, errno); fclose(f); return 0; }
+    long sz = ftell(f);
+    if (sz < 0) { *err = cufet_file_failure(path, errno); fclose(f); return 0; }
+    rewind(f);
+    char* b = (char*)cufet_arena_alloc((size_t)sz + 1);
+    size_t rd = fread(b, 1, (size_t)sz, f);
+    if (ferror(f)) { *err = cufet_file_failure(path, errno); fclose(f); return 0; }
+    b[rd] = '\0';
+    fclose(f);
+    *buf = b; *len = (long)rd;
+    return 1;
+}
+static int cufet_file_read_all(const char* path, const char** out, CufetFailure* err) {
+    char* b; long len;
+    if (!cufet_file_slurp(path, &b, &len, err)) return 0;
+    *out = b;
+    return 1;
+}
+/* Splits into lines exactly like StreamReader.ReadLine / File.ReadAllLines: a line ends at
+   \r, \n, or \r\n; the terminator is dropped; a trailing terminator does NOT yield an empty
+   final line; empty input -> zero lines. (Deliberately NOT split-by-"\n", which keeps a trailing
+   empty.) Emits arena-allocated substrings into an arena array; *count gets the line count. */
+static int cufet_file_read_lines(const char* path, const char*** out, int* count, CufetFailure* err) {
+    char* b; long len;
+    if (!cufet_file_slurp(path, &b, &len, err)) return 0;
+    int n = 0;
+    for (long i = 0; i < len; ) {
+        while (i < len && b[i] != '\n' && b[i] != '\r') i++;
+        n++;
+        if (i < len) { if (b[i] == '\r' && i + 1 < len && b[i+1] == '\n') i += 2; else i += 1; }
+    }
+    const char** arr = (const char**)cufet_arena_alloc((size_t)(n > 0 ? n : 1) * sizeof(const char*));
+    int idx = 0;
+    for (long i = 0; i < len; ) {
+        long start = i;
+        while (i < len && b[i] != '\n' && b[i] != '\r') i++;
+        size_t ll = (size_t)(i - start);
+        char* line = (char*)cufet_arena_alloc(ll + 1);
+        memcpy(line, b + start, ll); line[ll] = '\0';
+        arr[idx++] = line;
+        if (i < len) { if (b[i] == '\r' && i + 1 < len && b[i+1] == '\n') i += 2; else i += 1; }
+    }
+    *out = arr; *count = idx;
+    return 1;
+}
+static int cufet_file_write(const char* path, const char* text, int append, CufetFailure* err) {
+    FILE* f = fopen(path, append ? "ab" : "wb");
+    if (!f) { *err = cufet_file_failure(path, errno); return 0; }
+    size_t len = strlen(text);
+    size_t wr = fwrite(text, 1, len, f);
+    if (wr != len || fclose(f) != 0) { *err = cufet_file_failure(path, errno); return 0; }
+    return 1;
+}
+/* Path predicates via stat, matching File.Exists / Directory.Exists (exists = either kind). */
+static int cufet_path_exists(const char* path)  { struct stat st; return stat(path, &st) == 0; }
+static int cufet_path_is_dir(const char* path)  { struct stat st; return stat(path, &st) == 0 && S_ISDIR(st.st_mode); }
+static int cufet_path_is_file(const char* path) { struct stat st; return stat(path, &st) == 0 && S_ISREG(st.st_mode); }
+
+""";
+
     public string Generate(Program program)
     {
         var sb = new StringBuilder();
@@ -478,6 +574,7 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
 
         // ── Text runtime (immutable strings; results arena-allocated) ─────
         sb.AppendLine(TextRuntime);
+        sb.AppendLine(FileRuntime);
 
         // Object definitions are nominal types — collect them all up front (they may be
         // top-level or nested in Pull blocks) so literals and field access resolve.
@@ -1104,6 +1201,10 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
                 break;
             }
 
+            case FileWriteStatement fw:
+                EmitFileWrite(sb, fw, indent);
+                break;
+
             case BindStatement:
                 throw new CompilerException("Nested function declarations and closures are not yet supported by the compiler.");
 
@@ -1501,6 +1602,10 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         NumberConvert or TextFind => new VoidableType(TNumber),
         TextLength            => TNumber,
         TextContains          => TFact,
+        // A file read is fallible; its post-check VALUE type is the inner success type (the
+        // raw `T or failure` is only seen by FallibleReturnType, for Try / but-on-failure / propagate).
+        FileReadExpression fr => FileReadSuccessType(fr),
+        PathCheckExpression   => TFact,
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
@@ -1552,9 +1657,18 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         return TNumber;
     }
 
-    // If `expr` is a call to a fallible function/method, its `T or failure` return type; else null.
-    private FailureType? FallibleReturnType(IExpression expr) =>
-        expr is CastExpression c && RawCastReturnType(c) is FailureType ft ? ft : null;
+    // If `expr` is a fallible operation (a call to a fallible fn/method, or a fallible I/O op),
+    // its `T or failure` return type; else null. Fallible I/O composes with Try / but-on-failure /
+    // propagate through exactly the same machinery as a fallible call.
+    private FailureType? FallibleReturnType(IExpression expr) => expr switch
+    {
+        CastExpression c when RawCastReturnType(c) is FailureType ft => ft,
+        FileReadExpression fr => new FailureType(FileReadSuccessType(fr)),
+        _ => null,
+    };
+
+    private CufetType FileReadSuccessType(FileReadExpression fr) =>
+        fr.Form == FileReadForm.AllLines ? new SeriesType(TText) : TText;
 
     private CufetType MethodReturnType(string objName, string methodName)
     {
@@ -1870,6 +1984,14 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         TextCase tcs          => tcs.Uppercase ? $"cufet_str_upper({EmitExpr(tcs.Text)})" : $"cufet_str_lower({EmitExpr(tcs.Text)})",
         TextTrim tt           => $"cufet_str_trim({EmitExpr(tt.Text)})",
         TextSplit ts          => EmitTextSplit(ts),
+        FileReadExpression fr => EmitFileRead(fr),
+        PathCheckExpression pc => pc.Kind switch
+        {
+            PathCheckKind.Exists      => $"cufet_path_exists({EmitExpr(pc.Path)})",
+            PathCheckKind.IsDirectory => $"cufet_path_is_dir({EmitExpr(pc.Path)})",
+            PathCheckKind.IsFile      => $"cufet_path_is_file({EmitExpr(pc.Path)})",
+            _ => throw new CompilerException($"unknown path check {pc.Kind}"),
+        },
         // A bare `void` only has meaning where a voidable is expected (return/becomes/args,
         // handled by EmitAsType) or as an `is void` operand (handled in EmitBinary).
         VoidLiteral           => throw new CompilerException("'void' is only valid where a voidable value is expected."),
@@ -1988,6 +2110,60 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
         _preEmits.Add($"{name}* {tmp} = {name}_new();");
         _preEmits.Add($"{{ const char** {parts}; int {n} = cufet_str_split({textExpr}, {delimExpr}, &{parts}); for (int {j} = 0; {j} < {n}; {j}++) {name}_append({tmp}, {parts}[{j}]); }}");
         return tmp;
+    }
+
+    // A file read is a fallible expression: build the raw `cfl` (read into arena, or a failure
+    // from errno), then route through the shared fallible check-goto (auto-unwrap in a Try, or
+    // fed to but-on-failure / propagate). Mirrors EmitCastExpr for a fallible call.
+    private string EmitFileRead(FileReadExpression fr) =>
+        EmitFallibleCheckGoto(EmitFileReadRaw(fr), RegisterFailableStruct((FailureType)FallibleReturnType(fr)!));
+
+    // Preemits the read into a `cfl` temp (whole-file text, or a series-of-text of lines) and
+    // returns the temp name (the raw fallible value, before the failure check).
+    private string EmitFileReadRaw(FileReadExpression fr)
+    {
+        string cfl = RegisterFailableStruct(new FailureType(FileReadSuccessType(fr)));
+        string pathExpr = EmitExpr(fr.Path);
+        int id = _freshId++;
+        string raw = $"cf_fr{id}", e = $"cf_fre{id}";
+        if (fr.Form == FileReadForm.All)
+        {
+            _preEmits.Add(
+                $"{cfl} {raw}; {{ const char* v; CufetFailure {e}; " +
+                $"if (cufet_file_read_all({pathExpr}, &v, &{e})) {{ {raw}.is_failure = 0; {raw}.val = v; }} " +
+                $"else {{ {raw}.is_failure = 1; {raw}.message = {e}.message; {raw}.category = {e}.category; }} }}");
+        }
+        else // AllLines → series of text (build the cser inline, like split)
+        {
+            string ser = RegisterSeriesStruct(new SeriesType(TText));
+            string parts = $"cf_lp{id}", n = $"cf_ln{id}", j = $"cf_lj{id}", sv = $"cf_ls{id}";
+            _preEmits.Add(
+                $"{cfl} {raw}; {{ const char** {parts}; int {n}; CufetFailure {e}; " +
+                $"if (cufet_file_read_lines({pathExpr}, &{parts}, &{n}, &{e})) {{ " +
+                $"{ser}* {sv} = {ser}_new(); for (int {j} = 0; {j} < {n}; {j}++) {ser}_append({sv}, {parts}[{j}]); " +
+                $"{raw}.is_failure = 0; {raw}.val = {sv}; }} " +
+                $"else {{ {raw}.is_failure = 1; {raw}.message = {e}.message; {raw}.category = {e}.category; }} }}");
+        }
+        return raw;
+    }
+
+    // `write/append <text> to the file "<path>"` — a fallible statement. On failure it routes to
+    // the enclosing Try handler (goto), exactly like a bare fallible call. With no enclosing Try,
+    // an I/O failure has nowhere to go: abort with the message (the interpreter's uncaught failure
+    // is likewise fatal). The common path — a successful write — emits and continues.
+    private void EmitFileWrite(StringBuilder sb, FileWriteStatement fw, string indent)
+    {
+        string valExpr = EmitExpr(fw.Value);
+        FlushPreEmits(sb, indent);
+        string pathExpr = EmitExpr(fw.Path);
+        FlushPreEmits(sb, indent);
+        int id = _freshId++;
+        string ok = $"cf_w{id}", err = $"cf_we{id}";
+        sb.AppendLine($"{indent}{{ CufetFailure {err}; int {ok} = cufet_file_write({pathExpr}, {valExpr}, {(fw.Append ? 1 : 0)}, &{err});");
+        if (_currentTryHandler is { } h)
+            sb.AppendLine($"{indent}  if (!{ok}) {{ {h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; goto {h.Label}; }} }}");
+        else
+            sb.AppendLine($"{indent}  if (!{ok}) {{ fprintf(stderr, \"%s\\n\", {err}.message); exit(1); }} }}");
     }
 
     private string MapName(IExpression mapExpr) => RegisterMapStruct((MapType)TypeOf(mapExpr));
@@ -2111,6 +2287,8 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
     // used by but-on-failure and propagate, which inspect is_failure themselves.
     private (string CflName, string Expr) EmitFallibleRaw(IExpression expr, CufetType resultInner)
     {
+        if (expr is FileReadExpression fr)
+            return (RegisterFailableStruct(new FailureType(FileReadSuccessType(fr))), EmitFileReadRaw(fr));
         if (FallibleReturnType(expr) is { } ft)
             return (RegisterFailableStruct(ft), EmitCall(((CastExpression)expr).Function, ((CastExpression)expr).Args));
         // A bare failure literal (or other failable) as the operand — coerce into cfl of the result T.
