@@ -257,8 +257,10 @@ public sealed partial class Interpreter
         }
         else
         {
+            // Deterministic, platform-independent fallback (NOT ex.Message) so the native compiler's
+            // errno path reproduces it bit-identically — same principle as FileIoFailure.
             category = "io-error";
-            message  = ex.Message;
+            message  = $"running the program '{program}' failed";
         }
         return new FailureUnwind(new FailureValue(message, category));
     }

@@ -66,6 +66,9 @@ public sealed class CodeGenerator
     // inside the loop body before jumping out of it.
     private readonly List<int> _loopFileDepths = new();
 
+    // Set when the program uses `run`/pipe, so the POSIX subprocess runtime is emitted (only then).
+    private bool _usesProcess;
+
     // The `fclose(...)` statements for files opened at or after `fromDepth`, innermost-first (LIFO),
     // as one inline C string. Used at return / failure-goto / propagate / break / continue. Does
     // NOT mutate _openFiles (nonlocal exits jump past the normal scope-exit that pops them).
@@ -110,6 +113,7 @@ public sealed class CodeGenerator
     // the up-to-192-bit intermediate products and scaled division numerators.
     private const string RuntimePreamble =
 """
+#define _GNU_SOURCE   /* expose POSIX (fileno, fork, execvp, poll…) regardless of -std */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -576,6 +580,103 @@ static const char* cufet_stream_read_all(FILE* f) {
 
 """;
 
+    // Subprocess runtime (slice 9C): POSIX fork/exec/pipe/waitpid — matches the interpreter's
+    // no-shell direct exec (ProcessStartInfo.ArgumentList) with separate stdout/stderr + exit code.
+    // Emitted ONLY when a program uses `run`/pipe (so non-run programs compile anywhere), and
+    // #if-guarded to POSIX (a `run` program is Linux-targeted, like the OS-homework shell; on
+    // Windows/mingw — which lacks fork — it simply won't link, which is correct).
+    private const string ProcessRuntime =
+"""
+#if defined(__unix__) || defined(__APPLE__)
+#include <unistd.h>
+#include <sys/wait.h>
+#include <poll.h>
+#include <fcntl.h>
+
+/* errno → Cufet launch failure, matching the interpreter's LaunchFailure. */
+static CufetFailure cufet_launch_failure(const char* program, int e) {
+    CufetFailure f;
+    if (e == ENOENT) {
+        f.category = "not-found";
+        f.message  = cufet_arena_msg("the program '%s' was not found", program);
+    } else if (e == EACCES || e == EPERM) {
+        f.category = "permission-denied";
+        f.message  = cufet_arena_msg("permission denied executing '%s'", program);
+    } else {
+        f.category = "io-error";
+        f.message  = cufet_arena_msg("running the program '%s' failed", program);
+    }
+    return f;
+}
+
+/* Runs `program` with `argv` (NULL-terminated, no shell), optionally feeding `stdin_data`;
+   captures stdout + stderr (arena strings) and the exit code. Returns 1 on a successful LAUNCH
+   (the process ran — a nonzero exit is still success), 0 on a launch failure (*err set). The
+   child is always reaped (waitpid) and all fds closed before returning, so no zombies / leaked
+   fds outlive the call — process cleanup is atomic within the primitive, not a later concern. */
+static int cufet_run_capture(const char* program, char* const argv[], const char* stdin_data,
+                             const char** out_stdout, const char** out_stderr, int* out_exit,
+                             CufetFailure* err) {
+    int outp[2], errp[2], xp[2];
+    if (pipe(outp) < 0 || pipe(errp) < 0 || pipe(xp) < 0) { *err = cufet_launch_failure(program, EIO); return 0; }
+    fcntl(xp[1], F_SETFD, FD_CLOEXEC);   /* exec closes it → parent reads EOF = exec ok */
+    FILE* infile = NULL; int infd = -1;
+    if (stdin_data) { infile = tmpfile(); if (infile) { fputs(stdin_data, infile); fflush(infile); rewind(infile); infd = fileno(infile); } }
+    pid_t pid = fork();
+    if (pid < 0) {
+        if (infile) fclose(infile);
+        close(outp[0]); close(outp[1]); close(errp[0]); close(errp[1]); close(xp[0]); close(xp[1]);
+        *err = cufet_launch_failure(program, EIO); return 0;
+    }
+    if (pid == 0) {
+        if (infd >= 0) dup2(infd, 0);
+        dup2(outp[1], 1); dup2(errp[1], 2);
+        close(outp[0]); close(outp[1]); close(errp[0]); close(errp[1]); close(xp[0]);
+        execvp(program, argv);
+        int e = errno; ssize_t w = write(xp[1], &e, sizeof(e)); (void)w; _exit(127);
+    }
+    close(outp[1]); close(errp[1]); close(xp[1]);
+    if (infile) fclose(infile);
+    int child_errno = 0;
+    ssize_t xn = read(xp[0], &child_errno, sizeof(child_errno));
+    close(xp[0]);
+    if (xn > 0) {   /* exec failed in the child → launch failure */
+        int st; waitpid(pid, &st, 0);
+        close(outp[0]); close(errp[0]);
+        *err = cufet_launch_failure(program, child_errno);
+        return 0;
+    }
+    /* Read stdout + stderr concurrently (poll) so neither pipe filling can deadlock the other. */
+    char* ob = (char*)malloc(256); size_t oc = 256, ol = 0;
+    char* eb = (char*)malloc(256); size_t ec = 256, el = 0;
+    struct pollfd pfd[2]; pfd[0].fd = outp[0]; pfd[0].events = POLLIN; pfd[1].fd = errp[0]; pfd[1].events = POLLIN;
+    int openfds = 2;
+    while (openfds > 0) {
+        if (poll(pfd, 2, -1) < 0) { if (errno == EINTR) continue; break; }
+        for (int i = 0; i < 2; i++) {
+            if (pfd[i].fd < 0) continue;
+            if (pfd[i].revents & (POLLIN | POLLHUP | POLLERR)) {
+                char tmp[4096]; ssize_t r = read(pfd[i].fd, tmp, sizeof(tmp));
+                if (r > 0) {
+                    char** b = (i == 0) ? &ob : &eb; size_t* cap = (i == 0) ? &oc : &ec; size_t* len = (i == 0) ? &ol : &el;
+                    while (*len + (size_t)r + 1 > *cap) { *cap *= 2; *b = (char*)realloc(*b, *cap); }
+                    memcpy(*b + *len, tmp, (size_t)r); *len += (size_t)r;
+                } else { close(pfd[i].fd); pfd[i].fd = -1; openfds--; }
+            }
+        }
+    }
+    int st; waitpid(pid, &st, 0);
+    *out_exit = WIFEXITED(st) ? WEXITSTATUS(st) : (WIFSIGNALED(st) ? 128 + WTERMSIG(st) : -1);
+    char* os = (char*)cufet_arena_alloc(ol + 1); memcpy(os, ob, ol); os[ol] = '\0';
+    char* es = (char*)cufet_arena_alloc(el + 1); memcpy(es, eb, el); es[el] = '\0';
+    free(ob); free(eb);
+    *out_stdout = os; *out_stderr = es;
+    return 1;
+}
+#endif
+
+""";
+
     public string Generate(Program program)
     {
         var sb = new StringBuilder();
@@ -692,6 +793,9 @@ static const char* cufet_stream_read_all(FILE* f) {
         // ── Series + map container structs + helpers (need element/K/V structs above) ──
         EmitSeriesRuntime(sb);
         EmitMapRuntime(sb);
+
+        // ── Subprocess runtime (only when `run`/pipe is used; discovered during the body pass) ──
+        if (_usesProcess) sb.AppendLine(ProcessRuntime);
 
         // ── Forward declarations: object methods/getters/setters, then free functions ──
         foreach (var def in _objectDefs.Values)
@@ -1268,6 +1372,23 @@ static const char* cufet_stream_read_all(FILE* f) {
                 EmitWithOpen(sb, wos, indent);
                 break;
 
+            case PipeExpression pipeStmt:
+            {
+                // Bare `run X | run Y.` statement — run the pipeline, write its final stdout to
+                // stdout and aggregated stderr to stderr (the shell pattern). A launch failure
+                // routes to the enclosing Try, or aborts.
+                string raw = EmitRunRaw(pipeStmt);
+                FlushPreEmits(sb, indent);
+                string cr = RegisterRecordStruct(RunResultRecordType);
+                string fOut = MangleName("output"), fErr = MangleName("errors");
+                if (_currentTryHandler is { } h)
+                    sb.AppendLine($"{indent}if ({raw}.is_failure) {{ {h.FailVar}.message = {raw}.message; {h.FailVar}.category = {raw}.category; {FileCleanupStmts(h.FileDepth)}goto {h.Label}; }}");
+                else
+                    sb.AppendLine($"{indent}if ({raw}.is_failure) {{ fprintf(stderr, \"%s\\n\", {raw}.message); exit(1); }}");
+                sb.AppendLine($"{indent}fputs({raw}.val.{fErr}, stderr); fputs({raw}.val.{fOut}, stdout);");
+                break;
+            }
+
             case WriteToStreamStatement wts:
             {
                 // write <text> to <stream> — incremental, no newline added (fputs); flushed at close.
@@ -1278,6 +1399,10 @@ static const char* cufet_stream_read_all(FILE* f) {
                 sb.AppendLine($"{indent}fputs({v}, {strm});");
                 break;
             }
+
+            case ForEachFromInputStatement:
+            case OutputStatement:
+                throw new CompilerException("task pipes (`for each … from the input` / `output`, connecting function stages via channels) are deferred to the concurrency arc — only subprocess pipes (`run … | run …`) are supported.");
 
             case BindStatement:
                 throw new CompilerException("Nested function declarations and closures are not yet supported by the compiler.");
@@ -1691,6 +1816,8 @@ static const char* cufet_stream_read_all(FILE* f) {
             ReadForm.AllLines => new SeriesType(TText),
             _                 => TText,
         },
+        // run / subprocess pipe are fallible; post-check VALUE type is the run-result record.
+        RunExpression or PipeExpression => RunResultRecordType,
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
@@ -1749,11 +1876,19 @@ static const char* cufet_stream_read_all(FILE* f) {
     {
         CastExpression c when RawCastReturnType(c) is FailureType ft => ft,
         FileReadExpression fr => new FailureType(FileReadSuccessType(fr)),
+        RunExpression or PipeExpression => new FailureType(RunResultRecordType),
         _ => null,
     };
 
     private CufetType FileReadSuccessType(FileReadExpression fr) =>
         fr.Form == FileReadForm.AllLines ? new SeriesType(TText) : TText;
+
+    // The `run`/pipe success record — (errors: text, exit-code: number, output: text), named fields
+    // alphabetical, matching the interpreter's RunResultType exactly. A launch failure is the `or
+    // failure`; a command that runs and exits nonzero is a SUCCESS record with that exit-code.
+    private static readonly RecordType RunResultRecordType = new RecordType(
+        Array.Empty<CufetType>(),
+        new (string, CufetType)[] { ("errors", TText), ("exit-code", TNumber), ("output", TText) });
 
     private CufetType MethodReturnType(string objName, string methodName)
     {
@@ -2071,6 +2206,7 @@ static const char* cufet_stream_read_all(FILE* f) {
         TextTrim tt           => $"cufet_str_trim({EmitExpr(tt.Text)})",
         TextSplit ts          => EmitTextSplit(ts),
         FileReadExpression fr => EmitFileRead(fr),
+        RunExpression or PipeExpression => EmitFallibleCheckGoto(EmitRunRaw(expr), RegisterFailableStruct(new FailureType(RunResultRecordType))),
         ReadExpression re     => EmitReadExpr(re),
         PathCheckExpression pc => pc.Kind switch
         {
@@ -2139,6 +2275,73 @@ static const char* cufet_stream_read_all(FILE* f) {
         string tmp = $"cf_ff{_freshId++}";
         _preEmits.Add($"{cflName} {tmp} = {rawExpr};");
         return $"({tmp}.is_failure ? {EmitExpr(ff.Default)} : {tmp}.val)";
+    }
+
+    // Flattens `run A | run B | run C` into its stages (all must be `run` — the interpreter only
+    // handles all-subprocess pipes in expression position; task pipes are the concurrency arc).
+    private List<RunExpression> FlattenPipeStages(PipeExpression pipe)
+    {
+        var stages = new List<RunExpression>();
+        void Walk(IExpression e)
+        {
+            if (e is PipeExpression p) { Walk(p.Left); Walk(p.Right); }
+            else if (e is RunExpression r) stages.Add(r);
+            else throw new CompilerException("only 'run … | run …' subprocess pipes are supported as a value (task pipes are deferred to the concurrency arc).");
+        }
+        Walk(pipe);
+        return stages;
+    }
+
+    // Builds the raw fallible run result (a `cfl` of the run-result record). A single `run` runs the
+    // command; a pipe runs the stages buffered-sequentially, chaining stdout → next stdin (matching
+    // the interpreter): aggregated stderr, rightmost-nonzero exit (pipefail), final stdout. A LAUNCH
+    // failure of any stage becomes the `or failure`; a ran-but-nonzero command is a success record.
+    private string EmitRunRaw(IExpression expr)
+    {
+        _usesProcess = true;
+        string cr   = RegisterRecordStruct(RunResultRecordType);
+        string cfl  = RegisterFailableStruct(new FailureType(RunResultRecordType));
+        string fErr = MangleName("errors"), fExit = MangleName("exit-code"), fOut = MangleName("output");
+        int id = _freshId++;
+        string raw = $"cf_run{id}";
+        var stages = expr is PipeExpression pipe ? FlattenPipeStages(pipe) : new List<RunExpression> { (RunExpression)expr };
+
+        // Emit each stage's program + argv temps as separate preemit lines first (their operands
+        // may add their own preemits), then the one run/chain block referencing those temps.
+        var progVars = new List<string>();
+        for (int s = 0; s < stages.Count; s++)
+        {
+            string pg = $"cf_pg{id}_{s}";
+            _preEmits.Add($"const char* {pg} = {EmitExpr(stages[s].Program)};");
+            var elems = new List<string> { $"(char*){pg}" };
+            foreach (var arg in stages[s].Args) elems.Add($"(char*){EmitExpr(arg)}");
+            elems.Add("(char*)0");
+            _preEmits.Add($"char* cf_av{id}_{s}[] = {{ {string.Join(", ", elems)} }};");
+            progVars.Add(pg);
+        }
+
+        var b = new StringBuilder();
+        b.Append($"{cfl} {raw} = {{0}}; {{ const char* cf_so{id}; const char* cf_se{id}; int cf_ex{id}; CufetFailure cf_e{id}; ");
+        if (stages.Count == 1)
+        {
+            b.Append($"if (cufet_run_capture({progVars[0]}, cf_av{id}_0, NULL, &cf_so{id}, &cf_se{id}, &cf_ex{id}, &cf_e{id})) {{ ");
+            b.Append($"{raw}.is_failure = 0; {raw}.val = ({cr}){{ .{fErr} = cf_se{id}, .{fExit} = cufet_dec_from_ll(cf_ex{id}), .{fOut} = cf_so{id} }}; ");
+            b.Append($"}} else {{ {raw}.is_failure = 1; {raw}.message = cf_e{id}.message; {raw}.category = cf_e{id}.category; }} ");
+        }
+        else
+        {
+            b.Append($"const char* cf_cur{id} = NULL; const char* cf_eagg{id} = \"\"; int cf_code{id} = 0; int cf_ok{id} = 1; ");
+            for (int s = 0; s < stages.Count; s++)
+            {
+                b.Append($"if (cf_ok{id}) {{ if (cufet_run_capture({progVars[s]}, cf_av{id}_{s}, cf_cur{id}, &cf_so{id}, &cf_se{id}, &cf_ex{id}, &cf_e{id})) {{ ");
+                b.Append($"cf_eagg{id} = cufet_str_concat(cf_eagg{id}, cf_se{id}); if (cf_ex{id} != 0) cf_code{id} = cf_ex{id}; cf_cur{id} = cf_so{id}; ");
+                b.Append($"}} else {{ {raw}.is_failure = 1; {raw}.message = cf_e{id}.message; {raw}.category = cf_e{id}.category; cf_ok{id} = 0; }} }} ");
+            }
+            b.Append($"if (cf_ok{id}) {{ {raw}.is_failure = 0; {raw}.val = ({cr}){{ .{fErr} = cf_eagg{id}, .{fExit} = cufet_dec_from_ll(cf_code{id}), .{fOut} = cf_cur{id} ? cf_cur{id} : \"\" }}; }} ");
+        }
+        b.Append("}");
+        _preEmits.Add(b.ToString());
+        return raw;
     }
 
     // <fallible> or pass the failure off — on failure, return it from the enclosing (fallible)
@@ -2450,6 +2653,8 @@ static const char* cufet_stream_read_all(FILE* f) {
     {
         if (expr is FileReadExpression fr)
             return (RegisterFailableStruct(new FailureType(FileReadSuccessType(fr))), EmitFileReadRaw(fr));
+        if (expr is RunExpression || expr is PipeExpression)
+            return (RegisterFailableStruct(new FailureType(RunResultRecordType)), EmitRunRaw(expr));
         if (FallibleReturnType(expr) is { } ft)
             return (RegisterFailableStruct(ft), EmitCall(((CastExpression)expr).Function, ((CastExpression)expr).Args));
         // A bare failure literal (or other failable) as the operand — coerce into cfl of the result T.

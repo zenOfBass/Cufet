@@ -6,8 +6,31 @@ using System.Runtime.InteropServices;
 
 if (args.Length >= 2 && args[0].Equals("build", StringComparison.OrdinalIgnoreCase))
     Build(args[1]);
+else if (args.Length >= 2 && args[0].Equals("emit-c", StringComparison.OrdinalIgnoreCase))
+    EmitC(args[1], args.Length >= 3 ? args[2] : Path.ChangeExtension(args[1], ".c"));
 else
     Interpret(args);
+
+// Emits C source only (no gcc) — used to cross-compile in another toolchain (e.g. WSL gcc for
+// POSIX subprocess code that this box's mingw gcc can't build).
+static void EmitC(string sourcePath, string outPath)
+{
+    string source;
+    try { source = File.ReadAllText(sourcePath); }
+    catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+    try
+    {
+        var tokens  = new Lexer(source).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        File.WriteAllText(outPath, new CodeGenerator().Generate(program));
+        Console.WriteLine($"Emitted: {outPath}");
+    }
+    catch (LexerException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
+    catch (ParseException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
+    catch (TypeException e)  { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
+    catch (CompilerException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
+}
 
 static void Build(string sourcePath)
 {

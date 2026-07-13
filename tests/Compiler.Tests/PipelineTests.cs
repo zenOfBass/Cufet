@@ -2158,6 +2158,115 @@ public class PipelineTests
         Assert.Equal(Interpret(src, "hello\nworld\nthree\n"), Compile(src, "hello\nworld\nthree\n"));
     }
 
+    // ── Slice 9C: subprocess (run) + pipes ──
+    // POSIX-only (fork/exec/pipe/waitpid). LINUX-ONLY tests: on Windows the compiled binary can't
+    // build (mingw has no fork), so skip — on CI Linux both interpreter (.NET) and binary run in
+    // the same environment, so command resolution matches. Commands stay trivial + deterministic
+    // (echo/true/false/cat/printf) so the output is environment-independent.
+
+    [Fact]
+    public void Subprocess_Run_MatchesInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // Launch-failure vs ran-but-nonzero: `false` is a SUCCESS record with exit-code 1; a
+        // nonexistent command is a launch FAILURE (→ but-on-failure / the OS-error bridge).
+        const string src = """
+            Try to:
+                Define r as run "echo" with arguments ("hello world").
+                State "output=[" joined to (the output of r) joined to "]".
+                State "exit=" joined to (the exit-code of r converted to text).
+                State "errlen=" joined to (the length of (the errors of r) converted to text).
+                Define t as run "true".
+                State "true-exit=" joined to (the exit-code of t converted to text).
+                Define f as run "false".
+                State "false-exit=" joined to (the exit-code of f converted to text).
+            Done.
+            In case of failure:
+                State "launch-failed".
+            Done.
+            Define fb as run "no-such-command-zzz" but on failure (a record with (the errors "", the exit-code 0, the output "LAUNCHFAIL")).
+            State the output of fb.
+            Try to:
+                Define x as run "no-such-command-zzz".
+                State the output of x.
+            Done.
+            In case of failure:
+                State "cat: " joined to (the category of the failure but void is "none").
+                State "msg: " joined to the message of the failure.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Subprocess_Pipe_MatchesInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // run X | run Y: stdout → next stdin (buffered-sequential), pipefail exit (rightmost
+        // nonzero), aggregated stderr; a stage's launch failure fails the whole pipe.
+        const string src = """
+            Try to:
+                Define r as run "echo" with arguments ("hello") | run "cat".
+                State "piped=[" joined to (the output of r) joined to "]".
+                Define r2 as run "printf" with arguments ("one\ntwo\nthree\n") | run "cat".
+                State "lines=" joined to (the number of (the output of r2 split by "\n") converted to text).
+                Define r3 as run "true" | run "false".
+                State "pipefail-exit=" joined to (the exit-code of r3 converted to text).
+            Done.
+            In case of failure:
+                State "pipe-failed".
+            Done.
+            Try to:
+                Define r4 as run "no-such-zzz" | run "cat".
+                State the output of r4.
+            Done.
+            In case of failure:
+                State "pipe-launch-failed: " joined to the message of the failure.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Subprocess_BarePipeStatement_MatchesInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // Bare `run X | run Y.` statement → final stdout goes to stdout (the shell pattern).
+        const string src = """
+            run "echo" with arguments ("streamed to stdout") | run "cat".
+            State "after".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Subprocess_Run_MemorySafety_ASan_ZeroLeaksAndNoUAF()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // Process handles are reaped (waitpid) and fds closed inside the run primitive, so nothing
+        // leaks across statements; capture buffers are arena/free-managed. ASan/LSan must be clean.
+        const string src = """
+            Pull a rabbit.
+                For each n in the range 1 to 10, repeat:
+                    Try to:
+                        Define r as run "echo" with arguments ("hi") | run "cat".
+                        State the output of r.
+                    Done.
+                    In case of failure:
+                        State "fail".
+                    Done.
+                Done.
+            Done.
+            """;
+        string expected = Interpret(src);
+        string actual   = CompileWithASan(src);
+        Assert.Equal(expected, actual);
+    }
+
     // Compiles source with -fsanitize=address for memory-safety verification.
     // Skipped when not on Linux (ASan reliable only with Linux gcc).
     private static string CompileWithASan(string source)
