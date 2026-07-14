@@ -2242,6 +2242,62 @@ public class PipelineTests
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ── CONC.A+B: threads + structured join + thread-local arena + channels ──
+    // LINUX-ONLY (pthreads; mingw has no fork/threads). The interpreter is NOT a bit-oracle here
+    // (cooperative → it deadlocks/masks races), so we assert the DETERMINISTIC INVARIANT the
+    // parallel result must satisfy regardless of interleaving — not Compile == Interpret.
+
+    [Fact]
+    public void Concurrency_ParallelSum_AggregateInvariant()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // N tasks each send their i into a channel; main collects N and sums. Order-independent:
+        // total == 1+2+…+8 == 36, whatever order the threads actually run.
+        const string src = """
+            Pull a rabbit.
+                Define ch as a channel of number.
+                Define n as 8.
+                For each i in the range 1 to n, repeat:
+                    Have rabbit start a task:
+                        Send i through ch.
+                    Done.
+                Done.
+                Define total as 0.
+                For each k in the range 1 to n, repeat:
+                    Define d as the delivery from ch.
+                    total becomes total + (d but void is 0).
+                Done.
+                State total.
+                Close ch.
+            Done.
+            """;
+        Assert.Equal("36", Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_DeepCopyAtSpawn_ClosesParentMutationRace()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The parent mutates a captured variable AFTER spawning; deep-copy-at-spawn means the task
+        // sees its spawn-time snapshot (5), not the parent's later 999. (The cooperative interpreter
+        // masks this race and would yield 999 — the divergence true parallelism exposes.)
+        const string src = """
+            Pull a rabbit.
+                Define ch as a channel of number.
+                Define x as 5.
+                Have rabbit start a task:
+                    Send x through ch.
+                Done.
+                x becomes 999.
+                Define d as the delivery from ch.
+                State d but void is -1.
+            Done.
+            """;
+        Assert.Equal("5", Compile(src));
+    }
+
     [Fact]
     public void Subprocess_Run_MemorySafety_ASan_ZeroLeaksAndNoUAF()
     {

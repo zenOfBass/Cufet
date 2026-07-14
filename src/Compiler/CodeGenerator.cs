@@ -69,6 +69,14 @@ public sealed class CodeGenerator
     // Set when the program uses `run`/pipe, so the POSIX subprocess runtime is emitted (only then).
     private bool _usesProcess;
 
+    // Concurrency (CONC.A+B): emitted only when tasks/channels are used. Generated task thread
+    // functions accumulate in _taskFns; the enclosing rabbit's C var suffix for its thread + channel
+    // lists (for the structured join + channel-free at Done.) is the top of _rabbitCtx.
+    private bool _usesConcurrency;
+    private readonly StringBuilder _taskFns = new();
+    private int _taskCounter;
+    private readonly List<string> _rabbitCtx = new();   // suffix N of cf_thr{N}/cf_chan{N} per open rabbit
+
     // The `fclose(...)` statements for files opened at or after `fromDepth`, innermost-first (LIFO),
     // as one inline C string. Used at return / failure-goto / propagate / break / continue. Does
     // NOT mutate _openFiles (nonlocal exits jump past the normal scope-exit that pops them).
@@ -677,9 +685,59 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
 
 """;
 
+    // Concurrency runtime (CONC.A+B): pthreads + a thread-safe channel (mutex + condvar). Emitted
+    // only when tasks/channels are used; POSIX-guarded (Linux-targeted, WSL-verified). Channels are
+    // number-only this slice (value type → the queue node IS the heap-bridged message; send mallocs
+    // a node, recv copies the value out + frees it, cufet_chan_free frees un-received nodes).
+    private const string ConcurrencyRuntime =
+"""
+#if defined(__unix__) || defined(__APPLE__)
+#include <pthread.h>
+#define CUFET_TASK_MAX 4096
+typedef struct cufet_chan_node { CufetDec val; struct cufet_chan_node* next; } cufet_chan_node;
+typedef struct { pthread_mutex_t m; pthread_cond_t c; cufet_chan_node* head; cufet_chan_node* tail; int closed; } cufet_chan;
+static cufet_chan* cufet_chan_new(void) {
+    cufet_chan* ch = (cufet_chan*)malloc(sizeof(cufet_chan));
+    pthread_mutex_init(&ch->m, NULL); pthread_cond_init(&ch->c, NULL);
+    ch->head = ch->tail = NULL; ch->closed = 0; return ch;
+}
+static void cufet_chan_send(cufet_chan* ch, CufetDec v) {
+    cufet_chan_node* n = (cufet_chan_node*)malloc(sizeof(cufet_chan_node)); /* heap bridge */
+    n->val = v; n->next = NULL;
+    pthread_mutex_lock(&ch->m);
+    if (ch->tail) ch->tail->next = n; else ch->head = n; ch->tail = n;
+    pthread_cond_signal(&ch->c); pthread_mutex_unlock(&ch->m);
+}
+/* Blocking receive → 1 with *out set if a value is available, 0 if the channel is empty-and-closed
+   (→ Cufet void). Frees the received node (the heap bridge) after copying the value out. */
+static int cufet_chan_recv(cufet_chan* ch, CufetDec* out) {
+    pthread_mutex_lock(&ch->m);
+    while (!ch->head && !ch->closed) pthread_cond_wait(&ch->c, &ch->m);
+    if (ch->head) {
+        cufet_chan_node* n = ch->head; ch->head = n->next; if (!ch->head) ch->tail = NULL;
+        pthread_mutex_unlock(&ch->m);
+        *out = n->val; free(n); return 1;
+    }
+    pthread_mutex_unlock(&ch->m); return 0;
+}
+static void cufet_chan_close(cufet_chan* ch) {
+    pthread_mutex_lock(&ch->m); ch->closed = 1; pthread_cond_broadcast(&ch->c); pthread_mutex_unlock(&ch->m);
+}
+static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bridges (teardown/close-with-pending) */
+    cufet_chan_node* n = ch->head; while (n) { cufet_chan_node* x = n->next; free(n); n = x; }
+    pthread_mutex_destroy(&ch->m); pthread_cond_destroy(&ch->c); free(ch);
+}
+#endif
+
+""";
+
     public string Generate(Program program)
     {
         var sb = new StringBuilder();
+
+        // Concurrency is discovered up front (not during the body pass) because a rabbit's header
+        // must emit its thread/channel tracking arrays before its body is walked.
+        _usesConcurrency = ProgramUsesConcurrency(program.Statements);
 
         // ── Runtime: includes + software decimal + print helpers ──────────
         sb.AppendLine(RuntimePreamble);
@@ -692,8 +750,10 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
         // (wasted but harmless — freed at pop). No use-after-free, no leak.
         sb.AppendLine("#define CUFET_ARENA_MAX_DEPTH 64");
         sb.AppendLine("typedef struct { void** ptrs; int len; int cap; } CufetArena;");
-        sb.AppendLine("static CufetArena cufet_arenas[CUFET_ARENA_MAX_DEPTH];");
-        sb.AppendLine("static int cufet_arena_top = -1;");
+        // Thread-local: each pthread bump-allocates in its OWN arena stack (no cross-thread arena
+        // contention — sound because nothing mutable is shared; values cross threads via heap copy).
+        sb.AppendLine("static _Thread_local CufetArena cufet_arenas[CUFET_ARENA_MAX_DEPTH];");
+        sb.AppendLine("static _Thread_local int cufet_arena_top = -1;");
         sb.AppendLine();
         sb.AppendLine("static void cufet_arena_push(void) {");
         sb.AppendLine("    ++cufet_arena_top;");
@@ -796,6 +856,13 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
 
         // ── Subprocess runtime (only when `run`/pipe is used; discovered during the body pass) ──
         if (_usesProcess) sb.AppendLine(ProcessRuntime);
+
+        // ── Concurrency runtime + generated task thread functions (only when tasks/channels used) ──
+        if (_usesConcurrency)
+        {
+            sb.AppendLine(ConcurrencyRuntime);
+            sb.Append(_taskFns);
+        }
 
         // ── Forward declarations: object methods/getters/setters, then free functions ──
         foreach (var def in _objectDefs.Values)
@@ -1408,11 +1475,58 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
                 throw new CompilerException("Nested function declarations and closures are not yet supported by the compiler.");
 
             case PullRabbitStatement prs:
+            {
+                // A rabbit is an arena scope AND the structured-concurrency boundary: it tracks
+                // the pthreads + channels created inside it, joins all tasks and frees all channels
+                // at Done. (before arena_pop) — so tasks provably can't outlive their rabbit.
+                var inner = indent + "    ";
+                string n = (_taskCounter++).ToString();
                 sb.AppendLine($"{indent}cufet_arena_push();");
                 sb.AppendLine($"{indent}{{");
-                EmitBlock(sb, prs.Body, indent + "    ");
+                if (_usesConcurrency)
+                {
+                    sb.AppendLine($"{inner}pthread_t cf_thr{n}[CUFET_TASK_MAX]; int cf_nthr{n} = 0;");
+                    sb.AppendLine($"{inner}cufet_chan* cf_chan{n}[CUFET_TASK_MAX]; int cf_nchan{n} = 0;");
+                    sb.AppendLine($"{inner}(void)cf_thr{n}; (void)cf_chan{n};");
+                    _rabbitCtx.Add(n);
+                }
+                EmitBlock(sb, prs.Body, inner);
+                if (_usesConcurrency)
+                {
+                    _rabbitCtx.RemoveAt(_rabbitCtx.Count - 1);
+                    // Structured join: reap every spawned task + free every channel before teardown.
+                    sb.AppendLine($"{inner}for (int cf_ji = 0; cf_ji < cf_nthr{n}; cf_ji++) pthread_join(cf_thr{n}[cf_ji], NULL);");
+                    sb.AppendLine($"{inner}for (int cf_ci = 0; cf_ci < cf_nchan{n}; cf_ci++) cufet_chan_free(cf_chan{n}[cf_ci]);");
+                }
                 sb.AppendLine($"{indent}}}");
                 sb.AppendLine($"{indent}cufet_arena_pop();");
+                break;
+            }
+
+            case SendStatement snd:
+            {
+                if (TypeOf(snd.Value) is not NumberType)
+                    throw new CompilerException("channels are number-only in this concurrency slice (text/reference elements are deferred).");
+                _usesConcurrency = true;
+                string val = EmitExpr(snd.Value);
+                FlushPreEmits(sb, indent);
+                string ch = EmitExpr(snd.Channel);
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}cufet_chan_send({ch}, {val});");
+                break;
+            }
+
+            case CloseStatement cls:
+            {
+                _usesConcurrency = true;
+                string ch = EmitExpr(cls.Channel);
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}cufet_chan_close({ch});");
+                break;
+            }
+
+            case LaunchTaskStatement lts:
+                EmitLaunchTask(sb, lts, indent);
                 break;
 
             case SeriesAddStatement sa:
@@ -1643,7 +1757,13 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
         sb.AppendLine($"{inner}CufetDec {st} = {stepExpr};");
         sb.AppendLine($"{inner}int {d}  = cufet_cmp({s}, {e}) <= 0 ? 1 : -1;");
         sb.AppendLine($"{inner}for (CufetDec {iterName} = {s}; {d} > 0 ? cufet_cmp({iterName}, {e}) <= 0 : cufet_cmp({iterName}, {e}) >= 0; {iterName} = {d} > 0 ? cufet_add({iterName}, {st}) : cufet_sub({iterName}, {st})) {{");
+        // Track the loop variable's type (a number) so it resolves in the body — and so a task
+        // spawned in the body can capture it (consistent with the series/map foreach).
+        string raw = fe.IteratorName ?? "it";
+        var saved = _varTypes.TryGetValue(raw, out var prev) ? prev : null;
+        _varTypes[raw] = TNumber;
         EmitLoopBody(sb, fe.Body, loopIndent);
+        if (saved != null) _varTypes[raw] = saved; else _varTypes.Remove(raw);
         sb.AppendLine($"{inner}}}");
         sb.AppendLine($"{indent}}}");
     }
@@ -1818,6 +1938,8 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
         },
         // run / subprocess pipe are fallible; post-check VALUE type is the run-result record.
         RunExpression or PipeExpression => RunResultRecordType,
+        ChannelCreation cc    => new ChannelType(cc.ElementType),
+        DeliveryExpression    => new VoidableType(TNumber),   // channels are number-only this slice
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
@@ -2207,6 +2329,8 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
         TextSplit ts          => EmitTextSplit(ts),
         FileReadExpression fr => EmitFileRead(fr),
         RunExpression or PipeExpression => EmitFallibleCheckGoto(EmitRunRaw(expr), RegisterFailableStruct(new FailureType(RunResultRecordType))),
+        ChannelCreation cc    => EmitChannelCreation(cc),
+        DeliveryExpression de => EmitDelivery(de),
         ReadExpression re     => EmitReadExpr(re),
         PathCheckExpression pc => pc.Kind switch
         {
@@ -2342,6 +2466,144 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
         b.Append("}");
         _preEmits.Add(b.ToString());
         return raw;
+    }
+
+    // ── Concurrency (CONC.A+B) ────────────────────────────────────────────────
+
+    private bool ProgramUsesConcurrency(IEnumerable<IStatement> stmts)
+    {
+        foreach (var s in stmts)
+            switch (s)
+            {
+                case LaunchTaskStatement or SendStatement or CloseStatement: return true;
+                case PullRabbitStatement p when ProgramUsesConcurrency(p.Body): return true;
+                case IfStatement iff when iff.Arms.Any(a => ProgramUsesConcurrency(a.Body)) || (iff.ElseBody != null && ProgramUsesConcurrency(iff.ElseBody)): return true;
+                case WhileStatement w when ProgramUsesConcurrency(w.Body): return true;
+                case RepeatUntilStatement r when ProgramUsesConcurrency(r.Body): return true;
+                case ForEachStatement fe when ProgramUsesConcurrency(fe.Body): return true;
+                case TryStatement t when ProgramUsesConcurrency(t.Body) || (t.FailureHandler != null && ProgramUsesConcurrency(t.FailureHandler)): return true;
+                case WithOpenStatement wo when ProgramUsesConcurrency(wo.Body): return true;
+                case BindStatement b when ProgramUsesConcurrency(b.Body): return true;
+                case DefineStatement d when ExprUsesChannel(d.Value): return true;
+                case BecomesStatement bc when ExprUsesChannel(bc.Value): return true;
+                case StateStatement st when ExprUsesChannel(st.Value): return true;
+            }
+        return false;
+    }
+
+    private static bool ExprUsesChannel(IExpression e) => e switch
+    {
+        ChannelCreation or DeliveryExpression => true,
+        ButVoidDefault bvd => ExprUsesChannel(bvd.Voidable) || ExprUsesChannel(bvd.Default),
+        BinaryExpression b => ExprUsesChannel(b.Left) || ExprUsesChannel(b.Right),
+        UnaryExpression u  => ExprUsesChannel(u.Operand),
+        _ => false,
+    };
+
+    // `a channel of T` — number-only this slice. Allocated with the enclosing rabbit tracking it so
+    // it's freed at Done. (after tasks join). Returns a temp so the tracking side-effect precedes use.
+    private string EmitChannelCreation(ChannelCreation cc)
+    {
+        if (cc.ElementType is not NumberType)
+            throw new CompilerException("channels are number-only in this concurrency slice (text/reference elements are deferred).");
+        _usesConcurrency = true;
+        if (_rabbitCtx.Count == 0)
+            throw new CompilerException("a channel must be created inside a rabbit (Pull a rabbit) in this slice.");
+        string ctx = _rabbitCtx[^1];
+        int id = _freshId++;
+        string tmp = $"cf_ch{id}";
+        _preEmits.Add($"cufet_chan* {tmp} = cufet_chan_new(); cf_chan{ctx}[cf_nchan{ctx}++] = {tmp};");
+        return tmp;
+    }
+
+    // `the delivery from ch` → voidable number: blocking receive; void when empty-and-closed.
+    private string EmitDelivery(DeliveryExpression de)
+    {
+        _usesConcurrency = true;
+        string cvd = RegisterVoidableStruct(new VoidableType(TNumber));
+        string ch = EmitExpr(de.Channel);
+        int id = _freshId++;
+        _preEmits.Add($"CufetDec cf_dv{id}; int cf_dh{id} = cufet_chan_recv({ch}, &cf_dv{id});");
+        return $"(cf_dh{id} ? ({cvd}){{ .has = 1, .val = cf_dv{id} }} : ({cvd}){{ .has = 0 }})";
+    }
+
+    // `Have rabbit start a task: … Done.` → a pthread. Fire-and-forget this slice (named/result
+    // tasks = CONC.C). Captured enclosing locals are snapshot into a heap arg struct at spawn
+    // (deep-copy-at-spawn — value types copied, channels shared) so a parent mutation after spawn
+    // can't race the task's read. The thread runs in its own (thread-local) arena.
+    private void EmitLaunchTask(StringBuilder sb, LaunchTaskStatement lts, string indent)
+    {
+        if (lts.Name != null)
+            throw new CompilerException("named/awaited tasks are the next concurrency slice (CONC.C) — this slice is fire-and-forget tasks.");
+        if (_rabbitCtx.Count == 0)
+            throw new CompilerException("'Have rabbit start a task' requires an enclosing rabbit.");
+        _usesConcurrency = true;
+        string ctx = _rabbitCtx[^1];
+        int tid = _taskCounter++;
+
+        // Captured free variables = referenced enclosing locals not defined inside the task body.
+        var refs = new HashSet<string>(); var defs = new HashSet<string>();
+        foreach (var s in lts.Body) CollectRefsDefs(s, refs, defs);
+        var caps = refs.Where(r => !defs.Contains(r) && _varTypes.ContainsKey(r)).OrderBy(x => x).ToList();
+        foreach (var c in caps)
+            if (_varTypes[c] is not (NumberType or FactType or ChannelType))
+                throw new CompilerException($"task captures '{c}' of an unsupported type — this slice captures number/fact (snapshot) and channels (shared).");
+
+        // Arg struct + thread function (accumulated; emitted before the bodies).
+        _taskFns.AppendLine($"struct cufet_targ{tid} {{ {string.Join(" ", caps.Select(c => $"{EmitCType(_varTypes[c])} {MangleName(c)};"))} }};");
+        _taskFns.AppendLine($"static void* cufet_task{tid}(void* argp) {{");
+        _taskFns.AppendLine($"    struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)argp;");
+        foreach (var c in caps) _taskFns.AppendLine($"    {EmitCType(_varTypes[c])} {MangleName(c)} = cf_a->{MangleName(c)}; (void){MangleName(c)};");
+        _taskFns.AppendLine($"    cufet_arena_push();");
+        EmitBlock(_taskFns, lts.Body, "    ");
+        _taskFns.AppendLine($"    cufet_arena_pop();");
+        _taskFns.AppendLine($"    free(cf_a);");
+        _taskFns.AppendLine($"    return NULL;");
+        _taskFns.AppendLine($"}}");
+
+        // Spawn: snapshot captures into the heap arg (value types copied, channels shared) + create.
+        sb.AppendLine($"{indent}{{ struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)malloc(sizeof(struct cufet_targ{tid}));");
+        foreach (var c in caps) sb.AppendLine($"{indent}  cf_a->{MangleName(c)} = {MangleName(c)};");
+        sb.AppendLine($"{indent}  pthread_create(&cf_thr{ctx}[cf_nthr{ctx}++], NULL, cufet_task{tid}, cf_a); }}");
+    }
+
+    // Collects referenced variable names (refs) and locally-defined/iterated names (defs) in a
+    // statement subtree — for task-capture analysis. Conservative: unknown forms contribute nothing.
+    private void CollectRefsDefs(IStatement s, HashSet<string> refs, HashSet<string> defs)
+    {
+        void E(IExpression? e) { if (e != null) CollectExprRefs(e, refs); }
+        switch (s)
+        {
+            case DefineStatement d: defs.Add(d.Name); E(d.Value); break;
+            case BecomesStatement b: refs.Add(b.Name); E(b.Value); break;
+            case StateStatement st: E(st.Value); break;
+            case ReturnStatement r: E(r.Value); break;
+            case SendStatement sd: E(sd.Value); E(sd.Channel); break;
+            case CloseStatement c: E(c.Channel); break;
+            case SeriesAddStatement sa: E(sa.Value); E(sa.Series); E(sa.AfterIndex); break;
+            case IfStatement iff:
+                foreach (var a in iff.Arms) { E(a.Condition); foreach (var b2 in a.Body) CollectRefsDefs(b2, refs, defs); }
+                if (iff.ElseBody != null) foreach (var b2 in iff.ElseBody) CollectRefsDefs(b2, refs, defs);
+                break;
+            case WhileStatement w: E(w.Condition); foreach (var b2 in w.Body) CollectRefsDefs(b2, refs, defs); break;
+            case RepeatUntilStatement ru: E(ru.Condition); foreach (var b2 in ru.Body) CollectRefsDefs(b2, refs, defs); break;
+            case ForEachStatement fe: E(fe.Series); if (fe.IteratorName != null) defs.Add(fe.IteratorName); foreach (var b2 in fe.Body) CollectRefsDefs(b2, refs, defs); break;
+            case LaunchTaskStatement lt: foreach (var b2 in lt.Body) CollectRefsDefs(b2, refs, defs); break;
+        }
+    }
+
+    private void CollectExprRefs(IExpression e, HashSet<string> refs)
+    {
+        switch (e)
+        {
+            case VariableReference v: refs.Add(v.Name); break;
+            case BinaryExpression b: CollectExprRefs(b.Left, refs); CollectExprRefs(b.Right, refs); break;
+            case UnaryExpression u: CollectExprRefs(u.Operand, refs); break;
+            case ButVoidDefault bvd: CollectExprRefs(bvd.Voidable, refs); CollectExprRefs(bvd.Default, refs); break;
+            case DeliveryExpression de: CollectExprRefs(de.Channel, refs); break;
+            case CastExpression c: foreach (var a in c.Args) CollectExprRefs(a, refs); break;
+            case SeriesAccess sa: CollectExprRefs(sa.Target, refs); if (sa.Index != null) CollectExprRefs(sa.Index, refs); break;
+        }
     }
 
     // <fallible> or pass the failure off — on failure, return it from the enclosing (fallible)
@@ -2827,6 +3089,7 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
         FailureType ft => RegisterFailableStruct(ft),
         FailureMarkerType => "CufetFailure",         // a caught / bare failure (message + category)
         ReadableStreamType or WritableStreamType => "FILE*",   // a stream is an open FILE* (or stdin)
+        ChannelType => "cufet_chan*",                          // a channel is a shared mutex/condvar queue
         _ => throw new CompilerException(
                  $"'{type!.GetType().Name}' is not yet supported by the compiler (slice 5B: records + text; objects/maps later).")
     };

@@ -27,6 +27,9 @@ public sealed class GccInvoker
         psi.ArgumentList.Add(cSourcePath);
         psi.ArgumentList.Add("-o");
         psi.ArgumentList.Add(outputPath);
+        // -pthread: harmless for non-threaded programs; required to link the concurrency runtime
+        // (pthreads) on Linux. On mingw it's a no-op-ish flag (concurrency programs are POSIX-only).
+        psi.ArgumentList.Add("-pthread");
         foreach (var flag in extraFlags)
             psi.ArgumentList.Add(flag);
 
