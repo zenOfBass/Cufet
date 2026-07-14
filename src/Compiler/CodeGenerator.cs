@@ -738,6 +738,25 @@ static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bri
     cufet_chan_node* n = ch->head; while (n) { cufet_chan_node* x = n->next; free(n); n = x; }
     pthread_mutex_destroy(&ch->m); pthread_cond_destroy(&ch->c); free(ch);
 }
+/* Task pipes (CONC.D): each stage runs as its own thread connected by channels. `output <v>` and
+   `for each … from the input` inside a stage read these THREAD-LOCAL implicit channels — mirroring
+   the interpreter's per-stage _pipeOutputChan / _pipeInputChan, but thread-local so concurrent
+   stages don't clash. A stage closes its output channel when its function returns → downstream sees
+   the stream complete (recv returns void on empty-and-closed). All values cross the SAME heap-bridged
+   channel boundary as A+B, so inter-stage streaming is race-free by the same construction. */
+static _Thread_local cufet_chan* cufet_pipe_in;
+static _Thread_local cufet_chan* cufet_pipe_out;
+typedef struct { cufet_chan* in; cufet_chan* out; void (*fn)(void); } cufet_pipe_arg;
+static void* cufet_pipe_stage(void* argp) {
+    cufet_pipe_arg* a = (cufet_pipe_arg*)argp;
+    cufet_pipe_in = a->in; cufet_pipe_out = a->out;
+    cufet_arena_push();
+    a->fn();                                  /* the stage's compiled Cufet function */
+    cufet_arena_pop();
+    if (a->out) cufet_chan_close(a->out);      /* signal downstream: no more values */
+    free(a);
+    return NULL;
+}
 #endif
 
 """;
@@ -1473,6 +1492,12 @@ static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bri
                 EmitWithOpen(sb, wos, indent);
                 break;
 
+            case PipeExpression pipeStmt when !FlattenPipeAll(pipeStmt).TrueForAll(s => s is RunExpression):
+                // A TASK pipe (function stages connected by channels) — distinct from a subprocess
+                // pipe. Spawns each stage as a thread streaming through channels (CONC.D).
+                EmitTaskPipe(sb, FlattenPipeAll(pipeStmt), indent);
+                break;
+
             case PipeExpression pipeStmt:
             {
                 // Bare `run X | run Y.` statement — run the pipeline, write its final stdout to
@@ -1501,9 +1526,22 @@ static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bri
                 break;
             }
 
-            case ForEachFromInputStatement:
-            case OutputStatement:
-                throw new CompilerException("task pipes (`for each … from the input` / `output`, connecting function stages via channels) are deferred to the concurrency arc — only subprocess pipes (`run … | run …`) are supported.");
+            case OutputStatement os:
+            {
+                // `output <v>` inside a pipe stage → send into the stage's (thread-local) output
+                // channel — the same heap-bridged channel send as A+B. Number-only this slice.
+                if (TypeOf(os.Value) is not NumberType)
+                    throw new CompilerException("task pipes stream numbers this slice (text/reference elements are the channel-of-T follow-on).");
+                _usesConcurrency = true;
+                string v = EmitExpr(os.Value);
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}cufet_chan_send(cufet_pipe_out, {v});");
+                break;
+            }
+
+            case ForEachFromInputStatement fi:
+                EmitForEachFromInput(sb, fi, indent);
+                break;
 
             case BindStatement:
                 throw new CompilerException("Nested function declarations and closures are not yet supported by the compiler.");
@@ -2471,6 +2509,84 @@ static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bri
         return stages;
     }
 
+    // Flattens a pipe into ALL its stage expressions (left-associative), without the all-`run`
+    // restriction — used to tell a task pipe (function stages) from a subprocess pipe.
+    private static List<IExpression> FlattenPipeAll(PipeExpression pipe)
+    {
+        var stages = new List<IExpression>();
+        void Walk(IExpression e)
+        {
+            if (e is PipeExpression p) { Walk(p.Left); Walk(p.Right); }
+            else stages.Add(e);
+        }
+        Walk(pipe);
+        return stages;
+    }
+
+    // `for each <name> from the input: … Done.` — a pipe-stage consumer loop. Drains the stage's
+    // (thread-local) input channel until it is closed-and-empty (recv → void), binding each value
+    // to the iterator. Same shape as the delivery loop, over the implicit `cufet_pipe_in`. Numbers
+    // only this slice. Stop → break, Skip → continue (the loop is a plain C `for(;;)`).
+    private void EmitForEachFromInput(StringBuilder sb, ForEachFromInputStatement fi, string indent)
+    {
+        _usesConcurrency = true;
+        string raw   = fi.IteratorName;
+        string it    = MangleName(raw);
+        string inner = indent + "    ";
+        int id = _freshId++;
+        sb.AppendLine($"{indent}for (;;) {{");
+        sb.AppendLine($"{inner}CufetDec cf_pv{id}; int cf_ph{id} = cufet_chan_recv(cufet_pipe_in, &cf_pv{id});");
+        sb.AppendLine($"{inner}if (!cf_ph{id}) break;");
+        sb.AppendLine($"{inner}CufetDec {it} = cf_pv{id};");
+        var saved = _varTypes.TryGetValue(raw, out var st) ? st : null;
+        _varTypes[raw] = TNumber;
+        _loopFileDepths.Add(_openFiles.Count);   // so Stop/Skip close files opened in the loop body
+        EmitBlock(sb, fi.Body, inner);
+        _loopFileDepths.RemoveAt(_loopFileDepths.Count - 1);
+        if (saved != null) _varTypes[raw] = saved; else _varTypes.Remove(raw);
+        sb.AppendLine($"{indent}}}");
+    }
+
+    // A bare `s0 | s1 | … | sN.` task pipe (function stages). Each stage runs as its own thread,
+    // adjacent stages share a channel (stage i's output = stage i+1's input); a stage closes its
+    // output on return, so completion cascades down the pipe. Self-contained + structured: the pipe
+    // spawns every stage, JOINS them all, then frees the channels — no enclosing rabbit needed (the
+    // interpreter's task pipes are top-level too). Values stream FIFO, so a linear pipe's observable
+    // output is deterministic and matches the interpreter's buffered-sequential order.
+    private void EmitTaskPipe(StringBuilder sb, List<IExpression> stages, string indent)
+    {
+        _usesConcurrency = true;
+        // Resolve each stage to a compiled function symbol. Direct function names only this slice —
+        // function-valued variables / lambdas are the FunctionType-escape (closures) gap.
+        var fns = new List<string>();
+        foreach (var st in stages)
+        {
+            if (st is VariableReference vr && _funcReturnTypes.ContainsKey(vr.Name))
+                fns.Add(MangleName(vr.Name));
+            else
+                throw new CompilerException("a task-pipe stage must be a named function this slice (function-valued variables / lambdas are the closures gap).");
+        }
+
+        int n = stages.Count;
+        int id = _freshId++;
+        string inner = indent + "    ";
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{inner}cufet_chan* cf_pch{id}[{n - 1}];");
+        sb.AppendLine($"{inner}for (int cf_pi = 0; cf_pi < {n - 1}; cf_pi++) cf_pch{id}[cf_pi] = cufet_chan_new();");
+        sb.AppendLine($"{inner}pthread_t cf_pth{id}[{n}];");
+        for (int i = 0; i < n; i++)
+        {
+            string inCh  = i == 0     ? "NULL" : $"cf_pch{id}[{i - 1}]";
+            string outCh = i == n - 1 ? "NULL" : $"cf_pch{id}[{i}]";
+            sb.AppendLine($"{inner}{{ cufet_pipe_arg* cf_pa = (cufet_pipe_arg*)malloc(sizeof(cufet_pipe_arg));");
+            sb.AppendLine($"{inner}  cf_pa->in = {inCh}; cf_pa->out = {outCh}; cf_pa->fn = (void (*)(void)){fns[i]};");
+            sb.AppendLine($"{inner}  pthread_create(&cf_pth{id}[{i}], NULL, cufet_pipe_stage, cf_pa); }}");
+        }
+        sb.AppendLine($"{inner}for (int cf_pj = 0; cf_pj < {n}; cf_pj++) pthread_join(cf_pth{id}[cf_pj], NULL);");
+        sb.AppendLine($"{inner}for (int cf_pf = 0; cf_pf < {n - 1}; cf_pf++) cufet_chan_free(cf_pch{id}[cf_pf]);");
+        sb.AppendLine($"{indent}}}");
+    }
+
     // Builds the raw fallible run result (a `cfl` of the run-result record). A single `run` runs the
     // command; a pipe runs the stages buffered-sequentially, chaining stdout → next stdin (matching
     // the interpreter): aggregated stderr, rightmost-nonzero exit (pipefail), final stdout. A LAUNCH
@@ -2531,6 +2647,9 @@ static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bri
             switch (s)
             {
                 case LaunchTaskStatement or SendStatement or CloseStatement: return true;
+                // Task pipes + their stage constructs need the pipe/channel substrate emitted.
+                case OutputStatement or ForEachFromInputStatement: return true;
+                case PipeExpression pe when !FlattenPipeAll(pe).TrueForAll(x => x is RunExpression): return true;
                 case PullRabbitStatement p when ProgramUsesConcurrency(p.Body): return true;
                 case IfStatement iff when iff.Arms.Any(a => ProgramUsesConcurrency(a.Body)) || (iff.ElseBody != null && ProgramUsesConcurrency(iff.ElseBody)): return true;
                 case WhileStatement w when ProgramUsesConcurrency(w.Body): return true;

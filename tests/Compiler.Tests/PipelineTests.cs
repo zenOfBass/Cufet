@@ -2409,6 +2409,215 @@ public class PipelineTests
         Assert.Equal(Interpret(src), CompileWithASan(src));
     }
 
+    // ── CONC.D: task pipes (function stages streamed through channels) ──
+    // LINUX-ONLY (pthreads). Each stage runs as its own thread; adjacent stages share a channel;
+    // a stage closes its output on return so completion cascades down the pipe. Values stream FIFO,
+    // so a linear pipe's output is DETERMINISTIC and matches the interpreter's buffered-sequential
+    // order → these ARE true Compile == Interpret oracle tests (the final stage is the only writer).
+
+    [Fact]
+    public void TaskPipe_TwoStage_ProducerConsumer()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        const string src = """
+            Bind void to producer:
+              output 1.
+              output 2.
+              output 3.
+              output 4.
+              output 5.
+            Done.
+            Bind void to consumer:
+              for each item from the input:
+                State item.
+              Done.
+            Done.
+            producer | consumer.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void TaskPipe_ConsumerAccumulatesSum()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The consumer drains the whole stream, then prints the aggregate — order-independent (15).
+        const string src = """
+            Bind void to producer:
+              output 1.
+              output 2.
+              output 3.
+              output 4.
+              output 5.
+            Done.
+            Bind void to consumer:
+              Define total as 0.
+              for each item from the input:
+                total becomes total + item.
+              Done.
+              State total.
+            Done.
+            producer | consumer.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void TaskPipe_ThreeStage_MiddleTransforms()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // A middle stage both consumes (from the input) AND produces (to the output) — the value
+        // crosses two channel boundaries (producer→doubler→consumer). FIFO preserves order → 2,4,6.
+        const string src = """
+            Bind void to producer:
+              output 1.
+              output 2.
+              output 3.
+            Done.
+            Bind void to doubler:
+              for each item from the input:
+                output item * 2.
+              Done.
+            Done.
+            Bind void to consumer:
+              for each item from the input:
+                State item.
+              Done.
+            Done.
+            producer | doubler | consumer.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void TaskPipe_FourStage_TwoMiddleTransforms()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // Two middle stages chained (producer → add-ten → double → consumer): 3 channels, 4 threads.
+        const string src = """
+            Bind void to producer:
+              output 1.
+              output 2.
+            Done.
+            Bind void to add-ten:
+              for each item from the input:
+                output item + 10.
+              Done.
+            Done.
+            Bind void to doubler:
+              for each item from the input:
+                output item * 2.
+              Done.
+            Done.
+            Bind void to consumer:
+              for each item from the input:
+                State item.
+              Done.
+            Done.
+            producer | add-ten | doubler | consumer.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void TaskPipe_EmptyProducer_ConsumerBodyNeverRuns()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // Producer emits nothing and closes; the consumer's drain loop sees void immediately (zero
+        // iterations) and continues to its trailing statement. Close-cascades with an empty stream.
+        const string src = """
+            Bind void to producer:
+            Done.
+            Bind void to consumer:
+              for each item from the input:
+                State item.
+              Done.
+              State "done".
+            Done.
+            producer | consumer.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void TaskPipe_StopInsideConsumer_ExitsEarly()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // Stop breaks the consumer's drain loop early — values still in flight remain unreceived in
+        // the channel and are freed at teardown (the never-received-bridge free path; see ASan test).
+        const string src = """
+            Bind void to producer:
+              output 1.
+              output 2.
+              output 3.
+              output 4.
+              output 5.
+            Done.
+            Bind void to consumer:
+              for each item from the input:
+                If item = 3, Stop.
+                State item.
+              Done.
+            Done.
+            producer | consumer.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void TaskPipe_SkipInsideConsumer_SkipsCurrentItem()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        const string src = """
+            Bind void to producer:
+              output 1.
+              output 2.
+              output 3.
+            Done.
+            Bind void to consumer:
+              for each item from the input:
+                If item = 2, Skip.
+                State item.
+              Done.
+            Done.
+            producer | consumer.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void TaskPipe_EarlyStop_ASan_FreesPendingBridges()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The consumer stops at item 3, so items 4 and 5 are produced-but-never-received — they sit
+        // in the channel as heap-bridges when the pipe tears down. cufet_chan_free must free those
+        // pending nodes (close-with-pending), and every stage-thread + channel frees cleanly. The
+        // final stage's `State` output stays deterministic (1,2). ASan/LSan must be clean.
+        const string src = """
+            Bind void to producer:
+              for each n in the range 1 to 20, repeat:
+                output n.
+              Done.
+            Done.
+            Bind void to consumer:
+              for each item from the input:
+                If item = 3, Stop.
+                State item.
+              Done.
+            Done.
+            producer | consumer.
+            """;
+        Assert.Equal(Interpret(src), CompileWithASan(src));
+    }
+
     [Fact]
     public void Subprocess_Run_MemorySafety_ASan_ZeroLeaksAndNoUAF()
     {
