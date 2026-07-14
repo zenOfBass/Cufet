@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using Cufet.Compiler;
 using Cufet.Interpreter;
 using Xunit;
@@ -2616,6 +2618,143 @@ public class PipelineTests
             producer | consumer.
             """;
         Assert.Equal(Interpret(src), CompileWithASan(src));
+    }
+
+    // ── CONC.E: native SIGINT (true-preemptive interrupt) ──
+    // The deterministic (no-signal) cases are ordinary Compile == Interpret oracle tests and run on
+    // BOTH platforms (the signal substrate degrades to no-op stubs on mingw). The actual SIGINT-
+    // delivery cases are Linux-only (POSIX signal delivery) and assert the invariant — the program
+    // stops + unwinds cleanly (exit 130), NOT bit-identical timing (interrupt timing is nondeterministic).
+
+    [Fact]
+    public void Interrupt_NotRequested_PollReadsFalse()
+    {
+        // `an interrupt is requested` reads the flag as a fact; with no interrupt it is false.
+        const string src = """
+            Define r as an interrupt is requested.
+            If r, State "interrupted". Otherwise, State "ok".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Interrupt_CooperativeAcknowledge_ClearsFlag()
+    {
+        // `Acknowledge the interrupt.` clears the flag (cooperative handling). With no interrupt the
+        // else-branch runs — exercises that Acknowledge compiles and the poll path is wired.
+        const string src = """
+            If an interrupt is requested:
+                Acknowledge the interrupt.
+                State "handled".
+            Done.
+            Otherwise:
+                State "normal".
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Yield_NoInterrupt_ResumesNormally()
+    {
+        // `Yield.` with no pending interrupt is a no-op checkpoint — the loop runs to completion.
+        const string src = """
+            Define count as 0.
+            While count is less than 3, repeat:
+                Yield.
+                count becomes count + 1.
+            Done.
+            State count.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Interrupt_TightYieldLoop_PreemptivelyStops()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // A non-terminating tight loop with a Yield checkpoint: a delivered SIGINT unwinds it to a
+        // clean exit (130) — it prints its pre-loop line but never reaches the post-loop line. This
+        // is the true-preemptive interrupt; the invariant is "stops cleanly", not timing.
+        var (code, output) = CompileAndInterrupt("""
+            State "looping".
+            While 1 is 1, repeat:
+                Yield.
+            Done.
+            State "never".
+            """, 500);
+        Assert.Equal(130, code);
+        Assert.Equal("looping", output);
+    }
+
+    [Fact]
+    public void Interrupt_BlockedChannelWait_WakesAndStops()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The flagship: main blocks in a real pthread_cond_wait on an empty channel (something the
+        // cooperative interpreter can't truly do). A delivered SIGINT wakes the blocked wait, unwinds
+        // to a clean exit (130), and the interrupt teardown frees the channel + arenas. Prints its
+        // pre-wait line, never the post-wait line.
+        var (code, output) = CompileAndInterrupt("""
+            State "waiting".
+            Pull a rabbit.
+                Define ch as a channel of number.
+                Define v as the delivery from ch.
+                State "got it".
+            Done.
+            State "after".
+            """, 500);
+        Assert.Equal(130, code);
+        Assert.Equal("waiting", output);
+    }
+
+    // Compiles + runs the binary, delivers SIGINT after delayMs, returns (exit code, stdout). Linux
+    // only (POSIX signal delivery via /bin/kill). Used to verify the true-preemptive interrupt.
+    private static (int ExitCode, string Output) CompileAndInterrupt(string source, int delayMs)
+    {
+        var tokens  = new CufetLexer(source).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        var cSource = new CodeGenerator().Generate(program);
+
+        var tmp     = Path.GetTempFileName();
+        File.Delete(tmp);
+        var cPath   = tmp + ".c";
+        var binPath = tmp;
+        try
+        {
+            File.WriteAllText(cPath, cSource);
+            new GccInvoker().Compile(cPath, binPath, ["-pthread"]);
+        }
+        finally { try { File.Delete(cPath); } catch { } }
+
+        try
+        {
+            var psi = new ProcessStartInfo(binPath)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+            };
+            using var proc = Process.Start(psi)!;
+            var killer = Task.Run(() =>
+            {
+                Thread.Sleep(delayMs);
+                try
+                {
+                    using var k = Process.Start(new ProcessStartInfo("/bin/kill", $"-INT {proc.Id}") { UseShellExecute = false });
+                    k!.WaitForExit();
+                }
+                catch { }
+            });
+            var output = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit();
+            killer.Wait();
+            return (proc.ExitCode, output.Replace("\r\n", "\n").TrimEnd('\n'));
+        }
+        finally { try { File.Delete(binPath); } catch { } }
     }
 
     [Fact]

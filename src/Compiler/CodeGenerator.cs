@@ -69,6 +69,11 @@ public sealed class CodeGenerator
     // Set when the program uses `run`/pipe, so the POSIX subprocess runtime is emitted (only then).
     private bool _usesProcess;
 
+    // CONC.E — set when the program uses interrupt constructs (`Yield.`, `an interrupt is requested`,
+    // `Acknowledge the interrupt.`) or concurrency (blocked channel-waits are made interruptible). When
+    // set, the SIGINT signal substrate is emitted + main installs the handler and a longjmp landing pad.
+    private bool _usesSignals;
+
     // Concurrency (CONC.A+B): emitted only when tasks/channels are used. Generated task thread
     // functions accumulate in _taskFns; the enclosing rabbit's C var suffix for its thread + channel
     // lists (for the structured join + channel-free at Done.) is the top of _rabbitCtx.
@@ -696,6 +701,40 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
 
 """;
 
+    // SIGINT signal substrate (CONC.E): true-preemptive interrupt. Emitted when the program uses
+    // interrupt constructs OR concurrency (blocked channel-waits become interruptible). The handler is
+    // MINIMAL + async-signal-safe (it only sets an atomic flag); all real work happens at cooperative
+    // checkpoints (`Yield.`, channel-waits) in normal thread flow. An unhandled interrupt unwinds via a
+    // per-thread longjmp landing pad — the main thread's pad tears down (pop all arenas, free channels,
+    // flush) + exits; a worker's pad runs its local cleanup + returns (reaped by the structured join).
+    // POSIX-guarded; on non-unix (mingw) it degrades to no-op stubs (Ctrl-C = default terminate).
+    private const string SignalRuntime =
+"""
+#if defined(__unix__) || defined(__APPLE__)
+#include <signal.h>
+#include <setjmp.h>
+static volatile sig_atomic_t cufet_interrupted = 0;
+static _Thread_local sigjmp_buf cufet_thread_top;   /* this thread's interrupt landing pad */
+static _Thread_local int cufet_pad_set = 0;          /* 1 once this thread has established its pad */
+static void cufet_sigint_handler(int sig) { (void)sig; cufet_interrupted = 1; }   /* async-signal-safe */
+static void cufet_install_sigint(void) {
+    struct sigaction sa; memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = cufet_sigint_handler;
+    sigaction(SIGINT, &sa, NULL);
+}
+/* Cooperative interrupt checkpoint: if an interrupt is pending and this thread has a landing pad,
+   unwind to it. No-op if no pad (a raw task thread) — its caller handles the -1 recv sentinel. */
+static void cufet_checkpoint(void) {
+    if (cufet_interrupted && cufet_pad_set) siglongjmp(cufet_thread_top, 1);
+}
+#else
+static volatile int cufet_interrupted = 0;
+static void cufet_install_sigint(void) {}
+static void cufet_checkpoint(void) {}
+#endif
+
+""";
+
     // Concurrency runtime (CONC.A+B): pthreads + a thread-safe channel (mutex + condvar). Emitted
     // only when tasks/channels are used; POSIX-guarded (Linux-targeted, WSL-verified). Channels are
     // number-only this slice (value type → the queue node IS the heap-bridged message; send mallocs
@@ -704,13 +743,21 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
 """
 #if defined(__unix__) || defined(__APPLE__)
 #include <pthread.h>
+#include <time.h>
 #define CUFET_TASK_MAX 4096
 typedef struct cufet_chan_node { CufetDec val; struct cufet_chan_node* next; } cufet_chan_node;
 typedef struct { pthread_mutex_t m; pthread_cond_t c; cufet_chan_node* head; cufet_chan_node* tail; int closed; } cufet_chan;
+/* Live-channel registry — so an interrupt unwind (CONC.E) can free channels the longjmp jumped past.
+   A normal cufet_chan_free unregisters; the interrupt teardown frees whatever is still registered. */
+static cufet_chan* cufet_live_chans[CUFET_TASK_MAX];
+static int cufet_nlive = 0;
+static pthread_mutex_t cufet_live_m = PTHREAD_MUTEX_INITIALIZER;
 static cufet_chan* cufet_chan_new(void) {
     cufet_chan* ch = (cufet_chan*)malloc(sizeof(cufet_chan));
     pthread_mutex_init(&ch->m, NULL); pthread_cond_init(&ch->c, NULL);
-    ch->head = ch->tail = NULL; ch->closed = 0; return ch;
+    ch->head = ch->tail = NULL; ch->closed = 0;
+    pthread_mutex_lock(&cufet_live_m); if (cufet_nlive < CUFET_TASK_MAX) cufet_live_chans[cufet_nlive++] = ch; pthread_mutex_unlock(&cufet_live_m);
+    return ch;
 }
 static void cufet_chan_send(cufet_chan* ch, CufetDec v) {
     cufet_chan_node* n = (cufet_chan_node*)malloc(sizeof(cufet_chan_node)); /* heap bridge */
@@ -720,10 +767,18 @@ static void cufet_chan_send(cufet_chan* ch, CufetDec v) {
     pthread_cond_signal(&ch->c); pthread_mutex_unlock(&ch->m);
 }
 /* Blocking receive → 1 with *out set if a value is available, 0 if the channel is empty-and-closed
-   (→ Cufet void). Frees the received node (the heap bridge) after copying the value out. */
+   (→ Cufet void), -1 if a SIGINT arrived while blocked (CONC.E — the caller runs a checkpoint). The
+   wait is a 50ms timed-wait loop so a blocked worker re-checks the interrupt flag (true-preemptive:
+   a real pthread_cond_wait can now be woken by a signal, which the cooperative interpreter can't do).
+   Frees the received node (the heap bridge) after copying the value out. */
 static int cufet_chan_recv(cufet_chan* ch, CufetDec* out) {
     pthread_mutex_lock(&ch->m);
-    while (!ch->head && !ch->closed) pthread_cond_wait(&ch->c, &ch->m);
+    while (!ch->head && !ch->closed) {
+        if (cufet_interrupted) { pthread_mutex_unlock(&ch->m); return -1; }
+        struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_nsec += 50000000L; if (ts.tv_nsec >= 1000000000L) { ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
+        pthread_cond_timedwait(&ch->c, &ch->m, &ts);
+    }
     if (ch->head) {
         cufet_chan_node* n = ch->head; ch->head = n->next; if (!ch->head) ch->tail = NULL;
         pthread_mutex_unlock(&ch->m);
@@ -735,8 +790,21 @@ static void cufet_chan_close(cufet_chan* ch) {
     pthread_mutex_lock(&ch->m); ch->closed = 1; pthread_cond_broadcast(&ch->c); pthread_mutex_unlock(&ch->m);
 }
 static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bridges (teardown/close-with-pending) */
+    pthread_mutex_lock(&cufet_live_m);
+    for (int i = 0; i < cufet_nlive; i++) if (cufet_live_chans[i] == ch) { cufet_live_chans[i] = cufet_live_chans[--cufet_nlive]; break; }
+    pthread_mutex_unlock(&cufet_live_m);
     cufet_chan_node* n = ch->head; while (n) { cufet_chan_node* x = n->next; free(n); n = x; }
     pthread_mutex_destroy(&ch->m); pthread_cond_destroy(&ch->c); free(ch);
+}
+/* Interrupt-teardown helper: free every still-live channel (the unwind longjmp'd past their frees). */
+static void cufet_free_all_chans(void) {
+    pthread_mutex_lock(&cufet_live_m);
+    while (cufet_nlive > 0) {
+        cufet_chan* ch = cufet_live_chans[--cufet_nlive];
+        cufet_chan_node* n = ch->head; while (n) { cufet_chan_node* x = n->next; free(n); n = x; }
+        pthread_mutex_destroy(&ch->m); pthread_cond_destroy(&ch->c); free(ch);
+    }
+    pthread_mutex_unlock(&cufet_live_m);
 }
 /* Task pipes (CONC.D): each stage runs as its own thread connected by channels. `output <v>` and
    `for each … from the input` inside a stage read these THREAD-LOCAL implicit channels — mirroring
@@ -751,7 +819,9 @@ static void* cufet_pipe_stage(void* argp) {
     cufet_pipe_arg* a = (cufet_pipe_arg*)argp;
     cufet_pipe_in = a->in; cufet_pipe_out = a->out;
     cufet_arena_push();
-    a->fn();                                  /* the stage's compiled Cufet function */
+    /* Interrupt landing pad (CONC.E): if a blocked recv inside the stage is interrupted, it unwinds
+       to here and the stage tears down normally (arena pop + close output + reaped by the pipe join). */
+    if (sigsetjmp(cufet_thread_top, 1) == 0) { cufet_pad_set = 1; a->fn(); }
     cufet_arena_pop();
     if (a->out) cufet_chan_close(a->out);      /* signal downstream: no more values */
     free(a);
@@ -768,6 +838,9 @@ static void* cufet_pipe_stage(void* argp) {
         // Concurrency is discovered up front (not during the body pass) because a rabbit's header
         // must emit its thread/channel tracking arrays before its body is walked.
         _usesConcurrency = ProgramUsesConcurrency(program.Statements);
+        // SIGINT substrate (CONC.E) is likewise discovered up front — main's top installs the handler
+        // + landing pad before its body, so it must know whether interrupt handling is in play.
+        _usesSignals = ProgramUsesSignals(program.Statements);
 
         // ── Runtime: includes + software decimal + print helpers ──────────
         sb.AppendLine(RuntimePreamble);
@@ -862,6 +935,23 @@ static void* cufet_pipe_stage(void* argp) {
         // A global arena is pushed so series created at top level (outside an
         // explicit Pull) are safely tracked and freed at program exit.
         body.AppendLine("int main(void) {");
+        // SIGINT landing pad (CONC.E): install the handler + establish main's interrupt pad. On an
+        // unhandled interrupt a checkpoint siglongjmps here; we tear down (pop all arenas — nested
+        // included — free any live channels, flush) and exit 130 (128+SIGINT). Guarded so a non-signal
+        // program is unchanged, and #if'd so mingw (no sigaction) degrades to default Ctrl-C.
+        if (_usesSignals || _usesConcurrency)
+        {
+            body.AppendLine("#if defined(__unix__) || defined(__APPLE__)");
+            body.AppendLine("    cufet_install_sigint();");
+            body.AppendLine("    if (sigsetjmp(cufet_thread_top, 1)) {");
+            body.AppendLine("        while (cufet_arena_top >= 0) cufet_arena_pop();");
+            if (_usesConcurrency)
+                body.AppendLine("        cufet_free_all_chans();");
+            body.AppendLine("        fflush(stdout); return 130;");
+            body.AppendLine("    }");
+            body.AppendLine("    cufet_pad_set = 1;");
+            body.AppendLine("#endif");
+        }
         body.AppendLine("    cufet_arena_push();");
         foreach (var stmt in program.Statements)
         {
@@ -886,6 +976,11 @@ static void* cufet_pipe_stage(void* argp) {
 
         // ── Subprocess runtime (only when `run`/pipe is used; discovered during the body pass) ──
         if (_usesProcess) sb.AppendLine(ProcessRuntime);
+
+        // ── SIGINT substrate (CONC.E) — before the concurrency runtime, which uses the interrupt flag
+        //    + checkpoint in its channel-wait. Emitted when interrupt constructs OR concurrency is used. ──
+        if (_usesSignals || _usesConcurrency)
+            sb.AppendLine(SignalRuntime);
 
         // ── Concurrency runtime + generated task thread functions (only when tasks/channels used) ──
         if (_usesConcurrency)
@@ -1607,6 +1702,21 @@ static void* cufet_pipe_stage(void* argp) {
                 EmitLaunchTask(sb, lts, indent);
                 break;
 
+            case YieldStatement:
+                // `Yield.` — a cooperative interrupt checkpoint (CONC.E). In the interpreter it also
+                // hands the scheduler a turn; natively the OS scheduler does that, so this is purely
+                // the interrupt check: if a SIGINT is pending, unwind to this thread's landing pad.
+                _usesSignals = true;
+                sb.AppendLine($"{indent}cufet_checkpoint();");
+                break;
+
+            case AcknowledgeInterruptStatement:
+                // `Acknowledge the interrupt.` — clear the flag, so a cooperatively-handled interrupt
+                // does not later unwind at a checkpoint (mirrors the interpreter's _interruptRequested=false).
+                _usesSignals = true;
+                sb.AppendLine($"{indent}cufet_interrupted = 0;");
+                break;
+
             case SeriesAddStatement sa:
             {
                 string ser = SeriesStructOf(sa.Series);
@@ -2018,6 +2128,7 @@ static void* cufet_pipe_stage(void* argp) {
         RunExpression or PipeExpression => RunResultRecordType,
         ChannelCreation cc    => new ChannelType(cc.ElementType),
         DeliveryExpression    => new VoidableType(TNumber),   // channels are number-only this slice
+        InterruptRequestedExpression => TFact,                // `an interrupt is requested` → fact
         // A named task's awaited result — inner success type (raw `T or failure` is seen only by
         // FallibleReturnType, for Try / but-on-failure / propagate), exactly like a fallible call.
         AwaitedResultExpression are => AwaitedResultInnerType(are),
@@ -2424,6 +2535,7 @@ static void* cufet_pipe_stage(void* argp) {
         ChannelCreation cc    => EmitChannelCreation(cc),
         DeliveryExpression de => EmitDelivery(de),
         AwaitedResultExpression are => EmitAwaitedResult(are),
+        InterruptRequestedExpression => EmitInterruptRequested(),
         ReadExpression re     => EmitReadExpr(re),
         PathCheckExpression pc => pc.Kind switch
         {
@@ -2536,7 +2648,8 @@ static void* cufet_pipe_stage(void* argp) {
         int id = _freshId++;
         sb.AppendLine($"{indent}for (;;) {{");
         sb.AppendLine($"{inner}CufetDec cf_pv{id}; int cf_ph{id} = cufet_chan_recv(cufet_pipe_in, &cf_pv{id});");
-        sb.AppendLine($"{inner}if (!cf_ph{id}) break;");
+        sb.AppendLine($"{inner}if (cf_ph{id} < 0) {{ cufet_checkpoint(); break; }}");   // interrupted while blocked
+        sb.AppendLine($"{inner}if (cf_ph{id} == 0) break;");                            // stream closed → done
         sb.AppendLine($"{inner}CufetDec {it} = cf_pv{id};");
         var saved = _varTypes.TryGetValue(raw, out var st) ? st : null;
         _varTypes[raw] = TNumber;
@@ -2665,6 +2778,43 @@ static void* cufet_pipe_stage(void* argp) {
         return false;
     }
 
+    // Whether the program uses interrupt constructs (CONC.E) — so main installs the SIGINT handler +
+    // landing pad and the substrate is emitted. Discovered up front (like concurrency) because main's
+    // top is emitted before its body is walked. Concurrency programs also get the substrate (their
+    // blocked channel-waits are made interruptible), gated separately at emission.
+    private bool ProgramUsesSignals(IEnumerable<IStatement> stmts)
+    {
+        foreach (var s in stmts)
+            switch (s)
+            {
+                case YieldStatement or AcknowledgeInterruptStatement: return true;
+                case DefineStatement d when ExprUsesInterrupt(d.Value): return true;
+                case BecomesStatement bc when ExprUsesInterrupt(bc.Value): return true;
+                case StateStatement st when ExprUsesInterrupt(st.Value): return true;
+                case ReturnStatement r when r.Value != null && ExprUsesInterrupt(r.Value): return true;
+                case IfStatement iff when iff.Arms.Any(a => ExprUsesInterrupt(a.Condition) || ProgramUsesSignals(a.Body)) || (iff.ElseBody != null && ProgramUsesSignals(iff.ElseBody)): return true;
+                case WhileStatement w when ExprUsesInterrupt(w.Condition) || ProgramUsesSignals(w.Body): return true;
+                case RepeatUntilStatement r when ExprUsesInterrupt(r.Condition) || ProgramUsesSignals(r.Body): return true;
+                case ForEachStatement fe when ProgramUsesSignals(fe.Body): return true;
+                case ForEachFromInputStatement fi when ProgramUsesSignals(fi.Body): return true;
+                case PullRabbitStatement p when ProgramUsesSignals(p.Body): return true;
+                case TryStatement t when ProgramUsesSignals(t.Body) || (t.FailureHandler != null && ProgramUsesSignals(t.FailureHandler)): return true;
+                case WithOpenStatement wo when ProgramUsesSignals(wo.Body): return true;
+                case BindStatement b when ProgramUsesSignals(b.Body): return true;
+                case LaunchTaskStatement lt when ProgramUsesSignals(lt.Body): return true;
+            }
+        return false;
+    }
+
+    private static bool ExprUsesInterrupt(IExpression? e) => e switch
+    {
+        InterruptRequestedExpression => true,
+        BinaryExpression b => ExprUsesInterrupt(b.Left) || ExprUsesInterrupt(b.Right),
+        UnaryExpression u  => ExprUsesInterrupt(u.Operand),
+        ButVoidDefault bvd => ExprUsesInterrupt(bvd.Voidable) || ExprUsesInterrupt(bvd.Default),
+        _ => false,
+    };
+
     private static bool ExprUsesChannel(IExpression e) => e switch
     {
         ChannelCreation or DeliveryExpression => true,
@@ -2697,8 +2847,17 @@ static void* cufet_pipe_stage(void* argp) {
         string cvd = RegisterVoidableStruct(new VoidableType(TNumber));
         string ch = EmitExpr(de.Channel);
         int id = _freshId++;
-        _preEmits.Add($"CufetDec cf_dv{id}; int cf_dh{id} = cufet_chan_recv({ch}, &cf_dv{id});");
+        // recv → 1 (value), 0 (empty+closed → void), -1 (interrupted while blocked). On -1 run the
+        // checkpoint: if this thread has a landing pad it unwinds; otherwise the interrupt reads as void.
+        _preEmits.Add($"CufetDec cf_dv{id}; int cf_dh{id} = cufet_chan_recv({ch}, &cf_dv{id}); if (cf_dh{id} < 0) {{ cufet_checkpoint(); cf_dh{id} = 0; }}");
         return $"(cf_dh{id} ? ({cvd}){{ .has = 1, .val = cf_dv{id} }} : ({cvd}){{ .has = 0 }})";
+    }
+
+    // `an interrupt is requested` → the current interrupt flag as a fact (0/1).
+    private string EmitInterruptRequested()
+    {
+        _usesSignals = true;
+        return "(cufet_interrupted ? 1 : 0)";
     }
 
     // `Have rabbit start a task [as <name>]: … Done.` → a pthread. Captured enclosing locals are
