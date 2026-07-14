@@ -2300,6 +2300,86 @@ public class PipelineTests
         Assert.Equal("5", Compile(src));
     }
 
+    // ── CONC.F: fan-out validation (the capstone — the work-queue finding comes home) ──
+    // N worker tasks all pull from ONE shared channel (the work queue), doubling each item and
+    // fanning results back to a second channel; a collector sums them. Under TRUE parallelism the
+    // workers genuinely contend for the queue and the work DISTRIBUTES across them (WSL-verified,
+    // e.g. 18/8/4) — vs the cooperative interpreter's one-drains-all (30/0/0). Distribution is
+    // nondeterministic, so we assert the ORDER-INDEPENDENT INVARIANT: every item is processed
+    // exactly once ⇒ the sum is deterministic (2·(1+…+20) == 420) regardless of who got what.
+
+    private const string FanOutWorkQueue = """
+        Pull a rabbit.
+            Define work    as a channel of number.
+            Define results as a channel of number.
+            Define n       as 20.
+            Have rabbit start a task as w1:
+                Define job as the delivery from work.
+                While job is not void, repeat:
+                    Send ((job but void is 0) * 2) through results.
+                    job becomes the delivery from work.
+                Done.
+            Done.
+            Have rabbit start a task as w2:
+                Define job as the delivery from work.
+                While job is not void, repeat:
+                    Send ((job but void is 0) * 2) through results.
+                    job becomes the delivery from work.
+                Done.
+            Done.
+            Have rabbit start a task as w3:
+                Define job as the delivery from work.
+                While job is not void, repeat:
+                    Send ((job but void is 0) * 2) through results.
+                    job becomes the delivery from work.
+                Done.
+            Done.
+            Have rabbit start a task as producer:
+                Define i as 1.
+                While i is n or less, repeat:
+                    Send i through work.
+                    i becomes i + 1.
+                Done.
+                Close work.
+            Done.
+            Have rabbit start a task as collector:
+                Define total as 0.
+                Define count as 0.
+                Define got as the delivery from results.
+                While got is not void, repeat:
+                    total becomes total + (got but void is 0).
+                    count becomes count + 1.
+                    If count is n, Stop.
+                    got becomes the delivery from results.
+                Done.
+                State total.
+            Done.
+        Done.
+        """;
+
+    [Fact]
+    public void Concurrency_FanOut_WorkQueue_EachItemProcessedOnce()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The correctness invariant: 20 items each processed exactly once by SOME worker ⇒ the
+        // fanned-in sum is 2·(1+…+20) == 420, whatever the (nondeterministic) work distribution.
+        // Proves the shared-channel dequeue under N-worker contention never double-delivers or drops.
+        Assert.Equal("420", Compile(FanOutWorkQueue));
+    }
+
+    [Fact]
+    public void Concurrency_FanOut_WorkQueue_MemorySafety_ASan()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The sharpest memory test: N workers contending on one channel + a results channel + a
+        // collector series, all under ASan/LSan. close-with-contention wakes every blocked worker
+        // (broadcast → void → exit), the structured join reaps all five tasks, every channel/arena
+        // frees. Zero leaks / UAF, and the aggregate invariant still holds.
+        Assert.Equal("420", CompileWithASan(FanOutWorkQueue));
+    }
+
     // ── CONC.C: named tasks + `the awaited result of` (result crosses task → awaiter) ──
     // LINUX-ONLY (pthreads). Unlike the channel spawn-collect pattern, an AWAIT drains the
     // cooperative interpreter deterministically (no deadlock) and the awaited VALUE is
