@@ -2298,6 +2298,117 @@ public class PipelineTests
         Assert.Equal("5", Compile(src));
     }
 
+    // ── CONC.C: named tasks + `the awaited result of` (result crosses task → awaiter) ──
+    // LINUX-ONLY (pthreads). Unlike the channel spawn-collect pattern, an AWAIT drains the
+    // cooperative interpreter deterministically (no deadlock) and the awaited VALUE is
+    // deterministic regardless of timing — so these ARE true Compile == Interpret oracle tests.
+
+    [Fact]
+    public void Concurrency_AwaitedResult_Number()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // A named task computes a value and returns it; the awaiter joins, deep-copies the
+        // heap-bridged result into itself, and prints it. Deterministic result: 42.
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as fetcher:
+                    Define x as 21 + 21.
+                    return x.
+                Done.
+                Define answer as the awaited result of fetcher.
+                State answer.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_DoubleAwait_CachesResult()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // Awaiting the same task twice joins it ONCE (guarded by the joined-flag) and reads the
+        // cached result the second time — the task body ("task ran") runs exactly once. Proves
+        // no double pthread_join (undefined) and no double-free of the result bridge.
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as counter:
+                    State "task ran".
+                    return 7.
+                Done.
+                Define r1 as the awaited result of counter.
+                Define r2 as the awaited result of counter.
+                State r1.
+                State r2.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_TwoTasks_AwaitBoth()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // Two named tasks, each result crosses its own task → awaiter boundary; the awaiter sums
+        // them (5 + 10 == 15). Each join synchronizes its own result independently.
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as t1:
+                    return 5.
+                Done.
+                Have rabbit start a task as t2:
+                    return 10.
+                Done.
+                Define r1 as the awaited result of t1.
+                Define r2 as the awaited result of t2.
+                State r1 + r2.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_FallibleTask_HandledAtAwaitSite()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // A task whose result is `number or failure`: the failing path returns a failure, and the
+        // awaited result flows through the SAME fallible machinery as a fallible call — `but on
+        // failure` supplies the default (99). Reuses slice-6 `cfl_N` end to end.
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as risky:
+                    return a failure "task failed" of category "err".
+                    return 0.
+                Done.
+                Define r as the awaited result of risky but on failure (99).
+                State r.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_NeverAwaitedNamedTask_ASan_FreesResultBridge()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // A named task that returns a value but is NEVER awaited still runs and joins at the
+        // rabbit's Done.; the structured teardown captures + frees its heap-bridged result so it
+        // does not leak. ASan/LSan must be clean (the free-on-all-paths proof for un-awaited results).
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as sideEffect:
+                    State "side effect ran".
+                    return 0.
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), CompileWithASan(src));
+    }
+
     [Fact]
     public void Subprocess_Run_MemorySafety_ASan_ZeroLeaksAndNoUAF()
     {

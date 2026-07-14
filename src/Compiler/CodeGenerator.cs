@@ -77,6 +77,17 @@ public sealed class CodeGenerator
     private int _taskCounter;
     private readonly List<string> _rabbitCtx = new();   // suffix N of cf_thr{N}/cf_chan{N} per open rabbit
 
+    // CONC.C — named tasks + `the awaited result of`. Per named task in scope: the enclosing rabbit
+    // suffix (Ctx), the C type of its heap-bridged result, and its inferred result type (which may be
+    // a FailureType/VoidableType). The slot index / stored-result C vars are `cf_slot_<sfx>` /
+    // `cf_tres_<sfx>` declared at the spawn site (sfx = name with '-'→'_').
+    private readonly Dictionary<string, (string Ctx, string ResultCType, CufetType? ResultType)> _taskInfos = new();
+    // While emitting a named task's body: the result C type (null ⇒ void/fire-and-forget), so a
+    // `return <v>` heap-bridges the value and unwinds the task's arena instead of a plain C return.
+    private (CufetType? ResultType, string? ResultCType)? _currentTaskReturn;
+    // True while emitting a task body — awaiting a task's result from inside another task is deferred.
+    private bool _inTaskBody;
+
     // The `fclose(...)` statements for files opened at or after `fromDepth`, innermost-first (LIFO),
     // as one inline C string. Used at return / failure-goto / propagate / break / continue. Does
     // NOT mutate _openFiles (nonlocal exits jump past the normal scope-exit that pops them).
@@ -1409,6 +1420,29 @@ static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bri
             }
 
             case ReturnStatement ret:
+                if (_currentTaskReturn is { } tctx)
+                {
+                    // Inside a named task's thread function: a return heap-bridges the value across the
+                    // task→awaiter boundary (the task's arena is torn down below, so the result must be
+                    // copied to the heap first), then unwinds the task arena and frees the arg struct.
+                    // The result C type is a self-contained value struct this slice (number/fact +
+                    // voidable/failable), so the heap copy is a deep copy — no arena pointers inside.
+                    if (ret.Value != null && tctx.ResultCType != null)
+                    {
+                        string retExpr = EmitAsType(ret.Value, _currentReturnType);
+                        FlushPreEmits(sb, indent);
+                        int rid = _freshId++;
+                        sb.AppendLine($"{indent}{tctx.ResultCType}* cf_tret{rid} = ({tctx.ResultCType}*)malloc(sizeof({tctx.ResultCType}));");
+                        sb.AppendLine($"{indent}*cf_tret{rid} = {retExpr};");
+                        sb.AppendLine($"{indent}{FileCleanupStmts(0)}cufet_arena_pop(); free(cf_a); return cf_tret{rid};");
+                    }
+                    else
+                    {
+                        // A bare `return.` (or a value dropped by a fire-and-forget task): no result.
+                        sb.AppendLine($"{indent}{FileCleanupStmts(0)}cufet_arena_pop(); free(cf_a); return NULL;");
+                    }
+                    break;
+                }
                 if (ret.Value == null)
                     sb.AppendLine($"{indent}{FileCleanupStmts(0)}return;");
                 else
@@ -1487,15 +1521,21 @@ static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bri
                 {
                     sb.AppendLine($"{inner}pthread_t cf_thr{n}[CUFET_TASK_MAX]; int cf_nthr{n} = 0;");
                     sb.AppendLine($"{inner}cufet_chan* cf_chan{n}[CUFET_TASK_MAX]; int cf_nchan{n} = 0;");
-                    sb.AppendLine($"{inner}(void)cf_thr{n}; (void)cf_chan{n};");
+                    // cf_jflag[k] marks a task already joined at its await site (CONC.C), so Done.
+                    // does not re-join it (double pthread_join is undefined). Zero = not yet joined.
+                    sb.AppendLine($"{inner}int cf_jflag{n}[CUFET_TASK_MAX] = {{0}};");
+                    sb.AppendLine($"{inner}(void)cf_thr{n}; (void)cf_chan{n}; (void)cf_jflag{n};");
                     _rabbitCtx.Add(n);
                 }
                 EmitBlock(sb, prs.Body, inner);
                 if (_usesConcurrency)
                 {
                     _rabbitCtx.RemoveAt(_rabbitCtx.Count - 1);
-                    // Structured join: reap every spawned task + free every channel before teardown.
-                    sb.AppendLine($"{inner}for (int cf_ji = 0; cf_ji < cf_nthr{n}; cf_ji++) pthread_join(cf_thr{n}[cf_ji], NULL);");
+                    // Structured join: reap every not-yet-awaited task, freeing its result heap-bridge
+                    // (fire-and-forget tasks return NULL → free(NULL) is a no-op; a named-but-never-
+                    // awaited task returns its malloc'd result → freed here, so no leak). Awaited tasks
+                    // (cf_jflag set) were already joined + freed at their await site. Then free channels.
+                    sb.AppendLine($"{inner}for (int cf_ji = 0; cf_ji < cf_nthr{n}; cf_ji++) if (!cf_jflag{n}[cf_ji]) {{ void* cf_jr = NULL; pthread_join(cf_thr{n}[cf_ji], &cf_jr); free(cf_jr); }}");
                     sb.AppendLine($"{inner}for (int cf_ci = 0; cf_ci < cf_nchan{n}; cf_ci++) cufet_chan_free(cf_chan{n}[cf_ci]);");
                 }
                 sb.AppendLine($"{indent}}}");
@@ -1940,6 +1980,9 @@ static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bri
         RunExpression or PipeExpression => RunResultRecordType,
         ChannelCreation cc    => new ChannelType(cc.ElementType),
         DeliveryExpression    => new VoidableType(TNumber),   // channels are number-only this slice
+        // A named task's awaited result — inner success type (raw `T or failure` is seen only by
+        // FallibleReturnType, for Try / but-on-failure / propagate), exactly like a fallible call.
+        AwaitedResultExpression are => AwaitedResultInnerType(are),
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
@@ -1999,8 +2042,19 @@ static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bri
         CastExpression c when RawCastReturnType(c) is FailureType ft => ft,
         FileReadExpression fr => new FailureType(FileReadSuccessType(fr)),
         RunExpression or PipeExpression => new FailureType(RunResultRecordType),
+        AwaitedResultExpression are when AwaitedRawResultType(are) is FailureType aft => aft,
         _ => null,
     };
+
+    // A named task's declared/inferred result type as tracked at its spawn (raw — keeps FailureType).
+    private CufetType AwaitedRawResultType(AwaitedResultExpression are) =>
+        are.Task is VariableReference vr && _taskInfos.TryGetValue(vr.Name, out var info)
+            ? info.ResultType ?? TNumber
+            : TNumber;
+
+    // The awaited result's post-check VALUE type — inner success T when the task is fallible.
+    private CufetType AwaitedResultInnerType(AwaitedResultExpression are) =>
+        AwaitedRawResultType(are) is FailureType ft ? ft.Inner : AwaitedRawResultType(are);
 
     private CufetType FileReadSuccessType(FileReadExpression fr) =>
         fr.Form == FileReadForm.AllLines ? new SeriesType(TText) : TText;
@@ -2331,6 +2385,7 @@ static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bri
         RunExpression or PipeExpression => EmitFallibleCheckGoto(EmitRunRaw(expr), RegisterFailableStruct(new FailureType(RunResultRecordType))),
         ChannelCreation cc    => EmitChannelCreation(cc),
         DeliveryExpression de => EmitDelivery(de),
+        AwaitedResultExpression are => EmitAwaitedResult(are),
         ReadExpression re     => EmitReadExpr(re),
         PathCheckExpression pc => pc.Kind switch
         {
@@ -2527,19 +2582,42 @@ static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bri
         return $"(cf_dh{id} ? ({cvd}){{ .has = 1, .val = cf_dv{id} }} : ({cvd}){{ .has = 0 }})";
     }
 
-    // `Have rabbit start a task: … Done.` → a pthread. Fire-and-forget this slice (named/result
-    // tasks = CONC.C). Captured enclosing locals are snapshot into a heap arg struct at spawn
-    // (deep-copy-at-spawn — value types copied, channels shared) so a parent mutation after spawn
-    // can't race the task's read. The thread runs in its own (thread-local) arena.
+    // `Have rabbit start a task [as <name>]: … Done.` → a pthread. Captured enclosing locals are
+    // snapshot into a heap arg struct at spawn (deep-copy-at-spawn — value types copied, channels
+    // shared) so a parent mutation after spawn can't race the task's read. The thread runs in its
+    // own (thread-local) arena. A NAMED task (CONC.C) additionally returns a heap-bridged result via
+    // the pthread void* return; `the awaited result of <name>` joins it, copies the result into the
+    // awaiter, and frees the bridge. The result type is a self-contained value struct this slice
+    // (number/fact + voidable/failable), so the heap copy is a deep copy with no arena pointers.
     private void EmitLaunchTask(StringBuilder sb, LaunchTaskStatement lts, string indent)
     {
-        if (lts.Name != null)
-            throw new CompilerException("named/awaited tasks are the next concurrency slice (CONC.C) — this slice is fire-and-forget tasks.");
         if (_rabbitCtx.Count == 0)
             throw new CompilerException("'Have rabbit start a task' requires an enclosing rabbit.");
         _usesConcurrency = true;
         string ctx = _rabbitCtx[^1];
         int tid = _taskCounter++;
+
+        // Result type (named tasks only) — inferred from the body's returns, mirroring the checker.
+        CufetType? resultType = lts.Name != null ? InferTaskResultType(lts.Body) : null;
+        string? resultCType = null;
+        if (lts.Name != null && resultType != null)
+        {
+            // The heap-bridged result must be a self-contained value struct (no arena pointers) so a
+            // shallow struct copy across the thread boundary IS a deep copy. Text/series/reference
+            // results are deferred (recursive heap deep-copy — the channel-of-T follow-on). A fallible
+            // result's failure message must be a static string literal (arena-templated I/O-failure
+            // messages would dangle past the task's arena_pop) — I/O-inside-tasks is out of scope here.
+            var core = resultType;
+            if (core is FailureType ft) core = ft.Inner;
+            if (core is VoidableType vt) core = vt.Inner;
+            if (core is not (NumberType or FactType))
+                throw new CompilerException(
+                    "task results are number/fact this slice (optionally voidable or fallible); " +
+                    "text/series/reference results are deferred to the channel-of-T follow-on (recursive heap deep-copy).");
+            resultCType = EmitCType(resultType);
+            _taskInfos[lts.Name] = (ctx, resultCType, resultType);
+            _varTypes[lts.Name] = new TaskHandleType(resultType);
+        }
 
         // Captured free variables = referenced enclosing locals not defined inside the task body.
         var refs = new HashSet<string>(); var defs = new HashSet<string>();
@@ -2555,16 +2633,107 @@ static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bri
         _taskFns.AppendLine($"    struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)argp;");
         foreach (var c in caps) _taskFns.AppendLine($"    {EmitCType(_varTypes[c])} {MangleName(c)} = cf_a->{MangleName(c)}; (void){MangleName(c)};");
         _taskFns.AppendLine($"    cufet_arena_push();");
+        var savedRet     = _currentReturnType;
+        var savedTaskRet = _currentTaskReturn;
+        var savedInTask  = _inTaskBody;
+        _currentReturnType = resultType;
+        _currentTaskReturn = (resultType, resultCType);
+        _inTaskBody        = true;
         EmitBlock(_taskFns, lts.Body, "    ");
+        _currentReturnType = savedRet;
+        _currentTaskReturn = savedTaskRet;
+        _inTaskBody        = savedInTask;
+        // Fall-through epilogue (reached by fire-and-forget/void tasks; a value-returning task is
+        // required to return on every path — CheckLaunchTask — so this is dead code there but safe).
         _taskFns.AppendLine($"    cufet_arena_pop();");
         _taskFns.AppendLine($"    free(cf_a);");
         _taskFns.AppendLine($"    return NULL;");
         _taskFns.AppendLine($"}}");
 
+        // A named task records its array slot + a stored-result var (set once, at its await site) so
+        // `the awaited result of <name>` can join THIS task and cache the value for re-awaits.
+        if (lts.Name != null && resultCType != null)
+        {
+            string sfx = TaskSuffix(lts.Name);
+            sb.AppendLine($"{indent}int cf_slot_{sfx} = 0; (void)cf_slot_{sfx};");
+            sb.AppendLine($"{indent}{resultCType} cf_tres_{sfx} = {{0}}; (void)cf_tres_{sfx};");
+            sb.AppendLine($"{indent}cf_slot_{sfx} = cf_nthr{ctx};");
+        }
+
         // Spawn: snapshot captures into the heap arg (value types copied, channels shared) + create.
         sb.AppendLine($"{indent}{{ struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)malloc(sizeof(struct cufet_targ{tid}));");
         foreach (var c in caps) sb.AppendLine($"{indent}  cf_a->{MangleName(c)} = {MangleName(c)};");
         sb.AppendLine($"{indent}  pthread_create(&cf_thr{ctx}[cf_nthr{ctx}++], NULL, cufet_task{tid}, cf_a); }}");
+    }
+
+    // A named task's C-identifier suffix (Cufet ids have no '_'; '-'→'_' keeps it valid).
+    private static string TaskSuffix(string name) => name.Replace('-', '_');
+
+    // Infers a named task's result type from its returns — mirrors the checker's inference so the
+    // heap-bridge C type matches. Scans nested control flow (but not nested tasks). A `return void`
+    // makes the result voidable; a `return a failure …` makes it fallible; both compose.
+    private CufetType? InferTaskResultType(IReadOnlyList<IStatement> body)
+    {
+        bool hasFailure = false, hasVoid = false;
+        CufetType? valueType = null;
+        void Walk(IReadOnlyList<IStatement> stmts)
+        {
+            foreach (var s in stmts)
+                switch (s)
+                {
+                    case ReturnStatement { Value: null }: break;               // bare void early-exit
+                    case ReturnStatement { Value: FailureLiteral }: hasFailure = true; break;
+                    case ReturnStatement { Value: VoidLiteral }: hasVoid = true; break;
+                    case ReturnStatement r: valueType ??= TypeOf(r.Value!); break;
+                    case IfStatement iff:
+                        foreach (var a in iff.Arms) Walk(a.Body);
+                        if (iff.ElseBody != null) Walk(iff.ElseBody);
+                        break;
+                    case WhileStatement w: Walk(w.Body); break;
+                    case RepeatUntilStatement ru: Walk(ru.Body); break;
+                    case ForEachStatement fe: Walk(fe.Body); break;
+                    case PullRabbitStatement pr: Walk(pr.Body); break;
+                    // Nested LaunchTaskStatement bodies own their own returns — do not descend.
+                }
+        }
+        Walk(body);
+        if (valueType == null && !hasFailure && !hasVoid) return null;   // fire-and-forget (void)
+        CufetType t = valueType ?? TNumber;
+        if (hasVoid) t = new VoidableType(t);
+        if (hasFailure) t = new FailureType(t);
+        return t;
+    }
+
+    // `the awaited result of <name>` — join the named task once (guarded so a re-await is a cheap
+    // read of the cached result), copy the heap-bridged result into the awaiter + free the bridge,
+    // and mark the slot joined so the rabbit's Done. teardown won't re-join it. The stored value is
+    // then yielded; if the task is fallible it flows through the standard fallible machinery so
+    // Try / but-on-failure / propagate compose exactly as for a fallible call.
+    private string EmitAwaitedResult(AwaitedResultExpression are)
+    {
+        string raw = EmitAwaitedRaw(are, out var info);
+        if (info.ResultType is FailureType ft)
+            return EmitFallibleCheckGoto(raw, RegisterFailableStruct(ft));
+        return raw;
+    }
+
+    // Emits the guarded join + result-cache preemit and returns the stored-result C var (a cfl/cvd/
+    // scalar). Shared by EmitAwaitedResult (bare / in-Try) and EmitFallibleRaw (but-on-failure /
+    // propagate), mirroring how file-read fallibility is factored.
+    private string EmitAwaitedRaw(AwaitedResultExpression are, out (string Ctx, string ResultCType, CufetType? ResultType) info)
+    {
+        if (_inTaskBody)
+            throw new CompilerException("awaiting a task's result inside another task is deferred (this slice awaits from the rabbit body).");
+        _usesConcurrency = true;
+        if (are.Task is not VariableReference vr || !_taskInfos.TryGetValue(vr.Name, out info))
+            throw new CompilerException("'the awaited result of' requires a named task declared with 'Have rabbit start a task as <name>:'.");
+        string sfx = TaskSuffix(vr.Name);
+        string ctx = info.Ctx;
+        _preEmits.Add(
+            $"if (!cf_jflag{ctx}[cf_slot_{sfx}]) {{ void* cf_ar = NULL; " +
+            $"pthread_join(cf_thr{ctx}[cf_slot_{sfx}], &cf_ar); cf_jflag{ctx}[cf_slot_{sfx}] = 1; " +
+            $"cf_tres_{sfx} = *({info.ResultCType}*)cf_ar; free(cf_ar); }}");
+        return $"cf_tres_{sfx}";
     }
 
     // Collects referenced variable names (refs) and locally-defined/iterated names (defs) in a
@@ -2917,6 +3086,12 @@ static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bri
             return (RegisterFailableStruct(new FailureType(FileReadSuccessType(fr))), EmitFileReadRaw(fr));
         if (expr is RunExpression || expr is PipeExpression)
             return (RegisterFailableStruct(new FailureType(RunResultRecordType)), EmitRunRaw(expr));
+        if (expr is AwaitedResultExpression are)
+        {
+            string raw = EmitAwaitedRaw(are, out var info);
+            var aft = info.ResultType as FailureType ?? new FailureType(info.ResultType ?? TNumber);
+            return (RegisterFailableStruct(aft), raw);
+        }
         if (FallibleReturnType(expr) is { } ft)
             return (RegisterFailableStruct(ft), EmitCall(((CastExpression)expr).Function, ((CastExpression)expr).Args));
         // A bare failure literal (or other failable) as the operand — coerce into cfl of the result T.
