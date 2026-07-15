@@ -69,6 +69,14 @@ public sealed class CodeGenerator
     // Set when the program uses `run`/pipe, so the POSIX subprocess runtime is emitted (only then).
     private bool _usesProcess;
 
+    // Arc 1 (stdlib/books): books are BUILTIN + compile-time-resolved (no dynamic linking). A
+    // `Pull a book on <name>` registers a compile-time alias (localName → canonical book name) so
+    // `<book>'s <member>` dispatch routes to the right emission; the alias is scoped to the Pull body.
+    private readonly Dictionary<string, string> _bookAliases = new();
+    // Set when an exact-decimal math function (floor/ceiling/round/absolute value) is used, so the
+    // math runtime is emitted (only then). pi/e are baked as decimal literals, not runtime funcs.
+    private bool _usesMath;
+
     // CONC.E — set when the program uses interrupt constructs (`Yield.`, `an interrupt is requested`,
     // `Acknowledge the interrupt.`) or concurrency (blocked channel-waits are made interruptible). When
     // set, the SIGINT signal substrate is emitted + main installs the handler and a longjmp landing pad.
@@ -701,6 +709,37 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
 
 """;
 
+    // Exact-decimal math (Arc 1A — the `math` book's total functions). floor/ceiling/round/abs
+    // operate DIRECTLY on CufetDec (no double) — bit-identical to the interpreter's decimal overloads
+    // (Math.Floor/Ceiling/Round(AwayFromZero)/Abs on `decimal`). CufetDec = (-1)^sign · coef · 10^-scale.
+    // Transcendentals (sqrt/log/power) are double-backed and live in a later slice (1B).
+    private const string MathRuntime =
+"""
+static CufetDec cufet_math_abs(CufetDec x) { x.sign = 0; return x; }
+static CufetDec cufet_math_floor(CufetDec x) {
+    if (x.scale == 0) return x;                                  /* already an integer */
+    unsigned __int128 p = 1; for (int s = 0; s < x.scale; s++) p *= 10;
+    unsigned __int128 ip = x.coef / p, rem = x.coef % p;
+    if (x.sign && rem != 0) ip += 1;                             /* negative non-integer floors more negative */
+    CufetDec r; r.coef = ip; r.scale = 0; r.sign = (ip == 0) ? 0 : x.sign; return r;
+}
+static CufetDec cufet_math_ceiling(CufetDec x) {
+    if (x.scale == 0) return x;
+    unsigned __int128 p = 1; for (int s = 0; s < x.scale; s++) p *= 10;
+    unsigned __int128 ip = x.coef / p, rem = x.coef % p;
+    if (!x.sign && rem != 0) ip += 1;                            /* positive non-integer ceils up */
+    CufetDec r; r.coef = ip; r.scale = 0; r.sign = (ip == 0) ? 0 : x.sign; return r;
+}
+static CufetDec cufet_math_round(CufetDec x) {                    /* half away-from-zero (NOT banker's) */
+    if (x.scale == 0) return x;
+    unsigned __int128 p = 1; for (int s = 0; s < x.scale; s++) p *= 10;
+    unsigned __int128 ip = x.coef / p, rem = x.coef % p;
+    if (rem * 2 >= p) ip += 1;                                   /* tie or above → away from zero */
+    CufetDec r; r.coef = ip; r.scale = 0; r.sign = (ip == 0) ? 0 : x.sign; return r;
+}
+
+""";
+
     // SIGINT signal substrate (CONC.E): true-preemptive interrupt. Emitted when the program uses
     // interrupt constructs OR concurrency (blocked channel-waits become interruptible). The handler is
     // MINIMAL + async-signal-safe (it only sets an atomic flag); all real work happens at cooperative
@@ -973,6 +1012,9 @@ static void* cufet_pipe_stage(void* argp) {
         // ── Series + map container structs + helpers (need element/K/V structs above) ──
         EmitSeriesRuntime(sb);
         EmitMapRuntime(sb);
+
+        // ── Exact-decimal math runtime (only when a math total function is used) ──
+        if (_usesMath) sb.AppendLine(MathRuntime);
 
         // ── Subprocess runtime (only when `run`/pipe is used; discovered during the body pass) ──
         if (_usesProcess) sb.AppendLine(ProcessRuntime);
@@ -1391,6 +1433,42 @@ static void* cufet_pipe_stage(void* argp) {
     }
 
     // The C boolean expression comparing two values of type `t` by value.
+    // Three-way comparison (<0 / 0 / >0) for sort keys — numbers by decimal compare, text by ordinal.
+    private static string CmpCall(string a, string b, CufetType t) => t switch
+    {
+        NumberType => $"cufet_cmp({a}, {b})",
+        TextType   => $"strcmp({a}, {b})",
+        _ => throw new CompilerException($"sorting by a '{t.GetType().Name}' key is not supported — sort keys must be number or text."),
+    };
+
+    // `<series> sorted [in reverse] [by <field>]` — a NEW series (non-mutating), stably sorted.
+    // A stable insertion sort (equal keys keep original order) matches the interpreter's stable
+    // OrderBy exactly; C's qsort is NOT stable, so we don't use it. Natural order (number/text) or
+    // by a named record/object field. Numbers compare via cufet_cmp, text via ordinal strcmp.
+    private string EmitSort(SortExpression sort)
+    {
+        var st       = (SeriesType)TypeOf(sort.Series);
+        string ser   = RegisterSeriesStruct(st);
+        var elemType = st.ElementType;
+        var keyType  = sort.ByField == null ? elemType : FieldType(elemType, sort.ByField);
+        string src   = EmitExpr(sort.Series);
+        int id = _freshId++;
+        string ssrc = $"cf_ss{id}", dst = $"cf_srt{id}";
+        // Key of an element expr: the element itself (natural), or its named field (by-field).
+        string KeyOf(string e) => sort.ByField == null ? e : $"({e}).{MangleName(sort.ByField)}";
+        string cmp = CmpCall(KeyOf($"{dst}->data[cf_j{id}]"), KeyOf($"cf_k{id}"), keyType);
+        string outOfOrder = sort.Reverse ? $"({cmp}) < 0" : $"({cmp}) > 0";
+        var b = new StringBuilder();
+        b.Append($"{ser}* {ssrc} = {src}; {ser}* {dst} = {ser}_new(); ");
+        b.Append($"for (int cf_i{id} = 0; cf_i{id} < {ssrc}->len; cf_i{id}++) {ser}_append({dst}, {ssrc}->data[cf_i{id}]); ");
+        b.Append($"for (int cf_a{id} = 1; cf_a{id} < {dst}->len; cf_a{id}++) {{ ");
+        b.Append($"{EmitCType(elemType)} cf_k{id} = {dst}->data[cf_a{id}]; int cf_j{id} = cf_a{id} - 1; ");
+        b.Append($"while (cf_j{id} >= 0 && {outOfOrder}) {{ {dst}->data[cf_j{id} + 1] = {dst}->data[cf_j{id}]; cf_j{id}--; }} ");
+        b.Append($"{dst}->data[cf_j{id} + 1] = cf_k{id}; }}");
+        _preEmits.Add(b.ToString());
+        return dst;
+    }
+
     private string EqCall(string a, string b, CufetType t) => t switch
     {
         NumberType => $"cufet_cmp({a}, {b}) == 0",
@@ -1716,6 +1794,25 @@ static void* cufet_pipe_stage(void* argp) {
                 _usesSignals = true;
                 sb.AppendLine($"{indent}cufet_interrupted = 0;");
                 break;
+
+            case PullStatement ps:
+            {
+                // `Pull a book on <name>. … Done.` — books are BUILTIN + compile-time-resolved, so this
+                // is purely a scope: register each alias (localName → book) for member-dispatch routing,
+                // emit the body in a C block (scopes body-locals like the interpreter's EnterScope), then
+                // unregister. No arena push (books allocate nothing), no runtime book value, no linking.
+                var added = new List<string>();
+                foreach (var (bookName, localName) in ps.Books)
+                {
+                    _bookAliases[localName] = bookName.ToLowerInvariant();
+                    added.Add(localName);
+                }
+                sb.AppendLine($"{indent}{{");
+                EmitBlock(sb, ps.Body, indent + "    ");
+                sb.AppendLine($"{indent}}}");
+                foreach (var l in added) _bookAliases.Remove(l);
+                break;
+            }
 
             case SeriesAddStatement sa:
             {
@@ -2093,7 +2190,9 @@ static void* cufet_pipe_stage(void* argp) {
                                      rl.NamedFields.Select(f => (f.Name, TypeOf(f.Value))).ToList()),
         RecordNamedAccess rna => FieldType(TypeOf(rna.Record), rna.FieldName),
         ObjectLiteral ol      => ObjType(ol.TypeName),
-        PossessiveAccess pa   => FieldType(TypeOf(pa.Target), pa.Member),
+        PossessiveAccess pa   => pa.Target is VariableReference bvr && _bookAliases.TryGetValue(bvr.Name, out var bn)
+                                     ? BookConstantType(bn, pa.Member)                    // math's pi / e
+                                     : FieldType(TypeOf(pa.Target), pa.Member),
         VoidLiteral           => TVoid,
         ButVoidDefault bvd    => TypeOf(bvd.Voidable) is VoidableType vt ? vt.Inner : TypeOf(bvd.Default),
         MapLiteral ml         => MapLiteralType(ml),
@@ -2132,9 +2231,22 @@ static void* cufet_pipe_stage(void* argp) {
         // A named task's awaited result — inner success type (raw `T or failure` is seen only by
         // FallibleReturnType, for Try / but-on-failure / propagate), exactly like a fallible call.
         AwaitedResultExpression are => AwaitedResultInnerType(are),
+        SortExpression sort   => TypeOf(sort.Series),           // sorted is element-type-preserving
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
+
+    // A book member's declared type (for TypeOf on a `<book>'s <member> of (...)` cast). math totals
+    // → number; transcendentals → voidable number (emitted in 1B, typed correctly now).
+    private static CufetType BookMemberReturnType(string bookName, string member)
+    {
+        string m = member.ToLowerInvariant();
+        if (bookName == "math" && m is "floor" or "ceiling" or "round" or "absolute value") return TNumber;
+        if (bookName == "math" && m is "square root" or "log" or "power") return new VoidableType(TNumber);
+        return TNumber;   // conservative default (unresolved books surface at emit)
+    }
+
+    private static CufetType BookConstantType(string bookName, string member) => TNumber;   // math pi / e
 
     private CufetType MapLiteralType(MapLiteral ml) =>
         ml.KeyType != null && ml.ValueType != null
@@ -2178,6 +2290,9 @@ static void* cufet_pipe_stage(void* argp) {
             if (c.Args.Count > 0 && TypeOf(c.Args[0]) is ObjectType ot)                    // method dispatch
                 return MethodReturnType(ot.Name, vr.Name);
         }
+        if (c.Function is PossessiveAccess bpa && bpa.Target is VariableReference bref
+            && _bookAliases.TryGetValue(bref.Name, out var bookName))                      // book member call
+            return BookMemberReturnType(bookName, bpa.Member);
         if (c.Function is PossessiveAccess pa && TypeOf(pa.Target) is ObjectType pot)
             return MethodReturnType(pot.Name, pa.Member);
         return TNumber;
@@ -2404,13 +2519,29 @@ static void* cufet_pipe_stage(void* argp) {
 
     // Object member READ: getter dispatch, own field, embed handle, or a promoted field
     // reached by walking the embed chain — all resolved statically.
-    private string EmitMemberAccess(IExpression target, string member) => TypeOf(target) switch
+    private string EmitMemberAccess(IExpression target, string member)
     {
-        ObjectType ot     => EmitObjectMemberRead(EmitExpr(target), ot.Name, member),
+        // `<book>'s <const>` — a book constant (math's pi / e), baked as a decimal literal.
+        if (target is VariableReference bvr && _bookAliases.TryGetValue(bvr.Name, out var bookName))
+            return EmitBookConstant(bookName, member);
+        return TypeOf(target) switch
+        {
+            ObjectType ot     => EmitObjectMemberRead(EmitExpr(target), ot.Name, member),
         MappingType       => $"{EmitExpr(target)}_{member}",   // the key/value of pair → cv_pair_key/_value
-        FailureMarkerType => member == "message" ? $"({EmitExpr(target)}).message" : EmitFailureCategory(EmitExpr(target)),
-        _                 => $"({EmitExpr(target)}).{MangleName(member)}"   // record field
-    };
+            FailureMarkerType => member == "message" ? $"({EmitExpr(target)}).message" : EmitFailureCategory(EmitExpr(target)),
+            _                 => $"({EmitExpr(target)}).{MangleName(member)}"   // record field
+        };
+    }
+
+    // A book constant (math's pi / e) — baked as the exact decimal literal. Using (decimal)Math.PI in
+    // the compiler (itself .NET) produces the bit-identical CufetDec the interpreter stores.
+    private static string EmitBookConstant(string bookName, string member)
+    {
+        string m = member.ToLowerInvariant();
+        if (bookName == "math" && m == "pi") return EmitNumberLiteral((decimal)Math.PI);
+        if (bookName == "math" && m == "e")  return EmitNumberLiteral((decimal)Math.E);
+        throw new CompilerException($"book '{bookName}' has no constant '{member}' supported by the compiler.");
+    }
 
     // the category of the failure → voidable text (NULL category → void).
     private string EmitFailureCategory(string failExpr)
@@ -2536,6 +2667,7 @@ static void* cufet_pipe_stage(void* argp) {
         DeliveryExpression de => EmitDelivery(de),
         AwaitedResultExpression are => EmitAwaitedResult(are),
         InterruptRequestedExpression => EmitInterruptRequested(),
+        SortExpression sort   => EmitSort(sort),
         ReadExpression re     => EmitReadExpr(re),
         PathCheckExpression pc => pc.Kind switch
         {
@@ -3397,6 +3529,11 @@ static void* cufet_pipe_stage(void* argp) {
             throw new CompilerException($"'{vr.Name}': unresolved call — not a known function or method.");
         }
 
+        // Book-member call: `<book>'s <member> of (args)` (a Cast of a book possessive-access).
+        if (funcExpr is PossessiveAccess bpa && bpa.Target is VariableReference bookRef
+            && _bookAliases.TryGetValue(bookRef.Name, out var bookName))
+            return EmitBookFunction(bookName, bpa.Member, args);
+
         if (funcExpr is PossessiveAccess pa && TypeOf(pa.Target) is ObjectType pot)   // alice's greet
         {
             var (owner, suffix) = ResolveMethodLevel(pot.Name, pa.Member);
@@ -3405,6 +3542,25 @@ static void* cufet_pipe_stage(void* argp) {
         }
 
         throw new CompilerException("Function-value calls are not yet supported by the compiler.");
+    }
+
+    // Routes a book function to its C emission. 1A: the `math` book's EXACT-decimal total functions
+    // (floor/ceiling/round/absolute value). Transcendentals (square root/log/power → 1B), collections
+    // aggregates (minimum/maximum/average/unique → 1C), transpose (→ 1D) defer cleanly.
+    private string EmitBookFunction(string bookName, string member, IReadOnlyList<IExpression> args)
+    {
+        string m = member.ToLowerInvariant();
+        if (bookName == "math" && m is "floor" or "ceiling" or "round" or "absolute value")
+        {
+            _usesMath = true;
+            string fn = m == "absolute value" ? "cufet_math_abs" : $"cufet_math_{m}";
+            return $"{fn}({EmitExpr(args[0])})";
+        }
+        if (bookName == "math" && m is "square root" or "log" or "power")
+            throw new CompilerException($"the math book's '{member}' (a double-backed transcendental) is the next slice (1B).");
+        if (bookName == "collections")
+            throw new CompilerException($"the collections book's '{member}' is a later slice (1C aggregates / 1D matrix).");
+        throw new CompilerException($"book '{bookName}' member '{member}' is not yet supported by the compiler.");
     }
 
     // Handles is void / is not void, voidable-vs-voidable, and voidable-vs-plain-T equality.

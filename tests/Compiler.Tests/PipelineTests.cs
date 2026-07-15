@@ -2380,6 +2380,108 @@ public class PipelineTests
         Assert.Equal("420", CompileWithASan(FanOutWorkQueue));
     }
 
+    // ── Arc 1A: book substrate + exact-decimal math + `sorted` ──
+    // Books are builtin + compile-time-resolved. These are ordinary Compile == Interpret oracle
+    // tests and run on BOTH platforms (no POSIX). Math totals are exact-decimal (bit-identical to
+    // the interpreter's decimal overloads); `sorted` is a stable natural/by-field sort.
+
+    [Fact]
+    public void Book_Math_ExactFunctions()
+    {
+        const string src = """
+            Pull a book on math.
+                State math's floor of 3.99.
+                State math's floor of -3.1.
+                State math's ceiling of 3.01.
+                State math's ceiling of -3.9.
+                State math's round of 2.5.
+                State math's round of -2.5.
+                State math's round of 2.4.
+                State math's absolute value of -7.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Book_Math_Constants_BakedExact()
+    {
+        // pi/e are baked from (decimal)Math.PI / (decimal)Math.E in the compiler (itself .NET), so
+        // the CufetDec is bit-identical to the interpreter's stored constant.
+        const string src = """
+            Pull a book on math.
+                State math's pi.
+                State math's e.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Book_Math_AliasedPull()
+    {
+        // `Pull a book on math as the m.` — the alias resolves book-member dispatch just the same.
+        const string src = """
+            Pull a book on math as the m.
+                State m's floor of 3.7.
+                State m's pi.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Sort_Numbers_AscendingAndReverse()
+    {
+        const string src = """
+            Define nums as a series with (3, 1, 4, 1, 5, 9, 2, 6).
+            State nums sorted.
+            State nums sorted in reverse.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Sort_Text_OrdinalOrder()
+    {
+        const string src = """
+            Define words as a series of text with ("banana", "apple", "cherry", "apple").
+            State words sorted.
+            State words sorted in reverse.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Sort_ByField_Stable()
+    {
+        // Stability proof: Bob and Cy both have age 30; sorted by age they keep insertion order
+        // (Bob before Cy). A stable sort (not qsort) is required to match the interpreter's OrderBy.
+        const string src = """
+            Define party as a series of records like (the text name, the number age).
+            Add a record with (the name "Bob", the age 30) to party.
+            Add a record with (the name "Ann", the age 25) to party.
+            Add a record with (the name "Cy", the age 30) to party.
+            State party sorted by age.
+            State party sorted by name in reverse.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Sort_MemorySafety_ASan()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // `sorted` builds a NEW arena series (non-mutating); it must free cleanly at scope exit.
+        const string src = """
+            Define nums as a series with (5, 3, 8, 1, 9, 2, 7).
+            Define s as nums sorted.
+            State s.
+            """;
+        Assert.Equal(Interpret(src), CompileWithASan(src));
+    }
+
     // ── CONC.C: named tasks + `the awaited result of` (result crosses task → awaiter) ──
     // LINUX-ONLY (pthreads). Unlike the channel spawn-collect pattern, an AWAIT drains the
     // cooperative interpreter deterministically (no deadlock) and the awaited VALUE is
