@@ -2468,6 +2468,87 @@ public class PipelineTests
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ── Arc 1B: math transcendentals — the decimal↔double bridge ──
+    // sqrt/log/power are double-backed (the settled fork — the interpreter is Math.Sqrt-backed).
+    // The bridge replicates .NET 10's DecCalc conversions bit-for-bit: VarR8FromDec on the way in,
+    // VarDecFromR8 (15 significant digits, half-even at the 15th) on the way out. sqrt is IEEE-
+    // correctly-rounded (C sqrt == .NET Math.Sqrt everywhere); log matched a 300-input corpus.
+    // CAVEAT (measured, documented): `power` with fractional exponents is last-ULP libm-dependent —
+    // .NET's own Math.Pow IS the platform libm, so 2/240 corpus inputs (e.g. 2^2.65) differ by ±1
+    // in the 15th significant digit between ucrt (.NET-on-Windows) and glibc/mingw. These tests use
+    // the corpus-verified-matching pow families; the divergence family is documented, not asserted.
+
+    [Fact]
+    public void Book_Math_Sqrt_BridgeOracleMatch()
+    {
+        // 130 sqrt values incl. fractions — every one exercises the 15-sig-digit bridge. sqrt is
+        // IEEE-correctly-rounded, so any mismatch would be a BRIDGE bug, not libm.
+        const string src = """
+            Pull a book on math.
+                For each n in the range 1 to 60, repeat:
+                    State (math's square root of n) but void is -1.
+                    State (math's square root of (n / 7)) but void is -1.
+                Done.
+                State (math's square root of 2) but void is -1.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Book_Math_Log_BridgeOracleMatch()
+    {
+        const string src = """
+            Pull a book on math.
+                For each n in the range 1 to 60, repeat:
+                    State (math's log of n) but void is -1.
+                    State (math's log of (n / 7)) but void is -1.
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Book_Math_Power_VerifiedFamilies()
+    {
+        // Integer/exact powers + the corpus-verified cube and square-root-via-pow families.
+        // (2^fractional is the measured ±1-ULP libm-divergent family — documented, not asserted.)
+        const string src = """
+            Pull a book on math.
+                State (math's power of (2, 10)) but void is -1.
+                State (math's power of (10, 28)) but void is -1.
+                For each n in the range 1 to 40, repeat:
+                    State (math's power of (n / 10, 3)) but void is -1.
+                    State (math's power of (n, 0.5)) but void is -1.
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Book_Math_Transcendental_VoidPaths()
+    {
+        // MathPartial semantics: NaN/±Inf → void (sqrt of negative, log of 0/negative, pow NaN),
+        // and decimal-OVERFLOW → void (pow(10,1000) is double-inf; pow(10,30) is a FINITE double
+        // that overflows decimal in the conversion — the exp>96 path). All flow as voidable number.
+        const string src = """
+            Pull a book on math.
+                State (math's square root of -1) but void is -999.
+                State (math's log of 0) but void is -999.
+                State (math's log of -1) but void is -999.
+                State (math's power of (-1, 0.5)) but void is -999.
+                State (math's power of (10, 1000)) but void is -999.
+                State (math's power of (10, 30)) but void is -999.
+                State (math's power of (10, 28)) but void is -999.
+                Define r as math's square root of 16.
+                If r is not void, State "sixteen has a root".
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     [Fact]
     public void Sort_MemorySafety_ASan()
     {

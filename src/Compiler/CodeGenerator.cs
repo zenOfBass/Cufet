@@ -738,6 +738,80 @@ static CufetDec cufet_math_round(CufetDec x) {                    /* half away-f
     CufetDec r; r.coef = ip; r.scale = 0; r.sign = (ip == 0) ? 0 : x.sign; return r;
 }
 
+/* ── The decimal↔double bridge (1B) — bit-identical replicas of .NET 10's DecCalc conversions.
+   The oracle (the interpreter) computes transcendentals as (decimal)Math.Sqrt((double)(decimal)x),
+   so BOTH conversions must match .NET exactly — including .NET's 15-significant-digit rounding
+   (half-to-even at the 15th digit) on the way back, which is NOT a naive cast. ── */
+#include <math.h>
+static const double cufet_pow10d[29] = {
+    1e0,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14,
+    1e15,1e16,1e17,1e18,1e19,1e20,1e21,1e22,1e23,1e24,1e25,1e26,1e27,1e28
+};
+
+/* .NET VarR8FromDec: dbl = (Low64 + High*2^64) / 10^scale — same ops, same order → bit-identical. */
+static double cufet_dec_to_dbl(CufetDec d) {
+    double dbl = ((double)(unsigned long long)d.coef
+                + (double)(unsigned long long)(d.coef >> 64) * 1.8446744073709552e19)
+                / cufet_pow10d[d.scale];
+    return d.sign ? -dbl : dbl;
+}
+
+/* .NET 10 VarDecFromR8, step-for-step (DBLBIAS 1022; power = 14 - ((exp*19728)>>16) ≈ 14-log10(x);
+   double-arithmetic scaling incl. the power==-1 special case; ONE upward bump to reach 15 digits;
+   round-half-to-EVEN at the 15th digit; power<0 → whole-number scale-up to 96 bits at scale 0;
+   power>=0 → scale=power + trailing-zero strip). exp<-94 underflows to 0.0m (NOT void);
+   exp>96 overflows → returns 0 (the caller yields void, matching MathPartial's catch). */
+static int cufet_dec_from_dbl(double input, CufetDec* out) {
+    unsigned long long bits; memcpy(&bits, &input, 8);
+    int exp = (int)((bits >> 52) & 0x7FF) - 1022;
+    if (exp < -94) { out->coef = 0; out->scale = 0; out->sign = 0; return 1; }
+    if (exp > 96) return 0;
+    int sign = 0;
+    double dbl = input;
+    if (dbl < 0) { dbl = -dbl; sign = 1; }
+    int power = 14 - ((exp * 19728) >> 16);
+    if (power >= 0) {
+        if (power > 28) power = 28;
+        dbl *= cufet_pow10d[power];
+    } else if (power != -1 || dbl >= 1e15) dbl /= cufet_pow10d[-power];
+    else power = 0;
+    if (dbl < 1e14 && power < 28) { dbl *= 10; power++; }
+    unsigned long long mant = (unsigned long long)(long long)dbl;
+    double frac = dbl - (double)(long long)mant;
+    if (frac > 0.5 || (frac == 0.5 && (mant & 1))) mant++;       /* half-to-even at digit 15 */
+    if (mant == 0) { out->coef = 0; out->scale = 0; out->sign = 0; return 1; }
+    unsigned __int128 coef;
+    if (power < 0) {
+        unsigned __int128 p = 1; for (int i = 0; i < -power; i++) p *= 10;
+        coef = (unsigned __int128)mant * p;                       /* whole-number range, scale 0 */
+        if (coef >> 96) return 0;                                 /* safety net (unreachable: exp<=96) */
+        power = 0;
+    } else {
+        coef = mant;
+        while (power > 0 && coef % 10 == 0) { coef /= 10; power--; }   /* minimal form, like .NET */
+    }
+    out->coef = coef; out->scale = power; out->sign = (coef == 0) ? 0 : sign;
+    return 1;
+}
+
+/* math transcendentals — double-backed (the settled fork; the interpreter is Math.Sqrt-backed).
+   MathPartial semantics: non-finite → void; decimal-overflow → void; else the 15-sig-digit decimal. */
+static int cufet_math_sqrt(CufetDec x, CufetDec* out) {
+    double d = sqrt(cufet_dec_to_dbl(x));
+    if (!isfinite(d)) return 0;
+    return cufet_dec_from_dbl(d, out);
+}
+static int cufet_math_log(CufetDec x, CufetDec* out) {
+    double d = log(cufet_dec_to_dbl(x));
+    if (!isfinite(d)) return 0;
+    return cufet_dec_from_dbl(d, out);
+}
+static int cufet_math_power(CufetDec a, CufetDec b, CufetDec* out) {
+    double d = pow(cufet_dec_to_dbl(a), cufet_dec_to_dbl(b));
+    if (!isfinite(d)) return 0;
+    return cufet_dec_from_dbl(d, out);
+}
+
 """;
 
     // SIGINT signal substrate (CONC.E): true-preemptive interrupt. Emitted when the program uses
@@ -3557,7 +3631,22 @@ static void* cufet_pipe_stage(void* argp) {
             return $"{fn}({EmitExpr(args[0])})";
         }
         if (bookName == "math" && m is "square root" or "log" or "power")
-            throw new CompilerException($"the math book's '{member}' (a double-backed transcendental) is the next slice (1B).");
+        {
+            // Double-backed transcendental (1B) → voidable number: non-finite / decimal-overflow →
+            // void (MathPartial). The raw call returns 1+*out or 0=void; wrap into the cvd inline,
+            // the same shape as a channel delivery / read-line.
+            _usesMath = true;
+            string cvd = RegisterVoidableStruct(new VoidableType(TNumber));
+            int id = _freshId++;
+            string call = m switch
+            {
+                "square root" => $"cufet_math_sqrt({EmitExpr(args[0])}, &cf_mv{id})",
+                "log"         => $"cufet_math_log({EmitExpr(args[0])}, &cf_mv{id})",
+                _             => $"cufet_math_power({EmitExpr(args[0])}, {EmitExpr(args[1])}, &cf_mv{id})",
+            };
+            _preEmits.Add($"CufetDec cf_mv{id}; int cf_mh{id} = {call};");
+            return $"(cf_mh{id} ? ({cvd}){{ .has = 1, .val = cf_mv{id} }} : ({cvd}){{ .has = 0 }})";
+        }
         if (bookName == "collections")
             throw new CompilerException($"the collections book's '{member}' is a later slice (1C aggregates / 1D matrix).");
         throw new CompilerException($"book '{bookName}' member '{member}' is not yet supported by the compiler.");

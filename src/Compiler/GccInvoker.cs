@@ -30,6 +30,8 @@ public sealed class GccInvoker
         // -pthread: harmless for non-threaded programs; required to link the concurrency runtime
         // (pthreads) on Linux. On mingw it's a no-op-ish flag (concurrency programs are POSIX-only).
         psi.ArgumentList.Add("-pthread");
+        // -lm: the math-book transcendentals (sqrt/log/pow) need libm on Linux; a no-op stub on mingw.
+        psi.ArgumentList.Add("-lm");
         foreach (var flag in extraFlags)
             psi.ArgumentList.Add(flag);
 
