@@ -2777,6 +2777,103 @@ public class PipelineTests
         Assert.Equal(Interpret(src), CompileWithASan(src));
     }
 
+    // ── Arc 1E: chance (the last Arc-1 slice) — INVARIANT-tested per the settled fork ──
+    // Randomness is NOT bit-identical across backends (unseeded System.Random is xoshiro256**,
+    // nondeterministic-by-design; the compiler uses its own xorshift64*). So the program CHECKS its
+    // own invariants and prints deterministic PASS lines: range+inclusive bounds, shuffle-is-a-
+    // permutation (multiset), item-membership, empty→void, guess domain, seeded self-consistency
+    // (same seed → same sequence WITHIN a backend), and element-type generality (record shuffle).
+
+    private const string ChanceInvariantBattery = """
+        Pull a book on chance.
+            Define range-ok as true.
+            For each n in the range 1 to 200, repeat:
+                Define r as a random number from 1 to 6.
+                If r is less than 1, range-ok becomes false.
+                If r is greater than 6, range-ok becomes false.
+            Done.
+            If range-ok, State "range PASS". Otherwise, State "range FAIL".
+            Define pin as a random number from 5 to 5.
+            If pin is 5, State "inclusive PASS". Otherwise, State "inclusive FAIL".
+            Define xs as a series with (1, 2, 3, 4, 5, 6, 7, 8, 9, 10).
+            Define sh as randomly shuffled xs.
+            Define perm-ok as true.
+            If (the number of sh) is not 10, perm-ok becomes false.
+            For each want in xs, repeat:
+                Define found as false.
+                For each got in sh, repeat:
+                    If got is want, found becomes true.
+                Done.
+                If not found, perm-ok becomes false.
+            Done.
+            If perm-ok, State "permutation PASS". Otherwise, State "permutation FAIL".
+            Define words as a series of text with ("alpha", "beta", "gamma").
+            Define pick as a random item from words.
+            Define pv as pick but void is "NONE".
+            Define member-ok as false.
+            For each w in words, repeat:
+                If pv is w, member-ok becomes true.
+            Done.
+            If member-ok, State "membership PASS". Otherwise, State "membership FAIL".
+            Define empty as a series of number with ().
+            Define nothing as a random item from empty.
+            If nothing is void, State "empty-void PASS". Otherwise, State "empty-void FAIL".
+            Define g as a random guess.
+            If g, State "guess in domain". Otherwise, State "guess in domain".
+            Seed the chance with 42.
+            Define s1 as a series of number with ().
+            For each n in the range 1 to 5, repeat:
+                Add (a random number from 1 to 1000000) to s1.
+            Done.
+            Seed the chance with 42.
+            Define s2 as a series of number with ().
+            For each n in the range 1 to 5, repeat:
+                Add (a random number from 1 to 1000000) to s2.
+            Done.
+            If s1 is s2, State "seed self-consistent PASS". Otherwise, State "seed self-consistent FAIL".
+            Define party as a series of records like (the text name, the number age).
+            Add a record with (the name "Ann", the age 25) to party.
+            Add a record with (the name "Bob", the age 30) to party.
+            Add a record with (the name "Cy", the age 35) to party.
+            Define shp as randomly shuffled party.
+            If (the number of shp) is 3, State "record-shuffle PASS". Otherwise, State "record-shuffle FAIL".
+        Done.
+        """;
+
+    private const string ChanceExpectedPass =
+        "range PASS\ninclusive PASS\npermutation PASS\nmembership PASS\nempty-void PASS\n" +
+        "guess in domain\nseed self-consistent PASS\nrecord-shuffle PASS";
+
+    [Fact]
+    public void Chance_Invariants_CompiledAllPass()
+    {
+        Assert.Equal(ChanceExpectedPass, Compile(ChanceInvariantBattery));
+    }
+
+    [Fact]
+    public void Chance_Invariants_InterpretedAllPass()
+    {
+        // The same invariants hold in the oracle — each backend is checked against the PROPERTY,
+        // not against the other's bit-stream (the CONC.5 discipline for nondeterministic features).
+        Assert.Equal(ChanceExpectedPass, Interpret(ChanceInvariantBattery));
+    }
+
+    [Fact]
+    public void Chance_Shuffle_MemorySafety_ASan()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // randomly shuffled builds a NEW arena series (like sorted/unique) — must free cleanly.
+        const string src = """
+            Pull a book on chance.
+                Define xs as a series with (1, 2, 3, 4, 5, 6, 7, 8).
+                Define sh as randomly shuffled xs.
+                If (the number of sh) is 8, State "ok". Otherwise, State "bad".
+            Done.
+            """;
+        Assert.Equal("ok", CompileWithASan(src));
+    }
+
     [Fact]
     public void Sort_MemorySafety_ASan()
     {

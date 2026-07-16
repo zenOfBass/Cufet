@@ -79,6 +79,11 @@ public sealed class CodeGenerator
     // Set when the program uses matrices (the collections book's introduced type), so the matrix
     // runtime is emitted (only then). A matrix is an arena reference type like series/maps.
     private bool _usesMatrix;
+    // Set when the program uses the chance book's randomness nodes, so the PRNG runtime is emitted.
+    // Per the settled fork: ANY C PRNG + invariant-testing — NOT bit-identity with System.Random
+    // (unseeded .NET is xoshiro256**, nondeterministic-by-design; the seeded-port is a documented
+    // follow-on in the gap audit). Seeded runs are self-consistent WITHIN a backend.
+    private bool _usesChance;
 
     // CONC.E — set when the program uses interrupt constructs (`Yield.`, `an interrupt is requested`,
     // `Acknowledge the interrupt.`) or concurrency (blocked channel-waits are made interruptible). When
@@ -898,6 +903,49 @@ static void cufet_mat_write(CufetMatrix* m) {
 
 """;
 
+    // Chance runtime (Arc 1E — the chance book). A small self-contained xorshift64* PRNG: seedable
+    // via `Seed the chance with N` (truncated to integer, mixed, nonzero-forced), lazily time-seeded
+    // on first use when unseeded (each run differs, like the interpreter's unseeded Random). The
+    // observable GUARANTEE is per-backend: a seeded run is self-consistent (same seed → same
+    // sequence within this backend); cross-backend sequences intentionally differ (settled fork —
+    // invariants, not bit-identity). Single global state, matching the interpreter's one _rng.
+    private const string ChanceRuntime =
+"""
+#include <time.h>
+static unsigned long long cufet_rng_state;
+static int cufet_rng_inited = 0;
+static void cufet_rng_seed(long long s) {
+    unsigned long long z = (unsigned long long)s + 0x9E3779B97F4A7C15ULL;   /* splitmix64 mix */
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+    cufet_rng_state = z ^ (z >> 31);
+    if (cufet_rng_state == 0) cufet_rng_state = 88172645463325252ULL;
+    cufet_rng_inited = 1;
+}
+static unsigned long long cufet_rng_u64(void) {
+    if (!cufet_rng_inited) cufet_rng_seed((long long)time(NULL) ^ ((long long)clock() << 20));
+    unsigned long long x = cufet_rng_state;
+    x ^= x << 13; x ^= x >> 7; x ^= x << 17;
+    cufet_rng_state = x;
+    return x * 0x2545F4914F6CDD1DULL;
+}
+static long long cufet_rng_below(long long bound) {   /* uniform-ish in [0, bound); bound > 0 */
+    return (long long)(cufet_rng_u64() % (unsigned long long)bound);
+}
+/* `a random number from L to H` — inclusive bounds ([lo, hi], matching .Next(lo, hi+1)); the
+   decimal low>high check + message mirror the interpreter's RuntimeException. */
+static CufetDec cufet_random_number(CufetDec low, CufetDec high, int line) {
+    if (cufet_cmp(low, high) > 0) {
+        fprintf(stderr, "Random number range is invalid: low (%s) is greater than high (%s) (line %d).\n",
+                cufet_text_from_dec(low), cufet_text_from_dec(high), line);
+        exit(1);
+    }
+    long long lo = cufet_to_int(low), hi = cufet_to_int(high);
+    return cufet_dec_from_ll(lo + cufet_rng_below(hi - lo + 1));
+}
+
+""";
+
     // SIGINT signal substrate (CONC.E): true-preemptive interrupt. Emitted when the program uses
     // interrupt constructs OR concurrency (blocked channel-waits become interruptible). The handler is
     // MINIMAL + async-signal-safe (it only sets an atomic flag); all real work happens at cooperative
@@ -1217,6 +1265,9 @@ static void* cufet_pipe_stage(void* argp) {
 
         // ── Exact-decimal math runtime (only when a math total function is used) ──
         if (_usesMath) sb.AppendLine(MathRuntime);
+
+        // ── Chance runtime (only when randomness is used) ──
+        if (_usesChance) sb.AppendLine(ChanceRuntime);
 
         // ── Subprocess runtime (only when `run`/pipe is used; discovered during the body pass) ──
         if (_usesProcess) sb.AppendLine(ProcessRuntime);
@@ -1674,6 +1725,57 @@ static void* cufet_pipe_stage(void* argp) {
         return dst;
     }
 
+    // ── Chance (Arc 1E) ───────────────────────────────────────────────────────
+
+    private string EmitRandomNumber(RandomNumber rn)
+    {
+        _usesChance = true;
+        string lo = EmitExpr(rn.Low);
+        string hi = EmitExpr(rn.High);
+        return $"cufet_random_number({lo}, {hi}, {rn.Line})";
+    }
+
+    private string EmitRandomGuess()
+    {
+        _usesChance = true;
+        return "(cufet_rng_below(2) == 1)";   // a fact, uniform over {true, false}
+    }
+
+    // `a random item from xs` → voidable element: void on an empty series (matches the interpreter),
+    // else a uniform pick. Element-type-general (the series-of-T payoff).
+    private string EmitRandomItem(RandomItem ri)
+    {
+        _usesChance = true;
+        var st = (SeriesType)TypeOf(ri.Series);
+        string cvd = RegisterVoidableStruct(new VoidableType(st.ElementType));
+        string src = EmitExpr(ri.Series);
+        int id = _freshId++;
+        _preEmits.Add(
+            $"{RegisterSeriesStruct(st)}* cf_ri{id} = {src}; int cf_rh{id} = cf_ri{id}->len > 0; " +
+            $"{EmitCType(st.ElementType)} cf_rv{id}; " +
+            $"if (cf_rh{id}) cf_rv{id} = cf_ri{id}->data[cufet_rng_below(cf_ri{id}->len)];");
+        return $"(cf_rh{id} ? ({cvd}){{ .has = 1, .val = cf_rv{id} }} : ({cvd}){{ .has = 0 }})";
+    }
+
+    // `randomly shuffled xs` → a NEW arena series (non-mutating, like sorted/unique), Fisher-Yates
+    // downward with j in [0, i] — the interpreter's exact procedure (over a different PRNG).
+    private string EmitRandomlyShuffled(RandomlyShuffled rs)
+    {
+        _usesChance = true;
+        var st = (SeriesType)TypeOf(rs.Series);
+        string ser = RegisterSeriesStruct(st);
+        string src = EmitExpr(rs.Series);
+        int id = _freshId++;
+        _preEmits.Add(
+            $"{ser}* cf_sh{id} = {src}; {ser}* cf_sd{id} = {ser}_new(); " +
+            $"for (int cf_i{id} = 0; cf_i{id} < cf_sh{id}->len; cf_i{id}++) {ser}_append(cf_sd{id}, cf_sh{id}->data[cf_i{id}]); " +
+            $"for (int cf_i{id} = cf_sd{id}->len - 1; cf_i{id} > 0; cf_i{id}--) {{ " +
+            $"long long cf_j{id} = cufet_rng_below(cf_i{id} + 1); " +
+            $"{EmitCType(st.ElementType)} cf_t{id} = cf_sd{id}->data[cf_i{id}]; " +
+            $"cf_sd{id}->data[cf_i{id}] = cf_sd{id}->data[cf_j{id}]; cf_sd{id}->data[cf_j{id}] = cf_t{id}; }}");
+        return $"cf_sd{id}";
+    }
+
     // ── Matrix (Arc 1D) ───────────────────────────────────────────────────────
 
     private string MatrixCType() { _usesMatrix = true; return "CufetMatrix*"; }
@@ -2071,6 +2173,17 @@ static void* cufet_pipe_stage(void* argp) {
                 _usesSignals = true;
                 sb.AppendLine($"{indent}cufet_interrupted = 0;");
                 break;
+
+            case SeedChanceStatement ss:
+            {
+                // `Seed the chance with N.` — reseed the PRNG (seed truncated to integer, like the
+                // interpreter's (int)(decimal) cast). Guarantee: self-consistent WITHIN this backend.
+                _usesChance = true;
+                string seed = EmitExpr(ss.Seed);
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}cufet_rng_seed(cufet_to_int({seed}));");
+                break;
+            }
 
             case PullStatement ps:
             {
@@ -2517,6 +2630,10 @@ static void* cufet_pipe_stage(void* argp) {
         // FallibleReturnType, for Try / but-on-failure / propagate), exactly like a fallible call.
         AwaitedResultExpression are => AwaitedResultInnerType(are),
         SortExpression sort   => TypeOf(sort.Series),           // sorted is element-type-preserving
+        RandomNumber          => TNumber,
+        RandomGuess           => TFact,
+        RandomItem ri         => new VoidableType(((SeriesType)TypeOf(ri.Series)).ElementType),   // void on empty
+        RandomlyShuffled rs   => TypeOf(rs.Series),             // element-type-preserving, like sorted
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
@@ -2963,6 +3080,10 @@ static void* cufet_pipe_stage(void* argp) {
         MatrixAccess ma       => EmitMatrixAccess(ma),
         MatrixRows mr         => $"cufet_dec_from_ll(({EmitExpr(mr.Target)})->rows)",
         MatrixColumns mc      => $"cufet_dec_from_ll(({EmitExpr(mc.Target)})->cols)",
+        RandomNumber rn       => EmitRandomNumber(rn),
+        RandomGuess           => EmitRandomGuess(),
+        RandomItem ri         => EmitRandomItem(ri),
+        RandomlyShuffled rs   => EmitRandomlyShuffled(rs),
         ReadExpression re     => EmitReadExpr(re),
         PathCheckExpression pc => pc.Kind switch
         {
