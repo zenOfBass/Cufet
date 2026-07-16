@@ -76,6 +76,9 @@ public sealed class CodeGenerator
     // Set when an exact-decimal math function (floor/ceiling/round/absolute value) is used, so the
     // math runtime is emitted (only then). pi/e are baked as decimal literals, not runtime funcs.
     private bool _usesMath;
+    // Set when the program uses matrices (the collections book's introduced type), so the matrix
+    // runtime is emitted (only then). A matrix is an arena reference type like series/maps.
+    private bool _usesMatrix;
 
     // CONC.E — set when the program uses interrupt constructs (`Yield.`, `an interrupt is requested`,
     // `Acknowledge the interrupt.`) or concurrency (blocked channel-waits are made interruptible). When
@@ -814,6 +817,87 @@ static int cufet_math_power(CufetDec a, CufetDec b, CufetDec* out) {
 
 """;
 
+    // Matrix runtime (Arc 1D — the collections book's introduced type). A matrix is an ARENA
+    // REFERENCE type like series/maps (shared on assign — matches the interpreter, where MatrixValue
+    // is never deep-copied; matrices are immutable after construction, so share-vs-copy is
+    // unobservable anyway). All arithmetic is EXACT CufetDec (cufet_add/cufet_mul folds — no double
+    // bridge). add/sub/mul return NULL on dimension mismatch: the EMIT SITE wraps that into the
+    // fallible `matrix or failure` (the typechecker requires handling — dimension mismatch is a
+    // Cufet FAILURE with category "dimension-mismatch", not a crash; messages match the interpreter).
+    // Element order + the multiply's k-ascending accumulation from 0 replicate Interpreter.Matrix.cs
+    // exactly, so results are bit-identical.
+    private const string MatrixRuntime =
+"""
+typedef struct { int rows; int cols; CufetDec* data; } CufetMatrix;
+static CufetMatrix* cufet_mat_new(int rows, int cols) {
+    CufetMatrix* m = (CufetMatrix*)cufet_arena_alloc(sizeof(CufetMatrix));
+    m->rows = rows; m->cols = cols;
+    m->data = (CufetDec*)cufet_arena_alloc(sizeof(CufetDec) * (size_t)rows * (size_t)cols);
+    memset(m->data, 0, sizeof(CufetDec) * (size_t)rows * (size_t)cols);   /* all-zero bytes == decimal 0 */
+    return m;
+}
+/* 1-based access, bounds-checked — the messages mirror the interpreter's RuntimeException text. */
+static CufetDec cufet_mat_get(CufetMatrix* m, long long r, long long c, int line) {
+    if (r < 1 || r > m->rows) { fprintf(stderr, "Row index %lld is out of range — this matrix has %d row(s) (line %d).\n", r, m->rows, line); exit(1); }
+    if (c < 1 || c > m->cols) { fprintf(stderr, "Column index %lld is out of range — this matrix has %d column(s) (line %d).\n", c, m->cols, line); exit(1); }
+    return m->data[(r - 1) * m->cols + (c - 1)];
+}
+/* `a matrix of R by C [filled with F]` — runtime validation for non-literal dimensions
+   (literals are rejected statically by the typechecker), matching the interpreter's messages. */
+static CufetMatrix* cufet_mat_sized(CufetDec rd, CufetDec cd, CufetDec fill, int line) {
+    long long r = cufet_to_int(rd), c = cufet_to_int(cd);
+    if (cufet_cmp(rd, cufet_dec_from_ll(r)) != 0 || r < 1) { fprintf(stderr, "Matrix row count must be a positive whole number, but got %s (line %d).\n", cufet_text_from_dec(rd), line); exit(1); }
+    if (cufet_cmp(cd, cufet_dec_from_ll(c)) != 0 || c < 1) { fprintf(stderr, "Matrix column count must be a positive whole number, but got %s (line %d).\n", cufet_text_from_dec(cd), line); exit(1); }
+    CufetMatrix* m = cufet_mat_new((int)r, (int)c);
+    if (cufet_cmp(fill, cufet_dec_from_ll(0)) != 0)   /* interpreter skips the fill when it equals 0 */
+        for (long long i = 0; i < r * c; i++) m->data[i] = fill;
+    return m;
+}
+static CufetMatrix* cufet_mat_add(CufetMatrix* a, CufetMatrix* b) {
+    if (a->rows != b->rows || a->cols != b->cols) return NULL;
+    CufetMatrix* m = cufet_mat_new(a->rows, a->cols);
+    for (int i = 0; i < a->rows * a->cols; i++) m->data[i] = cufet_add(a->data[i], b->data[i]);
+    return m;
+}
+static CufetMatrix* cufet_mat_sub(CufetMatrix* a, CufetMatrix* b) {
+    if (a->rows != b->rows || a->cols != b->cols) return NULL;
+    CufetMatrix* m = cufet_mat_new(a->rows, a->cols);
+    for (int i = 0; i < a->rows * a->cols; i++) m->data[i] = cufet_sub(a->data[i], b->data[i]);
+    return m;
+}
+static CufetMatrix* cufet_mat_mul(CufetMatrix* a, CufetMatrix* b) {   /* real matrix product, m×n · n×p */
+    if (a->cols != b->rows) return NULL;
+    CufetMatrix* m = cufet_mat_new(a->rows, b->cols);
+    for (int r = 0; r < a->rows; r++)
+        for (int c = 0; c < b->cols; c++) {
+            CufetDec s = cufet_dec_from_ll(0);
+            for (int k = 0; k < a->cols; k++)
+                s = cufet_add(s, cufet_mul(a->data[r * a->cols + k], b->data[k * b->cols + c]));
+            m->data[r * b->cols + c] = s;
+        }
+    return m;
+}
+static CufetMatrix* cufet_mat_transpose(CufetMatrix* a) {
+    CufetMatrix* m = cufet_mat_new(a->cols, a->rows);
+    for (int r = 0; r < a->rows; r++)
+        for (int c = 0; c < a->cols; c++)
+            m->data[c * a->rows + r] = a->data[r * a->cols + c];
+    return m;
+}
+/* matrix((1, 2), (3, 4)) — matches the interpreter's FormatMatrix exactly. */
+static void cufet_mat_write(CufetMatrix* m) {
+    printf("matrix(");
+    for (int r = 0; r < m->rows; r++) {
+        if (r) printf(", ");
+        printf("(");
+        for (int c = 0; c < m->cols; c++) { if (c) printf(", "); cufet_write_number(m->data[r * m->cols + c]); }
+        printf(")");
+    }
+    printf(")");
+}
+
+""";
+
     // SIGINT signal substrate (CONC.E): true-preemptive interrupt. Emitted when the program uses
     // interrupt constructs OR concurrency (blocked channel-waits become interruptible). The handler is
     // MINIMAL + async-signal-safe (it only sets an atomic flag); all real work happens at cooperative
@@ -1030,7 +1114,30 @@ static void* cufet_pipe_stage(void* argp) {
             .Where(b => b.UntoType == null)
             .ToList();
 
+        // Binds declared DIRECTLY inside a top-level `Pull a book` body are HOISTED and compiled as
+        // ordinary free functions — the book scope is compile-time, so a Pull-body bind is morally
+        // top-level (and matrix-typed functions can ONLY live inside a collections pull, since the
+        // type isn't in scope outside it). Their book aliases are re-activated while their bodies
+        // emit so book members resolve. Captured pull-scope locals are the closures gap (best-effort
+        // clean throw via the task-capture walker).
+        var pullBinds = new List<(BindStatement Bind, List<(string Local, string Book)> Aliases)>();
+        void CollectPullBinds(IReadOnlyList<IStatement> stmts, List<(string Local, string Book)> aliases)
+        {
+            foreach (var st in stmts)
+                if (st is PullStatement ps)
+                {
+                    var inner = new List<(string Local, string Book)>(aliases);
+                    foreach (var (bookName, localName) in ps.Books) inner.Add((localName, bookName.ToLowerInvariant()));
+                    foreach (var s2 in ps.Body)
+                        if (s2 is BindStatement pb && pb.UntoType == null) pullBinds.Add((pb, inner));
+                    CollectPullBinds(ps.Body, inner);   // nested pulls (the walker only matches PullStatement)
+                }
+        }
+        CollectPullBinds(program.Statements, new List<(string, string)>());
+
         foreach (var bind in topFuncs)
+            _funcReturnTypes[bind.Name] = bind.ReturnType;
+        foreach (var (bind, _) in pullBinds)
             _funcReturnTypes[bind.Name] = bind.ReturnType;
 
         // Object method / getter / setter bodies (each a C function taking a receiver pointer).
@@ -1043,6 +1150,24 @@ static void* cufet_pipe_stage(void* argp) {
 
         foreach (var bind in topFuncs)
             EmitBind(body, bind);
+
+        foreach (var (bind, aliases) in pullBinds)
+        {
+            // Best-effort capture check: a hoisted bind must not reference pull-scope locals
+            // (params + its own defines + functions + book aliases are fine — anything else is
+            // a closure capture, the deferred gap).
+            var refs = new HashSet<string>(); var defs = new HashSet<string>();
+            foreach (var s in bind.Body) CollectRefsDefs(s, refs, defs);
+            var known = new HashSet<string>(bind.Parameters.Select(p => p.Name)
+                .Concat(defs).Concat(_funcReturnTypes.Keys).Concat(aliases.Select(a => a.Local)));
+            var captured = refs.Where(r => !known.Contains(r) && r != "it" && r != "input" && r != "the failure").ToList();
+            if (captured.Count > 0)
+                throw new CompilerException(
+                    $"function '{bind.Name}' (inside a Pull-book block) captures '{captured[0]}' from the pull scope — closures are not yet supported by the compiler.");
+            foreach (var (local, book) in aliases) _bookAliases[local] = book;
+            EmitBind(body, bind);
+            foreach (var (local, _) in aliases) _bookAliases.Remove(local);
+        }
 
         // ── main() ────────────────────────────────────────────────────────
         // A global arena is pushed so series created at top level (outside an
@@ -1080,6 +1205,9 @@ static void* cufet_pipe_stage(void* argp) {
         EmitSeriesForwardDecls(sb);
         EmitMapForwardDecls(sb);
 
+        // ── Matrix runtime (before EmitStructs: failable/record/series structs may hold CufetMatrix*) ──
+        if (_usesMatrix) sb.AppendLine(MatrixRuntime);
+
         // ── Struct declarations (records + objects + voidables) + write/eq helpers ──
         EmitStructs(sb);
 
@@ -1113,6 +1241,8 @@ static void* cufet_pipe_stage(void* argp) {
             foreach (var s in def.Setters)      sb.AppendLine($"{SetterSignature(def, s)};");
         }
         foreach (var bind in topFuncs)
+            sb.AppendLine($"{EmitFunctionSignature(bind)};");
+        foreach (var (bind, _) in pullBinds)
             sb.AppendLine($"{EmitFunctionSignature(bind)};");
         sb.AppendLine();
 
@@ -1172,6 +1302,7 @@ static void* cufet_pipe_stage(void* argp) {
         VoidableType v => "V(" + TypeSig(v.Inner) + ")",
         MapType m => "M(" + TypeSig(m.KeyType) + "," + TypeSig(m.ValueType) + ")",
         FailureType f => "F(" + TypeSig(f.Inner) + ")",
+        MatrixType => "MX",   // one fixed runtime struct (CufetMatrix*) — identity is the type itself
         _ => throw new CompilerException(
                  $"'{t.GetType().Name}' is not yet supported by the compiler (slice 5B: records + objects + text).")
     };
@@ -1543,6 +1674,75 @@ static void* cufet_pipe_stage(void* argp) {
         return dst;
     }
 
+    // ── Matrix (Arc 1D) ───────────────────────────────────────────────────────
+
+    private string MatrixCType() { _usesMatrix = true; return "CufetMatrix*"; }
+
+    // A +/−/× whose operands are both matrices — routed through the FALLIBLE machinery (dimension
+    // mismatch is a Cufet failure the typechecker requires handling for).
+    private bool IsMatrixOp(BinaryExpression b) =>
+        b.Op is TokenType.Plus or TokenType.Minus or TokenType.Star
+        && TypeOf(b.Left) is MatrixType && TypeOf(b.Right) is MatrixType;
+
+    // The raw `matrix or failure` (cfl) for a matrix binary op: the runtime fn returns NULL on a
+    // dimension mismatch; the emit site wraps that into the cfl with the interpreter's exact
+    // deterministic message + "dimension-mismatch" category.
+    private string EmitMatrixOpRaw(BinaryExpression b)
+    {
+        _usesMatrix = true;
+        string cfl = RegisterFailableStruct(new FailureType(MatrixType.Instance));
+        string l = EmitExpr(b.Left);
+        string r = EmitExpr(b.Right);
+        (string fn, string msg) = b.Op switch
+        {
+            TokenType.Plus  => ("cufet_mat_add", "matrices must have equal dimensions for addition"),
+            TokenType.Minus => ("cufet_mat_sub", "matrices must have equal dimensions for subtraction"),
+            _               => ("cufet_mat_mul", "left matrix columns must equal right matrix rows for matrix product"),
+        };
+        int id = _freshId++;
+        _preEmits.Add(
+            $"{cfl} cf_mx{id}; {{ CufetMatrix* cf_mr{id} = {fn}({l}, {r}); " +
+            $"if (cf_mr{id}) {{ cf_mx{id}.is_failure = 0; cf_mx{id}.val = cf_mr{id}; cf_mx{id}.message = 0; cf_mx{id}.category = 0; }} " +
+            $"else {{ cf_mx{id}.is_failure = 1; cf_mx{id}.message = \"{msg}\"; cf_mx{id}.category = \"dimension-mismatch\"; }} }}");
+        return $"cf_mx{id}";
+    }
+
+    private string EmitMatrixSized(MatrixSized ms)
+    {
+        _usesMatrix = true;
+        string r = EmitExpr(ms.Rows);
+        string c = EmitExpr(ms.Cols);
+        string f = ms.Fill != null ? EmitExpr(ms.Fill) : "cufet_dec_from_ll(0)";
+        return $"cufet_mat_sized({r}, {c}, {f}, {ms.Line})";
+    }
+
+    private string EmitMatrixAccess(MatrixAccess ma)
+    {
+        _usesMatrix = true;
+        string m = EmitExpr(ma.Matrix);
+        string r = EmitExpr(ma.Row);
+        string c = EmitExpr(ma.Column);
+        return $"cufet_mat_get({m}, cufet_to_int({r}), cufet_to_int({c}), {ma.Line})";
+    }
+
+    // `a matrix with ((1, 2), (3, 4))` — dimensions are literal-known; elements evaluated row-major
+    // (the interpreter's order, so side effects and preemits sequence identically).
+    private string EmitMatrixLiteral(MatrixLiteral ml)
+    {
+        _usesMatrix = true;
+        int rows = ml.Rows.Count, cols = ml.Rows[0].Count;
+        int id = _freshId++;
+        string tmp = $"cf_mt{id}";
+        _preEmits.Add($"CufetMatrix* {tmp} = cufet_mat_new({rows}, {cols});");
+        for (int r = 0; r < rows; r++)
+            for (int c = 0; c < cols; c++)
+            {
+                string el = EmitExpr(ml.Rows[r][c]);
+                _preEmits.Add($"{tmp}->data[{r * cols + c}] = {el};");
+            }
+        return tmp;
+    }
+
     private string EqCall(string a, string b, CufetType t) => t switch
     {
         NumberType => $"cufet_cmp({a}, {b}) == 0",
@@ -1553,6 +1753,7 @@ static void* cufet_pipe_stage(void* argp) {
         ObjectType ot => $"{ObjStructName(ot.Name)}_eq({a}, {b})",
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_eq({a}, {b})",
         MapType => $"({a} == {b})",   // maps: reference (pointer) equality, like the interpreter
+        MatrixType => $"({a} == {b})",   // matrices: reference equality (interpreter ValuesEqual fallthrough)
         _ => throw new CompilerException($"equality on a '{t.GetType().Name}' is not yet supported by the compiler.")
     };
 
@@ -1568,6 +1769,7 @@ static void* cufet_pipe_stage(void* argp) {
         ObjectType ot => $"{ObjStructName(ot.Name)}_write({valExpr})",
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr})",
         MapType mt => $"{RegisterMapStruct(mt)}_write({valExpr})",
+        MatrixType => $"cufet_mat_write({valExpr})",
         _ => throw new CompilerException(
                  $"printing a '{t.GetType().Name}' is not yet supported by the compiler.")
     };
@@ -1654,6 +1856,7 @@ static void* cufet_pipe_stage(void* argp) {
                     ObjectType ot   => $"{ObjStructName(ot.Name)}_write({valExpr}); printf(\"\\n\")",
                     VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr}); printf(\"\\n\")",
                     MapType mt      => $"{RegisterMapStruct(mt)}_write({valExpr}); printf(\"\\n\")",
+                    MatrixType      => $"cufet_mat_write({valExpr}); printf(\"\\n\")",
                     _ => throw new CompilerException($"State of a '{t.GetType().Name}' is not yet supported by the compiler.")
                 };
                 sb.AppendLine($"{indent}{printStmt};");
@@ -1882,7 +2085,8 @@ static void* cufet_pipe_stage(void* argp) {
                     added.Add(localName);
                 }
                 sb.AppendLine($"{indent}{{");
-                EmitBlock(sb, ps.Body, indent + "    ");
+                // Binds in the body were HOISTED to free functions at Generate time — skip them here.
+                EmitBlock(sb, ps.Body.Where(s => s is not BindStatement).ToList(), indent + "    ");
                 sb.AppendLine($"{indent}}}");
                 foreach (var l in added) _bookAliases.Remove(l);
                 break;
@@ -2254,7 +2458,14 @@ static void* cufet_pipe_stage(void* argp) {
         SeriesLength          => TNumber,
         SeriesAccess sa       => SeriesAccessType(sa),
         UnaryExpression u     => u.Op == TokenType.Not ? TFact : TNumber,
-        BinaryExpression b    => IsArithmeticOp(b.Op) ? TNumber : TFact,
+        // A matrix binary op's VALUE type is matrix (the raw `matrix or failure` is seen only by
+        // FallibleReturnType — same unwrap convention as fallible calls).
+        BinaryExpression b    => IsMatrixOp(b) ? MatrixType.Instance : IsArithmeticOp(b.Op) ? TNumber : TFact,
+        MatrixLiteral         => MatrixType.Instance,
+        MatrixSized           => MatrixType.Instance,
+        MatrixAccess          => TNumber,
+        MatrixRows            => TNumber,
+        MatrixColumns         => TNumber,
         VariableReference vr  => vr.Name == "input" ? new ReadableStreamType(TText)   // `the input` = stdin
                                : _narrowedVars.TryGetValue(vr.Name, out var nt) ? nt
                                : _varTypes.TryGetValue(vr.Name, out var t) ? t : TNumber,
@@ -2320,6 +2531,7 @@ static void* cufet_pipe_stage(void* argp) {
         if (bookName == "math" && m is "square root" or "log" or "power") return new VoidableType(TNumber);
         if (bookName == "collections" && m is "minimum" or "maximum" or "average") return new VoidableType(TNumber);
         if (bookName == "collections" && m == "unique" && args.Count > 0) return TypeOf(args[0]);
+        if (bookName == "collections" && m == "transpose") return MatrixType.Instance;
         return TNumber;   // conservative default (unresolved books surface at emit)
     }
 
@@ -2384,6 +2596,7 @@ static void* cufet_pipe_stage(void* argp) {
         FileReadExpression fr => new FailureType(FileReadSuccessType(fr)),
         RunExpression or PipeExpression => new FailureType(RunResultRecordType),
         AwaitedResultExpression are when AwaitedRawResultType(are) is FailureType aft => aft,
+        BinaryExpression b when IsMatrixOp(b) => new FailureType(MatrixType.Instance),
         _ => null,
     };
 
@@ -2745,6 +2958,11 @@ static void* cufet_pipe_stage(void* argp) {
         AwaitedResultExpression are => EmitAwaitedResult(are),
         InterruptRequestedExpression => EmitInterruptRequested(),
         SortExpression sort   => EmitSort(sort),
+        MatrixLiteral ml      => EmitMatrixLiteral(ml),
+        MatrixSized ms        => EmitMatrixSized(ms),
+        MatrixAccess ma       => EmitMatrixAccess(ma),
+        MatrixRows mr         => $"cufet_dec_from_ll(({EmitExpr(mr.Target)})->rows)",
+        MatrixColumns mc      => $"cufet_dec_from_ll(({EmitExpr(mc.Target)})->cols)",
         ReadExpression re     => EmitReadExpr(re),
         PathCheckExpression pc => pc.Kind switch
         {
@@ -3579,6 +3797,8 @@ static void* cufet_pipe_stage(void* argp) {
             var aft = info.ResultType as FailureType ?? new FailureType(info.ResultType ?? TNumber);
             return (RegisterFailableStruct(aft), raw);
         }
+        if (expr is BinaryExpression mb && IsMatrixOp(mb))   // matrix +/−/× with but-on-failure / propagate
+            return (RegisterFailableStruct(new FailureType(MatrixType.Instance)), EmitMatrixOpRaw(mb));
         if (FallibleReturnType(expr) is { } ft)
             return (RegisterFailableStruct(ft), EmitCall(((CastExpression)expr).Function, ((CastExpression)expr).Args));
         // A bare failure literal (or other failable) as the operand — coerce into cfl of the result T.
@@ -3692,8 +3912,13 @@ static void* cufet_pipe_stage(void* argp) {
                 $"if (!cf_sn{id}) {ser}_append(cf_ud{id}, cf_us{id}->data[cf_i{id}]); }}");
             return $"cf_ud{id}";
         }
+        if (bookName == "collections" && m == "transpose")
+        {
+            _usesMatrix = true;
+            return $"cufet_mat_transpose({EmitExpr(args[0])})";   // infallible: cols×rows flip
+        }
         if (bookName == "collections")
-            throw new CompilerException($"the collections book's '{member}' is a later slice (1D matrix/transpose).");
+            throw new CompilerException($"the collections book's member '{member}' is not supported by the compiler.");
         throw new CompilerException($"book '{bookName}' member '{member}' is not yet supported by the compiler.");
     }
 
@@ -3747,6 +3972,11 @@ static void* cufet_pipe_stage(void* argp) {
         // so it must be handled before EmitExpr touches the operands.
         if (b.Op is TokenType.Equal or TokenType.NotEqual && EmitVoidableComparison(b) is { } vc)
             return vc;
+
+        // Matrix arithmetic is FALLIBLE (dimension mismatch → failure): a bare matrix op routes
+        // through the standard fallible machinery — check-goto in a Try, exactly like a fallible call.
+        if (IsMatrixOp(b))
+            return EmitFallibleCheckGoto(EmitMatrixOpRaw(b), RegisterFailableStruct(new FailureType(MatrixType.Instance)));
 
         string L = EmitExpr(b.Left);
         string R = EmitExpr(b.Right);
@@ -3833,6 +4063,7 @@ static void* cufet_pipe_stage(void* argp) {
         FailureMarkerType => "CufetFailure",         // a caught / bare failure (message + category)
         ReadableStreamType or WritableStreamType => "FILE*",   // a stream is an open FILE* (or stdin)
         ChannelType => "cufet_chan*",                          // a channel is a shared mutex/condvar queue
+        MatrixType => MatrixCType(),                           // a matrix is an arena pointer (reference type)
         _ => throw new CompilerException(
                  $"'{type!.GetType().Name}' is not yet supported by the compiler (slice 5B: records + text; objects/maps later).")
     };

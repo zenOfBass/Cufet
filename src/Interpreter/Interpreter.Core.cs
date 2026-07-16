@@ -1427,8 +1427,29 @@ public sealed partial class Interpreter
         Dictionary<object, object> dict =>
             "map {" + string.Join(", ", dict.Select(kvp => $"{Format(kvp.Key)}: {Format(kvp.Value)}")) + "}",
         MappingValue mv  => $"mapping({Format(mv.Key)}: {Format(mv.Value)})",
+        MatrixValue mx   => FormatMatrix(mx),
         _                => val.ToString()!,
     };
+
+    // matrix((1, 2), (3, 4)) — mirrors the literal syntax (rows as parenthesized lists), the same
+    // convention as record(...)/mapping(...). Added when the native compiler gained matrices: the
+    // previous fallthrough leaked the host type name (Cufet.Interpreter.Interpreter+MatrixValue).
+    private static string FormatMatrix(MatrixValue mx)
+    {
+        var sb = new System.Text.StringBuilder("matrix(");
+        for (int r = 1; r <= mx.Rows; r++)
+        {
+            if (r > 1) sb.Append(", ");
+            sb.Append('(');
+            for (int c = 1; c <= mx.Cols; c++)
+            {
+                if (c > 1) sb.Append(", ");
+                sb.Append(Format(mx.GetItem(r, c)));
+            }
+            sb.Append(')');
+        }
+        return sb.Append(')').ToString();
+    }
 
     // Named fields print sorted by name (Ordinal) so that structurally-equal records —
     // which are order-insensitive by type — always print identically regardless of the

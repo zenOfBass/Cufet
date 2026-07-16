@@ -2629,6 +2629,154 @@ public class PipelineTests
         Assert.Equal(Interpret(src), CompileWithASan(src));
     }
 
+    // ── Arc 1D: matrix (the new-type capstone of the collections book) ──
+    // CufetMatrix = arena reference type (shared on assign, matching the interpreter — matrices are
+    // immutable after construction). All arithmetic is EXACT CufetDec. Dimension mismatch is a Cufet
+    // FAILURE (category "dimension-mismatch") the typechecker requires handling for. Printing uses
+    // the FormatMatrix format added to BOTH backends this slice: matrix((1, 2), (3, 4)).
+
+    [Fact]
+    public void Matrix_LiteralSizedAccess_OracleMatch()
+    {
+        const string src = """
+            Pull a book on collections.
+                Define m as a matrix with ((1, 2), (3, 4)).
+                State m.
+                State the rows of m.
+                State the columns of m.
+                State the item at (1, 2) of m.
+                State the item at (2, 1) of m.
+                Define g as a matrix with 2 by 3 filled with 7.
+                State g.
+                Define z as a matrix with 2 by 2.
+                State z.
+                Define fr as a matrix with ((0.1, 0.2), (1.5, -2.75)).
+                State fr.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Matrix_Arithmetic_ExactDecimal_InclNonSquareMultiply()
+    {
+        // add/sub with fractional elements (exact decimal), square multiply, and the 2×3 · 3×2
+        // real matrix product — accumulation order replicates the interpreter, so bit-identical.
+        const string src = """
+            Pull a book on collections.
+                Define m as a matrix with ((1, 2), (3, 4)).
+                Define fr as a matrix with ((0.1, 0.2), (1.5, -2.75)).
+                Try to:
+                    Define s as m + fr.
+                    State s.
+                    Define d as m - fr.
+                    State d.
+                    Define p as m * m.
+                    State p.
+                    Define ns1 as a matrix with ((1, 2, 3), (4, 5, 6)).
+                    Define ns2 as a matrix with ((7, 8), (9, 10), (11, 12)).
+                    State ns1 * ns2.
+                Done.
+                In case of failure:
+                    State "unexpected".
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Matrix_DimensionMismatch_IsCufetFailure()
+    {
+        // Mismatched add and non-conforming multiply → failures with the interpreter's exact
+        // deterministic messages + the "dimension-mismatch" category, caught by Try.
+        const string src = """
+            Pull a book on collections.
+                Define m as a matrix with ((1, 2), (3, 4)).
+                Define wide as a matrix with ((1, 2, 3), (4, 5, 6)).
+                Try to:
+                    Define oops as m + wide.
+                    State "no failure".
+                Done.
+                In case of failure:
+                    State the message of the failure.
+                    State the category of the failure but void is "none".
+                Done.
+                Try to:
+                    Define oops2 as wide * wide.
+                    State "no failure".
+                Done.
+                In case of failure:
+                    State the message of the failure.
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Matrix_TransposeAndComposition()
+    {
+        // transpose (incl. non-square), matrix in a series (reference element), share-on-assign.
+        const string src = """
+            Pull a book on collections.
+                Define m as a matrix with ((1, 2), (3, 4)).
+                State cast collections's transpose of (m).
+                Define wide as a matrix with ((1, 2, 3), (4, 5, 6)).
+                State cast collections's transpose of (wide).
+                Define g as a matrix with 2 by 2 filled with 9.
+                Define ms as a series with (m, g).
+                State the item at (1, 1) of first of ms.
+                Define m2 as m.
+                State the item at (2, 2) of m2.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Matrix_FunctionParamsAndReturns()
+    {
+        // A matrix-typed function must live INSIDE the collections pull (the type isn't in scope
+        // outside) — the compiler hoists Pull-body binds to free functions (books are compile-time).
+        const string src = """
+            Pull a book on collections.
+                Bind the matrix to double-it, given (the matrix m):
+                    Define d as (m + m) but on failure (m).
+                    return d.
+                Done.
+                Define src as a matrix with ((1.5, 2), (3, 4.25)).
+                Define doubled as cast double-it on (src).
+                State doubled.
+                State the item at (2, 2) of doubled.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Matrix_MemorySafety_ASan()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // Matrices + arithmetic results + transposes are all arena allocations — everything frees
+        // at Done., zero leaks/UAF.
+        const string src = """
+            Pull a book on collections.
+                Define m as a matrix with ((1, 2), (3, 4)).
+                Try to:
+                    Define p as m * m.
+                    State the item at (2, 2) of p.
+                Done.
+                In case of failure:
+                    State "unexpected".
+                Done.
+                State cast collections's transpose of (m).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), CompileWithASan(src));
+    }
+
     [Fact]
     public void Sort_MemorySafety_ASan()
     {
