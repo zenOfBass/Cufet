@@ -2311,12 +2311,15 @@ static void* cufet_pipe_stage(void* argp) {
     };
 
     // A book member's declared type (for TypeOf on a `<book>'s <member> of (...)` cast). math totals
-    // → number; transcendentals → voidable number (emitted in 1B, typed correctly now).
-    private static CufetType BookMemberReturnType(string bookName, string member)
+    // → number; transcendentals → voidable number; collections aggregates → voidable number (void on
+    // empty), except `unique` which is element-type-preserving (the arg's own series type).
+    private CufetType BookMemberReturnType(string bookName, string member, IReadOnlyList<IExpression> args)
     {
         string m = member.ToLowerInvariant();
         if (bookName == "math" && m is "floor" or "ceiling" or "round" or "absolute value") return TNumber;
         if (bookName == "math" && m is "square root" or "log" or "power") return new VoidableType(TNumber);
+        if (bookName == "collections" && m is "minimum" or "maximum" or "average") return new VoidableType(TNumber);
+        if (bookName == "collections" && m == "unique" && args.Count > 0) return TypeOf(args[0]);
         return TNumber;   // conservative default (unresolved books surface at emit)
     }
 
@@ -2366,7 +2369,7 @@ static void* cufet_pipe_stage(void* argp) {
         }
         if (c.Function is PossessiveAccess bpa && bpa.Target is VariableReference bref
             && _bookAliases.TryGetValue(bref.Name, out var bookName))                      // book member call
-            return BookMemberReturnType(bookName, bpa.Member);
+            return BookMemberReturnType(bookName, bpa.Member, c.Args);
         if (c.Function is PossessiveAccess pa && TypeOf(pa.Target) is ObjectType pot)
             return MethodReturnType(pot.Name, pa.Member);
         return TNumber;
@@ -3647,8 +3650,50 @@ static void* cufet_pipe_stage(void* argp) {
             _preEmits.Add($"CufetDec cf_mv{id}; int cf_mh{id} = {call};");
             return $"(cf_mh{id} ? ({cvd}){{ .has = 1, .val = cf_mv{id} }} : ({cvd}){{ .has = 0 }})";
         }
+        if (bookName == "collections" && m is "minimum" or "maximum" or "average")
+        {
+            // Series-of-number reduction → voidable number (void on empty — reuses 5C). Replicates
+            // the interpreter exactly: min/max keep the FIRST of ties (strict compare, LINQ Min/Max);
+            // average is LINQ Sum (sequential cufet_add from 0) then ONE cufet_div by the count —
+            // fully exact decimal arithmetic, no double bridge.
+            string cvd = RegisterVoidableStruct(new VoidableType(TNumber));
+            string ser = SeriesStructOf(args[0]);
+            string src = EmitExpr(args[0]);
+            int id = _freshId++;
+            if (m == "average")
+                _preEmits.Add(
+                    $"{ser}* cf_as{id} = {src}; CufetDec cf_ag{id} = cufet_dec_from_ll(0); " +
+                    $"for (int cf_i{id} = 0; cf_i{id} < cf_as{id}->len; cf_i{id}++) cf_ag{id} = cufet_add(cf_ag{id}, cf_as{id}->data[cf_i{id}]); " +
+                    $"int cf_ah{id} = cf_as{id}->len > 0; " +
+                    $"if (cf_ah{id}) cf_ag{id} = cufet_div(cf_ag{id}, cufet_dec_from_ll(cf_as{id}->len));");
+            else
+                _preEmits.Add(
+                    $"{ser}* cf_as{id} = {src}; CufetDec cf_ag{id} = cufet_dec_from_ll(0); " +
+                    $"int cf_ah{id} = cf_as{id}->len > 0; " +
+                    $"if (cf_ah{id}) {{ cf_ag{id} = cf_as{id}->data[0]; " +
+                    $"for (int cf_i{id} = 1; cf_i{id} < cf_as{id}->len; cf_i{id}++) " +
+                    $"if (cufet_cmp(cf_as{id}->data[cf_i{id}], cf_ag{id}) {(m == "minimum" ? "<" : ">")} 0) cf_ag{id} = cf_as{id}->data[cf_i{id}]; }}");
+            return $"(cf_ah{id} ? ({cvd}){{ .has = 1, .val = cf_ag{id} }} : ({cvd}){{ .has = 0 }})";
+        }
+        if (bookName == "collections" && m == "unique")
+        {
+            // Element-type-preserving first-occurrence dedup — per-type value equality via EqCall
+            // (number/text/record/object/series/voidable all compose — the series-of-T payoff).
+            // Builds a NEW arena series (non-mutating), like sorted.
+            var st = (SeriesType)TypeOf(args[0]);
+            string ser = RegisterSeriesStruct(st);
+            string src = EmitExpr(args[0]);
+            int id = _freshId++;
+            string eq = EqCall($"cf_ud{id}->data[cf_j{id}]", $"cf_us{id}->data[cf_i{id}]", st.ElementType);
+            _preEmits.Add(
+                $"{ser}* cf_us{id} = {src}; {ser}* cf_ud{id} = {ser}_new(); " +
+                $"for (int cf_i{id} = 0; cf_i{id} < cf_us{id}->len; cf_i{id}++) {{ int cf_sn{id} = 0; " +
+                $"for (int cf_j{id} = 0; cf_j{id} < cf_ud{id}->len; cf_j{id}++) if ({eq}) {{ cf_sn{id} = 1; break; }} " +
+                $"if (!cf_sn{id}) {ser}_append(cf_ud{id}, cf_us{id}->data[cf_i{id}]); }}");
+            return $"cf_ud{id}";
+        }
         if (bookName == "collections")
-            throw new CompilerException($"the collections book's '{member}' is a later slice (1C aggregates / 1D matrix).");
+            throw new CompilerException($"the collections book's '{member}' is a later slice (1D matrix/transpose).");
         throw new CompilerException($"book '{bookName}' member '{member}' is not yet supported by the compiler.");
     }
 

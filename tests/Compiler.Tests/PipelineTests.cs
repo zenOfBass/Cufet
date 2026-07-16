@@ -2549,6 +2549,86 @@ public class PipelineTests
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ── Arc 1C: collections aggregates (mechanical — reductions on the compiled series model) ──
+    // minimum/maximum/average → voidable number (void on empty, reuses 5C); min/max keep the first
+    // of ties; average = sequential exact-decimal sum then ONE divide (LINQ Sum semantics — no
+    // double bridge, so fractional averages are EXACT). unique = element-type-preserving first-
+    // occurrence dedup via per-type value equality (the series-of-T payoff).
+
+    [Fact]
+    public void Collections_MinMaxAverage_ExactDecimal()
+    {
+        // average of (0.1, 0.2, 0.3) is EXACTLY 0.2 (software decimal — no float drift), and the
+        // repeating division (100+3+3)/3 matches the interpreter's 28-digit decimal quotient.
+        const string src = """
+            Pull a book on collections.
+                Define xs as a series with (3, 1, 4, 1, 5, 9, 2, 6).
+                State (cast collections's minimum of (xs)) but void is -1.
+                State (cast collections's maximum of (xs)) but void is -1.
+                State (cast collections's average of (xs)) but void is -1.
+                Define fr as a series with (0.1, 0.2, 0.3).
+                State (cast collections's average of (fr)) but void is -1.
+                Define rep as a series with (100, 3, 3).
+                State (cast collections's average of (rep)) but void is -1.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Collections_Aggregates_VoidOnEmpty()
+    {
+        const string src = """
+            Pull a book on collections.
+                Define empty as a series of number with ().
+                State (cast collections's minimum of (empty)) but void is -999.
+                State (cast collections's maximum of (empty)) but void is -999.
+                State (cast collections's average of (empty)) but void is -999.
+                Define r as cast collections's average of (empty).
+                If r is void, State "empty average is void".
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Collections_Unique_FirstOccurrenceAcrossTypes()
+    {
+        // Numbers, text, and records (structural equality — the two Bob-30s dedup; Ann-25 and
+        // Ann-26 stay distinct). First-occurrence order preserved in every case.
+        const string src = """
+            Pull a book on collections.
+                Define nq as a series with (3, 1, 3, 2, 1).
+                State cast collections's unique of (nq).
+                Define tq as a series of text with ("b", "a", "b", "c", "a").
+                State cast collections's unique of (tq).
+                Define party as a series of records like (the text name, the number age).
+                Add a record with (the name "Bob", the age 30) to party.
+                Add a record with (the name "Ann", the age 25) to party.
+                Add a record with (the name "Bob", the age 30) to party.
+                Add a record with (the name "Ann", the age 26) to party.
+                State cast collections's unique of (party).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Collections_Unique_MemorySafety_ASan()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // unique builds a NEW arena series (like sorted) — must free cleanly at scope exit.
+        const string src = """
+            Pull a book on collections.
+                Define xs as a series with (5, 3, 5, 1, 3, 5, 2).
+                Define u as cast collections's unique of (xs).
+                State u.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), CompileWithASan(src));
+    }
+
     [Fact]
     public void Sort_MemorySafety_ASan()
     {
