@@ -618,6 +618,61 @@ static const char* cufet_stream_read_all(FILE* f) {
     return r;
 }
 
+/* ── Directory contents (cleanup slice) ─────────────────────────────────────
+   `the contents of the directory <p>` → SORTED (ordinal, strcmp) full paths "<p><sep><name>",
+   skipping "." / "..". Both backends sort: the raw OS order is filesystem-dependent, so sorting
+   defines the undefined (the FormatRecord normalization move). The separator is the PLATFORM's
+   (matching .NET on the same platform); a trailing separator on the input is not doubled. */
+#include <dirent.h>
+static CufetFailure cufet_dir_failure(const char* path, int e) {
+    CufetFailure f;
+    if (e == ENOENT) {
+        f.category = "not-found";
+        f.message  = cufet_arena_msg("the directory '%s' was not found", path);
+    } else if (e == EACCES || e == EPERM) {
+        f.category = "permission-denied";
+        f.message  = cufet_arena_msg("permission denied reading directory '%s'", path);
+    } else {
+        f.category = "disk-error";
+        f.message  = cufet_arena_msg("reading the directory '%s' failed", path);
+    }
+    return f;
+}
+static int cufet_dir_cmp(const void* a, const void* b) { return strcmp(*(const char* const*)a, *(const char* const*)b); }
+static int cufet_dir_contents(const char* path, const char*** out_items, int* out_n, CufetFailure* err) {
+    DIR* d = opendir(path);
+    if (!d) { *err = cufet_dir_failure(path, errno); return 0; }
+#ifdef _WIN32
+    const char sep = '\\';
+#else
+    const char sep = '/';
+#endif
+    size_t plen = strlen(path);
+    int hasSep = plen > 0 && (path[plen - 1] == '/' || path[plen - 1] == '\\');
+    int n = 0, cap = 16;
+    const char** items = (const char**)cufet_arena_alloc((size_t)cap * sizeof(char*));
+    struct dirent* de;
+    while ((de = readdir(d)) != NULL) {
+        if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+        if (n == cap) {
+            cap *= 2;
+            const char** ni = (const char**)cufet_arena_alloc((size_t)cap * sizeof(char*));
+            memcpy(ni, items, (size_t)n * sizeof(char*));
+            items = ni;
+        }
+        size_t nl = strlen(de->d_name);
+        char* full = (char*)cufet_arena_alloc(plen + (hasSep ? 0 : 1) + nl + 1);
+        memcpy(full, path, plen);
+        if (!hasSep) full[plen] = sep;
+        memcpy(full + plen + (hasSep ? 0 : 1), de->d_name, nl + 1);
+        items[n] = full; n++;
+    }
+    closedir(d);
+    qsort(items, (size_t)n, sizeof(char*), cufet_dir_cmp);
+    *out_items = items; *out_n = n;
+    return 1;
+}
+
 """;
 
     // Subprocess runtime (slice 9C): POSIX fork/exec/pipe/waitpid — matches the interpreter's
@@ -1420,9 +1475,6 @@ static void* cufet_pipe_stage(void* argp) {
     // plus the voidable-V struct that lookups return). Returns the C struct name.
     private string RegisterMapStruct(MapType mt)
     {
-        // Voidable-valued maps need lookup-flattening (voidable voidable V → voidable V) — defer.
-        if (mt.ValueType is VoidableType)
-            throw new CompilerException("maps with voidable values are not yet supported by the compiler.");
         string sig = TypeSig(mt);
         if (_mapSig2Name.TryGetValue(sig, out var name)) return name;
         name = $"cmap_{_mapCounter++}";
@@ -1660,7 +1712,11 @@ static void* cufet_pipe_stage(void* argp) {
         foreach (var (name, k, v) in _mapStructs)
         {
             string kc = EmitCType(k), vc = EmitCType(v);
-            string cvd = RegisterVoidableStruct(new VoidableType(v));
+            // LOOKUP FLATTEN (voidable-valued maps): `the entry for k` on a `map from K to voidable V`
+            // yields `voidable V` — NOT voidable-voidable. Absent key → void; present → the stored
+            // voidable as-is. So the lookup return struct IS the value struct when V is voidable.
+            bool voidableV = v is VoidableType;
+            string cvd = voidableV ? vc : RegisterVoidableStruct(new VoidableType(v));
             sb.AppendLine($"struct {name}_s {{ {kc}* keys; {vc}* vals; int len; int cap; }};");
             sb.AppendLine($"static {name}* {name}_new(void) {{ {name}* m = ({name}*)cufet_arena_alloc(sizeof({name})); m->keys = NULL; m->vals = NULL; m->len = 0; m->cap = 0; return m; }}");
             sb.AppendLine($"static void {name}_ensure({name}* m) {{");
@@ -1674,8 +1730,17 @@ static void* cufet_pipe_stage(void* argp) {
             sb.AppendLine($"}}");
             sb.AppendLine($"static int {name}_index({name}* m, {kc} k) {{ for (int i = 0; i < m->len; i++) if ({EqCall("m->keys[i]", "k", k)}) return i; return -1; }}");
             sb.AppendLine($"static void {name}_put({name}* m, {kc} k, {vc} v) {{ int i = {name}_index(m, k); if (i >= 0) {{ m->vals[i] = v; return; }} {name}_ensure(m); m->keys[m->len] = k; m->vals[m->len] = v; m->len++; }}");
-            sb.AppendLine($"static {cvd} {name}_get({name}* m, {kc} k) {{ {cvd} r = {{0}}; int i = {name}_index(m, k); if (i >= 0) {{ r.has = 1; r.val = m->vals[i]; }} return r; }}");
+            if (voidableV)
+                sb.AppendLine($"static {cvd} {name}_get({name}* m, {kc} k) {{ {cvd} r = {{0}}; int i = {name}_index(m, k); if (i >= 0) r = m->vals[i]; return r; }}");
+            else
+                sb.AppendLine($"static {cvd} {name}_get({name}* m, {kc} k) {{ {cvd} r = {{0}}; int i = {name}_index(m, k); if (i >= 0) {{ r.has = 1; r.val = m->vals[i]; }} return r; }}");
             sb.AppendLine($"static int {name}_has({name}* m, {kc} k) {{ return {name}_index(m, k) >= 0; }}");
+            // `has an entry` ≠ `has a key` for voidable values: an explicit stored void counts as a
+            // key but NOT an entry (matches the interpreter's EvaluateMapHasEntry is-not-VoidValue).
+            if (voidableV)
+                sb.AppendLine($"static int {name}_has_entry({name}* m, {kc} k) {{ int i = {name}_index(m, k); return i >= 0 && m->vals[i].has; }}");
+            else
+                sb.AppendLine($"static int {name}_has_entry({name}* m, {kc} k) {{ return {name}_index(m, k) >= 0; }}");
             sb.AppendLine($"static void {name}_write({name}* m) {{");
             sb.AppendLine($"    printf(\"map {{\");");
             sb.AppendLine($"    for (int i = 0; i < m->len; i++) {{");
@@ -1723,6 +1788,72 @@ static void* cufet_pipe_stage(void* argp) {
         b.Append($"{dst}->data[cf_j{id} + 1] = cf_k{id}; }}");
         _preEmits.Add(b.ToString());
         return dst;
+    }
+
+    // ── Misc smalls (cleanup slice): env vars, is-a-type, directory contents ──
+
+    // `the environment variable "X"` → voidable text: void when unset (matches the interpreter's
+    // GetEnvironmentVariable-null→void). getenv's storage is stable here (Cufet has no setenv).
+    private string EmitEnvVar(EnvironmentVariableExpression env)
+    {
+        string cvd = RegisterVoidableStruct(new VoidableType(TText));
+        string n = EmitExpr(env.Name);
+        int id = _freshId++;
+        _preEmits.Add($"const char* cf_ev{id} = getenv({n});");
+        return $"(cf_ev{id} ? ({cvd}){{ .has = 1, .val = cf_ev{id} }} : ({cvd}){{ .has = 0 }})";
+    }
+
+    // `x is a <type>` — in the monomorphic model this is a COMPILE-TIME CONSTANT except for one
+    // case: a VOIDABLE target, where `x is a T` ⇔ present-and-inner-matches (`.has`) and
+    // `x is a void` ⇔ absent — the same runtime test the interpreter's RuntimeIsType does. Kind
+    // matching mirrors RuntimeIsType's erasure: series/maps/records match by KIND (element/shape-
+    // erased, like `value is List<object>`), objects nominally by name.
+    private string EmitIsTypeCheck(IsTypeCheck tc)
+    {
+        var tt = TypeOf(tc.Target);
+        if (tt is VoidableType vt)
+        {
+            string v = EmitExpr(tc.Target);
+            string test = tc.Type is VoidType ? $"(!({v}).has)"
+                        : StaticKindMatches(vt.Inner, tc.Type) ? $"(({v}).has)"
+                        : "0";
+            return tc.Negated ? $"(!{test})" : test;
+        }
+        bool matches = StaticKindMatches(tt, tc.Type);
+        return (tc.Negated ? !matches : matches) ? "1" : "0";
+    }
+
+    private static bool StaticKindMatches(CufetType t, CufetType tested) => tested switch
+    {
+        NumberType => t is NumberType,
+        TextType   => t is TextType,
+        FactType   => t is FactType,
+        SeriesType => t is SeriesType,        // element-erased, like the interpreter
+        MapType    => t is MapType,           // key/value-erased
+        RecordType => t is RecordType,        // shape-erased
+        MatrixType => t is MatrixType,
+        ObjectType ot => t is ObjectType o2 && o2.Name == ot.Name,   // nominal
+        VoidType   => false,                  // a non-voidable value is never void
+        _ => false,
+    };
+
+    // `the contents of the directory <p>` — fallible (series of text or failure). The raw cfl:
+    // the runtime returns a SORTED (ordinal) arena array of "<p><sep><name>" paths, or a mapped
+    // errno failure (not-found / permission-denied / disk-error — the interpreter's templates).
+    private string EmitDirRaw(DirectoryContentsExpression dce)
+    {
+        string ser = RegisterSeriesStruct(new SeriesType(TText));
+        string cfl = RegisterFailableStruct(new FailureType(new SeriesType(TText)));
+        string p = EmitExpr(dce.Path);
+        int id = _freshId++;
+        _preEmits.Add($"const char* cf_dp{id} = {p};");
+        _preEmits.Add(
+            $"{cfl} cf_dc{id} = {{0}}; {{ const char** cf_di{id}; int cf_dn{id}; CufetFailure cf_de{id}; " +
+            $"if (cufet_dir_contents(cf_dp{id}, &cf_di{id}, &cf_dn{id}, &cf_de{id})) {{ " +
+            $"{ser}* cf_ds{id} = {ser}_new(); for (int cf_i{id} = 0; cf_i{id} < cf_dn{id}; cf_i{id}++) {ser}_append(cf_ds{id}, cf_di{id}[cf_i{id}]); " +
+            $"cf_dc{id}.is_failure = 0; cf_dc{id}.val = cf_ds{id}; }} " +
+            $"else {{ cf_dc{id}.is_failure = 1; cf_dc{id}.message = cf_de{id}.message; cf_dc{id}.category = cf_de{id}.category; }} }}");
+        return $"cf_dc{id}";
     }
 
     // ── Chance (Arc 1E) ───────────────────────────────────────────────────────
@@ -2316,16 +2447,40 @@ static void* cufet_pipe_stage(void* argp) {
                 break;
 
             case WhileStatement ws:
-                sb.AppendLine($"{indent}while ({EmitExpr(ws.Condition)}) {{");
-                EmitLoopBody(sb, ws.Body, indent + "    ");
-                sb.AppendLine($"{indent}}}");
+            {
+                // Conditions may PREEMIT (env var, map lookup, delivery, …). A while-head can't hold
+                // statements, so restructure to a head-checked for(;;): preemits + check re-run every
+                // iteration (Skip's `continue` correctly re-enters at the preemits).
+                string wcond = EmitExpr(ws.Condition);
+                if (_preEmits.Count > 0)
+                {
+                    sb.AppendLine($"{indent}for (;;) {{");
+                    FlushPreEmits(sb, indent + "    ");
+                    sb.AppendLine($"{indent}    if (!({wcond})) break;");
+                    EmitLoopBody(sb, ws.Body, indent + "    ");
+                    sb.AppendLine($"{indent}}}");
+                }
+                else
+                {
+                    sb.AppendLine($"{indent}while ({wcond}) {{");
+                    EmitLoopBody(sb, ws.Body, indent + "    ");
+                    sb.AppendLine($"{indent}}}");
+                }
                 break;
+            }
 
             case RepeatUntilStatement ru:
+            {
                 sb.AppendLine($"{indent}do {{");
                 EmitLoopBody(sb, ru.Body, indent + "    ");
-                sb.AppendLine($"{indent}}} while (!({EmitExpr(ru.Condition)}));");
+                string rcond = EmitExpr(ru.Condition);
+                if (_preEmits.Count > 0)
+                    // A tail-checked condition can't host preemits without breaking Skip's jump-to-
+                    // check semantics — bind the condition's value to a variable inside the loop.
+                    throw new CompilerException("this 'until' condition form needs a preliminary step — Define the value inside the loop and test the variable in 'until'.");
+                sb.AppendLine($"{indent}}} while (!({rcond}));");
                 break;
+            }
 
             case StopStatement:
                 sb.AppendLine($"{indent}{FileCleanupStmts(CurrentLoopFileDepth())}break;");
@@ -2365,13 +2520,21 @@ static void* cufet_pipe_stage(void* argp) {
         var inner = indent + "    ";
         var first = ifStmt.Arms[0];
         // Condition is emitted BEFORE narrowing so `x is not void` reads x's voidable form.
-        sb.AppendLine($"{indent}if ({EmitExpr(first.Condition)}) {{");
+        // The FIRST condition evaluates unconditionally, so its preemits flush before the `if`.
+        string cond0 = EmitExpr(first.Condition);
+        FlushPreEmits(sb, indent);
+        sb.AppendLine($"{indent}if ({cond0}) {{");
         EmitNarrowedBlock(sb, NotVoidNarrow(first.Condition), first.Body, inner);
 
         for (int i = 1; i < ifStmt.Arms.Count; i++)
         {
             var arm = ifStmt.Arms[i];
-            sb.AppendLine($"{indent}}} else if ({EmitExpr(arm.Condition)}) {{");
+            string condN = EmitExpr(arm.Condition);
+            if (_preEmits.Count > 0)
+                // An else-if condition only evaluates when earlier arms failed — its preemits can't
+                // be hoisted (they may be effectful). Bind the value to a variable before the If.
+                throw new CompilerException("this condition form in an 'Otherwise if' arm needs a preliminary step — Define the value before the If and test the variable.");
+            sb.AppendLine($"{indent}}} else if ({condN}) {{");
             EmitNarrowedBlock(sb, NotVoidNarrow(arm.Condition), arm.Body, inner);
         }
 
@@ -2399,6 +2562,12 @@ static void* cufet_pipe_stage(void* argp) {
     // (The interpreter narrows the `is not void` then-branch, not the `is void` else-branch.)
     private (string Name, CufetType Inner)? NotVoidNarrow(IExpression cond)
     {
+        // `x is a <T>` (positive) on a VOIDABLE x whose inner matches T narrows like `is not void`
+        // (the typechecker narrows the arm to T, so reads inside must emit `.val`). Static targets
+        // need no representation change, so only the voidable case registers.
+        if (cond is IsTypeCheck { Negated: false, Target: VariableReference tvr } tc
+            && TypeOf(tvr) is VoidableType tvt && StaticKindMatches(tvt.Inner, tc.Type))
+            return (tvr.Name, tvt.Inner);
         if (cond is not BinaryExpression { Op: TokenType.NotEqual } b) return null;
         var (varSide, other) = b.Left is VoidLiteral ? (b.Right, b.Left) : (b.Left, b.Right);
         if (other is VoidLiteral && varSide is VariableReference vr && TypeOf(vr) is VoidableType vt)
@@ -2594,7 +2763,8 @@ static void* cufet_pipe_stage(void* argp) {
         VoidLiteral           => TVoid,
         ButVoidDefault bvd    => TypeOf(bvd.Voidable) is VoidableType vt ? vt.Inner : TypeOf(bvd.Default),
         MapLiteral ml         => MapLiteralType(ml),
-        MapLookup mlk         => new VoidableType(MapValueType(mlk.Map)),
+        // Lookup flatten: on a voidable-valued map the entry IS already voidable — never nest.
+        MapLookup mlk         => MapValueType(mlk.Map) is VoidableType vvt ? vvt : new VoidableType(MapValueType(mlk.Map)),
         MapHasKey             => TFact,
         MapHasEntry           => TFact,
         MapSize               => TNumber,
@@ -2634,6 +2804,11 @@ static void* cufet_pipe_stage(void* argp) {
         RandomGuess           => TFact,
         RandomItem ri         => new VoidableType(((SeriesType)TypeOf(ri.Series)).ElementType),   // void on empty
         RandomlyShuffled rs   => TypeOf(rs.Series),             // element-type-preserving, like sorted
+        EnvironmentVariableExpression => new VoidableType(TText),   // void when unset
+        IsTypeCheck           => TFact,
+        // A directory listing is fallible; its post-check VALUE type is series of text (raw
+        // `series of text or failure` is seen only by FallibleReturnType — the file-read convention).
+        DirectoryContentsExpression => new SeriesType(TText),
         _ => throw new CompilerException(
                  $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
     };
@@ -2714,6 +2889,7 @@ static void* cufet_pipe_stage(void* argp) {
         RunExpression or PipeExpression => new FailureType(RunResultRecordType),
         AwaitedResultExpression are when AwaitedRawResultType(are) is FailureType aft => aft,
         BinaryExpression b when IsMatrixOp(b) => new FailureType(MatrixType.Instance),
+        DirectoryContentsExpression => new FailureType(new SeriesType(TText)),
         _ => null,
     };
 
@@ -3052,7 +3228,7 @@ static void* cufet_pipe_stage(void* argp) {
         MapLiteral ml         => EmitMapLiteral(ml),
         MapLookup mlk         => $"{MapName(mlk.Map)}_get({EmitExpr(mlk.Map)}, {EmitExpr(mlk.Key)})",
         MapHasKey mhk         => $"{MapName(mhk.Map)}_has({EmitExpr(mhk.Map)}, {EmitExpr(mhk.Key)})",
-        MapHasEntry mhe       => $"{MapName(mhe.Map)}_has({EmitExpr(mhe.Map)}, {EmitExpr(mhe.Key)})",
+        MapHasEntry mhe       => $"{MapName(mhe.Map)}_has_entry({EmitExpr(mhe.Map)}, {EmitExpr(mhe.Key)})",
         MapSize ms            => $"cufet_dec_from_ll(({EmitExpr(ms.Map)})->len)",
         FailureFallback ff    => EmitFailureFallback(ff),
         FailurePropagate fp   => EmitFailurePropagate(fp),
@@ -3084,6 +3260,10 @@ static void* cufet_pipe_stage(void* argp) {
         RandomGuess           => EmitRandomGuess(),
         RandomItem ri         => EmitRandomItem(ri),
         RandomlyShuffled rs   => EmitRandomlyShuffled(rs),
+        EnvironmentVariableExpression env => EmitEnvVar(env),
+        IsTypeCheck tc        => EmitIsTypeCheck(tc),
+        DirectoryContentsExpression dce =>
+            EmitFallibleCheckGoto(EmitDirRaw(dce), RegisterFailableStruct(new FailureType(new SeriesType(TText)))),
         ReadExpression re     => EmitReadExpr(re),
         PathCheckExpression pc => pc.Kind switch
         {
@@ -3920,6 +4100,8 @@ static void* cufet_pipe_stage(void* argp) {
         }
         if (expr is BinaryExpression mb && IsMatrixOp(mb))   // matrix +/−/× with but-on-failure / propagate
             return (RegisterFailableStruct(new FailureType(MatrixType.Instance)), EmitMatrixOpRaw(mb));
+        if (expr is DirectoryContentsExpression dce)         // directory listing with but-on-failure / propagate
+            return (RegisterFailableStruct(new FailureType(new SeriesType(TText))), EmitDirRaw(dce));
         if (FallibleReturnType(expr) is { } ft)
             return (RegisterFailableStruct(ft), EmitCall(((CastExpression)expr).Function, ((CastExpression)expr).Args));
         // A bare failure literal (or other failable) as the operand — coerce into cfl of the result T.

@@ -2874,6 +2874,130 @@ public class PipelineTests
         Assert.Equal("ok", CompileWithASan(src));
     }
 
+    // ── Cleanup slice: the misc smalls (env vars, is-a-type, voidable maps, directory contents) ──
+
+    [Fact]
+    public void EnvVar_UnsetIsVoid_PresentMatches()
+    {
+        // The compiled binary is a child of the test process, so it inherits the same environment —
+        // the PATH value oracle-matches exactly; an unset name is void (both backends).
+        const string src = """
+            Define unset as the environment variable "CUFET_DEFINITELY_UNSET_XYZ".
+            If unset is void, State "unset is void". Otherwise, State "FAIL".
+            State the environment variable "PATH" but void is "none".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void IsTypeCheck_StaticConstant_AndVoidableRuntime()
+    {
+        // Static targets are compile-time constants (the monomorphic model); a VOIDABLE target is
+        // the one dynamic case — `v is a number` ⇔ present, and the positive arm NARROWS (v + 1
+        // reads the inner). Kind-erasure matches the interpreter (series by kind, element-erased).
+        const string src = """
+            Define n as 5.
+            If n is a number, State "number yes". Otherwise, State "FAIL".
+            If n is a text, State "FAIL2". Otherwise, State "not text".
+            If n is not a text, State "negated ok". Otherwise, State "FAIL3".
+            Define words as a series of text with ("x").
+            If words is a series of text, State "series kind ok". Otherwise, State "FAIL4".
+            Define v as "42" converted to number.
+            If v is a number:
+                State v + 1.
+            Done.
+            Define w as "abc" converted to number.
+            If w is a number, State "FAIL5". Otherwise, State "unparsed not a number".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void VoidableValuedMaps_LookupFlattens_EntryKeyDiverge()
+    {
+        // `map from text to voidable number`: lookup FLATTENS (never voidable-voidable — an absent
+        // key and a stored void both read as void); `has a key` sees the explicit-void slot but
+        // `has an entry` does NOT (the interpreter's is-not-VoidValue rule).
+        const string src = """
+            Define m as a map from text to voidable number with ().
+            In m, the entry for "present" becomes 7.
+            In m, the entry for "explicit-void" becomes void.
+            If m has a key for "explicit-void", State "void slot has key". Otherwise, State "FAIL".
+            If m has an entry for "explicit-void", State "FAIL2". Otherwise, State "void slot has no entry".
+            If m has an entry for "present", State "entry present ok".
+            State (the entry for "present" in m) but void is -1.
+            State (the entry for "nowhere" in m) but void is -99.
+            State (the entry for "explicit-void" in m) but void is -7.
+            State the size of m.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void DirectoryContents_SortedListing_AndFailurePaths()
+    {
+        // Both backends SORT entries (ordinal) — the raw OS order is filesystem-dependent, so
+        // sorting defines the undefined (normalize-the-unobservable, the FormatRecord move). The
+        // full paths use the platform separator, identical same-platform. Failures: not-found
+        // message + category, and but-on-failure composes.
+        var dir = Path.Combine(Path.GetTempPath(), "cufet-dirtest-" + Guid.NewGuid().ToString("N")[..8])
+                      .Replace('\\', '/');
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(dir + "/zeta.txt", "z");
+        File.WriteAllText(dir + "/alpha.txt", "a");
+        File.WriteAllText(dir + "/mid.log", "m");
+        try
+        {
+            string src = $"""
+                Try to:
+                    Define entries as the contents of the directory "{dir}".
+                    State entries.
+                    State the number of entries.
+                Done.
+                In case of failure:
+                    State "unexpected".
+                Done.
+                Try to:
+                    Define nope as the contents of the directory "{dir}-definitely-not-here".
+                    State "no failure".
+                Done.
+                In case of failure:
+                    State the message of the failure.
+                    State the category of the failure but void is "none".
+                Done.
+                """;
+            Assert.Equal(Interpret(src), Compile(src));
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch { } }
+    }
+
+    [Fact]
+    public void DirectoryContents_MemorySafety_ASan()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The listing's arena strings + array free cleanly at scope exit.
+        var dir = Path.Combine(Path.GetTempPath(), "cufet-dirasan-" + Guid.NewGuid().ToString("N")[..8])
+                      .Replace('\\', '/');
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(dir + "/one.txt", "1");
+        File.WriteAllText(dir + "/two.txt", "2");
+        try
+        {
+            string src = $"""
+                Try to:
+                    Define entries as the contents of the directory "{dir}".
+                    State the number of entries.
+                Done.
+                In case of failure:
+                    State "unexpected".
+                Done.
+                """;
+            Assert.Equal(Interpret(src), CompileWithASan(src));
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch { } }
+    }
+
     [Fact]
     public void Sort_MemorySafety_ASan()
     {

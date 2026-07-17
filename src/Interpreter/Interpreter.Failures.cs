@@ -13,12 +13,17 @@ public sealed partial class Interpreter
     // ── Directory traversal ──────────────────────────────────────────────────────
 
     // the contents of the directory <path>  →  series of text (full paths) or failure
+    // Entries are SORTED (Ordinal): the raw OS order is filesystem-dependent (NTFS happens to be
+    // alphabetical, ext4 is not), so an unsorted listing is nondeterministic across machines.
+    // Sorting defines the undefined — same normalize-the-unobservable move as FormatRecord's field
+    // order — and makes listings deterministic given directory content (and native-oracle-testable).
     private object EvaluateDirectoryContents(DirectoryContentsExpression dce)
     {
         var path = (string)Evaluate(dce.Path)!;
         try
         {
             return Directory.GetFileSystemEntries(path)
+                            .OrderBy(e => e, StringComparer.Ordinal)
                             .Select(e => (object)e)
                             .ToList();
         }
@@ -56,8 +61,11 @@ public sealed partial class Interpreter
         }
         else
         {
+            // Deterministic, platform-independent fallback (NOT ex.Message) — the same templating
+            // FileIoFailure/LaunchFailure received in 9A/9C, applied here when directory-contents
+            // landed natively (the native errno path reproduces this string bit-identically).
             category = "disk-error";
-            message  = ex.Message;
+            message  = $"reading the directory '{path}' failed";
         }
         return new FailureUnwind(new FailureValue(message, category));
     }
