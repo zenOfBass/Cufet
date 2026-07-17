@@ -43,6 +43,23 @@ public sealed class CodeGenerator
     private readonly List<(string Name, CufetType Elem)> _seriesStructs = new();
     private int _seriesCounter;
 
+    // Channel deep-copy registry (channel-of-T): the type-erased channel container is one C struct
+    // (cufet_chan, void* node payloads), but crossing a channel boundary needs a per-element-type
+    // deep copy — to malloc'd heap on send (decoupled from both threads' arenas), into the receiver's
+    // arena on recv, then free the heap bridge. `_chanElemReg` is the full type closure (each gets a
+    // recursive `copy`/`freeheap`); `_chanTopElems` is the subset used AT a boundary (each also gets
+    // the heapenv/arenacopy/freeenv wrappers). Deduped by TypeSig, mirroring the series/map synthesis.
+    private readonly Dictionary<string, int> _chanElemReg = new();
+    private readonly List<(int Idx, CufetType T)> _chanElemList = new();
+    private readonly HashSet<string> _chanTopElems = new();
+
+    // Pipe-stage input element types (channel-of-T text/reference pipes). A `for each x from the
+    // input` needs a concrete C type for x; the stream type is implicit in the grammar, so it's
+    // inferred by a whole-program pipe pass (each stage's input = the previous stage's output type).
+    // A function used at two positions with conflicting element types is a clean CompilerException.
+    private readonly Dictionary<string, CufetType?> _stageInputElem = new();
+    private CufetType? _currentPipeInputElem;
+
     // Failable struct registry — `cfl_N { int is_failure; T val; const char* message, category }`
     // per distinct inner T. A `T or failure` value: either a T (is_failure=0) or a failure.
     private readonly Dictionary<string, string> _failableSig2Name = new();
@@ -1111,42 +1128,47 @@ static void cufet_checkpoint(void) {}
 """;
 
     // Concurrency runtime (CONC.A+B): pthreads + a thread-safe channel (mutex + condvar). Emitted
-    // only when tasks/channels are used; POSIX-guarded (Linux-targeted, WSL-verified). Channels are
-    // number-only this slice (value type → the queue node IS the heap-bridged message; send mallocs
-    // a node, recv copies the value out + frees it, cufet_chan_free frees un-received nodes).
+    // only when tasks/channels are used; POSIX-guarded (Linux-targeted, WSL-verified). The channel is
+    // ONE type-erased container (like the interpreter's single ChannelValue holding `object`s): each
+    // node carries a `void*` to a malloc'd, fully-heap-owned envelope of the element value (built by
+    // the per-element-type `cchan_<T>_heapenv` deep-copy on send). Recv hands the envelope back; the
+    // caller arena-copies it in + frees it. Teardown of un-received nodes frees each envelope via the
+    // channel's `freeval` (installed at creation from the element type) — so channel-of-T is race-free
+    // and leak-free by the same construction as the number-only A+B channel, for arbitrary T.
     private const string ConcurrencyRuntime =
 """
 #if defined(__unix__) || defined(__APPLE__)
 #include <pthread.h>
 #include <time.h>
 #define CUFET_TASK_MAX 4096
-typedef struct cufet_chan_node { CufetDec val; struct cufet_chan_node* next; } cufet_chan_node;
-typedef struct { pthread_mutex_t m; pthread_cond_t c; cufet_chan_node* head; cufet_chan_node* tail; int closed; } cufet_chan;
+typedef struct cufet_chan_node { void* val; struct cufet_chan_node* next; } cufet_chan_node;
+typedef struct { pthread_mutex_t m; pthread_cond_t c; cufet_chan_node* head; cufet_chan_node* tail; int closed; void (*freeval)(void*); } cufet_chan;
 /* Live-channel registry — so an interrupt unwind (CONC.E) can free channels the longjmp jumped past.
    A normal cufet_chan_free unregisters; the interrupt teardown frees whatever is still registered. */
 static cufet_chan* cufet_live_chans[CUFET_TASK_MAX];
 static int cufet_nlive = 0;
 static pthread_mutex_t cufet_live_m = PTHREAD_MUTEX_INITIALIZER;
-static cufet_chan* cufet_chan_new(void) {
+static cufet_chan* cufet_chan_new(void (*freeval)(void*)) {
     cufet_chan* ch = (cufet_chan*)malloc(sizeof(cufet_chan));
     pthread_mutex_init(&ch->m, NULL); pthread_cond_init(&ch->c, NULL);
-    ch->head = ch->tail = NULL; ch->closed = 0;
+    ch->head = ch->tail = NULL; ch->closed = 0; ch->freeval = freeval;
     pthread_mutex_lock(&cufet_live_m); if (cufet_nlive < CUFET_TASK_MAX) cufet_live_chans[cufet_nlive++] = ch; pthread_mutex_unlock(&cufet_live_m);
     return ch;
 }
-static void cufet_chan_send(cufet_chan* ch, CufetDec v) {
-    cufet_chan_node* n = (cufet_chan_node*)malloc(sizeof(cufet_chan_node)); /* heap bridge */
-    n->val = v; n->next = NULL;
+/* Enqueues a heap envelope (already a self-contained deep copy of the element — no arena pointers). */
+static void cufet_chan_send(cufet_chan* ch, void* env) {
+    cufet_chan_node* n = (cufet_chan_node*)malloc(sizeof(cufet_chan_node));
+    n->val = env; n->next = NULL;
     pthread_mutex_lock(&ch->m);
     if (ch->tail) ch->tail->next = n; else ch->head = n; ch->tail = n;
     pthread_cond_signal(&ch->c); pthread_mutex_unlock(&ch->m);
 }
-/* Blocking receive → 1 with *out set if a value is available, 0 if the channel is empty-and-closed
-   (→ Cufet void), -1 if a SIGINT arrived while blocked (CONC.E — the caller runs a checkpoint). The
-   wait is a 50ms timed-wait loop so a blocked worker re-checks the interrupt flag (true-preemptive:
-   a real pthread_cond_wait can now be woken by a signal, which the cooperative interpreter can't do).
-   Frees the received node (the heap bridge) after copying the value out. */
-static int cufet_chan_recv(cufet_chan* ch, CufetDec* out) {
+/* Blocking receive → 1 with *out set to the heap envelope if a value is available, 0 if the channel
+   is empty-and-closed (→ Cufet void), -1 if a SIGINT arrived while blocked (CONC.E — the caller runs
+   a checkpoint). The wait is a 50ms timed-wait loop so a blocked worker re-checks the interrupt flag
+   (true-preemptive: a real pthread_cond_wait can be woken by a signal). Frees the node (not the
+   envelope — the caller arena-copies from it, then frees it via cchan_<T>_freeenv). */
+static int cufet_chan_recv(cufet_chan* ch, void** out) {
     pthread_mutex_lock(&ch->m);
     while (!ch->head && !ch->closed) {
         if (cufet_interrupted) { pthread_mutex_unlock(&ch->m); return -1; }
@@ -1164,11 +1186,11 @@ static int cufet_chan_recv(cufet_chan* ch, CufetDec* out) {
 static void cufet_chan_close(cufet_chan* ch) {
     pthread_mutex_lock(&ch->m); ch->closed = 1; pthread_cond_broadcast(&ch->c); pthread_mutex_unlock(&ch->m);
 }
-static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received message bridges (teardown/close-with-pending) */
+static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received envelopes (teardown/close-with-pending) */
     pthread_mutex_lock(&cufet_live_m);
     for (int i = 0; i < cufet_nlive; i++) if (cufet_live_chans[i] == ch) { cufet_live_chans[i] = cufet_live_chans[--cufet_nlive]; break; }
     pthread_mutex_unlock(&cufet_live_m);
-    cufet_chan_node* n = ch->head; while (n) { cufet_chan_node* x = n->next; free(n); n = x; }
+    cufet_chan_node* n = ch->head; while (n) { cufet_chan_node* x = n->next; if (ch->freeval) ch->freeval(n->val); free(n); n = x; }
     pthread_mutex_destroy(&ch->m); pthread_cond_destroy(&ch->c); free(ch);
 }
 /* Interrupt-teardown helper: free every still-live channel (the unwind longjmp'd past their frees). */
@@ -1176,7 +1198,7 @@ static void cufet_free_all_chans(void) {
     pthread_mutex_lock(&cufet_live_m);
     while (cufet_nlive > 0) {
         cufet_chan* ch = cufet_live_chans[--cufet_nlive];
-        cufet_chan_node* n = ch->head; while (n) { cufet_chan_node* x = n->next; free(n); n = x; }
+        cufet_chan_node* n = ch->head; while (n) { cufet_chan_node* x = n->next; if (ch->freeval) ch->freeval(n->val); free(n); n = x; }
         pthread_mutex_destroy(&ch->m); pthread_cond_destroy(&ch->c); free(ch);
     }
     pthread_mutex_unlock(&cufet_live_m);
@@ -1294,6 +1316,11 @@ static void* cufet_pipe_stage(void* argp) {
         foreach (var def in _objectDefs.Values)
             ValidateObjectSupported(def);
 
+        // Whole-program pipe analysis (channel-of-T): resolve each pipe-stage function's implicit
+        // input element type by propagating types left-to-right through every task pipe, so a
+        // `for each x from the input` can declare a concrete C type for x. Runs before the body pass.
+        AnalyzePipes(program);
+
         // Method + function bodies + main are emitted into a separate buffer FIRST. That
         // pass discovers every record struct shape used (via TypeOf / EmitCType), so struct
         // declarations — which C requires before any use — can be assembled ahead of them.
@@ -1408,6 +1435,9 @@ static void* cufet_pipe_stage(void* argp) {
         // ── Series + map container structs + helpers (need element/K/V structs above) ──
         EmitSeriesRuntime(sb);
         EmitMapRuntime(sb);
+
+        // ── Channel-of-T deep-copy helpers (need the series/map/record/object structs above) ──
+        EmitChannelDeepCopy(sb);
 
         // ── Exact-decimal math runtime (only when a math total function is used) ──
         if (_usesMath) sb.AppendLine(MathRuntime);
@@ -1842,6 +1872,194 @@ static void* cufet_pipe_stage(void* argp) {
             sb.AppendLine($"}}");
         }
         sb.AppendLine();
+    }
+
+    // ── Channel-of-T deep copy ────────────────────────────────────────────────────
+    //
+    // A value crossing a channel boundary must be decoupled from BOTH threads' arenas: deep-copied to
+    // malloc'd heap on send (the "envelope"), deep-copied into the receiver's arena on recv, then the
+    // heap envelope freed. This is the interpreter's DeepCopyForChannel, now in C, per element type.
+    //
+    // Two recursive helpers are synthesized per type in the closure: `copy(v, alloc)` — a deep copy
+    // using the given allocator (malloc for the heap bridge, cufet_arena_alloc for the arena copy) —
+    // and `freeheap(v)` — a recursive free of a heap copy. Value-only types (number/fact and nestings
+    // thereof) are POD: copy is the identity and freeheap a no-op (the struct copy IS the deep copy,
+    // matching the number-only fast path). Text/series/map/matrix/reference types recurse.
+
+    // Is `t` transitively free of arena pointers (so a plain C struct copy is already a deep copy)?
+    private bool IsChanPod(CufetType t) => t switch
+    {
+        NumberType or FactType => true,
+        VoidableType v => IsChanPod(v.Inner),
+        RecordType rt  => RecordFields(rt).All(f => IsChanPod(f.Type)),
+        ObjectType ot  => ObjectFields(_objectDefs[ot.Name]).All(f => IsChanPod(f.Type)),
+        _ => false,   // text, series, map, matrix — hold arena pointers
+    };
+
+    // Registers `t` (and, recursively, the component types its copy body references) for deep-copy
+    // helper synthesis, returning its index. `isTop` marks a type used AT a channel/pipe boundary
+    // (those additionally get the heapenv/arenacopy/freeenv wrappers). Deduped by TypeSig.
+    private int RegisterChanElem(CufetType t, bool isTop)
+    {
+        string sig = TypeSig(t);
+        if (isTop) _chanTopElems.Add(sig);
+        if (_chanElemReg.TryGetValue(sig, out var existing)) return existing;
+        int idx = _chanElemReg.Count;
+        _chanElemReg[sig] = idx;
+        _chanElemList.Add((idx, t));
+        // Ensure the C struct(s) this type needs are registered (idempotent — also done at send/recv
+        // via EmitCType, but registering here keeps the closure self-contained).
+        switch (t)
+        {
+            case SeriesType st: RegisterSeriesStruct(st); RegisterChanElem(st.ElementType, false); break;
+            case MapType mt: RegisterMapStruct(mt); RegisterChanElem(mt.KeyType, false); RegisterChanElem(mt.ValueType, false); break;
+            case VoidableType vt: RegisterVoidableStruct(vt); RegisterChanElem(vt.Inner, false); break;
+            case MatrixType: _usesMatrix = true; break;
+            case RecordType rt:
+                RegisterRecordStruct(rt);
+                foreach (var f in RecordFields(rt)) if (!IsChanPod(f.Type)) RegisterChanElem(f.Type, false);
+                break;
+            case ObjectType ot:
+                foreach (var f in ObjectFields(_objectDefs[ot.Name])) if (!IsChanPod(f.Type)) RegisterChanElem(f.Type, false);
+                break;
+            case NumberType or FactType or TextType: break;
+            default:
+                throw new CompilerException(
+                    $"a channel of '{t.GetType().Name}' is not supported (channel elements are number/fact/text/series/map/record/object/voidable/matrix).");
+        }
+        return idx;
+    }
+
+    private int ChanIdxOf(CufetType t) => _chanElemReg[TypeSig(t)];
+    private string ChanHeapEnv(CufetType t)  => $"cchan_{ChanIdxOf(t)}_heapenv";
+    private string ChanArenaCopy(CufetType t) => $"cchan_{ChanIdxOf(t)}_arenacopy";
+    private string ChanFreeEnv(CufetType t)  => $"cchan_{ChanIdxOf(t)}_freeenv";
+
+    // Emits the deep-copy helper family for every registered channel element type + its closure.
+    // All `copy`/`freeheap` signatures are forward-declared first so the recursion (a series-of-record
+    // copy calls the record copy, a record-with-series copy calls the series copy) resolves — the same
+    // forward-declare-then-define shape as the series `_write`/`_eq` helpers.
+    private void EmitChannelDeepCopy(StringBuilder sb)
+    {
+        if (_chanElemList.Count == 0) return;
+        sb.AppendLine("// ── Channel-of-T deep copy (heap bridge on send, arena copy on recv) ──");
+        sb.AppendLine("typedef void* (*cufet_alloc_fn)(size_t);");
+        foreach (var (idx, t) in _chanElemList)
+        {
+            string tc = EmitCType(t);
+            sb.AppendLine($"static {tc} cchan_{idx}_copy({tc} v, cufet_alloc_fn a);");
+            sb.AppendLine($"static void cchan_{idx}_freeheap({tc} v);");
+        }
+        foreach (var (idx, t) in _chanElemList)
+        {
+            EmitChanCopyBody(sb, idx, t);
+            EmitChanFreeBody(sb, idx, t);
+        }
+        // Boundary wrappers (only for types actually used at a channel/pipe edge — avoids unused statics).
+        foreach (var (idx, t) in _chanElemList)
+        {
+            if (!_chanTopElems.Contains(TypeSig(t))) continue;
+            string tc = EmitCType(t);
+            sb.AppendLine($"static void* cchan_{idx}_heapenv({tc} v) {{ void* e = malloc(sizeof({tc})); *({tc}*)e = cchan_{idx}_copy(v, malloc); return e; }}");
+            sb.AppendLine($"static {tc} cchan_{idx}_arenacopy(void* e) {{ return cchan_{idx}_copy(*({tc}*)e, cufet_arena_alloc); }}");
+            sb.AppendLine($"static void cchan_{idx}_freeenv(void* e) {{ cchan_{idx}_freeheap(*({tc}*)e); free(e); }}");
+        }
+        sb.AppendLine();
+    }
+
+    private void EmitChanCopyBody(StringBuilder sb, int idx, CufetType t)
+    {
+        string tc = EmitCType(t);
+        sb.Append($"static {tc} cchan_{idx}_copy({tc} v, cufet_alloc_fn a) {{ ");
+        switch (t)
+        {
+            case NumberType or FactType:
+                sb.Append("(void)a; return v;");
+                break;
+            case TextType:
+                sb.Append("if (!v) return v; size_t n = strlen(v) + 1; char* r = (char*)a(n); memcpy(r, v, n); return r;");
+                break;
+            case SeriesType st:
+            {
+                string sn = RegisterSeriesStruct(st), ec = EmitCType(st.ElementType);
+                int ei = ChanIdxOf(st.ElementType);
+                sb.Append($"if (!v) return v; {sn}* r = ({sn}*)a(sizeof({sn})); r->len = v->len; r->cap = v->len; ");
+                sb.Append($"r->data = v->len ? ({ec}*)a((size_t)v->len * sizeof({ec})) : NULL; ");
+                sb.Append($"for (int i = 0; i < v->len; i++) r->data[i] = cchan_{ei}_copy(v->data[i], a); return r;");
+                break;
+            }
+            case MapType mt:
+            {
+                string mn = RegisterMapStruct(mt), kc = EmitCType(mt.KeyType), vc = EmitCType(mt.ValueType);
+                int ki = ChanIdxOf(mt.KeyType), vi = ChanIdxOf(mt.ValueType);
+                sb.Append($"if (!v) return v; {mn}* r = ({mn}*)a(sizeof({mn})); r->len = v->len; r->cap = v->len; ");
+                sb.Append($"r->keys = v->len ? ({kc}*)a((size_t)v->len * sizeof({kc})) : NULL; ");
+                sb.Append($"r->vals = v->len ? ({vc}*)a((size_t)v->len * sizeof({vc})) : NULL; ");
+                sb.Append($"for (int i = 0; i < v->len; i++) {{ r->keys[i] = cchan_{ki}_copy(v->keys[i], a); r->vals[i] = cchan_{vi}_copy(v->vals[i], a); }} return r;");
+                break;
+            }
+            case MatrixType:
+                sb.Append("if (!v) return v; CufetMatrix* r = (CufetMatrix*)a(sizeof(CufetMatrix)); r->rows = v->rows; r->cols = v->cols; ");
+                sb.Append("int nn = v->rows * v->cols; r->data = nn ? (CufetDec*)a((size_t)nn * sizeof(CufetDec)) : NULL; ");
+                sb.Append("for (int i = 0; i < nn; i++) r->data[i] = v->data[i]; return r;");
+                break;
+            case VoidableType vt:
+            {
+                int ii = ChanIdxOf(vt.Inner);
+                sb.Append($"if (!v.has) return v; {tc} r; r.has = 1; r.val = cchan_{ii}_copy(v.val, a); return r;");
+                break;
+            }
+            case RecordType or ObjectType:
+            {
+                var fields = t is RecordType rt ? RecordFields(rt) : ObjectFields(_objectDefs[((ObjectType)t).Name]);
+                sb.Append($"{tc} r = v; ");
+                foreach (var f in fields)
+                    if (!IsChanPod(f.Type)) sb.Append($"r.{f.CField} = cchan_{ChanIdxOf(f.Type)}_copy(v.{f.CField}, a); ");
+                sb.Append("return r;");
+                break;
+            }
+            default:
+                throw new CompilerException($"channel deep-copy of '{t.GetType().Name}' is unsupported.");
+        }
+        sb.AppendLine(" }");
+    }
+
+    private void EmitChanFreeBody(StringBuilder sb, int idx, CufetType t)
+    {
+        string tc = EmitCType(t);
+        sb.Append($"static void cchan_{idx}_freeheap({tc} v) {{ ");
+        switch (t)
+        {
+            case NumberType or FactType:
+                sb.Append("(void)v;");
+                break;
+            case TextType:
+                sb.Append("if (v) free((void*)v);");
+                break;
+            case SeriesType st:
+                sb.Append($"if (!v) return; for (int i = 0; i < v->len; i++) cchan_{ChanIdxOf(st.ElementType)}_freeheap(v->data[i]); free(v->data); free(v);");
+                break;
+            case MapType mt:
+                sb.Append($"if (!v) return; for (int i = 0; i < v->len; i++) {{ cchan_{ChanIdxOf(mt.KeyType)}_freeheap(v->keys[i]); cchan_{ChanIdxOf(mt.ValueType)}_freeheap(v->vals[i]); }} free(v->keys); free(v->vals); free(v);");
+                break;
+            case MatrixType:
+                sb.Append("if (!v) return; free(v->data); free(v);");
+                break;
+            case VoidableType vt:
+                sb.Append($"if (v.has) cchan_{ChanIdxOf(vt.Inner)}_freeheap(v.val);");
+                break;
+            case RecordType or ObjectType:
+            {
+                var fields = t is RecordType rt ? RecordFields(rt) : ObjectFields(_objectDefs[((ObjectType)t).Name]);
+                foreach (var f in fields)
+                    if (!IsChanPod(f.Type)) sb.Append($"cchan_{ChanIdxOf(f.Type)}_freeheap(v.{f.CField}); ");
+                sb.Append("(void)v;");
+                break;
+            }
+            default:
+                throw new CompilerException($"channel deep-copy of '{t.GetType().Name}' is unsupported.");
+        }
+        sb.AppendLine(" }");
     }
 
     // The C boolean expression comparing two values of type `t` by value.
@@ -2302,14 +2520,14 @@ static void* cufet_pipe_stage(void* argp) {
 
             case OutputStatement os:
             {
-                // `output <v>` inside a pipe stage → send into the stage's (thread-local) output
-                // channel — the same heap-bridged channel send as A+B. Number-only this slice.
-                if (TypeOf(os.Value) is not NumberType)
-                    throw new CompilerException("task pipes stream numbers this slice (text/reference elements are the channel-of-T follow-on).");
+                // `output <v>` inside a pipe stage → deep-copy `v` to a heap envelope and send it into
+                // the stage's (thread-local) output channel — the same A+B heap bridge, for any T.
+                var oe = TypeOf(os.Value) ?? TNumber;
+                RegisterChanElem(oe, isTop: true);
                 _usesConcurrency = true;
                 string v = EmitExpr(os.Value);
                 FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}cufet_chan_send(cufet_pipe_out, {v});");
+                sb.AppendLine($"{indent}cufet_chan_send(cufet_pipe_out, {ChanHeapEnv(oe)}({v}));");
                 break;
             }
 
@@ -2357,14 +2575,16 @@ static void* cufet_pipe_stage(void* argp) {
 
             case SendStatement snd:
             {
-                if (TypeOf(snd.Value) is not NumberType)
-                    throw new CompilerException("channels are number-only in this concurrency slice (text/reference elements are deferred).");
+                // `Send v through ch` → deep-copy v to a heap envelope + enqueue it (the A+B bridge,
+                // for any T). The element type is the channel's declared element type (authoritative).
+                var se = (TypeOf(snd.Channel) as ChannelType)?.ElementType ?? TNumber;
+                RegisterChanElem(se, isTop: true);
                 _usesConcurrency = true;
-                string val = EmitExpr(snd.Value);
+                string val = EmitAsType(snd.Value, se);
                 FlushPreEmits(sb, indent);
                 string ch = EmitExpr(snd.Channel);
                 FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}cufet_chan_send({ch}, {val});");
+                sb.AppendLine($"{indent}cufet_chan_send({ch}, {ChanHeapEnv(se)}({val}));");
                 break;
             }
 
@@ -2945,7 +3165,7 @@ static void* cufet_pipe_stage(void* argp) {
         // run / subprocess pipe are fallible; post-check VALUE type is the run-result record.
         RunExpression or PipeExpression => RunResultRecordType,
         ChannelCreation cc    => new ChannelType(cc.ElementType),
-        DeliveryExpression    => new VoidableType(TNumber),   // channels are number-only this slice
+        DeliveryExpression de => new VoidableType((TypeOf(de.Channel) as ChannelType)?.ElementType ?? TNumber),
         InterruptRequestedExpression => TFact,                // `an interrupt is requested` → fact
         // A named task's awaited result — inner success type (raw `T or failure` is seen only by
         // FallibleReturnType, for Try / but-on-failure / propagate), exactly like a fallible call.
@@ -3182,6 +3402,10 @@ static void* cufet_pipe_stage(void* argp) {
         var saved = new Dictionary<string, CufetType>(_varTypes);
         var savedRet = _currentReturnType;
         var savedExcOpen = _excOpen; _excOpen = 0;   // exc handlers never span function frames
+        // When this function is a pipe stage, its `for each from the input` iterator element type was
+        // resolved by AnalyzePipes; make it available for the body walk (restored after).
+        var savedPipeIn = _currentPipeInputElem;
+        _currentPipeInputElem = _stageInputElem.TryGetValue(bind.Name, out var pin) ? pin : null;
         _varTypes.Clear();
         _currentReturnType = bind.ReturnType;
         foreach (var (pType, pName) in bind.Parameters)
@@ -3196,6 +3420,7 @@ static void* cufet_pipe_stage(void* argp) {
         foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
         _currentReturnType = savedRet;
         _excOpen = savedExcOpen;
+        _currentPipeInputElem = savedPipeIn;
     }
 
     // C function names: methods cm_, getters cg_, setters cst_ (cst_ avoids the cs_ series-temp prefix).
@@ -3510,6 +3735,120 @@ static void* cufet_pipe_stage(void* argp) {
         return stages;
     }
 
+    // Whole-program pipe analysis: for every task pipe, propagate element types left-to-right (each
+    // stage's input = the previous stage's output type) so a `for each x from the input` inside a
+    // stage has a concrete C element type. A pure producer's input is null; every downstream stage's
+    // input is its predecessor's output (defaulting to number when the output type can't be inferred,
+    // preserving the number-only behavior). A function reused at two positions with conflicting input
+    // element types is a clean CompilerException (the one-input-type-per-stage restricted form).
+    private void AnalyzePipes(Program program)
+    {
+        var binds = new Dictionary<string, BindStatement>();
+        void Collect(IReadOnlyList<IStatement> stmts)
+        {
+            foreach (var s in stmts)
+                if (s is BindStatement b && b.UntoType == null) binds[b.Name] = b;
+                else if (s is PullStatement ps) Collect(ps.Body);
+        }
+        Collect(program.Statements);
+
+        var pipes = new List<List<IExpression>>();
+        void Scan(IReadOnlyList<IStatement> stmts)
+        {
+            foreach (var s in stmts)
+            {
+                if (s is PipeExpression pe && !FlattenPipeAll(pe).TrueForAll(x => x is RunExpression))
+                    pipes.Add(FlattenPipeAll(pe));
+                switch (s)
+                {
+                    case IfStatement iff:
+                        foreach (var a in iff.Arms) Scan(a.Body);
+                        if (iff.ElseBody != null) Scan(iff.ElseBody); break;
+                    case WhileStatement w: Scan(w.Body); break;
+                    case RepeatUntilStatement ru: Scan(ru.Body); break;
+                    case ForEachStatement fe: Scan(fe.Body); break;
+                    case PullRabbitStatement pr: Scan(pr.Body); break;
+                    case PullStatement pl: Scan(pl.Body); break;
+                    case BindStatement bd: Scan(bd.Body); break;
+                    case TryStatement t: Scan(t.Body); if (t.FailureHandler != null) Scan(t.FailureHandler); break;
+                    case WithOpenStatement wo: Scan(wo.Body); break;
+                    case LaunchTaskStatement lt: Scan(lt.Body); break;
+                }
+            }
+        }
+        Scan(program.Statements);
+
+        static bool TypeEq(CufetType? a, CufetType? b) => (a, b) switch
+        {
+            (null, null) => true,
+            (null, _) or (_, null) => false,
+            _ => a!.Equals(b),
+        };
+        void SetInput(string name, CufetType? elem)
+        {
+            if (_stageInputElem.TryGetValue(name, out var prev))
+            {
+                if (!TypeEq(prev, elem))
+                    throw new CompilerException(
+                        $"pipe stage '{name}' is used with two different input element types — a function can be a pipe stage for one element type only (this slice).");
+            }
+            else _stageInputElem[name] = elem;
+        }
+
+        foreach (var stages in pipes)
+        {
+            CufetType? cur = null;   // input to the first stage (a producer) is nothing
+            for (int i = 0; i < stages.Count; i++)
+            {
+                if (stages[i] is not VariableReference vr) break;   // non-named stage → the closures gap (thrown at emit)
+                SetInput(vr.Name, cur);
+                if (i < stages.Count - 1)
+                    cur = binds.TryGetValue(vr.Name, out var b) ? (InferStageOutput(b, cur) ?? TNumber) : null;
+            }
+        }
+    }
+
+    // Infers a pipe stage's OUTPUT element type = the type of its first `output <expr>` (with the
+    // input iterator bound to `inputElem`). Best-effort over the common stage shapes; returns null
+    // (→ caller defaults to number) if it can't be determined. Saves/restores _varTypes.
+    private CufetType? InferStageOutput(BindStatement bind, CufetType? inputElem)
+    {
+        var saved = new Dictionary<string, CufetType>(_varTypes);
+        _varTypes.Clear();
+        foreach (var (pt, pn) in bind.Parameters) _varTypes[pn] = pt;
+        CufetType? outType = null;
+        void Walk(IReadOnlyList<IStatement> stmts)
+        {
+            foreach (var s in stmts)
+            {
+                if (outType != null) return;
+                try
+                {
+                    switch (s)
+                    {
+                        case DefineStatement d:
+                            var dt = TypeOf(d.Value); if (dt != null) _varTypes[d.Name] = dt; break;
+                        case OutputStatement os: outType = TypeOf(os.Value); return;
+                        case ForEachFromInputStatement fi:
+                            if (inputElem != null) _varTypes[fi.IteratorName] = inputElem;
+                            Walk(fi.Body); break;
+                        case ForEachStatement fe: Walk(fe.Body); break;
+                        case IfStatement iff:
+                            foreach (var a in iff.Arms) Walk(a.Body);
+                            if (iff.ElseBody != null) Walk(iff.ElseBody); break;
+                        case WhileStatement w: Walk(w.Body); break;
+                        case RepeatUntilStatement ru: Walk(ru.Body); break;
+                    }
+                }
+                catch (CompilerException) { /* best-effort — leave outType null */ }
+            }
+        }
+        Walk(bind.Body);
+        _varTypes.Clear();
+        foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
+        return outType;
+    }
+
     // Flattens a pipe into ALL its stage expressions (left-associative), without the all-`run`
     // restriction — used to tell a task pipe (function stages) from a subprocess pipe.
     private static List<IExpression> FlattenPipeAll(PipeExpression pipe)
@@ -3531,17 +3870,20 @@ static void* cufet_pipe_stage(void* argp) {
     private void EmitForEachFromInput(StringBuilder sb, ForEachFromInputStatement fi, string indent)
     {
         _usesConcurrency = true;
+        var elem = _currentPipeInputElem ?? TNumber;   // resolved by AnalyzePipes for this stage
+        RegisterChanElem(elem, isTop: true);
+        string ec = EmitCType(elem);
         string raw   = fi.IteratorName;
         string it    = MangleName(raw);
         string inner = indent + "    ";
         int id = _freshId++;
         sb.AppendLine($"{indent}for (;;) {{");
-        sb.AppendLine($"{inner}CufetDec cf_pv{id}; int cf_ph{id} = cufet_chan_recv(cufet_pipe_in, &cf_pv{id});");
+        sb.AppendLine($"{inner}void* cf_pe{id} = NULL; int cf_ph{id} = cufet_chan_recv(cufet_pipe_in, &cf_pe{id});");
         sb.AppendLine($"{inner}if (cf_ph{id} < 0) {{ cufet_checkpoint(); break; }}");   // interrupted while blocked
         sb.AppendLine($"{inner}if (cf_ph{id} == 0) break;");                            // stream closed → done
-        sb.AppendLine($"{inner}CufetDec {it} = cf_pv{id};");
+        sb.AppendLine($"{inner}{ec} {it} = {ChanArenaCopy(elem)}(cf_pe{id}); {ChanFreeEnv(elem)}(cf_pe{id});");
         var saved = _varTypes.TryGetValue(raw, out var st) ? st : null;
-        _varTypes[raw] = TNumber;
+        _varTypes[raw] = elem;
         _loopFileDepths.Add(_openFiles.Count);   // so Stop/Skip close files opened in the loop body
         EmitBlock(sb, fi.Body, inner);
         _loopFileDepths.RemoveAt(_loopFileDepths.Count - 1);
@@ -3574,7 +3916,15 @@ static void* cufet_pipe_stage(void* argp) {
         string inner = indent + "    ";
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{inner}cufet_chan* cf_pch{id}[{n - 1}];");
-        sb.AppendLine($"{inner}for (int cf_pi = 0; cf_pi < {n - 1}; cf_pi++) cf_pch{id}[cf_pi] = cufet_chan_new();");
+        // Channel j (stage j → stage j+1) carries stage j's output = stage j+1's input element type
+        // (resolved by AnalyzePipes); give it that type's freeval so pending envelopes free on teardown.
+        for (int j = 0; j < n - 1; j++)
+        {
+            var downstream = ((VariableReference)stages[j + 1]).Name;
+            var chElem = _stageInputElem.TryGetValue(downstream, out var ie) && ie != null ? ie : TNumber;
+            RegisterChanElem(chElem, isTop: true);
+            sb.AppendLine($"{inner}cf_pch{id}[{j}] = cufet_chan_new({ChanFreeEnv(chElem)});");
+        }
         sb.AppendLine($"{inner}pthread_t cf_pth{id}[{n}];");
         for (int i = 0; i < n; i++)
         {
@@ -3713,32 +4063,37 @@ static void* cufet_pipe_stage(void* argp) {
         _ => false,
     };
 
-    // `a channel of T` — number-only this slice. Allocated with the enclosing rabbit tracking it so
-    // it's freed at Done. (after tasks join). Returns a temp so the tracking side-effect precedes use.
+    // `a channel of T` — any element type (channel-of-T). Allocated with the enclosing rabbit tracking
+    // it so it's freed at Done. (after tasks join), and given a per-element-type `freeval` so un-received
+    // envelopes are freed on teardown. Returns a temp so the tracking side-effect precedes use.
     private string EmitChannelCreation(ChannelCreation cc)
     {
-        if (cc.ElementType is not NumberType)
-            throw new CompilerException("channels are number-only in this concurrency slice (text/reference elements are deferred).");
         _usesConcurrency = true;
         if (_rabbitCtx.Count == 0)
             throw new CompilerException("a channel must be created inside a rabbit (Pull a rabbit) in this slice.");
+        RegisterChanElem(cc.ElementType, isTop: true);
         string ctx = _rabbitCtx[^1];
         int id = _freshId++;
         string tmp = $"cf_ch{id}";
-        _preEmits.Add($"cufet_chan* {tmp} = cufet_chan_new(); cf_chan{ctx}[cf_nchan{ctx}++] = {tmp};");
+        _preEmits.Add($"cufet_chan* {tmp} = cufet_chan_new({ChanFreeEnv(cc.ElementType)}); cf_chan{ctx}[cf_nchan{ctx}++] = {tmp};");
         return tmp;
     }
 
-    // `the delivery from ch` → voidable number: blocking receive; void when empty-and-closed.
+    // `the delivery from ch` → voidable T: blocking receive; void when empty-and-closed. The received
+    // heap envelope is deep-copied into this thread's arena, then freed (the A+B model, for any T).
     private string EmitDelivery(DeliveryExpression de)
     {
         _usesConcurrency = true;
-        string cvd = RegisterVoidableStruct(new VoidableType(TNumber));
+        var elem = (TypeOf(de.Channel) as ChannelType)?.ElementType ?? TNumber;
+        RegisterChanElem(elem, isTop: true);
+        string ec = EmitCType(elem);
+        string cvd = RegisterVoidableStruct(new VoidableType(elem));
         string ch = EmitExpr(de.Channel);
         int id = _freshId++;
         // recv → 1 (value), 0 (empty+closed → void), -1 (interrupted while blocked). On -1 run the
         // checkpoint: if this thread has a landing pad it unwinds; otherwise the interrupt reads as void.
-        _preEmits.Add($"CufetDec cf_dv{id}; int cf_dh{id} = cufet_chan_recv({ch}, &cf_dv{id}); if (cf_dh{id} < 0) {{ cufet_checkpoint(); cf_dh{id} = 0; }}");
+        _preEmits.Add($"void* cf_de{id} = NULL; int cf_dh{id} = cufet_chan_recv({ch}, &cf_de{id}); if (cf_dh{id} < 0) {{ cufet_checkpoint(); cf_dh{id} = 0; }}");
+        _preEmits.Add($"{ec} cf_dv{id} = {{0}}; if (cf_dh{id}) {{ cf_dv{id} = {ChanArenaCopy(elem)}(cf_de{id}); {ChanFreeEnv(elem)}(cf_de{id}); }}");
         return $"(cf_dh{id} ? ({cvd}){{ .has = 1, .val = cf_dv{id} }} : ({cvd}){{ .has = 0 }})";
     }
 
