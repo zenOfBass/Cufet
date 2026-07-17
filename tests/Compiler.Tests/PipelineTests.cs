@@ -42,6 +42,7 @@ public class PipelineTests
             var psi = new ProcessStartInfo(binPath)
             {
                 RedirectStandardOutput = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8,   // binaries print UTF-8 (e.g. em-dash messages)
                 RedirectStandardInput  = stdin != null,
                 UseShellExecute = false,
             };
@@ -1688,21 +1689,22 @@ public class PipelineTests
     }
 
     [Fact]
-    public void Fallibility_ExceptionHandler_Deferred_ThrowsCleanly()
+    public void Fallibility_ExceptionHandler_CompilesAndReRaises()
     {
-        // In case of exception (runtime-signal handling → sigaction) is deferred — reject cleanly.
+        // E-prime: `In case of exception` now COMPILES (was the deferral this test used to assert).
+        // The handler runs, and WITHOUT Suppress the fault re-raises — the compiled binary exits
+        // nonzero after printing the handler's output, exactly like the interpreter's re-throw.
         const string src = """
             Try to:
                 State 1 / 0.
             Done.
             In case of exception (the exception):
                 State "caught".
+                Suppress the exception.
             Done.
+            State "after".
             """;
-        var tokens  = new CufetLexer(src).Tokenize();
-        var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
-        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+        Assert.Equal(Interpret(src), Compile(src));
     }
 
     // ── Slice 7: text-as-full-type (immutable const char*, results arena-allocated) ──
@@ -2998,6 +3000,206 @@ public class PipelineTests
         finally { try { Directory.Delete(dir, recursive: true); } catch { } }
     }
 
+    // ── CONC.E-prime: the exception path (In case of exception / Suppress) ──
+    // setjmp/longjmp over SOFTWARE faults (Cufet's numbers are software decimals — div/mod-by-zero
+    // and OOB are detected checks, not hardware signals). Handlers are a per-thread jmp_buf stack
+    // (nested Trys nest; innermost wins); the handler RE-RAISES by default unless it Suppresses.
+    // Fault messages replicate the interpreter's RuntimeException text, line numbers included.
+
+    [Fact]
+    public void Exception_FaultSites_CaughtWithExactMessages()
+    {
+        const string src = """
+            Try to:
+                Define x as 1 / 0.
+            Done.
+            In case of exception (the exception):
+                State the message of the exception.
+                Suppress the exception.
+            Done.
+            Try to:
+                Define y as 7 % 0.
+            Done.
+            In case of exception (the exception):
+                State the message of the exception.
+                Suppress the exception.
+            Done.
+            Try to:
+                Define xs as a series with (1, 2, 3).
+                State item 9 of xs.
+            Done.
+            In case of exception (the exception):
+                State the message of the exception.
+                Suppress the exception.
+            Done.
+            Try to:
+                Define empty as a series of number with ().
+                State the last of empty.
+            Done.
+            In case of exception (the exception):
+                State the message of the exception.
+                Suppress the exception.
+            Done.
+            State "done".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Exception_NestedInnermostWins_ThenReRaisesOutward()
+    {
+        // The inner handler catches first; without Suppress it re-raises the SAME exception to the
+        // outer handler (same message). The statement after the inner Try is not reached.
+        const string src = """
+            Try to:
+                Try to:
+                    Define z as 5 / 0.
+                Done.
+                In case of exception (the exception):
+                    State "inner caught".
+                    State the message of the exception.
+                Done.
+                State "not reached".
+            Done.
+            In case of exception (the exception):
+                State "outer caught the re-raise".
+                State the message of the exception.
+                Suppress the exception.
+            Done.
+            State "after nesting".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Exception_ComposesWithFailureHandler()
+    {
+        // One Try, BOTH handlers: a value failure routes to In case of failure; a runtime fault
+        // routes to In case of exception. The two mechanisms (goto vs longjmp) stay independent.
+        const string src = """
+            Bind the number or failure to risky, given (the fact which):
+                If which, return a failure "a value failure" of category "biz".
+                return 5.
+            Done.
+            Try to:
+                Define r1 as cast risky on (true).
+                State "no failure".
+            Done.
+            In case of failure:
+                State "failure handler: " joined to the message of the failure.
+            Done.
+            In case of exception (the exception):
+                State "exception handler (wrong)".
+                Suppress the exception.
+            Done.
+            Try to:
+                Define r2 as cast risky on (false).
+                State r2.
+                Define r3 as r2 / 0.
+            Done.
+            In case of failure:
+                State "failure handler (wrong)".
+            Done.
+            In case of exception (the exception):
+                State "exception handler: " joined to the message of the exception.
+                Suppress the exception.
+            Done.
+            State "end".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Exception_CleanupOnLongjmp_FileFlushedAndClosed()
+    {
+        // ★ The crux: a fault INSIDE a With-open block, caught by an OUTER handler — the longjmp
+        // jumps past the emit-time fclose, so the RUNTIME registry must flush+close the file. The
+        // read-back proves no data loss (the 9B proof, applied to the nonlocal-jump path).
+        var path = (Path.GetTempPath().Replace('\\', '/').TrimEnd('/')) + "/cufet-eprime-" + Guid.NewGuid().ToString("N")[..8] + ".txt";
+        try
+        {
+            string src = $"""
+                Try to:
+                    With the file "{path}" open for writing as out:
+                        write "written before the fault" to out.
+                        Define x as 1 / 0.
+                        write "never written" to out.
+                    Done.
+                Done.
+                In case of exception (the exception):
+                    State "caught: " joined to the message of the exception.
+                    Suppress the exception.
+                Done.
+                Try to:
+                    Define back as read all from the file "{path}".
+                    State back.
+                Done.
+                In case of failure:
+                    State "read failed".
+                Done.
+                """;
+            Assert.Equal(Interpret(src), Compile(src));
+        }
+        finally { try { File.Delete(path); } catch { } }
+    }
+
+    [Fact]
+    public void Exception_Uncaught_KeepsPrintExitBehavior()
+    {
+        // No handler → the pre-exception behavior is unchanged: message to stderr, exit 1. The
+        // interpreter throws RuntimeException; the compiled binary prints what ran before the fault.
+        const string src = """
+            State "before".
+            Define x as 1 / 0.
+            State "after".
+            """;
+        Assert.Throws<RuntimeException>(() => Interpret(src));
+        Assert.Equal("before", Compile(src));
+    }
+
+    [Fact]
+    public void Exception_LoopScopedTry_SuppressAndContinue()
+    {
+        // A Try inside a loop: each iteration's handler catches independently; setjmp-modified
+        // locals (the counter) survive the longjmps (gcc's returns_twice conservatism, verified).
+        const string src = """
+            Define counter as 0.
+            While counter is less than 3, repeat:
+                Try to:
+                    Define q as 1 / (counter - 1).
+                    State q.
+                Done.
+                In case of exception (the exception):
+                    State "loop caught".
+                    Suppress the exception.
+                Done.
+                counter becomes counter + 1.
+            Done.
+            State "done".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Exception_MemorySafety_ASan()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The registries free exactly-once across the longjmp (no double-close/free; arena pops).
+        const string src = """
+            Try to:
+                Define xs as a series with (1, 2, 3).
+                State item 99 of xs.
+            Done.
+            In case of exception (the exception):
+                State "caught oob".
+                Suppress the exception.
+            Done.
+            State "done".
+            """;
+        Assert.Equal(Interpret(src), CompileWithASan(src));
+    }
+
     [Fact]
     public void Sort_MemorySafety_ASan()
     {
@@ -3447,6 +3649,7 @@ public class PipelineTests
             var psi = new ProcessStartInfo(binPath)
             {
                 RedirectStandardOutput = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8,   // binaries print UTF-8 (e.g. em-dash messages)
                 RedirectStandardError  = true,
                 UseShellExecute        = false,
             };
@@ -3519,6 +3722,7 @@ public class PipelineTests
             var psi = new ProcessStartInfo(binPath)
             {
                 RedirectStandardOutput = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8,   // binaries print UTF-8 (e.g. em-dash messages)
                 RedirectStandardError  = true,
                 UseShellExecute        = false,
             };

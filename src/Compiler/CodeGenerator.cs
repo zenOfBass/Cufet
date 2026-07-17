@@ -52,7 +52,25 @@ public sealed class CodeGenerator
     // Inside a Try body: (handler label, the caught-failure C var, open-file depth at Try entry)
     // so a failing fallible call records the failure, closes files opened since the Try, and jumps
     // to the In-case-of-failure handler.
-    private (string Label, string FailVar, int FileDepth)? _currentTryHandler;
+    private (string Label, string FailVar, int FileDepth, int ExcDepth)? _currentTryHandler;
+
+    // E-prime — exception-handler bookkeeping. `_excOpen` counts jmp_buf handlers open in the
+    // function currently being emitted (reset per function): every NONLOCAL exit (return, Stop/Skip,
+    // failure-goto, propagate) must pop `cufet_exc_top` by the handlers it jumps out of, or a later
+    // fault would longjmp into a dead frame. `_currentExcHandler` is the active handler's suppress
+    // var + done label (for `Suppress.`); `_currentExcVar` the saved message (for `the exception`).
+    private int _excOpen;
+    private readonly List<int> _loopExcDepths = new();
+    private (string SupVar, string DoneLabel)? _currentExcHandler;
+    private string? _currentExcVar;
+    private static readonly CufetType TExcMarker = new ExceptionMarkerType();
+
+    // The `cufet_exc_top -= K;` statement popping handlers down to `toDepth`, or "" when none.
+    private string ExcPopStmts(int toDepth)
+    {
+        int k = _excOpen - toDepth;
+        return k > 0 ? $"cufet_exc_top -= {k}; " : "";
+    }
     // Inside an In-case-of-failure handler: the CufetFailure C var that `the failure` refers to.
     private string? _currentFailVar;
 
@@ -160,6 +178,65 @@ public sealed class CodeGenerator
 #include <ctype.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <setjmp.h>
+#include <stdarg.h>
+
+/* ───────── Exceptions (E-prime): setjmp/longjmp over SOFTWARE faults ─────────
+   Cufet numbers are software decimals, so divide/modulo-by-zero, series/matrix OOB, etc. are
+   software-DETECTED conditions, not hardware signals. Every fault site calls cufet_raise: if a
+   `Try to: … In case of exception:` handler is installed (a per-thread jmp_buf stack — nested
+   Trys nest; innermost wins), the fault longjmps to it; otherwise the pre-exception behavior
+   (print + exit 1) is unchanged. Messages match the interpreter's RuntimeException text
+   (arena-allocated so a bound `the message of the exception` outlives later faults). */
+#define CUFET_EXC_MAX 64
+static _Thread_local jmp_buf cufet_exc_bufs[CUFET_EXC_MAX];
+static _Thread_local int cufet_exc_top = -1;
+static _Thread_local const char* cufet_exc_msg = 0;
+static void* cufet_arena_alloc(size_t size);   /* defined with the arena, below */
+static const char* cufet_msgf(const char* fmt, ...) {
+    va_list ap; va_start(ap, fmt);
+    va_list ap2; va_copy(ap2, ap);
+    int need = vsnprintf(NULL, 0, fmt, ap) + 1;
+    va_end(ap);
+    char* b = (char*)cufet_arena_alloc((size_t)need);
+    vsnprintf(b, (size_t)need, fmt, ap2);
+    va_end(ap2);
+    return b;
+}
+static void cufet_raise(const char* msg) {
+    if (cufet_exc_top >= 0) { cufet_exc_msg = msg; longjmp(cufet_exc_bufs[cufet_exc_top], 1); }
+    fprintf(stderr, "%s\n", msg);
+    exit(1);
+}
+/* Runtime FILE registry — a longjmp (exception OR interrupt) jumps past the emit-time fclose
+   sites, so open files must be runtime-tracked to flush+close on the unwind (the 9B no-data-loss
+   discipline, extended to nonlocal jumps). Normal closes unregister → no double-close. */
+#define CUFET_FILES_MAX 256
+static _Thread_local FILE* cufet_live_files[CUFET_FILES_MAX];
+static _Thread_local int cufet_nfiles = 0;
+static void cufet_reg_file(FILE* f) { if (cufet_nfiles < CUFET_FILES_MAX) cufet_live_files[cufet_nfiles++] = f; }
+static void cufet_close_file(FILE* f) {
+    for (int i = cufet_nfiles - 1; i >= 0; i--)
+        if (cufet_live_files[i] == f) { for (int j = i; j < cufet_nfiles - 1; j++) cufet_live_files[j] = cufet_live_files[j + 1]; cufet_nfiles--; break; }
+    fclose(f);
+}
+static void cufet_close_files_from(int n) { while (cufet_nfiles > n) fclose(cufet_live_files[--cufet_nfiles]); }
+
+/* 1-based series bounds checks — the messages replicate the interpreter's warm OOB errors.
+   (Compiled series access was previously UNCHECKED — E-prime adds the checks so OOB is a real,
+   catchable exception instead of undefined behavior.) */
+static long long cufet_idx_check(long long idx, int len, const char* name, int line) {
+    if (idx >= 1 && idx <= len) return idx;
+    if (len == 0)
+        cufet_raise(cufet_msgf("There's no item %lld — '%s' is empty. This happened on line %d.", idx, name, line));
+    cufet_raise(cufet_msgf("There's no item %lld — '%s' has %d %s (you can reach items 1 through %d). This happened on line %d.",
+                           idx, name, len, len == 1 ? "item" : "items", len, line));
+    return 0;
+}
+static long long cufet_last_check(int len, const char* name, int line) {
+    if (len == 0) cufet_raise(cufet_msgf("Can't access the last item — '%s' is empty on line %d.", name, line));
+    return len;
+}
 
 /* ───────── 256-bit unsigned helper (little-endian limbs) ───────── */
 typedef struct { unsigned long long v[4]; } cufet_u256;
@@ -299,8 +376,8 @@ static int cufet_cmp(CufetDec a, CufetDec b) {
     int c = u256_cmp(ca, cb);
     return a.sign ? -c : c;
 }
-static CufetDec cufet_div(CufetDec a, CufetDec b) {
-    if (b.coef == 0) { fprintf(stderr, "Division by zero\n"); exit(1); }
+static CufetDec cufet_div(CufetDec a, CufetDec b, int line) {
+    if (b.coef == 0) cufet_raise(cufet_msgf("Division by zero on line %d.", line));
     int e = (b.scale - a.scale) + 28;                                   /* compute value * 10^28, then reduce */
     cufet_u256 num = u256_from_u128(a.coef), den = u256_from_u128(b.coef);
     if (e >= 0) num = u256_mul(num, u256_pow10(e)); else den = u256_mul(den, u256_pow10(-e));
@@ -318,8 +395,8 @@ static CufetDec cufet_div(CufetDec a, CufetDec b) {
     }
     return cufet_dec_reduce(Q, 28, rsign, !u256_is_zero(R));
 }
-static CufetDec cufet_mod(CufetDec a, CufetDec b) {                     /* remainder, sign of dividend */
-    if (b.coef == 0) { fprintf(stderr, "Modulo by zero\n"); exit(1); }
+static CufetDec cufet_mod(CufetDec a, CufetDec b, int line) {           /* remainder, sign of dividend */
+    if (b.coef == 0) cufet_raise(cufet_msgf("Modulo by zero on line %d.", line));
     int e = b.scale - a.scale;
     cufet_u256 num, den;
     if (e >= 0) { num = u256_mul(u256_from_u128(a.coef), u256_pow10(e)); den = u256_from_u128(b.coef); }
@@ -385,8 +462,8 @@ static const char* cufet_str_substr(const char* s, int from0, int len) {
     memcpy(r, s + from0, (size_t)len); r[len] = '\0';
     return r;
 }
-static const char* cufet_str_range(const char* s, int from1, int to1) {
-    if (from1 <= 0) { fprintf(stderr, "a character position must be 1 or greater\n"); exit(1); }
+static const char* cufet_str_range(const char* s, int from1, int to1, int line) {
+    if (from1 <= 0) cufet_raise(cufet_msgf("a character position must be 1 or greater — positions start at 1 (line %d).", line));
     int len = (int)strlen(s);
     if (to1 < 0 || to1 > len) to1 = len;      /* to1 < 0 sentinel = to end; clamp high */
     int length = to1 - from1 + 1;              /* 1-based inclusive */
@@ -424,9 +501,9 @@ static int cufet_str_find(const char* text, const char* sub) {
 /* Splits s on each non-overlapping occurrence of delim, keeping empty parts (C# string.Split
    with StringSplitOptions.None): N hits -> N+1 arena-allocated substrings, written to *out.
    Delimiter-not-found -> one part (the whole string); "" -> one empty part. */
-static int cufet_str_split(const char* s, const char* delim, const char*** out) {
+static int cufet_str_split(const char* s, const char* delim, const char*** out, int line) {
     size_t dl = strlen(delim);
-    if (dl == 0) { fprintf(stderr, "'split by' needs a non-empty delimiter\n"); exit(1); }
+    if (dl == 0) cufet_raise(cufet_msgf("'split by' needs a non-empty delimiter (line %d).", line));
     int count = 1;
     for (const char* p = s; (p = strstr(p, delim)) != NULL; p += dl) count++;
     const char** arr = (const char**)cufet_arena_alloc((size_t)count * sizeof(const char*));
@@ -443,9 +520,9 @@ static int cufet_str_split(const char* s, const char* delim, const char*** out) 
     *out = arr;
     return count;
 }
-static const char* cufet_str_replace(const char* s, const char* olds, const char* news) {
+static const char* cufet_str_replace(const char* s, const char* olds, const char* news, int line) {
     size_t lo = strlen(olds);
-    if (lo == 0) { fprintf(stderr, "'replace' needs a non-empty target\n"); exit(1); }
+    if (lo == 0) cufet_raise(cufet_msgf("'replace' needs a non-empty target (line %d).", line));
     size_t ln = strlen(news), ls = strlen(s), count = 0;
     const char* p = s;
     while ((p = strstr(p, olds))) { count++; p += lo; }
@@ -898,16 +975,16 @@ static CufetMatrix* cufet_mat_new(int rows, int cols) {
 }
 /* 1-based access, bounds-checked — the messages mirror the interpreter's RuntimeException text. */
 static CufetDec cufet_mat_get(CufetMatrix* m, long long r, long long c, int line) {
-    if (r < 1 || r > m->rows) { fprintf(stderr, "Row index %lld is out of range — this matrix has %d row(s) (line %d).\n", r, m->rows, line); exit(1); }
-    if (c < 1 || c > m->cols) { fprintf(stderr, "Column index %lld is out of range — this matrix has %d column(s) (line %d).\n", c, m->cols, line); exit(1); }
+    if (r < 1 || r > m->rows) cufet_raise(cufet_msgf("Row index %lld is out of range — this matrix has %d row(s) (line %d).", r, m->rows, line));
+    if (c < 1 || c > m->cols) cufet_raise(cufet_msgf("Column index %lld is out of range — this matrix has %d column(s) (line %d).", c, m->cols, line));
     return m->data[(r - 1) * m->cols + (c - 1)];
 }
 /* `a matrix of R by C [filled with F]` — runtime validation for non-literal dimensions
    (literals are rejected statically by the typechecker), matching the interpreter's messages. */
 static CufetMatrix* cufet_mat_sized(CufetDec rd, CufetDec cd, CufetDec fill, int line) {
     long long r = cufet_to_int(rd), c = cufet_to_int(cd);
-    if (cufet_cmp(rd, cufet_dec_from_ll(r)) != 0 || r < 1) { fprintf(stderr, "Matrix row count must be a positive whole number, but got %s (line %d).\n", cufet_text_from_dec(rd), line); exit(1); }
-    if (cufet_cmp(cd, cufet_dec_from_ll(c)) != 0 || c < 1) { fprintf(stderr, "Matrix column count must be a positive whole number, but got %s (line %d).\n", cufet_text_from_dec(cd), line); exit(1); }
+    if (cufet_cmp(rd, cufet_dec_from_ll(r)) != 0 || r < 1) cufet_raise(cufet_msgf("Matrix row count must be a positive whole number, but got %s (line %d).", cufet_text_from_dec(rd), line));
+    if (cufet_cmp(cd, cufet_dec_from_ll(c)) != 0 || c < 1) cufet_raise(cufet_msgf("Matrix column count must be a positive whole number, but got %s (line %d).", cufet_text_from_dec(cd), line));
     CufetMatrix* m = cufet_mat_new((int)r, (int)c);
     if (cufet_cmp(fill, cufet_dec_from_ll(0)) != 0)   /* interpreter skips the fill when it equals 0 */
         for (long long i = 0; i < r * c; i++) m->data[i] = fill;
@@ -990,11 +1067,9 @@ static long long cufet_rng_below(long long bound) {   /* uniform-ish in [0, boun
 /* `a random number from L to H` — inclusive bounds ([lo, hi], matching .Next(lo, hi+1)); the
    decimal low>high check + message mirror the interpreter's RuntimeException. */
 static CufetDec cufet_random_number(CufetDec low, CufetDec high, int line) {
-    if (cufet_cmp(low, high) > 0) {
-        fprintf(stderr, "Random number range is invalid: low (%s) is greater than high (%s) (line %d).\n",
-                cufet_text_from_dec(low), cufet_text_from_dec(high), line);
-        exit(1);
-    }
+    if (cufet_cmp(low, high) > 0)
+        cufet_raise(cufet_msgf("Random number range is invalid: low (%s) is greater than high (%s) (line %d).",
+                    cufet_text_from_dec(low), cufet_text_from_dec(high), line));
     long long lo = cufet_to_int(low), hi = cufet_to_int(high);
     return cufet_dec_from_ll(lo + cufet_rng_below(hi - lo + 1));
 }
@@ -1105,6 +1180,21 @@ static void cufet_free_all_chans(void) {
         pthread_mutex_destroy(&ch->m); pthread_cond_destroy(&ch->c); free(ch);
     }
     pthread_mutex_unlock(&cufet_live_m);
+}
+/* Exception-unwind helper (E-prime): free channels registered AFTER a Try-entry snapshot — the
+   longjmp jumped past their rabbit teardown. Freeing from the top preserves snapshot indexing
+   (cufet_chan_free swap-removes; removing the last entry is a plain pop). */
+static void cufet_free_chans_from(int n) {
+    while (cufet_nlive > n) cufet_chan_free(cufet_live_chans[cufet_nlive - 1]);
+}
+/* Rabbit teardown after a caught exception may see channels ALREADY freed at the catch — free
+   only if still registered (idempotent teardown; no double-free). */
+static void cufet_chan_free_if_live(cufet_chan* ch) {
+    pthread_mutex_lock(&cufet_live_m);
+    int live = 0;
+    for (int i = 0; i < cufet_nlive; i++) if (cufet_live_chans[i] == ch) { live = 1; break; }
+    pthread_mutex_unlock(&cufet_live_m);
+    if (live) cufet_chan_free(ch);
 }
 /* Task pipes (CONC.D): each stage runs as its own thread connected by channels. `output <v>` and
    `for each … from the input` inside a stage read these THREAD-LOCAL implicit channels — mirroring
@@ -1285,6 +1375,7 @@ static void* cufet_pipe_stage(void* argp) {
             body.AppendLine("#if defined(__unix__) || defined(__APPLE__)");
             body.AppendLine("    cufet_install_sigint();");
             body.AppendLine("    if (sigsetjmp(cufet_thread_top, 1)) {");
+            body.AppendLine("        cufet_close_files_from(0);   /* flush+close open files (E's file gap, closed by the E-prime registry) */");
             body.AppendLine("        while (cufet_arena_top >= 0) cufet_arena_pop();");
             if (_usesConcurrency)
                 body.AppendLine("        cufet_free_all_chans();");
@@ -2136,17 +2227,17 @@ static void* cufet_pipe_stage(void* argp) {
                         int rid = _freshId++;
                         sb.AppendLine($"{indent}{tctx.ResultCType}* cf_tret{rid} = ({tctx.ResultCType}*)malloc(sizeof({tctx.ResultCType}));");
                         sb.AppendLine($"{indent}*cf_tret{rid} = {retExpr};");
-                        sb.AppendLine($"{indent}{FileCleanupStmts(0)}cufet_arena_pop(); free(cf_a); return cf_tret{rid};");
+                        sb.AppendLine($"{indent}{FileCleanupStmts(0)}{ExcPopStmts(0)}cufet_arena_pop(); free(cf_a); return cf_tret{rid};");
                     }
                     else
                     {
                         // A bare `return.` (or a value dropped by a fire-and-forget task): no result.
-                        sb.AppendLine($"{indent}{FileCleanupStmts(0)}cufet_arena_pop(); free(cf_a); return NULL;");
+                        sb.AppendLine($"{indent}{FileCleanupStmts(0)}{ExcPopStmts(0)}cufet_arena_pop(); free(cf_a); return NULL;");
                     }
                     break;
                 }
                 if (ret.Value == null)
-                    sb.AppendLine($"{indent}{FileCleanupStmts(0)}return;");
+                    sb.AppendLine($"{indent}{FileCleanupStmts(0)}{ExcPopStmts(0)}return;");
                 else
                 {
                     // Coerce so `return <T>` / `return void` widens into a voidable return type.
@@ -2154,7 +2245,7 @@ static void* cufet_pipe_stage(void* argp) {
                     // arena value never references a FILE*), THEN return.
                     string retExpr = EmitAsType(ret.Value, _currentReturnType);
                     FlushPreEmits(sb, indent);
-                    sb.AppendLine($"{indent}{FileCleanupStmts(0)}return {retExpr};");
+                    sb.AppendLine($"{indent}{FileCleanupStmts(0)}{ExcPopStmts(0)}return {retExpr};");
                 }
                 break;
 
@@ -2191,7 +2282,7 @@ static void* cufet_pipe_stage(void* argp) {
                 string cr = RegisterRecordStruct(RunResultRecordType);
                 string fOut = MangleName("output"), fErr = MangleName("errors");
                 if (_currentTryHandler is { } h)
-                    sb.AppendLine($"{indent}if ({raw}.is_failure) {{ {h.FailVar}.message = {raw}.message; {h.FailVar}.category = {raw}.category; {FileCleanupStmts(h.FileDepth)}goto {h.Label}; }}");
+                    sb.AppendLine($"{indent}if ({raw}.is_failure) {{ {h.FailVar}.message = {raw}.message; {h.FailVar}.category = {raw}.category; {FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}goto {h.Label}; }}");
                 else
                     sb.AppendLine($"{indent}if ({raw}.is_failure) {{ fprintf(stderr, \"%s\\n\", {raw}.message); exit(1); }}");
                 sb.AppendLine($"{indent}fputs({raw}.val.{fErr}, stderr); fputs({raw}.val.{fOut}, stdout);");
@@ -2257,7 +2348,7 @@ static void* cufet_pipe_stage(void* argp) {
                     // awaited task returns its malloc'd result → freed here, so no leak). Awaited tasks
                     // (cf_jflag set) were already joined + freed at their await site. Then free channels.
                     sb.AppendLine($"{inner}for (int cf_ji = 0; cf_ji < cf_nthr{n}; cf_ji++) if (!cf_jflag{n}[cf_ji]) {{ void* cf_jr = NULL; pthread_join(cf_thr{n}[cf_ji], &cf_jr); free(cf_jr); }}");
-                    sb.AppendLine($"{inner}for (int cf_ci = 0; cf_ci < cf_nchan{n}; cf_ci++) cufet_chan_free(cf_chan{n}[cf_ci]);");
+                    sb.AppendLine($"{inner}for (int cf_ci = 0; cf_ci < cf_nchan{n}; cf_ci++) cufet_chan_free_if_live(cf_chan{n}[cf_ci]);");
                 }
                 sb.AppendLine($"{indent}}}");
                 sb.AppendLine($"{indent}cufet_arena_pop();");
@@ -2402,13 +2493,14 @@ static void* cufet_pipe_stage(void* argp) {
                 FlushPreEmits(sb, indent);
                 string valExpr = EmitExpr(ss.Value);
                 FlushPreEmits(sb, indent);
+                string setNm = SeriesDisplayName(ss.Series);
                 if (ss.Index == null)
-                    sb.AppendLine($"{indent}{serExpr}->data[{serExpr}->len - 1] = {valExpr};");
+                    sb.AppendLine($"{indent}{serExpr}->data[cufet_last_check({serExpr}->len, \"{setNm}\", {ss.Line}) - 1] = {valExpr};");
                 else
                 {
                     string idxExpr = EmitExpr(ss.Index);
                     FlushPreEmits(sb, indent);
-                    sb.AppendLine($"{indent}{serExpr}->data[cufet_to_int({idxExpr}) - 1] = {valExpr};");
+                    sb.AppendLine($"{indent}{serExpr}->data[cufet_idx_check(cufet_to_int({idxExpr}), {serExpr}->len, \"{setNm}\", {ss.Line}) - 1] = {valExpr};");
                 }
                 break;
             }
@@ -2483,11 +2575,11 @@ static void* cufet_pipe_stage(void* argp) {
             }
 
             case StopStatement:
-                sb.AppendLine($"{indent}{FileCleanupStmts(CurrentLoopFileDepth())}break;");
+                sb.AppendLine($"{indent}{FileCleanupStmts(CurrentLoopFileDepth())}{ExcPopStmts(CurrentLoopExcDepth())}break;");
                 break;
 
             case SkipStatement:
-                sb.AppendLine($"{indent}{FileCleanupStmts(CurrentLoopFileDepth())}continue;");
+                sb.AppendLine($"{indent}{FileCleanupStmts(CurrentLoopFileDepth())}{ExcPopStmts(CurrentLoopExcDepth())}continue;");
                 break;
 
             case TryStatement ts:
@@ -2495,7 +2587,12 @@ static void* cufet_pipe_stage(void* argp) {
                 break;
 
             case SuppressStatement:
-                throw new CompilerException("'Suppress' is part of exception handling (runtime signals), not yet supported by the compiler.");
+                // `Suppress the exception.` — mark suppressed and exit the handler immediately
+                // (the interpreter's SuppressSignal unwinds the rest of the handler block too).
+                if (_currentExcHandler is not { } eh)
+                    throw new CompilerException("'Suppress' is only valid inside an 'In case of exception' handler.");
+                sb.AppendLine($"{indent}{eh.SupVar} = 1; goto {eh.DoneLabel};");
+                break;
 
             case ForEachStatement fe when fe.Series is RangeExpression range:
                 EmitForEachRange(sb, fe, range, indent);
@@ -2680,38 +2777,92 @@ static void* cufet_pipe_stage(void* argp) {
         else _varTypes.Remove(fe.IteratorName ?? "it");
     }
 
-    // Try to: <body>. In case of failure: <handler>. — value-level failure handling.
-    // A failing fallible call in the body records the failure and gotos the handler; the
-    // handler binds `the failure`. In case of exception (runtime signals) is deferred.
+    // Try to: <body>. In case of failure: <handler>. In case of exception: <handler>. — the two
+    // handler paths are INDEPENDENT (matching the interpreter's ExecuteTryStatement): failures are
+    // values (goto machinery, slice 6); exceptions are runtime faults (setjmp/longjmp, E-prime).
+    // A fault in the FAILURE handler is NOT caught by the sibling exception handler (C# catch
+    // semantics) — the failure path uninstalls this Try's jmp_buf on entry.
     private void EmitTryStatement(StringBuilder sb, TryStatement trySt, string indent)
     {
-        if (trySt.ExceptionHandler != null)
-            throw new CompilerException("'In case of exception' (runtime-signal handling → sigaction) is not yet supported by the compiler.");
-        if (trySt.FailureHandler == null)
-            throw new CompilerException("a Try block needs an 'In case of failure' handler.");
+        if (trySt.ExceptionHandler == null && trySt.FailureHandler == null)
+            throw new CompilerException("a Try block needs an 'In case of failure' or 'In case of exception' handler.");
 
         int id = _forCounter++;
-        string label = $"try{id}_handler", end = $"try{id}_end", failVar = $"cf_fail{id}";
         var inner = indent + "    ";
+        bool hasExc  = trySt.ExceptionHandler != null;
+        bool hasFail = trySt.FailureHandler != null;
+        string label = $"try{id}_handler", end = $"try{id}_end", failVar = $"cf_fail{id}";
+        string catchL = $"exc{id}_catch", doneL = $"exc{id}_done";
+        string sup = $"cf_sup{id}", xmsg = $"cf_xmsg{id}";
 
         sb.AppendLine($"{indent}{{");
-        sb.AppendLine($"{inner}CufetFailure {failVar};");
+        if (hasFail)
+            sb.AppendLine($"{inner}CufetFailure {failVar};");
+        if (hasExc)
+        {
+            // Runtime cleanup snapshots — set BEFORE setjmp and never modified, so they are safe
+            // to read after the longjmp without volatile (C11 7.13.2.1 clobbers only locals
+            // MODIFIED between setjmp and longjmp).
+            sb.AppendLine($"{inner}int cf_xf{id} = cufet_nfiles;");
+            if (_usesConcurrency)
+                sb.AppendLine($"{inner}int cf_xc{id} = cufet_nlive;");
+            sb.AppendLine($"{inner}int cf_xa{id} = cufet_arena_top;");
+            sb.AppendLine($"{inner}int {sup} = 0; (void){sup};");
+            sb.AppendLine($"{inner}const char* {xmsg} = 0; (void){xmsg};");
+            sb.AppendLine($"{inner}if (setjmp(cufet_exc_bufs[++cufet_exc_top]) != 0) goto {catchL};");
+            _excOpen++;
+        }
 
         var savedHandler = _currentTryHandler;
-        _currentTryHandler = (label, failVar, _openFiles.Count);   // files opened in the body close on unwind
+        if (hasFail)
+            _currentTryHandler = (label, failVar, _openFiles.Count, _excOpen);   // failure-goto pops NESTED exc handlers only
         EmitBlock(sb, trySt.Body, inner);
-        _currentTryHandler = savedHandler;
+        if (hasFail)
+            _currentTryHandler = savedHandler;
 
+        if (hasExc) { _excOpen--; sb.AppendLine($"{inner}cufet_exc_top--;"); }   // normal completion uninstalls
         sb.AppendLine($"{inner}goto {end};");
-        sb.AppendLine($"{inner}{label}:;");
 
-        var savedFailVar = _currentFailVar;
-        var savedType    = _varTypes.TryGetValue("the failure", out var prev) ? prev : null;
-        _currentFailVar = failVar;
-        _varTypes["the failure"] = TFailMarker;
-        EmitBlock(sb, trySt.FailureHandler, inner);
-        _currentFailVar = savedFailVar;
-        if (savedType != null) _varTypes["the failure"] = savedType; else _varTypes.Remove("the failure");
+        if (hasFail)
+        {
+            sb.AppendLine($"{inner}{label}:;");
+            if (hasExc)
+                sb.AppendLine($"{inner}cufet_exc_top--;");   // a fault in the failure handler goes OUTWARD
+            var savedFailVar = _currentFailVar;
+            var savedType    = _varTypes.TryGetValue("the failure", out var prev) ? prev : null;
+            _currentFailVar = failVar;
+            _varTypes["the failure"] = TFailMarker;
+            EmitBlock(sb, trySt.FailureHandler!, inner);
+            _currentFailVar = savedFailVar;
+            if (savedType != null) _varTypes["the failure"] = savedType; else _varTypes.Remove("the failure");
+            sb.AppendLine($"{inner}goto {end};");
+        }
+
+        if (hasExc)
+        {
+            sb.AppendLine($"{inner}{catchL}:;");
+            sb.AppendLine($"{inner}cufet_exc_top--;");
+            sb.AppendLine($"{inner}{xmsg} = cufet_exc_msg;");
+            // ★ Runtime cleanup: close files / free channels / pop arenas the longjmp jumped past
+            // (the 9B close-on-all-paths discipline, extended to nonlocal jumps via the registries).
+            sb.AppendLine($"{inner}cufet_close_files_from(cf_xf{id});");
+            if (_usesConcurrency)
+                sb.AppendLine($"{inner}cufet_free_chans_from(cf_xc{id});");
+            sb.AppendLine($"{inner}while (cufet_arena_top > cf_xa{id}) cufet_arena_pop();");
+            var savedExcH = _currentExcHandler;
+            var savedExcV = _currentExcVar;
+            var savedExcT = _varTypes.TryGetValue("the exception", out var pex) ? pex : null;
+            _currentExcHandler = (sup, doneL);
+            _currentExcVar = xmsg;
+            _varTypes["the exception"] = TExcMarker;
+            EmitBlock(sb, trySt.ExceptionHandler!, inner);
+            _currentExcHandler = savedExcH;
+            _currentExcVar = savedExcV;
+            if (savedExcT != null) _varTypes["the exception"] = savedExcT; else _varTypes.Remove("the exception");
+            sb.AppendLine($"{inner}{doneL}:;");
+            // RE-RAISE BY DEFAULT unless the handler executed `Suppress.` — the distinctive rule.
+            sb.AppendLine($"{inner}if (!{sup}) cufet_raise({xmsg});");
+        }
 
         sb.AppendLine($"{inner}{end}:;");
         sb.AppendLine($"{indent}}}");
@@ -2937,6 +3088,8 @@ static void* cufet_pipe_stage(void* argp) {
     {
         // the message of the failure → text; the category of the failure → voidable text.
         if (t is FailureMarkerType) return fieldName == "message" ? TText : new VoidableType(TText);
+        // the message of the exception → text (ExceptionValue exposes only Message).
+        if (t is ExceptionMarkerType) return TText;
         if (t is MappingType mp) return fieldName == "key" ? mp.KeyType : mp.ValueType;   // the key/value of pair
         if (t is RecordType rt) return rt.NamedFields.First(f => f.Name == fieldName).Type;
         if (t is ObjectType ot) return ObjectMemberType(ot.Name, fieldName);
@@ -3028,6 +3181,7 @@ static void* cufet_pipe_stage(void* argp) {
         // the outer scope's type map (and vice versa).
         var saved = new Dictionary<string, CufetType>(_varTypes);
         var savedRet = _currentReturnType;
+        var savedExcOpen = _excOpen; _excOpen = 0;   // exc handlers never span function frames
         _varTypes.Clear();
         _currentReturnType = bind.ReturnType;
         foreach (var (pType, pName) in bind.Parameters)
@@ -3041,6 +3195,7 @@ static void* cufet_pipe_stage(void* argp) {
         _varTypes.Clear();
         foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
         _currentReturnType = savedRet;
+        _excOpen = savedExcOpen;
     }
 
     // C function names: methods cm_, getters cg_, setters cst_ (cst_ avoids the cs_ series-temp prefix).
@@ -3061,6 +3216,7 @@ static void* cufet_pipe_stage(void* argp) {
         var saved = new Dictionary<string, CufetType>(_varTypes);
         var savedRecv = _methodReceiverType;
         var savedRet = _currentReturnType;
+        var savedExcOpen = _excOpen; _excOpen = 0;   // exc handlers never span function frames
         _varTypes.Clear();
         _methodReceiverType = def.Name;
         _currentReturnType = g.ReturnType;
@@ -3073,6 +3229,7 @@ static void* cufet_pipe_stage(void* argp) {
         foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
         _methodReceiverType = savedRecv;
         _currentReturnType = savedRet;
+        _excOpen = savedExcOpen;
     }
 
     private void EmitSetter(StringBuilder sb, ObjectDefinition def, SetterDeclaration s)
@@ -3110,6 +3267,8 @@ static void* cufet_pipe_stage(void* argp) {
         return TypeOf(target) switch
         {
             ObjectType ot     => EmitObjectMemberRead(EmitExpr(target), ot.Name, member),
+            // the message of the exception → the saved fault message (arena text).
+            ExceptionMarkerType => _currentExcVar ?? throw new CompilerException("'the exception' is only available inside an 'In case of exception' handler."),
         MappingType       => $"{EmitExpr(target)}_{member}",   // the key/value of pair → cv_pair_key/_value
             FailureMarkerType => member == "message" ? $"({EmitExpr(target)}).message" : EmitFailureCategory(EmitExpr(target)),
             _                 => $"({EmitExpr(target)}).{MangleName(member)}"   // record field
@@ -3184,6 +3343,7 @@ static void* cufet_pipe_stage(void* argp) {
         var saved = new Dictionary<string, CufetType>(_varTypes);
         var savedRecv = _methodReceiverType;
         var savedRet = _currentReturnType;
+        var savedExcOpen = _excOpen; _excOpen = 0;   // exc handlers never span function frames
         _varTypes.Clear();
         _methodReceiverType = def.Name;               // `one` → (*cv_one), resolves fields
         _currentReturnType = method.ReturnType;
@@ -3200,6 +3360,7 @@ static void* cufet_pipe_stage(void* argp) {
         foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
         _methodReceiverType = savedRecv;
         _currentReturnType = savedRet;
+        _excOpen = savedExcOpen;
     }
 
     private string EmitExpr(IExpression expr) => expr switch
@@ -3238,9 +3399,9 @@ static void* cufet_pipe_stage(void* argp) {
         TextLength tl         => $"cufet_dec_from_ll((long long)strlen({EmitExpr(tl.Target)}))",
         TextContains tcn      => $"(strstr({EmitExpr(tcn.Text)}, {EmitExpr(tcn.Substring)}) != NULL)",
         TextFind tf           => EmitTextFind(tf),
-        TextSubstringRange r  => $"cufet_str_range({EmitExpr(r.Text)}, cufet_to_int({EmitExpr(r.From)}), {(r.To != null ? $"cufet_to_int({EmitExpr(r.To)})" : "-1")})",
+        TextSubstringRange r  => $"cufet_str_range({EmitExpr(r.Text)}, cufet_to_int({EmitExpr(r.From)}), {(r.To != null ? $"cufet_to_int({EmitExpr(r.To)})" : "-1")}, {r.Line})",
         TextSubstringEdge e   => $"cufet_str_edge({EmitExpr(e.Text)}, cufet_to_int({EmitExpr(e.Count)}), {(e.FromStart ? "1" : "0")})",
-        TextReplace rp        => $"cufet_str_replace({EmitExpr(rp.Text)}, {EmitExpr(rp.Old)}, {EmitExpr(rp.New)})",
+        TextReplace rp        => $"cufet_str_replace({EmitExpr(rp.Text)}, {EmitExpr(rp.Old)}, {EmitExpr(rp.New)}, {rp.Line})",
         TextCase tcs          => tcs.Uppercase ? $"cufet_str_upper({EmitExpr(tcs.Text)})" : $"cufet_str_lower({EmitExpr(tcs.Text)})",
         TextTrim tt           => $"cufet_str_trim({EmitExpr(tt.Text)})",
         TextSplit ts          => EmitTextSplit(ts),
@@ -3642,11 +3803,13 @@ static void* cufet_pipe_stage(void* argp) {
         var savedRet     = _currentReturnType;
         var savedTaskRet = _currentTaskReturn;
         var savedInTask  = _inTaskBody;
+        var savedExcOpen = _excOpen; _excOpen = 0;   // task body = its own function frame
         _currentReturnType = resultType;
         _currentTaskReturn = (resultType, resultCType);
         _inTaskBody        = true;
         EmitBlock(_taskFns, lts.Body, "    ");
         _currentReturnType = savedRet;
+        _excOpen = savedExcOpen;
         _currentTaskReturn = savedTaskRet;
         _inTaskBody        = savedInTask;
         // Fall-through epilogue (reached by fire-and-forget/void tasks; a value-returning task is
@@ -3791,7 +3954,7 @@ static void* cufet_pipe_stage(void* argp) {
         string enclosing = _currentReturnType is FailureType ft
             ? RegisterFailableStruct(ft)
             : throw new CompilerException("'or pass the failure off' requires the enclosing function to return 'T or failure'.");
-        _preEmits.Add($"if ({tmp}.is_failure) {{ {FileCleanupStmts(0)}return (({enclosing}){{ .is_failure = 1, .message = {tmp}.message, .category = {tmp}.category }}); }}");
+        _preEmits.Add($"if ({tmp}.is_failure) {{ {FileCleanupStmts(0)}{ExcPopStmts(0)}return (({enclosing}){{ .is_failure = 1, .message = {tmp}.message, .category = {tmp}.category }}); }}");
         return $"{tmp}.val";
     }
 
@@ -3835,7 +3998,7 @@ static void* cufet_pipe_stage(void* argp) {
         int id = _freshId++;
         string tmp = $"cs_{id}", parts = $"cf_sp{id}", n = $"cf_spn{id}", j = $"cf_spj{id}";
         _preEmits.Add($"{name}* {tmp} = {name}_new();");
-        _preEmits.Add($"{{ const char** {parts}; int {n} = cufet_str_split({textExpr}, {delimExpr}, &{parts}); for (int {j} = 0; {j} < {n}; {j}++) {name}_append({tmp}, {parts}[{j}]); }}");
+        _preEmits.Add($"{{ const char** {parts}; int {n} = cufet_str_split({textExpr}, {delimExpr}, &{parts}, {ts.Line}); for (int {j} = 0; {j} < {n}; {j}++) {name}_append({tmp}, {parts}[{j}]); }}");
         return tmp;
     }
 
@@ -3888,7 +4051,7 @@ static void* cufet_pipe_stage(void* argp) {
         string ok = $"cf_w{id}", err = $"cf_we{id}";
         sb.AppendLine($"{indent}{{ CufetFailure {err}; int {ok} = cufet_file_write({pathExpr}, {valExpr}, {(fw.Append ? 1 : 0)}, &{err});");
         if (_currentTryHandler is { } h)
-            sb.AppendLine($"{indent}  if (!{ok}) {{ {h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; {FileCleanupStmts(h.FileDepth)}goto {h.Label}; }} }}");
+            sb.AppendLine($"{indent}  if (!{ok}) {{ {h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; {FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}goto {h.Label}; }} }}");
         else
             sb.AppendLine($"{indent}  if (!{ok}) {{ fprintf(stderr, \"%s\\n\", {err}.message); exit(1); }} }}");
     }
@@ -3939,17 +4102,21 @@ static void* cufet_pipe_stage(void* argp) {
         sb.AppendLine($"{inner}const char* {pathTmp} = {pathExpr};");
         sb.AppendLine($"{inner}FILE* {sVar} = fopen({pathTmp}, \"{mode}\");");
         if (_currentTryHandler is { } h)
-            sb.AppendLine($"{inner}if (!{sVar}) {{ CufetFailure {err} = cufet_file_failure({pathTmp}, errno); {FileCleanupStmts(h.FileDepth)}{h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; goto {h.Label}; }}");
+            sb.AppendLine($"{inner}if (!{sVar}) {{ CufetFailure {err} = cufet_file_failure({pathTmp}, errno); {FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}{h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; goto {h.Label}; }}");
         else
             sb.AppendLine($"{inner}if (!{sVar}) {{ CufetFailure {err} = cufet_file_failure({pathTmp}, errno); fprintf(stderr, \"%s\\n\", {err}.message); exit(1); }}");
 
         var savedType = _varTypes.TryGetValue(wos.BindingName, out var pt) ? pt : null;
         _varTypes[wos.BindingName] = wos.Mode == OpenMode.Reading
             ? new ReadableStreamType(TText) : new WritableStreamType(TText);
-        _openFiles.Add($"fclose({sVar});");
+        // Runtime-register the FILE* (E-prime): a longjmp (exception/interrupt) jumps past the
+        // emit-time closes below, so the runtime registry flushes+closes what the jump skipped.
+        // All structured closes go through cufet_close_file (fclose + unregister → no double-close).
+        sb.AppendLine($"{inner}cufet_reg_file({sVar});");
+        _openFiles.Add($"cufet_close_file({sVar});");
         EmitBlock(sb, wos.Body, inner);
         _openFiles.RemoveAt(_openFiles.Count - 1);   // pop; emit the normal-exit close
-        sb.AppendLine($"{inner}fclose({sVar});");
+        sb.AppendLine($"{inner}cufet_close_file({sVar});");
         sb.AppendLine($"{indent}}}");
 
         if (savedType != null) _varTypes[wos.BindingName] = savedType; else _varTypes.Remove(wos.BindingName);
@@ -3960,11 +4127,14 @@ static void* cufet_pipe_stage(void* argp) {
     private void EmitLoopBody(StringBuilder sb, IReadOnlyList<IStatement> body, string indent)
     {
         _loopFileDepths.Add(_openFiles.Count);
+        _loopExcDepths.Add(_excOpen);
         EmitBlock(sb, body, indent);
         _loopFileDepths.RemoveAt(_loopFileDepths.Count - 1);
+        _loopExcDepths.RemoveAt(_loopExcDepths.Count - 1);
     }
 
     private int CurrentLoopFileDepth() => _loopFileDepths.Count > 0 ? _loopFileDepths[^1] : 0;
+    private int CurrentLoopExcDepth()  => _loopExcDepths.Count > 0 ? _loopExcDepths[^1] : 0;
 
     private string MapName(IExpression mapExpr) => RegisterMapStruct((MapType)TypeOf(mapExpr));
 
@@ -4056,11 +4226,17 @@ static void* cufet_pipe_stage(void* argp) {
             return $"({EmitExpr(sa.Target)}).p{ObjectPositionalIndex(ot.Name, sa.Index)}";
 
         string targetExpr = EmitExpr(sa.Target);
+        string nm = SeriesDisplayName(sa.Target);
         if (sa.Index == null)
-            return $"({targetExpr})->data[({targetExpr})->len - 1]";
+            return $"({targetExpr})->data[cufet_last_check(({targetExpr})->len, \"{nm}\", {sa.Line}) - 1]";
         string idxExpr = EmitExpr(sa.Index);
-        return $"({targetExpr})->data[cufet_to_int({idxExpr}) - 1]";
+        return $"({targetExpr})->data[cufet_idx_check(cufet_to_int({idxExpr}), ({targetExpr})->len, \"{nm}\", {sa.Line}) - 1]";
     }
+
+    // The name used in OOB messages — the interpreter passes the variable's name (quoted inside
+    // the message template); non-variable targets fall back like SeriesDisplayName does.
+    private static string SeriesDisplayName(IExpression target) =>
+        target is VariableReference vr ? vr.Name : "the series";
 
     private string EmitCastExpr(CastExpression cast)
     {
@@ -4080,7 +4256,7 @@ static void* cufet_pipe_stage(void* argp) {
         if (_currentTryHandler is not { } h)
             throw new CompilerException("a fallible call must be handled (Try, 'but on failure', or 'or pass the failure off').");
         // Close any files opened since the Try before unwinding to the handler (flush-on-failure).
-        _preEmits.Add($"if ({tmp}.is_failure) {{ {h.FailVar}.message = {tmp}.message; {h.FailVar}.category = {tmp}.category; {FileCleanupStmts(h.FileDepth)}goto {h.Label}; }}");
+        _preEmits.Add($"if ({tmp}.is_failure) {{ {h.FailVar}.message = {tmp}.message; {h.FailVar}.category = {tmp}.category; {FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}goto {h.Label}; }}");
         return $"{tmp}.val";
     }
 
@@ -4188,7 +4364,7 @@ static void* cufet_pipe_stage(void* argp) {
                     $"{ser}* cf_as{id} = {src}; CufetDec cf_ag{id} = cufet_dec_from_ll(0); " +
                     $"for (int cf_i{id} = 0; cf_i{id} < cf_as{id}->len; cf_i{id}++) cf_ag{id} = cufet_add(cf_ag{id}, cf_as{id}->data[cf_i{id}]); " +
                     $"int cf_ah{id} = cf_as{id}->len > 0; " +
-                    $"if (cf_ah{id}) cf_ag{id} = cufet_div(cf_ag{id}, cufet_dec_from_ll(cf_as{id}->len));");
+                    $"if (cf_ah{id}) cf_ag{id} = cufet_div(cf_ag{id}, cufet_dec_from_ll(cf_as{id}->len), 0);");   // len>0 guard: div-by-zero unreachable
             else
                 _preEmits.Add(
                     $"{ser}* cf_as{id} = {src}; CufetDec cf_ag{id} = cufet_dec_from_ll(0); " +
@@ -4289,8 +4465,8 @@ static void* cufet_pipe_stage(void* argp) {
             case TokenType.Plus:    return $"cufet_add({L}, {R})";
             case TokenType.Minus:   return $"cufet_sub({L}, {R})";
             case TokenType.Star:    return $"cufet_mul({L}, {R})";
-            case TokenType.Slash:   return $"cufet_div({L}, {R})";
-            case TokenType.Percent: return $"cufet_mod({L}, {R})";
+            case TokenType.Slash:   return $"cufet_div({L}, {R}, {b.Line})";
+            case TokenType.Percent: return $"cufet_mod({L}, {R}, {b.Line})";
             case TokenType.And:     return $"({L} && {R})";
             case TokenType.Or:      return $"({L} || {R})";
         }
