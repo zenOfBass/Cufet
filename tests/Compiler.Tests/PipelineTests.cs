@@ -4371,4 +4371,123 @@ public class PipelineTests
             """;
         Assert.Equal(Interpret(src), Compile(src));
     }
+
+    // ── CL.2: closure captures — lambdas + nested Bind (the env-record IS the capture policy) ──
+    // The env is a synthesized value-struct of the free vars: value captures store BY VALUE (snapshot),
+    // region captures store the SHARED POINTER (share) — binding-is-binding, matching the interpreter.
+    // The non-thread cases are pure → Compile == Interpret on both platforms.
+
+    [Fact]
+    public void Closure_LambdaValueCapture_IsSnapshot()
+    {
+        // Capture a number, mutate the enclosing var AFTER creating the lambda → the lambda sees the
+        // SNAPSHOT (value stored by value in the env), not the mutation. 5 + 10 == 15 (not 105).
+        const string src = """
+            Bind void to test:
+                Define n as 10.
+                Define f as a function given (the number x): Return x + n. Done.
+                n becomes 100.
+                State cast f on (5).
+            Done.
+            Cast test.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_LambdaRegionCapture_IsShared()
+    {
+        // Capture a series, mutate the SERIES after creating the lambda → the lambda sees the mutation
+        // (the env stores the shared pointer). 10 + 4 == 14 (not 13). The share half of binding-is-binding.
+        const string src = """
+            Bind void to test:
+                Define xs as a series of number with (1, 2, 3).
+                Define f as a function given (the number x): Return x + the number of xs. Done.
+                Add 99 to xs.
+                State cast f on (10).
+            Done.
+            Cast test.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_NestedBind_Captures()
+    {
+        // A nested Bind (named local closure) captures the enclosing function's parameter.
+        const string src = """
+            Bind number to outer, given (the number base):
+                Bind number to add-base, given (the number y):
+                    Return y + base.
+                Done.
+                Return cast add-base on (7).
+            Done.
+            State cast outer on (100).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_MakeAdder_ValueCaptureEscapesFunction()
+    {
+        // The classic make-adder: a lambda captures a value param and is RETURNED out of its creating
+        // function. A value capture is self-contained (the env owns its snapshot), so the escape is
+        // safe (env lives in the enclosing arena, which a plain function frame doesn't pop).
+        const string src = """
+            Bind number function given (the number) to make-adder, given (the number n):
+                Return a function given (the number x): Return x + n. Done.
+            Done.
+            Define add10 as cast make-adder on (10).
+            State cast add10 on (5).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_LambdaPipeStage_NoCapture()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The unblocked capability: a lambda used as a pipe stage. A stage is a closure value; the
+        // pipe runner calls fn(env). A middle lambda stage transforms the stream.
+        const string src = """
+            Bind void to producer:
+              output 1.
+              output 2.
+              output 3.
+            Done.
+            Bind void to consumer:
+              for each x from the input:
+                State x.
+              Done.
+            Done.
+            producer | (a function: for each x from the input: output x * 10. Done. Done) | consumer.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_LambdaPipeStage_CapturesValue()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // A CAPTURING lambda pipe stage: the env (a value capture — immutable) crosses the thread
+        // boundary, shared read-only while the creating scope blocks on the pipe join → TSan-clean.
+        const string src = """
+            Bind void to run-pipe, given (the number factor):
+              Bind void to producer:
+                output 1.
+                output 2.
+              Done.
+              Bind void to consumer:
+                for each x from the input:
+                  State x.
+                Done.
+              Done.
+              producer | (a function: for each x from the input: output x * factor. Done. Done) | consumer.
+            Done.
+            Cast run-pipe on (100).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
 }
