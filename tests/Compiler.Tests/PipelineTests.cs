@@ -3325,6 +3325,153 @@ public class PipelineTests
         Assert.Equal(Interpret(src), CompileWithASan(src));
     }
 
+    // ── Text/reference task results (channel-of-T follow-on: `the awaited result of` beyond num/fact) ──
+    // The task→awaiter boundary is the third direction of the SAME heap bridge as a channel send: on
+    // return the result is deep-copied to a malloc'd envelope (channel-of-T copy-family), pthread_exit'd,
+    // and the await joins → arena-copies into the awaiter → frees the envelope. An await drains the
+    // interpreter deterministically, so the awaited VALUE is deterministic ⇒ true Compile==Interpret.
+
+    [Fact]
+    public void Concurrency_AwaitedResult_Text()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as greeter:
+                    Define s as "hello " joined to "world".
+                    return s.
+                Done.
+                Define got as the awaited result of greeter.
+                State got.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_AwaitedResult_Series()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The result is a series (reference type). The task's arena is popped after return, so the
+        // heap bridge + arena copy must be genuinely deep — a shallow copy would be a use-after-free
+        // (ASan would catch it); a clean, correct read proves the deep copy crossed arena-independently.
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as maker:
+                    Define xs as a series of number with (1, 2, 3).
+                    return xs.
+                Done.
+                Define got as the awaited result of maker.
+                State "len=" joined to ((the number of got) converted to text) joined to " first=" joined to ((the first of got) converted to text).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_AwaitedResult_ObjectWithSeriesField_DeepCopy()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The crux of a GENUINELY-deep result copy: an object whose field is a series. The whole
+        // nested structure must cross the task→awaiter boundary and survive the task's arena teardown.
+        const string src = """
+            Define object bundle with (the text label, the series of number nums).
+            Pull a rabbit.
+                Have rabbit start a task as maker:
+                    Define ns as a series of number with (10, 20, 30).
+                    Define b as a new bundle { the label "made", the nums ns }.
+                    return b.
+                Done.
+                Define got as the awaited result of maker.
+                State (the label of got) joined to " nums-len=" joined to ((the number of (the nums of got)) converted to text).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_AwaitedResult_Map()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as maker:
+                    Define m as a map from text to number with ("a" : 1, "b" : 2).
+                    return m.
+                Done.
+                Define got as the awaited result of maker.
+                State "size=" joined to ((the size of got) converted to text) joined to " a=" joined to ((the entry for "a" in got but void is 0) converted to text).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_DoubleAwait_ReferenceResult()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // Double-await of a REFERENCE result: the body ("ran") runs exactly once, the join happens
+        // once, and the cached arena copy is read on both awaits — no double-join, no double-free.
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as maker:
+                    State "ran".
+                    return a series of text with ("a", "b").
+                Done.
+                Define r1 as the awaited result of maker.
+                Define r2 as the awaited result of maker.
+                State (the first of r1).
+                State (the second of r2).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_FallibleTask_TextInner_ComposesWithButOnFailure()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // A `text or failure` task result: the wrapper (cfl) composes with the reference inner (text)
+        // — the deep-copy family handles the inner T while the failable machinery (5C/6) is untouched.
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as risky:
+                    If 1 is 2, return a failure "nope" of category "err".
+                    return "recovered text".
+                Done.
+                Define got as the awaited result of risky but on failure ("defaulted").
+                State got.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_NeverAwaitedReferenceResult_ASan_FreesNestedBridge()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // A named task whose REFERENCE result is never awaited: the Done.-join teardown must free the
+        // whole heap bridge THROUGH the slot's freeenv (not just the envelope pointer), so the nested
+        // series allocations free too. ASan/LSan clean = the free-on-all-paths proof for reference results.
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as maker:
+                    State "side effect".
+                    return a series of text with ("x", "y", "z").
+                Done.
+                State "done".
+            Done.
+            """;
+        Assert.Equal(Interpret(src), CompileWithASan(src));
+    }
+
     // ── CONC.D: task pipes (function stages streamed through channels) ──
     // LINUX-ONLY (pthreads). Each stage runs as its own thread; adjacent stages share a channel;
     // a stage closes its output on return so completion cascades down the pipe. Values stream FIFO,

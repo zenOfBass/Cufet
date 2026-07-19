@@ -1891,6 +1891,10 @@ static void* cufet_pipe_stage(void* argp) {
     {
         NumberType or FactType => true,
         VoidableType v => IsChanPod(v.Inner),
+        // A failable result (`T or failure`) is POD iff its inner T is: the message/category are
+        // const char* to STATIC string literals (task failure messages must be static — CONC.C), so
+        // a shallow struct copy is lifetime-safe for them; only the inner value can hold arena pointers.
+        FailureType ft => IsChanPod(ft.Inner),
         RecordType rt  => RecordFields(rt).All(f => IsChanPod(f.Type)),
         ObjectType ot  => ObjectFields(_objectDefs[ot.Name]).All(f => IsChanPod(f.Type)),
         _ => false,   // text, series, map, matrix — hold arena pointers
@@ -1914,6 +1918,7 @@ static void* cufet_pipe_stage(void* argp) {
             case SeriesType st: RegisterSeriesStruct(st); RegisterChanElem(st.ElementType, false); break;
             case MapType mt: RegisterMapStruct(mt); RegisterChanElem(mt.KeyType, false); RegisterChanElem(mt.ValueType, false); break;
             case VoidableType vt: RegisterVoidableStruct(vt); RegisterChanElem(vt.Inner, false); break;
+            case FailureType ft: RegisterFailableStruct(ft); RegisterChanElem(ft.Inner, false); break;
             case MatrixType: _usesMatrix = true; break;
             case RecordType rt:
                 RegisterRecordStruct(rt);
@@ -2009,6 +2014,13 @@ static void* cufet_pipe_stage(void* argp) {
                 sb.Append($"if (!v.has) return v; {tc} r; r.has = 1; r.val = cchan_{ii}_copy(v.val, a); return r;");
                 break;
             }
+            case FailureType ft:
+            {
+                // Struct copy carries the tag + the static message/category; deep-copy the inner value
+                // only on the success side (a failure has no meaningful `val`).
+                sb.Append($"{tc} r = v; if (!v.is_failure) r.val = cchan_{ChanIdxOf(ft.Inner)}_copy(v.val, a); return r;");
+                break;
+            }
             case RecordType or ObjectType:
             {
                 var fields = t is RecordType rt ? RecordFields(rt) : ObjectFields(_objectDefs[((ObjectType)t).Name]);
@@ -2047,6 +2059,9 @@ static void* cufet_pipe_stage(void* argp) {
                 break;
             case VoidableType vt:
                 sb.Append($"if (v.has) cchan_{ChanIdxOf(vt.Inner)}_freeheap(v.val);");
+                break;
+            case FailureType ft:
+                sb.Append($"if (!v.is_failure) cchan_{ChanIdxOf(ft.Inner)}_freeheap(v.val);");
                 break;
             case RecordType or ObjectType:
             {
@@ -2434,17 +2449,16 @@ static void* cufet_pipe_stage(void* argp) {
                 if (_currentTaskReturn is { } tctx)
                 {
                     // Inside a named task's thread function: a return heap-bridges the value across the
-                    // task→awaiter boundary (the task's arena is torn down below, so the result must be
-                    // copied to the heap first), then unwinds the task arena and frees the arg struct.
-                    // The result C type is a self-contained value struct this slice (number/fact +
-                    // voidable/failable), so the heap copy is a deep copy — no arena pointers inside.
-                    if (ret.Value != null && tctx.ResultCType != null)
+                    // task→awaiter boundary. The value is DEEP-COPIED to a malloc'd envelope (heapenv,
+                    // via the channel-of-T copy-family) BEFORE the task's arena is torn down, so the
+                    // returned envelope is self-contained for any T (POD results copy identically — the
+                    // envelope is just malloc + a struct copy, matching CONC.C's scalar path exactly).
+                    if (ret.Value != null && tctx.ResultCType != null && tctx.ResultType != null)
                     {
                         string retExpr = EmitAsType(ret.Value, _currentReturnType);
                         FlushPreEmits(sb, indent);
                         int rid = _freshId++;
-                        sb.AppendLine($"{indent}{tctx.ResultCType}* cf_tret{rid} = ({tctx.ResultCType}*)malloc(sizeof({tctx.ResultCType}));");
-                        sb.AppendLine($"{indent}*cf_tret{rid} = {retExpr};");
+                        sb.AppendLine($"{indent}void* cf_tret{rid} = {ChanHeapEnv(tctx.ResultType)}({retExpr});");
                         sb.AppendLine($"{indent}{FileCleanupStmts(0)}{ExcPopStmts(0)}cufet_arena_pop(); free(cf_a); return cf_tret{rid};");
                     }
                     else
@@ -2554,7 +2568,11 @@ static void* cufet_pipe_stage(void* argp) {
                     // cf_jflag[k] marks a task already joined at its await site (CONC.C), so Done.
                     // does not re-join it (double pthread_join is undefined). Zero = not yet joined.
                     sb.AppendLine($"{inner}int cf_jflag{n}[CUFET_TASK_MAX] = {{0}};");
-                    sb.AppendLine($"{inner}(void)cf_thr{n}; (void)cf_chan{n}; (void)cf_jflag{n};");
+                    // cf_jfree[k] = the freeenv for slot k's result envelope (named tasks; NULL for
+                    // fire-and-forget). The Done. teardown frees a never-awaited result THROUGH it, so a
+                    // reference-typed result's nested heap frees too (not just the envelope pointer).
+                    sb.AppendLine($"{inner}void (*cf_jfree{n}[CUFET_TASK_MAX])(void*) = {{0}};");
+                    sb.AppendLine($"{inner}(void)cf_thr{n}; (void)cf_chan{n}; (void)cf_jflag{n}; (void)cf_jfree{n};");
                     _rabbitCtx.Add(n);
                 }
                 EmitBlock(sb, prs.Body, inner);
@@ -2562,10 +2580,10 @@ static void* cufet_pipe_stage(void* argp) {
                 {
                     _rabbitCtx.RemoveAt(_rabbitCtx.Count - 1);
                     // Structured join: reap every not-yet-awaited task, freeing its result heap-bridge
-                    // (fire-and-forget tasks return NULL → free(NULL) is a no-op; a named-but-never-
-                    // awaited task returns its malloc'd result → freed here, so no leak). Awaited tasks
-                    // (cf_jflag set) were already joined + freed at their await site. Then free channels.
-                    sb.AppendLine($"{inner}for (int cf_ji = 0; cf_ji < cf_nthr{n}; cf_ji++) if (!cf_jflag{n}[cf_ji]) {{ void* cf_jr = NULL; pthread_join(cf_thr{n}[cf_ji], &cf_jr); free(cf_jr); }}");
+                    // via the slot's freeenv (fire-and-forget → cf_jfree NULL + returns NULL → skip; a
+                    // named-but-never-awaited result → freed deeply, so a reference result's nested heap
+                    // frees too — no leak). Awaited tasks (cf_jflag set) were freed at their await site.
+                    sb.AppendLine($"{inner}for (int cf_ji = 0; cf_ji < cf_nthr{n}; cf_ji++) if (!cf_jflag{n}[cf_ji]) {{ void* cf_jr = NULL; pthread_join(cf_thr{n}[cf_ji], &cf_jr); if (cf_jr) {{ if (cf_jfree{n}[cf_ji]) cf_jfree{n}[cf_ji](cf_jr); else free(cf_jr); }} }}");
                     sb.AppendLine($"{inner}for (int cf_ci = 0; cf_ci < cf_nchan{n}; cf_ci++) cufet_chan_free_if_live(cf_chan{n}[cf_ci]);");
                 }
                 sb.AppendLine($"{indent}}}");
@@ -4108,9 +4126,11 @@ static void* cufet_pipe_stage(void* argp) {
     // snapshot into a heap arg struct at spawn (deep-copy-at-spawn — value types copied, channels
     // shared) so a parent mutation after spawn can't race the task's read. The thread runs in its
     // own (thread-local) arena. A NAMED task (CONC.C) additionally returns a heap-bridged result via
-    // the pthread void* return; `the awaited result of <name>` joins it, copies the result into the
-    // awaiter, and frees the bridge. The result type is a self-contained value struct this slice
-    // (number/fact + voidable/failable), so the heap copy is a deep copy with no arena pointers.
+    // the pthread void* return; `the awaited result of <name>` joins it, deep-copies the result into
+    // the awaiter's arena, and frees the bridge. The result is deep-copied to the heap on return via
+    // the channel-of-T copy-family (any T — text/series/map/record/object + voidable/failable), so the
+    // bridge is arena-independent; a failable result's failure message must be a static literal
+    // (arena-templated I/O-failure messages would dangle past the task's arena_pop — I/O-in-tasks out).
     private void EmitLaunchTask(StringBuilder sb, LaunchTaskStatement lts, string indent)
     {
         if (_rabbitCtx.Count == 0)
@@ -4124,18 +4144,9 @@ static void* cufet_pipe_stage(void* argp) {
         string? resultCType = null;
         if (lts.Name != null && resultType != null)
         {
-            // The heap-bridged result must be a self-contained value struct (no arena pointers) so a
-            // shallow struct copy across the thread boundary IS a deep copy. Text/series/reference
-            // results are deferred (recursive heap deep-copy — the channel-of-T follow-on). A fallible
-            // result's failure message must be a static string literal (arena-templated I/O-failure
-            // messages would dangle past the task's arena_pop) — I/O-inside-tasks is out of scope here.
-            var core = resultType;
-            if (core is FailureType ft) core = ft.Inner;
-            if (core is VoidableType vt) core = vt.Inner;
-            if (core is not (NumberType or FactType))
-                throw new CompilerException(
-                    "task results are number/fact this slice (optionally voidable or fallible); " +
-                    "text/series/reference results are deferred to the channel-of-T follow-on (recursive heap deep-copy).");
+            // Register the result type with the deep-copy family so the return heap-bridge (heapenv on
+            // return) and the await (arenacopy + freeenv) can cross the task→awaiter boundary for any T.
+            RegisterChanElem(resultType, isTop: true);
             resultCType = EmitCType(resultType);
             _taskInfos[lts.Name] = (ctx, resultCType, resultType);
             _varTypes[lts.Name] = new TaskHandleType(resultType);
@@ -4187,6 +4198,9 @@ static void* cufet_pipe_stage(void* argp) {
         // Spawn: snapshot captures into the heap arg (value types copied, channels shared) + create.
         sb.AppendLine($"{indent}{{ struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)malloc(sizeof(struct cufet_targ{tid}));");
         foreach (var c in caps) sb.AppendLine($"{indent}  cf_a->{MangleName(c)} = {MangleName(c)};");
+        // Record the slot's result freeenv so a never-awaited result frees deeply at Done. (named only).
+        if (lts.Name != null && resultType != null)
+            sb.AppendLine($"{indent}  cf_jfree{ctx}[cf_nthr{ctx}] = {ChanFreeEnv(resultType)};");
         sb.AppendLine($"{indent}  pthread_create(&cf_thr{ctx}[cf_nthr{ctx}++], NULL, cufet_task{tid}, cf_a); }}");
     }
 
@@ -4195,16 +4209,21 @@ static void* cufet_pipe_stage(void* argp) {
 
     // Infers a named task's result type from its returns — mirrors the checker's inference so the
     // heap-bridge C type matches. Scans nested control flow (but not nested tasks). A `return void`
-    // makes the result voidable; a `return a failure …` makes it fallible; both compose.
+    // makes the result voidable; a `return a failure …` makes it fallible; both compose. Task-body
+    // LOCALS are tracked as the walk proceeds (a `return b` where `b` is a locally-defined series/
+    // object needs `b`'s type to resolve — captured vars are already in _varTypes; restored after).
     private CufetType? InferTaskResultType(IReadOnlyList<IStatement> body)
     {
         bool hasFailure = false, hasVoid = false;
         CufetType? valueType = null;
+        var saved = new Dictionary<string, CufetType>(_varTypes);
         void Walk(IReadOnlyList<IStatement> stmts)
         {
             foreach (var s in stmts)
                 switch (s)
                 {
+                    case DefineStatement d:
+                        var dt = TypeOf(d.Value); if (dt != null) _varTypes[d.Name] = dt; break;
                     case ReturnStatement { Value: null }: break;               // bare void early-exit
                     case ReturnStatement { Value: FailureLiteral }: hasFailure = true; break;
                     case ReturnStatement { Value: VoidLiteral }: hasVoid = true; break;
@@ -4221,6 +4240,8 @@ static void* cufet_pipe_stage(void* argp) {
                 }
         }
         Walk(body);
+        _varTypes.Clear();
+        foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
         if (valueType == null && !hasFailure && !hasVoid) return null;   // fire-and-forget (void)
         CufetType t = valueType ?? TNumber;
         if (hasVoid) t = new VoidableType(t);
@@ -4253,10 +4274,15 @@ static void* cufet_pipe_stage(void* argp) {
             throw new CompilerException("'the awaited result of' requires a named task declared with 'Have rabbit start a task as <name>:'.");
         string sfx = TaskSuffix(vr.Name);
         string ctx = info.Ctx;
+        var resultType = info.ResultType ?? TNumber;
+        // Join once (guarded by cf_jflag), then DEEP-COPY the heap envelope into this (awaiter's) arena
+        // (arenacopy) and free the envelope (freeenv). The cached cf_tres_ is the arena copy — a re-await
+        // reads it without re-joining (the body ran once). POD results copy identically (arenacopy is a
+        // struct read, freeenv a plain free) — CONC.C's scalar path unchanged.
         _preEmits.Add(
             $"if (!cf_jflag{ctx}[cf_slot_{sfx}]) {{ void* cf_ar = NULL; " +
             $"pthread_join(cf_thr{ctx}[cf_slot_{sfx}], &cf_ar); cf_jflag{ctx}[cf_slot_{sfx}] = 1; " +
-            $"cf_tres_{sfx} = *({info.ResultCType}*)cf_ar; free(cf_ar); }}");
+            $"cf_tres_{sfx} = {ChanArenaCopy(resultType)}(cf_ar); {ChanFreeEnv(resultType)}(cf_ar); }}");
         return $"cf_tres_{sfx}";
     }
 
