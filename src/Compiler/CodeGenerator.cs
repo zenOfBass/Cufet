@@ -16,6 +16,19 @@ public sealed class CodeGenerator
     private readonly Dictionary<string, CufetType> _varTypes = new();
     // Return type of each top-level function (null = void), so CastExpression is typed.
     private readonly Dictionary<string, CufetType?> _funcReturnTypes = new();
+    // Full FunctionType (params + return) of each named function, so a bare function name used as a
+    // VALUE (Define f as grade, passing/returning a function) resolves to its FunctionType and cfn struct.
+    private readonly Dictionary<string, FunctionType> _funcTypes = new();
+
+    // Closure-value support (CL.1 — the {fn, env} substrate, no capture yet). A FunctionType lowers to
+    // a uniform value struct `cfn_N { ret (*fn)(void* env, params…); void* env; }` (one per distinct
+    // signature, deduped by TypeSig) — fits a fixed slot, copies by value. A named function used as a
+    // value is wrapped once in a thunk `cv_<name>__fnthunk(void* env, params…)` (ignores env) so the
+    // real function keeps its plain signature and direct calls stay unchanged. env is NULL until CL.2.
+    private readonly Dictionary<string, string> _funcStructSig2Name = new();
+    private readonly List<(string Name, FunctionType Type)> _funcStructs = new();
+    private int _funcStructCounter;
+    private readonly SortedSet<string> _fnThunks = new();   // named functions needing a value thunk
 
     // Record struct registry: canonical shape signature → C struct name (cr_N).
     // Records are structural (anonymous), so each distinct shape gets one synthesized
@@ -1356,9 +1369,15 @@ static void* cufet_pipe_stage(void* argp) {
         CollectPullBinds(program.Statements, new List<(string, string)>());
 
         foreach (var bind in topFuncs)
+        {
             _funcReturnTypes[bind.Name] = bind.ReturnType;
+            _funcTypes[bind.Name] = new FunctionType(bind.Parameters.Select(p => p.Type).ToList(), bind.ReturnType);
+        }
         foreach (var (bind, _) in pullBinds)
+        {
             _funcReturnTypes[bind.Name] = bind.ReturnType;
+            _funcTypes[bind.Name] = new FunctionType(bind.Parameters.Select(p => p.Type).ToList(), bind.ReturnType);
+        }
 
         // Object method / getter / setter bodies (each a C function taking a receiver pointer).
         foreach (var def in _objectDefs.Values)
@@ -1439,6 +1458,9 @@ static void* cufet_pipe_stage(void* argp) {
         // ── Channel-of-T deep-copy helpers (need the series/map/record/object structs above) ──
         EmitChannelDeepCopy(sb);
 
+        // ── Closure-value structs (cfn_N {fn, env}) — need param/return types declared above ──
+        EmitClosureStructs(sb);
+
         // ── Exact-decimal math runtime (only when a math total function is used) ──
         if (_usesMath) sb.AppendLine(MathRuntime);
 
@@ -1472,6 +1494,9 @@ static void* cufet_pipe_stage(void* argp) {
         foreach (var (bind, _) in pullBinds)
             sb.AppendLine($"{EmitFunctionSignature(bind)};");
         sb.AppendLine();
+
+        // ── Named-function value thunks (after the function forward-decls they call) ──
+        EmitFnThunks(sb);
 
         sb.Append(body);
         return sb.ToString();
@@ -1530,9 +1555,70 @@ static void* cufet_pipe_stage(void* argp) {
         MapType m => "M(" + TypeSig(m.KeyType) + "," + TypeSig(m.ValueType) + ")",
         FailureType f => "F(" + TypeSig(f.Inner) + ")",
         MatrixType => "MX",   // one fixed runtime struct (CufetMatrix*) — identity is the type itself
+        FunctionType fn => "Fn(" + string.Join(",", fn.ParameterTypes.Select(TypeSig)) + "->" +
+                           (fn.ReturnType == null ? "v" : TypeSig(fn.ReturnType)) + ")",
         _ => throw new CompilerException(
                  $"'{t.GetType().Name}' is not yet supported by the compiler (slice 5B: records + objects + text).")
     };
+
+    // Ensures a `cfn_N` closure-value struct exists for this signature (and, recursively, for any
+    // nested record/series shapes in its params/return). Returns the C struct name.
+    private string RegisterFuncStruct(FunctionType ft)
+    {
+        string sig = TypeSig(ft);
+        if (_funcStructSig2Name.TryGetValue(sig, out var name)) return name;
+        name = $"cfn_{_funcStructCounter++}";
+        _funcStructSig2Name[sig] = name;
+        _funcStructs.Add((name, ft));
+        foreach (var p in ft.ParameterTypes) RegisterNestedRecords(p);
+        if (ft.ReturnType != null) RegisterNestedRecords(ft.ReturnType);
+        return name;
+    }
+
+    // The C signature of a closure's function pointer: ret (*)(void* env, params…). The leading
+    // void* env is the captured environment (NULL until CL.2); a named-function value uses a thunk
+    // that ignores it, so the real function keeps its plain signature and direct calls stay direct.
+    private string FuncPtrType(FunctionType ft)
+    {
+        string ret = ft.ReturnType == null ? "void" : EmitCType(ft.ReturnType);
+        var ps = new[] { "void*" }.Concat(ft.ParameterTypes.Select(EmitCType));
+        return $"{ret} (*)({string.Join(", ", ps)})";
+    }
+
+    // The value-struct for each distinct FunctionType: `typedef struct { ret (*fn)(void* env, …); void* env; } cfn_N;`.
+    // Uniform two-pointer struct → fits a fixed FunctionType slot and copies by value (sharing the env).
+    private void EmitClosureStructs(StringBuilder sb)
+    {
+        if (_funcStructs.Count == 0) return;
+        sb.AppendLine("// ── Closure values ({fn, env}; one per signature) ──");
+        foreach (var (name, ft) in _funcStructs)
+        {
+            string ret = ft.ReturnType == null ? "void" : EmitCType(ft.ReturnType);
+            var ps = new[] { "void* env" }.Concat(ft.ParameterTypes.Select((p, i) => $"{EmitCType(p)} p{i}"));
+            sb.AppendLine($"typedef struct {{ {ret} (*fn)({string.Join(", ", ps)}); void* env; }} {name};");
+        }
+        sb.AppendLine();
+    }
+
+    // A named function used as a VALUE is wrapped in a thunk taking (ignored) env + the params, so the
+    // real function keeps its plain signature (direct calls unchanged). One thunk per such function.
+    private void EmitFnThunks(StringBuilder sb)
+    {
+        if (_fnThunks.Count == 0) return;
+        sb.AppendLine("// ── Named-function value thunks (ignore env; forward to the real function) ──");
+        foreach (var fnName in _fnThunks)
+        {
+            var ft = _funcTypes[fnName];
+            string ret = ft.ReturnType == null ? "void" : EmitCType(ft.ReturnType);
+            var decls = new[] { "void* env" }.Concat(ft.ParameterTypes.Select((p, i) => $"{EmitCType(p)} p{i}"));
+            var call = string.Join(", ", ft.ParameterTypes.Select((_, i) => $"p{i}"));
+            string retKw = ft.ReturnType == null ? "" : "return ";
+            sb.AppendLine($"static {ret} {FnThunkName(fnName)}({string.Join(", ", decls)}) {{ (void)env; {retKw}{MangleName(fnName)}({call}); }}");
+        }
+        sb.AppendLine();
+    }
+
+    private static string FnThunkName(string fnName) => "cv_" + fnName.Replace('-', '_') + "__fnthunk";
 
     // Ensures a struct exists for this record shape (and, recursively, for any nested
     // record shapes in its fields). Returns the C struct name.
@@ -3139,7 +3225,9 @@ static void* cufet_pipe_stage(void* argp) {
         MatrixColumns         => TNumber,
         VariableReference vr  => vr.Name == "input" ? new ReadableStreamType(TText)   // `the input` = stdin
                                : _narrowedVars.TryGetValue(vr.Name, out var nt) ? nt
-                               : _varTypes.TryGetValue(vr.Name, out var t) ? t : TNumber,
+                               : _varTypes.TryGetValue(vr.Name, out var t) ? t
+                               : _funcTypes.TryGetValue(vr.Name, out var ftv) ? ftv   // a bare named function used as a value
+                               : TNumber,
         CastExpression c      => CastReturnType(c),
         RecordLiteral rl      => new RecordType(
                                      rl.PositionalFields.Select(TypeOf).ToList(),
@@ -3256,6 +3344,8 @@ static void* cufet_pipe_stage(void* argp) {
     {
         if (c.Function is VariableReference vr)
         {
+            if (_varTypes.TryGetValue(vr.Name, out var vvt) && vvt is FunctionType vft)     // function-valued variable
+                return vft.ReturnType ?? TNumber;
             if (_funcReturnTypes.TryGetValue(vr.Name, out var rt)) return rt ?? TNumber;   // free function
             if (c.Args.Count > 0 && TypeOf(c.Args[0]) is ObjectType ot)                    // method dispatch
                 return MethodReturnType(ot.Name, vr.Name);
@@ -3265,6 +3355,9 @@ static void* cufet_pipe_stage(void* argp) {
             return BookMemberReturnType(bookName, bpa.Member, c.Args);
         if (c.Function is PossessiveAccess pa && TypeOf(pa.Target) is ObjectType pot)
             return MethodReturnType(pot.Name, pa.Member);
+        // Fallback: any other expression that yields a function value (function-valued call). Kept
+        // LAST so a possessive method call (racer's age-in) resolves as a method, not a field access.
+        if (TypeOf(c.Function) is FunctionType cft) return cft.ReturnType ?? TNumber;
         return TNumber;
     }
 
@@ -3619,6 +3712,8 @@ static void* cufet_pipe_stage(void* argp) {
                                : v.Name == "one" && _methodReceiverType != null ? "(*cv_one)"
                                : v.Name == "input" ? "stdin"   // `the input` = the stdin stream
                                : _narrowedVars.ContainsKey(v.Name) ? $"({MangleName(v.Name)}).val"
+                               // A bare named function used as a VALUE → the {fn, NULL} closure value.
+                               : _funcTypes.ContainsKey(v.Name) && !_varTypes.ContainsKey(v.Name) ? EmitNamedFunctionValue(v.Name)
                                : MangleName(v.Name),
         CastExpression cast   => EmitCastExpr(cast),
         SeriesLiteral sl      => EmitSeriesLiteral(sl),
@@ -4673,8 +4768,12 @@ static void* cufet_pipe_stage(void* argp) {
     {
         if (funcExpr is VariableReference vr)
         {
-            if (_funcReturnTypes.ContainsKey(vr.Name))   // free function
+            if (_funcReturnTypes.ContainsKey(vr.Name) && !_varTypes.ContainsKey(vr.Name))   // free function (direct)
                 return $"{MangleName(vr.Name)}({string.Join(", ", args.Select(EmitExpr))})";
+
+            // A function-VALUED variable (Define f as …) → an indirect call through the {fn, env} value.
+            if (_varTypes.TryGetValue(vr.Name, out var vt) && vt is FunctionType)
+                return EmitIndirectCall(funcExpr, args);
 
             // Method dispatch: args[0] is the receiver, the rest are method params.
             if (args.Count > 0 && TypeOf(args[0]) is ObjectType ot)
@@ -4698,7 +4797,34 @@ static void* cufet_pipe_stage(void* argp) {
             return $"{MethodCName(owner, pa.Member)}({string.Join(", ", call)})";
         }
 
+        // Any other expression yielding a function value (e.g. an element of a series of functions) →
+        // an indirect call through its {fn, env}.
+        if (TypeOf(funcExpr) is FunctionType)
+            return EmitIndirectCall(funcExpr, args);
+
         throw new CompilerException("Function-value calls are not yet supported by the compiler.");
+    }
+
+    // A named function used as a VALUE → the {fn, NULL} closure value (env NULL — no capture in CL.1).
+    private string EmitNamedFunctionValue(string name)
+    {
+        _fnThunks.Add(name);
+        string cfn = RegisterFuncStruct(_funcTypes[name]);
+        return $"({cfn}){{ .fn = {FnThunkName(name)}, .env = NULL }}";
+    }
+
+    // Calls through a function VALUE: bind it to a temp (single eval — the expr may add preemits),
+    // then `tmp.fn(tmp.env, args…)`. The env is NULL until CL.2, but the call passes it uniformly so
+    // a captured closure (CL.2) calls identically.
+    private string EmitIndirectCall(IExpression funcExpr, IReadOnlyList<IExpression> args)
+    {
+        var ft = (FunctionType)TypeOf(funcExpr);
+        string cfn = RegisterFuncStruct(ft);
+        string val = EmitExpr(funcExpr);
+        string tmp = $"cf_fn{_freshId++}";
+        _preEmits.Add($"{cfn} {tmp} = {val};");
+        var call = new[] { $"{tmp}.env" }.Concat(args.Select(EmitExpr));
+        return $"{tmp}.fn({string.Join(", ", call)})";
     }
 
     // Routes a book function to its C emission. 1A: the `math` book's EXACT-decimal total functions
@@ -4924,6 +5050,8 @@ static void* cufet_pipe_stage(void* argp) {
         ReadableStreamType or WritableStreamType => "FILE*",   // a stream is an open FILE* (or stdin)
         ChannelType => "cufet_chan*",                          // a channel is a shared mutex/condvar queue
         MatrixType => MatrixCType(),                           // a matrix is an arena pointer (reference type)
+        FunctionType ft => RegisterFuncStruct(ft),             // a function value is a {fn, env} value struct
+
         _ => throw new CompilerException(
                  $"'{type!.GetType().Name}' is not yet supported by the compiler (slice 5B: records + text; objects/maps later).")
     };

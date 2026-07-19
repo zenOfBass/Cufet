@@ -4305,4 +4305,70 @@ public class PipelineTests
         string actual   = CompileWithASan(src);
         Assert.Equal(expected, actual);
     }
+
+    // ── CL.1: closure substrate — function VALUES, no capture (uniform {fn, env} with NULL env) ──
+    // A FunctionType lowers to a `cfn_N { ret (*fn)(void* env, …); void* env; }` value struct; a named
+    // function used as a value is wrapped in a thunk (ignores env); calls through a function-value are
+    // indirect (fn ptr). These are pure (no threads) → Compile == Interpret on both platforms.
+
+    [Fact]
+    public void Closure_FunctionValuedVariable_IndirectCall()
+    {
+        const string src = """
+            Bind number to grade, given (the number x):
+                Return x + 1.
+            Done.
+            Define op as grade.
+            State cast op on (5).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_PassNamedFunction_HigherOrder()
+    {
+        // A named function passed as an argument to a higher-order function that calls it twice.
+        const string src = """
+            Bind number to twice, given (the number function f given (the number), the number x):
+                Return cast f on (cast f on (x)).
+            Done.
+            Bind number to inc, given (the number n):
+                Return n + 1.
+            Done.
+            State cast twice on (inc, 10).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_ReturnNamedFunction_ThenCall()
+    {
+        // A function that returns a (named) function value; the caller stores and calls it.
+        const string src = """
+            Bind number function given (the number) to pick:
+                Return double-it.
+            Done.
+            Bind number to double-it, given (the number n):
+                Return n * 2.
+            Done.
+            Define f as cast pick.
+            State cast f on (21).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_TextReturningFunctionValue()
+    {
+        // A function value whose return type is a reference type (text) — the {fn, env} slot is
+        // signature-agnostic; the indirect call yields the same text as a direct call.
+        const string src = """
+            Bind text to shout, given (the text s):
+                Return s joined to "!".
+            Done.
+            Define f as shout.
+            State cast f on ("hi").
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
 }
