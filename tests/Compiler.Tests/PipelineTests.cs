@@ -4490,4 +4490,118 @@ public class PipelineTests
             """;
         Assert.Equal(Interpret(src), Compile(src));
     }
+
+    // ── CL.3: closures breadth + escape interim (closes the arc) ──
+    // Function-values as series elements, higher-order-of-higher-order (nested cfn struct ordering),
+    // recursive nested Bind (by-name self-call), lambda TEXT pipe stages, and the region-capture-
+    // escapes-a-rabbit interim (clean-throw). Pure cases → Compile == Interpret on both platforms.
+
+    [Fact]
+    public void Closure_SeriesOfFunctions()
+    {
+        // A series whose element type is a function value — the cfn_N value struct nests in the series
+        // (the cfn struct is emitted before the series runtime; function eq/write added for the series).
+        const string src = """
+            Bind number to inc, given (the number n): Return n + 1. Done.
+            Bind number to dbl, given (the number n): Return n * 2. Done.
+            Define ops as a series of number function given (the number) with (inc, dbl).
+            State cast (the first of ops) on (10).
+            State cast (the second of ops) on (10).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_FunctionReturningFunction_AsValue()
+    {
+        // make-adder as a VALUE — its type is (number) -> (number -> number), a cfn whose RETURN is a
+        // cfn → the nested-cfn topo ordering (inner declared before outer).
+        const string src = """
+            Bind number function given (the number) to make-adder, given (the number n):
+                Return a function given (the number x): Return x + n. Done.
+            Done.
+            Define maker as make-adder.
+            Define add5 as cast maker on (5).
+            State cast add5 on (10).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_RecursiveNestedBind()
+    {
+        // A recursive nested Bind (factorial): recursion resolves BY NAME to a self-call reusing the
+        // current env (matching the interpreter's in-scope-name recursion). 100 + 5! == 220.
+        const string src = """
+            Bind number to compute, given (the number base):
+                Bind number to fact, given (the number k):
+                    If k < 2, Return 1.
+                    Return k * (cast fact on (k - 1)).
+                Done.
+                Return base + (cast fact on (5)).
+            Done.
+            State cast compute on (100).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_RecursiveNestedBind_WithCapture()
+    {
+        // Recursion + capture together: countdown recurses (self-call) AND captures `bump`; the
+        // self-call reuses the current env, so the recursive call sees the same capture. 10*3 == 30.
+        const string src = """
+            Bind number to compute, given (the number bump):
+                Bind number to countdown, given (the number k):
+                    If k < 1, Return 0.
+                    Return bump + (cast countdown on (k - 1)).
+                Done.
+                Return cast countdown on (3).
+            Done.
+            State cast compute on (10).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_LambdaTextPipeStage()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // A lambda TEXT pipe stage: AnalyzePipes now propagates the element type THROUGH the lambda,
+        // so the named consumer after it reads text (not number) — the fix for the lambda-text UAF.
+        const string src = """
+            Bind void to producer:
+              output "a".
+              output "bb".
+            Done.
+            Bind void to consumer:
+              for each w from the input:
+                State w.
+              Done.
+            Done.
+            producer | (a function: for each w from the input: output (w joined to "!"). Done. Done) | consumer.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_RegionCaptureEscapingRabbit_CleanThrow()
+    {
+        // The escape interim: a closure capturing a REGION value (series) inside a rabbit can't safely
+        // escape (its captured pointer dangles after Done.-pop). The front-end misses this (FunctionType
+        // isn't a tracked reference type), so the compiler clean-throws rather than emit a silent dangle.
+        const string src = """
+            Define f as a function given (the number x): Return x. Done.
+            Pull a rabbit.
+                Define xs as a series of number with (1, 2, 3).
+                f becomes a function given (the number x): Return x + the number of xs. Done.
+            Done.
+            State cast f on (10).
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+    }
 }

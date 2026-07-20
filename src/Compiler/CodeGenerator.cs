@@ -39,6 +39,10 @@ public sealed class CodeGenerator
     private readonly StringBuilder _closureFns = new();
     private readonly StringBuilder _closureEnvs = new();
     private int _closureCounter;
+    // Inside a recursive nested Bind's body, its own name resolves to a SELF-CALL of the closure fn
+    // reusing the current env (`cv_clos<id>(cf_envp, args)`) — recursion by-name, matching the
+    // interpreter (the name is in scope in its own body). Saved/restored around nested closures.
+    private (string Name, string ClosFn, FunctionType Type)? _closureSelf;
 
     // Record struct registry: canonical shape signature → C struct name (cr_N).
     // Records are structural (anonymous), so each distinct shape gets one synthesized
@@ -82,6 +86,7 @@ public sealed class CodeGenerator
     // A function used at two positions with conflicting element types is a clean CompilerException.
     private readonly Dictionary<string, CufetType?> _stageInputElem = new();
     private CufetType? _currentPipeInputElem;
+    private readonly Dictionary<string, BindStatement> _namedFuncBodies = new();   // for pipe element-chain inference
 
     // Failable struct registry — `cfl_N { int is_failure; T val; const char* message, category }`
     // per distinct inner T. A `T or failure` value: either a T (is_failure=0) or a failure.
@@ -155,6 +160,7 @@ public sealed class CodeGenerator
     private readonly StringBuilder _taskFns = new();
     private int _taskCounter;
     private readonly List<string> _rabbitCtx = new();   // suffix N of cf_thr{N}/cf_chan{N} per open rabbit
+    private int _rabbitDepth;   // open `Pull a rabbit` arena scopes (concurrency-independent; escape guard)
 
     // CONC.C — named tasks + `the awaited result of`. Per named task in scope: the enclosing rabbit
     // suffix (Ctx), the C type of its heap-bridged result, and its inferred result type (which may be
@@ -1464,23 +1470,24 @@ static void* cufet_pipe_stage(void* argp) {
         // ── Struct declarations (records + objects + voidables) + write/eq helpers ──
         EmitStructs(sb);
 
-        // ── Series + map container structs + helpers (need element/K/V structs above) ──
-        EmitSeriesRuntime(sb);
-        EmitMapRuntime(sb);
-
-        // ── Channel-of-T deep-copy helpers (need the series/map/record/object structs above) ──
-        EmitChannelDeepCopy(sb);
-
-        // ── Closure-value structs (cfn_N {fn, env}) — need param/return types declared above ──
+        // ── Closure-value structs (cfn_N {fn, env}) — after records (fn params by value), BEFORE
+        //    the series/map runtime so a series/map OF functions can hold a cfn by value ──
         EmitClosureStructs(sb);
 
-        // ── Closure env structs (cenv_N; captured free vars) — after the value structs they may hold ──
+        // ── Closure env structs (cenv_N; captured free vars) — after cfn (may capture a fn value) ──
         if (_closureEnvs.Length > 0)
         {
             sb.AppendLine("// ── Closure environments (captured free vars) ──");
             sb.Append(_closureEnvs);
             sb.AppendLine();
         }
+
+        // ── Series + map container structs + helpers (need element/K/V + cfn structs above) ──
+        EmitSeriesRuntime(sb);
+        EmitMapRuntime(sb);
+
+        // ── Channel-of-T deep-copy helpers (need the series/map/record/object structs above) ──
+        EmitChannelDeepCopy(sb);
 
         // ── Exact-decimal math runtime (only when a math total function is used) ──
         if (_usesMath) sb.AppendLine(MathRuntime);
@@ -1619,8 +1626,26 @@ static void* cufet_pipe_stage(void* argp) {
     {
         if (_funcStructs.Count == 0) return;
         sb.AppendLine("// ── Closure values ({fn, env}; one per signature) ──");
-        foreach (var (name, ft) in _funcStructs)
+        // Topo order: a cfn whose param/return is ANOTHER cfn (higher-order-of-higher-order) needs the
+        // inner declared first (it's passed/returned by value). Records/series params are already
+        // complete/forward-declared above, so only cfn→cfn edges matter.
+        var byName = _funcStructs.ToDictionary(s => s.Name, s => s.Type);
+        var emitted = new HashSet<string>();
+        var order = new List<string>();
+        void Visit(string name)
         {
+            if (!emitted.Add(name)) return;
+            var ft = byName[name];
+            foreach (var dep in ft.ParameterTypes.Concat(ft.ReturnType is { } r ? new[] { r } : Array.Empty<CufetType>()))
+                if (dep is FunctionType dft && _funcStructSig2Name.TryGetValue(TypeSig(dft), out var depName) && byName.ContainsKey(depName))
+                    Visit(depName);
+            order.Add(name);
+        }
+        foreach (var (name, _) in _funcStructs) Visit(name);
+
+        foreach (var name in order)
+        {
+            var ft = byName[name];
             string ret = ft.ReturnType == null ? "void" : EmitCType(ft.ReturnType);
             var ps = new[] { "void* env" }.Concat(ft.ParameterTypes.Select((p, i) => $"{EmitCType(p)} p{i}"));
             sb.AppendLine($"typedef struct {{ {ret} (*fn)({string.Join(", ", ps)}); void* env; }} {name};");
@@ -2425,6 +2450,7 @@ static void* cufet_pipe_stage(void* argp) {
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_eq({a}, {b})",
         MapType => $"({a} == {b})",   // maps: reference (pointer) equality, like the interpreter
         MatrixType => $"({a} == {b})",   // matrices: reference equality (interpreter ValuesEqual fallthrough)
+        FunctionType => $"(({a}).fn == ({b}).fn && ({a}).env == ({b}).env)",   // function values: reference equality
         _ => throw new CompilerException($"equality on a '{t.GetType().Name}' is not yet supported by the compiler.")
     };
 
@@ -2441,6 +2467,7 @@ static void* cufet_pipe_stage(void* argp) {
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr})",
         MapType mt => $"{RegisterMapStruct(mt)}_write({valExpr})",
         MatrixType => $"cufet_mat_write({valExpr})",
+        FunctionType => $"printf(\"<function>\")",   // matches the interpreter's Format for a FunctionValue
         _ => throw new CompilerException(
                  $"printing a '{t.GetType().Name}' is not yet supported by the compiler.")
     };
@@ -2700,7 +2727,9 @@ static void* cufet_pipe_stage(void* argp) {
                     sb.AppendLine($"{inner}(void)cf_thr{n}; (void)cf_chan{n}; (void)cf_jflag{n}; (void)cf_jfree{n};");
                     _rabbitCtx.Add(n);
                 }
-                EmitBlock(sb, prs.Body, inner);
+                _rabbitDepth++;   // this rabbit pops its arena at Done. (independent of concurrency) —
+                EmitBlock(sb, prs.Body, inner);   // so a region-capturing closure created here can dangle
+                _rabbitDepth--;
                 if (_usesConcurrency)
                 {
                     _rabbitCtx.RemoveAt(_rabbitCtx.Count - 1);
@@ -3264,6 +3293,7 @@ static void* cufet_pipe_stage(void* argp) {
         MatrixColumns         => TNumber,
         VariableReference vr  => vr.Name == "input" ? new ReadableStreamType(TText)   // `the input` = stdin
                                : _narrowedVars.TryGetValue(vr.Name, out var nt) ? nt
+                               : _closureSelf is { } cs && vr.Name == cs.Name ? cs.Type   // recursive self-reference
                                : _varTypes.TryGetValue(vr.Name, out var t) ? t
                                : _funcTypes.TryGetValue(vr.Name, out var ftv) ? ftv   // a bare named function used as a value
                                : TNumber,
@@ -3384,6 +3414,8 @@ static void* cufet_pipe_stage(void* argp) {
     {
         if (c.Function is VariableReference vr)
         {
+            if (_closureSelf is { } self && vr.Name == self.Name)                          // recursive self-call
+                return self.Type.ReturnType ?? TNumber;
             if (_varTypes.TryGetValue(vr.Name, out var vvt) && vvt is FunctionType vft)     // function-valued variable
                 return vft.ReturnType ?? TNumber;
             if (_funcReturnTypes.TryGetValue(vr.Name, out var rt)) return rt ?? TNumber;   // free function
@@ -3752,6 +3784,8 @@ static void* cufet_pipe_stage(void* argp) {
                                : v.Name == "one" && _methodReceiverType != null ? "(*cv_one)"
                                : v.Name == "input" ? "stdin"   // `the input` = the stdin stream
                                : _narrowedVars.ContainsKey(v.Name) ? $"({MangleName(v.Name)}).val"
+                               // A recursive nested Bind's own name as a VALUE → its closure over the current env.
+                               : _closureSelf is { } cse && v.Name == cse.Name ? $"({RegisterFuncStruct(cse.Type)}){{ .fn = {cse.ClosFn}, .env = cf_envp }}"
                                // A bare named function used as a VALUE → the {fn, NULL} closure value.
                                : _funcTypes.ContainsKey(v.Name) && !_varTypes.ContainsKey(v.Name) ? EmitNamedFunctionValue(v.Name)
                                : MangleName(v.Name),
@@ -3901,10 +3935,14 @@ static void* cufet_pipe_stage(void* argp) {
         void Collect(IReadOnlyList<IStatement> stmts)
         {
             foreach (var s in stmts)
+            {
                 if (s is BindStatement b && b.UntoType == null) binds[b.Name] = b;
-                else if (s is PullStatement ps) Collect(ps.Body);
+                if (s is PullStatement ps) Collect(ps.Body);
+                if (s is BindStatement nb) Collect(nb.Body);   // nested Binds can be pipe stages too
+            }
         }
         Collect(program.Statements);
+        foreach (var kv in binds) _namedFuncBodies[kv.Key] = kv.Value;   // for lambda-pipe element inference
 
         var pipes = new List<List<IExpression>>();
         void Scan(IReadOnlyList<IStatement> stmts)
@@ -3954,22 +3992,34 @@ static void* cufet_pipe_stage(void* argp) {
             CufetType? cur = null;   // input to the first stage (a producer) is nothing
             for (int i = 0; i < stages.Count; i++)
             {
-                if (stages[i] is not VariableReference vr) break;   // non-named stage → the closures gap (thrown at emit)
-                SetInput(vr.Name, cur);
-                if (i < stages.Count - 1)
-                    cur = binds.TryGetValue(vr.Name, out var b) ? (InferStageOutput(b, cur) ?? TNumber) : null;
+                bool last = i == stages.Count - 1;
+                switch (stages[i])
+                {
+                    case VariableReference vr:   // a NAMED stage records its input; propagate its output
+                        SetInput(vr.Name, cur);
+                        if (!last) cur = binds.TryGetValue(vr.Name, out var b) ? (InferStageOutput(b, cur) ?? TNumber) : null;
+                        break;
+                    case LambdaLiteral lam:      // a lambda has no name to record, but MUST propagate its
+                        if (!last) cur = InferStageOutput(lam.Parameters, lam.Body, cur) ?? TNumber;  // output so a NAMED stage after it gets the right input type
+                        break;
+                    default: i = stages.Count; break;   // stop at anything else
+                }
             }
         }
     }
 
+    private CufetType? InferStageOutput(BindStatement bind, CufetType? inputElem) =>
+        InferStageOutput(bind.Parameters, bind.Body, inputElem);
+
     // Infers a pipe stage's OUTPUT element type = the type of its first `output <expr>` (with the
     // input iterator bound to `inputElem`). Best-effort over the common stage shapes; returns null
-    // (→ caller defaults to number) if it can't be determined. Saves/restores _varTypes.
-    private CufetType? InferStageOutput(BindStatement bind, CufetType? inputElem)
+    // (→ caller defaults to number) if it can't be determined. Works for named stages and lambda
+    // stages (same body shape). Saves/restores _varTypes.
+    private CufetType? InferStageOutput(IReadOnlyList<(CufetType Type, string Name)> parameters, IReadOnlyList<IStatement> body, CufetType? inputElem)
     {
         var saved = new Dictionary<string, CufetType>(_varTypes);
         _varTypes.Clear();
-        foreach (var (pt, pn) in bind.Parameters) _varTypes[pn] = pt;
+        foreach (var (pt, pn) in parameters) _varTypes[pn] = pt;
         CufetType? outType = null;
         void Walk(IReadOnlyList<IStatement> stmts)
         {
@@ -3997,7 +4047,7 @@ static void* cufet_pipe_stage(void* argp) {
                 catch (CompilerException) { /* best-effort — leave outType null */ }
             }
         }
-        Walk(bind.Body);
+        Walk(body);
         _varTypes.Clear();
         foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
         return outType;
@@ -4064,14 +4114,37 @@ static void* cufet_pipe_stage(void* argp) {
         int n = stages.Count;
         int id = _freshId++;
         string inner = indent + "    ";
+
+        // Element chain: each stage's INPUT element type (null for the producer) = its predecessor's
+        // output, inferred forward for named AND lambda stages (so a lambda TEXT-pipe stage streams
+        // text, not number). Defaults to number when un-inferrable — the number-only behavior.
+        var stageIn = new CufetType?[n];
+        CufetType? cur = null;
+        for (int i = 0; i < n; i++)
+        {
+            stageIn[i] = cur;
+            if (i < n - 1)
+                cur = stages[i] switch
+                {
+                    VariableReference vr when _namedFuncBodies.TryGetValue(vr.Name, out var b) => InferStageOutput(b, cur) ?? TNumber,
+                    LambdaLiteral lam => InferStageOutput(lam.Parameters, lam.Body, cur) ?? TNumber,
+                    _ => TNumber,
+                };
+        }
+
         sb.AppendLine($"{indent}{{");
 
         // Materialize each stage's closure value first (a lambda's env alloc adds preemits to flush).
+        // For a LAMBDA stage, set the pipe input element type so its `for each from the input` gets the
+        // right C element type (a named stage picks it up in EmitBind from _stageInputElem).
         var stageVars = new List<string>();
         for (int i = 0; i < n; i++)
         {
             string cfn = RegisterFuncStruct((FunctionType)TypeOf(stages[i]));
+            var savedPipeIn = _currentPipeInputElem;
+            if (stages[i] is LambdaLiteral) _currentPipeInputElem = stageIn[i];
             string val = EmitExpr(stages[i]);
+            _currentPipeInputElem = savedPipeIn;
             FlushPreEmits(sb, inner);
             string sv = $"cf_pstg{id}_{i}";
             sb.AppendLine($"{inner}{cfn} {sv} = {val};");
@@ -4079,12 +4152,11 @@ static void* cufet_pipe_stage(void* argp) {
         }
 
         sb.AppendLine($"{inner}cufet_chan* cf_pch{id}[{n - 1}];");
-        // Channel j (stage j → stage j+1) carries stage j's output = stage j+1's input element type
-        // (resolved by AnalyzePipes for NAMED stages; a lambda stage defaults to number). Give it that
-        // type's freeval so pending envelopes free on teardown.
+        // Channel j (stage j → stage j+1) carries stage j+1's input element type; give it that type's
+        // freeval so pending envelopes free on teardown.
         for (int j = 0; j < n - 1; j++)
         {
-            var chElem = stages[j + 1] is VariableReference dvr && _stageInputElem.TryGetValue(dvr.Name, out var ie) && ie != null ? ie : TNumber;
+            var chElem = stageIn[j + 1] ?? TNumber;
             RegisterChanElem(chElem, isTop: true);
             sb.AppendLine($"{inner}cf_pch{id}[{j}] = cufet_chan_new({ChanFreeEnv(chElem)});");
         }
@@ -4829,6 +4901,12 @@ static void* cufet_pipe_stage(void* argp) {
     // variables work directly, and C99 compound-literal temporaries are lvalues too.
     private string EmitCall(IExpression funcExpr, IReadOnlyList<IExpression> args)
     {
+        // Recursion inside a nested Bind: its own name → a direct self-call reusing the current env.
+        if (funcExpr is VariableReference svr && _closureSelf is { } self && svr.Name == self.Name)
+        {
+            var selfArgs = new[] { "cf_envp" }.Concat(args.Select(EmitExpr));
+            return $"{self.ClosFn}({string.Join(", ", selfArgs)})";
+        }
         if (funcExpr is VariableReference vr)
         {
             if (_funcReturnTypes.ContainsKey(vr.Name) && !_varTypes.ContainsKey(vr.Name))   // free function (direct)
@@ -4959,8 +5037,9 @@ static void* cufet_pipe_stage(void* argp) {
     private string EmitLambda(LambdaLiteral lam) => EmitClosure(lam.Parameters, lam.Body, lam.Line, null);
 
     // Shared by lambdas and nested Binds (a nested Bind is a named local closure). `selfName`, if set,
-    // is the closure's own name — bound to the closure value inside the body for recursion (CL.3);
-    // for CL.2 a self-referencing nested Bind throws cleanly.
+    // is the closure's own name — inside the body, a call to it resolves to a SELF-CALL of this closure
+    // fn reusing the current env (recursion by-name; the recursive closure has the same captures), so
+    // the name is NOT captured (no self-referential env). Matches the interpreter's in-scope-name recursion.
     private string EmitClosure(IReadOnlyList<(CufetType Type, string Name)> parameters,
                                IReadOnlyList<IStatement> body, int line, string? selfName)
     {
@@ -4968,8 +5047,21 @@ static void* cufet_pipe_stage(void* argp) {
         string clos = $"cv_clos{id}";
         var savedVT = new Dictionary<string, CufetType>(_varTypes);
         var free = ClosureFreeVars(parameters, body);
-        if (selfName != null && free.Contains(selfName))
-            throw new CompilerException($"recursive nested function '{selfName}' is not yet supported by the compiler (a closure that calls itself — deferred to CL.3).");
+        if (selfName != null) free.Remove(selfName);   // recursion is by-name (self-call), not captured
+
+        // ESCAPE INTERIM (region-capture-escaping-a-rabbit): a closure capturing a REGION value
+        // (series/map/matrix) inside a rabbit holds a pointer INTO the rabbit's arena; if the closure
+        // outlives the rabbit (stored outward), that pointer dangles after Done.-pop. The front-end's
+        // outward-only-store invariant catches this for a bare region value but NOT for a closure
+        // (FunctionType isn't a tracked reference type there), so guard it here — a safe, honest
+        // clean-throw rather than a silent dangle. Value captures are self-contained (snapshot) and
+        // escape safely (return-out-of-rabbit is leak-safe via the skipped arena_pop, like a series
+        // returned out of a Pull). Precise escape analysis (allowing safe local uses) is its own arc.
+        static bool IsRegion(CufetType t) => t is SeriesType or MapType or MatrixType;
+        if (_rabbitDepth > 0 && free.FirstOrDefault(v => IsRegion(savedVT[v])) is { } rv)
+            throw new CompilerException(
+                $"a closure capturing the region value '{rv}' (series/map/matrix) inside a rabbit can't safely escape the rabbit yet — its captured pointer would dangle after the rabbit's Done. " +
+                "Restructure so the closure doesn't outlive its rabbit, or capture a snapshot. (This is the arena-escape-analysis arc.)");
 
         var ret = InferBodyReturnTypeWithParams(parameters, body);
         var ft = new FunctionType(parameters.Select(p => p.Type).ToList(), ret);
@@ -4991,6 +5083,8 @@ static void* cufet_pipe_stage(void* argp) {
         var savedRet = _currentReturnType; var savedExc = _excOpen; _excOpen = 0;
         var savedFail = _currentFailVar; _currentFailVar = null;
         var savedNarrow = new Dictionary<string, CufetType>(_narrowedVars); _narrowedVars.Clear();
+        var savedSelf = _closureSelf;
+        _closureSelf = selfName != null ? (selfName, clos, ft) : null;   // self-reference → self-call
         _currentReturnType = ret;
         _varTypes.Clear();
         foreach (var v in free) _varTypes[v] = savedVT[v];
@@ -5016,6 +5110,7 @@ static void* cufet_pipe_stage(void* argp) {
         // Restore the enclosing compiler state.
         _preEmits.Clear(); _preEmits.AddRange(savedPre);
         _currentReturnType = savedRet; _excOpen = savedExc; _currentFailVar = savedFail;
+        _closureSelf = savedSelf;
         _narrowedVars.Clear();
         foreach (var kv in savedNarrow) _narrowedVars[kv.Key] = kv.Value;
         _varTypes.Clear();
