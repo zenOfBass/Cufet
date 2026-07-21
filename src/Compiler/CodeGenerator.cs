@@ -57,6 +57,15 @@ public sealed class CodeGenerator
     private readonly List<(string Name, CufetType Inner)> _voidableStructs = new();
     private int _voidableCounter;
 
+    // CAT.1 — closed unions: `cun_N { int tag; union { <case_k> c<k>; } val; }`, one per distinct
+    // closed UnionType (TypeSig-deduped, folded into the EmitStructs topo pass). This is the N-case
+    // GENERALIZATION of the voidable tagged struct (`cvd_N {int has; T val;}` is literally the 2-case
+    // instance): the tag says which case, the payload holds it; `is a <case>` reads the tag (a genuine
+    // RUNTIME type check), and narrowing exposes `.val.c<k>` at the case's concrete type.
+    private readonly Dictionary<string, string> _unionSig2Name = new();
+    private readonly List<(string Name, UnionType Type)> _unionStructs = new();
+    private int _unionCounter;
+
     // Map struct registry — one arena container `cmap_N { K* keys; V* vals; int len, cap; }`
     // per distinct (K,V), an association list with linear scan. Lookup returns voidable V.
     private readonly Dictionary<string, string> _mapSig2Name = new();
@@ -190,7 +199,10 @@ public sealed class CodeGenerator
 
     // Flow-narrowed variables: inside an `is not void` branch a voidable variable is treated
     // as its inner T (reads emit `.val`), matching the interpreter's variable-level narrowing.
-    private readonly Dictionary<string, CufetType> _narrowedVars = new();
+    // Flow-narrowed variables: the narrowed static type PLUS the C accessor that reaches the payload.
+    // Voidable narrows to `.val` (2-case tagged struct); a closed union narrows to `.val.c<k>` (the
+    // N-case generalization) — same model, different accessor.
+    private readonly Dictionary<string, (CufetType Type, string Access)> _narrowedVars = new();
 
     // Object definitions by name (nominal types), collected up front. Objects are also
     // C value structs (cd_<name>); methods become C functions taking a receiver pointer.
@@ -1592,6 +1604,11 @@ static void* cufet_pipe_stage(void* argp) {
         MatrixType => "MX",   // one fixed runtime struct (CufetMatrix*) — identity is the type itself
         FunctionType fn => "Fn(" + string.Join(",", fn.ParameterTypes.Select(TypeSig)) + "->" +
                            (fn.ReturnType == null ? "v" : TypeSig(fn.ReturnType)) + ")",
+        // Closed union: cases in DECLARATION order (the front-end's UnionType.Equals is order-sensitive,
+        // so `(number or text)` and `(text or number)` are distinct types — don't canonicalize).
+        // A 1-case union (from extra parens, e.g. `(number)`) IS that type — normalize so it matches.
+        UnionType u1 when u1.Cases is { Count: 1 } => TypeSig(u1.Cases[0]),
+        UnionType u => u.Cases == null ? "U(*)" : "U(" + string.Join(",", u.Cases.Select(TypeSig)) + ")",
         _ => throw new CompilerException(
                  $"'{t.GetType().Name}' is not yet supported by the compiler (slice 5B: records + objects + text).")
     };
@@ -1747,6 +1764,34 @@ static void* cufet_pipe_stage(void* argp) {
     }
 
     // Ensures a tagged struct exists for `voidable <inner>` (and its inner's nested structs).
+    // Ensures a `cun_N` tagged struct exists for this CLOSED union (and its case types). Open unions
+    // (`a catalogue with (…)` — UnionType.Open) are CAT.2 (bounded whole-program tag set) → clean throw.
+    private string RegisterUnionStruct(UnionType ut)
+    {
+        if (ut.Cases == null)
+            throw new CompilerException(
+                "open catalogues (`a catalogue with (…)` — an open union) are not yet supported by the compiler; " +
+                "use a closed catalogue (`a catalogue of (number or text) with (…)`). Open unions are the CAT.2 slice.");
+        string sig = TypeSig(ut);
+        if (_unionSig2Name.TryGetValue(sig, out var name)) return name;
+        name = $"cun_{_unionCounter++}";
+        _unionSig2Name[sig] = name;
+        _unionStructs.Add((name, ut));
+        foreach (var c in ut.Cases) RegisterNestedRecords(c);
+        return name;
+    }
+
+    // The 0-based case index of `t` within a closed union (the widening site). Compares by TypeSig —
+    // the compiler's canonical type identity — rather than CufetType.Equals, which isn't structural
+    // for every node kind.
+    private int UnionCaseIndex(UnionType ut, CufetType? t)
+    {
+        if (t == null) return -1;
+        string sig = TypeSig(t);
+        for (int i = 0; i < ut.Cases!.Count; i++) if (TypeSig(ut.Cases[i]) == sig) return i;
+        return -1;
+    }
+
     private string RegisterVoidableStruct(VoidableType vt)
     {
         string sig = TypeSig(vt);
@@ -1805,7 +1850,10 @@ static void* cufet_pipe_stage(void* argp) {
         // (a `T or failure` value is never printed or compared — it's consumed at the call site).
         var failables = new Dictionary<string, CufetType>();
         foreach (var (name, inner) in _failableStructs) failables[name] = inner;
-        if (specs.Count == 0 && voidables.Count == 0 && failables.Count == 0) return;
+        // Closed-union tagged structs (cun_N): the N-case generalization of a voidable.
+        var unions = new Dictionary<string, UnionType>();
+        foreach (var (name, ut) in _unionStructs) unions[name] = ut;
+        if (specs.Count == 0 && voidables.Count == 0 && failables.Count == 0 && unions.Count == 0) return;
 
         string? DepName(CufetType t) => t switch
         {
@@ -1813,9 +1861,10 @@ static void* cufet_pipe_stage(void* argp) {
             ObjectType ot   => ObjStructName(ot.Name),
             VoidableType vt => RegisterVoidableStruct(vt),
             FailureType ft  => RegisterFailableStruct(ft),
+            UnionType ut when ut.Cases != null => RegisterUnionStruct(ut),
             _ => null
         };
-        bool Known(string? d) => d != null && (specs.ContainsKey(d) || voidables.ContainsKey(d) || failables.ContainsKey(d));
+        bool Known(string? d) => d != null && (specs.ContainsKey(d) || voidables.ContainsKey(d) || failables.ContainsKey(d) || unions.ContainsKey(d));
 
         var emitted = new HashSet<string>();
         var order   = new List<string>();
@@ -1824,6 +1873,7 @@ static void* cufet_pipe_stage(void* argp) {
             if (!emitted.Add(cname)) return;
             if (voidables.TryGetValue(cname, out var vInner))       { if (Known(DepName(vInner))) Visit(DepName(vInner)!); }
             else if (failables.TryGetValue(cname, out var fInner))  { if (Known(DepName(fInner))) Visit(DepName(fInner)!); }
+            else if (unions.TryGetValue(cname, out var uT))         { foreach (var c in uT.Cases!) if (Known(DepName(c))) Visit(DepName(c)!); }
             else
                 foreach (var fs in specs[cname].Fields)
                 {
@@ -1832,7 +1882,7 @@ static void* cufet_pipe_stage(void* argp) {
                 }
             order.Add(cname);
         }
-        foreach (var cname in specs.Keys.Concat(voidables.Keys).Concat(failables.Keys).ToList()) Visit(cname);
+        foreach (var cname in specs.Keys.Concat(voidables.Keys).Concat(failables.Keys).Concat(unions.Keys).ToList()) Visit(cname);
 
         sb.AppendLine("// ── Record / object / voidable shapes (value structs) ──");
         foreach (var cname in order)
@@ -1845,6 +1895,12 @@ static void* cufet_pipe_stage(void* argp) {
             if (failables.TryGetValue(cname, out var fInner))
             {
                 sb.AppendLine($"typedef struct {{ int is_failure; {EmitCType(fInner)} val; const char* message; const char* category; }} {cname};");
+                continue;
+            }
+            if (unions.TryGetValue(cname, out var uDef))
+            {
+                var payload = string.Join(" ", uDef.Cases!.Select((c, k) => $"{EmitCType(c)} c{k};"));
+                sb.AppendLine($"typedef struct {{ int tag; union {{ {payload} }} val; }} {cname};");
                 continue;
             }
             sb.AppendLine("typedef struct {");
@@ -1860,6 +1916,13 @@ static void* cufet_pipe_stage(void* argp) {
             if (voidables.TryGetValue(cname, out var inner))
             {
                 sb.AppendLine($"static void {cname}_write({cname} v) {{ if (v.has) {WriteCall("v.val", inner)}; else printf(\"void\"); }}");
+                continue;
+            }
+            if (unions.TryGetValue(cname, out var uW))
+            {
+                // A union value prints as its underlying value (the interpreter stores the raw value).
+                var arms = uW.Cases!.Select((c, k) => $"if (v.tag == {k}) {{ {WriteCall($"v.val.c{k}", c)}; return; }}");
+                sb.AppendLine($"static void {cname}_write({cname} v) {{ {string.Join(" ", arms)} }}");
                 continue;
             }
             var (fields, prefix) = specs[cname];
@@ -1886,6 +1949,14 @@ static void* cufet_pipe_stage(void* argp) {
             if (voidables.TryGetValue(cname, out var inner))
             {
                 sb.AppendLine($"static int {cname}_eq({cname} a, {cname} b) {{ if (a.has != b.has) return 0; if (!a.has) return 1; return {EqCall("a.val", "b.val", inner)}; }}");
+                continue;
+            }
+            if (unions.TryGetValue(cname, out var uE))
+            {
+                // Different cases are different types ⇒ never equal (matches the interpreter comparing
+                // the underlying values); same case ⇒ compare that case's payload.
+                var arms = uE.Cases!.Select((c, k) => $"if (a.tag == {k}) return {EqCall($"a.val.c{k}", $"b.val.c{k}", c)};");
+                sb.AppendLine($"static int {cname}_eq({cname} a, {cname} b) {{ if (a.tag != b.tag) return 0; {string.Join(" ", arms)} return 1; }}");
                 continue;
             }
             var fields = specs[cname].Fields;
@@ -2274,6 +2345,15 @@ static void* cufet_pipe_stage(void* argp) {
     private string EmitIsTypeCheck(IsTypeCheck tc)
     {
         var tt = TypeOf(tc.Target);
+        // `is a <case>` on a closed union = a genuine RUNTIME tag check (this is where runtime type
+        // identity lives — unlike the monomorphic model's compile-time StaticKindMatches fold).
+        if (tt is UnionType ut && ut.Cases != null)
+        {
+            int k = UnionMatchCase(ut, tc.Type);          // -1 = no case matches (statically false)
+            string v = EmitExpr(tc.Target);
+            string test = k < 0 ? "0" : $"(({v}).tag == {k})";
+            return tc.Negated ? $"(!{test})" : test;
+        }
         if (tt is VoidableType vt)
         {
             string v = EmitExpr(tc.Target);
@@ -2285,6 +2365,33 @@ static void* cufet_pipe_stage(void* argp) {
         bool matches = StaticKindMatches(tt, tc.Type);
         return (tc.Negated ? !matches : matches) ? "1" : "0";
     }
+
+    // Which case of a closed union does `tested` select? Exactly one ⇒ its index. None ⇒ -1 (the check
+    // is statically false). MORE THAN ONE ⇒ the kind-erasure hazard — `is a` is element-erased for
+    // containers, so `(series of number) or (series of text)` can't be told apart at runtime and
+    // narrowing would reinterpret one payload as the other (silent UB). Clean-throw instead (CAT.1's
+    // kind-distinguishable boundary); the real fix is element-aware `is a` in BOTH backends.
+    private static int UnionMatchCase(UnionType ut, CufetType tested)
+    {
+        var hits = new List<int>();
+        for (int i = 0; i < ut.Cases!.Count; i++)
+            if (StaticKindMatches(ut.Cases[i], tested)) hits.Add(i);
+        if (hits.Count > 1)
+            throw new CompilerException(
+                $"this catalogue's cases can't be told apart at runtime: `is a {FormatTypeName(tested)}` matches " +
+                $"{hits.Count} of its cases, because `is a` is element-erased for containers " +
+                "(a `series of text` matches `is a series of number`). Narrowing would reinterpret one case as " +
+                "another. Use cases distinguishable by kind (scalars / distinct object types) for now — " +
+                "element-aware `is a` is the deferred follow-on (it needs the interpreter to change too).");
+        return hits.Count == 1 ? hits[0] : -1;
+    }
+
+    private static string FormatTypeName(CufetType t) => t switch
+    {
+        NumberType => "number", TextType => "text", FactType => "fact",
+        SeriesType => "series", MapType => "map", RecordType => "record", MatrixType => "matrix",
+        ObjectType o => o.Name, _ => t.GetType().Name,
+    };
 
     private static bool StaticKindMatches(CufetType t, CufetType tested) => tested switch
     {
@@ -2451,6 +2558,7 @@ static void* cufet_pipe_stage(void* argp) {
         MapType => $"({a} == {b})",   // maps: reference (pointer) equality, like the interpreter
         MatrixType => $"({a} == {b})",   // matrices: reference equality (interpreter ValuesEqual fallthrough)
         FunctionType => $"(({a}).fn == ({b}).fn && ({a}).env == ({b}).env)",   // function values: reference equality
+        UnionType uq when uq.Cases != null => $"{RegisterUnionStruct(uq)}_eq({a}, {b})",   // tag + payload
         _ => throw new CompilerException($"equality on a '{t.GetType().Name}' is not yet supported by the compiler.")
     };
 
@@ -2468,6 +2576,7 @@ static void* cufet_pipe_stage(void* argp) {
         MapType mt => $"{RegisterMapStruct(mt)}_write({valExpr})",
         MatrixType => $"cufet_mat_write({valExpr})",
         FunctionType => $"printf(\"<function>\")",   // matches the interpreter's Format for a FunctionValue
+        UnionType uw when uw.Cases != null => $"{RegisterUnionStruct(uw)}_write({valExpr})",   // prints as the underlying value
         _ => throw new CompilerException(
                  $"printing a '{t.GetType().Name}' is not yet supported by the compiler.")
     };
@@ -2478,18 +2587,18 @@ static void* cufet_pipe_stage(void* argp) {
         // a single-arm `if (cond) { … return … }` with no else — the statements that follow run
         // only when `cond` was false, so a voidable var proven non-void by ¬cond reads as `.val`
         // for the rest of the block. Undone at block end so it never leaks to a sibling block.
-        var guardNarrowed = new List<(string Name, CufetType? Prev, bool Had)>();
+        var guardNarrowed = new List<(string Name, (CufetType Type, string Access) Prev, bool Had)>();
         foreach (var stmt in body)
         {
             EmitStatement(sb, stmt, indent);
             if (stmt is IfStatement { Arms.Count: 1, ElseBody: null } guard
                 && BlockAlwaysExits(guard.Arms[0].Body))
             {
-                foreach (var (name, inner) in GuardNarrowings(guard.Arms[0].Condition))
+                foreach (var (name, inner, access) in GuardNarrowings(guard.Arms[0].Condition))
                 {
                     bool had = _narrowedVars.TryGetValue(name, out var prev);
-                    guardNarrowed.Add((name, had ? prev : null, had));
-                    _narrowedVars[name] = inner;
+                    guardNarrowed.Add((name, had ? prev : default, had));
+                    _narrowedVars[name] = (inner, access);
                 }
             }
         }
@@ -2504,7 +2613,7 @@ static void* cufet_pipe_stage(void* argp) {
     //   `x is void`   → x non-void → (x, inner);   `A or B` (¬ = ¬A ∧ ¬B) → collect from each.
     // `and` is not recursed: ¬(A ∧ B) narrows neither side. Only voidable narrowing is emitted —
     // that's all the compiler's `.val` access mechanism supports (and all the docs' idioms need).
-    private IEnumerable<(string Name, CufetType Inner)> GuardNarrowings(IExpression cond)
+    private IEnumerable<(string Name, CufetType Inner, string Access)> GuardNarrowings(IExpression cond)
     {
         if (cond is BinaryExpression { Op: TokenType.Or } orE)
         {
@@ -2517,7 +2626,7 @@ static void* cufet_pipe_stage(void* argp) {
             var varSide = b.Left is VoidLiteral ? b.Right : b.Left;
             var other   = b.Left is VoidLiteral ? b.Left  : b.Right;
             if (other is VoidLiteral && varSide is VariableReference vr && TypeOf(vr) is VoidableType vt)
-                yield return (vr.Name, vt.Inner);
+                yield return (vr.Name, vt.Inner, ".val");
         }
     }
 
@@ -2822,7 +2931,8 @@ static void* cufet_pipe_stage(void* argp) {
             case SeriesAddStatement sa:
             {
                 string ser = SeriesStructOf(sa.Series);
-                string valExpr = EmitExpr(sa.Value);
+                // Coerce into the series' ELEMENT type so adding to a catalogue widens into the union.
+                string valExpr = EmitAsType(sa.Value, (TypeOf(sa.Series) as SeriesType)?.ElementType);
                 FlushPreEmits(sb, indent);
                 string serExpr = EmitExpr(sa.Series);
                 FlushPreEmits(sb, indent);
@@ -2858,7 +2968,7 @@ static void* cufet_pipe_stage(void* argp) {
             case SeriesRemoveValueStatement srv:
             {
                 string ser = SeriesStructOf(srv.Series);
-                string valExpr = EmitExpr(srv.Value);
+                string valExpr = EmitAsType(srv.Value, (TypeOf(srv.Series) as SeriesType)?.ElementType);
                 FlushPreEmits(sb, indent);
                 string serExpr = EmitExpr(srv.Series);
                 FlushPreEmits(sb, indent);
@@ -3030,37 +3140,74 @@ static void* cufet_pipe_stage(void* argp) {
         if (ifStmt.ElseBody != null)
         {
             sb.AppendLine($"{indent}}} else {{");
-            EmitBlock(sb, ifStmt.ElseBody, inner);
+            // The else arm runs when every `is a <case>` arm failed — so a closed union narrows to the
+            // cases NOT tested. If exactly one remains the front-end narrows it to that concrete case
+            // (measured: a 2-case union's else IS text; a 3-case residual `(text or fact)` is rejected
+            // for text ops), so match that here.
+            EmitNarrowedBlock(sb, ElseNarrow(ifStmt), ifStmt.ElseBody, inner);
         }
 
         sb.AppendLine($"{indent}}}");
     }
 
+    // Exhaustive else-arm narrowing for a closed union: if every arm tests `<x> is a <case>` on the
+    // SAME union variable, the else arm is reached only for the untested cases — and when exactly one
+    // remains, x reads at that case's concrete type (mirroring the front-end's residual-union narrowing).
+    private (string Name, CufetType Inner, string Access)? ElseNarrow(IfStatement ifStmt)
+    {
+        string? name = null; UnionType? ut = null;
+        var excluded = new HashSet<int>();
+        foreach (var arm in ifStmt.Arms)
+        {
+            if (arm.Condition is not IsTypeCheck { Negated: false, Target: VariableReference vr } tc) return null;
+            if (TypeOf(vr) is not UnionType u || u.Cases == null) return null;
+            if (name == null) { name = vr.Name; ut = u; }
+            else if (name != vr.Name) return null;
+            int k = UnionMatchCase(ut!, tc.Type);
+            if (k < 0) return null;
+            excluded.Add(k);
+        }
+        if (ut == null || name == null) return null;
+        var remaining = Enumerable.Range(0, ut.Cases!.Count).Where(i => !excluded.Contains(i)).ToList();
+        if (remaining.Count != 1) return null;   // 2+ left ⇒ still a union; the front-end restricts its use
+        int j = remaining[0];
+        return (name, ut.Cases[j], $".val.c{j}");
+    }
+
     // Emits a block with an optional voidable variable narrowed to its inner type inside it.
-    private void EmitNarrowedBlock(StringBuilder sb, (string Name, CufetType Inner)? narrow,
+    private void EmitNarrowedBlock(StringBuilder sb, (string Name, CufetType Inner, string Access)? narrow,
                                    IReadOnlyList<IStatement> body, string indent)
     {
-        if (narrow is not var (name, inner) || narrow is null) { EmitBlock(sb, body, indent); return; }
+        if (narrow is not var (name, inner, access) || narrow is null) { EmitBlock(sb, body, indent); return; }
         bool had = _narrowedVars.TryGetValue(name, out var prev);
-        _narrowedVars[name] = inner;
+        _narrowedVars[name] = (inner, access);
         EmitBlock(sb, body, indent);
         if (had) _narrowedVars[name] = prev!; else _narrowedVars.Remove(name);  // had ⇒ prev non-null
     }
 
     // `x is not void` (x a voidable variable) → (x, inner); narrows x in the then-branch only.
     // (The interpreter narrows the `is not void` then-branch, not the `is void` else-branch.)
-    private (string Name, CufetType Inner)? NotVoidNarrow(IExpression cond)
+    private (string Name, CufetType Inner, string Access)? NotVoidNarrow(IExpression cond)
     {
         // `x is a <T>` (positive) on a VOIDABLE x whose inner matches T narrows like `is not void`
         // (the typechecker narrows the arm to T, so reads inside must emit `.val`). Static targets
         // need no representation change, so only the voidable case registers.
+        // `x is a <case>` on a closed-union x narrows x to that case inside the arm: reads become
+        // `.val.c<k>` at the case's concrete type (the N-case generalization of the voidable `.val`).
+        if (cond is IsTypeCheck { Negated: false, Target: VariableReference uvr } utc
+            && TypeOf(uvr) is UnionType uut && uut.Cases != null)
+        {
+            int k = UnionMatchCase(uut, utc.Type);
+            if (k >= 0) return (uvr.Name, uut.Cases[k], $".val.c{k}");
+            return null;
+        }
         if (cond is IsTypeCheck { Negated: false, Target: VariableReference tvr } tc
             && TypeOf(tvr) is VoidableType tvt && StaticKindMatches(tvt.Inner, tc.Type))
-            return (tvr.Name, tvt.Inner);
+            return (tvr.Name, tvt.Inner, ".val");
         if (cond is not BinaryExpression { Op: TokenType.NotEqual } b) return null;
         var (varSide, other) = b.Left is VoidLiteral ? (b.Right, b.Left) : (b.Left, b.Right);
         if (other is VoidLiteral && varSide is VariableReference vr && TypeOf(vr) is VoidableType vt)
-            return (vr.Name, vt.Inner);
+            return (vr.Name, vt.Inner, ".val");
         return null;
     }
 
@@ -3292,7 +3439,7 @@ static void* cufet_pipe_stage(void* argp) {
         MatrixRows            => TNumber,
         MatrixColumns         => TNumber,
         VariableReference vr  => vr.Name == "input" ? new ReadableStreamType(TText)   // `the input` = stdin
-                               : _narrowedVars.TryGetValue(vr.Name, out var nt) ? nt
+                               : _narrowedVars.TryGetValue(vr.Name, out var nt) ? nt.Type
                                : _closureSelf is { } cs && vr.Name == cs.Name ? cs.Type   // recursive self-reference
                                : _varTypes.TryGetValue(vr.Name, out var t) ? t
                                : _funcTypes.TryGetValue(vr.Name, out var ftv) ? ftv   // a bare named function used as a value
@@ -3783,7 +3930,7 @@ static void* cufet_pipe_stage(void* argp) {
         VariableReference v   => v.Name == "the failure" && _currentFailVar != null ? _currentFailVar
                                : v.Name == "one" && _methodReceiverType != null ? "(*cv_one)"
                                : v.Name == "input" ? "stdin"   // `the input` = the stdin stream
-                               : _narrowedVars.ContainsKey(v.Name) ? $"({MangleName(v.Name)}).val"
+                               : _narrowedVars.TryGetValue(v.Name, out var nacc) ? $"({MangleName(v.Name)}){nacc.Access}"
                                // A recursive nested Bind's own name as a VALUE → its closure over the current env.
                                : _closureSelf is { } cse && v.Name == cse.Name ? $"({RegisterFuncStruct(cse.Type)}){{ .fn = {cse.ClosFn}, .env = cf_envp }}"
                                // A bare named function used as a VALUE → the {fn, NULL} closure value.
@@ -3859,6 +4006,19 @@ static void* cufet_pipe_stage(void* argp) {
     // a plain T (or a bare `void`) into a voidable tagged struct when the target is voidable.
     private string EmitAsType(IExpression expr, CufetType? target)
     {
+        // Widening a member value into a closed union: set the tag + store into that case's payload.
+        // The widening site is always statically typed, so the tag is known at compile time.
+        if (target is UnionType ut && ut.Cases != null)
+        {
+            string cun = RegisterUnionStruct(ut);
+            var et0 = TypeOf(expr);
+            if (et0 is UnionType) return EmitExpr(expr);           // already the union
+            int k = UnionCaseIndex(ut, et0);
+            if (k < 0)
+                throw new CompilerException(
+                    $"a value of type '{et0?.GetType().Name}' is not one of this catalogue's declared cases.");
+            return $"(({cun}){{ .tag = {k}, .val.c{k} = {EmitExpr(expr)} }})";
+        }
         if (target is VoidableType vt)
         {
             string cvd = RegisterVoidableStruct(vt);
@@ -3896,7 +4056,9 @@ static void* cufet_pipe_stage(void* argp) {
         string voidableExpr = EmitExpr(bvd.Voidable);
         string tmp = $"cf_bv{_freshId++}";
         _preEmits.Add($"{cvd} {tmp} = {voidableExpr};");
-        return $"({tmp}.has ? {tmp}.val : {EmitExpr(bvd.Default)})";
+        // The default must be coerced to the voidable's INNER type so both ternary arms agree — e.g.
+        // an atlas lookup yields `voidable <union>`, so a plain `0` default widens into the union.
+        return $"({tmp}.has ? {tmp}.val : {EmitAsType(bvd.Default, vt.Inner)})";
     }
 
     // <fallible> but on failure <default> — the success value, else the default (lazy).
@@ -4815,13 +4977,16 @@ static void* cufet_pipe_stage(void* argp) {
     // the returned variable name in a statement.
     private string EmitSeriesLiteral(SeriesLiteral sl)
     {
-        var st   = new SeriesType(SeriesElementType(sl));
+        var elemType = SeriesElementType(sl);
+        var st   = new SeriesType(elemType);
         string name = RegisterSeriesStruct(st);
         string tmp = $"cs_{_freshId++}";
         _preEmits.Add($"{name}* {tmp} = {name}_new();");
         foreach (var elem in sl.Elements)
         {
-            string elemExpr = EmitExpr(elem);
+            // Coerce to the element type so a catalogue's elements WIDEN into the union (tag + payload),
+            // and a voidable-element series widens likewise.
+            string elemExpr = EmitAsType(elem, elemType);
             _preEmits.Add($"{name}_append({tmp}, {elemExpr});");
         }
         return tmp;
@@ -5091,7 +5256,7 @@ static void* cufet_pipe_stage(void* argp) {
         var savedRet = _currentReturnType; var savedExc = _excOpen; _excOpen = 0;
         var savedFail = _currentFailVar;
         _currentFailVar = capturesFailure ? capFailField : null;   // `the failure` → the captured copy
-        var savedNarrow = new Dictionary<string, CufetType>(_narrowedVars); _narrowedVars.Clear();
+        var savedNarrow = new Dictionary<string, (CufetType, string)>(_narrowedVars); _narrowedVars.Clear();
         var savedSelf = _closureSelf;
         _closureSelf = selfName != null ? (selfName, clos, ft) : null;   // self-reference → self-call
         _currentReturnType = ret;
@@ -5382,6 +5547,8 @@ static void* cufet_pipe_stage(void* argp) {
         ChannelType => "cufet_chan*",                          // a channel is a shared mutex/condvar queue
         MatrixType => MatrixCType(),                           // a matrix is an arena pointer (reference type)
         FunctionType ft => RegisterFuncStruct(ft),             // a function value is a {fn, env} value struct
+        UnionType u1c when u1c.Cases is { Count: 1 } => EmitCType(u1c.Cases[0]),   // 1-case union IS that type
+        UnionType ut => RegisterUnionStruct(ut),               // a closed union is a {tag, payload} value struct
 
         _ => throw new CompilerException(
                  $"'{type!.GetType().Name}' is not yet supported by the compiler (slice 5B: records + text; objects/maps later).")

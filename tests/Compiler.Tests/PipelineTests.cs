@@ -4686,6 +4686,122 @@ public class PipelineTests
         Assert.Equal(Interpret(src, "hello\n"), Compile(src, "hello\n"));
     }
 
+    // ── CAT.1: closed unions (catalogue) — the N-case generalization of voidable ──
+    // `cun_N { int tag; union { c0; c1; … } val; }` per closed union; widening sets the tag at the
+    // (statically typed) store site; `is a <case>` is a genuine RUNTIME tag check; narrowing exposes
+    // `.val.c<k>` at the case's concrete type. Scoped to KIND-DISTINGUISHABLE cases.
+
+    [Fact]
+    public void Catalogue_ClosedUnion_ScalarsNarrowBothArms()
+    {
+        // Construct, iterate, narrow both arms (the else arm narrows exhaustively to the one
+        // remaining case — matching the front-end's residual-union narrowing).
+        const string src = """
+            Define stuff as a catalogue of (number or text) with (1, "two", 3).
+            For each item in stuff, repeat:
+                If item is a number, State "num:" joined to (item converted to text).
+                Otherwise, State "txt:" joined to item.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Catalogue_NarrowedCase_UsedAtConcreteType()
+    {
+        // The narrowed value is used AT its concrete type — arithmetic on the number case proves the
+        // payload is read as a real number (1 + 3 == 4), not left as a tagged union.
+        const string src = """
+            Define stuff as a catalogue of (number or text) with (1, "two", 3).
+            Define total as 0.
+            For each item in stuff, repeat:
+                If item is a number, total becomes total + item.
+            Done.
+            State total.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Catalogue_ClosedUnion_OfObjects_NominalNarrowing()
+    {
+        // Object cases are NOMINAL and precisely tagged — dog vs cat distinguish exactly.
+        const string src = """
+            Define object dog with (the text name).
+            Define object cat with (the text name).
+            Define pets as a catalogue of (dog or cat) with ((a new dog { the name "Rex" }), (a new cat { the name "Tom" })).
+            For each p in pets, repeat:
+                If p is a dog, State "dog:" joined to (the name of p).
+                Otherwise, State "cat:" joined to (the name of p).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Catalogue_MixedScalarAndObject()
+    {
+        const string src = """
+            Define object dog with (the text name).
+            Define things as a catalogue of (number or dog) with (7, (a new dog { the name "Rex" })).
+            For each t in things, repeat:
+                If t is a number, State "n=" joined to (t converted to text).
+                Otherwise, State "dog=" joined to (the name of t).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Catalogue_SeriesOps_FallOutOfPerTypeSynthesis()
+    {
+        // A catalogue IS a series of union, so the existing per-T series synthesis gives every series
+        // op for free: Add, Add-to-start, the number of, ordinal access, Remove.
+        const string src = """
+            Define stuff as a catalogue of (number or text) with (1, "two").
+            Add 3 to stuff.
+            Add "four" to the start of stuff.
+            State the number of stuff.
+            Define f as the first of stuff.
+            If f is a text, State "first=" joined to f.
+            Remove the first item from stuff.
+            State the number of stuff.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Atlas_MapOfUnion_LookupAndNarrow()
+    {
+        // `atlas` (map whose value type is a union) falls out of map-of-T + union with no extra work.
+        const string src = """
+            Define a1 as an atlas from text to (number or text) with ("a" : 1, "b" : "two").
+            Define v as (the entry for "a" in a1 but void is 0).
+            If v is a number, State "num:" joined to (v converted to text).
+            Otherwise, State "other".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Catalogue_ContainerVsContainerUnion_CleanThrow()
+    {
+        // THE SAFETY INVARIANT: `is a` is element-erased for containers, so `(series of number or
+        // series of text)` cases can't be told apart at runtime — narrowing would reinterpret one
+        // payload as the other (silent UB). The compiler must refuse LOUDLY, never miscompile.
+        const string src = """
+            Define grids as a catalogue of (series of number or series of text) with ((a series of number with (1,2))).
+            For each g in grids, repeat:
+                If g is a series of number, State "nums".
+                Otherwise, State "texts".
+            Done.
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+    }
+
     [Fact]
     public void Closure_RecursiveNestedBind_RecursiveReturnFirst()
     {
