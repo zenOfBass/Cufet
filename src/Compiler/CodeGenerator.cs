@@ -4969,14 +4969,19 @@ static void* cufet_pipe_stage(void* argp) {
     }
 
     // The free variables a lambda / nested-Bind body captures: referenced enclosing locals not defined
-    // in the body, not its own params, not the special pseudo-vars (one/input/the failure — deferred).
-    private List<string> ClosureFreeVars(IReadOnlyList<(CufetType Type, string Name)> parameters, IReadOnlyList<IStatement> body)
+    // in the body and not its own params. Includes `one` (the method receiver — it IS in _varTypes
+    // inside a method, and objects are value types so it snapshots like any value capture). Excludes
+    // `input` (it lowers to the `stdin` global — nothing to capture). `the failure` isn't a _varTypes
+    // entry (it's the enclosing Try's CufetFailure C var) so it's reported separately via `capturesFailure`.
+    private List<string> ClosureFreeVars(IReadOnlyList<(CufetType Type, string Name)> parameters,
+                                         IReadOnlyList<IStatement> body, out bool capturesFailure)
     {
         var refs = new HashSet<string>(); var defs = new HashSet<string>();
         foreach (var s in body) CollectRefsDefs(s, refs, defs);
         var pnames = parameters.Select(p => p.Name).ToHashSet();
+        capturesFailure = refs.Contains("the failure") && !defs.Contains("the failure") && _currentFailVar != null;
         return refs.Where(r => !defs.Contains(r) && !pnames.Contains(r)
-                            && r != "one" && r != "input" && r != "the failure"
+                            && r != "input" && r != "the failure"
                             && _varTypes.ContainsKey(r))
                    .OrderBy(x => x).ToList();
     }
@@ -5046,8 +5051,9 @@ static void* cufet_pipe_stage(void* argp) {
         int id = _closureCounter++;
         string clos = $"cv_clos{id}";
         var savedVT = new Dictionary<string, CufetType>(_varTypes);
-        var free = ClosureFreeVars(parameters, body);
+        var free = ClosureFreeVars(parameters, body, out bool capturesFailure);
         if (selfName != null) free.Remove(selfName);   // recursion is by-name (self-call), not captured
+        string? capturedFailVar = capturesFailure ? _currentFailVar : null;   // the enclosing Try's CufetFailure
 
         // ESCAPE INTERIM (region-capture-escaping-a-rabbit): a closure capturing a REGION value
         // (series/map/matrix) inside a rabbit holds a pointer INTO the rabbit's arena; if the closure
@@ -5067,13 +5073,15 @@ static void* cufet_pipe_stage(void* argp) {
         var ft = new FunctionType(parameters.Select(p => p.Type).ToList(), ret);
         string cfn = RegisterFuncStruct(ft);
         string retC = ret == null ? "void" : EmitCType(ret);
-        string? envType = free.Count > 0 ? $"cenv_{id}" : null;
+        string? envType = (free.Count > 0 || capturesFailure) ? $"cenv_{id}" : null;
+        const string capFailField = "cf_capfail";   // fixed name: "the failure" has no valid mangling
 
         // Env struct (captured free vars), while _varTypes still has the enclosing scope.
         if (envType != null)
         {
             _closureEnvs.AppendLine($"typedef struct {{");
             foreach (var v in free) _closureEnvs.AppendLine($"    {EmitCType(savedVT[v])} {MangleName(v)};");
+            if (capturesFailure) _closureEnvs.AppendLine($"    CufetFailure {capFailField};");
             _closureEnvs.AppendLine($"}} {envType};");
         }
 
@@ -5081,7 +5089,8 @@ static void* cufet_pipe_stage(void* argp) {
         // lambda's own scope (captures + params only — enclosing locals are reached via the env).
         var savedPre = new List<string>(_preEmits); _preEmits.Clear();
         var savedRet = _currentReturnType; var savedExc = _excOpen; _excOpen = 0;
-        var savedFail = _currentFailVar; _currentFailVar = null;
+        var savedFail = _currentFailVar;
+        _currentFailVar = capturesFailure ? capFailField : null;   // `the failure` → the captured copy
         var savedNarrow = new Dictionary<string, CufetType>(_narrowedVars); _narrowedVars.Clear();
         var savedSelf = _closureSelf;
         _closureSelf = selfName != null ? (selfName, clos, ft) : null;   // self-reference → self-call
@@ -5089,6 +5098,7 @@ static void* cufet_pipe_stage(void* argp) {
         _varTypes.Clear();
         foreach (var v in free) _varTypes[v] = savedVT[v];
         foreach (var (pt, pn) in parameters) _varTypes[pn] = pt;
+        if (capturesFailure) _varTypes["the failure"] = TFailMarker;   // so `the message of the failure` types
 
         // Emit into a LOCAL buffer so a NESTED lambda (which appends its own complete function to
         // _closureFns during EmitBlock) lands BEFORE this enclosing function — not spliced into it.
@@ -5099,7 +5109,15 @@ static void* cufet_pipe_stage(void* argp) {
         {
             fnBuf.AppendLine($"    {envType}* cf_env = ({envType}*)cf_envp;");
             foreach (var v in free)
-                fnBuf.AppendLine($"    {EmitCType(savedVT[v])} {MangleName(v)} = cf_env->{MangleName(v)};");
+            {
+                // `one` (the method receiver) is held BY VALUE in the env (objects are value types →
+                // snapshot); the body emits `(*cv_one)`, so re-create the pointer over a local copy.
+                if (v == "one")
+                    fnBuf.AppendLine($"    {EmitCType(savedVT[v])} cf_onev{id} = cf_env->cv_one; {EmitCType(savedVT[v])}* cv_one = &cf_onev{id};");
+                else
+                    fnBuf.AppendLine($"    {EmitCType(savedVT[v])} {MangleName(v)} = cf_env->{MangleName(v)};");
+            }
+            if (capturesFailure) fnBuf.AppendLine($"    CufetFailure {capFailField} = cf_env->{capFailField};");
         }
         else fnBuf.AppendLine($"    (void)cf_envp;");
         EmitBlock(fnBuf, body, "    ");
@@ -5123,6 +5141,8 @@ static void* cufet_pipe_stage(void* argp) {
             _preEmits.Add($"{envType}* {envVar} = ({envType}*)cufet_arena_alloc(sizeof({envType}));");
             foreach (var v in free)
                 _preEmits.Add($"{envVar}->{MangleName(v)} = {EmitExpr(new VariableReference(v, line))};");
+            // `the failure` isn't a VariableReference target — copy the enclosing Try's CufetFailure.
+            if (capturesFailure) _preEmits.Add($"{envVar}->{capFailField} = {capturedFailVar};");
             return $"({cfn}){{ .fn = {clos}, .env = {envVar} }}";
         }
         return $"({cfn}){{ .fn = {clos}, .env = NULL }}";

@@ -4604,4 +4604,104 @@ public class PipelineTests
         new TypeChecker().Check(program);
         Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
     }
+
+    // ── Small edges: implicit-value capture + recursion ordering (closes the audit's small lines) ──
+    // `one` (method receiver) and `the failure` (a handler's caught failure) are implicit bindings the
+    // free-var analysis now recognizes as capturable, matching the interpreter. `the input` needs no
+    // capture (it lowers to the `stdin` global). Recursion whose FIRST return is the recursive call
+    // already resolves (the nested-Bind desugar registers the declared return type before inference).
+
+    [Fact]
+    public void Closure_CapturesMethodReceiver_One()
+    {
+        // A lambda inside a method body referencing `one` captures the receiver.
+        const string src = """
+            Define object box with (the number n):
+                Bind number to twice-n:
+                    Define f as a function given (the number x): Return x + one's n. Done.
+                    Return cast f on (0).
+                Done.
+            Done.
+            Define b as a new box { the n 21 }.
+            State cast twice-n on (b).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_MethodReceiverCapture_IsSnapshot()
+    {
+        // Objects are value types, so capturing `one` SNAPSHOTS the receiver: mutating a field after
+        // the lambda is created doesn't change what the lambda sees (7, not 99) — binding-is-binding.
+        const string src = """
+            Define object box with (the number n):
+                Bind number to probe:
+                    Define f as a function: Return one's n. Done.
+                    one's n becomes 99.
+                    Return cast f.
+                Done.
+            Done.
+            Define b as a new box { the n 7 }.
+            State cast probe on (b).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_CapturesTheFailure_InHandler()
+    {
+        // A lambda inside an `In case of failure` handler referencing `the failure` captures the
+        // caught CufetFailure (a value → snapshot), so `the message of the failure` resolves inside it.
+        const string src = """
+            Bind number or failure to risky:
+                Return a failure "boom" of category "test".
+            Done.
+            Bind void to handle:
+                Try to:
+                    Define v as cast risky.
+                    State "ok".
+                Done.
+                In case of failure:
+                    Define f as a function: Return the message of the failure. Done.
+                    State cast f.
+                Done.
+            Done.
+            Cast handle.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Closure_ReferencesTheInput_NoCaptureNeeded()
+    {
+        // `the input` lowers to the `stdin` global — a lambda referencing it needs no capture at all.
+        const string src = """
+            Bind void to go:
+                Define f as a function: Return read a line from the input. Done.
+                Define line as cast f.
+                State (line but void is "<eof>").
+            Done.
+            Cast go.
+            """;
+        Assert.Equal(Interpret(src, "hello\n"), Compile(src, "hello\n"));
+    }
+
+    [Fact]
+    public void Closure_RecursiveNestedBind_RecursiveReturnFirst()
+    {
+        // Recursion where the FIRST return encountered is the recursive call (no base case first).
+        // Resolves because the nested-Bind desugar registers the DECLARED return type before the
+        // body's return-type inference runs — locking that ordering against regression.
+        const string src = """
+            Bind number to compute:
+                Bind number to countdown, given (the number k):
+                    If k > 0, Return cast countdown on (k - 1).
+                    Return 0.
+                Done.
+                Return cast countdown on (3).
+            Done.
+            State cast compute.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
 }
