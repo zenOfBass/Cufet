@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Cufet.Interpreter;
 using Cufet.Lexer;
 
@@ -93,6 +93,11 @@ public sealed class CodeGenerator
         _openFiles.Clear(); _loopFileDepths.Clear(); _loopExcDepths.Clear();
         _rabbitCtx.Clear(); _rabbitDepth = 0; _excOpen = 0;
         _narrowedVars.Clear(); _currentFailVar = null; _closureSelf = null; _currentTaskReturn = null;
+        // The channel deep-copy registry IS reset: an OPEN union's TypeSig is the constant "U(*)"
+        // regardless of its discovered case set, so a union registered during an early iteration
+        // would dedup against a later, LARGER case set and skip registering the new cases'
+        // helpers (a dangling cchan_<i>_copy reference). Rebuilding it in the real pass is exact.
+        _chanElemReg.Clear(); _chanElemList.Clear(); _chanTopElems.Clear();
     }
 
     // Does the program mention an OPEN union anywhere (so the discovery pre-pass is worth running)?
@@ -1713,10 +1718,30 @@ static void* cufet_pipe_stage(void* argp) {
         // so `(number or text)` and `(text or number)` are distinct types — don't canonicalize).
         // A 1-case union (from extra parens, e.g. `(number)`) IS that type — normalize so it matches.
         UnionType u1 when u1.Cases is { Count: 1 } => TypeSig(u1.Cases[0]),
-        UnionType u => u.Cases == null ? "U(*)" : "U(" + string.Join(",", u.Cases.Select(TypeSig)) + ")",
+        UnionType u => u.Cases == null ? "U(*)" : "U(" + string.Join(",", FlatCases(u.Cases).Select(TypeSig)) + ")",
         _ => throw new CompilerException(
                  $"'{t.GetType().Name}' is not yet supported by the compiler (slice 5B: records + objects + text).")
     };
+
+    // A union whose case is ITSELF a union (`(number or (text or fact))` — the front-end parses and
+    // runs this) is FLATTENED to one level. The nested and flat spellings are distinct front-end
+    // types but denote the same value set: `IsAssignable` and `RuntimeIsType` both RECURSE through
+    // a nested case, so no value can tell them apart. One flat tagged struct therefore serves both —
+    // the same "canonicalize what is observably identical" move as the ONE bounded open union.
+    // The common (already-flat) path returns the list unchanged, so tag indices are untouched.
+    private IReadOnlyList<CufetType> FlatCases(IReadOnlyList<CufetType> cases)
+    {
+        if (!cases.Any(c => c is UnionType { Cases: not null })) return cases;
+        var flat = new List<CufetType>();
+        void Add(IReadOnlyList<CufetType> cs)
+        {
+            foreach (var c in cs)
+                if (c is UnionType { Cases: { } inner }) Add(inner);
+                else if (!flat.Any(f => TypeSig(f) == TypeSig(c))) flat.Add(c);
+        }
+        Add(cases);
+        return flat;
+    }
 
     // Ensures a `cfn_N` closure-value struct exists for this signature (and, recursively, for any
     // nested record/series shapes in its params/return). Returns the C struct name.
@@ -1819,6 +1844,9 @@ static void* cufet_pipe_stage(void* argp) {
             case VoidableType vt: RegisterVoidableStruct(vt); break;
             case MapType mt:      RegisterMapStruct(mt); break;
             case FailureType ft:  RegisterFailableStruct(ft); break;
+            // A union nested in a record/object field (CAT.3). Open unions need no registration —
+            // the ONE `cun_open` is emitted from the ProgramUsesOpenUnion gate, not per-site.
+            case UnionType ut when ut.Cases != null: RegisterUnionStruct(ut); break;
         }
     }
 
@@ -1881,8 +1909,11 @@ static void* cufet_pipe_stage(void* argp) {
         if (_unionSig2Name.TryGetValue(sig, out var name)) return name;
         name = $"cun_{_unionCounter++}";
         _unionSig2Name[sig] = name;
-        _unionStructs.Add((name, ut));
-        foreach (var c in ut.Cases) RegisterNestedRecords(c);
+        // Store the FLATTENED union — the payload slots, _write/_eq arms and every tag index are
+        // computed from it, so a nested spelling and its flat equivalent share one struct.
+        var flat = new UnionType(FlatCases(ut.Cases));
+        _unionStructs.Add((name, flat));
+        foreach (var c in flat.Cases!) RegisterNestedRecords(c);
         return name;
     }
 
@@ -1893,7 +1924,8 @@ static void* cufet_pipe_stage(void* argp) {
     {
         if (t == null) return -1;
         string sig = TypeSig(t);
-        for (int i = 0; i < ut.Cases!.Count; i++) if (TypeSig(ut.Cases[i]) == sig) return i;
+        var cases = UnionCases(ut);
+        for (int i = 0; i < cases.Count; i++) if (TypeSig(cases[i]) == sig) return i;
         return -1;
     }
 
@@ -2223,14 +2255,24 @@ static void* cufet_pipe_stage(void* argp) {
         FailureType ft => IsChanPod(ft.Inner),
         RecordType rt  => RecordFields(rt).All(f => IsChanPod(f.Type)),
         ObjectType ot  => ObjectFields(_objectDefs[ot.Name]).All(f => IsChanPod(f.Type)),
+        // A union is POD iff EVERY case it can hold is — the `number or fact` fast path (no tag
+        // dispatch needed, the struct copy IS the deep copy). Open unions use the discovered set.
+        UnionType ut   => UnionCases(ut).All(IsChanPod),
         _ => false,   // text, series, map, matrix — hold arena pointers
     };
+
+    // The case list of a union — declared for a closed one, whole-program-discovered for the open one.
+    private IReadOnlyList<CufetType> UnionCases(UnionType ut) =>
+        ut.Cases == null ? _openUnionCases : FlatCases(ut.Cases);
 
     // Registers `t` (and, recursively, the component types its copy body references) for deep-copy
     // helper synthesis, returning its index. `isTop` marks a type used AT a channel/pipe boundary
     // (those additionally get the heapenv/arenacopy/freeenv wrappers). Deduped by TypeSig.
     private int RegisterChanElem(CufetType t, bool isTop)
     {
+        // A 1-case union IS that case everywhere else (TypeSig/EmitCType normalize it) — normalize
+        // here too, so the copy body isn't emitted against a tag-less C type.
+        if (t is UnionType { Cases: { Count: 1 } } u1) t = u1.Cases[0];
         string sig = TypeSig(t);
         if (isTop) _chanTopElems.Add(sig);
         if (_chanElemReg.TryGetValue(sig, out var existing)) return existing;
@@ -2253,10 +2295,14 @@ static void* cufet_pipe_stage(void* argp) {
             case ObjectType ot:
                 foreach (var f in ObjectFields(_objectDefs[ot.Name])) if (!IsChanPod(f.Type)) RegisterChanElem(f.Type, false);
                 break;
+            case UnionType ut:
+                if (ut.Cases != null) RegisterUnionStruct(ut); else MarkOpenUnion();
+                foreach (var c in UnionCases(ut)) if (!IsChanPod(c)) RegisterChanElem(c, false);
+                break;
             case NumberType or FactType or TextType: break;
             default:
                 throw new CompilerException(
-                    $"a channel of '{t.GetType().Name}' is not supported (channel elements are number/fact/text/series/map/record/object/voidable/matrix).");
+                    $"a channel of '{t.GetType().Name}' is not supported (channel elements are number/fact/text/series/map/record/object/union/voidable/matrix).");
         }
         return idx;
     }
@@ -2356,6 +2402,19 @@ static void* cufet_pipe_stage(void* argp) {
                 sb.Append("return r;");
                 break;
             }
+            case UnionType ut:
+            {
+                // The struct copy carries the tag; only the LIVE case's payload needs deep-copying,
+                // so dispatch on the tag — the same shape as the FailureType arm, N-way. POD cases
+                // contribute no arm (their payload is already a complete copy).
+                sb.Append($"(void)a; {tc} r = v; switch (v.tag) {{ ");
+                var cases = UnionCases(ut);
+                for (int k = 0; k < cases.Count; k++)
+                    if (!IsChanPod(cases[k]))
+                        sb.Append($"case {k}: r.val.c{k} = cchan_{ChanIdxOf(cases[k])}_copy(v.val.c{k}, a); break; ");
+                sb.Append("default: break; } return r;");
+                break;
+            }
             default:
                 throw new CompilerException($"channel deep-copy of '{t.GetType().Name}' is unsupported.");
         }
@@ -2395,6 +2454,16 @@ static void* cufet_pipe_stage(void* argp) {
                 foreach (var f in fields)
                     if (!IsChanPod(f.Type)) sb.Append($"cchan_{ChanIdxOf(f.Type)}_freeheap(v.{f.CField}); ");
                 sb.Append("(void)v;");
+                break;
+            }
+            case UnionType ut:
+            {
+                sb.Append("switch (v.tag) { ");
+                var cases = UnionCases(ut);
+                for (int k = 0; k < cases.Count; k++)
+                    if (!IsChanPod(cases[k]))
+                        sb.Append($"case {k}: cchan_{ChanIdxOf(cases[k])}_freeheap(v.val.c{k}); break; ");
+                sb.Append("default: break; } (void)v;");
                 break;
             }
             default:
@@ -2494,7 +2563,7 @@ static void* cufet_pipe_stage(void* argp) {
     // containers, so `(series of number) or (series of text)` can't be told apart at runtime and
     // narrowing would reinterpret one payload as the other (silent UB). Clean-throw instead (CAT.1's
     // kind-distinguishable boundary); the real fix is element-aware `is a` in BOTH backends.
-    private static int UnionMatchCase(UnionType ut, CufetType tested) => MatchCaseInList(ut.Cases!, tested);
+    private int UnionMatchCase(UnionType ut, CufetType tested) => MatchCaseInList(UnionCases(ut), tested);
 
     // Shared by closed unions (declared cases) and open unions (the discovered set).
     private static int MatchCaseInList(IReadOnlyList<CufetType> cases, CufetType tested)
@@ -2530,6 +2599,13 @@ static void* cufet_pipe_stage(void* argp) {
         MatrixType => t is MatrixType,
         ObjectType ot => t is ObjectType o2 && o2.Name == ot.Name,   // nominal
         VoidType   => false,                  // a non-voidable value is never void
+        // `x is a (text or fact)` — a COMPOUND test. The interpreter answers it by recursing through
+        // the union (true for a text), but a flat tag can't: one tag test can't stand for a set of
+        // cases, and folding it to false would silently diverge. Refuse loudly instead.
+        UnionType  => throw new CompilerException(
+            "`is a` against a union type (`is a (text or fact)`) is not supported by the compiler — " +
+            "a runtime tag identifies ONE case, so a set-valued test has no single tag. " +
+            "Test the individual cases instead (`is a text` / `is a fact`)."),
         _ => false,
     };
 
@@ -2726,7 +2802,7 @@ static void* cufet_pipe_stage(void* argp) {
                 {
                     bool had = _narrowedVars.TryGetValue(name, out var prev);
                     guardNarrowed.Add((name, had ? prev : default, had));
-                    _narrowedVars[name] = (inner, access);
+                    _narrowedVars[name] = (inner, (had ? prev.Access : "") + access);
                 }
             }
         }
@@ -2792,6 +2868,10 @@ static void* cufet_pipe_stage(void* argp) {
                     VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr}); printf(\"\\n\")",
                     MapType mt      => $"{RegisterMapStruct(mt)}_write({valExpr}); printf(\"\\n\")",
                     MatrixType      => $"cufet_mat_write({valExpr}); printf(\"\\n\")",
+                    // A union prints as its underlying value (tag dispatch) — the same _write the
+                    // synthesized container helpers call, so a bare `State <union>` matches an
+                    // element printed inside a catalogue.
+                    UnionType       => $"{WriteCall(valExpr, t)}; printf(\"\\n\")",
                     _ => throw new CompilerException($"State of a '{t.GetType().Name}' is not yet supported by the compiler.")
                 };
                 sb.AppendLine($"{indent}{printStmt};");
@@ -3291,13 +3371,12 @@ static void* cufet_pipe_stage(void* argp) {
             if (TypeOf(vr) is not UnionType u) return null;
             if (name == null) { name = vr.Name; ut = u; }
             else if (name != vr.Name) return null;
-            var cs = ut!.Cases ?? (IReadOnlyList<CufetType>)_openUnionCases;
-            int k = MatchCaseInList(cs, tc.Type);
+            int k = MatchCaseInList(UnionCases(ut!), tc.Type);
             if (k < 0) return null;
             excluded.Add(k);
         }
         if (ut == null || name == null) return null;
-        var allCases = ut.Cases ?? (IReadOnlyList<CufetType>)_openUnionCases;
+        var allCases = UnionCases(ut);
         var remaining = Enumerable.Range(0, allCases.Count).Where(i => !excluded.Contains(i)).ToList();
         if (remaining.Count != 1) return null;   // 2+ left ⇒ still a union; the front-end restricts its use
         int j = remaining[0];
@@ -3310,7 +3389,10 @@ static void* cufet_pipe_stage(void* argp) {
     {
         if (narrow is not var (name, inner, access) || narrow is null) { EmitBlock(sb, body, indent); return; }
         bool had = _narrowedVars.TryGetValue(name, out var prev);
-        _narrowedVars[name] = (inner, access);
+        // Narrowings COMPOSE — a voidable-of-union narrowed by `is not void` then by `is a <case>`
+        // reads `.val` (out of the cvd) THEN `.val.c<k>` (out of the cun). Replacing rather than
+        // nesting would emit `(x).val.c0` against the cvd and hit a non-existent member.
+        _narrowedVars[name] = (inner, (had ? prev.Access : "") + access);
         EmitBlock(sb, body, indent);
         if (had) _narrowedVars[name] = prev!; else _narrowedVars.Remove(name);  // had ⇒ prev non-null
     }
@@ -3327,7 +3409,7 @@ static void* cufet_pipe_stage(void* argp) {
         if (cond is IsTypeCheck { Negated: false, Target: VariableReference uvr } utc
             && TypeOf(uvr) is UnionType uut)
         {
-            var ucases = uut.Cases ?? (IReadOnlyList<CufetType>)_openUnionCases;
+            var ucases = UnionCases(uut);
             int k = MatchCaseInList(ucases, utc.Type);
             if (k >= 0) return (uvr.Name, ucases[k], $".val.c{k}");
             return null;
@@ -4142,7 +4224,11 @@ static void* cufet_pipe_stage(void* argp) {
         if (target is UnionType uo && uo.Cases == null)
         {
             var eo = TypeOf(expr);
-            if (eo is UnionType) return EmitExpr(expr);              // already the open union
+            if (eo is UnionType { Cases: null }) return EmitExpr(expr);   // already the open union
+            if (eo is UnionType) throw new CompilerException(
+                "storing a closed catalogue's value into an OPEN catalogue is not supported — the two " +
+                "use different tag sets, so the value would need re-tagging at runtime. Narrow to a " +
+                "concrete case first (`If v is a number: …`) and store that.");
             int ko = OpenUnionIndex(eo, register: _discoveringOpenUnion);
             if (ko < 0) ko = 0;                                      // pre-pass discovers; real pass finds it
             return $"(({OpenUnionStruct}){{ .tag = {ko}, .val.c{ko} = {EmitExpr(expr)} }})";
@@ -4151,7 +4237,17 @@ static void* cufet_pipe_stage(void* argp) {
         {
             string cun = RegisterUnionStruct(ut);
             var et0 = TypeOf(expr);
-            if (et0 is UnionType) return EmitExpr(expr);           // already the union
+            if (et0 is UnionType eu)
+            {
+                // Same union (after flattening) ⇒ same struct ⇒ pass through. A DIFFERENT union
+                // (a narrower one widening into a wider) has a different tag set, so it would need
+                // a runtime re-tag — refuse cleanly rather than emit a mismatched struct.
+                if (TypeSig(eu) == TypeSig(ut)) return EmitExpr(expr);
+                throw new CompilerException(
+                    "storing one catalogue's value into a catalogue with different cases is not " +
+                    "supported — the tag sets differ, so the value would need re-tagging at runtime. " +
+                    "Narrow to a concrete case first (`If v is a number: …`) and store that.");
+            }
             int k = UnionCaseIndex(ut, et0);
             if (k < 0)
                 throw new CompilerException(

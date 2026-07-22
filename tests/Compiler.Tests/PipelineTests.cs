@@ -4945,4 +4945,289 @@ public class PipelineTests
             """;
         Assert.Equal(Interpret(src), Compile(src));
     }
+
+    // ── CAT.3: union BREADTH — unions in record/object fields, unions across channels/tasks ──
+    // A cun_N is a value struct like any other, so a union-typed field stores by value and copies
+    // on bind; the work was (a) registering the union struct when it is reached only as a FIELD,
+    // and (b) a UnionType arm on the channel-of-T deep-copy family (tag dispatch → the case's copy).
+
+    [Fact]
+    public void Union_AsObjectField_ConstructAccessNarrow()
+    {
+        const string src = """
+            Define object slot with (the (number or text) value, the text label).
+            Define cat as a catalogue of (number or text) with (5, "hi").
+            Define n as item 1 of cat.
+            Define t as item 2 of cat.
+            Define first as a new slot { the value n, the label "five" }.
+            Define second as a new slot { the value t, the label "greet" }.
+            State first's value.
+            State second's value.
+            If first's value is a number, State "first is number".
+            If second's value is a text, State "second is text".
+            Define v as first's value.
+            If v is a number, State v + 1.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Union_InRecordField_TopoOrderingStress()
+    {
+        // The declaration-order stress: a series of RECORDS whose field is a UNION whose cases
+        // include a SERIES and an OBJECT — the union struct must be declared after its case types
+        // and before the record that holds it.
+        const string src = """
+            Define object tag with (the text name).
+            Define cat as a catalogue of (number or series of text or tag) with (7).
+            Define words as a series of text with ("a", "b").
+            Add words to cat.
+            Define mk as a new tag { the name "boom" }.
+            Add mk to cat.
+            Define e1 as item 1 of cat.
+            Define e2 as item 2 of cat.
+            Define e3 as item 3 of cat.
+            Define r1 as a record with (the payload e1, the label "one").
+            Define r2 as a record with (the payload e2, the label "two").
+            Define r3 as a record with (the payload e3, the label "three").
+            Define lines as a series with (r1, r2, r3).
+            For each ln in lines, repeat:
+                State the label of ln.
+                Define p as the payload of ln.
+                If p is a number, State p * 2.
+                Otherwise if p is a series of text, State the number of p.
+                Otherwise, State p's name.
+            Done.
+            State r2.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Union_AsFunctionParameter_AndClosureCapture()
+    {
+        // Already-working positions, locked against regression: a union is an ordinary value struct,
+        // so it passes by value as a parameter and is captured by value (snapshot) in a closure env.
+        const string src = """
+            Bind text to describe, given (the (number or text) v):
+                If v is a number:
+                    Return "n".
+                Done.
+                Otherwise:
+                    Return "t".
+                Done.
+            Done.
+            Define cat as a catalogue of (number or text) with (42, "hi").
+            Define x as item 1 of cat.
+            Define y as item 2 of cat.
+            State cast describe on (x).
+            State cast describe on (y).
+            Define show as a function:
+                If x is a number:
+                    Return "captured number".
+                Done.
+                Otherwise:
+                    Return "captured text".
+                Done.
+            Done.
+            State cast show on ().
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Union_AsFunctionReturnType_RoundTripsAndNarrows()
+    {
+        // A union in RETURN position: `Bind (number or text) to …`. The cun_N returns by value like
+        // any other value struct, and the caller can narrow the result.
+        const string src = """
+            Bind (number or text) to pick, given (the fact flag, the catalogue of (number or text) src):
+                If flag, return item 1 of src.
+                Return item 2 of src.
+            Done.
+            Define cat as a catalogue of (number or text) with (7, "seven").
+            Define one-v as cast pick on (true, cat).
+            Define two-v as cast pick on (false, cat).
+            State one-v.
+            State two-v.
+            If one-v is a number, State one-v + 1.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Union_NestedInUnion_FlattensToOneTagSet()
+    {
+        // `(number or (text or fact))` parses and runs in the interpreter (IsAssignable and
+        // RuntimeIsType both RECURSE through a nested case), so no value can tell it apart from
+        // the flat spelling — the compiler flattens it to ONE 3-case tagged struct.
+        const string src = """
+            Define cat as a catalogue of (number or (text or fact)) with (1, "a", true).
+            For each e in cat, repeat:
+                State e.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Union_IsAAgainstAUnionType_CleanThrow()
+    {
+        // A runtime tag identifies ONE case, so a SET-valued test (`is a (number or text)`) has no
+        // single tag. The interpreter answers it by recursion; folding it to false would silently
+        // diverge, so the compiler refuses loudly instead.
+        const string src = """
+            Define cat as a catalogue of (number or text) with (1, "a").
+            Define e as item 2 of cat.
+            If e is a (number or text), State "yes".
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+    }
+
+    [Fact]
+    public void Union_CrossesChannel_TagDispatchDeepCopy()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        const string src = """
+            Pull a rabbit.
+                Define ch as a channel of (number or text).
+                Have rabbit start a task:
+                    Define cat as a catalogue of (number or text) with (1, "two", 3).
+                    For each e in cat, repeat:
+                        Send e through ch.
+                    Done.
+                Done.
+                For each n in the range 1 to 3, repeat:
+                    Define d as the delivery from ch.
+                    If d is not void:
+                        If d is a number:
+                            State d + 100.
+                        Done.
+                        Otherwise:
+                            State d.
+                        Done.
+                    Done.
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Union_CrossesChannel_ReferenceCaseIsDeepCopied()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // THE ISOLATION CRUX: the union's live case is an OBJECT holding a SERIES. The producer
+        // mutates that series AFTER sending, so a shallow copy would report body-len 4 (or a UAF
+        // once the task's arena pops). Deep copy through tag → object → series → text ⇒ 2.
+        const string src = """
+            Define object bag with (the text label, the series of text body).
+            Pull a rabbit.
+                Define ch as a channel of (number or bag).
+                Have rabbit start a task:
+                    Define words as a series of text with ("p", "q").
+                    Define holder as a new bag { the label "first", the body words }.
+                    Define box as a catalogue of (number or bag) with (1).
+                    Add holder to box.
+                    Define e as item 2 of box.
+                    Send e through ch.
+                    Add "r" to words.
+                    Add "s" to words.
+                    Define n as item 1 of box.
+                    Send n through ch.
+                Done.
+                For each k in the range 1 to 2, repeat:
+                    Define d as the delivery from ch.
+                    If d is not void:
+                        Define v as d.
+                        If v is a number:
+                            State "N" joined to (v converted to text).
+                        Done.
+                        Otherwise:
+                            State "body-len " joined to (the number of v's body converted to text).
+                        Done.
+                    Done.
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Union_AsTaskResult_ReferenceCaseAndPodFastPath()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // Two awaited union results: one whose live case is a reference type (heap-bridged through
+        // the tag dispatch), and one over scalars only — the POD fast path, where every case is
+        // arena-pointer-free so the struct copy IS the deep copy (no per-case dispatch emitted).
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as pick:
+                    Define cat as a catalogue of (number or series of text) with (5).
+                    Define words as a series of text with ("x", "y", "z").
+                    Add words to cat.
+                    Return item 2 of cat.
+                Done.
+                Have rabbit start a task as pod:
+                    Define c2 as a catalogue of (number or fact) with (7, true).
+                    Return item 2 of c2.
+                Done.
+                Define r as the awaited result of pick.
+                If r is a number:
+                    State "num".
+                Done.
+                Otherwise:
+                    State the number of r.
+                    State item 1 of r.
+                Done.
+                Define q as the awaited result of pod.
+                If q is a fact:
+                    State q.
+                Done.
+                Otherwise:
+                    State "not fact".
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void OpenUnion_AsTaskResult_CarriesTheDiscoveredCaseSet()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // An OPEN union crossing the task boundary. Its TypeSig is the constant "U(*)" regardless
+        // of the discovered case set, so the deep-copy registry MUST be rebuilt for the real pass —
+        // otherwise a discovery iteration's smaller set would be deduped against and the later
+        // cases' copy helpers would never be emitted.
+        const string src = """
+            Bind text to kind, given (the number n):
+                If n is 1, return "one".
+                Return "many".
+            Done.
+            Pull a rabbit.
+                Have rabbit start a task as grab:
+                    Define loose as a catalogue.
+                    Define words as a series of text with ("m", "n", "o").
+                    Add 4 to loose.
+                    Add words to loose.
+                    Add "tail" to loose.
+                    Return item 2 of loose.
+                Done.
+                Define r as the awaited result of grab.
+                If r is a series of text:
+                    State the number of r.
+                Done.
+                State cast kind on (1).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
 }
