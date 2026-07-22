@@ -288,6 +288,19 @@ public sealed class CodeGenerator
     // Object definitions by name (nominal types), collected up front. Objects are also
     // C value structs (cd_<name>); methods become C functions taking a receiver pointer.
     private readonly Dictionary<string, ObjectDefinition> _objectDefs = new();
+
+    // Operator overloads, keyed by (object type name, operator). MEASURED surface: `Bind overloading
+    // <op>, given (the <l> is a <T>, the <r> is a <T>)` — FREE-STANDING and top-level (not a method),
+    // `+ - * /` ONLY, BOTH operands the SAME object type, and the type checker rejects a duplicate
+    // (type, op). So resolution is an EXACT nominal match with at most one candidate: a compile-time
+    // dictionary lookup, no ranking and no ambiguity. Comparisons/`is` are NOT overloadable, so the
+    // built-in _eq machinery (record/object equality, `unique`, map keys) is untouched.
+    private readonly Dictionary<(string TypeName, TokenType Op), OperatorOverloadDeclaration> _overloadDefs = new();
+    // Memoized inferred return types (an overload's return is inferred from its body, like a lambda's,
+    // and may be ANY type — including `T or failure` when the body returns a failure).
+    private readonly Dictionary<(string TypeName, TokenType Op), CufetType?> _overloadReturnTypes = new();
+    private readonly HashSet<(string TypeName, TokenType Op)> _overloadInferring = new();
+
     // Inside a method body: the receiver's object type name (so `one` and its fields resolve).
     private string? _methodReceiverType;
     // Inside a setter body: the field name being set, so `one's <field> becomes X` writes raw
@@ -1437,6 +1450,9 @@ static void* cufet_pipe_stage(void* argp) {
         // Object definitions are nominal types — collect them all up front (they may be
         // top-level or nested in Pull blocks) so literals and field access resolve.
         CollectObjectDefs(program.Statements);
+        // Operator overloads, likewise up front: a function emitted before the declaration can still
+        // use the operator, so dispatch needs the whole registry before any body emits.
+        CollectOverloadDefs(program.Statements);
         MergeUntoMethods(program.Statements);   // fold 'Bind ... unto <type>' methods into their type
         foreach (var def in _objectDefs.Values)
             ValidateObjectSupported(def);
@@ -1504,6 +1520,10 @@ static void* cufet_pipe_stage(void* argp) {
                 foreach (var s in def.Setters)      EmitSetter(body, def, s);
             }
 
+            // Operator overload bodies (ordinary functions with two by-value operand params).
+            foreach (var oad in _overloadDefs.Values)
+                EmitOverload(body, oad);
+
             foreach (var bind in topFuncs)
                 EmitBind(body, bind);
 
@@ -1552,6 +1572,7 @@ static void* cufet_pipe_stage(void* argp) {
             {
                 if (stmt is BindStatement) continue;       // emitted above
                 if (stmt is ObjectDefinition) continue;    // declarations, handled up front
+                if (stmt is OperatorOverloadDeclaration) continue;   // emitted above as functions
                 EmitStatement(body, stmt, "    ");
             }
             body.AppendLine("    cufet_arena_pop();");
@@ -1625,25 +1646,33 @@ static void* cufet_pipe_stage(void* argp) {
         if (_usesSignals || _usesConcurrency)
             sb.AppendLine(SignalRuntime);
 
-        // ── Concurrency runtime + generated task thread functions (only when tasks/channels used) ──
+        // ── Concurrency RUNTIME (only when tasks/channels used) ──
+        // Must precede the forward declarations below: a function may take a `cufet_chan*` param,
+        // and `cufet_chan` is defined here.
         if (_usesConcurrency)
-        {
             sb.AppendLine(ConcurrencyRuntime);
-            sb.Append(_taskFns);
-        }
 
-        // ── Forward declarations: object methods/getters/setters, then free functions ──
+        // ── Forward declarations: object methods/getters/setters, overloads, then free functions ──
+        // These come BEFORE the generated task thread functions (below), which are BODIES — a task
+        // body can call any of them. (Emitting the task bodies first made an overload call inside a
+        // task an implicit declaration; the same hole existed for a free-function call from a task.)
         foreach (var def in _objectDefs.Values)
         {
             foreach (var method in def.Methods) sb.AppendLine($"{MethodSignature(def, method)};");
             foreach (var g in def.Getters)      sb.AppendLine($"{GetterSignature(def, g)};");
             foreach (var s in def.Setters)      sb.AppendLine($"{SetterSignature(def, s)};");
         }
+        foreach (var oad in _overloadDefs.Values)
+            sb.AppendLine($"{OverloadSignature(oad)};");
         foreach (var bind in topFuncs)
             sb.AppendLine($"{EmitFunctionSignature(bind)};");
         foreach (var (bind, _) in pullBinds)
             sb.AppendLine($"{EmitFunctionSignature(bind)};");
         sb.AppendLine();
+
+        // ── Generated task thread functions (bodies — after the forward decls they may call) ──
+        if (_usesConcurrency)
+            sb.Append(_taskFns);
 
         // ── Named-function value thunks (after the function forward-decls they call) ──
         EmitFnThunks(sb);
@@ -1661,6 +1690,125 @@ static void* cufet_pipe_stage(void* argp) {
 
     // Nominal C struct name for an object type.
     private static string ObjStructName(string objectName) => "cd_" + objectName.Replace('-', '_');
+
+    // ── Operator overloading (Arc 3) ──────────────────────────────────────────
+    // Dispatch is a COMPILE-TIME lookup: exact nominal match on both operands, at most one
+    // candidate per (type, op). So an overloaded `a + b` lowers to a direct call — no vtable,
+    // no runtime tag, no cost over an ordinary function call.
+
+    private static string OpWord(TokenType op) => op switch
+    {
+        TokenType.Plus  => "add",
+        TokenType.Minus => "sub",
+        TokenType.Star  => "mul",
+        _               => "div",
+    };
+
+    private static string OpSym(TokenType op) => op switch
+    {
+        TokenType.Plus => "+", TokenType.Minus => "-", TokenType.Star => "*", _ => "/",
+    };
+
+    private static string OverloadFnName(string typeName, TokenType op) =>
+        $"cop_{typeName.Replace('-', '_')}_{OpWord(op)}";
+
+    // Walks all statements collecting operator overloads (they are top-level only, but a Pull-book
+    // body is morally top-level too — same reach as CollectObjectDefs).
+    private void CollectOverloadDefs(IEnumerable<IStatement> stmts)
+    {
+        foreach (var stmt in stmts)
+            switch (stmt)
+            {
+                case OperatorOverloadDeclaration oad: _overloadDefs[(oad.OperandTypeName, oad.Operator)] = oad; break;
+                case PullStatement ps:               CollectOverloadDefs(ps.Body); break;
+                case PullRabbitStatement pr:         CollectOverloadDefs(pr.Body); break;
+            }
+    }
+
+    // The overload's inferred return type (RAW — keeps FailureType). Mirrors the front-end: the
+    // success type is the first non-failure return, and any `return a failure` makes the whole
+    // operator fallible (`T or failure`), exactly like matrix arithmetic.
+    private CufetType? OverloadReturnType(string typeName, TokenType op)
+    {
+        var key = (typeName, op);
+        if (_overloadReturnTypes.TryGetValue(key, out var cached)) return cached;
+        if (!_overloadDefs.TryGetValue(key, out var oad)) return null;
+        if (!_overloadInferring.Add(key))
+            throw new CompilerException(
+                $"the '{OpSym(op)}' overload for '{typeName}' is defined in terms of its own result type " +
+                $"(its body uses '{OpSym(op)}' on two {typeName} values), so its return type can't be inferred.");
+        try
+        {
+            var saved = new Dictionary<string, CufetType>(_varTypes);
+            _varTypes[oad.LeftName]  = ObjType(typeName);
+            _varTypes[oad.RightName] = ObjType(typeName);
+            // InferTaskResultType is exactly the walk we need: first non-failure return = the success
+            // type, `return a failure` ⇒ wrap in FailureType, `return void` ⇒ wrap in VoidableType.
+            var rt = InferTaskResultType(oad.Body);
+            _varTypes.Clear();
+            foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
+            _overloadReturnTypes[key] = rt;
+            return rt;
+        }
+        finally { _overloadInferring.Remove(key); }
+    }
+
+    // The overload declared for this binary expression, if any: `+ - * /` with both operands the
+    // SAME object type. Anything else (mixed operands, built-in types, other operators) is rejected
+    // by the front-end before we get here, so a miss simply means "use the built-in path".
+    private OperatorOverloadDeclaration? OverloadFor(BinaryExpression b)
+    {
+        if (_overloadDefs.Count == 0) return null;
+        if (b.Op is not (TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash)) return null;
+        if (TypeOf(b.Left) is not ObjectType lo || TypeOf(b.Right) is not ObjectType ro || lo.Name != ro.Name)
+            return null;
+        return _overloadDefs.TryGetValue((lo.Name, b.Op), out var oad) ? oad : null;
+    }
+
+    // The VALUE type of an overloaded operator expression: the declared return, with a fallible
+    // overload unwrapped to its success type (the raw `T or failure` is seen only by
+    // FallibleReturnType — the same unwrap convention as a fallible call). The front-end requires
+    // every path of an overload body to return a value, so the return type is never absent.
+    private CufetType OverloadValueType(OperatorOverloadDeclaration oad, TokenType op)
+    {
+        var rt = OverloadReturnType(oad.OperandTypeName, op);
+        return rt is FailureType ft ? ft.Inner : rt ?? TNumber;
+    }
+
+    private string OverloadSignature(OperatorOverloadDeclaration oad)
+    {
+        var rt = OverloadReturnType(oad.OperandTypeName, oad.Operator);
+        string oc = EmitCType(ObjType(oad.OperandTypeName));
+        return $"static {(rt == null ? "void" : EmitCType(rt))} "
+             + $"{OverloadFnName(oad.OperandTypeName, oad.Operator)}"
+             + $"({oc} {MangleName(oad.LeftName)}, {oc} {MangleName(oad.RightName)})";
+    }
+
+    // An overload body is an ordinary function frame with two by-value operand params — no receiver
+    // (`one` is not in scope: an overload is free-standing, not a method).
+    private void EmitOverload(StringBuilder sb, OperatorOverloadDeclaration oad)
+    {
+        var saved        = new Dictionary<string, CufetType>(_varTypes);
+        var savedRecv    = _methodReceiverType;
+        var savedRet     = _currentReturnType;
+        var savedExcOpen = _excOpen; _excOpen = 0;   // exc handlers never span function frames
+        _varTypes.Clear();
+        _methodReceiverType = null;
+        _currentReturnType  = OverloadReturnType(oad.OperandTypeName, oad.Operator);
+        _varTypes[oad.LeftName]  = ObjType(oad.OperandTypeName);
+        _varTypes[oad.RightName] = ObjType(oad.OperandTypeName);
+
+        sb.AppendLine($"{OverloadSignature(oad)} {{");
+        EmitBlock(sb, oad.Body, "    ");
+        sb.AppendLine("}");
+        sb.AppendLine();
+
+        _varTypes.Clear();
+        foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
+        _methodReceiverType = savedRecv;
+        _currentReturnType  = savedRet;
+        _excOpen            = savedExcOpen;
+    }
 
     // Walks all statements (including nested block bodies) collecting ObjectDefinitions.
     private void CollectObjectDefs(IEnumerable<IStatement> stmts)
@@ -3242,7 +3390,8 @@ static void* cufet_pipe_stage(void* argp) {
             case ObjectDefinition:
             case GetterDeclaration:
             case SetterDeclaration:
-                break;   // declarations — structs, methods, getters, setters emitted in the prelude
+            case OperatorOverloadDeclaration:
+                break;   // declarations — structs, methods, getters, setters, overloads emitted in the prelude
 
             case IfStatement ifStmt:
                 EmitIf(sb, ifStmt, indent);
@@ -3645,7 +3794,12 @@ static void* cufet_pipe_stage(void* argp) {
         UnaryExpression u     => u.Op == TokenType.Not ? TFact : TNumber,
         // A matrix binary op's VALUE type is matrix (the raw `matrix or failure` is seen only by
         // FallibleReturnType — same unwrap convention as fallible calls).
-        BinaryExpression b    => IsMatrixOp(b) ? MatrixType.Instance : IsArithmeticOp(b.Op) ? TNumber : TFact,
+        // An overloaded operator's VALUE type is the overload's declared return — which may be ANY
+        // type, not the operand type (a `vec2 * vec2` dot product returns a number). A fallible
+        // overload unwraps to its success type, the same convention as a fallible call.
+        BinaryExpression b    => IsMatrixOp(b) ? MatrixType.Instance
+                               : OverloadFor(b) is { } ov ? OverloadValueType(ov, b.Op)
+                               : IsArithmeticOp(b.Op) ? TNumber : TFact,
         MatrixLiteral         => MatrixType.Instance,
         MatrixSized           => MatrixType.Instance,
         MatrixAccess          => TNumber,
@@ -3803,6 +3957,10 @@ static void* cufet_pipe_stage(void* argp) {
         RunExpression or PipeExpression => new FailureType(RunResultRecordType),
         AwaitedResultExpression are when AwaitedRawResultType(are) is FailureType aft => aft,
         BinaryExpression b when IsMatrixOp(b) => new FailureType(MatrixType.Instance),
+        // A fallible operator overload — same shape as a matrix op, so Try / `but on failure` /
+        // `or pass the failure off` all route through the existing machinery unchanged.
+        BinaryExpression b when OverloadFor(b) is { } ov
+                             && OverloadReturnType(ov.OperandTypeName, b.Op) is FailureType oft => oft,
         DirectoryContentsExpression => new FailureType(new SeriesType(TText)),
         _ => null,
     };
@@ -5287,6 +5445,12 @@ static void* cufet_pipe_stage(void* argp) {
         }
         if (expr is BinaryExpression mb && IsMatrixOp(mb))   // matrix +/−/× with but-on-failure / propagate
             return (RegisterFailableStruct(new FailureType(MatrixType.Instance)), EmitMatrixOpRaw(mb));
+        // A FALLIBLE operator overload with but-on-failure / propagate: the raw cfl is just the
+        // direct call (the overload function returns the cfl itself), same shape as a fallible call.
+        if (expr is BinaryExpression ob && OverloadFor(ob) is { } oovl
+            && OverloadReturnType(oovl.OperandTypeName, ob.Op) is FailureType ooft)
+            return (RegisterFailableStruct(ooft),
+                    $"{OverloadFnName(oovl.OperandTypeName, ob.Op)}({EmitExpr(ob.Left)}, {EmitExpr(ob.Right)})");
         if (expr is DirectoryContentsExpression dce)         // directory listing with but-on-failure / propagate
             return (RegisterFailableStruct(new FailureType(new SeriesType(TText))), EmitDirRaw(dce));
         if (FallibleReturnType(expr) is { } ft)
@@ -5689,6 +5853,20 @@ static void* cufet_pipe_stage(void* argp) {
         // so it must be handled before EmitExpr touches the operands.
         if (b.Op is TokenType.Equal or TokenType.NotEqual && EmitVoidableComparison(b) is { } vc)
             return vc;
+
+        // Operator overload: same-type object operands with a registered overload take priority over
+        // the numeric path (matching the interpreter's dispatch order). Resolution is exact-nominal
+        // with one candidate, so this is a compile-time lookup → a DIRECT CALL. A FALLIBLE overload
+        // (its body returns a failure) routes through the standard fallible machinery, exactly like
+        // matrix arithmetic below — Try / `but on failure` / propagate all compose for free.
+        if (OverloadFor(b) is { } ovl)
+        {
+            var ort = OverloadReturnType(ovl.OperandTypeName, b.Op);
+            string call = $"{OverloadFnName(ovl.OperandTypeName, b.Op)}({EmitExpr(b.Left)}, {EmitExpr(b.Right)})";
+            return ort is FailureType oft
+                ? EmitFallibleCheckGoto(call, RegisterFailableStruct(oft))
+                : call;
+        }
 
         // Matrix arithmetic is FALLIBLE (dimension mismatch → failure): a bare matrix op routes
         // through the standard fallible machinery — check-goto in a Try, exactly like a fallible call.

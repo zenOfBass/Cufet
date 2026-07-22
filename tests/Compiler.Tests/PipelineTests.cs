@@ -5230,4 +5230,168 @@ public class PipelineTests
             """;
         Assert.Equal(Interpret(src), Compile(src));
     }
+
+    // ── Arc 3: OPERATOR OVERLOADING ──────────────────────────────────────────
+    // MEASURED surface: `Bind overloading <op>, given (the <l> is a <T>, the <r> is a <T>)` —
+    // free-standing, top-level, `+ - * /` ONLY, both operands the SAME object type, one overload
+    // per (type, op) enforced by the type checker. So resolution is an exact nominal match with a
+    // single candidate ⇒ a compile-time lookup ⇒ a DIRECT CALL. Comparisons/`is` are NOT
+    // overloadable, so the built-in _eq machinery (equality, `unique`, map keys) is untouched.
+
+    [Fact]
+    public void Overload_Arithmetic_ChainsAndMayReturnAnotherType()
+    {
+        // Chaining (left-assoc nested overload calls), an overload returning a DIFFERENT type than
+        // its operands (* is a dot product → number), that result flowing into a BUILT-IN operator,
+        // and the no-overload-declared path staying exactly the built-in one (3 + 4 → 7).
+        const string src = """
+            Define object vec2 with (the number x, the number y).
+            Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):
+                Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.
+            Done.
+            Bind overloading *, given (the lhs is a vec2, the rhs is a vec2):
+                Return lhs's x * rhs's x + lhs's y * rhs's y.
+            Done.
+            Define p as a new vec2 { the x 1, the y 2 }.
+            Define q as a new vec2 { the x 10, the y 20 }.
+            Define r as a new vec2 { the x 100, the y 200 }.
+            State p + q.
+            State p + q + r.
+            State p * q.
+            State (p * q) + 5.
+            State 3 + 4.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Overload_Fallible_ComposesWithTryAndButOnFailure()
+    {
+        // An overload whose body returns a failure makes the OPERATOR fallible (`T or failure`,
+        // strict-fallible rule) — the same shape as matrix arithmetic, so it routes through the
+        // existing fallible machinery: check-goto inside a Try, and `but on failure`.
+        const string src = """
+            Define object money with (the number cents).
+            Bind overloading /, given (the lhs is a money, the rhs is a money):
+                If rhs's cents is 0:
+                    Return a failure "cannot divide by zero money" of category "math".
+                Done.
+                Return a new money { the cents lhs's cents / rhs's cents }.
+            Done.
+            Define big as a new money { the cents 100 }.
+            Define small as a new money { the cents 5 }.
+            Define zero as a new money { the cents 0 }.
+            Try to:
+                Define ok as big / small.
+                State ok.
+                Define bad as big / zero.
+                State bad.
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
+            Done.
+            Define fallback as (big / zero) but on failure (a new money { the cents -1 }).
+            State fallback.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Overload_OnTypeWithReferenceField_FromMethodBodyAndFunction()
+    {
+        // The overload allocates a new arena series and its operand type holds a series field;
+        // it is invoked from inside a METHOD body (`one + other`) and from an ordinary function.
+        const string src = """
+            Define object basket with (the text label, the series of text items):
+                Bind basket to merge, given (the basket other):
+                    Return one + other.
+                Done.
+            Done.
+            Bind overloading +, given (the lhs is a basket, the rhs is a basket):
+                Define merged as a series of text with ().
+                For each i in lhs's items, repeat:
+                    Add i to merged.
+                Done.
+                For each j in rhs's items, repeat:
+                    Add j to merged.
+                Done.
+                Return a new basket { the label lhs's label joined to "+" joined to rhs's label, the items merged }.
+            Done.
+            Bind basket to combine, given (the basket p, the basket q):
+                Return p + q.
+            Done.
+            Define one-b as a new basket { the label "a", the items (a series of text with ("x")) }.
+            Define two-b as a new basket { the label "b", the items (a series of text with ("y", "z")) }.
+            Define sum-b as one-b + two-b.
+            State sum-b's label.
+            State the number of sum-b's items.
+            State sum-b's items.
+            Define viaMethod as cast one-b's merge on (two-b).
+            State viaMethod's label.
+            Define fromFn as cast combine on (one-b, two-b).
+            State fromFn's label.
+            State the number of fromFn's items.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Overload_UsedInsideATask_CrossesChannelAndTaskResult()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // An overload called from INSIDE a task body, with the result crossing both a channel and
+        // the task-result bridge. This is what caught the forward-declaration ordering bug: the
+        // generated task thread functions used to be emitted BEFORE the function forward decls,
+        // so any call out of a task body was an implicit declaration.
+        const string src = """
+            Define object vec2 with (the number x, the number y).
+            Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):
+                Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.
+            Done.
+            Pull a rabbit.
+                Define ch as a channel of vec2.
+                Have rabbit start a task as summer:
+                    Define a1 as a new vec2 { the x 1, the y 2 }.
+                    Define b1 as a new vec2 { the x 30, the y 40 }.
+                    Define s as a1 + b1.
+                    Send s through ch.
+                    Return s + s.
+                Done.
+                Define got as the delivery from ch.
+                If got is not void:
+                    State got's x.
+                    State got's y.
+                Done.
+                Define doubled as the awaited result of summer.
+                State doubled's x.
+                State doubled's y.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Task_CallsAFreeFunction_ForwardDeclaredBeforeTaskBodies()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The general form of the ordering hole the overload slice uncovered: generated task thread
+        // functions used to be emitted BEFORE the free-function forward declarations, so ANY call
+        // out of a task body was an implicit declaration (a gcc error). No test covered it.
+        const string src = """
+            Bind number to triple, given (the number n):
+                Return n * 3.
+            Done.
+            Pull a rabbit.
+                Define ch as a channel of number.
+                Have rabbit start a task:
+                    Send cast triple on (7) through ch.
+                Done.
+                Define d as the delivery from ch.
+                If d is not void, state d.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
 }
