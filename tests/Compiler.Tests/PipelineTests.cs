@@ -4802,6 +4802,131 @@ public class PipelineTests
         Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
     }
 
+    // ── CAT.2: open unions (bounded — the whole-program discovery pass) ──
+    // ALL open unions are ONE front-end type (UnionType.Open), so there is ONE global `cun_open` over
+    // the bounded set of concrete types ever widened into an open union anywhere in the program. The
+    // set is filled by a discovery PRE-PASS (a fixed point), then CAT.1's machinery does the rest.
+
+    [Fact]
+    public void OpenCatalogue_DiscoversCaseSet_AndNarrows()
+    {
+        const string src = """
+            Define mixed as a catalogue with (1, "two", true).
+            State the number of mixed.
+            For each m in mixed, repeat:
+                If m is a number, State "n".
+                Otherwise, If m is a text, State "t".
+                Otherwise, State "f".
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void OpenCatalogue_BuiltViaAdds_DiscoveryCatchesAddSites()
+    {
+        const string src = """
+            Define items as a catalogue.
+            Add 1 to items.
+            Add "two" to items.
+            State the number of items.
+            For each i in items, repeat:
+                If i is a number, State "n".
+                Otherwise, If i is a text, State "t".
+                Otherwise, State "?".
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void OpenCatalogue_IsATypeNeverWidenedIn_IsFalse()
+    {
+        // Bounded tag set: a type that never flows into any open union can't be in one, so the check
+        // is statically false — matching the interpreter (the `fact` arm never fires).
+        const string src = """
+            Define items as a catalogue with (1, "two").
+            For each i in items, repeat:
+                If i is a fact, State "fact!".
+                Otherwise, If i is a number, State "n".
+                Otherwise, State "t".
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void OpenCatalogues_AreOneType_Interchangeable()
+    {
+        // MEASURED: all open unions are the SAME front-end type — differently-populated open
+        // catalogues pass to the same parameter and assign to each other. So the case set must be
+        // GLOBAL (a per-location set would give interchangeable values different representations).
+        const string src = """
+            Bind void to show, given (the catalogue c):
+                State the number of c.
+            Done.
+            Define a1 as a catalogue with (1, "two").
+            Define a2 as a catalogue with (true).
+            Cast show on (a1).
+            Cast show on (a2).
+            a2 becomes a1.
+            State the number of a2.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void OpenCatalogue_NeverPopulated_IsDegenerate()
+    {
+        // An open catalogue that never receives a value: the discovered case set is empty, so the
+        // tagged struct is tag-only (nothing can ever be widened in).
+        const string src = """
+            Define items as a catalogue.
+            State the number of items.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void OpenCatalogue_DiscoveryIsComplete_AcrossEmissionOrder()
+    {
+        // THE COMPLETENESS CRUX: function bodies emit BEFORE main, so this `is a fact` is emitted
+        // before main's `Add true` — only a whole-program discovery PRE-PASS makes the fact tag exist
+        // at that point. Without it the check would fold to false and print "other" instead of "fact".
+        const string src = """
+            Bind void to show, given (the catalogue c):
+                For each i in c, repeat:
+                    If i is a fact, State "fact".
+                    Otherwise, If i is a number, State "num".
+                    Otherwise, State "other".
+                Done.
+            Done.
+            Define items as a catalogue.
+            Add 1 to items.
+            Add true to items.
+            Cast show on (items).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void OpenCatalogue_ContainerAmbiguity_CleanThrow()
+    {
+        // The CAT.1 safety invariant carries over: an open union whose DISCOVERED set contains two
+        // container kinds is element-erased-ambiguous → loud refuse, never a reinterpreting miscompile.
+        const string src = """
+            Define mixed as a catalogue with ((a series of number with (1,2)), (a series of text with ("a"))).
+            For each m in mixed, repeat:
+                If m is a series of number, State "nums".
+                Otherwise, State "other".
+            Done.
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+    }
+
     [Fact]
     public void Closure_RecursiveNestedBind_RecursiveReturnFirst()
     {

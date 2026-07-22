@@ -66,6 +66,82 @@ public sealed class CodeGenerator
     private readonly List<(string Name, UnionType Type)> _unionStructs = new();
     private int _unionCounter;
 
+    // CAT.2 — OPEN unions (`a catalogue with (…)`). ★ ALL open unions are ONE front-end type
+    // (`UnionType.Open`: Cases == null, and Equals returns true for ANY two opens — MEASURED to be
+    // observable: two differently-populated open catalogues are interchangeable, `a2 becomes a1` and
+    // both pass to `given (the catalogue c)`). So a per-location case set would be UNSOUND; there is
+    // exactly ONE `cun_open` over the BOUNDED whole-program set of concrete types ever widened into an
+    // open union. The set is filled by a DISCOVERY PRE-PASS (the body pass run once into a throwaway)
+    // so it is COMPLETE before any `is a` tag check is emitted — function bodies emit before main, so
+    // an `is a T` in a function would otherwise precede main's `Add T`.
+    private readonly Dictionary<string, int> _openUnionIndex = new();
+    private readonly List<CufetType> _openUnionCases = new();
+    private bool _discoveringOpenUnion;   // true during the pre-pass (registration allowed)
+    private const string OpenUnionStruct = "cun_open";
+
+    // Index of `t` in the global open-union case set; registers it during the discovery pre-pass.
+    // Returns -1 when the type was never widened into an open union (⇒ `is a t` is statically false).
+    private bool _usesOpenUnion;
+    private string MarkOpenUnion() { _usesOpenUnion = true; return OpenUnionStruct; }
+
+    // Clears the APPEND-ONLY emission buffers between discovery iterations so the real pass doesn't
+    // duplicate them. The struct/type registries are deliberately NOT cleared — they dedup by TypeSig,
+    // so re-running is idempotent (and the shapes discovered are needed either way).
+    private void ResetEmissionBuffers()
+    {
+        _taskFns.Clear(); _closureFns.Clear(); _closureEnvs.Clear(); _preEmits.Clear();
+        _openFiles.Clear(); _loopFileDepths.Clear(); _loopExcDepths.Clear();
+        _rabbitCtx.Clear(); _rabbitDepth = 0; _excOpen = 0;
+        _narrowedVars.Clear(); _currentFailVar = null; _closureSelf = null; _currentTaskReturn = null;
+    }
+
+    // Does the program mention an OPEN union anywhere (so the discovery pre-pass is worth running)?
+    // Walks AST nodes AND their CufetType annotations — an open union can appear only via a type
+    // annotation (`a catalogue …` / `an atlas …`), never as a value literal.
+    private static bool ProgramUsesOpenUnion(object? node)
+    {
+        switch (node)
+        {
+            case null: return false;
+            case string: return false;
+            case CufetType t: return TypeHasOpenUnion(t);
+            case System.Runtime.CompilerServices.ITuple tup:
+                for (int i = 0; i < tup.Length; i++) if (ProgramUsesOpenUnion(tup[i])) return true;
+                return false;
+            case System.Collections.IEnumerable en:
+                foreach (var it in en) if (ProgramUsesOpenUnion(it)) return true;
+                return false;
+            case IStatement or IExpression:
+                foreach (var prop in node.GetType().GetProperties())
+                    if (ProgramUsesOpenUnion(prop.GetValue(node))) return true;
+                return false;
+            default: return false;
+        }
+    }
+
+    private static bool TypeHasOpenUnion(CufetType t) => t switch
+    {
+        UnionType u => u.Cases == null || u.Cases.Any(TypeHasOpenUnion),
+        SeriesType s => TypeHasOpenUnion(s.ElementType),
+        MapType m => TypeHasOpenUnion(m.KeyType) || TypeHasOpenUnion(m.ValueType),
+        VoidableType v => TypeHasOpenUnion(v.Inner),
+        FailureType f => TypeHasOpenUnion(f.Inner),
+        _ => false,
+    };
+
+    private int OpenUnionIndex(CufetType? t, bool register)
+    {
+        if (t == null) return -1;
+        string sig = TypeSig(t);
+        if (_openUnionIndex.TryGetValue(sig, out var i)) return i;
+        if (!register) return -1;
+        i = _openUnionCases.Count;
+        _openUnionIndex[sig] = i;
+        _openUnionCases.Add(t);
+        RegisterNestedRecords(t);
+        return i;
+    }
+
     // Map struct registry — one arena container `cmap_N { K* keys; V* vals; int len, cap; }`
     // per distinct (K,V), an association list with linear scan. Lookup returns voidable V.
     private readonly Dictionary<string, string> _mapSig2Name = new();
@@ -1410,67 +1486,96 @@ static void* cufet_pipe_stage(void* argp) {
             _funcTypes[bind.Name] = new FunctionType(bind.Parameters.Select(p => p.Type).ToList(), bind.ReturnType);
         }
 
-        // Object method / getter / setter bodies (each a C function taking a receiver pointer).
-        foreach (var def in _objectDefs.Values)
+        // The whole body emission, as a reusable pass: the CAT.2 discovery pre-pass runs it into a
+        // throwaway buffer first so the OPEN-union case set is complete before the real pass emits
+        // any `is a` tag check (function bodies emit before main, so an `is a T` can precede `Add T`).
+        void EmitAllBodies(StringBuilder body)
         {
-            foreach (var method in def.Methods) EmitMethod(body, def, method);
-            foreach (var g in def.Getters)      EmitGetter(body, def, g);
-            foreach (var s in def.Setters)      EmitSetter(body, def, s);
+            // Object method / getter / setter bodies (each a C function taking a receiver pointer).
+            foreach (var def in _objectDefs.Values)
+            {
+                foreach (var method in def.Methods) EmitMethod(body, def, method);
+                foreach (var g in def.Getters)      EmitGetter(body, def, g);
+                foreach (var s in def.Setters)      EmitSetter(body, def, s);
+            }
+
+            foreach (var bind in topFuncs)
+                EmitBind(body, bind);
+
+            foreach (var (bind, aliases) in pullBinds)
+            {
+                // Best-effort capture check: a hoisted bind must not reference pull-scope locals
+                // (params + its own defines + functions + book aliases are fine — anything else is
+                // a closure capture, the deferred gap).
+                var refs = new HashSet<string>(); var defs = new HashSet<string>();
+                foreach (var s in bind.Body) CollectRefsDefs(s, refs, defs);
+                var known = new HashSet<string>(bind.Parameters.Select(p => p.Name)
+                    .Concat(defs).Concat(_funcReturnTypes.Keys).Concat(aliases.Select(a => a.Local)));
+                var captured = refs.Where(r => !known.Contains(r) && r != "it" && r != "input" && r != "the failure").ToList();
+                if (captured.Count > 0)
+                    throw new CompilerException(
+                        $"function '{bind.Name}' (inside a Pull-book block) captures '{captured[0]}' from the pull scope — closures are not yet supported by the compiler.");
+                foreach (var (local, book) in aliases) _bookAliases[local] = book;
+                EmitBind(body, bind);
+                foreach (var (local, _) in aliases) _bookAliases.Remove(local);
+            }
+
+            // ── main() ────────────────────────────────────────────────────────
+            // A global arena is pushed so series created at top level (outside an
+            // explicit Pull) are safely tracked and freed at program exit.
+            body.AppendLine("int main(void) {");
+            // SIGINT landing pad (CONC.E): install the handler + establish main's interrupt pad. On an
+            // unhandled interrupt a checkpoint siglongjmps here; we tear down (pop all arenas — nested
+            // included — free any live channels, flush) and exit 130 (128+SIGINT). Guarded so a non-signal
+            // program is unchanged, and #if'd so mingw (no sigaction) degrades to default Ctrl-C.
+            if (_usesSignals || _usesConcurrency)
+            {
+                body.AppendLine("#if defined(__unix__) || defined(__APPLE__)");
+                body.AppendLine("    cufet_install_sigint();");
+                body.AppendLine("    if (sigsetjmp(cufet_thread_top, 1)) {");
+                body.AppendLine("        cufet_close_files_from(0);   /* flush+close open files (E's file gap, closed by the E-prime registry) */");
+                body.AppendLine("        while (cufet_arena_top >= 0) cufet_arena_pop();");
+                if (_usesConcurrency)
+                    body.AppendLine("        cufet_free_all_chans();");
+                body.AppendLine("        fflush(stdout); return 130;");
+                body.AppendLine("    }");
+                body.AppendLine("    cufet_pad_set = 1;");
+                body.AppendLine("#endif");
+            }
+            body.AppendLine("    cufet_arena_push();");
+            foreach (var stmt in program.Statements)
+            {
+                if (stmt is BindStatement) continue;       // emitted above
+                if (stmt is ObjectDefinition) continue;    // declarations, handled up front
+                EmitStatement(body, stmt, "    ");
+            }
+            body.AppendLine("    cufet_arena_pop();");
+            body.AppendLine("    return 0;");
+            body.AppendLine("}");
         }
 
-        foreach (var bind in topFuncs)
-            EmitBind(body, bind);
 
-        foreach (var (bind, aliases) in pullBinds)
+        // ── CAT.2 discovery: fill the bounded open-union case set before the real emission ──
+        if (ProgramUsesOpenUnion(program.Statements))
         {
-            // Best-effort capture check: a hoisted bind must not reference pull-scope locals
-            // (params + its own defines + functions + book aliases are fine — anything else is
-            // a closure capture, the deferred gap).
-            var refs = new HashSet<string>(); var defs = new HashSet<string>();
-            foreach (var s in bind.Body) CollectRefsDefs(s, refs, defs);
-            var known = new HashSet<string>(bind.Parameters.Select(p => p.Name)
-                .Concat(defs).Concat(_funcReturnTypes.Keys).Concat(aliases.Select(a => a.Local)));
-            var captured = refs.Where(r => !known.Contains(r) && r != "it" && r != "input" && r != "the failure").ToList();
-            if (captured.Count > 0)
-                throw new CompilerException(
-                    $"function '{bind.Name}' (inside a Pull-book block) captures '{captured[0]}' from the pull scope — closures are not yet supported by the compiler.");
-            foreach (var (local, book) in aliases) _bookAliases[local] = book;
-            EmitBind(body, bind);
-            foreach (var (local, _) in aliases) _bookAliases.Remove(local);
+            // Set here (not lazily at EmitCType) because the FIRST EmitCType(open) can happen in
+            // EmitSeriesRuntime — which runs AFTER EmitStructs, i.e. too late to emit the struct.
+            _usesOpenUnion = true;
+            _discoveringOpenUnion = true;
+            for (int pass = 0; pass < 8; pass++)
+            {
+                int before = _openUnionCases.Count;
+                ResetEmissionBuffers();
+                // A partial pass still discovers: an error here (e.g. a not-yet-discovered case makes a
+                // narrow fail) just means this iteration stopped early; the next one gets further. Any
+                // GENUINE error resurfaces in the real pass below.
+                try { EmitAllBodies(new StringBuilder()); } catch (CompilerException) { }
+                if (_openUnionCases.Count == before) break;   // fixed point (the set grows monotonically)
+            }
+            _discoveringOpenUnion = false;
+            ResetEmissionBuffers();
         }
-
-        // ── main() ────────────────────────────────────────────────────────
-        // A global arena is pushed so series created at top level (outside an
-        // explicit Pull) are safely tracked and freed at program exit.
-        body.AppendLine("int main(void) {");
-        // SIGINT landing pad (CONC.E): install the handler + establish main's interrupt pad. On an
-        // unhandled interrupt a checkpoint siglongjmps here; we tear down (pop all arenas — nested
-        // included — free any live channels, flush) and exit 130 (128+SIGINT). Guarded so a non-signal
-        // program is unchanged, and #if'd so mingw (no sigaction) degrades to default Ctrl-C.
-        if (_usesSignals || _usesConcurrency)
-        {
-            body.AppendLine("#if defined(__unix__) || defined(__APPLE__)");
-            body.AppendLine("    cufet_install_sigint();");
-            body.AppendLine("    if (sigsetjmp(cufet_thread_top, 1)) {");
-            body.AppendLine("        cufet_close_files_from(0);   /* flush+close open files (E's file gap, closed by the E-prime registry) */");
-            body.AppendLine("        while (cufet_arena_top >= 0) cufet_arena_pop();");
-            if (_usesConcurrency)
-                body.AppendLine("        cufet_free_all_chans();");
-            body.AppendLine("        fflush(stdout); return 130;");
-            body.AppendLine("    }");
-            body.AppendLine("    cufet_pad_set = 1;");
-            body.AppendLine("#endif");
-        }
-        body.AppendLine("    cufet_arena_push();");
-        foreach (var stmt in program.Statements)
-        {
-            if (stmt is BindStatement) continue;       // emitted above
-            if (stmt is ObjectDefinition) continue;    // declarations, handled up front
-            EmitStatement(body, stmt, "    ");
-        }
-        body.AppendLine("    cufet_arena_pop();");
-        body.AppendLine("    return 0;");
-        body.AppendLine("}");
+        EmitAllBodies(body);
 
         // ── Series + map struct forward declarations (so value structs can hold their pointers) ──
         EmitSeriesForwardDecls(sb);
@@ -1853,7 +1958,10 @@ static void* cufet_pipe_stage(void* argp) {
         // Closed-union tagged structs (cun_N): the N-case generalization of a voidable.
         var unions = new Dictionary<string, UnionType>();
         foreach (var (name, ut) in _unionStructs) unions[name] = ut;
-        if (specs.Count == 0 && voidables.Count == 0 && failables.Count == 0 && unions.Count == 0) return;
+        // The ONE open union: its case set was DISCOVERED (bounded whole-program), not declared.
+        bool openEmpty = _usesOpenUnion && _openUnionCases.Count == 0;
+        if (_usesOpenUnion && !openEmpty) unions[OpenUnionStruct] = new UnionType(_openUnionCases);
+        if (specs.Count == 0 && voidables.Count == 0 && failables.Count == 0 && unions.Count == 0 && !openEmpty) return;
 
         string? DepName(CufetType t) => t switch
         {
@@ -1885,6 +1993,14 @@ static void* cufet_pipe_stage(void* argp) {
         foreach (var cname in specs.Keys.Concat(voidables.Keys).Concat(failables.Keys).Concat(unions.Keys).ToList()) Visit(cname);
 
         sb.AppendLine("// ── Record / object / voidable shapes (value structs) ──");
+        if (openEmpty)
+        {
+            // An open catalogue that never receives a value (`Define items as a catalogue.`): a
+            // tag-only struct — nothing can ever be widened in, so there is no payload to hold.
+            sb.AppendLine($"typedef struct {{ int tag; }} {OpenUnionStruct};");
+            sb.AppendLine($"static void {OpenUnionStruct}_write({OpenUnionStruct} v) {{ (void)v; }}");
+            sb.AppendLine($"static int {OpenUnionStruct}_eq({OpenUnionStruct} a, {OpenUnionStruct} b) {{ return a.tag == b.tag; }}");
+        }
         foreach (var cname in order)
         {
             if (voidables.TryGetValue(cname, out var inner))
@@ -2347,6 +2463,13 @@ static void* cufet_pipe_stage(void* argp) {
         var tt = TypeOf(tc.Target);
         // `is a <case>` on a closed union = a genuine RUNTIME tag check (this is where runtime type
         // identity lives — unlike the monomorphic model's compile-time StaticKindMatches fold).
+        if (tt is UnionType uop && uop.Cases == null)
+        {
+            int ko = MatchCaseInList(_openUnionCases, tc.Type);   // -1 ⇒ never widened in ⇒ statically false
+            string vo = EmitExpr(tc.Target);
+            string testo = ko < 0 ? "0" : $"(({vo}).tag == {ko})";
+            return tc.Negated ? $"(!{testo})" : testo;
+        }
         if (tt is UnionType ut && ut.Cases != null)
         {
             int k = UnionMatchCase(ut, tc.Type);          // -1 = no case matches (statically false)
@@ -2371,11 +2494,14 @@ static void* cufet_pipe_stage(void* argp) {
     // containers, so `(series of number) or (series of text)` can't be told apart at runtime and
     // narrowing would reinterpret one payload as the other (silent UB). Clean-throw instead (CAT.1's
     // kind-distinguishable boundary); the real fix is element-aware `is a` in BOTH backends.
-    private static int UnionMatchCase(UnionType ut, CufetType tested)
+    private static int UnionMatchCase(UnionType ut, CufetType tested) => MatchCaseInList(ut.Cases!, tested);
+
+    // Shared by closed unions (declared cases) and open unions (the discovered set).
+    private static int MatchCaseInList(IReadOnlyList<CufetType> cases, CufetType tested)
     {
         var hits = new List<int>();
-        for (int i = 0; i < ut.Cases!.Count; i++)
-            if (StaticKindMatches(ut.Cases[i], tested)) hits.Add(i);
+        for (int i = 0; i < cases.Count; i++)
+            if (StaticKindMatches(cases[i], tested)) hits.Add(i);
         if (hits.Count > 1)
             throw new CompilerException(
                 $"this catalogue's cases can't be told apart at runtime: `is a {FormatTypeName(tested)}` matches " +
@@ -2558,6 +2684,7 @@ static void* cufet_pipe_stage(void* argp) {
         MapType => $"({a} == {b})",   // maps: reference (pointer) equality, like the interpreter
         MatrixType => $"({a} == {b})",   // matrices: reference equality (interpreter ValuesEqual fallthrough)
         FunctionType => $"(({a}).fn == ({b}).fn && ({a}).env == ({b}).env)",   // function values: reference equality
+        UnionType uqo when uqo.Cases == null => $"{OpenUnionStruct}_eq({a}, {b})",
         UnionType uq when uq.Cases != null => $"{RegisterUnionStruct(uq)}_eq({a}, {b})",   // tag + payload
         _ => throw new CompilerException($"equality on a '{t.GetType().Name}' is not yet supported by the compiler.")
     };
@@ -2576,6 +2703,7 @@ static void* cufet_pipe_stage(void* argp) {
         MapType mt => $"{RegisterMapStruct(mt)}_write({valExpr})",
         MatrixType => $"cufet_mat_write({valExpr})",
         FunctionType => $"printf(\"<function>\")",   // matches the interpreter's Format for a FunctionValue
+        UnionType uwo when uwo.Cases == null => $"{OpenUnionStruct}_write({valExpr})",
         UnionType uw when uw.Cases != null => $"{RegisterUnionStruct(uw)}_write({valExpr})",   // prints as the underlying value
         _ => throw new CompilerException(
                  $"printing a '{t.GetType().Name}' is not yet supported by the compiler.")
@@ -3160,18 +3288,20 @@ static void* cufet_pipe_stage(void* argp) {
         foreach (var arm in ifStmt.Arms)
         {
             if (arm.Condition is not IsTypeCheck { Negated: false, Target: VariableReference vr } tc) return null;
-            if (TypeOf(vr) is not UnionType u || u.Cases == null) return null;
+            if (TypeOf(vr) is not UnionType u) return null;
             if (name == null) { name = vr.Name; ut = u; }
             else if (name != vr.Name) return null;
-            int k = UnionMatchCase(ut!, tc.Type);
+            var cs = ut!.Cases ?? (IReadOnlyList<CufetType>)_openUnionCases;
+            int k = MatchCaseInList(cs, tc.Type);
             if (k < 0) return null;
             excluded.Add(k);
         }
         if (ut == null || name == null) return null;
-        var remaining = Enumerable.Range(0, ut.Cases!.Count).Where(i => !excluded.Contains(i)).ToList();
+        var allCases = ut.Cases ?? (IReadOnlyList<CufetType>)_openUnionCases;
+        var remaining = Enumerable.Range(0, allCases.Count).Where(i => !excluded.Contains(i)).ToList();
         if (remaining.Count != 1) return null;   // 2+ left ⇒ still a union; the front-end restricts its use
         int j = remaining[0];
-        return (name, ut.Cases[j], $".val.c{j}");
+        return (name, allCases[j], $".val.c{j}");
     }
 
     // Emits a block with an optional voidable variable narrowed to its inner type inside it.
@@ -3195,10 +3325,11 @@ static void* cufet_pipe_stage(void* argp) {
         // `x is a <case>` on a closed-union x narrows x to that case inside the arm: reads become
         // `.val.c<k>` at the case's concrete type (the N-case generalization of the voidable `.val`).
         if (cond is IsTypeCheck { Negated: false, Target: VariableReference uvr } utc
-            && TypeOf(uvr) is UnionType uut && uut.Cases != null)
+            && TypeOf(uvr) is UnionType uut)
         {
-            int k = UnionMatchCase(uut, utc.Type);
-            if (k >= 0) return (uvr.Name, uut.Cases[k], $".val.c{k}");
+            var ucases = uut.Cases ?? (IReadOnlyList<CufetType>)_openUnionCases;
+            int k = MatchCaseInList(ucases, utc.Type);
+            if (k >= 0) return (uvr.Name, ucases[k], $".val.c{k}");
             return null;
         }
         if (cond is IsTypeCheck { Negated: false, Target: VariableReference tvr } tc
@@ -4008,6 +4139,14 @@ static void* cufet_pipe_stage(void* argp) {
     {
         // Widening a member value into a closed union: set the tag + store into that case's payload.
         // The widening site is always statically typed, so the tag is known at compile time.
+        if (target is UnionType uo && uo.Cases == null)
+        {
+            var eo = TypeOf(expr);
+            if (eo is UnionType) return EmitExpr(expr);              // already the open union
+            int ko = OpenUnionIndex(eo, register: _discoveringOpenUnion);
+            if (ko < 0) ko = 0;                                      // pre-pass discovers; real pass finds it
+            return $"(({OpenUnionStruct}){{ .tag = {ko}, .val.c{ko} = {EmitExpr(expr)} }})";
+        }
         if (target is UnionType ut && ut.Cases != null)
         {
             string cun = RegisterUnionStruct(ut);
@@ -5547,6 +5686,7 @@ static void* cufet_pipe_stage(void* argp) {
         ChannelType => "cufet_chan*",                          // a channel is a shared mutex/condvar queue
         MatrixType => MatrixCType(),                           // a matrix is an arena pointer (reference type)
         FunctionType ft => RegisterFuncStruct(ft),             // a function value is a {fn, env} value struct
+        UnionType uop when uop.Cases == null => MarkOpenUnion(),   // ALL open unions share one struct
         UnionType u1c when u1c.Cases is { Count: 1 } => EmitCType(u1c.Cases[0]),   // 1-case union IS that type
         UnionType ut => RegisterUnionStruct(ut),               // a closed union is a {tag, payload} value struct
 
