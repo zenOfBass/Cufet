@@ -1481,15 +1481,27 @@ public sealed partial class Interpreter
         return (object)(tc.Negated ? !matches : matches);
     }
 
+    // ISA.1 — ELEMENT-AWARE for containers. `is a` used to be kind-erased: a `series of text`
+    // matched `is a series of number` (and a map matched any map), which is simply false — the
+    // interpreter survived it (reading an element just returns the text) but it is a latent language
+    // bug, and a compiler cannot survive it (it would reinterpret the payload at the annotated type).
+    // Now a container matches only when EVERY element matches the annotated element type, recursively
+    // (so `series of series of text` vs `series of series of number` resolves too).
+    // ★ EMPTY CONTAINERS ARE DELIBERATELY UNCHANGED: `All` on an empty collection is vacuously true,
+    // which is exactly today's permissive answer. That boundary is ISA.2's decision to settle — it is
+    // SAFE either way, because misreading a payload requires an element and an empty one has none.
     private static bool RuntimeIsType(object? value, CufetType type) => type switch
     {
         NumberType      => value is decimal,
         TextType        => value is string,
         FactType        => value is bool,
         VoidType        => value is VoidValue,
-        SeriesType      => value is List<object>,
+        SeriesType st   => value is List<object> sl
+                           && sl.All(e => RuntimeIsType(e, st.ElementType)),
         MatrixType      => value is MatrixValue,
-        MapType         => value is Dictionary<object, object>,
+        MapType mt      => value is Dictionary<object, object> md
+                           && md.All(kv => RuntimeIsType(kv.Key, mt.KeyType)
+                                        && RuntimeIsType(kv.Value, mt.ValueType)),
         RecordType      => value is RecordValue,
         ObjectType ot   => value is ObjectValue ov && ov.TypeName == ot.Name,
         InterfaceType   => false, // interfaces have no runtime representation to check

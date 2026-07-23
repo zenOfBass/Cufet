@@ -4785,22 +4785,64 @@ public class PipelineTests
     }
 
     [Fact]
-    public void Catalogue_ContainerVsContainerUnion_CleanThrow()
+    public void Catalogue_ContainerVsContainerUnion_NarrowsPrecisely()
     {
-        // THE SAFETY INVARIANT: `is a` is element-erased for containers, so `(series of number or
-        // series of text)` cases can't be told apart at runtime — narrowing would reinterpret one
-        // payload as the other (silent UB). The compiler must refuse LOUDLY, never miscompile.
+        // ISA.1 CONVERTED THIS FROM A CLEAN-THROW. `is a` used to be element-erased for containers,
+        // so `(series of number or series of text)` cases couldn't be told apart and the compiler
+        // refused rather than miscompile. Now `StaticKindMatches` recurses into element types, so
+        // MatchCaseInList finds exactly ONE case → the precise tag → correct narrowing on both
+        // backends. (The interpreter's RuntimeIsType recurses into elements to match.)
         const string src = """
-            Define grids as a catalogue of (series of number or series of text) with ((a series of number with (1,2))).
+            Define nums as a series of number with (1, 2).
+            Define txts as a series of text with ("x").
+            Define grids as a catalogue of (series of number or series of text) with (nums, txts).
             For each g in grids, repeat:
-                If g is a series of number, State "nums".
-                Otherwise, State "texts".
+                If g is a series of number, State "nums " joined to (the number of g converted to text).
+                Otherwise, State "texts " joined to (the number of g converted to text).
             Done.
             """;
-        var tokens  = new CufetLexer(src).Tokenize();
-        var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
-        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void IsA_ElementAware_ForContainers()
+    {
+        // ISA.1: `is a` recurses into element/key/value types on BOTH backends. Previously every
+        // one of these answered the WRONG way (kind-erased → true). NOTE: EMPTY containers are
+        // deliberately untouched by ISA.1 (vacuously permissive in the interpreter) — that boundary
+        // is ISA.2's to settle, and it is safe either way (no element to misread).
+        const string series = """
+            Define words as a series of text with ("a", "b").
+            If words is a series of number, State "matched number". Otherwise, State "not number".
+            """;
+        Assert.Equal(Interpret(series), Compile(series));
+        const string map = """
+            Define wordmap as a map from text to text with ("k" : "v").
+            If wordmap is a map from text to number, State "matched". Otherwise, State "not matched".
+            """;
+        Assert.Equal(Interpret(map), Compile(map));
+        const string nested = """
+            Define inner as a series of text with ("a").
+            Define outer as a series with (inner).
+            If outer is a series of series of number, State "matched". Otherwise, State "not matched".
+            """;
+        Assert.Equal(Interpret(nested), Compile(nested));
+    }
+
+    [Fact]
+    public void IsA_PreciseKinds_Unchanged()
+    {
+        // Objects (nominal), scalars, and voidable-of-scalar were already precise — locked so the
+        // element-aware recursion doesn't regress them.
+        const string src = """
+            Define object dog with (the text name).
+            Define object cat with (the text name).
+            Define d as a new dog { the name "Rex" }.
+            If d is a cat, State "dog is cat". Otherwise, State "dog not cat".
+            Define n as 5.
+            If n is a text, State "num is text". Otherwise, State "num not text".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
     }
 
     // ── CAT.2: open unions (bounded — the whole-program discovery pass) ──
@@ -4911,21 +4953,20 @@ public class PipelineTests
     }
 
     [Fact]
-    public void OpenCatalogue_ContainerAmbiguity_CleanThrow()
+    public void OpenCatalogue_ContainerCases_NarrowPrecisely()
     {
-        // The CAT.1 safety invariant carries over: an open union whose DISCOVERED set contains two
-        // container kinds is element-erased-ambiguous → loud refuse, never a reinterpreting miscompile.
+        // ISA.1 CONVERTED THIS FROM A CLEAN-THROW too (the OPEN-union twin of the closed-union case):
+        // an open union whose DISCOVERED set contains two container types used to be element-erased-
+        // ambiguous → loud refuse. Element-aware `is a` distinguishes them, so the discovered set
+        // narrows precisely on both backends.
         const string src = """
             Define mixed as a catalogue with ((a series of number with (1,2)), (a series of text with ("a"))).
             For each m in mixed, repeat:
-                If m is a series of number, State "nums".
+                If m is a series of number, State "nums " joined to (the number of m converted to text).
                 Otherwise, State "other".
             Done.
             """;
-        var tokens  = new CufetLexer(src).Tokenize();
-        var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
-        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+        Assert.Equal(Interpret(src), Compile(src));
     }
 
     [Fact]

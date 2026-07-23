@@ -2927,6 +2927,7 @@ static void* cufet_pipe_stage(void* argp) {
     // erased, like `value is List<object>`), objects nominally by name.
     private string EmitIsTypeCheck(IsTypeCheck tc)
     {
+        GuardTestedNotUnion(tc.Type);
         var tt = TypeOf(tc.Target);
         // `is a <case>` on a closed union = a genuine RUNTIME tag check (this is where runtime type
         // identity lives — unlike the monomorphic model's compile-time StaticKindMatches fold).
@@ -2957,25 +2958,23 @@ static void* cufet_pipe_stage(void* argp) {
     }
 
     // Which case of a closed union does `tested` select? Exactly one ⇒ its index. None ⇒ -1 (the check
-    // is statically false). MORE THAN ONE ⇒ the kind-erasure hazard — `is a` is element-erased for
-    // containers, so `(series of number) or (series of text)` can't be told apart at runtime and
-    // narrowing would reinterpret one payload as the other (silent UB). Clean-throw instead (CAT.1's
-    // kind-distinguishable boundary); the real fix is element-aware `is a` in BOTH backends.
+    // is statically false). ISA.1 made StaticKindMatches ELEMENT-AWARE, so container-vs-container
+    // unions now resolve to exactly one case (the CAT.1 clean-throw below is effectively unreachable
+    // for element-distinguishable cases — it remains as a guard against any residual ambiguity).
     private int UnionMatchCase(UnionType ut, CufetType tested) => MatchCaseInList(UnionCases(ut), tested);
 
     // Shared by closed unions (declared cases) and open unions (the discovered set).
     private static int MatchCaseInList(IReadOnlyList<CufetType> cases, CufetType tested)
     {
+        GuardTestedNotUnion(tested);
         var hits = new List<int>();
         for (int i = 0; i < cases.Count; i++)
             if (StaticKindMatches(cases[i], tested)) hits.Add(i);
         if (hits.Count > 1)
             throw new CompilerException(
                 $"this catalogue's cases can't be told apart at runtime: `is a {FormatTypeName(tested)}` matches " +
-                $"{hits.Count} of its cases, because `is a` is element-erased for containers " +
-                "(a `series of text` matches `is a series of number`). Narrowing would reinterpret one case as " +
-                "another. Use cases distinguishable by kind (scalars / distinct object types) for now — " +
-                "element-aware `is a` is the deferred follow-on (it needs the interpreter to change too).");
+                $"{hits.Count} of its cases. Narrowing would reinterpret one case as " +
+                "another. Use cases distinguishable by type.");
         return hits.Count == 1 ? hits[0] : -1;
     }
 
@@ -2986,26 +2985,45 @@ static void* cufet_pipe_stage(void* argp) {
         ObjectType o => o.Name, _ => t.GetType().Name,
     };
 
+    // ISA.1 — ELEMENT-AWARE for containers (was kind-erased, matching the interpreter's old bug).
+    // Series/maps now recurse into their element/key/value types, so `series of text` no longer
+    // matches `is a series of number`. This is what lets MatchCaseInList find EXACTLY ONE case for a
+    // container-vs-container union — lifting CAT.1's clean-throw — since the union tag already
+    // carries the exact type (no runtime element inspection needed on this side).
+    // Records stay shape-erased: a record shape is not expressible in an `is a` / union-case position
+    // at all (the parser rejects it), so the arm is unreachable for containers-of-records purposes.
     private static bool StaticKindMatches(CufetType t, CufetType tested) => tested switch
     {
         NumberType => t is NumberType,
         TextType   => t is TextType,
         FactType   => t is FactType,
-        SeriesType => t is SeriesType,        // element-erased, like the interpreter
-        MapType    => t is MapType,           // key/value-erased
-        RecordType => t is RecordType,        // shape-erased
+        SeriesType st => t is SeriesType ts && StaticKindMatches(ts.ElementType, st.ElementType),
+        MapType mt    => t is MapType tm && StaticKindMatches(tm.KeyType, mt.KeyType)
+                                         && StaticKindMatches(tm.ValueType, mt.ValueType),
+        RecordType => t is RecordType,        // shape-erased (unreachable — see above)
         MatrixType => t is MatrixType,
         ObjectType ot => t is ObjectType o2 && o2.Name == ot.Name,   // nominal
         VoidType   => false,                  // a non-voidable value is never void
-        // `x is a (text or fact)` — a COMPOUND test. The interpreter answers it by recursing through
-        // the union (true for a text), but a flat tag can't: one tag test can't stand for a set of
-        // cases, and folding it to false would silently diverge. Refuse loudly instead.
-        UnionType  => throw new CompilerException(
-            "`is a` against a union type (`is a (text or fact)`) is not supported by the compiler — " +
-            "a runtime tag identifies ONE case, so a set-valued test has no single tag. " +
-            "Test the individual cases instead (`is a text` / `is a fact`)."),
+        // A union in a NESTED position (the element type of `series of (number or text)`) is an
+        // ordinary structural type comparison, not a tag question — compare the types directly.
+        // The TOP-LEVEL `is a <union>` refusal lives at the call sites (GuardTestedNotUnion), where
+        // it genuinely means "a set-valued test with no single tag".
+        UnionType  => t is UnionType && t.Equals(tested),
         _ => false,
     };
+
+    // `x is a (text or fact)` — a COMPOUND test at the TOP level. The interpreter answers it by
+    // recursing through the union (true for a text), but a flat tag can't: one tag test can't stand
+    // for a set of cases, and folding it to false would silently diverge. Refuse loudly instead.
+    // (Nested unions are fine — see the StaticKindMatches UnionType arm.)
+    private static void GuardTestedNotUnion(CufetType tested)
+    {
+        if (tested is UnionType)
+            throw new CompilerException(
+                "`is a` against a union type (`is a (text or fact)`) is not supported by the compiler — " +
+                "a runtime tag identifies ONE case, so a set-valued test has no single tag. " +
+                "Test the individual cases instead (`is a text` / `is a fact`).");
+    }
 
     // `the contents of the directory <p>` — fallible (series of text or failure). The raw cfl:
     // the runtime returns a SORTED (ordinal) arena array of "<p><sep><name>" paths, or a mapped
