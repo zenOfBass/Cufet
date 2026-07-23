@@ -101,6 +101,7 @@ public sealed class CodeGenerator
         // Interface specializations are DISCOVERED BY EMITTING, so a discovery iteration registers
         // them too — clear the requests/emitted-set so the real pass emits each exactly once.
         _ifaceSpecReq.Clear(); _ifaceSpecDone.Clear(); _ifaceSpecSigs.Clear();
+        _loopUnmakerSnaps.Clear(); _scopeDepth = 0; _frameUnmakerBase = null;
     }
 
     // Does the program mention an OPEN union anywhere (so the discovery pre-pass is worth running)?
@@ -190,7 +191,7 @@ public sealed class CodeGenerator
     // Inside a Try body: (handler label, the caught-failure C var, open-file depth at Try entry)
     // so a failing fallible call records the failure, closes files opened since the Try, and jumps
     // to the In-case-of-failure handler.
-    private (string Label, string FailVar, int FileDepth, int ExcDepth)? _currentTryHandler;
+    private (string Label, string FailVar, int FileDepth, int ExcDepth, string? UnmakerSnap)? _currentTryHandler;
 
     // E-prime — exception-handler bookkeeping. `_excOpen` counts jmp_buf handlers open in the
     // function currently being emitted (reset per function): every NONLOCAL exit (return, Stop/Skip,
@@ -221,6 +222,28 @@ public sealed class CodeGenerator
     // The _openFiles depth at each enclosing loop's entry, so break/continue closes files opened
     // inside the loop body before jumping out of it.
     private readonly List<int> _loopFileDepths = new();
+
+    // ── UNMK — destructors (`unmaking`) ────────────────────────────────────────
+    // Declarations collected up front (like the interpreter's _unmakeDefs): typeName → its unmaker.
+    // A type is unmakeable iff it has an entry. Everything is gated on this being non-empty (zero cost
+    // otherwise). MATCH-EXACTLY (settled): the interpreter fires unmakers at block scope-exit, LIFO,
+    // for Define'd object bindings only — NOT at function frames or top-level. Value-copies/escape
+    // double-fire (per-binding hook, not an ownership destructor). See [[project-design-decisions]].
+    private readonly Dictionary<string, UnmakerDeclaration> _unmakeDefs = new();
+    // >0 while emitting inside a BLOCK scope of the current frame. An unmakeable Define registers its
+    // unmaker only then, so top-level and function-frame Defines never register → never fire (matching
+    // the interpreter's two gaps). Reset to 0 per frame (blocks bump it).
+    private int _scopeDepth;
+    // The C var holding cufet_num at the current frame's entry — a `return`/propagate runs unmakers
+    // to it (firing every still-open block's unmakers in this frame, matching a return unwinding
+    // through the block finallys in the interpreter). Null ⇒ no unmakers / not set.
+    private string? _frameUnmakerBase;
+    // Per enclosing loop: the C var holding cufet_num at the loop body's entry (Stop/Skip run to it).
+    private readonly List<string> _loopUnmakerSnaps = new();
+
+    private bool UsesUnmakers => _unmakeDefs.Count > 0;
+    // Inline `cufet_run_unmakers_to(snap); ` for a nonlocal-exit statement; empty when not applicable.
+    private string UnmakerRunStmt(string? snap) => UsesUnmakers && snap != null ? $"cufet_run_unmakers_to({snap}); " : "";
 
     // Set when the program uses `run`/pipe, so the POSIX subprocess runtime is emitted (only then).
     private bool _usesProcess;
@@ -369,6 +392,18 @@ public sealed class CodeGenerator
 static _Thread_local jmp_buf cufet_exc_bufs[CUFET_EXC_MAX];
 static _Thread_local int cufet_exc_top = -1;
 static _Thread_local const char* cufet_exc_msg = 0;
+/* Unmaker (destructor) registry (UNMK) — user `unmaking` bodies run at block scope-exit. A longjmp
+   (exception) abandons the C-stack objects those bodies touch, so cufet_raise runs the pending
+   unmakers BEFORE it jumps, down to the target handler's snapshot (cufet_exc_um[]). Normal / return /
+   Stop / failure-goto exits run them at emit-time via cufet_run_unmakers_to. Zero cost when unused
+   (cufet_num stays 0). */
+#define CUFET_UNMAKERS_MAX 8192
+static _Thread_local void* cufet_um_obj[CUFET_UNMAKERS_MAX];
+static _Thread_local void (*cufet_um_fn[CUFET_UNMAKERS_MAX])(void*);
+static _Thread_local int cufet_num = 0;
+static _Thread_local int cufet_exc_um[CUFET_EXC_MAX];
+static void cufet_reg_unmaker(void* o, void (*f)(void*)) { if (cufet_num < CUFET_UNMAKERS_MAX) { cufet_um_obj[cufet_num] = o; cufet_um_fn[cufet_num] = f; cufet_num++; } }
+static void cufet_run_unmakers_to(int n) { while (cufet_num > n) { cufet_num--; cufet_um_fn[cufet_num](cufet_um_obj[cufet_num]); } }
 static void* cufet_arena_alloc(size_t size);   /* defined with the arena, below */
 static const char* cufet_msgf(const char* fmt, ...) {
     va_list ap; va_start(ap, fmt);
@@ -381,7 +416,7 @@ static const char* cufet_msgf(const char* fmt, ...) {
     return b;
 }
 static void cufet_raise(const char* msg) {
-    if (cufet_exc_top >= 0) { cufet_exc_msg = msg; longjmp(cufet_exc_bufs[cufet_exc_top], 1); }
+    if (cufet_exc_top >= 0) { cufet_exc_msg = msg; cufet_run_unmakers_to(cufet_exc_um[cufet_exc_top]); longjmp(cufet_exc_bufs[cufet_exc_top], 1); }
     fprintf(stderr, "%s\n", msg);
     exit(1);
 }
@@ -1560,6 +1595,10 @@ static void* cufet_pipe_stage(void* argp) {
             foreach (var oad in _overloadDefs.Values)
                 EmitOverload(body, oad);
 
+            // Unmaker (destructor) bodies — emitted like no-arg void methods (cu_<type>).
+            foreach (var ud in _unmakeDefs.Values)
+                EmitUnmaker(body, ud);
+
             foreach (var bind in topFuncs)
                 if (!_ifaceFuncs.ContainsKey(bind.Name)) EmitBind(body, bind);
 
@@ -1609,6 +1648,8 @@ static void* cufet_pipe_stage(void* argp) {
                 if (stmt is BindStatement) continue;       // emitted above
                 if (stmt is ObjectDefinition) continue;    // declarations, handled up front
                 if (stmt is OperatorOverloadDeclaration) continue;   // emitted above as functions
+                if (stmt is UnmakerDeclaration) continue;           // emitted above as cu_<type> fns
+                if (stmt is InterfaceDefinition) continue;          // no runtime representation
                 EmitStatement(body, stmt, "    ");
             }
             body.AppendLine("    cufet_arena_pop();");
@@ -1708,6 +1749,8 @@ static void* cufet_pipe_stage(void* argp) {
         }
         foreach (var oad in _overloadDefs.Values)
             sb.AppendLine($"{OverloadSignature(oad)};");
+        foreach (var typeName in _unmakeDefs.Keys)
+            sb.AppendLine($"static void {UnmakerCName(typeName)}(void*);");
         foreach (var sig in _ifaceSpecSigs)     // interface specializations (monomorphized copies)
             sb.AppendLine($"{sig};");
         foreach (var bind in topFuncs)
@@ -1889,9 +1932,41 @@ static void* cufet_pipe_stage(void* argp) {
             switch (stmt)
             {
                 case OperatorOverloadDeclaration oad: _overloadDefs[(oad.OperandTypeName, oad.Operator)] = oad; break;
+                case UnmakerDeclaration ud:          _unmakeDefs[ud.UnmakesTypeName] = ud; break;
                 case PullStatement ps:               CollectOverloadDefs(ps.Body); break;
                 case PullRabbitStatement pr:         CollectOverloadDefs(pr.Body); break;
             }
+    }
+
+    // Emits one unmaker as a C function `void cu_<type>(void* p)` — a no-arg void method, so it
+    // reuses the method-body machinery (`one` = the receiver, its fields resolve). Called via the
+    // runtime registry (a void* thunk), so it casts the payload back to the concrete struct.
+    private void EmitUnmaker(StringBuilder sb, UnmakerDeclaration ud)
+    {
+        string typeName = ud.UnmakesTypeName;
+        var def = _objectDefs[typeName];
+        var saved = new Dictionary<string, CufetType>(_varTypes);
+        var savedRecv = _methodReceiverType;
+        var savedRet = _currentReturnType;
+        var savedExcOpen = _excOpen; _excOpen = 0;
+        _varTypes.Clear();
+        _methodReceiverType = typeName;
+        _currentReturnType = null;                    // void + infallible (front-end enforced)
+        _varTypes["one"] = ObjType(typeName);
+
+        sb.AppendLine($"static void {UnmakerCName(typeName)}(void* cf_p) {{");
+        sb.AppendLine($"    {ObjStructName(typeName)}* cv_one = ({ObjStructName(typeName)}*)cf_p;");
+        var savedUF = EnterFrame(sb, "    ");
+        EmitBlock(sb, ud.Body, "    ");
+        ExitFrame(savedUF);
+        sb.AppendLine("}");
+        sb.AppendLine();
+
+        _varTypes.Clear();
+        foreach (var kv in saved) _varTypes[kv.Key] = kv.Value;
+        _methodReceiverType = savedRecv;
+        _currentReturnType = savedRet;
+        _excOpen = savedExcOpen;
     }
 
     // The overload's inferred return type (RAW — keeps FailureType). Mirrors the front-end: the
@@ -1968,7 +2043,9 @@ static void* cufet_pipe_stage(void* argp) {
         _varTypes[oad.RightName] = ObjType(oad.OperandTypeName);
 
         sb.AppendLine($"{OverloadSignature(oad)} {{");
+        var savedOF = EnterFrame(sb, "    ");
         EmitBlock(sb, oad.Body, "    ");
+        ExitFrame(savedOF);
         sb.AppendLine("}");
         sb.AppendLine();
 
@@ -3106,6 +3183,50 @@ static void* cufet_pipe_stage(void* argp) {
                  $"printing a '{t.GetType().Name}' is not yet supported by the compiler.")
     };
 
+    // ── UNMK frame setup ───────────────────────────────────────────────────────
+    // A FRAME (function / method / getter / setter / overload / closure / task / unmaker body) is
+    // NOT a block scope — its own Defines don't fire (the interpreter's SaveScopes/RestoreScopes
+    // bypasses RunScopeUnmakers). So reset `_scopeDepth` to 0 (nested blocks bump it) and capture the
+    // registry depth at entry into `_frameUnmakerBase` so a `return` runs the still-open block
+    // unmakers to it (a return unwinds through the frame's blocks, firing each — d17/d19).
+    private string UnmakerCName(string typeName) => "cu_" + typeName.Replace('-', '_');
+
+    private (int Depth, string? Base) EnterFrame(StringBuilder sb, string indent)
+    {
+        var saved = (_scopeDepth, _frameUnmakerBase);
+        _scopeDepth = 0;
+        if (UsesUnmakers)
+        {
+            string v = $"cf_umb{_freshId++}";
+            sb.AppendLine($"{indent}int {v} = cufet_num; (void){v};");
+            _frameUnmakerBase = v;
+        }
+        else _frameUnmakerBase = null;
+        return saved;
+    }
+
+    private void ExitFrame((int Depth, string? Base) saved)
+    {
+        _scopeDepth = saved.Depth;
+        _frameUnmakerBase = saved.Base;
+    }
+
+    // A BLOCK scope (rabbit / book / try-arm / with / if-arm / pipe-consumer) — the interpreter's
+    // EnterScope/RunScopeUnmakers-at-ExitScope. Unmakeable objects Defined inside fire their unmakers
+    // LIFO at this block's NORMAL exit; nonlocal exits (return/Stop/goto/exception) fire via the
+    // run-to-snapshot at their own target. `_scopeDepth++` marks "inside a block" so Defines register.
+    private void EmitScopedBlock(StringBuilder sb, IReadOnlyList<IStatement> body, string indent)
+    {
+        if (!UsesUnmakers) { EmitBlock(sb, body, indent); return; }
+        _scopeDepth++;
+        string snap = $"cf_um{_freshId++}";
+        sb.AppendLine($"{indent}int {snap} = cufet_num;");
+        EmitBlock(sb, body, indent);
+        // If the block always returns, the return path already ran these — skip the (unreachable) run.
+        if (!BlockAlwaysExits(body)) sb.AppendLine($"{indent}cufet_run_unmakers_to({snap});");
+        _scopeDepth--;
+    }
+
     private void EmitBlock(StringBuilder sb, IReadOnlyList<IStatement> body, string indent)
     {
         // Guard narrowing (mirrors the interpreter's type checker): after an exiting guard —
@@ -3210,6 +3331,12 @@ static void* cufet_pipe_stage(void* argp) {
                 bool constable = vt is NumberType or FactType or TextType or RecordType;
                 string decl = (d.Permanent && constable) ? "const " + EmitCType(vt) : EmitCType(vt);
                 sb.AppendLine($"{indent}{decl} {MangleName(d.Name)} = {valExpr};");
+                // UNMK: register the unmaker for a Define'd unmakeable object — ONLY inside a block
+                // scope (matching the interpreter's _scopeDefOrder appending only on Define + firing
+                // only at block ExitScope; a top-level or frame-level Define never fires). Fires LIFO
+                // at the enclosing block's exit; value-copies register independently (double-fire).
+                if (UsesUnmakers && _scopeDepth > 0 && vt is ObjectType uot && _unmakeDefs.ContainsKey(uot.Name))
+                    sb.AppendLine($"{indent}cufet_reg_unmaker(&{MangleName(d.Name)}, {UnmakerCName(uot.Name)});");
                 break;
             }
 
@@ -3238,17 +3365,17 @@ static void* cufet_pipe_stage(void* argp) {
                         FlushPreEmits(sb, indent);
                         int rid = _freshId++;
                         sb.AppendLine($"{indent}void* cf_tret{rid} = {ChanHeapEnv(tctx.ResultType)}({retExpr});");
-                        sb.AppendLine($"{indent}{FileCleanupStmts(0)}{ExcPopStmts(0)}cufet_arena_pop(); free(cf_a); return cf_tret{rid};");
+                        sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}cufet_arena_pop(); free(cf_a); return cf_tret{rid};");
                     }
                     else
                     {
                         // A bare `return.` (or a value dropped by a fire-and-forget task): no result.
-                        sb.AppendLine($"{indent}{FileCleanupStmts(0)}{ExcPopStmts(0)}cufet_arena_pop(); free(cf_a); return NULL;");
+                        sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}cufet_arena_pop(); free(cf_a); return NULL;");
                     }
                     break;
                 }
                 if (ret.Value == null)
-                    sb.AppendLine($"{indent}{FileCleanupStmts(0)}{ExcPopStmts(0)}return;");
+                    sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}return;");
                 else
                 {
                     // Coerce so `return <T>` / `return void` widens into a voidable return type.
@@ -3256,7 +3383,7 @@ static void* cufet_pipe_stage(void* argp) {
                     // arena value never references a FILE*), THEN return.
                     string retExpr = EmitAsType(ret.Value, _currentReturnType);
                     FlushPreEmits(sb, indent);
-                    sb.AppendLine($"{indent}{FileCleanupStmts(0)}{ExcPopStmts(0)}return {retExpr};");
+                    sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}return {retExpr};");
                 }
                 break;
 
@@ -3293,7 +3420,7 @@ static void* cufet_pipe_stage(void* argp) {
                 string cr = RegisterRecordStruct(RunResultRecordType);
                 string fOut = MangleName("output"), fErr = MangleName("errors");
                 if (_currentTryHandler is { } h)
-                    sb.AppendLine($"{indent}if ({raw}.is_failure) {{ {h.FailVar}.message = {raw}.message; {h.FailVar}.category = {raw}.category; {FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}goto {h.Label}; }}");
+                    sb.AppendLine($"{indent}if ({raw}.is_failure) {{ {h.FailVar}.message = {raw}.message; {h.FailVar}.category = {raw}.category; {UnmakerRunStmt(h.UnmakerSnap)}{FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}goto {h.Label}; }}");
                 else
                     sb.AppendLine($"{indent}if ({raw}.is_failure) {{ fprintf(stderr, \"%s\\n\", {raw}.message); exit(1); }}");
                 sb.AppendLine($"{indent}fputs({raw}.val.{fErr}, stderr); fputs({raw}.val.{fOut}, stdout);");
@@ -3366,7 +3493,7 @@ static void* cufet_pipe_stage(void* argp) {
                     _rabbitCtx.Add(n);
                 }
                 _rabbitDepth++;   // this rabbit pops its arena at Done. (independent of concurrency) —
-                EmitBlock(sb, prs.Body, inner);   // so a region-capturing closure created here can dangle
+                EmitScopedBlock(sb, prs.Body, inner);   // so a region-capturing closure created here can dangle
                 _rabbitDepth--;
                 if (_usesConcurrency)
                 {
@@ -3451,7 +3578,7 @@ static void* cufet_pipe_stage(void* argp) {
                 }
                 sb.AppendLine($"{indent}{{");
                 // Binds in the body were HOISTED to free functions at Generate time — skip them here.
-                EmitBlock(sb, ps.Body.Where(s => s is not BindStatement).ToList(), indent + "    ");
+                EmitScopedBlock(sb, ps.Body.Where(s => s is not BindStatement).ToList(), indent + "    ");
                 sb.AppendLine($"{indent}}}");
                 foreach (var l in added) _bookAliases.Remove(l);
                 break;
@@ -3564,10 +3691,11 @@ static void* cufet_pipe_stage(void* argp) {
             case GetterDeclaration:
             case SetterDeclaration:
             case OperatorOverloadDeclaration:
+            case UnmakerDeclaration:
             // An interface has NO runtime representation at all — it only constrains which concrete
             // types may reach an interface parameter, and those parameters are monomorphized away.
             case InterfaceDefinition:
-                break;   // declarations — structs, methods, getters, setters, overloads emitted in the prelude
+                break;   // declarations — structs, methods, getters, setters, overloads, unmakers emitted in the prelude
 
             case IfStatement ifStmt:
                 EmitIf(sb, ifStmt, indent);
@@ -3610,11 +3738,11 @@ static void* cufet_pipe_stage(void* argp) {
             }
 
             case StopStatement:
-                sb.AppendLine($"{indent}{FileCleanupStmts(CurrentLoopFileDepth())}{ExcPopStmts(CurrentLoopExcDepth())}break;");
+                sb.AppendLine($"{indent}{UnmakerRunStmt(CurrentLoopUnmakerSnap())}{FileCleanupStmts(CurrentLoopFileDepth())}{ExcPopStmts(CurrentLoopExcDepth())}break;");
                 break;
 
             case SkipStatement:
-                sb.AppendLine($"{indent}{FileCleanupStmts(CurrentLoopFileDepth())}{ExcPopStmts(CurrentLoopExcDepth())}continue;");
+                sb.AppendLine($"{indent}{UnmakerRunStmt(CurrentLoopUnmakerSnap())}{FileCleanupStmts(CurrentLoopFileDepth())}{ExcPopStmts(CurrentLoopExcDepth())}continue;");
                 break;
 
             case TryStatement ts:
@@ -3712,13 +3840,13 @@ static void* cufet_pipe_stage(void* argp) {
     private void EmitNarrowedBlock(StringBuilder sb, (string Name, CufetType Inner, string Access)? narrow,
                                    IReadOnlyList<IStatement> body, string indent)
     {
-        if (narrow is not var (name, inner, access) || narrow is null) { EmitBlock(sb, body, indent); return; }
+        if (narrow is not var (name, inner, access) || narrow is null) { EmitScopedBlock(sb, body, indent); return; }
         bool had = _narrowedVars.TryGetValue(name, out var prev);
         // Narrowings COMPOSE — a voidable-of-union narrowed by `is not void` then by `is a <case>`
         // reads `.val` (out of the cvd) THEN `.val.c<k>` (out of the cun). Replacing rather than
         // nesting would emit `(x).val.c0` against the cvd and hit a non-existent member.
         _narrowedVars[name] = (inner, (had ? prev.Access : "") + access);
-        EmitBlock(sb, body, indent);
+        EmitScopedBlock(sb, body, indent);
         if (had) _narrowedVars[name] = prev!; else _narrowedVars.Remove(name);  // had ⇒ prev non-null
     }
 
@@ -3873,6 +4001,10 @@ static void* cufet_pipe_stage(void* argp) {
         string sup = $"cf_sup{id}", xmsg = $"cf_xmsg{id}";
 
         sb.AppendLine($"{indent}{{");
+        // One unmaker snapshot for this Try: the failure-goto runs to it, the body's normal exit runs
+        // to it, and (for the exc path) cufet_exc_um records it so cufet_raise unwinds to it.
+        string? umSnap = null;
+        if (UsesUnmakers) { umSnap = $"cf_umt{id}"; sb.AppendLine($"{inner}int {umSnap} = cufet_num;"); }
         if (hasFail)
             sb.AppendLine($"{inner}CufetFailure {failVar};");
         if (hasExc)
@@ -3887,13 +4019,20 @@ static void* cufet_pipe_stage(void* argp) {
             sb.AppendLine($"{inner}int {sup} = 0; (void){sup};");
             sb.AppendLine($"{inner}const char* {xmsg} = 0; (void){xmsg};");
             sb.AppendLine($"{inner}if (setjmp(cufet_exc_bufs[++cufet_exc_top]) != 0) goto {catchL};");
+            // Record the unmaker-registry depth for THIS Try, so cufet_raise runs the pending
+            // unmakers (LIFO, while their C-stack objects are still live) down to here before longjmp.
+            if (UsesUnmakers) sb.AppendLine($"{inner}cufet_exc_um[cufet_exc_top] = {umSnap};");
             _excOpen++;
         }
 
         var savedHandler = _currentTryHandler;
         if (hasFail)
-            _currentTryHandler = (label, failVar, _openFiles.Count, _excOpen);   // failure-goto pops NESTED exc handlers only
+            _currentTryHandler = (label, failVar, _openFiles.Count, _excOpen, umSnap);   // failure-goto pops NESTED exc handlers only
+        // The Try body is a block scope: register its Defines, fire (LIFO) at normal completion.
+        if (UsesUnmakers) _scopeDepth++;
         EmitBlock(sb, trySt.Body, inner);
+        if (UsesUnmakers && !BlockAlwaysExits(trySt.Body)) sb.AppendLine($"{inner}cufet_run_unmakers_to({umSnap});");
+        if (UsesUnmakers) _scopeDepth--;
         if (hasFail)
             _currentTryHandler = savedHandler;
 
@@ -3909,7 +4048,7 @@ static void* cufet_pipe_stage(void* argp) {
             var savedType    = _varTypes.TryGetValue("the failure", out var prev) ? prev : null;
             _currentFailVar = failVar;
             _varTypes["the failure"] = TFailMarker;
-            EmitBlock(sb, trySt.FailureHandler!, inner);
+            EmitScopedBlock(sb, trySt.FailureHandler!, inner);
             _currentFailVar = savedFailVar;
             if (savedType != null) _varTypes["the failure"] = savedType; else _varTypes.Remove("the failure");
             sb.AppendLine($"{inner}goto {end};");
@@ -3932,7 +4071,7 @@ static void* cufet_pipe_stage(void* argp) {
             _currentExcHandler = (sup, doneL);
             _currentExcVar = xmsg;
             _varTypes["the exception"] = TExcMarker;
-            EmitBlock(sb, trySt.ExceptionHandler!, inner);
+            EmitScopedBlock(sb, trySt.ExceptionHandler!, inner);
             _currentExcHandler = savedExcH;
             _currentExcVar = savedExcV;
             if (savedExcT != null) _varTypes["the exception"] = savedExcT; else _varTypes.Remove("the exception");
@@ -4297,7 +4436,9 @@ static void* cufet_pipe_stage(void* argp) {
             _varTypes[pName] = pType;
 
         sb.AppendLine($"{(cName == null ? EmitFunctionSignature(bind) : EmitSpecFunctionSignature(bind, cName))} {{");
+        var savedFrame = EnterFrame(sb, "    ");
         EmitBlock(sb, bind.Body, "    ");
+        ExitFrame(savedFrame);
         sb.AppendLine("}");
         sb.AppendLine();
 
@@ -4332,7 +4473,9 @@ static void* cufet_pipe_stage(void* argp) {
         _currentReturnType = g.ReturnType;
         _varTypes["one"] = ObjType(def.Name);
         sb.AppendLine($"{GetterSignature(def, g)} {{");
+        var savedGF = EnterFrame(sb, "    ");
         EmitBlock(sb, g.Body, "    ");
+        ExitFrame(savedGF);
         sb.AppendLine("}");
         sb.AppendLine();
         _varTypes.Clear();
@@ -4353,7 +4496,9 @@ static void* cufet_pipe_stage(void* argp) {
         _varTypes["one"] = ObjType(def.Name);
         _varTypes[s.ParamName] = s.ParamType;
         sb.AppendLine($"{SetterSignature(def, s)} {{");
+        var savedSF = EnterFrame(sb, "    ");
         EmitBlock(sb, s.Body, "    ");
+        ExitFrame(savedSF);
         sb.AppendLine("}");
         sb.AppendLine();
         _varTypes.Clear();
@@ -4463,7 +4608,9 @@ static void* cufet_pipe_stage(void* argp) {
             _varTypes[pName] = pType;
 
         sb.AppendLine($"{MethodSignature(def, method, cName)} {{");
+        var savedMF = EnterFrame(sb, "    ");
         EmitBlock(sb, method.Body, "    ");
+        ExitFrame(savedMF);
         sb.AppendLine("}");
         sb.AppendLine();
 
@@ -4828,9 +4975,7 @@ static void* cufet_pipe_stage(void* argp) {
         sb.AppendLine($"{inner}{ec} {it} = {ChanArenaCopy(elem)}(cf_pe{id}); {ChanFreeEnv(elem)}(cf_pe{id});");
         var saved = _varTypes.TryGetValue(raw, out var st) ? st : null;
         _varTypes[raw] = elem;
-        _loopFileDepths.Add(_openFiles.Count);   // so Stop/Skip close files opened in the loop body
-        EmitBlock(sb, fi.Body, inner);
-        _loopFileDepths.RemoveAt(_loopFileDepths.Count - 1);
+        EmitLoopBody(sb, fi.Body, inner);   // loop-body scope: file/exc/unmaker depths for Stop/Skip + per-iteration unmakers
         if (saved != null) _varTypes[raw] = saved; else _varTypes.Remove(raw);
         sb.AppendLine($"{indent}}}");
     }
@@ -5130,7 +5275,9 @@ static void* cufet_pipe_stage(void* argp) {
         _currentReturnType = resultType;
         _currentTaskReturn = (resultType, resultCType);
         _inTaskBody        = true;
+        var savedTF = EnterFrame(_taskFns, "    ");
         EmitBlock(_taskFns, lts.Body, "    ");
+        ExitFrame(savedTF);
         _currentReturnType = savedRet;
         _excOpen = savedExcOpen;
         _currentTaskReturn = savedTaskRet;
@@ -5305,7 +5452,7 @@ static void* cufet_pipe_stage(void* argp) {
         string enclosing = _currentReturnType is FailureType ft
             ? RegisterFailableStruct(ft)
             : throw new CompilerException("'or pass the failure off' requires the enclosing function to return 'T or failure'.");
-        _preEmits.Add($"if ({tmp}.is_failure) {{ {FileCleanupStmts(0)}{ExcPopStmts(0)}return (({enclosing}){{ .is_failure = 1, .message = {tmp}.message, .category = {tmp}.category }}); }}");
+        _preEmits.Add($"if ({tmp}.is_failure) {{ {UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}return (({enclosing}){{ .is_failure = 1, .message = {tmp}.message, .category = {tmp}.category }}); }}");
         return $"{tmp}.val";
     }
 
@@ -5402,7 +5549,7 @@ static void* cufet_pipe_stage(void* argp) {
         string ok = $"cf_w{id}", err = $"cf_we{id}";
         sb.AppendLine($"{indent}{{ CufetFailure {err}; int {ok} = cufet_file_write({pathExpr}, {valExpr}, {(fw.Append ? 1 : 0)}, &{err});");
         if (_currentTryHandler is { } h)
-            sb.AppendLine($"{indent}  if (!{ok}) {{ {h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; {FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}goto {h.Label}; }} }}");
+            sb.AppendLine($"{indent}  if (!{ok}) {{ {h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; {UnmakerRunStmt(h.UnmakerSnap)}{FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}goto {h.Label}; }} }}");
         else
             sb.AppendLine($"{indent}  if (!{ok}) {{ fprintf(stderr, \"%s\\n\", {err}.message); exit(1); }} }}");
     }
@@ -5453,7 +5600,7 @@ static void* cufet_pipe_stage(void* argp) {
         sb.AppendLine($"{inner}const char* {pathTmp} = {pathExpr};");
         sb.AppendLine($"{inner}FILE* {sVar} = fopen({pathTmp}, \"{mode}\");");
         if (_currentTryHandler is { } h)
-            sb.AppendLine($"{inner}if (!{sVar}) {{ CufetFailure {err} = cufet_file_failure({pathTmp}, errno); {FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}{h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; goto {h.Label}; }}");
+            sb.AppendLine($"{inner}if (!{sVar}) {{ CufetFailure {err} = cufet_file_failure({pathTmp}, errno); {UnmakerRunStmt(h.UnmakerSnap)}{FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}{h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; goto {h.Label}; }}");
         else
             sb.AppendLine($"{inner}if (!{sVar}) {{ CufetFailure {err} = cufet_file_failure({pathTmp}, errno); fprintf(stderr, \"%s\\n\", {err}.message); exit(1); }}");
 
@@ -5465,7 +5612,7 @@ static void* cufet_pipe_stage(void* argp) {
         // All structured closes go through cufet_close_file (fclose + unregister → no double-close).
         sb.AppendLine($"{inner}cufet_reg_file({sVar});");
         _openFiles.Add($"cufet_close_file({sVar});");
-        EmitBlock(sb, wos.Body, inner);
+        EmitScopedBlock(sb, wos.Body, inner);
         _openFiles.RemoveAt(_openFiles.Count - 1);   // pop; emit the normal-exit close
         sb.AppendLine($"{inner}cufet_close_file({sVar});");
         sb.AppendLine($"{indent}}}");
@@ -5479,10 +5626,26 @@ static void* cufet_pipe_stage(void* argp) {
     {
         _loopFileDepths.Add(_openFiles.Count);
         _loopExcDepths.Add(_excOpen);
-        EmitBlock(sb, body, indent);
+        if (!UsesUnmakers) { EmitBlock(sb, body, indent); }
+        else
+        {
+            // A loop body is a block scope that re-enters each iteration: snapshot at the top, fire
+            // (LIFO) at the bottom — so per-iteration objects unmake each iteration (matching d4/d18).
+            // Stop/Skip run to this same snapshot (d9).
+            _scopeDepth++;
+            string snap = $"cf_um{_freshId++}";
+            sb.AppendLine($"{indent}int {snap} = cufet_num;");
+            _loopUnmakerSnaps.Add(snap);
+            EmitBlock(sb, body, indent);
+            if (!BlockAlwaysExits(body)) sb.AppendLine($"{indent}cufet_run_unmakers_to({snap});");
+            _loopUnmakerSnaps.RemoveAt(_loopUnmakerSnaps.Count - 1);
+            _scopeDepth--;
+        }
         _loopFileDepths.RemoveAt(_loopFileDepths.Count - 1);
         _loopExcDepths.RemoveAt(_loopExcDepths.Count - 1);
     }
+
+    private string? CurrentLoopUnmakerSnap() => _loopUnmakerSnaps.Count > 0 ? _loopUnmakerSnaps[^1] : null;
 
     private int CurrentLoopFileDepth() => _loopFileDepths.Count > 0 ? _loopFileDepths[^1] : 0;
     private int CurrentLoopExcDepth()  => _loopExcDepths.Count > 0 ? _loopExcDepths[^1] : 0;
@@ -5610,7 +5773,7 @@ static void* cufet_pipe_stage(void* argp) {
         if (_currentTryHandler is not { } h)
             throw new CompilerException("a fallible call must be handled (Try, 'but on failure', or 'or pass the failure off').");
         // Close any files opened since the Try before unwinding to the handler (flush-on-failure).
-        _preEmits.Add($"if ({tmp}.is_failure) {{ {h.FailVar}.message = {tmp}.message; {h.FailVar}.category = {tmp}.category; {FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}goto {h.Label}; }}");
+        _preEmits.Add($"if ({tmp}.is_failure) {{ {h.FailVar}.message = {tmp}.message; {h.FailVar}.category = {tmp}.category; {UnmakerRunStmt(h.UnmakerSnap)}{FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}goto {h.Label}; }}");
         return $"{tmp}.val";
     }
 
@@ -5888,7 +6051,9 @@ static void* cufet_pipe_stage(void* argp) {
             if (capturesFailure) fnBuf.AppendLine($"    CufetFailure {capFailField} = cf_env->{capFailField};");
         }
         else fnBuf.AppendLine($"    (void)cf_envp;");
+        var savedCF = EnterFrame(fnBuf, "    ");
         EmitBlock(fnBuf, body, "    ");
+        ExitFrame(savedCF);
         fnBuf.AppendLine($"}}");
         fnBuf.AppendLine();
         _closureFns.Append(fnBuf);

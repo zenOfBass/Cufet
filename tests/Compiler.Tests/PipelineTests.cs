@@ -5570,4 +5570,254 @@ public class PipelineTests
             """;
         Assert.Equal(Interpret(src), Compile(src));
     }
+
+    // ── Arc 3: DESTRUCTORS (`unmaking`) — UNMK.1 + UNMK.2 (MATCH-EXACTLY) ─────
+    // Settled: replicate the interpreter's block-scope LIFO firing precisely — including value-copy /
+    // escape DOUBLE-FIRES and both gaps (function frames, top-level). An unmaker is a per-binding
+    // scope-exit HOOK, not an ownership destructor (Cufet objects are value types with no identity);
+    // it is not deallocation (the arena owns memory). See [[project-design-decisions]] UNMAKERS.
+    // All programs share this header (a printing unmaker instruments the firing):
+    private const string UnmakerHdr =
+        "Define object handle with (the text id).\n" +
+        "Bind unmaking a handle to release:\n" +
+        "    State \"unmake \" joined to one's id.\n" +
+        "Done.\n";
+
+    [Fact]
+    public void Unmaker_TopLevel_NeverFires_ButBlockFiresLIFO()
+    {
+        // Top-level Defines never fire (the global scope isn't a block); a block fires LIFO at exit.
+        Assert.Equal(
+            Interpret(UnmakerHdr + "Define first as a new handle { the id \"A\" }.\nState \"top done\"."),
+            Compile(UnmakerHdr + "Define first as a new handle { the id \"A\" }.\nState \"top done\"."));
+        const string block = UnmakerHdr + """
+            Pull a rabbit.
+                Define first as a new handle { the id "A" }.
+                Define second as a new handle { the id "B" }.
+                State "block body done".
+            Done.
+            State "after block".
+            """;
+        Assert.Equal(Interpret(block), Compile(block));
+    }
+
+    [Fact]
+    public void Unmaker_FunctionFrame_NeverFires()
+    {
+        // A function-frame-local object never fires (the interpreter's SaveScopes/RestoreScopes
+        // bypasses RunScopeUnmakers) — load-bearing for escape-via-return.
+        const string src = UnmakerHdr + """
+            Bind void to work:
+                Define localh as a new handle { the id "L" }.
+                State "fn body done".
+            Done.
+            Cast work.
+            State "after fn".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Unmaker_Loop_FiresPerIteration_AndStopFires()
+    {
+        // foreach / while fire per-iteration at each iteration's block exit; Stop (a nonlocal exit)
+        // fires the current iteration's unmakers before breaking.
+        const string fe = UnmakerHdr + """
+            For each n in the range 1 to 3, repeat:
+                Define loopy as a new handle { the id "LOOP" }.
+                If n is 2, Stop.
+                State "iter".
+            Done.
+            State "after loop".
+            """;
+        Assert.Equal(Interpret(fe), Compile(fe));
+    }
+
+    [Fact]
+    public void Unmaker_ValueCopy_DoubleFires()
+    {
+        // Objects are value types — `Define copy as orig` copies, so BOTH bindings fire (per-binding
+        // hook, not ownership). This is the language, matched exactly (not deduped).
+        const string src = UnmakerHdr + """
+            Pull a rabbit.
+                Define orig as a new handle { the id "ORIG" }.
+                Define copy-of as orig.
+                State "both defined".
+            Done.
+            State "after".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Unmaker_ContainerTemporaryField_DoNotIndependentlyFire()
+    {
+        // Only Define'd bindings fire: an object added to a series fires via its ORIGINAL binding
+        // (the container copy never fires); a temporary never fires; a nested unmakeable field does
+        // not recurse (only the container's own unmaker fires).
+        const string container = UnmakerHdr + """
+            Pull a rabbit.
+                Define one-h as a new handle { the id "IN-SERIES" }.
+                Define bag as a series with (one-h).
+                State "added".
+            Done.
+            State "after".
+            """;
+        Assert.Equal(Interpret(container), Compile(container));
+        const string temp = UnmakerHdr + """
+            Pull a rabbit.
+                State "id is " joined to (a new handle { the id "TEMP" })'s id.
+            Done.
+            """;
+        Assert.Equal(Interpret(temp), Compile(temp));
+        const string field = UnmakerHdr + """
+            Define object wrapper with (the handle inner, the text tag).
+            Bind unmaking a wrapper to dispose:
+                State "unmake wrapper " joined to one's tag.
+            Done.
+            Pull a rabbit.
+                Define wrap as a new wrapper { the inner (a new handle { the id "FIELD" }), the tag "W" }.
+                State "made wrapper".
+            Done.
+            """;
+        Assert.Equal(Interpret(field), Compile(field));
+    }
+
+    [Fact]
+    public void Unmaker_Reassignment_FiresCurrentValueOnly()
+    {
+        // `becomes` doesn't register (only Define does) and fires the CURRENT value at block exit,
+        // never the replaced one.
+        const string src = UnmakerHdr + """
+            Pull a rabbit.
+                Define h as a new handle { the id "FIRST" }.
+                h becomes a new handle { the id "SECOND" }.
+                State "reassigned".
+            Done.
+            State "after".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Unmaker_ReturnThroughBlock_Fires()
+    {
+        // A `return` unwinds through the enclosing blocks in the frame, firing their unmakers (the
+        // interpreter's block finallys), while the function frame itself doesn't fire.
+        const string src = UnmakerHdr + """
+            Bind number to work:
+                Pull a rabbit.
+                    Define blockh as a new handle { the id "RETURNED-THRU" }.
+                    State "before return".
+                    Return 42.
+                Done.
+            Done.
+            State "result " joined to ((cast work) converted to text).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Unmaker_EscapeViaReturn_DoubleFires()
+    {
+        // ★ The sharp case: returning a block-local object fires its unmaker TWICE — once at the
+        // inner block exit (the return unwinds through it, while the value is still being returned)
+        // and once at the outer binding's block exit. Value semantics make this observable-but-safe;
+        // matched exactly.
+        const string src = UnmakerHdr + """
+            Bind handle to make-in-block:
+                Pull a rabbit.
+                    Define blockh as a new handle { the id "ESCAPES-VIA-RETURN" }.
+                    Return blockh.
+                Done.
+            Done.
+            Pull a rabbit.
+                Define got as cast make-in-block.
+                State "got " joined to got's id.
+            Done.
+            State "done".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Unmaker_ExceptionUnwind_FiresBeforeHandler_SameAndCrossFrame()
+    {
+        // On an exception unwind, unmakers run (LIFO) BEFORE the handler — cufet_raise runs them
+        // while their C-stack objects are still live, then longjmps. Cross-frame: a callee-frame
+        // block's unmaker fires, then the outer block's. (Handler Suppresses to avoid the pre-existing
+        // E-prime re-raise-message-lifetime bug — see the audit; orthogonal to unmakers.)
+        const string src = UnmakerHdr + """
+            Bind number to deep:
+                Pull a rabbit.
+                    Define fnblock as a new handle { the id "FN-BLOCK" }.
+                    State "in fn block".
+                    Return 1 / 0.
+                Done.
+            Done.
+            Try to:
+                Pull a rabbit.
+                    Define outerblock as a new handle { the id "OUTER-BLOCK" }.
+                    State "before deep call".
+                    Define r as cast deep.
+                    State "after deep call".
+                Done.
+            Done.
+            In case of exception (the exception):
+                State "caught".
+                Suppress the exception.
+            Done.
+            State "after try".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Unmaker_FailurePropagate_FiresThroughBlock()
+    {
+        // `or pass the failure off` returns from the frame, firing the blocks it unwinds through.
+        const string src = UnmakerHdr + """
+            Bind number or failure to risky:
+                Return a failure "boom" of category "test".
+            Done.
+            Bind number or failure to caller:
+                Pull a rabbit.
+                    Define held as a new handle { the id "HELD" }.
+                    Define x as cast risky or pass the failure off.
+                    Return x.
+                Done.
+            Done.
+            Try to:
+                Define r as cast caller.
+                State "got " joined to (r converted to text).
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
+            Done.
+            State "after".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Unmaker_InsideConcurrentTask_FiresOnItsOwnThread()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The unmaker registry is thread-local, so a task-thread block's unmaker fires on that
+        // thread (ASan/LSan/TSan clean — verified in WSL).
+        const string src = UnmakerHdr + """
+            Pull a rabbit.
+                Have rabbit start a task as worker:
+                    Pull a rabbit.
+                        Define taskh as a new handle { the id "IN-TASK" }.
+                        Return 7.
+                    Done.
+                Done.
+                Define r as the awaited result of worker.
+                State "result " joined to (r converted to text).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
 }
