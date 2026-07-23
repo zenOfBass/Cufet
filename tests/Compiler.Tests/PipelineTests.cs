@@ -1390,9 +1390,11 @@ public class PipelineTests
     }
 
     [Fact]
-    public void Object_Interface_StillDeferred_ThrowsCleanly()
+    public void Object_Interface_ConformanceWithoutDispatch_Compiles()
     {
-        // Interface conformance / dynamic dispatch remains deferred (its own slice).
+        // Interface conformance needs no representation change — a conforming object is an ordinary
+        // value struct. Declaring conformance (and never calling through the interface) compiles and
+        // runs; the conformer's method is a normal direct-dispatch method. (Was: a deferred throw.)
         const string src = """
             Define greeter as an interface for the void function greet.
             Define object robot with (the text id) and greeter:
@@ -1400,11 +1402,10 @@ public class PipelineTests
                     State one's id.
                 Done.
             Done.
+            Define r as a new robot { the id "R2" }.
+            Cast r's greet on ().
             """;
-        var tokens  = new CufetLexer(src).Tokenize();
-        var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
-        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+        Assert.Equal(Interpret(src), Compile(src));
     }
 
     // ── Slice 5C: voidable (uniform tagged struct cvd_N { int has; T val; }) ──
@@ -5390,6 +5391,181 @@ public class PipelineTests
                 Done.
                 Define d as the delivery from ch.
                 If d is not void, state d.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // ── Arc 3: INTERFACES (DD.1 — monomorphization) ──────────────────────────
+    // MEASURED + design-locked: interface polymorphism exists only at the FUNCTION PARAMETER, and
+    // the argument is a CONCRETE conformer at the call site (not stored/returned/forwarded — all
+    // front-end-rejected). So the concrete type is statically known everywhere ⇒ emit one
+    // specialized copy of each interface-taking callable per conformer passed. Inside a
+    // specialization the parameter is concrete → existing direct dispatch, `is a T` constant-folds.
+    // No runtime type tags. No vtables.
+
+    [Fact]
+    public void Interface_DispatchPicksConcreteType_PerSpecialization()
+    {
+        // The measured baseline: announce(dog) → Woof, announce(cat) → Meow. Dispatch resolves to
+        // the concrete type's method inside each specialization; an interface param with an extra
+        // ordinary arg composes (→ 30).
+        const string src = """
+            Define speaker as an interface for the text function speak.
+            Define object dog with (the text name) and speaker:
+                Bind text to speak:
+                    Return "Woof".
+                Done.
+            Done.
+            Define object cat with (the text name) and speaker:
+                Bind text to speak:
+                    Return "Meow".
+                Done.
+            Done.
+            Bind void to announce, given (the speaker s):
+                State cast s's speak on ().
+            Done.
+            Bind number to loudness, given (the speaker s, the number base):
+                Return base + the length of (cast s's speak on ()).
+            Done.
+            Define d as a new dog { the name "Rex" }.
+            Define c as a new cat { the name "Tom" }.
+            Cast announce on (d).
+            Cast announce on (c).
+            State cast loudness on (d, 26).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Interface_IsATypeCheck_FoldsToCompileTimeConstant_AndMultiParamCombinations()
+    {
+        // `s is a dog` on an interface param is a compile-time constant inside a specialization
+        // (StaticKindMatches — no tag). Multi-method interface. Two interface params specialize per
+        // COMBINATION (dog_dog, dog_cat, cat_cat). A closure capturing the interface param sees it
+        // at the concrete type.
+        const string src = """
+            Define speaker as an interface for { the text function speak, the number function volume }.
+            Define object dog with (the text name) and speaker:
+                Bind text to speak:
+                    Return "Woof".
+                Done.
+                Bind number to volume:
+                    Return 9.
+                Done.
+            Done.
+            Define object cat with (the text name) and speaker:
+                Bind text to speak:
+                    Return "Meow".
+                Done.
+                Bind number to volume:
+                    Return 3.
+                Done.
+            Done.
+            Bind text to describe, given (the speaker s):
+                If s is a dog:
+                    Return "it is a dog".
+                Done.
+                Return "not a dog".
+            Done.
+            Bind number to duet, given (the speaker a1, the speaker b1):
+                Return cast a1's volume on () + cast b1's volume on ().
+            Done.
+            Bind number to repeat-vol, given (the speaker s, the number k):
+                Bind number to step, given (the number j):
+                    If j is 0, Return 0.
+                    Return 1 + cast step on (j - 1).
+                Done.
+                Return (cast s's volume on ()) * (cast step on (k)).
+            Done.
+            Define d as a new dog { the name "Rex" }.
+            Define c as a new cat { the name "Tom" }.
+            State cast describe on (d).
+            State cast describe on (c).
+            State cast duet on (d, c).
+            State cast duet on (d, d).
+            State cast duet on (c, c).
+            State cast repeat-vol on (d, 3).
+            State cast repeat-vol on (c, 2).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Interface_MethodTakingInterfaceParam_AndClosureCapture()
+    {
+        // An interface-taking METHOD (a megaphone boosting a speaker) specializes per conformer, and
+        // a closure inside an interface-taking function captures the param at its concrete type.
+        const string src = """
+            Define speaker as an interface for the text function speak.
+            Define object dog with (the text name) and speaker:
+                Bind text to speak:
+                    Return "Woof".
+                Done.
+            Done.
+            Define object cat with (the text name) and speaker:
+                Bind text to speak:
+                    Return "Meow".
+                Done.
+            Done.
+            Define object megaphone with (the text tag):
+                Bind text to boost, given (the speaker s):
+                    Return one's tag joined to ": " joined to (cast s's speak on ()).
+                Done.
+            Done.
+            Bind text to viaClosure, given (the speaker s):
+                Define shout as a function:
+                    Return (cast s's speak on ()) joined to "!!!".
+                Done.
+                Return cast shout on ().
+            Done.
+            Define d as a new dog { the name "Rex" }.
+            Define c as a new cat { the name "Tom" }.
+            Define m as a new megaphone { the tag "LOUD" }.
+            State cast m's boost on (d).
+            State cast m's boost on (c).
+            State cast viaClosure on (d).
+            State cast viaClosure on (c).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Interface_TakingFunctionCalledFromATask()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // An interface-taking function called from inside a task body (specialization emitted for a
+        // concrete conformer the task constructs), result crossing the task-result bridge. Two tasks
+        // awaited in order → deterministic, so this is a genuine Compile==Interpret oracle test.
+        const string src = """
+            Define speaker as an interface for the text function speak.
+            Define object dog with (the text name) and speaker:
+                Bind text to speak:
+                    Return "Woof".
+                Done.
+            Done.
+            Define object cat with (the text name) and speaker:
+                Bind text to speak:
+                    Return "Meow".
+                Done.
+            Done.
+            Bind text to announce, given (the speaker s):
+                Return "heard: " joined to (cast s's speak on ()).
+            Done.
+            Pull a rabbit.
+                Have rabbit start a task as t1:
+                    Define c as a new cat { the name "Tom" }.
+                    Return cast announce on (c).
+                Done.
+                Have rabbit start a task as t2:
+                    Define d as a new dog { the name "Rex" }.
+                    Return cast announce on (d).
+                Done.
+                Define r1 as the awaited result of t1.
+                Define r2 as the awaited result of t2.
+                State r1.
+                State r2.
             Done.
             """;
         Assert.Equal(Interpret(src), Compile(src));

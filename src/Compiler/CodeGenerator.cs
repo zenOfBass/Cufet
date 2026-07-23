@@ -98,6 +98,9 @@ public sealed class CodeGenerator
         // would dedup against a later, LARGER case set and skip registering the new cases'
         // helpers (a dangling cchan_<i>_copy reference). Rebuilding it in the real pass is exact.
         _chanElemReg.Clear(); _chanElemList.Clear(); _chanTopElems.Clear();
+        // Interface specializations are DISCOVERED BY EMITTING, so a discovery iteration registers
+        // them too — clear the requests/emitted-set so the real pass emits each exactly once.
+        _ifaceSpecReq.Clear(); _ifaceSpecDone.Clear(); _ifaceSpecSigs.Clear();
     }
 
     // Does the program mention an OPEN union anywhere (so the discovery pre-pass is worth running)?
@@ -300,6 +303,28 @@ public sealed class CodeGenerator
     // and may be ANY type — including `T or failure` when the body returns a failure).
     private readonly Dictionary<(string TypeName, TokenType Op), CufetType?> _overloadReturnTypes = new();
     private readonly HashSet<(string TypeName, TokenType Op)> _overloadInferring = new();
+
+    // ── Interfaces (Arc 3, DD.1) — MONOMORPHIZATION ────────────────────────────
+    // MEASURED (and design-locked): interface polymorphism exists at exactly ONE position — the
+    // function parameter — and the argument must be a CONCRETE conformer at the call site. It can't
+    // be stored in a series, returned, put in a field, reassigned, or forwarded (all rejected by the
+    // shared front-end). So the concrete type is statically known at EVERY call site ⇒ emit one
+    // specialized copy of each interface-taking callable per conformer actually passed. Inside a
+    // specialization the parameter has its concrete type, so method calls fall back to the existing
+    // direct dispatch and `s is a dog` folds via StaticKindMatches. No type tags. No vtables.
+    private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new();
+    // Interface-taking callables are NEVER emitted unspecialized (their param has no concrete C type).
+    private readonly Dictionary<string, BindStatement> _ifaceFuncs = new();
+    private readonly Dictionary<(string Owner, string Method), BindStatement> _ifaceMethods = new();
+    // Requested specializations, keyed by emitted C name. THE DISCOVERY IS THE EMISSION: a call site
+    // registers its specialization as it emits (the CAT.2 trick — a walker could miss a site, but the
+    // emitter by construction cannot), then a worklist drains to a fixed point.
+    private readonly Dictionary<string, (BindStatement Bind, string? Owner, IReadOnlyList<string> Concretes)> _ifaceSpecReq = new();
+    private readonly HashSet<string> _ifaceSpecDone = new();
+    private readonly List<string> _ifaceSpecSigs = new();
+    // A runaway cross-product (many interface params × many conformers) would emit thousands of
+    // copies; realistic programs are tiny, so cap it and say so rather than exploding silently.
+    private const int MaxInterfaceSpecializations = 512;
 
     // Inside a method body: the receiver's object type name (so `one` and its fields resolve).
     private string? _methodReceiverType;
@@ -1449,6 +1474,9 @@ static void* cufet_pipe_stage(void* argp) {
 
         // Object definitions are nominal types — collect them all up front (they may be
         // top-level or nested in Pull blocks) so literals and field access resolve.
+        // Interfaces first: a parameter's shell ObjectType is only recognizable as an interface once
+        // the interface declarations are known.
+        CollectInterfaceDefs(program.Statements);
         CollectObjectDefs(program.Statements);
         // Operator overloads, likewise up front: a function emitted before the declaration can still
         // use the operator, so dispatch needs the whole registry before any body emits.
@@ -1500,7 +1528,13 @@ static void* cufet_pipe_stage(void* argp) {
         {
             _funcReturnTypes[bind.Name] = bind.ReturnType;
             _funcTypes[bind.Name] = new FunctionType(bind.Parameters.Select(p => p.Type).ToList(), bind.ReturnType);
+            // Interface-taking functions are monomorphized — recorded here and emitted only as
+            // specializations, never in their generic form (an interface param has no C type).
+            if (HasIfaceParam(bind, IsIfaceParam)) _ifaceFuncs[bind.Name] = bind;
         }
+        foreach (var def in _objectDefs.Values)
+            foreach (var m in def.Methods)
+                if (HasIfaceParam(m, IsIfaceParam)) _ifaceMethods[(def.Name, m.Name)] = m;
         foreach (var (bind, _) in pullBinds)
         {
             _funcReturnTypes[bind.Name] = bind.ReturnType;
@@ -1515,7 +1549,9 @@ static void* cufet_pipe_stage(void* argp) {
             // Object method / getter / setter bodies (each a C function taking a receiver pointer).
             foreach (var def in _objectDefs.Values)
             {
-                foreach (var method in def.Methods) EmitMethod(body, def, method);
+                // Interface-taking methods emit only as specializations (see DrainIfaceSpecializations).
+                foreach (var method in def.Methods)
+                    if (!_ifaceMethods.ContainsKey((def.Name, method.Name))) EmitMethod(body, def, method);
                 foreach (var g in def.Getters)      EmitGetter(body, def, g);
                 foreach (var s in def.Setters)      EmitSetter(body, def, s);
             }
@@ -1525,7 +1561,7 @@ static void* cufet_pipe_stage(void* argp) {
                 EmitOverload(body, oad);
 
             foreach (var bind in topFuncs)
-                EmitBind(body, bind);
+                if (!_ifaceFuncs.ContainsKey(bind.Name)) EmitBind(body, bind);
 
             foreach (var (bind, aliases) in pullBinds)
             {
@@ -1603,6 +1639,12 @@ static void* cufet_pipe_stage(void* argp) {
         }
         EmitAllBodies(body);
 
+        // ── Interface monomorphization: emit the specializations the body pass DISCOVERED ──
+        // The discovery IS the emission (each call site registered its specialization as it emitted),
+        // so no call site can be missed. Draining can register further specializations, hence the
+        // fixed point. Runs before the struct/forward-decl sections so their shapes are registered.
+        DrainIfaceSpecializations(body);
+
         // ── Series + map struct forward declarations (so value structs can hold their pointers) ──
         EmitSeriesForwardDecls(sb);
         EmitMapForwardDecls(sb);
@@ -1658,14 +1700,19 @@ static void* cufet_pipe_stage(void* argp) {
         // task an implicit declaration; the same hole existed for a free-function call from a task.)
         foreach (var def in _objectDefs.Values)
         {
-            foreach (var method in def.Methods) sb.AppendLine($"{MethodSignature(def, method)};");
+            foreach (var method in def.Methods)
+                if (!_ifaceMethods.ContainsKey((def.Name, method.Name)))
+                    sb.AppendLine($"{MethodSignature(def, method)};");
             foreach (var g in def.Getters)      sb.AppendLine($"{GetterSignature(def, g)};");
             foreach (var s in def.Setters)      sb.AppendLine($"{SetterSignature(def, s)};");
         }
         foreach (var oad in _overloadDefs.Values)
             sb.AppendLine($"{OverloadSignature(oad)};");
+        foreach (var sig in _ifaceSpecSigs)     // interface specializations (monomorphized copies)
+            sb.AppendLine($"{sig};");
         foreach (var bind in topFuncs)
-            sb.AppendLine($"{EmitFunctionSignature(bind)};");
+            if (!_ifaceFuncs.ContainsKey(bind.Name))
+                sb.AppendLine($"{EmitFunctionSignature(bind)};");
         foreach (var (bind, _) in pullBinds)
             sb.AppendLine($"{EmitFunctionSignature(bind)};");
         sb.AppendLine();
@@ -1690,6 +1737,128 @@ static void* cufet_pipe_stage(void* argp) {
 
     // Nominal C struct name for an object type.
     private static string ObjStructName(string objectName) => "cd_" + objectName.Replace('-', '_');
+
+    // ── Interfaces: monomorphization (Arc 3, DD.1) ────────────────────────────
+
+    // Collects interface declarations (same reach as CollectObjectDefs).
+    private void CollectInterfaceDefs(IEnumerable<IStatement> stmts)
+    {
+        foreach (var stmt in stmts)
+            switch (stmt)
+            {
+                case InterfaceDefinition ifd:  _interfaceDefs[ifd.Name] = ifd; break;
+                case PullStatement ps:         CollectInterfaceDefs(ps.Body); break;
+                case PullRabbitStatement pr:   CollectInterfaceDefs(pr.Body); break;
+                case IfStatement iff:
+                    foreach (var arm in iff.Arms) CollectInterfaceDefs(arm.Body);
+                    if (iff.ElseBody != null) CollectInterfaceDefs(iff.ElseBody);
+                    break;
+                case WhileStatement w:         CollectInterfaceDefs(w.Body); break;
+                case RepeatUntilStatement r:   CollectInterfaceDefs(r.Body); break;
+                case ForEachStatement fe:      CollectInterfaceDefs(fe.Body); break;
+            }
+    }
+
+    // Is this parameter type an INTERFACE? The parser emits a bare shell ObjectType for any user
+    // type name; the front-end's ResolveParamType turns a shell whose name is a declared interface
+    // into an InterfaceType. Mirror that decision here.
+    private bool IsIfaceParam(CufetType t) =>
+        _interfaceDefs.Count > 0
+        && ((t is ObjectType { Methods.Count: 0, NamedFields.Count: 0 } ot && _interfaceDefs.ContainsKey(ot.Name))
+            || t is InterfaceType);
+
+    private string IfaceParamName(CufetType t) =>
+        t is InterfaceType it ? it.Name : ((ObjectType)t).Name;
+
+    private static bool HasIfaceParam(BindStatement b, Func<CufetType, bool> isIface) =>
+        b.Parameters.Any(p => isIface(p.Type));
+
+    // The emitted C name of a specialization: the base name plus the concrete conformer(s) actually
+    // passed, so `announce(dog)` and `announce(cat)` are distinct functions.
+    private static string SpecSuffix(IEnumerable<string> concretes) =>
+        "__" + string.Join("_", concretes.Select(c => c.Replace('-', '_')));
+
+    // Registers (if new) and returns the specialization for `bind` given the concrete argument
+    // types at THIS call site, then yields the C call. Registration happens during emission, so a
+    // call site that exists cannot fail to produce its specialization.
+    private string EmitSpecializedCall(BindStatement bind, string? owner, IReadOnlyList<IExpression> args,
+                                       string? receiverPrefix)
+    {
+        // Method calls pass the receiver first; its params line up with args after that.
+        var callArgs = owner != null && receiverPrefix != null ? args : args;
+        var concretes = new List<string>();
+        for (int i = 0; i < bind.Parameters.Count && i < callArgs.Count; i++)
+        {
+            if (!IsIfaceParam(bind.Parameters[i].Type)) continue;
+            if (TypeOf(callArgs[i]) is not ObjectType cot)
+                throw new CompilerException(
+                    $"'{bind.Name}': the '{IfaceParamName(bind.Parameters[i].Type)}' parameter must receive a concrete " +
+                    "object at the call site (interfaces are monomorphized — there is no runtime interface value).");
+            concretes.Add(cot.Name);
+        }
+
+        string baseName = owner == null ? MangleName(bind.Name) : MethodCName(owner, bind.Name);
+        string specName = baseName + SpecSuffix(concretes);
+        if (!_ifaceSpecReq.ContainsKey(specName))
+        {
+            if (_ifaceSpecReq.Count >= MaxInterfaceSpecializations)
+                throw new CompilerException(
+                    $"too many interface specializations (over {MaxInterfaceSpecializations}). Interfaces are " +
+                    "monomorphized — one copy per combination of concrete types passed — so a function with " +
+                    "several interface parameters over many conformers multiplies out. Reduce the number of " +
+                    "interface parameters on one function.");
+            _ifaceSpecReq[specName] = (bind, owner, concretes);
+        }
+
+        var emitted = (receiverPrefix == null ? Enumerable.Empty<string>() : new[] { receiverPrefix })
+                      .Concat(callArgs.Select(EmitExpr));
+        return $"{specName}({string.Join(", ", emitted)})";
+    }
+
+    // Emits one specialization: the SAME body, with each interface parameter re-typed to the
+    // concrete conformer. Everything inside is then concrete — method calls become the existing
+    // direct dispatch, `is a <T>` constant-folds, field access is direct. No new machinery.
+    private void EmitIfaceSpecialization(StringBuilder sb, string specName,
+                                         (BindStatement Bind, string? Owner, IReadOnlyList<string> Concretes) req)
+    {
+        int k = 0;
+        var concreteParams = req.Bind.Parameters
+            .Select(p => IsIfaceParam(p.Type) ? (Type: (CufetType)ObjType(req.Concretes[k++]), p.Name) : p)
+            .ToList();
+
+        if (req.Owner == null)
+        {
+            // A synthetic Bind carrying the specialized name + concrete params: the ordinary
+            // function emitter then produces the right signature and body with zero special-casing.
+            var spec = req.Bind with { Name = specName, Parameters = concreteParams };
+            _ifaceSpecSigs.Add(EmitSpecFunctionSignature(spec, specName));
+            EmitBind(sb, spec, specName);
+        }
+        else
+        {
+            var def  = _objectDefs[req.Owner];
+            var spec = req.Bind with { Parameters = concreteParams };
+            _ifaceSpecSigs.Add(MethodSignature(def, spec, specName));
+            EmitMethod(sb, def, spec, specName);
+        }
+    }
+
+    // Drains the specialization worklist to a fixed point: emitting a specialization can itself
+    // discover further call sites (a specialized function calling another interface-taking one),
+    // and those are picked up on the next round.
+    private void DrainIfaceSpecializations(StringBuilder body)
+    {
+        while (true)
+        {
+            var pending = _ifaceSpecReq.Where(kv => !_ifaceSpecDone.Contains(kv.Key)).ToList();
+            if (pending.Count == 0) return;
+            foreach (var (name, req) in pending)
+            {
+                _ifaceSpecDone.Add(name);
+                EmitIfaceSpecialization(body, name, req);
+            }
+        }
+    }
 
     // ── Operator overloading (Arc 3) ──────────────────────────────────────────
     // Dispatch is a COMPILE-TIME lookup: exact nominal match on both operands, at most one
@@ -1837,8 +2006,12 @@ static void* cufet_pipe_stage(void* argp) {
     {
         if (def.EmbeddedTypeName != null && !_objectDefs.ContainsKey(def.EmbeddedTypeName))
             throw new CompilerException($"object '{def.Name}': embeds '{def.EmbeddedTypeName}', which isn't a plain object type (interface embedding not supported yet).");
-        if (def.ConformedInterfaces.Count > 0)
-            throw new CompilerException($"object '{def.Name}': interface conformance is not yet supported by the compiler.");
+        // Interface conformance needs NO representation change: an object that conforms is still an
+        // ordinary value struct. Conformance only tells the front-end which concrete types may be
+        // passed to an interface parameter — and those parameters are monomorphized away.
+        foreach (var iface in def.ConformedInterfaces)
+            if (!_interfaceDefs.ContainsKey(iface))
+                throw new CompilerException($"object '{def.Name}': conforms to '{iface}', which isn't a declared interface.");
     }
 
     // ── Record struct synthesis ───────────────────────────────────────────
@@ -3391,6 +3564,9 @@ static void* cufet_pipe_stage(void* argp) {
             case GetterDeclaration:
             case SetterDeclaration:
             case OperatorOverloadDeclaration:
+            // An interface has NO runtime representation at all — it only constrains which concrete
+            // types may reach an interface parameter, and those parameters are monomorphized away.
+            case InterfaceDefinition:
                 break;   // declarations — structs, methods, getters, setters, overloads emitted in the prelude
 
             case IfStatement ifStmt:
@@ -4062,6 +4238,14 @@ static void* cufet_pipe_stage(void* argp) {
         return $"{EmitCType(bind.ReturnType)} {MangleName(bind.Name)}({paramsStr})";
     }
 
+    // Same signature, but with an explicit already-mangled C name (interface specializations, whose
+    // name carries the concrete conformer suffix).
+    private string EmitSpecFunctionSignature(BindStatement bind, string cName)
+    {
+        var paramsStr = string.Join(", ", bind.Parameters.Select(p => $"{EmitCType(p.Type)} {MangleName(p.Name)}"));
+        return $"{EmitCType(bind.ReturnType)} {cName}({paramsStr})";
+    }
+
     // Folds 'Bind <ret> to <name> unto <type> ...' methods into their target object's
     // method list — an unto method is identical to a nested one, only its declaration
     // site differs, so once merged the normal method emission + dispatch handle it.
@@ -4096,7 +4280,7 @@ static void* cufet_pipe_stage(void* argp) {
         _objectDefs.TryGetValue(target, out var def) ? def
             : throw new CompilerException($"'unto {target}': {kind} on '{target}' are not yet supported by the compiler (not a plain object type).");
 
-    private void EmitBind(StringBuilder sb, BindStatement bind)
+    private void EmitBind(StringBuilder sb, BindStatement bind, string? cName = null)
     {
         // Save and restore _varTypes so function-local names don't pollute
         // the outer scope's type map (and vice versa).
@@ -4112,7 +4296,7 @@ static void* cufet_pipe_stage(void* argp) {
         foreach (var (pType, pName) in bind.Parameters)
             _varTypes[pName] = pType;
 
-        sb.AppendLine($"{EmitFunctionSignature(bind)} {{");
+        sb.AppendLine($"{(cName == null ? EmitFunctionSignature(bind) : EmitSpecFunctionSignature(bind, cName))} {{");
         EmitBlock(sb, bind.Body, "    ");
         sb.AppendLine("}");
         sb.AppendLine();
@@ -4257,14 +4441,15 @@ static void* cufet_pipe_stage(void* argp) {
 
     // A method's C signature: takes the receiver as a pointer (so mutations to `one`
     // are visible on the caller's object — value-struct-in-place), then its params.
-    private string MethodSignature(ObjectDefinition def, BindStatement method)
+    // `cName` overrides the emitted name (interface specializations); null → the normal method name.
+    private string MethodSignature(ObjectDefinition def, BindStatement method, string? cName = null)
     {
         var ps = new List<string> { $"{ObjStructName(def.Name)}* cv_one" };
         ps.AddRange(method.Parameters.Select(p => $"{EmitCType(p.Type)} {MangleName(p.Name)}"));
-        return $"{EmitCType(method.ReturnType)} {MethodCName(def.Name, method.Name)}({string.Join(", ", ps)})";
+        return $"{EmitCType(method.ReturnType)} {cName ?? MethodCName(def.Name, method.Name)}({string.Join(", ", ps)})";
     }
 
-    private void EmitMethod(StringBuilder sb, ObjectDefinition def, BindStatement method)
+    private void EmitMethod(StringBuilder sb, ObjectDefinition def, BindStatement method, string? cName = null)
     {
         var saved = new Dictionary<string, CufetType>(_varTypes);
         var savedRecv = _methodReceiverType;
@@ -4277,7 +4462,7 @@ static void* cufet_pipe_stage(void* argp) {
         foreach (var (pType, pName) in method.Parameters)
             _varTypes[pName] = pType;
 
-        sb.AppendLine($"{MethodSignature(def, method)} {{");
+        sb.AppendLine($"{MethodSignature(def, method, cName)} {{");
         EmitBlock(sb, method.Body, "    ");
         sb.AppendLine("}");
         sb.AppendLine();
@@ -5474,7 +5659,13 @@ static void* cufet_pipe_stage(void* argp) {
         if (funcExpr is VariableReference vr)
         {
             if (_funcReturnTypes.ContainsKey(vr.Name) && !_varTypes.ContainsKey(vr.Name))   // free function (direct)
+            {
+                // An interface-taking function is monomorphized: route to the specialization for the
+                // concrete conformer(s) passed here (registering it if this is the first such call).
+                if (_ifaceFuncs.TryGetValue(vr.Name, out var ifb))
+                    return EmitSpecializedCall(ifb, null, args, null);
                 return $"{MangleName(vr.Name)}({string.Join(", ", args.Select(EmitExpr))})";
+            }
 
             // A function-VALUED variable (Define f as …) → an indirect call through the {fn, env} value.
             if (_varTypes.TryGetValue(vr.Name, out var vt) && vt is FunctionType)
@@ -5484,7 +5675,10 @@ static void* cufet_pipe_stage(void* argp) {
             if (args.Count > 0 && TypeOf(args[0]) is ObjectType ot)
             {
                 var (owner, suffix) = ResolveMethodLevel(ot.Name, vr.Name);
-                var call = new[] { $"&(({EmitExpr(args[0])}){suffix})" }.Concat(args.Skip(1).Select(EmitExpr));
+                string recv = $"&(({EmitExpr(args[0])}){suffix})";
+                if (_ifaceMethods.TryGetValue((owner, vr.Name), out var ifm))
+                    return EmitSpecializedCall(ifm, owner, args.Skip(1).ToList(), recv);
+                var call = new[] { recv }.Concat(args.Skip(1).Select(EmitExpr));
                 return $"{MethodCName(owner, vr.Name)}({string.Join(", ", call)})";
             }
             throw new CompilerException($"'{vr.Name}': unresolved call — not a known function or method.");
@@ -5498,7 +5692,10 @@ static void* cufet_pipe_stage(void* argp) {
         if (funcExpr is PossessiveAccess pa && TypeOf(pa.Target) is ObjectType pot)   // alice's greet
         {
             var (owner, suffix) = ResolveMethodLevel(pot.Name, pa.Member);
-            var call = new[] { $"&(({EmitExpr(pa.Target)}){suffix})" }.Concat(args.Select(EmitExpr));
+            string recv = $"&(({EmitExpr(pa.Target)}){suffix})";
+            if (_ifaceMethods.TryGetValue((owner, pa.Member), out var ifpm))
+                return EmitSpecializedCall(ifpm, owner, args, recv);
+            var call = new[] { recv }.Concat(args.Select(EmitExpr));
             return $"{MethodCName(owner, pa.Member)}({string.Join(", ", call)})";
         }
 
@@ -5513,6 +5710,13 @@ static void* cufet_pipe_stage(void* argp) {
     // A named function used as a VALUE → the {fn, NULL} closure value (env NULL — no capture in CL.1).
     private string EmitNamedFunctionValue(string name)
     {
+        // A monomorphized function has no single C signature (one per conformer), so it can't be
+        // taken as a value. The front-end's parameter-only interface surface means this shouldn't
+        // be reachable — refuse loudly rather than pick an arbitrary specialization.
+        if (_ifaceFuncs.ContainsKey(name))
+            throw new CompilerException(
+                $"'{name}' takes an interface parameter, so it exists only as monomorphized copies " +
+                "(one per concrete type passed) and can't be used as a function value. Call it directly.");
         _fnThunks.Add(name);
         string cfn = RegisterFuncStruct(_funcTypes[name]);
         return $"({cfn}){{ .fn = {FnThunkName(name)}, .env = NULL }}";
