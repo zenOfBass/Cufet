@@ -8,6 +8,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+The **native compiler** era. Cufet now has two backends: the tree-walking interpreter
+(the reference implementation) and a compiler that emits C and invokes gcc to produce a
+real executable. Every committed grammar feature compiles — verified by a mechanical
+sweep for AST nodes with no codegen references.
+
+The interpreter is the **oracle**: the compiler's test suite compiles each program, runs
+the binary, and asserts its output equals the interpreter's. Where the two disagreed, one
+of them was wrong — that discipline surfaced and closed roughly a dozen latent bugs in the
+language itself, several of which predated the compiler entirely.
+
 ### Added
 
 **Comments — `[[ ... ]]`**
@@ -20,116 +30,135 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the opening line.
 - `[` and `]` are otherwise completely unused in Cufet's surface syntax — zero
   collision risk with any existing construct.
-- 12 new lexer tests + 7 new interpreter tests (1356 total).
 
-**Compiler — Slice 1 (C backend, `cufet build`)**
-- The compiler era begins. `cufet build <file.cufe>` compiles a Cufet source file to
-  a native binary via a C intermediate. The front-end (Lexer → Parser → TypeChecker)
-  is reused unchanged; `Cufet.Compiler` is a new library that consumes the same AST.
-- Slice 1 scope: `State <integer arithmetic>.` — `+`, `-`, `*`, `/`, unary negation,
-  parentheses. Everything else throws a clear "not yet implemented in this slice" error.
-- `CodeGenerator` emits a C source file with a `cufet_print_number(double)` helper
-  that matches the interpreter's `Format(decimal)` output for integer arithmetic
-  (integers print without a decimal point; `double` is used as the C numeric type —
-  a known approximation, noted and deferred to a later numeric-representation slice).
-- `GccInvoker` probes known installation paths before falling back to PATH; captures
-  `stderr` and throws `CompilerException` with the full gcc error on failure; deletes
-  the `.c` intermediate after a successful compile.
-- **Slice 1 validation bar met:** `State 1 + 1.` → gcc → native binary → prints `2`.
-  Oracle test: compiled output matches interpreter output for the same source — the
-  test pattern for the entire compiler era.
-- 10 new compiler tests in `Cufet.Compiler.Tests/PipelineTests.cs` (1366 total).
+**The native compiler — `build` and `emit-c`**
+- `build <file.cufe>` compiles to a native binary through a C intermediate.
+  `emit-c <file.cufe> [out.c]` emits the C without invoking gcc, for cross-toolchain
+  builds and inspection.
+- The entire front end (Lexer → Parser → TypeChecker) is **shared**. A program that
+  type-checks does so identically in both backends; `Cufet.Compiler` consumes the same AST.
+- Requires gcc on `PATH`. No external libraries and no compiler flags beyond `-pthread`
+  and `-lm` — the emitted C is self-contained.
 
-**Compiler — Slice 2 (variables: `Define` / `becomes` / `VariableReference`)**
-- Number variables compile to C locals. `Define x as 5.` → `double cv_x = 5.0;`.
-  `x becomes x + 1.` → `cv_x = (cv_x + 1.0);`. Variables are readable in any expression.
-- Permanent variables (`… permanently.`) emit as `const double` — the TypeChecker already
-  enforces no reassignment, so the C compiler gets the same invariant for free.
-- **Name mangling:** `cv_` prefix + hyphens replaced by underscores. `grand-total` →
-  `cv_grand_total`. The `cv_` prefix guards against C keyword collisions (`double`,
-  `int`, etc.). Cufet identifiers never contain underscores, so the substitution is
-  collision-free within the language.
-- Oracle test pattern continues: compiled output must match interpreter output for every
-  test input, including hyphenated names and self-referencing reassignment.
-- 10 new compiler tests (1376 total).
+**Exact decimal arithmetic in compiled code**
+- `number` compiles to `CufetDec`, a self-contained software decimal that is
+  bit-identical to .NET's `System.Decimal` — including round-half-to-even, the 28-digit
+  scale, and overflow behavior. Chosen over `double` (which would have made compiled
+  arithmetic silently disagree with interpreted) and over libmpdec (IEEE-754 decimal, a
+  different format, plus a link dependency).
+- Math-book transcendentals (`square root`, `log`, `power`) are double-backed, matching
+  the interpreter, which is itself double-backed. Documented consequence: fractional
+  `power` can differ in the last digit across platforms, because .NET's `Math.Pow` *is*
+  the platform libm. This is genuinely platform-owned, not a divergence to fix.
 
-**Compiler — Slice 3 (control flow: `If` / `While` / `For each` over ranges)**
-- `IfStatement` → `if (cond) { … } else if (cond) { … } else { … }`. Arbitrary arm
-  count; optional else; block-scoped bodies match the interpreter's per-arm scoping.
-- `WhileStatement` → `while (cond) { … }`.
-- `RepeatUntilStatement` → `do { … } while (!(cond));`.
-- `StopStatement` / `SkipStatement` → `break;` / `continue;`. Both propagate correctly
-  through nested if-inside-loop structures.
-- `ForEachStatement` over a `RangeExpression` → a direction variable computed at runtime
-  from start and end, then a single `for` loop (no body duplication). Range semantics:
-  inclusive both bounds; ascending when start ≤ end, descending otherwise; step is a
-  positive magnitude. Matches the interpreter's range materialisation exactly.
-- All comparison and logical operators: `==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `||`,
-  unary `!`. Modulo (`%`) emits `fmod()` from `<math.h>` — C's `%` is integers-only;
-  `fmod` has matching sign-of-dividend semantics.
-- String literals in `State` emit via a new `cufet_print_text(const char*)` runtime
-  helper, enabling FizzBuzz's mixed number/string output. String variables and string
-  expressions other than literal `State` arguments remain deferred.
-- **FizzBuzz validation bar met:** the README's flagship example compiles to a native
-  binary and its output matches the interpreter's exactly.
-- 16 new compiler tests (1392 total).
+**The full data model, compiled**
+- Text (immutable, arena-allocated), series (per-element-type), maps, records
+  (structural value structs), objects (nominal value structs, with embedding, getters,
+  setters, `unto` methods, named constructors, and value equality), `voidable T`,
+  `T or failure`, matrices, and catalogue/atlas (union types).
+- Records and objects are C value structs, so Cufet's value semantics fall out of C's
+  assignment-copies rule rather than needing runtime support.
+- Unions compile to a tagged struct; `is a <case>` is a genuine runtime tag check. This
+  is the one place the language needs runtime type identity — interfaces do not (below).
 
-**Compiler — Slice 5A (arena allocator + series: `Pull a rabbit` / `Done.` / series)**
-- The first reference type through the compiler. `Pull a rabbit.` maps to
-  `cufet_arena_push()`; `Done.` maps to `cufet_arena_pop()`. Nested
-  `Pull … Done.` blocks nest arenas correctly via a global depth stack
-  (`CufetArena cufet_arenas[64]`, `int cufet_arena_top`).
-- Arena design: **tracked-pointer list** (not a bump buffer). Each
-  `cufet_arena_alloc(size)` calls `malloc()` and registers the pointer in the
-  arena's `void** ptrs` array. `cufet_arena_pop()` frees all tracked pointers
-  then the array itself. `free(NULL)` is a C no-op, so empty arenas are harmless.
-- Global arena wraps all of `main()` — `cufet_arena_push()`/`cufet_arena_pop()`
-  emitted unconditionally. Scalar-only programs pay zero observable cost (empty
-  arena, no allocations). Top-level series are legal at depth 0.
-- `CufetSeries { double* data; int len; int cap }`. Series creation, append,
-  prepend, 1-based insert, remove-at (-1 = last), remove-value (first match),
-  and print are all implemented. Growth: new larger buffer via `cufet_arena_alloc`,
-  old buffer stays in the arena's tracked list — no UAF (old buffer never accessed
-  after copy), no leak (both freed at pop). ASan confirms this pattern.
-- `cufet_format_number` helper extracted from `cufet_print_number`; shared by
-  `cufet_print_number` (adds `\n`) and the new `cufet_print_series` (formats
-  elements as `(e1, e2, …)\n`).
-- `ForEachStatement` over a series variable emits a `cf_ser{id}` pointer temp and
-  a `cf_i{id}` index loop; the iterator variable is declared inside the loop body.
-- `_preEmits` side-channel: `SeriesLiteral` nodes produce multiple C statements
-  but `EmitExpr` must return a single expression string. Preparatory statements
-  accumulate in `_preEmits`; `FlushPreEmits` emits them before the parent
-  statement. Transparent to all existing scalar code.
-- `GccInvoker` gains an `extraFlags` overload (`IReadOnlyList<string>`) for
-  passing `-fsanitize=address -g` in the ASan test helper.
-- **Two validation dimensions:** oracle (compiled output == interpreter output)
-  and memory-correctness (ASan: zero leaks, zero use-after-free). ASan test is
-  Linux-only (skips on Windows — ASan unreliable with MinGW).
-- **Slice 5B seam:** maps, records, and objects attach to the same arena cursor;
-  no further infrastructure changes needed.
-- 13 new compiler tests (1417 total); slices 1–4 all still pass.
+**Memory: arenas and escape analysis**
+- `Pull a rabbit.` opens an arena; `Done.` pops it. Allocation is a bump-tracked pointer
+  list, thread-local so concurrent tasks never contend.
+- Values that would outlive their region are deep-copied into the destination's arena at
+  the point of storage. The type checker computes the destination depth and annotates the
+  store; the compiler performs the copy. Closure captures that escape are copied the same
+  way, including the environment record itself.
 
-**Compiler — Slice 4 (scalar functions: `Bind` / `Cast` / `return`)**
-- Named scalar functions compile to C functions. `Bind number to factorial, given (the number n): … Done.`
-  → a C `double cv_factorial(double cv_n) { … }` emitted before `main`.
-- `Cast factorial on (n - 1)` → `cv_factorial((cv_n - 1.0))` in any expression position.
-  `Cast print-double on (7).` as a statement → `cv_print_double(7.0);`.
-- `return <expr>.` → `return <expr>;`. Bare `return.` → `return;`. Void functions
-  declare `void` return type in C.
-- **Forward declarations first:** all top-level function signatures are emitted as C
-  forward declarations before any function body, enabling mutual recursion and
-  forward calls with no ordering constraint on the Cufet source.
-- **Scalar boundary:** parameters and return types must be `number` (`double`) or
-  `fact` (`int`) or void — C scalar pass-by-value, no arena needed.
-  Reference-type params/returns (`series`, `text`, maps, objects) throw a clear
-  `CompilerException("not yet implemented")` so the compiler defers cleanly;
-  TypeChecker accepts these programs normally.
-- **Recursive factorial (`cast factorial on (n - 1)`) works:** C self-call via the
-  forward declaration. Matches interpreter output for all inputs tested.
-- **Mutual recursion** (`is-even` ↔ `is-odd`) works via the forward declaration pass.
-- Void function syntax requires the explicit `void` keyword: `Bind void to <name>,
-  given (…):` — the bare `Bind to <name>:` form is not valid Cufet grammar.
-- 12 new compiler tests (1404 total).
+**Concurrency — true parallelism**
+- Tasks compile to pthreads with a structured join: a rabbit joins every task it spawned
+  before popping its arena, so a task provably cannot outlive its region.
+- Channels are mutex/condvar queues. Values crossing a thread boundary are deep-copied
+  through a heap bridge, so the message owns its memory in transit and neither thread's
+  arena is entangled with the other's.
+- Streaming pipes run every stage as a concurrent thread. Interrupts use `sigaction` with
+  a minimal async-signal-safe handler plus cooperative checkpoints, so a thread blocked in
+  a channel receive can now actually be woken — something the cooperative interpreter
+  cannot do.
+- Compiled concurrent programs are validated against **order-independent invariants**
+  rather than interleaving order, and under ThreadSanitizer.
+
+**I/O, exceptions, and the standard library**
+- Files, streams and `With ... open`, stdin/stdout, subprocess `run`, and shell pipes —
+  compiled to POSIX `fork`/`execvp`/`pipe`/`waitpid` with no shell involved.
+- `In case of exception` / `Suppress` compile to a setjmp/longjmp stack over
+  software-detected faults (Cufet's numbers are software decimals, so division by zero is a
+  check, not a hardware trap). Cleanup registries ensure files, channels, and arenas are
+  released across a nonlocal jump.
+- Books (`math`, `collections`, `chance`, matrix, `sorted`) are compile-time resolved
+  builtins — no dynamic linking.
+
+**Closures, interfaces, operators, destructors**
+- Closures compile to a `{function pointer, environment}` pair; captures are stored by
+  value, which reproduces the interpreter's capture semantics without extra machinery.
+- **Interfaces are monomorphized.** Cufet's interface polymorphism exists only at the
+  function-parameter position and the argument is always a concrete conformer, so the
+  compiler emits one specialization per conformer passed. No vtables, no type tags.
+- Operator overloading (`+ - * /` on a single object type) resolves at compile time to a
+  direct call — exact nominal match with one candidate, so there is nothing to rank.
+- Destructors (`unmaking`) fire at block scope exit, LIFO, on every exit path including
+  `return`, `Stop`, failure propagation, and exception unwind.
+
+### Changed
+
+- **Record and object fields now print in sorted order** in both backends. Previously the
+  construction order was observable, so two structurally-equal records could print
+  differently.
+- **Container insertion now copies value types.** Adding a record or object to a series or
+  map copies it, matching `Define` and argument binding. Binding is binding — storing a
+  value into a container is the same operation as naming it.
+- **Argument binding copies records and objects**, closing the one site among four that
+  shared them and let a mutated parameter leak back to the caller.
+- **Remove-by-value and `contains` use value equality**, not reference identity, so a
+  record equal to the stored one is found.
+- **Directory listings are sorted** (ordinal) in both backends; raw OS order is
+  filesystem-dependent.
+- **I/O error messages are deterministic templates** rather than the host exception's
+  text, so both backends report identically.
+- **`is a` is element-aware for containers.** A `series of text` no longer matches
+  `is a series of number`. The interpreter survived that (it is dynamically typed and
+  simply read the element back); a compiler could not, since it would reinterpret the
+  payload at the annotated type. The check is now answered from the declared type in both
+  backends, which also decides the empty-container case that no runtime value can answer.
+- Matrix values now print as `matrix((1, 2), (3, 4))`; the interpreter previously leaked
+  the host type name.
+
+### Fixed
+
+Latent language and soundness bugs surfaced by holding the two backends against each other:
+
+- **Series indexing was unchecked in compiled code** — out-of-bounds was undefined
+  behavior. Now a bounds check that raises a catchable exception with the interpreter's
+  exact message.
+- **Exception messages could dangle.** A message allocated in a nested arena was freed by
+  the catch before the handler read it, and the freed block was promptly reused — a
+  message would read back as whatever string was concatenated next. Messages are now
+  allocated in the target handler's own arena.
+- **Values escaping a region were a use-after-free on the normal path.** The outward-store
+  invariant covered series, maps, and objects but not `text`, and any value-typed wrapper
+  (a record, a voidable) laundered even a covered type past the check. The test is now
+  structural over the whole shape.
+- **Closures that only wrote to a captured variable never captured it**, and a nested
+  lambda parameter could mask a same-named outer variable across the whole enclosing body.
+  Both emitted an undeclared C variable.
+- **If/While conditions with preparatory steps were never flushed**, miscompiling any
+  condition that needed one (environment variable, map lookup, channel delivery).
+- **Guard-return narrowing** (`If n is void, return failure.` then using `n` as a plain
+  `T`) now works in both backends — the natural error-handling idiom the docs lean on.
+- Failure propagation inferred the wrong result type for non-numeric inners; task result
+  types fell back to `number` for reference results.
+
+### Notes
+
+- Some compiler tests are Linux-only: POSIX features (concurrency, subprocess, signals)
+  cannot be built by mingw, and the sanitizer runs are Linux-only.
+- Compiled concurrent programs are genuinely parallel, so the interpreter's deterministic
+  interleaving is not a specification. Concurrency tests assert order-independent
+  invariants.
 
 ---
 
