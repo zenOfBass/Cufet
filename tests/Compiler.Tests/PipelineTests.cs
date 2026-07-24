@@ -5150,6 +5150,86 @@ public class PipelineTests
         Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
     }
 
+    // ── Free-variable analysis: capture completeness ─────────────────────────
+    // `CollectRefsDefs` computes a closure's / task's captured free variables (refs − defs). Two
+    // gaps let a genuinely-free variable go uncaptured, each emitting an undeclared `cv_<name>`:
+    //   (a) an assignment TARGET is a bare string (`BecomesStatement.Name`), invisible to the
+    //       generic reflection walk — so a body that only WRITES a captured variable missed it;
+    //   (b) a nested binding form's params/iterator were added to the SHARED defs set, masking a
+    //       same-named OUTER variable across the whole enclosing body.
+    // Both were reachable and both produced gcc errors (loud, never silent).
+
+    [Fact]
+    public void Capture_WriteOnlyAssignment_IsCaptured()
+    {
+        // (a) The failing shape is a write with NO read: `x becomes 5`. A body that also reads the
+        // variable was rescued by the read — which is why `x becomes x + 1` always worked and this
+        // survived undetected. Captures are BY VALUE in both backends, so the enclosing binding is
+        // unchanged; the point is that it compiles and agrees with the oracle.
+        const string valueType = """
+            Bind number to outer-fn:
+                Define tally as 7.
+                Define f as a function: tally becomes 99. Done.
+                Cast f on ().
+                Return tally.
+            Done.
+            State cast outer-fn.
+            """;
+        Assert.Equal(Interpret(valueType), Compile(valueType));   // 7 — the closure wrote its own copy
+        const string regionType = """
+            Bind number to outer-fn:
+                Define store as a series of number with ().
+                Define fresh as a series of number with (7, 8, 9).
+                Define f as a function: store becomes fresh. Done.
+                Cast f on ().
+                Return the number of store.
+            Done.
+            State cast outer-fn.
+            """;
+        Assert.Equal(Interpret(regionType), Compile(regionType)); // 0 — likewise
+    }
+
+    [Fact]
+    public void Capture_OuterNameShadowedByNestedParam_StillCaptured()
+    {
+        // (b) The outer `limit` is referenced directly by the closure AND collides with a nested
+        // lambda's parameter name. The nested param must scope to its own body only — otherwise the
+        // outer `limit` looks defined, is never captured, and emits an undeclared `cv_limit`.
+        // Cufet's shadow check guards `Define` but not params/iterators, so this shape is legal.
+        const string src = """
+            Bind number to outer-fn:
+                Define limit as 7.
+                Define f as a function:
+                    Define g as a function given (the number limit): Return limit * 2. Done.
+                    Return limit + cast g on (3).
+                Done.
+                Return cast f on ().
+            Done.
+            State cast outer-fn.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));   // 13 = outer 7 + (3 * 2)
+    }
+
+    [Fact]
+    public void Capture_WriteOnlyAssignment_InTaskBody()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The same gap on the OTHER caller of CollectRefsDefs: a task's captures are the only
+        // declarations in its generated thread function, and the task-side capture guard is a TYPE
+        // guard that only inspects names already captured — so a missing name never reached it.
+        const string src = """
+            Pull a rabbit.
+                Define tally as 0.
+                Have rabbit start a task:
+                    tally becomes 5.
+                Done.
+            Done.
+            State "done".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     // ── E-prime exception-message arena lifetime ─────────────────────────────
     // The message is built by cufet_msgf in the arena live at the FAULT site, but the catch pops
     // every arena deeper than the Try before running the handler — so it used to dangle, and the

@@ -21,4 +21,13 @@
     <ProjectReference Include="..\..\src\Interpreter\Cufet.Interpreter.csproj" />
   </ItemGroup>
 
+  <!-- Soundness probe programs, run as fixtures by SoundnessFixtureTests. Copied next to the
+       test assembly so the tests find them by directory enumeration (see that file for the
+       filename convention that encodes each probe's expected outcome). -->
+  <ItemGroup>
+    <Content Include="..\fixtures\soundness\*.cufe"
+             Link="fixtures\soundness\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

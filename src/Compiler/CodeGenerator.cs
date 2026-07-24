@@ -5580,28 +5580,44 @@ static void* cufet_pipe_stage(void* argp) {
     // to them aren't counted as free. Free vars = refs − defs (computed by the caller).
     private void CollectRefsDefs(object? node, HashSet<string> refs, HashSet<string> defs)
     {
+        // A nested BINDING FORM (lambda / nested Bind / for-each) binds its params/iterator to its OWN
+        // body only. Walking it with the shared `defs` set would let those inner names mask an OUTER
+        // variable of the same name for the WHOLE enclosing body — the variable would then look
+        // "defined" and never be captured, emitting an undeclared `cv_<name>` (the same symptom as a
+        // missed ref). So recurse with a private scope and merge back only what is still free.
+        void Nested(IEnumerable<string> bound, IEnumerable<IStatement> body)
+        {
+            var innerDefs = new HashSet<string>(defs);
+            foreach (var b in bound) innerDefs.Add(b);
+            var innerRefs = new HashSet<string>();
+            foreach (var s in body) CollectRefsDefs(s, innerRefs, innerDefs);
+            foreach (var r in innerRefs) if (!innerDefs.Contains(r)) refs.Add(r);
+        }
+
         switch (node)
         {
             case null: return;
             case VariableReference v: refs.Add(v.Name); return;
+            // An assignment TARGET is a REFERENCE to an existing binding, but the name is a bare
+            // string — invisible to the generic reflection walk below (`case string: break`). Without
+            // this, a closure/task that only WRITES a captured variable never captures it and emits an
+            // undeclared `cv_<name>`. (A body that also reads it was rescued by the read, which is why
+            // this survived: `x becomes x + 1` works, `x becomes 5` did not.)
+            case BecomesStatement b: refs.Add(b.Name); CollectRefsDefs(b.Value, refs, defs); return;
             case DefineStatement d: defs.Add(d.Name); CollectRefsDefs(d.Value, refs, defs); return;
             case ForEachStatement fe:
-                if (fe.IteratorName != null) defs.Add(fe.IteratorName);
-                CollectRefsDefs(fe.Series, refs, defs);
-                foreach (var s in fe.Body) CollectRefsDefs(s, refs, defs);
+                CollectRefsDefs(fe.Series, refs, defs);   // the series expression is in the OUTER scope
+                Nested(fe.IteratorName != null ? [fe.IteratorName] : [], fe.Body);
                 return;
             case ForEachFromInputStatement fi:
-                defs.Add(fi.IteratorName);
-                foreach (var s in fi.Body) CollectRefsDefs(s, refs, defs);
+                Nested([fi.IteratorName], fi.Body);
                 return;
             case LambdaLiteral lam:
-                foreach (var (_, pn) in lam.Parameters) defs.Add(pn);
-                foreach (var s in lam.Body) CollectRefsDefs(s, refs, defs);
+                Nested(lam.Parameters.Select(p => p.Name), lam.Body);
                 return;
             case BindStatement nb:
-                defs.Add(nb.Name);
-                foreach (var (_, pn) in nb.Parameters) defs.Add(pn);
-                foreach (var s in nb.Body) CollectRefsDefs(s, refs, defs);
+                defs.Add(nb.Name);                        // the local function's NAME binds in the enclosing scope
+                Nested(nb.Parameters.Select(p => p.Name), nb.Body);
                 return;
         }
         // Generic: visit every IExpression / IStatement child, including tuple-wrapped ones
