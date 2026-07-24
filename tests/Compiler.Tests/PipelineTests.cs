@@ -4597,11 +4597,12 @@ public class PipelineTests
     }
 
     [Fact]
-    public void Closure_RegionCaptureEscapingRabbit_CleanThrow()
+    public void Closure_RegionCaptureEscapingRabbit_CopiedNotThrown()
     {
-        // The escape interim: a closure capturing a REGION value (series) inside a rabbit can't safely
-        // escape (its captured pointer dangles after Done.-pop). The front-end misses this (FunctionType
-        // isn't a tracked reference type), so the compiler clean-throws rather than emit a silent dangle.
+        // ESC.4 CONVERTED THIS FROM CL.3's clean-throw. A closure capturing a REGION value (series)
+        // inside a rabbit and escaping to a shallower depth used to be refused. Now the captured
+        // series is DEEP-COPIED into the destination's arena at capture time (its rabbit-local source
+        // dies at Done., so copy is observationally identical to sharing) — compiles and matches.
         const string src = """
             Define f as a function given (the number x): Return x. Done.
             Pull a rabbit.
@@ -4610,10 +4611,7 @@ public class PipelineTests
             Done.
             State cast f on (10).
             """;
-        var tokens  = new CufetLexer(src).Tokenize();
-        var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
-        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+        Assert.Equal(Interpret(src), Compile(src));
     }
 
     // ── Small edges: implicit-value capture + recursion ordering (closes the audit's small lines) ──
@@ -5022,6 +5020,134 @@ public class PipelineTests
         };
         foreach (var (t, expected) in corpus)
             Assert.Equal(expected, TypeChecker.IsRegionBearing(t));
+    }
+
+    // ── ESC.4 — closure capture escape (the last open UAF route) ─────────────
+    // A capture built inside a rabbit and stored into a longer-lived closure used to be: refused for
+    // series/map/matrix (CL.3's ad-hoc check), and a SILENT UAF for text (which laundered past it).
+    // Now every region-bearing capture that ESCAPES to a shallower depth is deep-copied into the
+    // destination's arena at capture time. Per-capture: `declaringDepth > destinationDepth → copy`,
+    // else share — so value snapshots and live-region sharing are both preserved.
+
+    [Fact]
+    public void Escape_ClosureCaptures_AllTypesFixed()
+    {
+        // The five leaking capture types, each was an ASan-verified UAF (text) or a clean-throw
+        // (series). All now compile + oracle-match. Function-wrapped (the reported reproducer shape).
+        const string text = """
+            Bind text to outer-fn:
+                Define f as a function: Return "start". Done.
+                Pull a rabbit.
+                    Define built as "a" joined to "b".
+                    f becomes a function: Return built. Done.
+                Done.
+                Return cast f on ().
+            Done.
+            State cast outer-fn.
+            """;
+        Assert.Equal(Interpret(text), Compile(text));
+        const string recordOfText = """
+            Bind text to outer-fn:
+                Define f as a function: Return "start". Done.
+                Pull a rabbit.
+                    Define built as a record with (the label ("a" joined to "b")).
+                    f becomes a function: Return the label of built. Done.
+                Done.
+                Return cast f on ().
+            Done.
+            State cast outer-fn.
+            """;
+        Assert.Equal(Interpret(recordOfText), Compile(recordOfText));
+        const string series = """
+            Bind number to outer-fn:
+                Define f as a function: Return 0. Done.
+                Pull a rabbit.
+                    Define nums as a series of number with (1, 2, 3).
+                    f becomes a function: Return the number of nums. Done.
+                Done.
+                Return cast f on ().
+            Done.
+            State cast outer-fn.
+            """;
+        Assert.Equal(Interpret(series), Compile(series));
+    }
+
+    [Fact]
+    public void Escape_ClosureCapture_SemanticsPreserved()
+    {
+        // Snapshot (value capture, mutate enclosing after → old value seen: CL.2's 15-not-105) and
+        // share (region capture, mutate instance after → new state seen: CL.2's 14-family) must both
+        // survive — copy happens only ON ESCAPE, and only for deeper-than-destination captures.
+        const string snapshot = """
+            Bind number to make:
+                Define factor as 5.
+                Define f as a function: Return factor * 3. Done.
+                factor becomes 35.
+                Return cast f on ().
+            Done.
+            State cast make.
+            """;
+        Assert.Equal(Interpret(snapshot), Compile(snapshot));   // 15, not 105
+        const string share = """
+            Bind number to make:
+                Define nums as a series of number with (1, 2, 3).
+                Define f as a function: Return the number of nums. Done.
+                Add 99 to nums.
+                Return cast f on ().
+            Done.
+            State cast make.
+            """;
+        Assert.Equal(Interpret(share), Compile(share));         // 4 — sees the post-capture Add
+    }
+
+    [Fact]
+    public void Escape_NonEscapingClosure_NotRefused_NoCopy()
+    {
+        // ★ CL.3 OVER-REFUSED this — a region-capturing closure used entirely WITHIN its rabbit is
+        // safe, but the old `_rabbitDepth > 0` guard rejected it. Now it compiles, and emits no copy.
+        const string src = """
+            Pull a rabbit.
+                Define nums as a series of number with (1, 2, 3).
+                Define f as a function: Return the number of nums. Done.
+                State cast f on ().
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+        Assert.DoesNotContain("escapecopy(", GenerateC(src));
+        // make-adder: a value capture returned out of a function (safe by don't-pop) — no copy.
+        const string adder = """
+            Bind number function to make-adder, given (the number n):
+                Return a function: Return n + 10. Done.
+            Done.
+            Define add10 as cast make-adder on (5).
+            State cast add10 on ().
+            """;
+        Assert.Equal(Interpret(adder), Compile(adder));
+        Assert.DoesNotContain("escapecopy(", GenerateC(adder));
+    }
+
+    [Fact]
+    public void Escape_IndirectClosureStore_RefusedNotDangled()
+    {
+        // A closure stored via an INTERMEDIATE variable then escaping can't be copied (its env is
+        // opaque once built), so it is refused loudly rather than left to dangle. (ESC.4's boundary:
+        // the escaping closure must be created directly in the store.)
+        const string src = """
+            Bind number to outer-fn:
+                Define f as a function: Return 0. Done.
+                Pull a rabbit.
+                    Define nums as a series of number with (1, 2, 3).
+                    Define g as a function: Return the number of nums. Done.
+                    f becomes g.
+                Done.
+                Return cast f on ().
+            Done.
+            State cast outer-fn.
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
     }
 
     // ── E-prime exception-message arena lifetime ─────────────────────────────

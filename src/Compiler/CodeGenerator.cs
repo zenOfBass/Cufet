@@ -92,6 +92,7 @@ public sealed class CodeGenerator
         _taskFns.Clear(); _closureFns.Clear(); _closureEnvs.Clear(); _preEmits.Clear();
         _openFiles.Clear(); _loopFileDepths.Clear(); _loopExcDepths.Clear();
         _rabbitCtx.Clear(); _rabbitDepth = 0; _excOpen = 0;
+        _varRabbitDepth.Clear(); _closureEscapeDepth = null;
         _narrowedVars.Clear(); _currentFailVar = null; _closureSelf = null; _currentTaskReturn = null;
         // The channel deep-copy registry IS reset: an OPEN union's TypeSig is the constant "U(*)"
         // regardless of its discovered case set, so a union registered during an early iteration
@@ -283,6 +284,14 @@ public sealed class CodeGenerator
     private int _taskCounter;
     private readonly List<string> _rabbitCtx = new();   // suffix N of cf_thr{N}/cf_chan{N} per open rabbit
     private int _rabbitDepth;   // open `Pull a rabbit` arena scopes (concurrency-independent; escape guard)
+    // ESC.4 — each in-scope variable's DECLARING rabbit depth (mirrors the checker's TypeInfo.RabbitDepth).
+    // Used to decide, per closure CAPTURE, whether it escapes the closure's destination: a capture
+    // declared DEEPER than the closure's destination depth must be copied (its source dies first);
+    // one declared at or above the destination is shared (its source outlives the destination).
+    private readonly Dictionary<string, int> _varRabbitDepth = new();
+    // The destination rabbit depth of the closure currently being emitted, if it escapes there
+    // (threaded from the escaping store's RHS); null ⇒ non-escaping, share captures as before.
+    private int? _closureEscapeDepth;
 
     // CONC.C — named tasks + `the awaited result of`. Per named task in scope: the enclosing rabbit
     // suffix (Ctx), the C type of its heap-bridged result, and its inferred result type (which may be
@@ -3319,17 +3328,29 @@ static void* cufet_pipe_stage(void* argp) {
     {
         if (escapeToDepth is not { } d || valueType == null) return valueExpr;
         if (!TypeChecker.IsRegionBearing(valueType)) return valueExpr;
+        // A CLOSURE value escaping through a store is the indirect case: its env is an opaque void*,
+        // so it can't be deep-copied here — its captures had to be copied at CREATION (ESC.4, when
+        // the env struct type is known). A closure that escapes must therefore be created directly in
+        // the escaping store; refuse the indirect form loudly rather than dangle.
+        if (valueType is FunctionType)
+            throw new CompilerException(
+                "a closure that captures a rabbit-scoped value can only escape its rabbit when it is " +
+                "created directly in the escaping store (e.g. `outer becomes a function: … Done.`), not " +
+                "stored via an intermediate variable first. Inline the closure at the point it escapes.");
         int idx;
         try { idx = RegisterChanElem(valueType, isTop: false); }
-        catch (CompilerException) { return valueExpr; }   // not copy-expressible yet (ESC.4)
+        catch (CompilerException) { return valueExpr; }   // not copy-expressible yet
         _escapeElems.Add(TypeSig(valueType));
         return $"cchan_{idx}_escapecopy({valueExpr}, {EscapeArenaDepth(d)})";
     }
 
-    private (int Depth, string? Base, string? ArenaBase) EnterFrame(StringBuilder sb, string indent)
+    private (int Depth, string? Base, string? ArenaBase, int Rabbit) EnterFrame(StringBuilder sb, string indent)
     {
-        var saved = (_scopeDepth, _frameUnmakerBase, _frameArenaBase);
+        var saved = (_scopeDepth, _frameUnmakerBase, _frameArenaBase, _rabbitDepth);
         _scopeDepth = 0;
+        // A frame body starts outside any rabbit region (the checker resets rabbit depth per frame),
+        // so the destination-depth arithmetic here lines up with the checker's EscapeToDepth.
+        _rabbitDepth = 0;
         if (UsesUnmakers)
         {
             string v = $"cf_umb{_freshId++}";
@@ -3345,11 +3366,12 @@ static void* cufet_pipe_stage(void* argp) {
         return saved;
     }
 
-    private void ExitFrame((int Depth, string? Base, string? ArenaBase) saved)
+    private void ExitFrame((int Depth, string? Base, string? ArenaBase, int Rabbit) saved)
     {
         _scopeDepth = saved.Depth;
         _frameUnmakerBase = saved.Base;
         _frameArenaBase = saved.ArenaBase;
+        _rabbitDepth = saved.Rabbit;
     }
 
     // A BLOCK scope (rabbit / book / try-arm / with / if-arm / pipe-consumer) — the interpreter's
@@ -3467,6 +3489,7 @@ static void* cufet_pipe_stage(void* argp) {
                 FlushPreEmits(sb, indent);
                 var vt = TypeOf(d.Value);
                 _varTypes[d.Name] = vt;
+                _varRabbitDepth[d.Name] = _rabbitDepth;   // ESC.4 — declaring depth for capture-escape
                 // 'permanently' fixes the binding — const on the value's C type. Series/maps
                 // are arena pointers; leave those non-const (const applies to value types).
                 bool constable = vt is NumberType or FactType or TextType or RecordType;
@@ -3485,10 +3508,16 @@ static void* cufet_pipe_stage(void* argp) {
             {
                 // Coerce so `x becomes 5` / `x becomes void` widens into x's voidable type.
                 _varTypes.TryGetValue(b.Name, out var targetType);
+                // ESC.4: a closure literal on the RHS handles its own capture-escape at creation (its
+                // env is opaque afterwards). Thread the depth in, and don't re-copy the built cfn.
+                bool rhsClosure = b.Value is LambdaLiteral;
+                if (rhsClosure) _closureEscapeDepth = b.EscapeToDepth;
                 string valExpr = EmitAsType(b.Value, targetType);
+                _closureEscapeDepth = null;
                 // ESC.2: if the checker flagged this store as escaping (the value belongs to a
                 // shorter-lived rabbit than the destination), deep-copy it into the destination's arena.
-                valExpr = EmitEscapeCopy(valExpr, targetType ?? TypeOf(b.Value), b.EscapeToDepth);
+                if (!rhsClosure)
+                    valExpr = EmitEscapeCopy(valExpr, targetType ?? TypeOf(b.Value), b.EscapeToDepth);
                 FlushPreEmits(sb, indent);
                 sb.AppendLine($"{indent}{MangleName(b.Name)} = {valExpr};");
                 _narrowedVars.Remove(b.Name);   // reassignment clears any active narrowing
@@ -4055,6 +4084,7 @@ static void* cufet_pipe_stage(void* argp) {
         string raw = fe.IteratorName ?? "it";
         var saved = _varTypes.TryGetValue(raw, out var prev) ? prev : null;
         _varTypes[raw] = TNumber;
+        _varRabbitDepth[raw] = _rabbitDepth;   // ESC.4
         EmitLoopBody(sb, fe.Body, loopIndent);
         if (saved != null) _varTypes[raw] = saved; else _varTypes.Remove(raw);
         sb.AppendLine($"{inner}}}");
@@ -4083,6 +4113,7 @@ static void* cufet_pipe_stage(void* argp) {
         // print/access/equality correctly (mirrors the map-pair foreach).
         var savedType = _varTypes.TryGetValue(rawName, out var prev) ? prev : null;
         _varTypes[rawName] = elem;
+        _varRabbitDepth[rawName] = _rabbitDepth;   // ESC.4
 
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{inner}{name}* {ser} = {serExpr};");
@@ -4113,6 +4144,7 @@ static void* cufet_pipe_stage(void* argp) {
 
         var savedType = _varTypes.TryGetValue(fe.IteratorName ?? "it", out var prev) ? prev : null;
         _varTypes[fe.IteratorName ?? "it"] = new MappingType(mt.KeyType, mt.ValueType);
+        _varRabbitDepth[fe.IteratorName ?? "it"] = _rabbitDepth;   // ESC.4
 
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{inner}{name}* {m} = {mapExpr};");
@@ -6136,19 +6168,17 @@ static void* cufet_pipe_stage(void* argp) {
         if (selfName != null) free.Remove(selfName);   // recursion is by-name (self-call), not captured
         string? capturedFailVar = capturesFailure ? _currentFailVar : null;   // the enclosing Try's CufetFailure
 
-        // ESCAPE INTERIM (region-capture-escaping-a-rabbit): a closure capturing a REGION value
-        // (series/map/matrix) inside a rabbit holds a pointer INTO the rabbit's arena; if the closure
-        // outlives the rabbit (stored outward), that pointer dangles after Done.-pop. The front-end's
-        // outward-only-store invariant catches this for a bare region value but NOT for a closure
-        // (FunctionType isn't a tracked reference type there), so guard it here — a safe, honest
-        // clean-throw rather than a silent dangle. Value captures are self-contained (snapshot) and
-        // escape safely (return-out-of-rabbit is leak-safe via the skipped arena_pop, like a series
-        // returned out of a Pull). Precise escape analysis (allowing safe local uses) is its own arc.
-        static bool IsRegion(CufetType t) => t is SeriesType or MapType or MatrixType;
-        if (_rabbitDepth > 0 && free.FirstOrDefault(v => IsRegion(savedVT[v])) is { } rv)
-            throw new CompilerException(
-                $"a closure capturing the region value '{rv}' (series/map/matrix) inside a rabbit can't safely escape the rabbit yet — its captured pointer would dangle after the rabbit's Done. " +
-                "Restructure so the closure doesn't outlive its rabbit, or capture a snapshot. (This is the arena-escape-analysis arc.)");
+        // ESC.4 — capture-escape. If this closure ESCAPES to a shallower depth T (threaded from the
+        // escaping store's RHS via `_closureEscapeDepth`), each region-bearing capture DECLARED
+        // DEEPER than T would dangle after its rabbit's Done.-pop, so it is deep-copied into T's arena
+        // at capture time (the ESC.2 copy family). A capture declared at or above T is left shared —
+        // its source outlives the destination, so sharing stays correct. And when a closure escapes,
+        // any deeper capture's SOURCE is necessarily in a rabbit that pops before the destination is
+        // read, so the copy is observationally identical to sharing (nothing can mutate a dead
+        // source) — value snapshots and live-region sharing are both preserved.
+        int? escTo = _closureEscapeDepth; _closureEscapeDepth = null;   // consume (this closure's, not a nested one's)
+        bool Escapes(string v) =>
+            escTo is { } t && TypeChecker.IsRegionBearing(savedVT[v]) && CaptureDepth(v) > t;
 
         var ret = InferBodyReturnTypeWithParams(parameters, body);
         var ft = new FunctionType(parameters.Select(p => p.Type).ToList(), ret);
@@ -6217,19 +6247,36 @@ static void* cufet_pipe_stage(void* argp) {
         _varTypes.Clear();
         foreach (var kv in savedVT) _varTypes[kv.Key] = kv.Value;
 
-        // At the site: allocate + populate the env (in the creating scope's arena), yield the closure value.
+        // At the site: allocate + populate the env, yield the closure value. When the closure escapes
+        // (escTo set), the env struct itself AND each escaping capture are allocated in the
+        // destination's arena; non-escaping captures are stored as-is (shared/snapshotted at the
+        // creating scope, exactly as before).
         if (envType != null)
         {
             string envVar = $"cf_cenv{id}";
-            _preEmits.Add($"{envType}* {envVar} = ({envType}*)cufet_arena_alloc(sizeof({envType}));");
+            // The env record must live at the destination too (else the struct dangles even if its
+            // fields don't) — allocate at escTo's arena depth via the ESC.2 allocation override.
+            string envAlloc = escTo is { } et
+                ? $"({envType}*)cufet_arena_alloc_at({EscapeArenaDepth(et)}, sizeof({envType}))"
+                : $"({envType}*)cufet_arena_alloc(sizeof({envType}))";
+            _preEmits.Add($"{envType}* {envVar} = {envAlloc};");
             foreach (var v in free)
-                _preEmits.Add($"{envVar}->{MangleName(v)} = {EmitExpr(new VariableReference(v, line))};");
+            {
+                string capExpr = EmitExpr(new VariableReference(v, line));
+                if (Escapes(v)) capExpr = EmitEscapeCopy(capExpr, savedVT[v], escTo);   // ESC.4 deep-copy outward
+                _preEmits.Add($"{envVar}->{MangleName(v)} = {capExpr};");
+            }
             // `the failure` isn't a VariableReference target — copy the enclosing Try's CufetFailure.
             if (capturesFailure) _preEmits.Add($"{envVar}->{capFailField} = {capturedFailVar};");
             return $"({cfn}){{ .fn = {clos}, .env = {envVar} }}";
         }
         return $"({cfn}){{ .fn = {clos}, .env = NULL }}";
     }
+
+    // A captured variable's declaring rabbit depth. Tracked at the in-rabbit birth sites (Define,
+    // foreach iterators); anything untracked is a frame-base binding (param / `one` / with-binding),
+    // which lives at depth 0 (outer) and is safe to share.
+    private int CaptureDepth(string name) => _varRabbitDepth.TryGetValue(name, out var d) ? d : 0;
 
     private CufetType? InferBodyReturnTypeWithParams(IReadOnlyList<(CufetType Type, string Name)> parameters, IReadOnlyList<IStatement> body)
     {
