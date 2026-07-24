@@ -80,12 +80,24 @@ src/
     Interpreter.Channels.cs             — channel runtime + deep-copy-at-send
     Interpreter.Tasks.cs                — task-result runtime
     Interpreter.Pipes.cs                — streaming pipe runtime
-  App/             Cufet.App            — thin console entry point
+  Compiler/        Cufet.Compiler       — native backend (AST → C source → gcc):
+    CodeGenerator.cs                    — the emitter; also hosts the C runtime as raw-string consts
+                                          (arena, software decimal, text, files, threads, signals)
+    GccInvoker.cs                       — shells out to gcc
+    CompilerException.cs                — clean deferral / refusal type
+  App/             Cufet.App            — thin console entry point (interpret / build / emit-c)
 tests/
   Lexer.Tests/     Cufet.Lexer.Tests
   Interpreter.Tests/  Cufet.Interpreter.Tests   (InterpreterTests.cs + many feature-specific test files)
+  Compiler.Tests/  Cufet.Compiler.Tests  — oracle tests: compiled output vs. interpreted output
+  fixtures/soundness/                   — region-model probe programs (see that folder's README)
 examples/          .cufe example programs
 ```
+
+**The lexer, parser, and type checker are shared by both backends.** A front-end change
+affects interpreted and compiled programs alike — which is why the checker is the right
+place for a rule that must hold everywhere, and the wrong place for one backend's
+limitation.
 
 **Navigation tip:** the TypeChecker and Interpreter are split into partial class
 files by feature area. Use `grep`/search to locate a construct — there is no
@@ -98,7 +110,8 @@ splitting would scatter coupled code.
 
 ## How to build and test
 
-Requires [.NET 10 SDK](https://dotnet.microsoft.com/download).
+Requires [.NET 10 SDK](https://dotnet.microsoft.com/download), plus **gcc on `PATH`**
+for the compiler tests — they emit C and shell out to it.
 
 ```
 # Run all tests (the green baseline)
@@ -107,16 +120,30 @@ dotnet test Cufet.sln
 # Run a Cufet program
 dotnet run --project src\App\Cufet.App.csproj -- myprogram.cufe
 
-# Or pipe from stdin
-echo "State 1 + 1." | dotnet run --project src\App\Cufet.App.csproj
+# Compile it to a native binary instead
+dotnet run --project src\App\Cufet.App.csproj -- build myprogram.cufe
+
+# Emit the generated C without compiling (cross-toolchain builds, inspection)
+dotnet run --project src\App\Cufet.App.csproj -- emit-c myprogram.cufe myprogram.c
 ```
 
-The current test baseline is **1187 interpreter + 140 lexer = 1327 tests**, all
-green. The exact total wobbles with feature churn; what matters is the floor:
-the load-bearing guarantee tests (soundness `escape-*`, concurrency
-`join`/`close`/`deep-copy-isolation`, fallibility, map-key constraint) must
-stay present and passing. A contribution should leave all tests passing and
-should add tests for any new behavior.
+The test baseline is roughly **1200 interpreter + 150 lexer + 300 compiler**, all
+green. The exact total wobbles with feature churn; what matters is the floor —
+the load-bearing guarantee tests must stay present and passing:
+
+- **Compiler oracle tests** (`tests/Compiler.Tests/PipelineTests.cs`) are now the primary
+  correctness bar. Each compiles a program, runs the binary, and asserts its output equals
+  the interpreter's. If the two disagree, that is a bug in one of them, never a caveat.
+- **Soundness fixtures** (`tests/fixtures/soundness/`) pin the region model — six programs
+  that must be rejected, three that must compile and match.
+- Concurrency `join`/`close`/`deep-copy-isolation`, fallibility, map-key constraint.
+
+Some compiler tests are **Linux-only** and early-return elsewhere: anything using POSIX
+features (concurrency, subprocess, signals) can't be built by mingw, and the
+sanitizer runs (ASan/LSan/TSan) are Linux-only too. Run the suite under WSL or Linux
+before claiming a concurrency or memory-safety change is green.
+
+A contribution should leave all tests passing and should add tests for any new behavior.
 
 ---
 
@@ -131,6 +158,8 @@ nice-to-have. When you add or change language behavior:
 | New built-in behavior | REFERENCE.md (relevant section) |
 | New planned/done feature | ROADMAP.md (What's built or Planned features) |
 | New design decision / rationale | ROADMAP.md Design decisions section |
+| **New compiler slice / codegen change** | **CHANGELOG.md `[Unreleased]`; ROADMAP.md if it closes a planned item** |
+| **A backend divergence found or closed** | **CHANGELOG.md, and the rule below** |
 | Released (minor version bump) | CHANGELOG.md, README.md, REFERENCE.md header, .csproj files |
 
 Docs that go stale are worse than no docs. If code and docs disagree, the code
@@ -170,7 +199,35 @@ ROADMAP.md Design decisions.
 
 ---
 
-## Known pre-native debts a contributor could take on
+## The two-backend rule
+
+The interpreter is the **oracle**. A program's compiled output must equal its
+interpreted output. This is the project's central correctness discipline, and it has
+one sharp edge worth stating plainly:
+
+> **A divergence never ships as a documented caveat.** If the same program takes a
+> different branch, or prints something different, compiled versus interpreted, that
+> is a bug in one of them. Either make it precise on both sides, or have the compiler
+> **refuse** — a clean `CompilerException` is honest; silence is not.
+
+The narrow exception is behavior that is *genuinely* undefined or platform-owned, where
+there is no single right answer to converge on: last-ULP differences in `pow`
+(`Math.Pow` *is* the platform libm), filesystem enumeration order, ASCII-vs-locale
+casing. Two well-defined behaviors differing is never in that category.
+
+Two consequences for contributors:
+
+- **Measure the interpreter before deciding anything.** When a design question has a
+  "what does the reference actually do?" component, go and run it. This repeatedly
+  overturned reasonable-sounding assumptions and caught unsoundness that reasoning
+  alone missed.
+- **Sweep the whole class.** A fix that closes only the case you noticed is not a fix.
+  If a bug came from a missing entry in a list, ask whether the list is the wrong
+  shape.
+
+---
+
+## Known debts a contributor could take on
 
 These are open tasks that are explicitly tracked, not forgotten:
 
@@ -179,23 +236,24 @@ These are open tasks that are explicitly tracked, not forgotten:
   principled keyword exclusion) closed the observed bug class; Approach B (explicit
   type-annotation contexts, so the parser knows from position whether it's in a
   type-annotation or an expression) eliminates the remaining theoretical fragility.
-  Best done once, deliberately, when the parser's syntax is feature-complete.
-
-- **True preemptive SIGINT** — the cooperative concurrency core (v0.9.0) added
-  `Yield.` as an explicit yield-and-interrupt-checkpoint, so programs that yield
-  naturally are interruptible. The remaining gap: a tight loop with no `Yield.`
-  still cannot be mid-loop interrupted. True preemption requires native threading
-  infrastructure and is deferred to the native era.
+  Its stated precondition — that the parser's syntax be feature-complete — is now met.
 
 - **Formal soundness proof / fresh-eyes red-team** — the three-hole adversarial arc
   (all closed) was adversarial-find-and-fix, not a formal proof. A contributor with
   a background in type theory could take on a formal proof of the outward-only
   invariant, or a fresh-eyes red-team to look for holes that the original arc missed.
-  This is a reasonable pre-native rung before committing the memory model to hardware.
+  The native backend makes this more valuable, not less: the interpreter's GC forgives
+  a region error that compiled code turns into a use-after-free.
 
-- **Pull-a-rabbit task-lifetime semantics** — the concurrency core (v0.9.0)
-  built cooperative tasks, channels, results, and pipes. The remaining native-era
-  items: pull-a-rabbit for a task's physical memory lifetime (arena/ownership
-  scope), true fan-out distribution under OS-thread scheduling, and
-  move-semantics at channel send (instead of deep copy). These require the
-  native backend; none are interpreter-era work.
+- **Move-semantics at channel send** — sends currently deep-copy the value across the
+  thread boundary, which is sound but not free. A move (with the sender's binding
+  invalidated) would avoid the copy.
+
+- **Documentation catch-up** — REFERENCE.md has no sections for concurrency, streaming
+  pipes, regions (`Pull a rabbit`), the standard-library books, matrix, or operator
+  overloading, all of which ship in both backends. That is the largest body of
+  undocumented working surface in the repo.
+
+*(Previously listed here and since completed: true preemptive SIGINT, task-lifetime
+memory scoping, and fan-out distribution under OS threads — all shipped with the
+native backend.)*
