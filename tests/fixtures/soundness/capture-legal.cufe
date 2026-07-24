@@ -1,3 +1,17 @@
+[[ EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+   Legal captures — none of these escape a region, so the outward-only invariant
+   has nothing to refuse. Each closure captures an enclosing binding and WRITES to it.
+
+   ★ Captures are BY VALUE in both backends, so a write through a capture updates the
+   closure's OWN copy and the enclosing binding is unchanged. Every line below therefore
+   prints 0, not the written value. Write-back through a capture is not a language
+   feature, and this file pins that down.
+
+   This file is also the regression case for the capture-completeness bug: a body that
+   only WRITES a captured variable (never reads it) used to leave the variable
+   uncaptured, emitting an undeclared C variable. ]]
+
 Bind number to run-size, given (the series of number s):
     Define count as 0.
     Bind void to measure, given ():
@@ -13,7 +27,7 @@ Bind void to run-value, given (the number n):
         tally becomes tally + n.
     Done.
     Cast add-n on ().
-    State "Tally: {tally}".
+    State "Write through a value capture (enclosing unchanged, expect 0): {tally}".
 Done.
 
 Bind void to run-local, given ():
@@ -23,13 +37,13 @@ Bind void to run-local, given ():
         store becomes fresh.
     Done.
     Cast fill on ().
-    State "Local capture store: {the number of store}".
+    State "Write through a region capture (enclosing unchanged, expect 0): {the number of store}".
 Done.
 
 Pull a rabbit.
     Define inner as a series of number with (1, 2, 3).
     Define n as Cast run-size on (inner).
-    State "Read-only capture (size): {n}".
+    State "Write to a captured local from a closure (enclosing unchanged, expect 0): {n}".
 Done.
 Cast run-value on (42).
 Cast run-local on ().
