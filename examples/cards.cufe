@@ -9,8 +9,8 @@ Define the object deck with (the series of card cards):
         Return the number of one's cards.
     Done.
 
-    Bind void to shuffle, given (the number seed):
-        Define current-seed as seed.
+    Bind void to shuffle, given (the number start-seed):
+        Define current-seed as start-seed.
         Define i as the number of one's cards.
         While i is greater than 1, repeat:
             current-seed becomes (current-seed * 6521 + 791) % 1000000.
