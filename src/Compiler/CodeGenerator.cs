@@ -404,7 +404,11 @@ static _Thread_local int cufet_num = 0;
 static _Thread_local int cufet_exc_um[CUFET_EXC_MAX];
 static void cufet_reg_unmaker(void* o, void (*f)(void*)) { if (cufet_num < CUFET_UNMAKERS_MAX) { cufet_um_obj[cufet_num] = o; cufet_um_fn[cufet_num] = f; cufet_num++; } }
 static void cufet_run_unmakers_to(int n) { while (cufet_num > n) { cufet_num--; cufet_um_fn[cufet_num](cufet_um_obj[cufet_num]); } }
-static void* cufet_arena_alloc(size_t size);   /* defined with the arena, below */
+static void* cufet_arena_alloc(size_t size);            /* defined with the arena, below */
+static void* cufet_arena_alloc_at(int depth, size_t size);
+/* Arena depth at each Try's setjmp — the exception MESSAGE is copied into that arena at raise time
+   (see cufet_raise) so it survives the arena pops the catch performs on the way in. */
+static _Thread_local int cufet_exc_arena[CUFET_EXC_MAX];
 static const char* cufet_msgf(const char* fmt, ...) {
     va_list ap; va_start(ap, fmt);
     va_list ap2; va_copy(ap2, ap);
@@ -416,7 +420,24 @@ static const char* cufet_msgf(const char* fmt, ...) {
     return b;
 }
 static void cufet_raise(const char* msg) {
-    if (cufet_exc_top >= 0) { cufet_exc_msg = msg; cufet_run_unmakers_to(cufet_exc_um[cufet_exc_top]); longjmp(cufet_exc_bufs[cufet_exc_top], 1); }
+    if (cufet_exc_top >= 0) {
+        /* ★ MESSAGE LIFETIME: cufet_msgf allocates in the arena live at the FAULT site, but the catch
+           pops every arena deeper than the Try before running the handler — so the message would
+           dangle (and its block get reused by the next arena_alloc, reading back as another string).
+           Copy it into the TARGET handler's OWN arena, which the catch never pops: that arena outlives
+           the handler, and a re-raise outward re-copies into the next handler's arena. Arena-managed,
+           so there is no malloc/free discipline and no leak. A raise with no handler needs no copy —
+           nothing has been popped yet and we print and exit immediately. */
+        if (msg) {
+            size_t n = strlen(msg) + 1;
+            char* b = (char*)cufet_arena_alloc_at(cufet_exc_arena[cufet_exc_top], n);
+            memcpy(b, msg, n);
+            msg = b;
+        }
+        cufet_exc_msg = msg;
+        cufet_run_unmakers_to(cufet_exc_um[cufet_exc_top]);
+        longjmp(cufet_exc_bufs[cufet_exc_top], 1);
+    }
     fprintf(stderr, "%s\n", msg);
     exit(1);
 }
@@ -1475,15 +1496,21 @@ static void* cufet_pipe_stage(void* argp) {
         sb.AppendLine("    cufet_arenas[cufet_arena_top].cap  = 0;");
         sb.AppendLine("}");
         sb.AppendLine();
-        sb.AppendLine("static void* cufet_arena_alloc(size_t size) {");
+        // Allocate into a SPECIFIC arena depth (not just the top). Used by cufet_raise to place an
+        // exception message in the target handler's arena, so it outlives the pops the catch does.
+        sb.AppendLine("static void* cufet_arena_alloc_at(int depth, size_t size) {");
         sb.AppendLine("    void* p = malloc(size);");
-        sb.AppendLine("    CufetArena* a = &cufet_arenas[cufet_arena_top];");
+        sb.AppendLine("    CufetArena* a = &cufet_arenas[depth];");
         sb.AppendLine("    if (a->len == a->cap) {");
         sb.AppendLine("        a->cap  = a->cap == 0 ? 8 : a->cap * 2;");
         sb.AppendLine("        a->ptrs = (void**)realloc(a->ptrs, (size_t)a->cap * sizeof(void*));");
         sb.AppendLine("    }");
         sb.AppendLine("    a->ptrs[a->len++] = p;");
         sb.AppendLine("    return p;");
+        sb.AppendLine("}");
+        sb.AppendLine();
+        sb.AppendLine("static void* cufet_arena_alloc(size_t size) {");
+        sb.AppendLine("    return cufet_arena_alloc_at(cufet_arena_top, size);");
         sb.AppendLine("}");
         sb.AppendLine();
         sb.AppendLine("static void cufet_arena_pop(void) {");
@@ -4077,6 +4104,9 @@ static void* cufet_pipe_stage(void* argp) {
             // Record the unmaker-registry depth for THIS Try, so cufet_raise runs the pending
             // unmakers (LIFO, while their C-stack objects are still live) down to here before longjmp.
             if (UsesUnmakers) sb.AppendLine($"{inner}cufet_exc_um[cufet_exc_top] = {umSnap};");
+            // Record THIS Try's arena depth so cufet_raise can copy the message into an arena the
+            // catch below never pops (the catch pops only arenas DEEPER than cf_xa).
+            sb.AppendLine($"{inner}cufet_exc_arena[cufet_exc_top] = cf_xa{id};");
             _excOpen++;
         }
 

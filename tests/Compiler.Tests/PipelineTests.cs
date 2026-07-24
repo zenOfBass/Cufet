@@ -4834,6 +4834,126 @@ public class PipelineTests
         Assert.Equal(Interpret(nested), Compile(nested));
     }
 
+    // ── E-prime exception-message arena lifetime ─────────────────────────────
+    // The message is built by cufet_msgf in the arena live at the FAULT site, but the catch pops
+    // every arena deeper than the Try before running the handler — so it used to dangle, and the
+    // freed block was promptly REUSED by the next arena allocation (a message read back as the very
+    // string being concatenated). Fixed by copying the message into the TARGET handler's own arena
+    // at raise time (cufet_exc_arena[] + cufet_arena_alloc_at), which the catch never pops; a
+    // re-raise re-copies outward. Arena-managed ⇒ no malloc/free discipline, no leak.
+
+    [Fact]
+    public void Exception_Message_SurvivesArenaPop_AcrossRabbitBoundary()
+    {
+        // The fault happens inside a rabbit (a DEEPER arena) and is caught outside it.
+        const string src = """
+            Try to:
+                Pull a rabbit.
+                    State "before fault".
+                    State 1 / 0.
+                Done.
+            Done.
+            In case of exception (the exception):
+                State "caught: " joined to the message of the exception.
+                Suppress the exception.
+            Done.
+            State "after".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Exception_Message_SurvivesReRaise_ThroughNestedTrys()
+    {
+        // Inner catches and re-raises (the default — no Suppress); the outer handler must still read
+        // the ORIGINAL message intact, which requires the re-raise to re-copy it outward.
+        const string src = """
+            Try to:
+                Try to:
+                    Pull a rabbit.
+                        State 1 / 0.
+                    Done.
+                Done.
+                In case of exception (the exception):
+                    State "inner: " joined to the message of the exception.
+                Done.
+            Done.
+            In case of exception (the exception):
+                State "outer: " joined to the message of the exception.
+                Suppress the exception.
+            Done.
+            State "after".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Exception_Message_NoClobber_WhenRaisedInsideAHandler()
+    {
+        // A SECOND exception is raised while the first message is still live and still readable.
+        // A single shared message buffer would clobber here; per-Try arena ownership does not.
+        const string src = """
+            Try to:
+                Try to:
+                    Pull a rabbit.
+                        State 1 / 0.
+                    Done.
+                Done.
+                In case of exception (the exception):
+                    State "inner-before: " joined to the message of the exception.
+                    Pull a rabbit.
+                        State 5 % 0.
+                    Done.
+                    State "inner-after: " joined to the message of the exception.
+                Done.
+            Done.
+            In case of exception (the exception):
+                State "outer: " joined to the message of the exception.
+                Suppress the exception.
+            Done.
+            State "after".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Failure_ArenaTemplatedMessage_SurvivesAcrossRabbitBoundary()
+    {
+        // The SIBLING SWEEP: I/O failure messages are arena-templated too (cufet_arena_msg). They are
+        // NOT affected — the failure path is a compile-time goto that deliberately does not pop
+        // arenas (only the exception catch does). Locked so the asymmetry stays intentional.
+        const string caught = """
+            Try to:
+                Pull a rabbit.
+                    State "before read".
+                    Define body-text as read all from the file "definitely-not-here-12345.txt".
+                    State body-text.
+                Done.
+            Done.
+            In case of failure:
+                State "failed: " joined to the message of the failure.
+            Done.
+            State "after".
+            """;
+        Assert.Equal(Interpret(caught), Compile(caught));
+        const string propagated = """
+            Bind text or failure to grab:
+                Pull a rabbit.
+                    Define c as read all from the file "nope-98765.txt" or pass the failure off.
+                    Return c.
+                Done.
+            Done.
+            Try to:
+                Define r as cast grab.
+                State r.
+            Done.
+            In case of failure:
+                State "propagated: " joined to the message of the failure.
+            Done.
+            """;
+        Assert.Equal(Interpret(propagated), Compile(propagated));
+    }
+
     [Fact]
     public void IsA_EmptyContainers_AnsweredByDeclaredType()
     {
@@ -5876,8 +5996,11 @@ public class PipelineTests
     {
         // On an exception unwind, unmakers run (LIFO) BEFORE the handler — cufet_raise runs them
         // while their C-stack objects are still live, then longjmps. Cross-frame: a callee-frame
-        // block's unmaker fires, then the outer block's. (Handler Suppresses to avoid the pre-existing
-        // E-prime re-raise-message-lifetime bug — see the audit; orthogonal to unmakers.)
+        // block's unmaker fires, then the outer block's.
+        // ★ The inner handler's `Suppress` WORKAROUND IS GONE (it was there only for the E-prime
+        // message-lifetime bug, now fixed): the exception RE-RAISES out of the inner handler and the
+        // outer handler READS its message — proving the message survives both the inner catch's
+        // arena pops and the re-raise, while the unmaker ordering is unchanged.
         const string src = UnmakerHdr + """
             Bind number to deep:
                 Pull a rabbit.
@@ -5887,15 +6010,20 @@ public class PipelineTests
                 Done.
             Done.
             Try to:
-                Pull a rabbit.
-                    Define outerblock as a new handle { the id "OUTER-BLOCK" }.
-                    State "before deep call".
-                    Define r as cast deep.
-                    State "after deep call".
+                Try to:
+                    Pull a rabbit.
+                        Define outerblock as a new handle { the id "OUTER-BLOCK" }.
+                        State "before deep call".
+                        Define r as cast deep.
+                        State "after deep call".
+                    Done.
+                Done.
+                In case of exception (the exception):
+                    State "inner caught: " joined to the message of the exception.
                 Done.
             Done.
             In case of exception (the exception):
-                State "caught".
+                State "outer caught: " joined to the message of the exception.
                 Suppress the exception.
             Done.
             State "after try".
