@@ -521,7 +521,15 @@ public sealed record PullStatement(
 
 // if x is a number — type test; yields fact (true when the runtime value matches the type).
 // Negated: true = "is not a <type>".
-public sealed record IsTypeCheck(IExpression Target, CufetType Type, bool Negated, int Line) : IExpression;
+// StaticTargetType — ISA.2: the type checker records the TARGET's static type here so the
+// interpreter can answer type-directed (like the compiler) instead of value-directed. A runtime
+// value cannot answer precisely for an EMPTY container (a bare List carries no element type), but
+// the declared type always can. Null when the checker couldn't determine it → value-directed
+// fallback. Set during checking; both passes share this AST object, so no pipeline change.
+public sealed record IsTypeCheck(IExpression Target, CufetType Type, bool Negated, int Line) : IExpression
+{
+    public CufetType? StaticTargetType { get; set; }
+}
 
 // ── Chance book (randomness) ─────────────────────────────────────────────────────────────────
 

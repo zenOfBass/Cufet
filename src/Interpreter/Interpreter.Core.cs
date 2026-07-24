@@ -1474,12 +1474,65 @@ public sealed partial class Interpreter
         return $"{ov.TypeName}(" + string.Join(", ", parts) + ")";
     }
 
+    // ISA.2a — `is a` is answered TYPE-DIRECTED, mirroring the compiler exactly: the declared type
+    // decides the type comparison, and only the predicate a declared type genuinely cannot answer
+    // stays dynamic. A runtime value cannot answer for an EMPTY container (a bare List carries no
+    // element type) but the declared type always can — that is what closes the empty-container
+    // divergence. Value-directed evaluation remains ONLY where the static type is deliberately
+    // imprecise about the runtime case:
+    //   • UNION operands   — the concrete case is knowable only at runtime (the compiler reads its
+    //                        tag; container-vs-container narrowing is refused compiler-side, ISA.2c).
+    //   • INTERFACE operands — the conformer varies per call site (the compiler monomorphizes).
+    //   • no recorded type — the checker couldn't determine it; fall back rather than guess.
     private object EvaluateIsTypeCheck(IsTypeCheck tc)
     {
         var value = Evaluate(tc.Target);
-        bool matches = RuntimeIsType(value, tc.Type);
+        var s = tc.StaticTargetType;
+        bool matches;
+
+        if (s is null or UnionType or InterfaceType)
+        {
+            matches = RuntimeIsType(value, tc.Type);
+        }
+        else if (s is VoidableType sv)
+        {
+            // Void-ness is the one genuinely runtime predicate here; the inner comparison is static.
+            bool isVoid = value is VoidValue;
+            matches = tc.Type switch
+            {
+                VoidType        => isVoid,
+                VoidableType tv => isVoid || StaticMatch(sv.Inner, tv.Inner),   // void matches any voidable
+                _               => !isVoid && StaticMatch(sv.Inner, tc.Type),
+            };
+        }
+        else
+        {
+            // Concrete declared type ⇒ fully statically decided (this is exactly what the compiler folds).
+            matches = tc.Type is VoidableType tv2 ? StaticMatch(s, tv2.Inner) : StaticMatch(s, tc.Type);
+        }
         return (object)(tc.Negated ? !matches : matches);
     }
+
+    // Does a value whose DECLARED type is `s` satisfy `is a t`? Mirrors the compiler's
+    // StaticKindMatches one-for-one (element-aware containers, nominal objects, nested unions
+    // structural) — the two must agree, so keep them in step.
+    private static bool StaticMatch(CufetType s, CufetType t) => t switch
+    {
+        NumberType    => s is NumberType,
+        TextType      => s is TextType,
+        FactType      => s is FactType,
+        SeriesType ts => s is SeriesType ss && StaticMatch(ss.ElementType, ts.ElementType),
+        MapType tm    => s is MapType sm && StaticMatch(sm.KeyType, tm.KeyType)
+                                        && StaticMatch(sm.ValueType, tm.ValueType),
+        RecordType    => s is RecordType,
+        MatrixType    => s is MatrixType,
+        ObjectType to => s is ObjectType so && so.Name == to.Name,   // nominal
+        VoidType      => false,          // a non-voidable declared type is never void
+        // A concrete value satisfies `voidable X` exactly when it satisfies X.
+        VoidableType tv => StaticMatch(s, tv.Inner),
+        UnionType     => s is UnionType && s.Equals(t),
+        _             => false,
+    };
 
     // ISA.1 — ELEMENT-AWARE for containers. `is a` used to be kind-erased: a `series of text`
     // matched `is a series of number` (and a map matched any map), which is simply false — the

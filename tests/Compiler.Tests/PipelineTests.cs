@@ -4785,13 +4785,15 @@ public class PipelineTests
     }
 
     [Fact]
-    public void Catalogue_ContainerVsContainerUnion_NarrowsPrecisely()
+    public void Catalogue_ContainerVsContainerUnion_RefusedNotDiverged()
     {
-        // ISA.1 CONVERTED THIS FROM A CLEAN-THROW. `is a` used to be element-erased for containers,
-        // so `(series of number or series of text)` cases couldn't be told apart and the compiler
-        // refused rather than miscompile. Now `StaticKindMatches` recurses into element types, so
-        // MatchCaseInList finds exactly ONE case → the precise tag → correct narrowing on both
-        // backends. (The interpreter's RuntimeIsType recurses into elements to match.)
+        // ISA.2c — REFUSE RATHER THAN DIVERGE. ISA.1 made non-empty narrowing precise on both
+        // backends, but an EMPTY container carries no element type at runtime: the compiler answers
+        // from its TAG (precise), the interpreter from the VALUE (vacuously matches any container).
+        // Both are safe — an empty container has no element to misread — but they take DIFFERENT
+        // BRANCHES, and a divergence never ships. So the compiler refuses while the catalogue can
+        // hold a container type other than the tested one. Lifts when containers carry their element
+        // type (ISA.2d), which restores this to an oracle-match test.
         const string src = """
             Define nums as a series of number with (1, 2).
             Define txts as a series of text with ("x").
@@ -4801,7 +4803,10 @@ public class PipelineTests
                 Otherwise, State "texts " joined to (the number of g converted to text).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
     }
 
     [Fact]
@@ -4827,6 +4832,90 @@ public class PipelineTests
             If outer is a series of series of number, State "matched". Otherwise, State "not matched".
             """;
         Assert.Equal(Interpret(nested), Compile(nested));
+    }
+
+    [Fact]
+    public void IsA_EmptyContainers_AnsweredByDeclaredType()
+    {
+        // ISA.2a — the interpreter now answers `is a` TYPE-DIRECTED (like the compiler) instead of
+        // value-directed, so an EMPTY container is decided by its DECLARED element type rather than
+        // vacuously matching anything. This is what closed the empty-container divergence for
+        // concretely-typed operands — a runtime `List` carries no element type, but the declared
+        // type always does.
+        const string emptySeries = """
+            Define empties as a series of text with ().
+            If empties is a series of number, State "matched number". Otherwise, State "not number".
+            """;
+        Assert.Equal(Interpret(emptySeries), Compile(emptySeries));
+        const string emptyMap = """
+            Define em as a map from text to text with ().
+            If em is a map from text to number, State "matched". Otherwise, State "not matched".
+            """;
+        Assert.Equal(Interpret(emptyMap), Compile(emptyMap));
+        const string voidableEmpty = """
+            Bind voidable series of text to maybe:
+                Return a series of text with ().
+            Done.
+            Define mv as cast maybe.
+            If mv is a voidable series of number, State "matched". Otherwise, State "not matched".
+            """;
+        Assert.Equal(Interpret(voidableEmpty), Compile(voidableEmpty));
+    }
+
+    [Fact]
+    public void IsA_VoidableTestedType_MatchesOnBothBackends()
+    {
+        // ISA.2b — `is a voidable T` as the TESTED type had no arm in StaticKindMatches (it folded to
+        // false) while the interpreter answered true for a VOID value. A PRE-EXISTING divergence,
+        // independent of ISA.1 and of containers. A void value satisfies any `voidable T`; a present
+        // value satisfies it when its inner type does.
+        const string src = """
+            Bind voidable number to pick, given (the fact flag):
+                If flag, return 7.
+                Return void.
+            Done.
+            Define absent as cast pick on (false).
+            Define present as cast pick on (true).
+            If absent is a voidable number, State "void IS voidable-number". Otherwise, State "void NOT".
+            If present is a voidable number, State "present IS voidable-number". Otherwise, State "present NOT".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void IsA_StaysDynamic_ForVoidableAndInterfaceOperands()
+    {
+        // The type-directed rewrite must NOT over-fold: these operands have ONE static type but
+        // genuinely different runtime answers, so the runtime predicate has to survive.
+        const string voidable = """
+            Bind voidable number to pick, given (the fact flag):
+                If flag, return 7.
+                Return void.
+            Done.
+            If (cast pick on (true)) is a number, State "present is number". Otherwise, State "present not".
+            If (cast pick on (false)) is a number, State "absent is number". Otherwise, State "absent not".
+            """;
+        Assert.Equal(Interpret(voidable), Compile(voidable));
+        const string iface = """
+            Define speaker as an interface for the text function speak.
+            Define object dog with (the text name) and speaker:
+                Bind text to speak:
+                    Return "Woof".
+                Done.
+            Done.
+            Define object cat with (the text name) and speaker:
+                Bind text to speak:
+                    Return "Meow".
+                Done.
+            Done.
+            Bind text to describe, given (the speaker s):
+                If s is a dog, Return "is dog".
+                Return "not dog".
+            Done.
+            State cast describe on (a new dog { the name "R" }).
+            State cast describe on (a new cat { the name "T" }).
+            """;
+        Assert.Equal(Interpret(iface), Compile(iface));
     }
 
     [Fact]
@@ -4953,12 +5042,10 @@ public class PipelineTests
     }
 
     [Fact]
-    public void OpenCatalogue_ContainerCases_NarrowPrecisely()
+    public void OpenCatalogue_ContainerCases_RefusedNotDiverged()
     {
-        // ISA.1 CONVERTED THIS FROM A CLEAN-THROW too (the OPEN-union twin of the closed-union case):
-        // an open union whose DISCOVERED set contains two container types used to be element-erased-
-        // ambiguous → loud refuse. Element-aware `is a` distinguishes them, so the discovered set
-        // narrows precisely on both backends.
+        // The OPEN-union twin of the ISA.2c refusal: the discovered case set contains two container
+        // types, so an empty instance of the non-tested one would diverge (see the closed-union test).
         const string src = """
             Define mixed as a catalogue with ((a series of number with (1,2)), (a series of text with ("a"))).
             For each m in mixed, repeat:
@@ -4966,7 +5053,10 @@ public class PipelineTests
                 Otherwise, State "other".
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
     }
 
     [Fact]

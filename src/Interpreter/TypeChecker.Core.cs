@@ -1455,7 +1455,9 @@ public sealed partial class TypeChecker
     // Infer type of a union type-test — always yields fact.
     private CufetType InferIsTypeCheck(IsTypeCheck tc)
     {
-        _ = InferType(tc.Target); // validate the target expression
+        // ISA.2: record the target's static type (as known HERE, so flow-narrowing is reflected —
+        // the same view the compiler's TypeOf has) so the interpreter can answer type-directed.
+        tc.StaticTargetType = InferType(tc.Target);
         return CufetType.Fact;
     }
 

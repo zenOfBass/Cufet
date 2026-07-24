@@ -2933,6 +2933,7 @@ static void* cufet_pipe_stage(void* argp) {
         // identity lives — unlike the monomorphic model's compile-time StaticKindMatches fold).
         if (tt is UnionType uop && uop.Cases == null)
         {
+            GuardUnionContainerNarrow(_openUnionCases, tc.Type);
             int ko = MatchCaseInList(_openUnionCases, tc.Type);   // -1 ⇒ never widened in ⇒ statically false
             string vo = EmitExpr(tc.Target);
             string testo = ko < 0 ? "0" : $"(({vo}).tag == {ko})";
@@ -2940,6 +2941,7 @@ static void* cufet_pipe_stage(void* argp) {
         }
         if (tt is UnionType ut && ut.Cases != null)
         {
+            GuardUnionContainerNarrow(UnionCases(ut), tc.Type);
             int k = UnionMatchCase(ut, tc.Type);          // -1 = no case matches (statically false)
             string v = EmitExpr(tc.Target);
             string test = k < 0 ? "0" : $"(({v}).tag == {k})";
@@ -2948,9 +2950,14 @@ static void* cufet_pipe_stage(void* argp) {
         if (tt is VoidableType vt)
         {
             string v = EmitExpr(tc.Target);
-            string test = tc.Type is VoidType ? $"(!({v}).has)"
-                        : StaticKindMatches(vt.Inner, tc.Type) ? $"(({v}).has)"
-                        : "0";
+            // ISA.2b: `is a voidable X` is satisfied by a VOID value (void matches any voidable) or
+            // by a present value whose inner type matches — mirroring the interpreter exactly.
+            string test = tc.Type switch
+            {
+                VoidType         => $"(!({v}).has)",
+                VoidableType tv2 => StaticKindMatches(vt.Inner, tv2.Inner) ? "1" : $"(!({v}).has)",
+                _                => StaticKindMatches(vt.Inner, tc.Type) ? $"(({v}).has)" : "0",
+            };
             return tc.Negated ? $"(!{test})" : test;
         }
         bool matches = StaticKindMatches(tt, tc.Type);
@@ -3004,6 +3011,11 @@ static void* cufet_pipe_stage(void* argp) {
         MatrixType => t is MatrixType,
         ObjectType ot => t is ObjectType o2 && o2.Name == ot.Name,   // nominal
         VoidType   => false,                  // a non-voidable value is never void
+        // ISA.2b — `is a voidable X` as the TESTED type had NO arm (it fell through to false) while
+        // the interpreter answered true for a void value and for a concrete value matching X. That
+        // was a PRE-EXISTING divergence, independent of containers. A concrete value satisfies
+        // `voidable X` exactly when it satisfies X; the void-ness half is handled at the emit site.
+        VoidableType tv => StaticKindMatches(t, tv.Inner),
         // A union in a NESTED position (the element type of `series of (number or text)`) is an
         // ordinary structural type comparison, not a tag question — compare the types directly.
         // The TOP-LEVEL `is a <union>` refusal lives at the call sites (GuardTestedNotUnion), where
@@ -3016,6 +3028,31 @@ static void* cufet_pipe_stage(void* argp) {
     // recursing through the union (true for a text), but a flat tag can't: one tag test can't stand
     // for a set of cases, and folding it to false would silently diverge. Refuse loudly instead.
     // (Nested unions are fine — see the StaticKindMatches UnionType arm.)
+    // ISA.2c — REFUSE rather than diverge. The compiler answers a union `is a` from its TAG, which is
+    // precise even for an empty payload; the interpreter answers from the VALUE, and an empty
+    // container matches any container type vacuously (a bare List carries no element type). So when
+    // the union holds a container case that does NOT match the tested type, an EMPTY instance of that
+    // case would take different branches in the two backends. Both answers are safe (an empty
+    // container has no element to misread) but they are observably different — and a divergence never
+    // ships. Refusing is honest and preserves the invariant until the runtime type-carrier (ISA.2d)
+    // lets the interpreter answer by declared type; then this guard lifts again.
+    private static bool IsErasableContainer(CufetType t) => t is SeriesType or MapType;
+
+    private static void GuardUnionContainerNarrow(IReadOnlyList<CufetType> cases, CufetType tested)
+    {
+        if (!IsErasableContainer(tested)) return;
+        // A container case that doesn't match the tested type is the hazard: its EMPTY instances
+        // match vacuously in the interpreter but not by tag in the compiler. A case that DOES match
+        // is fine (both say true, empty or not), as is a union with no container cases at all.
+        if (!cases.Any(c => IsErasableContainer(c) && !StaticKindMatches(c, tested))) return;
+        throw new CompilerException(
+            $"narrowing a catalogue with `is a {FormatTypeName(tested)}` is not supported yet when the " +
+            "catalogue can also hold a DIFFERENT container type. An empty container carries no element " +
+            "type at runtime, so the two backends would disagree about which branch it takes — the " +
+            "compiler refuses rather than diverge. Narrow on a scalar or object case, or keep one " +
+            "container type per catalogue. (Lifts once containers carry their element type — ISA.2d.)");
+    }
+
     private static void GuardTestedNotUnion(CufetType tested)
     {
         if (tested is UnionType)
