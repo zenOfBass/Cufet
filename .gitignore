@@ -37,3 +37,8 @@ packages/
 
 # Publish output
 publish/
+
+# Artifacts
+*.c
+*.cu
+*.exe
