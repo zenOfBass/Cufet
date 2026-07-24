@@ -1,0 +1,20 @@
+[[ EXPECTED: REJECTED at type-check, identically by both backends.
+   Region escape via CLOSURE CAPTURE: a closure captures a rabbit-scoped series
+   and stores it into a longer-lived binding in the enclosing scope.
+
+   The outward-only region-store invariant refuses it: the value lives in a
+   shorter-lived rabbit region than its destination, so it would dangle after
+   the rabbit's Done. pops that region. Nothing below ever executes. ]]
+
+Bind void to run-with, given (the series of number s):
+    Define sink as a series of number with ().
+    Bind void to stash, given ():
+        sink becomes s.
+    Done.
+    Cast stash on ().
+Done.
+
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Cast run-with on (inner).
+Done.
