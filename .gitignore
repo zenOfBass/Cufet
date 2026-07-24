@@ -42,3 +42,5 @@ publish/
 *.c
 *.cu
 *.exe
+# Shell probe scripts
+*.sh
