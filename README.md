@@ -7,6 +7,11 @@ English's surface while keeping formal structure visible. Every keyword reads
 like prose; every control-flow boundary is explicit. No hidden scoping, no
 ambiguous syntax, no semicolons. It is Turing complete.
 
+Cufet has two backends: a tree-walking **interpreter**, which is the reference
+implementation, and a **native compiler** that emits C and produces a real
+executable — threads, signals, subprocesses and all. The compiler is held to the
+interpreter as an oracle: compiled output must match interpreted output.
+
 ```
 For each counter in the range 1 to 100, repeat:
     If the counter % 15 is 0, state "FizzBuzz".
@@ -172,26 +177,43 @@ Define result as run "git" with arguments ("log", "--oneline", "-5").
 State the result's output.
 ```
 
-For the complete language — every statement, the type system, records,
-objects, functions, collections, concurrency, error handling, and I/O — see
-**[REFERENCE.md](REFERENCE.md)**.
+For the language in depth — every statement, the type system, records, objects,
+functions, collections, error handling, and I/O — see **[REFERENCE.md](REFERENCE.md)**.
+(Concurrency, pipes, regions, and the standard-library books are shipped but not
+yet written up there; [GRAMMAR.md](GRAMMAR.md) covers their syntax and sharp edges
+in the meantime.)
 
 ---
 
 ## Building and running
 
-Requires [.NET 10 SDK](https://dotnet.microsoft.com/download).
+Requires [.NET 10 SDK](https://dotnet.microsoft.com/download). Compiling to a
+native binary additionally requires **gcc** on `PATH` — the compiler emits C and
+invokes it.
 
 ```
 # Run all tests
 dotnet test Cufet.sln
 
-# Run a Cufet program
+# Interpret a Cufet program
 dotnet run --project src\App\Cufet.App.csproj -- myprogram.cufe
 
 # Or pipe from stdin
 echo "State 1 + 1." | dotnet run --project src\App\Cufet.App.csproj
 ```
+
+### Compiling to a native binary
+
+```
+# Compile to an executable (emits C, then invokes gcc)
+dotnet run --project src\App\Cufet.App.csproj -- build myprogram.cufe
+
+# Emit the generated C without compiling — useful for cross-toolchain builds
+dotnet run --project src\App\Cufet.App.csproj -- emit-c myprogram.cufe myprogram.c
+```
+
+Programs using POSIX-only features — concurrency, subprocesses, signals — need a
+POSIX toolchain to build; the rest compile anywhere gcc runs.
 
 ---
 
@@ -201,11 +223,18 @@ echo "State 1 + 1." | dotnet run --project src\App\Cufet.App.csproj
 src/
   Lexer/           Cufet.Lexer        — tokenizer
   Interpreter/     Cufet.Interpreter  — AST, parser, type checker, tree-walking interpreter
-  App/             Cufet.App          — thin console entry point
+                                        (the reference implementation / oracle)
+  Compiler/        Cufet.Compiler     — native backend: AST → C source → gcc
+  App/             Cufet.App          — thin console entry point (interpret / build / emit-c)
 tests/
   Lexer.Tests/
   Interpreter.Tests/
+  Compiler.Tests/                     — oracle tests: compiled output vs. interpreted output
+  fixtures/soundness/                 — region-model probe programs (see that folder's README)
 ```
+
+The lexer, parser, and type checker are **shared** by both backends, so a program
+that type-checks does so identically whether it is interpreted or compiled.
 
 See [REFERENCE.md](REFERENCE.md) for the complete language reference.
 See [GRAMMAR.md](GRAMMAR.md) for the grammar and constraints reference — reserved
@@ -218,6 +247,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute.
 
 ---
 
-*Built in C# / .NET 10. Named for the Mvskoke trickster—rabbit—who, like all
-good languages, promises to make something very powerful feel surprisingly
-natural.*
+*Toolchain built in C# / .NET 10; compiled programs are native binaries with no
+managed runtime. Named for the Mvskoke trickster—rabbit—who, like all good
+languages, promises to make something very powerful feel surprisingly natural.*
