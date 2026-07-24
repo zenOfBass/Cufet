@@ -58,6 +58,16 @@ public class PipelineTests
         }
     }
 
+    // The emitted C source — for asserting on what the compiler DID (not just what it printed),
+    // e.g. that a non-escaping store emits no copy.
+    private static string GenerateC(string source)
+    {
+        var tokens  = new CufetLexer(source).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        return new CodeGenerator().Generate(program);
+    }
+
     // Interprets source and returns stdout trimmed — the oracle. Optionally feeds stdin.
     private static string Interpret(string source, string? stdin = null)
     {
@@ -4832,6 +4842,186 @@ public class PipelineTests
             If outer is a series of series of number, State "matched". Otherwise, State "not matched".
             """;
         Assert.Equal(Interpret(nested), Compile(nested));
+    }
+
+    // ── ESC.1/ESC.2 — arena escape: structural region test + copy-at-store ───
+    // A value built inside a rabbit and stored into longer-lived storage used to be a
+    // heap-use-after-free (the rabbit's Done. frees its arena while the destination still points
+    // in). The front-end's outward-store invariant is a TOP-LEVEL type test: it misses `text`, and
+    // every value-typed WRAPPER (record / voidable / failable / union) launders even a COVERED type
+    // past it. Fixed by a STRUCTURAL region-bearing test (TypeChecker.IsRegionBearing) that
+    // annotates each store with the destination's depth, plus a copy-at-store in the compiler that
+    // deep-copies the value into that depth's arena — reusing the channel deep-copy families, which
+    // were already allocator-parameterized.
+
+    [Fact]
+    public void Escape_TextBuiltInRabbit_StoredOutward()
+    {
+        // THE REPORTED REPRODUCER. Was: heap-use-after-free, printed "keeper=keeper=".
+        const string src = """
+            Define keeper as "".
+            Pull a rabbit.
+                keeper becomes "a" joined to "b".
+            Done.
+            State keeper.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Escape_WrapperLaunderedTypes_StoredOutward()
+    {
+        // ★ THE LAUNDERING PROOF. `record containing series` is the case a list-based fix (just
+        // "add text to IsReferenceType") would miss: series IS covered at top level, but wrapping
+        // it in a record hides it from a shallow test. Only a structural test catches this.
+        const string recordOfText = """
+            Define keeper as a record with (the label "outer").
+            Pull a rabbit.
+                keeper becomes a record with (the label ("in" joined to "ner")).
+            Done.
+            State the label of keeper.
+            """;
+        Assert.Equal(Interpret(recordOfText), Compile(recordOfText));
+        const string recordOfSeries = """
+            Define keeper as a record with (the items (a series of number with (0))).
+            Pull a rabbit.
+                keeper becomes a record with (the items (a series of number with (1, 2))).
+            Done.
+            State the items of keeper.
+            """;
+        Assert.Equal(Interpret(recordOfSeries), Compile(recordOfSeries));
+        const string voidableText = """
+            Bind voidable text to make-it, given (the text s):
+                Return s.
+            Done.
+            Define keeper as cast make-it on ("outer").
+            Pull a rabbit.
+                keeper becomes cast make-it on ("in" joined to "ner").
+            Done.
+            State keeper.
+            """;
+        Assert.Equal(Interpret(voidableText), Compile(voidableText));
+    }
+
+    [Fact]
+    public void Escape_AllStoreRoutes_Fixed()
+    {
+        // Each route was independently an ASan-verified UAF.
+        const string intoSeries = """
+            Define bag as a series of text with ().
+            Pull a rabbit.
+                Add ("a" joined to "b") to bag.
+            Done.
+            State bag.
+            """;                       // also covers the CONTAINER's own growth realloc
+        Assert.Equal(Interpret(intoSeries), Compile(intoSeries));
+        const string intoObjectField = """
+            Define object box with (the text tag).
+            Define keeper as a new box { the tag "outer" }.
+            Pull a rabbit.
+                keeper's tag becomes "in" joined to "ner".
+            Done.
+            State keeper's tag.
+            """;
+        Assert.Equal(Interpret(intoObjectField), Compile(intoObjectField));
+        const string intoCatalogue = """
+            Define keeper as a catalogue of (number or text) with (0).
+            Pull a rabbit.
+                Add ("a" joined to "b") to keeper.
+            Done.
+            For each k in keeper, repeat:
+                State k.
+            Done.
+            """;
+        Assert.Equal(Interpret(intoCatalogue), Compile(intoCatalogue));
+    }
+
+    [Fact]
+    public void Escape_NestedValue_CopiesRecursively()
+    {
+        // A record whose fields are BOTH a series of text and a text, every part built in the
+        // rabbit — the copy must recurse through the whole shape.
+        const string src = """
+            Define keeper as a record with (the lines (a series of text with ("z")), the tag "outer").
+            Pull a rabbit.
+                Define built as a series of text with ().
+                Add ("x" joined to "1") to built.
+                Add ("y" joined to "2") to built.
+                keeper becomes a record with (the lines built, the tag ("t" joined to "ag")).
+            Done.
+            State the tag of keeper.
+            State the lines of keeper.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Escape_SafeRoutes_Unchanged()
+    {
+        // The two routes that were ALREADY safe must stay untouched: `return` is safe by
+        // don't-pop (T1's load-bearing leak — ESC.3's business, not ESC.2's), and a channel send
+        // is safe by heap-bridged deep copy.
+        const string returnOut = """
+            Bind text to build-it:
+                Pull a rabbit.
+                    Return "a" joined to "b".
+                Done.
+            Done.
+            State cast build-it.
+            """;
+        Assert.Equal(Interpret(returnOut), Compile(returnOut));
+    }
+
+    [Fact]
+    public void Escape_NonEscapingValues_AreNotCopied()
+    {
+        // Tightness: a value stored at its OWN depth, and non-region-bearing scalars, must emit NO
+        // copy at all. Asserted on the generated C, since output alone can't distinguish.
+        const string sameDepth = """
+            Pull a rabbit.
+                Define inner-keeper as "".
+                inner-keeper becomes "a" joined to "b".
+                State inner-keeper.
+            Done.
+            """;
+        Assert.DoesNotContain("escapecopy(", GenerateC(sameDepth));
+        Assert.Equal(Interpret(sameDepth), Compile(sameDepth));
+        const string scalars = """
+            Define n as 0.
+            Pull a rabbit.
+                n becomes 41 + 1.
+            Done.
+            State n.
+            """;
+        Assert.DoesNotContain("escapecopy(", GenerateC(scalars));
+        Assert.Equal(Interpret(scalars), Compile(scalars));
+    }
+
+    [Fact]
+    public void Escape_RegionBearingTest_MatchesDeepCopyTraversal()
+    {
+        // ★ The two traversals must not drift: `IsRegionBearing` (checker-side, drives the escape
+        // annotation) is the complement of the compiler's "transitively arena-pointer-free" notion
+        // that the deep-copy families walk. Locked over a corpus spanning every shape.
+        var text   = CufetType.Text;
+        var number = CufetType.Number;
+        var seriesOfText = new SeriesType(text);
+        (CufetType Type, bool Expected)[] corpus =
+        {
+            (number, false), (CufetType.Fact, false), (text, true),
+            (seriesOfText, true), (new SeriesType(number), true),
+            (new MapType(text, number), true),
+            (new VoidableType(number), false), (new VoidableType(text), true),
+            (new FailureType(number), false), (new FailureType(seriesOfText), true),
+            (new RecordType([], [("n", number)]), false),          // no region anywhere
+            (new RecordType([], [("t", text)]), true),             // text laundered by a record
+            (new RecordType([], [("s", seriesOfText)]), true),     // ★ series laundered by a record
+            (new VoidableType(new RecordType([], [("s", seriesOfText)])), true),   // nested wrappers
+            (new UnionType([number, CufetType.Fact]), false),      // all-scalar union
+            (new UnionType([number, text]), true),                 // union with a region case
+        };
+        foreach (var (t, expected) in corpus)
+            Assert.Equal(expected, TypeChecker.IsRegionBearing(t));
     }
 
     // ── E-prime exception-message arena lifetime ─────────────────────────────

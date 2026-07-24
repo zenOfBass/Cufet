@@ -1,4 +1,4 @@
-namespace Cufet.Interpreter;
+﻿namespace Cufet.Interpreter;
 
 public sealed partial class TypeChecker
 {
@@ -62,6 +62,7 @@ public sealed partial class TypeChecker
         // Region invariant: don't store a rabbit-scoped value in a longer-lived map.
         CheckRegionStore(mapSet.Value, valType, ContainerDepthOf(mapSet.Map), mapSet.Line,
             "store a rabbit-scoped value in a map that lives in a longer-lived region");
+        mapSet.EscapeToDepth = EscapeDepthFor(mapSet.Value, valType, ContainerDepthOf(mapSet.Map));
     }
 
     private CufetType? InferMapLiteral(MapLiteral lit)

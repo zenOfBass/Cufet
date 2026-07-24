@@ -1,4 +1,4 @@
-using Cufet.Lexer;
+﻿using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
 
@@ -28,6 +28,7 @@ public sealed partial class TypeChecker
                     $"The setter for '{stmt.Member}' accepts a {FormatType(setterSig.Value.ParamType)}."));
             CheckRegionStore(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Target), stmt.Line,
                 $"set '{stmt.Member}' to a value from a shorter-lived rabbit region than the object");
+            stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Target));
             return;
         }
 
@@ -37,6 +38,7 @@ public sealed partial class TypeChecker
         var valType = InferType(stmt.Value);
         CheckRegionStore(stmt.Value, valType, ContainerDepthOf(stmt.Target), stmt.Line,
             $"set '{stmt.Member}' to a value from a shorter-lived rabbit region than the object");
+        stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, valType, ContainerDepthOf(stmt.Target));
     }
 
     private void CheckObjectNamedSet(ObjectType ot, string fieldName, IExpression value, int line)

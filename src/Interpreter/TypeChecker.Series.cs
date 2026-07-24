@@ -1,4 +1,4 @@
-using Cufet.Lexer;
+﻿using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
 
@@ -68,6 +68,7 @@ public sealed partial class TypeChecker
 
         CheckRegionStore(add.Value, valueType, ContainerDepthOf(add.Series), add.Line,
             $"add a rabbit-scoped value to a series in a longer-lived region");
+        add.EscapeToDepth = EscapeDepthFor(add.Value, valueType, ContainerDepthOf(add.Series));
     }
 
     private void CheckSeriesRemoveValue(SeriesRemoveValueStatement removeVal)

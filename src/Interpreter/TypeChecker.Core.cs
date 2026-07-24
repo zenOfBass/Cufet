@@ -1,4 +1,4 @@
-using Cufet.Lexer;
+﻿using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
 
@@ -1086,6 +1086,8 @@ public sealed partial class TypeChecker
         // Region invariant: don't let a shorter-lived reference escape into longer-lived storage.
         CheckRegionStore(becomes.Value, rhsType, existing.RabbitDepth, becomes.Line,
             $"reassign '{becomes.Name}' to a value from a shorter-lived rabbit region");
+        // ESC.1 — annotate (never reject) so the compiler can copy an escaping value outward.
+        becomes.EscapeToDepth = EscapeDepthFor(becomes.Value, rhsType, existing.RabbitDepth);
     }
 
     private void CheckReturn(ReturnStatement ret)

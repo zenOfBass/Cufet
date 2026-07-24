@@ -101,8 +101,48 @@ public sealed partial class TypeChecker
 
     // Series, maps, objects, and matrices are reference types tracked by rabbit depth.
     // Value types (number, text, fact, record) may be stored anywhere without constraint.
+    // ★ NOTE (ESC.1): this SHALLOW, top-level test governs the existing REJECTIONS only, and is
+    // deliberately left alone — the TypeChecker is shared, so widening it would reject programs the
+    // interpreter runs fine. The escape ANNOTATION below uses the structural test instead.
     private static bool IsReferenceType(CufetType? t) =>
         t is SeriesType or MapType or ObjectType or MatrixType or ChannelType;
+
+    // ── ESC.1 — the STRUCTURAL region-bearing test ───────────────────────────
+    // `IsReferenceType` is a TOP-LEVEL test: it misses `text` entirely, and every value-typed
+    // WRAPPER (record / voidable / failable / union) launders even a COVERED type past it — a
+    // record holding a series is the proof, so "add text to the list" would not be a fix.
+    //
+    // A type is REGION-BEARING when its COMPILED representation holds an arena pointer anywhere in
+    // its shape. This is exactly the complement of the compiler's `IsChanPod` ("transitively free of
+    // arena pointers"), and it walks the SAME shape as the channel deep-copy families (record →
+    // per-field, series → element, union → per-case). It lives here, in the shared project, so the
+    // checker and the compiler consume ONE definition rather than two that can drift; a test locks
+    // it against `IsChanPod`'s complement.
+    //
+    // ObjectType is treated as region-bearing unconditionally: its fields may be arena pointers, and
+    // parser-produced "shell" ObjectTypes carry no field list, so reading fields here could answer
+    // "no" for an object that actually holds a series. (Bare object stores are rejected by the
+    // shallow test anyway, so this conservatism costs nothing observable.)
+    public static bool IsRegionBearing(CufetType? t) => IsRegionBearing(t, new HashSet<string>());
+
+    private static bool IsRegionBearing(CufetType? t, HashSet<string> seen) => t switch
+    {
+        null                     => false,
+        NumberType or FactType   => false,
+        VoidType                 => false,
+        TextType                 => true,   // ★ arena-allocated in the compiler; the reported UAF
+        SeriesType or MapType    => true,
+        MatrixType or ChannelType => true,
+        FunctionType             => true,   // a closure env is arena-allocated (ESC.4 territory)
+        ObjectType               => true,   // conservative — see the note above
+        RecordType rt            => rt.PositionalTypes.Any(p => IsRegionBearing(p, seen))
+                                 || rt.NamedFields.Any(f => IsRegionBearing(f.Type, seen)),
+        VoidableType vt          => IsRegionBearing(vt.Inner, seen),
+        FailureType ft           => IsRegionBearing(ft.Inner, seen),
+        // An OPEN union can hold anything ever widened into it — conservatively region-bearing.
+        UnionType ut             => ut.Cases == null || ut.Cases.Any(c => IsRegionBearing(c, seen)),
+        _                        => false,  // interface / task handle / rabbit / book — no payload
+    };
 
     // Returns the rabbit depth of an expression's value.
     //   VariableReference       → stored depth from its TypeInfo.
@@ -135,6 +175,25 @@ public sealed partial class TypeChecker
     // complex target expressions are treated as same-depth (avoids false positives).
     private int ContainerDepthOf(IExpression expr) =>
         expr is VariableReference vr && TryLookup(vr.Name, out var ti) ? ti.RabbitDepth : _rabbitDepth;
+
+    // ── ESC.1 — escape ANNOTATION (no rejections) ────────────────────────────
+    // Same depth arithmetic as ValueDepthOf, but gated on the STRUCTURAL region test so it also
+    // sees text and region-bearing wrappers. Returns the destination depth when the value would
+    // outlive its own region (valueDepth > targetDepth) — i.e. when the compiler must copy it into
+    // the destination's arena — and null otherwise (no escape, no copy: keeps copying TIGHT).
+    private int? EscapeDepthFor(IExpression valueExpr, CufetType? valueType, int targetDepth)
+    {
+        if (!IsRegionBearing(valueType)) return null;
+        int valueDepth =
+            valueExpr is VariableReference vr && TryLookup(vr.Name, out var ti) ? ti.RabbitDepth
+            : valueExpr is CastExpression cast && _castDepthCache.TryGetValue(cast, out var cd) ? cd
+            : valueExpr is PossessiveAccess poss && _possessiveDepthCache.TryGetValue(poss, out var pd) ? pd
+            : valueExpr is RecordNamedAccess rna && _rnaDepthCache.TryGetValue(rna, out var rd) ? rd
+            // Anything else (a literal, a concatenation, a conversion, …) is BORN HERE, so it
+            // belongs to the region currently open.
+            : _rabbitDepth;
+        return valueDepth > targetDepth ? targetDepth : null;
+    }
 
     // Core check: source depth > target depth means a shorter-lived value would be stored
     // in a longer-lived container — a future use-after-free in the native backend.

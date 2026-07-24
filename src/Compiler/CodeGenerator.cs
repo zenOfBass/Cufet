@@ -173,6 +173,12 @@ public sealed class CodeGenerator
     private readonly Dictionary<string, int> _chanElemReg = new();
     private readonly List<(int Idx, CufetType T)> _chanElemList = new();
     private readonly HashSet<string> _chanTopElems = new();
+    // ESC.2 — types needing an `escapecopy` wrapper (a value stored into longer-lived storage).
+    private readonly HashSet<string> _escapeElems = new();
+    // The C var holding this frame's BASE arena depth. A rabbit depth `d` (the checker's counter,
+    // which resets per frame) maps to arena depth `base + d`, because every `Pull a rabbit` pushes
+    // exactly one arena and a plain call pushes none. Set by EnterFrame; null at top level (base 0).
+    private string? _frameArenaBase;
 
     // Pipe-stage input element types (channel-of-T text/reference pipes). A `for each x from the
     // input` needs a concrete C type for x; the stream type is implicit in the grammar, so it's
@@ -1509,8 +1515,14 @@ static void* cufet_pipe_stage(void* argp) {
         sb.AppendLine("    return p;");
         sb.AppendLine("}");
         sb.AppendLine();
+        // ESC.2 — an allocation OVERRIDE. Normally -1 (allocate at the top, as always). An escaping
+        // store sets it to the destination's arena depth for the duration of the store, which
+        // redirects BOTH the value's own allocations AND the destination container's growth
+        // (cser/cmap `_ensure` reallocs) into the arena that outlives the store. Redirecting the
+        // allocator itself is what makes this work with the existing runtime unchanged.
+        sb.AppendLine("static _Thread_local int cufet_alloc_override = -1;");
         sb.AppendLine("static void* cufet_arena_alloc(size_t size) {");
-        sb.AppendLine("    return cufet_arena_alloc_at(cufet_arena_top, size);");
+        sb.AppendLine("    return cufet_arena_alloc_at(cufet_alloc_override >= 0 ? cufet_alloc_override : cufet_arena_top, size);");
         sb.AppendLine("}");
         sb.AppendLine();
         sb.AppendLine("static void cufet_arena_pop(void) {");
@@ -2766,6 +2778,15 @@ static void* cufet_pipe_stage(void* argp) {
             sb.AppendLine($"static {tc} cchan_{idx}_arenacopy(void* e) {{ return cchan_{idx}_copy(*({tc}*)e, cufet_arena_alloc); }}");
             sb.AppendLine($"static void cchan_{idx}_freeenv(void* e) {{ cchan_{idx}_freeheap(*({tc}*)e); free(e); }}");
         }
+        // ESC.2 — escape copies: deep-copy a value into the arena at `d` (the destination's depth),
+        // so a value born in a shorter-lived rabbit survives being stored into longer-lived storage.
+        // Reuses the copy bodies above verbatim; only the allocator differs.
+        foreach (var (idx, t) in _chanElemList)
+        {
+            if (!_escapeElems.Contains(TypeSig(t))) continue;
+            string tc = EmitCType(t);
+            sb.AppendLine($"static {tc} cchan_{idx}_escapecopy({tc} v, int d) {{ int s = cufet_alloc_override; cufet_alloc_override = d; {tc} r = cchan_{idx}_copy(v, cufet_arena_alloc); cufet_alloc_override = s; return r; }}");
+        }
         sb.AppendLine();
     }
 
@@ -3273,9 +3294,41 @@ static void* cufet_pipe_stage(void* argp) {
     // unmakers to it (a return unwinds through the frame's blocks, firing each — d17/d19).
     private string UnmakerCName(string typeName) => "cu_" + typeName.Replace('-', '_');
 
-    private (int Depth, string? Base) EnterFrame(StringBuilder sb, string indent)
+    // ── ESC.2 — copy an escaping value into the destination's arena ──────────
+    // `escapeToDepth` is the checker's annotation: the destination's RABBIT depth. Returns the
+    // value expression wrapped in a deep copy targeting that depth, or the expression unchanged
+    // when there's no escape (keeps copying tight — non-escaping and non-region-bearing values are
+    // never touched). Types the copy family can't express (e.g. closures — ESC.4) pass through.
+    // The arena depth (as a C expression) for a checker RABBIT depth in the current frame.
+    private string EscapeArenaDepth(int rabbitDepth) =>
+        _frameArenaBase == null ? rabbitDepth.ToString() : $"{_frameArenaBase} + {rabbitDepth}";
+
+    // Wraps a container-growing store (series append/insert, map put) in the allocation override, so
+    // the CONTAINER'S OWN growth (`_ensure`'s realloc) lands in the destination's arena too — not
+    // just the value. Without this the backing array itself is freed by the inner rabbit's Done.
+    private void EmitStoreWithEscape(StringBuilder sb, string indent, int? escapeToDepth, string stmt)
     {
-        var saved = (_scopeDepth, _frameUnmakerBase);
+        if (escapeToDepth is not { } d) { sb.AppendLine($"{indent}{stmt}"); return; }
+        int id = _freshId++;
+        sb.AppendLine($"{indent}{{ int cf_ov{id} = cufet_alloc_override; cufet_alloc_override = {EscapeArenaDepth(d)};");
+        sb.AppendLine($"{indent}  {stmt}");
+        sb.AppendLine($"{indent}  cufet_alloc_override = cf_ov{id}; }}");
+    }
+
+    private string EmitEscapeCopy(string valueExpr, CufetType? valueType, int? escapeToDepth)
+    {
+        if (escapeToDepth is not { } d || valueType == null) return valueExpr;
+        if (!TypeChecker.IsRegionBearing(valueType)) return valueExpr;
+        int idx;
+        try { idx = RegisterChanElem(valueType, isTop: false); }
+        catch (CompilerException) { return valueExpr; }   // not copy-expressible yet (ESC.4)
+        _escapeElems.Add(TypeSig(valueType));
+        return $"cchan_{idx}_escapecopy({valueExpr}, {EscapeArenaDepth(d)})";
+    }
+
+    private (int Depth, string? Base, string? ArenaBase) EnterFrame(StringBuilder sb, string indent)
+    {
+        var saved = (_scopeDepth, _frameUnmakerBase, _frameArenaBase);
         _scopeDepth = 0;
         if (UsesUnmakers)
         {
@@ -3284,13 +3337,19 @@ static void* cufet_pipe_stage(void* argp) {
             _frameUnmakerBase = v;
         }
         else _frameUnmakerBase = null;
+        // ESC.2 — this frame's base arena depth: a plain call pushes no arena, so the frame starts
+        // at whatever depth the caller was at, and rabbit depth `d` inside it is base + d.
+        string ab = $"cf_ab{_freshId++}";
+        sb.AppendLine($"{indent}int {ab} = cufet_arena_top; (void){ab};");
+        _frameArenaBase = ab;
         return saved;
     }
 
-    private void ExitFrame((int Depth, string? Base) saved)
+    private void ExitFrame((int Depth, string? Base, string? ArenaBase) saved)
     {
         _scopeDepth = saved.Depth;
         _frameUnmakerBase = saved.Base;
+        _frameArenaBase = saved.ArenaBase;
     }
 
     // A BLOCK scope (rabbit / book / try-arm / with / if-arm / pipe-consumer) — the interpreter's
@@ -3427,6 +3486,9 @@ static void* cufet_pipe_stage(void* argp) {
                 // Coerce so `x becomes 5` / `x becomes void` widens into x's voidable type.
                 _varTypes.TryGetValue(b.Name, out var targetType);
                 string valExpr = EmitAsType(b.Value, targetType);
+                // ESC.2: if the checker flagged this store as escaping (the value belongs to a
+                // shorter-lived rabbit than the destination), deep-copy it into the destination's arena.
+                valExpr = EmitEscapeCopy(valExpr, targetType ?? TypeOf(b.Value), b.EscapeToDepth);
                 FlushPreEmits(sb, indent);
                 sb.AppendLine($"{indent}{MangleName(b.Name)} = {valExpr};");
                 _narrowedVars.Remove(b.Name);   // reassignment clears any active narrowing
@@ -3670,19 +3732,21 @@ static void* cufet_pipe_stage(void* argp) {
             {
                 string ser = SeriesStructOf(sa.Series);
                 // Coerce into the series' ELEMENT type so adding to a catalogue widens into the union.
-                string valExpr = EmitAsType(sa.Value, (TypeOf(sa.Series) as SeriesType)?.ElementType);
+                var saElem = (TypeOf(sa.Series) as SeriesType)?.ElementType;
+                string valExpr = EmitAsType(sa.Value, saElem);
+                valExpr = EmitEscapeCopy(valExpr, saElem, sa.EscapeToDepth);   // ESC.2
                 FlushPreEmits(sb, indent);
                 string serExpr = EmitExpr(sa.Series);
                 FlushPreEmits(sb, indent);
                 if (sa.ToStart)
-                    sb.AppendLine($"{indent}{ser}_prepend({serExpr}, {valExpr});");
+                    EmitStoreWithEscape(sb, indent, sa.EscapeToDepth, $"{ser}_prepend({serExpr}, {valExpr});");
                 else if (sa.AfterIndex == null)
-                    sb.AppendLine($"{indent}{ser}_append({serExpr}, {valExpr});");
+                    EmitStoreWithEscape(sb, indent, sa.EscapeToDepth, $"{ser}_append({serExpr}, {valExpr});");
                 else
                 {
                     string idxExpr = EmitExpr(sa.AfterIndex);
                     FlushPreEmits(sb, indent);
-                    sb.AppendLine($"{indent}{ser}_insert({serExpr}, cufet_to_int({idxExpr}), {valExpr});");
+                    EmitStoreWithEscape(sb, indent, sa.EscapeToDepth, $"{ser}_insert({serExpr}, cufet_to_int({idxExpr}), {valExpr});");
                 }
                 break;
             }
@@ -3748,12 +3812,12 @@ static void* cufet_pipe_stage(void* argp) {
             case RecordNamedSetStatement rns:
                 // the <field> of <record/object> becomes <value> — routes through a setter
                 // if the member has one, else a raw in-place field write (value semantics).
-                EmitMemberSet(sb, indent, rns.Record, rns.FieldName, rns.Value);
+                EmitMemberSet(sb, indent, rns.Record, rns.FieldName, rns.Value, rns.EscapeToDepth);
                 break;
 
             case PossessiveSetStatement pss:
                 // alice's age becomes 31 / one's age becomes 31 — same, setter-aware.
-                EmitMemberSet(sb, indent, pss.Target, pss.Member, pss.Value);
+                EmitMemberSet(sb, indent, pss.Target, pss.Member, pss.Value, pss.EscapeToDepth);
                 break;
 
             case MapSetStatement mss:
@@ -3763,9 +3827,9 @@ static void* cufet_pipe_stage(void* argp) {
                 var    valType = ((MapType)TypeOf(mss.Map)).ValueType;
                 string mapExpr = EmitExpr(mss.Map);
                 string keyExpr = EmitExpr(mss.Key);
-                string valExpr = EmitAsType(mss.Value, valType);
+                string valExpr = EmitEscapeCopy(EmitAsType(mss.Value, valType), valType, mss.EscapeToDepth);   // ESC.2
                 FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}{name}_put({mapExpr}, {keyExpr}, {valExpr});");
+                EmitStoreWithEscape(sb, indent, mss.EscapeToDepth, $"{name}_put({mapExpr}, {keyExpr}, {valExpr});");
                 break;
             }
 
@@ -4646,10 +4710,11 @@ static void* cufet_pipe_stage(void* argp) {
 
     // Object member WRITE: setter dispatch (unless inside that setter for the same field on
     // `one` — the bypass), own field, or a promoted field reached by walking the embed chain.
-    private void EmitMemberSet(StringBuilder sb, string indent, IExpression target, string member, IExpression value)
+    private void EmitMemberSet(StringBuilder sb, string indent, IExpression target, string member,
+                               IExpression value, int? escapeToDepth = null)
     {
         string baseExpr = EmitExpr(target);
-        string val      = EmitExpr(value);
+        string val      = EmitEscapeCopy(EmitExpr(value), TypeOf(value), escapeToDepth);   // ESC.2
         FlushPreEmits(sb, indent);
         string stmt = TypeOf(target) is ObjectType ot
             ? EmitObjectMemberSet(baseExpr, ot.Name, member, val, target is VariableReference { Name: "one" })

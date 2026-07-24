@@ -32,7 +32,14 @@ public sealed record SeriesAddStatement(
     IExpression? AfterIndex,
     bool ToStart,
     int Line
-) : IStatement;
+) : IStatement
+{
+    // ESC.1 — set by the checker when the stored value's region depth is DEEPER than the
+    // destination's (the value would be freed by an inner rabbit's Done. while the destination
+    // still refers to it). Holds the destination's rabbit depth; the compiler copies the value
+    // into that depth's arena before storing. Null ⇒ no escape, no copy.
+    public int? EscapeToDepth { get; set; }
+}
 
 // Remove by position (Index == null → last)
 public sealed record SeriesRemoveAtStatement(IExpression Series, IExpression? Index, int Line) : IStatement;
@@ -65,7 +72,14 @@ public sealed record RecordNamedSetStatement(
     IExpression Record,
     IExpression Value,
     int Line
-) : IStatement;
+) : IStatement
+{
+    // ESC.1 — set by the checker when the stored value's region depth is DEEPER than the
+    // destination's (the value would be freed by an inner rabbit's Done. while the destination
+    // still refers to it). Holds the destination's rabbit depth; the compiler copies the value
+    // into that depth's arena before storing. Null ⇒ no escape, no copy.
+    public int? EscapeToDepth { get; set; }
+}
 
 public sealed record StateStatement(IExpression Value)                        : IStatement;
 // Permanent: true when declared with the trailing 'permanently' adverb — the binding
@@ -73,7 +87,14 @@ public sealed record StateStatement(IExpression Value)                        : 
 // Shadow: true when declared with the leading 'a shadow' modifier — explicitly shadows an
 // outer binding of the same name. Without this flag, shadowing an outer name is a static error.
 public sealed record DefineStatement(string Name, IExpression Value, bool Permanent, bool Shadow, int Line) : IStatement;
-public sealed record BecomesStatement(string Name, IExpression Value, int Line) : IStatement;
+public sealed record BecomesStatement(string Name, IExpression Value, int Line) : IStatement
+{
+    // ESC.1 — set by the checker when the stored value's region depth is DEEPER than the
+    // destination's (the value would be freed by an inner rabbit's Done. while the destination
+    // still refers to it). Holds the destination's rabbit depth; the compiler copies the value
+    // into that depth's arena before storing. Null ⇒ no escape, no copy.
+    public int? EscapeToDepth { get; set; }
+}
 
 public sealed record ConditionArm(IExpression Condition, IReadOnlyList<IStatement> Body);
 public sealed record IfStatement(
@@ -304,7 +325,14 @@ public sealed record VoidLiteral(int Line) : IExpression;
 public sealed record ButVoidDefault(IExpression Voidable, IExpression Default, int Line) : IExpression;
 
 // alice's age becomes X  /  one's age becomes X  — possessive field mutation
-public sealed record PossessiveSetStatement(IExpression Target, string Member, IExpression Value, int Line) : IStatement;
+public sealed record PossessiveSetStatement(IExpression Target, string Member, IExpression Value, int Line) : IStatement
+{
+    // ESC.1 — set by the checker when the stored value's region depth is DEEPER than the
+    // destination's (the value would be freed by an inner rabbit's Done. while the destination
+    // still refers to it). Holds the destination's rabbit depth; the compiler copies the value
+    // into that depth's arena before storing. Null ⇒ no escape, no copy.
+    public int? EscapeToDepth { get; set; }
+}
 
 // ── Failures (recoverable errors as values) ────────────────────────────────────
 
@@ -364,7 +392,14 @@ public sealed record MapHasEntry(IExpression Map, IExpression Key, int Line) : I
 public sealed record MapSize(IExpression Map, int Line) : IExpression;
 
 // in <map>, the entry for <key> becomes <value>.
-public sealed record MapSetStatement(IExpression Map, IExpression Key, IExpression Value, int Line) : IStatement;
+public sealed record MapSetStatement(IExpression Map, IExpression Key, IExpression Value, int Line) : IStatement
+{
+    // ESC.1 — set by the checker when the stored value's region depth is DEEPER than the
+    // destination's (the value would be freed by an inner rabbit's Done. while the destination
+    // still refers to it). Holds the destination's rabbit depth; the compiler copies the value
+    // into that depth's arena before storing. Null ⇒ no escape, no copy.
+    public int? EscapeToDepth { get; set; }
+}
 
 // a function given (<params>): <body> — anonymous function literal; return type inferred from body.
 // Body is inline (single stmt) or block (Done.-terminated); parsed by ParseLambdaBody.

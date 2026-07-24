@@ -1,4 +1,4 @@
-namespace Cufet.Interpreter;
+﻿namespace Cufet.Interpreter;
 
 public sealed partial class TypeChecker
 {
@@ -22,12 +22,14 @@ public sealed partial class TypeChecker
                         $"The setter for '{stmt.FieldName}' accepts a {FormatType(setterSig.Value.ParamType)}."));
                 CheckRegionStore(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Record), stmt.Line,
                     $"set field '{stmt.FieldName}' to a value from a shorter-lived rabbit region");
+                stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Record));
                 return;
             }
             CheckObjectNamedSet(ot, stmt.FieldName, stmt.Value, stmt.Line);
             var objValueType = InferType(stmt.Value);
             CheckRegionStore(stmt.Value, objValueType, ContainerDepthOf(stmt.Record), stmt.Line,
                 $"set field '{stmt.FieldName}' to a value from a shorter-lived rabbit region");
+            stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, objValueType, ContainerDepthOf(stmt.Record));
             return;
         }
 
@@ -62,6 +64,7 @@ public sealed partial class TypeChecker
         // Region invariant: field value cannot outlive the record's rabbit region.
         CheckRegionStore(stmt.Value, valueType, ContainerDepthOf(stmt.Record), stmt.Line,
             $"set field '{stmt.FieldName}' to a value from a shorter-lived rabbit region");
+        stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, valueType, ContainerDepthOf(stmt.Record));
     }
 
     private RecordType InferRecordLiteral(RecordLiteral lit)
