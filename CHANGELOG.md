@@ -170,6 +170,15 @@ Latent language and soundness bugs surfaced by holding the two backends against 
 - **A map key built inside a region and stored in a longer-lived map was freed with that
   region.** A map is the only place in the language that stores two values at once, and only
   the value half was ever checked for escape.
+- **Ctrl-C was ignored while a task was running.** Only the main thread and streaming-pipe
+  stages had somewhere to unwind to, so an interrupt inside a `Have rabbit start a task` body
+  did nothing at all — and the main thread, waiting at the rabbit's `Done.`, never looked at the
+  interrupt flag either. The program simply kept going. Tasks now unwind like any other thread:
+  the task stops where it is, its destructors run and its files close, the rabbit reaps it at the
+  join, and the program exits. A task blocked waiting on a channel used to treat the interrupt as
+  "the channel closed" and carry on with a value it never received; it now stops. Awaiting a task
+  that was interrupted no longer reads from nothing. Streaming-pipe stages, which could already
+  be interrupted, now run their destructors and close their files on the way out too.
 - **Closures that only wrote to a captured variable never captured it**, and a nested
   lambda parameter could mask a same-named outer variable across the whole enclosing body.
   Both emitted an undeclared C variable.
