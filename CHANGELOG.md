@@ -68,6 +68,10 @@ language itself, several of which predated the compiler entirely.
   the point of storage. The type checker computes the destination depth and annotates the
   store; the compiler performs the copy. Closure captures that escape are copied the same
   way, including the environment record itself.
+- A region is released on every way out of it, not just `Done.` — `return`, `Stop`, `Skip`,
+  `Suppress`, a failure unwind, an exception. Returning a value out of a region hands that
+  region's memory to the caller's instead of freeing it, so the value stays valid and is
+  reclaimed one level out; a long-running loop whose body opens a region stays flat.
 
 **Concurrency — true parallelism**
 - Tasks compile to pthreads with a structured join: a rabbit joins every task it spawned
@@ -142,6 +146,24 @@ Latent language and soundness bugs surfaced by holding the two backends against 
   invariant covered series, maps, and objects but not `text`, and any value-typed wrapper
   (a record, a voidable) laundered even a covered type past the check. The test is now
   structural over the whole shape.
+- **Jumping out of a region corrupted the arena stack.** A `return`, `Stop`, `Skip`,
+  `Suppress`, or failure unwind that left a `Pull a rabbit` skipped the rabbit's `Done.`,
+  so the arena depth was left one level too high — climbing by one on every such exit until,
+  after 64 of them, the next region pushed past the end of the arena table. Any program with
+  a helper that returns from inside a region and is called in a loop crashed. Regions now
+  unwind alongside files, handlers, and destructors on every exit path: a jump that carries
+  nothing out releases them, one carrying a failure message moves the message outward first,
+  and a `return` hands its region's memory to the caller's — never copying, because a
+  returned value may be the caller's own and the two backends must keep sharing it.
+- **A container living outside a region, grown from inside one, was freed with that region.**
+  Adding to a `series of number` or a `map from number to number` declared outside a
+  `Pull a rabbit` moved the container's own storage into the rabbit, so it dangled after
+  `Done.` — even though every element was a plain value. `examples/parallelsum.cufe` was a
+  use-after-free. Two things hang off the escape annotation, copying the stored value and
+  relocating the container's growth, and it was gated on the condition only the first needs.
+- **A map key built inside a region and stored in a longer-lived map was freed with that
+  region.** A map is the only place in the language that stores two values at once, and only
+  the value half was ever checked for escape.
 - **Closures that only wrote to a captured variable never captured it**, and a nested
   lambda parameter could mask a same-named outer variable across the whole enclosing body.
   Both emitted an undeclared C variable.
