@@ -90,7 +90,7 @@ public sealed class CodeGenerator
     private void ResetEmissionBuffers()
     {
         _taskFns.Clear(); _closureFns.Clear(); _closureEnvs.Clear(); _preEmits.Clear();
-        _openFiles.Clear(); _loopFileDepths.Clear(); _loopExcDepths.Clear();
+        _openFiles.Clear(); _loopFileDepths.Clear(); _loopExcDepths.Clear(); _loopRabbitDepths.Clear();
         _rabbitCtx.Clear(); _rabbitDepth = 0; _excOpen = 0;
         _varRabbitDepth.Clear(); _closureEscapeDepth = null;
         _narrowedVars.Clear(); _currentFailVar = null; _closureSelf = null; _currentTaskReturn = null;
@@ -181,6 +181,60 @@ public sealed class CodeGenerator
     // exactly one arena and a plain call pushes none. Set by EnterFrame; null at top level (base 0).
     private string? _frameArenaBase;
 
+    // ── ESC.3 — arenas in the nonlocal-exit cleanup family ─────────────────────
+    // Every nonlocal exit already unwinds the other scoped resources through a cleanup prefix
+    // (UnmakerRunStmt + FileCleanupStmts + ExcPopStmts). Arenas were the one resource missing from
+    // that list, so a return/Stop/Skip/failure-goto out of a `Pull a rabbit` jumped straight past
+    // the rabbit's `Done.` pop — which does NOT merely leak: cufet_arena_top is left one level too
+    // high, so every later allocation lands in the dead rabbit's arena and, after
+    // CUFET_ARENA_MAX_DEPTH such exits, the push writes past the end of cufet_arenas[].
+    //
+    // `k` levels to unwind = _rabbitDepth − (the rabbit depth recorded where the jump lands), the
+    // same shape as ExcPopStmts. Rabbits are the only arena pushers inside a frame, so the count is
+    // exact. How each level goes depends on what the jump carries out:
+    //   Stop / Skip          — nothing crosses (outward stores were already copied by ESC.1/ESC.2),
+    //                          so a true pop: identical to the rabbit's own normal `Done.` exit.
+    //   failure-goto /       — only the message/category strings cross; copy them outward first
+    //   `pass the failure off` (ArenaStrCopyTo), then a true pop.
+    //   return <value>       — an arbitrary value crosses, and it may ALIAS the caller's own data
+    //                          (measured: returning a parameter through a rabbit shares in the
+    //                          interpreter), so copying would diverge. Merge down instead.
+    private readonly List<int> _loopRabbitDepths = new();
+    private int CurrentLoopRabbitDepth() => _loopRabbitDepths.Count > 0 ? _loopRabbitDepths[^1] : 0;
+
+    // The `cufet_arena_pop(); ` / `cufet_arena_merge_down(); ` run unwinding rabbit regions down to
+    // `toDepth`, or "" when the jump stays inside the same region (the common case — zero cost).
+    private string ArenaPopStmts(int toDepth, bool merge = false)
+    {
+        int k = _rabbitDepth - toDepth;
+        return k > 0 ? string.Concat(Enumerable.Repeat(merge ? "cufet_arena_merge_down(); " : "cufet_arena_pop(); ", k)) : "";
+    }
+
+    // `lvalue = cufet_arena_str_at(<dest>, lvalue); ` — moves an arena-templated failure string out
+    // to the arena the jump lands in. Emitted only when arena levels are actually being unwound.
+    private string ArenaStrCopyTo(int toDepth, params string[] lvalues) =>
+        _rabbitDepth - toDepth <= 0
+            ? ""
+            : string.Concat(lvalues.Select(v => $"{v} = cufet_arena_str_at({EscapeArenaDepth(toDepth)}, {v}); "));
+
+    // The body of a jump to the enclosing Try's failure handler: record the failure into the Try's
+    // caught-failure var, then unwind every scoped resource between here and the Try — unmakers,
+    // files, exception pads, and (ESC.3) rabbit arenas. The message/category move outward FIRST,
+    // because the I/O error bridge templates them into the very arena about to be released.
+    // Every failure-goto site shares this one definition so none can drift out of step with it —
+    // three of the four were already out of step when arenas were added.
+    private string FailureGotoBody(
+        (string Label, string FailVar, int FileDepth, int ExcDepth, string? UnmakerSnap, int RabbitDepth) h,
+        string msgLvalue, string catLvalue) =>
+        $"{ArenaStrCopyTo(h.RabbitDepth, msgLvalue, catLvalue)}{h.FailVar}.message = {msgLvalue}; {h.FailVar}.category = {catLvalue}; " +
+        $"{UnmakerRunStmt(h.UnmakerSnap)}{FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}{ArenaPopStmts(h.RabbitDepth)}goto {h.Label};";
+
+    // True when a returned value can point into an arena that the return's unwinding would free —
+    // either the value itself is region-bearing, or it is fallible and carries an arena-templated
+    // message. Such a return merges its regions down instead of popping them.
+    private static bool ReturnCarriesArenaData(CufetType? t) =>
+        t is FailureType || TypeChecker.IsRegionBearing(t);
+
     // Pipe-stage input element types (channel-of-T text/reference pipes). A `for each x from the
     // input` needs a concrete C type for x; the stream type is implicit in the grammar, so it's
     // inferred by a whole-program pipe pass (each stage's input = the previous stage's output type).
@@ -198,7 +252,7 @@ public sealed class CodeGenerator
     // Inside a Try body: (handler label, the caught-failure C var, open-file depth at Try entry)
     // so a failing fallible call records the failure, closes files opened since the Try, and jumps
     // to the In-case-of-failure handler.
-    private (string Label, string FailVar, int FileDepth, int ExcDepth, string? UnmakerSnap)? _currentTryHandler;
+    private (string Label, string FailVar, int FileDepth, int ExcDepth, string? UnmakerSnap, int RabbitDepth)? _currentTryHandler;
 
     // E-prime — exception-handler bookkeeping. `_excOpen` counts jmp_buf handlers open in the
     // function currently being emitted (reset per function): every NONLOCAL exit (return, Stop/Skip,
@@ -207,7 +261,7 @@ public sealed class CodeGenerator
     // var + done label (for `Suppress.`); `_currentExcVar` the saved message (for `the exception`).
     private int _excOpen;
     private readonly List<int> _loopExcDepths = new();
-    private (string SupVar, string DoneLabel)? _currentExcHandler;
+    private (string SupVar, string DoneLabel, int RabbitDepth)? _currentExcHandler;
     private string? _currentExcVar;
     private static readonly CufetType TExcMarker = new ExceptionMarkerType();
 
@@ -223,8 +277,8 @@ public sealed class CodeGenerator
     // Close-on-all-paths cleanup (slice 9B): open file handles (their `fclose(...)` C statements)
     // in open order. Files are closed on EVERY exit from their scope — normal end, return,
     // failure-goto, and loop break/continue — so a write is always flushed (no data loss).
-    // (Arenas are deliberately NOT tracked here: the nonlocal-exit `arena_pop` is unsafe because
-    // escaping return values and failure messages live in the arena — see project-design-decisions.)
+    // (Arenas unwind alongside these as of ESC.3 — see ArenaPopStmts. They were held back until the
+    // escape machinery existed to move an escaping value or failure message out of the arena first.)
     private readonly List<string> _openFiles = new();
     // The _openFiles depth at each enclosing loop's entry, so break/continue closes files opened
     // inside the loop body before jumping out of it.
@@ -1542,6 +1596,43 @@ static void* cufet_pipe_stage(void* argp) {
         sb.AppendLine("    a->len  = 0;");
         sb.AppendLine("    a->cap  = 0;");
         sb.AppendLine("    --cufet_arena_top;");
+        sb.AppendLine("}");
+        sb.AppendLine();
+        // ESC.3 — pop WITHOUT freeing: hand the top arena's blocks to its parent, then discard the
+        // level. Used where a nonlocal exit leaves a rabbit carrying a value out (a `return`), so the
+        // returned value cannot be freed here — but the LEVEL must still go, or cufet_arena_top
+        // drifts upward on every such exit (past CUFET_ARENA_MAX_DEPTH = an out-of-bounds write).
+        // Ownership moves outward; the blocks die at the destination's own pop. No copying, so a
+        // returned value that ALIASES the caller's data stays the same pointer (measured: the
+        // interpreter shares here, so copying would diverge).
+        sb.AppendLine("static void cufet_arena_merge_down(void) {");
+        sb.AppendLine("    if (cufet_arena_top < 1) { cufet_arena_pop(); return; }   /* no parent to merge into */");
+        sb.AppendLine("    CufetArena* a = &cufet_arenas[cufet_arena_top];");
+        sb.AppendLine("    CufetArena* p = &cufet_arenas[cufet_arena_top - 1];");
+        sb.AppendLine("    if (a->len > 0) {");
+        sb.AppendLine("        if (p->len + a->len > p->cap) {");
+        sb.AppendLine("            p->cap  = p->len + a->len;");
+        sb.AppendLine("            p->ptrs = (void**)realloc(p->ptrs, (size_t)p->cap * sizeof(void*));");
+        sb.AppendLine("        }");
+        sb.AppendLine("        for (int i = 0; i < a->len; i++) p->ptrs[p->len++] = a->ptrs[i];");
+        sb.AppendLine("    }");
+        sb.AppendLine("    free(a->ptrs);");
+        sb.AppendLine("    a->ptrs = NULL;");
+        sb.AppendLine("    a->len  = 0;");
+        sb.AppendLine("    a->cap  = 0;");
+        sb.AppendLine("    --cufet_arena_top;");
+        sb.AppendLine("}");
+        sb.AppendLine();
+        // ESC.3 — copy a string into a specific arena depth. A failure's message/category can be
+        // arena-templated (the I/O error bridge builds them with cufet_arena_msg), so a nonlocal exit
+        // that pops the arena they live in must move them outward first — the EXCMSG fix, applied to
+        // the failure path. A static literal copied here is a small wasted allocation, not a bug.
+        sb.AppendLine("static const char* cufet_arena_str_at(int depth, const char* s) {");
+        sb.AppendLine("    if (!s) return 0;");
+        sb.AppendLine("    size_t n = strlen(s) + 1;");
+        sb.AppendLine("    char* b = (char*)cufet_arena_alloc_at(depth, n);");
+        sb.AppendLine("    memcpy(b, s, n);");
+        sb.AppendLine("    return b;");
         sb.AppendLine("}");
         sb.AppendLine();
 
@@ -3538,17 +3629,19 @@ static void* cufet_pipe_stage(void* argp) {
                         FlushPreEmits(sb, indent);
                         int rid = _freshId++;
                         sb.AppendLine($"{indent}void* cf_tret{rid} = {ChanHeapEnv(tctx.ResultType)}({retExpr});");
-                        sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}cufet_arena_pop(); free(cf_a); return cf_tret{rid};");
+                        // ESC.3: the result is already on the heap, so rabbits this return jumps out
+                        // of are genuinely reclaimed before the task's own arena goes.
+                        sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{ArenaPopStmts(0)}cufet_arena_pop(); free(cf_a); return cf_tret{rid};");
                     }
                     else
                     {
                         // A bare `return.` (or a value dropped by a fire-and-forget task): no result.
-                        sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}cufet_arena_pop(); free(cf_a); return NULL;");
+                        sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{ArenaPopStmts(0)}cufet_arena_pop(); free(cf_a); return NULL;");
                     }
                     break;
                 }
                 if (ret.Value == null)
-                    sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}return;");
+                    sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{ArenaPopStmts(0)}return;");
                 else
                 {
                     // Coerce so `return <T>` / `return void` widens into a voidable return type.
@@ -3556,7 +3649,20 @@ static void* cufet_pipe_stage(void* argp) {
                     // arena value never references a FILE*), THEN return.
                     string retExpr = EmitAsType(ret.Value, _currentReturnType);
                     FlushPreEmits(sb, indent);
-                    sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}return {retExpr};");
+                    // ESC.3 — returning out of one or more rabbits. Bind the value to a temp FIRST so
+                    // it is fully materialized before any region is unwound (the return expression
+                    // would otherwise be evaluated after the cleanup prefix). A value that can point
+                    // into those regions merges them outward (no copy, so aliasing is preserved);
+                    // anything else — a number, a fact — reclaims them outright.
+                    var retType = _currentReturnType ?? TypeOf(ret.Value);
+                    string arenas = ArenaPopStmts(0, merge: ReturnCarriesArenaData(retType));
+                    if (arenas.Length > 0)
+                    {
+                        int rvid = _freshId++;
+                        sb.AppendLine($"{indent}{EmitCType(retType)} cf_rv{rvid} = {retExpr};");
+                        retExpr = $"cf_rv{rvid}";
+                    }
+                    sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{arenas}return {retExpr};");
                 }
                 break;
 
@@ -3593,7 +3699,7 @@ static void* cufet_pipe_stage(void* argp) {
                 string cr = RegisterRecordStruct(RunResultRecordType);
                 string fOut = MangleName("output"), fErr = MangleName("errors");
                 if (_currentTryHandler is { } h)
-                    sb.AppendLine($"{indent}if ({raw}.is_failure) {{ {h.FailVar}.message = {raw}.message; {h.FailVar}.category = {raw}.category; {UnmakerRunStmt(h.UnmakerSnap)}{FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}goto {h.Label}; }}");
+                    sb.AppendLine($"{indent}if ({raw}.is_failure) {{ {FailureGotoBody(h, $"{raw}.message", $"{raw}.category")} }}");
                 else
                     sb.AppendLine($"{indent}if ({raw}.is_failure) {{ fprintf(stderr, \"%s\\n\", {raw}.message); exit(1); }}");
                 sb.AppendLine($"{indent}fputs({raw}.val.{fErr}, stderr); fputs({raw}.val.{fOut}, stdout);");
@@ -3855,7 +3961,8 @@ static void* cufet_pipe_stage(void* argp) {
                 string name    = MapName(mss.Map);
                 var    valType = ((MapType)TypeOf(mss.Map)).ValueType;
                 string mapExpr = EmitExpr(mss.Map);
-                string keyExpr = EmitExpr(mss.Key);
+                var    keyType = ((MapType)TypeOf(mss.Map)).KeyType;
+                string keyExpr = EmitEscapeCopy(EmitExpr(mss.Key), keyType, mss.KeyEscapeToDepth);   // ESC.3
                 string valExpr = EmitEscapeCopy(EmitAsType(mss.Value, valType), valType, mss.EscapeToDepth);   // ESC.2
                 FlushPreEmits(sb, indent);
                 EmitStoreWithEscape(sb, indent, mss.EscapeToDepth, $"{name}_put({mapExpr}, {keyExpr}, {valExpr});");
@@ -3913,11 +4020,11 @@ static void* cufet_pipe_stage(void* argp) {
             }
 
             case StopStatement:
-                sb.AppendLine($"{indent}{UnmakerRunStmt(CurrentLoopUnmakerSnap())}{FileCleanupStmts(CurrentLoopFileDepth())}{ExcPopStmts(CurrentLoopExcDepth())}break;");
+                sb.AppendLine($"{indent}{UnmakerRunStmt(CurrentLoopUnmakerSnap())}{FileCleanupStmts(CurrentLoopFileDepth())}{ExcPopStmts(CurrentLoopExcDepth())}{ArenaPopStmts(CurrentLoopRabbitDepth())}break;");
                 break;
 
             case SkipStatement:
-                sb.AppendLine($"{indent}{UnmakerRunStmt(CurrentLoopUnmakerSnap())}{FileCleanupStmts(CurrentLoopFileDepth())}{ExcPopStmts(CurrentLoopExcDepth())}continue;");
+                sb.AppendLine($"{indent}{UnmakerRunStmt(CurrentLoopUnmakerSnap())}{FileCleanupStmts(CurrentLoopFileDepth())}{ExcPopStmts(CurrentLoopExcDepth())}{ArenaPopStmts(CurrentLoopRabbitDepth())}continue;");
                 break;
 
             case TryStatement ts:
@@ -3929,7 +4036,9 @@ static void* cufet_pipe_stage(void* argp) {
                 // (the interpreter's SuppressSignal unwinds the rest of the handler block too).
                 if (_currentExcHandler is not { } eh)
                     throw new CompilerException("'Suppress' is only valid inside an 'In case of exception' handler.");
-                sb.AppendLine($"{indent}{eh.SupVar} = 1; goto {eh.DoneLabel};");
+                // ESC.3: Suppress can sit inside a rabbit opened within the handler — the jump to the
+                // handler's end must release those regions, exactly like Stop out of a loop.
+                sb.AppendLine($"{indent}{eh.SupVar} = 1; {ArenaPopStmts(eh.RabbitDepth)}goto {eh.DoneLabel};");
                 break;
 
             case ForEachStatement fe when fe.Series is RangeExpression range:
@@ -4208,7 +4317,8 @@ static void* cufet_pipe_stage(void* argp) {
 
         var savedHandler = _currentTryHandler;
         if (hasFail)
-            _currentTryHandler = (label, failVar, _openFiles.Count, _excOpen, umSnap);   // failure-goto pops NESTED exc handlers only
+            // failure-goto pops NESTED exc handlers + NESTED rabbit arenas only
+            _currentTryHandler = (label, failVar, _openFiles.Count, _excOpen, umSnap, _rabbitDepth);
         // The Try body is a block scope: register its Defines, fire (LIFO) at normal completion.
         if (UsesUnmakers) _scopeDepth++;
         EmitBlock(sb, trySt.Body, inner);
@@ -4249,7 +4359,7 @@ static void* cufet_pipe_stage(void* argp) {
             var savedExcH = _currentExcHandler;
             var savedExcV = _currentExcVar;
             var savedExcT = _varTypes.TryGetValue("the exception", out var pex) ? pex : null;
-            _currentExcHandler = (sup, doneL);
+            _currentExcHandler = (sup, doneL, _rabbitDepth);
             _currentExcVar = xmsg;
             _varTypes["the exception"] = TExcMarker;
             EmitScopedBlock(sb, trySt.ExceptionHandler!, inner);
@@ -5650,7 +5760,9 @@ static void* cufet_pipe_stage(void* argp) {
         string enclosing = _currentReturnType is FailureType ft
             ? RegisterFailableStruct(ft)
             : throw new CompilerException("'or pass the failure off' requires the enclosing function to return 'T or failure'.");
-        _preEmits.Add($"if ({tmp}.is_failure) {{ {UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}return (({enclosing}){{ .is_failure = 1, .message = {tmp}.message, .category = {tmp}.category }}); }}");
+        // ESC.3: only the message/category cross this return, so move them out to the frame's base
+        // arena and then genuinely reclaim every rabbit region this propagation jumps out of.
+        _preEmits.Add($"if ({tmp}.is_failure) {{ {ArenaStrCopyTo(0, $"{tmp}.message", $"{tmp}.category")}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{ArenaPopStmts(0)}return (({enclosing}){{ .is_failure = 1, .message = {tmp}.message, .category = {tmp}.category }}); }}");
         return $"{tmp}.val";
     }
 
@@ -5747,7 +5859,7 @@ static void* cufet_pipe_stage(void* argp) {
         string ok = $"cf_w{id}", err = $"cf_we{id}";
         sb.AppendLine($"{indent}{{ CufetFailure {err}; int {ok} = cufet_file_write({pathExpr}, {valExpr}, {(fw.Append ? 1 : 0)}, &{err});");
         if (_currentTryHandler is { } h)
-            sb.AppendLine($"{indent}  if (!{ok}) {{ {h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; {UnmakerRunStmt(h.UnmakerSnap)}{FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}goto {h.Label}; }} }}");
+            sb.AppendLine($"{indent}  if (!{ok}) {{ {FailureGotoBody(h, $"{err}.message", $"{err}.category")} }} }}");
         else
             sb.AppendLine($"{indent}  if (!{ok}) {{ fprintf(stderr, \"%s\\n\", {err}.message); exit(1); }} }}");
     }
@@ -5798,7 +5910,7 @@ static void* cufet_pipe_stage(void* argp) {
         sb.AppendLine($"{inner}const char* {pathTmp} = {pathExpr};");
         sb.AppendLine($"{inner}FILE* {sVar} = fopen({pathTmp}, \"{mode}\");");
         if (_currentTryHandler is { } h)
-            sb.AppendLine($"{inner}if (!{sVar}) {{ CufetFailure {err} = cufet_file_failure({pathTmp}, errno); {UnmakerRunStmt(h.UnmakerSnap)}{FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}{h.FailVar}.message = {err}.message; {h.FailVar}.category = {err}.category; goto {h.Label}; }}");
+            sb.AppendLine($"{inner}if (!{sVar}) {{ CufetFailure {err} = cufet_file_failure({pathTmp}, errno); {FailureGotoBody(h, $"{err}.message", $"{err}.category")} }}");
         else
             sb.AppendLine($"{inner}if (!{sVar}) {{ CufetFailure {err} = cufet_file_failure({pathTmp}, errno); fprintf(stderr, \"%s\\n\", {err}.message); exit(1); }}");
 
@@ -5824,6 +5936,7 @@ static void* cufet_pipe_stage(void* argp) {
     {
         _loopFileDepths.Add(_openFiles.Count);
         _loopExcDepths.Add(_excOpen);
+        _loopRabbitDepths.Add(_rabbitDepth);   // ESC.3 — Stop/Skip pop rabbits opened inside the loop
         if (!UsesUnmakers) { EmitBlock(sb, body, indent); }
         else
         {
@@ -5841,6 +5954,7 @@ static void* cufet_pipe_stage(void* argp) {
         }
         _loopFileDepths.RemoveAt(_loopFileDepths.Count - 1);
         _loopExcDepths.RemoveAt(_loopExcDepths.Count - 1);
+        _loopRabbitDepths.RemoveAt(_loopRabbitDepths.Count - 1);
     }
 
     private string? CurrentLoopUnmakerSnap() => _loopUnmakerSnaps.Count > 0 ? _loopUnmakerSnaps[^1] : null;
@@ -5970,8 +6084,7 @@ static void* cufet_pipe_stage(void* argp) {
         _preEmits.Add($"{cflName} {tmp} = {rawCall};");
         if (_currentTryHandler is not { } h)
             throw new CompilerException("a fallible call must be handled (Try, 'but on failure', or 'or pass the failure off').");
-        // Close any files opened since the Try before unwinding to the handler (flush-on-failure).
-        _preEmits.Add($"if ({tmp}.is_failure) {{ {h.FailVar}.message = {tmp}.message; {h.FailVar}.category = {tmp}.category; {UnmakerRunStmt(h.UnmakerSnap)}{FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}goto {h.Label}; }}");
+        _preEmits.Add($"if ({tmp}.is_failure) {{ {FailureGotoBody(h, $"{tmp}.message", $"{tmp}.category")} }}");
         return $"{tmp}.val";
     }
 

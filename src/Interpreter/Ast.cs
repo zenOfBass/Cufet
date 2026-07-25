@@ -399,6 +399,10 @@ public sealed record MapSetStatement(IExpression Map, IExpression Key, IExpressi
     // still refers to it). Holds the destination's rabbit depth; the compiler copies the value
     // into that depth's arena before storing. Null ⇒ no escape, no copy.
     public int? EscapeToDepth { get; set; }
+    // A map stores its KEY as well as its value, so the key needs its own escape annotation — a
+    // rabbit-scoped text key put into a longer-lived map dangles exactly like a value would. This
+    // is the only store in the language with two escaping operands.
+    public int? KeyEscapeToDepth { get; set; }
 }
 
 // a function given (<params>): <body> — anonymous function literal; return type inferred from body.

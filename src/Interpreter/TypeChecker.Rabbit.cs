@@ -181,11 +181,22 @@ public sealed partial class TypeChecker
     // sees text and region-bearing wrappers. Returns the destination depth when the value would
     // outlive its own region (valueDepth > targetDepth) — i.e. when the compiler must copy it into
     // the destination's arena — and null otherwise (no escape, no copy: keeps copying TIGHT).
+    // ★ TWO things hang off this annotation, and they have DIFFERENT triggers:
+    //   1. deep-copying the stored VALUE into the destination's arena — only region-bearing values
+    //      need it, and the compiler's EmitEscapeCopy no-ops on the rest by itself;
+    //   2. redirecting the destination CONTAINER's own growth — a series/map `_ensure` realloc —
+    //      into that arena, which is needed whenever the destination outlives the region we are
+    //      standing in, WHATEVER its element type.
+    // Gating the whole annotation on the value being region-bearing missed (2) entirely: a
+    // `series of number` declared outside a rabbit and appended to inside one had its data buffer
+    // reallocated into the rabbit's arena, so the series dangled after `Done.` even though every
+    // element was a plain value. (Found in examples/parallelsum.cufe.) So a non-region-bearing
+    // value takes the depth of the store SITE — which is what decides (2).
     private int? EscapeDepthFor(IExpression valueExpr, CufetType? valueType, int targetDepth)
     {
-        if (!IsRegionBearing(valueType)) return null;
         int valueDepth =
-            valueExpr is VariableReference vr && TryLookup(vr.Name, out var ti) ? ti.RabbitDepth
+            !IsRegionBearing(valueType) ? _rabbitDepth
+            : valueExpr is VariableReference vr && TryLookup(vr.Name, out var ti) ? ti.RabbitDepth
             : valueExpr is CastExpression cast && _castDepthCache.TryGetValue(cast, out var cd) ? cd
             : valueExpr is PossessiveAccess poss && _possessiveDepthCache.TryGetValue(poss, out var pd) ? pd
             : valueExpr is RecordNamedAccess rna && _rnaDepthCache.TryGetValue(rna, out var rd) ? rd

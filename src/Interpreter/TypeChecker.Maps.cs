@@ -63,6 +63,11 @@ public sealed partial class TypeChecker
         CheckRegionStore(mapSet.Value, valType, ContainerDepthOf(mapSet.Map), mapSet.Line,
             "store a rabbit-scoped value in a map that lives in a longer-lived region");
         mapSet.EscapeToDepth = EscapeDepthFor(mapSet.Value, valType, ContainerDepthOf(mapSet.Map));
+        // The key is stored too, so it escapes on the same terms as the value (a text key built
+        // inside a rabbit and put into a longer-lived map would be freed at that rabbit's Done.
+        // while the map still holds it). Annotate only — no CheckRegionStore for keys, so this
+        // rejects nothing the interpreter accepts; the compiler copies the key outward instead.
+        mapSet.KeyEscapeToDepth = EscapeDepthFor(mapSet.Key, keyType, ContainerDepthOf(mapSet.Map));
     }
 
     private CufetType? InferMapLiteral(MapLiteral lit)

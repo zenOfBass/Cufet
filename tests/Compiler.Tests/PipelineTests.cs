@@ -6475,4 +6475,390 @@ public class PipelineTests
             """;
         Assert.Equal(Interpret(src), Compile(src));
     }
+
+    // ── ESC.3b — two more escape holes, found by ASan-sweeping every example ───────────────────
+    // examples/parallelsum.cufe was a heap-use-after-free. The escape annotation drives two
+    // different things — deep-copying the stored VALUE, and redirecting the destination
+    // CONTAINER's own growth — but was gated on the value being region-bearing, which only the
+    // first needs. A `series of number` living outside a rabbit and appended to inside one had its
+    // data buffer reallocated into the rabbit's arena, so it dangled at `Done.` despite every
+    // element being a plain value. The loop counts here must exceed the initial capacity (8) so
+    // the append actually reallocates — that is the whole bug.
+
+    [Fact]
+    public void Esc3_PodSeriesGrownInsideRabbit_SurvivesDone()
+    {
+        const string src = """
+            Define outer as a series of number with ().
+            Pull a rabbit.
+                Define i as 0.
+                While i is less than 12, repeat:
+                    Add i to outer.
+                    i becomes i + 1.
+                Done.
+            Done.
+            State outer.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Esc3_PodSeriesPrependedInsideRabbit_SurvivesDone()
+    {
+        const string src = """
+            Define s as a series of number with (99).
+            Pull a rabbit.
+                Define i as 0.
+                While i is less than 12, repeat:
+                    Add i to the start of s.
+                    i becomes i + 1.
+                Done.
+            Done.
+            State s.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Esc3_PodMapGrownInsideRabbit_SurvivesDone()
+    {
+        const string src = """
+            Define counts as a map from number to number with ().
+            Pull a rabbit.
+                Define i as 0.
+                While i is less than 12, repeat:
+                    In counts, the entry for i becomes i * 2.
+                    i becomes i + 1.
+                Done.
+            Done.
+            State the size of counts.
+            State counts.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // A map is the only store in the language with TWO escaping operands, and the key half had no
+    // annotation at all — a text key built inside a rabbit and put into a longer-lived map was
+    // freed at `Done.` while the map still held it.
+    [Fact]
+    public void Esc3_ArenaTextMapKeyStoredOutward_SurvivesDone()
+    {
+        const string src = """
+            Define store as a map from text to number with ().
+            Pull a rabbit.
+                Define i as 0.
+                While i is less than 12, repeat:
+                    Define k as "key" joined to (i converted to text).
+                    In store, the entry for k becomes i.
+                    i becomes i + 1.
+                Done.
+            Done.
+            State the size of store.
+            State store.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // ── ESC.3 — nonlocal exits out of a rabbit unwind its arena ────────────────────────────────
+    // Jumping out of a `Pull a rabbit` used to skip the rabbit's `Done.` arena pop entirely. That
+    // was not merely a leak: cufet_arena_top was left one level too high, so it climbed by one on
+    // every such exit and, past CUFET_ARENA_MAX_DEPTH (64), the next push wrote off the end of the
+    // arena array. Each of the four exits below crashed with a SEGV at ~64 iterations before the
+    // fix; all four run to 100 here, so the loop count is load-bearing — do not lower it.
+
+    [Fact]
+    public void Esc3_ReturnOutOfRabbit_DoesNotDriftArenaDepth()
+    {
+        const string src = """
+            Bind series of number to build:
+                Pull a rabbit.
+                    Define inner as a series of number with (1, 2, 3).
+                    return inner.
+                Done.
+                return a series of number with ().
+            Done.
+
+            Define i as 1.
+            Define total as 0.
+            While i is less than 100, repeat:
+                Define r as Cast build on ().
+                total becomes total + the number of r.
+                i becomes i + 1.
+            Done.
+            State total.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Esc3_SkipOutOfRabbit_DoesNotDriftArenaDepth()
+    {
+        const string src = """
+            Define i as 0.
+            Define t as 0.
+            While i is less than 100, repeat:
+                i becomes i + 1.
+                Pull a rabbit.
+                    Define s as a series of number with (1, 2).
+                    t becomes t + the number of s.
+                    If i is greater than 0, Skip.
+                Done.
+            Done.
+            State t.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Esc3_FailureGotoOutOfRabbit_DoesNotDriftArenaDepth()
+    {
+        const string src = """
+            Bind text or failure to f:
+                return a failure "x" of category "y".
+            Done.
+
+            Define i as 0.
+            While i is less than 100, repeat:
+                i becomes i + 1.
+                Try to:
+                    Pull a rabbit.
+                        Define v as Cast f on ().
+                        State v.
+                    Done.
+                Done.
+                In case of failure:
+                    Define ignored as 1.
+                Done.
+            Done.
+            State "done".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Esc3_PropagateOutOfRabbit_DoesNotDriftArenaDepth()
+    {
+        const string src = """
+            Bind text or failure to inner:
+                return a failure "x" of category "y".
+            Done.
+
+            Bind text or failure to outer:
+                Pull a rabbit.
+                    Define v as Cast inner on () or pass the failure off.
+                    return v.
+                Done.
+                return "".
+            Done.
+
+            Define i as 0.
+            While i is less than 100, repeat:
+                i becomes i + 1.
+                Try to:
+                    Define r as Cast outer on ().
+                    State r.
+                Done.
+                In case of failure:
+                    Define ig as 1.
+                Done.
+            Done.
+            State "done".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // The failure-goto is emitted from four places, not one — a bare fallible call, a bare pipe
+    // statement, a failed file write, and a failed `With … open`. Only the first was wired when
+    // arenas joined the cleanup family; these two cover the other reachable ones. (They assert on a
+    // count rather than the failure message, so the OS's error text never enters the comparison.)
+    [Fact]
+    public void Esc3_WithOpenFailureOutOfRabbit_DoesNotDriftArenaDepth()
+    {
+        const string src = """
+            Define i as 0.
+            While i is less than 100, repeat:
+                i becomes i + 1.
+                Try to:
+                    Pull a rabbit.
+                        Define p as "no-such-dir-esc3/f" joined to ".txt".
+                        With the file p open for reading as s:
+                            Define line as read a line from s.
+                        Done.
+                    Done.
+                Done.
+                In case of failure:
+                    Define ig as 1.
+                Done.
+            Done.
+            State "done".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Esc3_FileWriteFailureOutOfRabbit_DoesNotDriftArenaDepth()
+    {
+        const string src = """
+            Define i as 0.
+            While i is less than 100, repeat:
+                i becomes i + 1.
+                Try to:
+                    Pull a rabbit.
+                        Define p as "no-such-dir-esc3/f" joined to ".txt".
+                        Write "hello" to the file p.
+                    Done.
+                Done.
+                In case of failure:
+                    Define ig as 1.
+                Done.
+            Done.
+            State "done".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // `Suppress` jumps to the end of its exception handler, so a rabbit opened inside the handler
+    // is jumped out of exactly the way `Stop` jumps out of a loop.
+    [Fact]
+    public void Esc3_SuppressInsideRabbitInHandler_DoesNotDriftArenaDepth()
+    {
+        const string src = """
+            Define i as 0.
+            While i is less than 100, repeat:
+                i becomes i + 1.
+                Try to:
+                    Define z as 0.
+                    Define bad as 5 / z.
+                    State bad.
+                Done.
+                In case of exception (the exception):
+                    Pull a rabbit.
+                        Define note as "caught" joined to " it".
+                        Suppress the exception.
+                    Done.
+                Done.
+            Done.
+            State "done".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // ★ The reason a return MERGES its rabbit's arena outward instead of copying the value into the
+    // caller's: the returned value may be the caller's own, and the interpreter shares it. Copying
+    // would make `r` a distinct series and print (1, 2) here — a divergence, not an optimization.
+    [Fact]
+    public void Esc3_ReturnedValueAliasingTheCaller_IsNotCopied()
+    {
+        const string src = """
+            Bind series of number to passthru, given (the series of number s):
+                Pull a rabbit.
+                    Define ignored as 1.
+                    return s.
+                Done.
+                return a series of number with ().
+            Done.
+
+            Define outer as a series of number with (1, 2).
+            Define r as Cast passthru on (outer).
+            Add 9 to r.
+            State outer.
+            State r.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // An I/O failure's message is arena-templated (cufet_arena_msg), so both the goto-to-handler and
+    // the propagate-out-of-frame paths must move it outward before unwinding the rabbit it was
+    // built in — otherwise the handler reads freed memory. (The EXCMSG fix, on the failure path.)
+    [Fact]
+    public void Esc3_ArenaTemplatedFailureMessage_SurvivesRabbitUnwind()
+    {
+        const string src = """
+            Bind text or failure to load:
+                Pull a rabbit.
+                    Define name as "no-such-file-esc3" joined to ".txt".
+                    Define v as read all from the file name or pass the failure off.
+                    return v.
+                Done.
+                return "unreached".
+            Done.
+
+            Try to:
+                Pull a rabbit.
+                    Define direct as "no-such-file-esc3-b" joined to ".txt".
+                    Define d as read all from the file direct.
+                    State d.
+                Done.
+            Done.
+            In case of failure:
+                State the message of the failure.
+            Done.
+
+            Try to:
+                Define r as Cast load on ().
+                State r.
+            Done.
+            In case of failure:
+                State the message of the failure.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // Reclamation, not just non-crashing: 20,000 iterations each building a 200-element series
+    // inside a rabbit and jumping out of it. Peak RSS stays ~1.7 MB (measured in WSL), so the
+    // regions really are being released. LSan cannot see this class — the arena's pointer list is
+    // a live global root, so its blocks are "still reachable" — hence the oracle-match plus the
+    // manual RSS check rather than a sanitizer assertion.
+    [Fact]
+    public void Esc3_RepeatedReturnOutOfRabbit_ReclaimsMemory()
+    {
+        const string src = """
+            Bind number to work:
+                Pull a rabbit.
+                    Define s as a series of number with ().
+                    Define j as 0.
+                    While j is less than 200, repeat:
+                        Add j to s.
+                        j becomes j + 1.
+                    Done.
+                    return the number of s.
+                Done.
+                return 0.
+            Done.
+
+            Define i as 0.
+            Define t as 0.
+            While i is less than 20000, repeat:
+                t becomes t + Cast work on ().
+                i becomes i + 1.
+            Done.
+            State t.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Esc3_ReturnOutOfRabbitInsideTask_DoesNotDriftArenaDepth()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // A task body is its own frame with its own thread-local arena stack, so it has the same
+        // exit paths — and its result is heap-bridged before the teardown, so the rabbits it
+        // returns out of are genuinely reclaimed rather than merged.
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as worker:
+                    Pull a rabbit.
+                        Define s as a series of number with (1, 2, 3, 4).
+                        return the number of s.
+                    Done.
+                    return 0.
+                Done.
+                Define r as the awaited result of worker.
+                State r.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
 }
