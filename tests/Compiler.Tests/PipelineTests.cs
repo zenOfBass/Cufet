@@ -6476,6 +6476,170 @@ public class PipelineTests
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ── TCAP — a task may capture any type, not just number/fact/channel ───────────────────────
+    // A capture crosses a thread boundary, so it travels the way a channel message does: deep-copied
+    // into a heap envelope at spawn, copied into the task's own arena on arrival. That keeps the two
+    // threads' arenas disentangled. Because the task only READS these, its copy is observationally
+    // identical to the interpreter's shared binding — so these oracle-match exactly, unlike the
+    // order-dependent concurrency tests. (Linux-only: mingw can't build pthreads.)
+
+    [Fact]
+    public void TaskCapture_Series_MatchesInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+        const string src = """
+            Define data as a series of number with (1, 2, 3, 4, 5).
+            Pull a rabbit.
+                Have rabbit start a task as sum:
+                    Define t as 0.
+                    For each v in data, repeat:
+                        t becomes t + v.
+                    Done.
+                    return t.
+                Done.
+                State the awaited result of sum.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void TaskCapture_TextAndMap_MatchInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+        const string src = """
+            Define label as "hello" joined to " world".
+            Define lookup as a map from text to number with ("a": 1, "b": 2).
+            Pull a rabbit.
+                Have rabbit start a task as len:
+                    return the length of label + the size of lookup.
+                Done.
+                State the awaited result of len.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void TaskCapture_ObjectAndCatalogue_MatchInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+        const string src = """
+            Define object point with (the number x, the number y).
+            Define p as a new point { the x 3, the y 4 }.
+            Define items as a catalogue of (number or text) with (1, "two", 3).
+            Pull a rabbit.
+                Have rabbit start a task as s:
+                    Define n as 0.
+                    For each item in items, repeat:
+                        If item is a number, n becomes n + 1.
+                    Done.
+                    return p's x + p's y + n.
+                Done.
+                State the awaited result of s.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // The crux for a DEEP copy: an object with a series field, inside a series. A shallow bridge
+    // would carry pointers into the parent's arena rather than rebuilding in the task's.
+    [Fact]
+    public void TaskCapture_NestedSeriesOfObjectsWithSeriesFields_MatchesInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+        const string src = """
+            Define object row with (the text label, the series of number cells).
+            Define grid as a series of row with ().
+            Add a new row { the label "a", the cells a series of number with (1, 2, 3) } to grid.
+            Add a new row { the label "b", the cells a series of number with (4, 5) } to grid.
+            Pull a rabbit.
+                Have rabbit start a task as total:
+                    Define t as 0.
+                    For each r in grid, repeat:
+                        For each c in r's cells, repeat:
+                            t becomes t + c.
+                        Done.
+                    Done.
+                    return t.
+                Done.
+                State the awaited result of total.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void TaskCapture_TwoTasksCaptureTheSameSeries_MatchesInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+        // Each task gets its own copy, so there is nothing shared to race on (TSan-clean in WSL).
+        const string src = """
+            Define data as a series of number with (1, 2, 3, 4).
+            Pull a rabbit.
+                Have rabbit start a task as alpha:
+                    Define t as 0.
+                    For each v in data, repeat:
+                        t becomes t + v.
+                    Done.
+                    return t.
+                Done.
+                Have rabbit start a task as beta:
+                    Define t as 0.
+                    For each v in data, repeat:
+                        t becomes t + v * 2.
+                    Done.
+                    return t.
+                Done.
+                State (the awaited result of alpha) + (the awaited result of beta).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // ★ The one shape that must NOT compile. The interpreter hands task bodies the LIVE enclosing
+    // binding, so it prints (1, 2, 3, 99); a copy would print (1, 2, 3). The rabbit's join is a
+    // happens-before edge, so both answers are well-defined and they differ — the class that never
+    // ships as a caveat. Refusing is also right on its own terms: two tasks appending to one
+    // captured series is a real data race that the cooperative interpreter merely hides.
+    [Fact]
+    public void TaskCapture_MutatingACapturedSeries_IsRefused()
+    {
+        const string src = """
+            Define data as a series of number with (1, 2, 3).
+            Pull a rabbit.
+                Have rabbit start a task:
+                    Add 99 to data.
+                Done.
+            Done.
+            State data.
+            """;
+        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        Assert.Contains("captured from outside the task", ex.Message);
+    }
+
+    // Mutation reached through a CALL is refused too — argument binding shares series and maps with
+    // the callee, so a callee can mutate through its parameter.
+    [Fact]
+    public void TaskCapture_MutationThroughACall_IsRefused()
+    {
+        const string src = """
+            Bind void to stuff, given (the series of number s):
+                Add 99 to s.
+            Done.
+
+            Define data as a series of number with (1, 2, 3).
+            Pull a rabbit.
+                Have rabbit start a task:
+                    Cast stuff on (data).
+                Done.
+            Done.
+            State data.
+            """;
+        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        Assert.Contains("captured from outside the task", ex.Message);
+    }
+
     // ── ESC.3b — two more escape holes, found by ASan-sweeping every example ───────────────────
     // examples/parallelsum.cufe was a heap-use-after-free. The escape annotation drives two
     // different things — deep-copying the stored VALUE, and redirecting the destination

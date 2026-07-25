@@ -5550,16 +5550,38 @@ static void* cufet_pipe_stage(void* argp) {
         var refs = new HashSet<string>(); var defs = new HashSet<string>();
         foreach (var s in lts.Body) CollectRefsDefs(s, refs, defs);
         var caps = refs.Where(r => !defs.Contains(r) && _varTypes.ContainsKey(r)).OrderBy(x => x).ToList();
+        // TCAP — a capture of ANY type is allowed, but a region-typed one is deep-copied across the
+        // thread boundary (below), so the task must not MUTATE it. See TaskBodyMayMutate.
         foreach (var c in caps)
-            if (_varTypes[c] is not (NumberType or FactType or ChannelType))
-                throw new CompilerException($"task captures '{c}' of an unsupported type — this slice captures number/fact (snapshot) and channels (shared).");
+            if (_varTypes[c] is not (NumberType or FactType or ChannelType) && TaskBodyMayMutate(lts.Body, c))
+                throw new CompilerException(
+                    $"this task changes '{c}', which it captured from outside the task. A task gets its own copy of " +
+                    $"a captured series, map, object, or text — it crosses a thread boundary — so the change would be " +
+                    $"invisible outside, and two tasks changing it at once would race. Send the result back through a " +
+                    $"channel, or return it from a named task and await it.");
+
+        // TCAP — a capture crosses a thread boundary, so it travels the same way a channel message
+        // does: a POD (number/fact) rides in the arg struct directly, a CHANNEL is shared by pointer
+        // (it IS the sharing primitive — mutex-protected, not arena memory), and everything else is
+        // deep-copied into a malloc'd envelope at spawn and copied into the task's OWN arena on
+        // arrival. That keeps the two threads' arenas completely disentangled, exactly as
+        // `Send v through ch` already does — the same cchan_<i> family, no new machinery.
+        bool Bridged(string c) => _varTypes[c] is not (NumberType or FactType or ChannelType);
+        foreach (var c in caps) if (Bridged(c)) RegisterChanElem(_varTypes[c], isTop: true);
 
         // Arg struct + thread function (accumulated; emitted before the bodies).
-        _taskFns.AppendLine($"struct cufet_targ{tid} {{ {string.Join(" ", caps.Select(c => $"{EmitCType(_varTypes[c])} {MangleName(c)};"))} }};");
+        _taskFns.AppendLine($"struct cufet_targ{tid} {{ {string.Join(" ", caps.Select(c => $"{(Bridged(c) ? "void*" : EmitCType(_varTypes[c]))} {MangleName(c)};"))} }};");
         _taskFns.AppendLine($"static void* cufet_task{tid}(void* argp) {{");
         _taskFns.AppendLine($"    struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)argp;");
-        foreach (var c in caps) _taskFns.AppendLine($"    {EmitCType(_varTypes[c])} {MangleName(c)} = cf_a->{MangleName(c)}; (void){MangleName(c)};");
+        // The arena must exist before a bridged capture can be copied into it.
         _taskFns.AppendLine($"    cufet_arena_push();");
+        foreach (var c in caps)
+        {
+            string t = EmitCType(_varTypes[c]), m = MangleName(c);
+            _taskFns.AppendLine(Bridged(c)
+                ? $"    {t} {m} = {ChanArenaCopy(_varTypes[c])}(cf_a->{m}); {ChanFreeEnv(_varTypes[c])}(cf_a->{m}); (void){m};"
+                : $"    {t} {m} = cf_a->{m}; (void){m};");
+        }
         var savedRet     = _currentReturnType;
         var savedTaskRet = _currentTaskReturn;
         var savedInTask  = _inTaskBody;
@@ -5591,9 +5613,11 @@ static void* cufet_pipe_stage(void* argp) {
             sb.AppendLine($"{indent}cf_slot_{sfx} = cf_nthr{ctx};");
         }
 
-        // Spawn: snapshot captures into the heap arg (value types copied, channels shared) + create.
+        // Spawn: snapshot captures into the heap arg (PODs copied, channels shared by pointer,
+        // regions deep-copied into a heap envelope the task owns and frees) + create.
         sb.AppendLine($"{indent}{{ struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)malloc(sizeof(struct cufet_targ{tid}));");
-        foreach (var c in caps) sb.AppendLine($"{indent}  cf_a->{MangleName(c)} = {MangleName(c)};");
+        foreach (var c in caps)
+            sb.AppendLine($"{indent}  cf_a->{MangleName(c)} = {(Bridged(c) ? $"{ChanHeapEnv(_varTypes[c])}({MangleName(c)})" : MangleName(c))};");
         // Record the slot's result freeenv so a never-awaited result frees deeply at Done. (named only).
         if (lts.Name != null && resultType != null)
             sb.AppendLine($"{indent}  cf_jfree{ctx}[cf_nthr{ctx}] = {ChanFreeEnv(resultType)};");
@@ -5602,6 +5626,78 @@ static void* cufet_pipe_stage(void* argp) {
 
     // A named task's C-identifier suffix (Cufet ids have no '_'; '-'→'_' keeps it valid).
     private static string TaskSuffix(string name) => name.Replace('-', '_');
+
+    // ── TCAP — may this task body CHANGE the captured binding `name`? ──────────────────────────
+    // A region capture crosses the thread boundary by deep copy (the channel-send bridge), so a
+    // task that mutated one would change only its own copy — while the interpreter, which hands
+    // task bodies the LIVE enclosing binding, changes the original. The rabbit's join is a
+    // happens-before edge, so both answers are well-defined and they DIFFER: the class that never
+    // ships silently. Hence the refusal.
+    //
+    // Sharing instead is not available: arenas are thread-local, so a mutation that grows a shared
+    // series reallocates into the TASK's arena and dangles the parent's pointer when the task pops.
+    // And refusing is the honest answer on its own terms — two tasks appending to one captured
+    // series is a real data race that the cooperative interpreter merely hides.
+    //
+    // The statement list below IS the complete set of mutating statements in Ast.cs (the ones
+    // carrying a write target). A CALL is treated as a possible mutation because argument binding
+    // shares series and maps with the callee, so a callee can mutate through its parameter. Target
+    // expressions are matched by "mentions the name anywhere", which over-approximates safely.
+    private bool TaskBodyMayMutate(object? node, string name)
+    {
+        bool Touches(IExpression? e)
+        {
+            if (e == null) return false;
+            var refs = new HashSet<string>();
+            CollectRefsDefs(e, refs, new HashSet<string>());
+            return refs.Contains(name);
+        }
+
+        switch (node)
+        {
+            case null: return false;
+            // Rebinding the capture: the interpreter would rebind the ENCLOSING binding.
+            case BecomesStatement b when b.Name == name: return true;
+            case SeriesAddStatement s          when Touches(s.Series):  return true;
+            case SeriesRemoveAtStatement s     when Touches(s.Series):  return true;
+            case SeriesRemoveValueStatement s  when Touches(s.Series):  return true;
+            case SeriesSetStatement s          when Touches(s.Series):  return true;
+            case RecordNamedSetStatement s     when Touches(s.Record):  return true;
+            case PossessiveSetStatement s      when Touches(s.Target):  return true;
+            case MapSetStatement s             when Touches(s.Map):     return true;
+            // Handing the value to a function — the callee may mutate through its parameter.
+            case CastExpression ce when ce.Args.Any(a => Touches(a)):   return true;
+            case CastStatement cs when cs.Args.Any(a => Touches(a)):    return true;
+        }
+
+        // Otherwise descend into every child statement/expression (same reflection walk as
+        // CollectRefsDefs, so a new AST node is traversed without needing an arm here).
+        bool found = false;
+        void Visit(object? val)
+        {
+            if (found) return;
+            switch (val)
+            {
+                case IExpression or IStatement:
+                    if (TaskBodyMayMutate(val, name)) found = true;
+                    break;
+                case string: break;
+                case System.Runtime.CompilerServices.ITuple tup:
+                    for (int i = 0; i < tup.Length && !found; i++) Visit(tup[i]);
+                    break;
+                case System.Collections.IEnumerable en:
+                    foreach (var item in en) { Visit(item); if (found) break; }
+                    break;
+            }
+        }
+        if (node is System.Collections.IEnumerable seq and not string) { Visit(seq); return found; }
+        foreach (var prop in node.GetType().GetProperties())
+        {
+            Visit(prop.GetValue(node));
+            if (found) return true;
+        }
+        return found;
+    }
 
     // Infers a named task's result type from its returns — mirrors the checker's inference so the
     // heap-bridge C type matches. Scans nested control flow (but not nested tasks). A `return void`
