@@ -8,6 +8,16 @@ sharp edges that look reasonable but parse or type-check differently than expect
 
 It is **not** a feature tour — see [REFERENCE.md](REFERENCE.md) for that.
 
+**Both backends, unless marked.** Cufet runs interpreted or compiles to a native binary,
+and the lexer, parser, and type checker are shared — so every constraint here applies to
+both. A rule that holds for one and not the other is a bug, not a caveat: either the
+behaviour is made precise on both sides or the compiler refuses outright. The deliberate
+exceptions are called out inline where they arise, and there are two kinds:
+**concurrency scheduling** (interpreted tasks are cooperative, compiled tasks are real OS
+threads — so no interleaving is specified), and a few genuinely **platform-owned** results
+(`power` with a fractional exponent may differ in its last digit, filesystem enumeration
+order, ASCII-versus-locale casing).
+
 **Maintenance:** every feature slice that adds a keyword, syntactic form, or
 constraint must update this document. The reserved-keyword list in §1 especially.
 A future improvement would generate that list from the lexer's keyword table
@@ -815,13 +825,17 @@ Done.   ← all tasks spawned in this rabbit JOIN here
 
 - **Requires an active rabbit** — `Have rabbit start a task` must appear inside a
   `Pull a rabbit. ... Done.` block. Using it outside any rabbit is a parse error.
-- **Optional name** (`as <name>`) — binds an identity for future result-await (slice 4);
-  inert in the current release. Either form is valid.
+- **Optional name** (`as <name>`) — binds an identity so the task's result can be awaited
+  with `the awaited result of <name>`. Both backends support this; an anonymous task is
+  fire-and-forget and its `return` value is dropped.
 
 **Semantics:**
 
-- **Cooperative** — tasks run on the cooperative scheduler (one at a time; interleave only
-  at explicit yield points). No true parallelism in the interpreter era.
+- **Cooperative when interpreted, genuinely parallel when compiled.** Interpreted, tasks run
+  on the cooperative scheduler — one at a time, interleaving only at explicit yield points.
+  Compiled, each task is a real OS thread. ★ **This is the one place the two backends
+  deliberately differ**, so *do not* write a program that depends on a particular
+  interleaving: it is not a specification. Everything below holds on both.
 - **Structured (the key guarantee)** — every task spawned inside a rabbit **joins at that
   rabbit's `Done.`**: the `Done.` handler waits for all spawned tasks to complete before
   releasing the scope. A task **cannot outlive its enclosing rabbit**.
@@ -1126,17 +1140,32 @@ for `run` expressions inside a pipe — the pipe itself is considered an implici
 `run X.` at statement level (without `|`) is a **parse error**: use a `Try to:` block
 or a `But on failure` expression for standalone process execution.
 
-### v1 scope and what is NOT in this slice
+### Execution model, and what is still restricted
 
-**v1 semantics are sequential (buffered), not streaming:**
-The producer stage runs to completion first, filling an in-memory buffer. The consumer
-stage then reads from that buffer. True streaming (interleaved concurrent execution)
-requires a future `Yield.`-based cooperative scheduler extension.
+**Buffered when interpreted, truly streaming when compiled.** Interpreted, the producer
+stage runs to completion first, filling an in-memory buffer, and the consumer then drains
+it. Compiled, every stage runs as its own thread joined by channels, so values stream
+through as they are produced. A linear pipe's *observable output order* is the same either
+way — values cross each channel FIFO — so this is a throughput and memory difference, not
+a semantic one.
 
-**Mixing subprocess stages with task stages** (`run X | consumer-function`) is deferred.
+**Mixing subprocess stages with function stages** (`run X | consumer-function`) is not
+supported. The shared front end rejects it identically on both backends, with a message
+naming the `run` result record as the offending stage. A pipe is either all `run` stages
+(a subprocess pipeline) or all function stages (a task pipeline).
 
-**Cross-pipe type compatibility** is not statically checked in v1 — the consumer's body
-is not type-checked against the producer's output type. The runtime enforces types.
+**A stage function may be used at only one input element type** across all the pipes in a
+program. Reusing the same function at two positions that would feed it different types is
+a clean compiler error.
+
+⚠ **Cross-pipe type compatibility is NOT checked by the type checker.** A consumer's body
+is never type-checked against the producer's output type, and there is no runtime type
+enforcement either. A mismatch — `output 1.` feeding a stage that does `the length of s` —
+is caught late and badly: interpreted it surfaces as an unhandled host exception with a
+.NET stack trace; compiled it surfaces as a `gcc` type error against generated C. Neither
+is a Cufet error message. It fails loudly rather than silently, so nothing unsound gets
+through, but this is a known rough edge and the one place in the pipe surface where the
+front end is not yet pulling its weight.
 
 ---
 
@@ -1520,6 +1549,10 @@ use `While` with an index.
 
 ### Cooperative scheduler: `Yield.` does not re-enqueue the calling task
 
+> ⚠ **Everything in this subsection describes the INTERPRETER only.** These are artefacts
+> of the cooperative scheduler and none of them apply to compiled programs, where each task
+> is a real OS thread. Where a consequence below changes when compiled, it says so.
+
 `Yield.` calls `DrainOne()` synchronously — one item from the scheduler queue is
 run as a subroutine, then control returns to the calling task. The calling task is
 NOT suspended and NOT re-enqueued. Its continuation is on the C# call stack, not
@@ -1533,8 +1566,13 @@ DrainUntil calls nest synchronously. Whichever worker's DrainUntil condition fir
 first (when the channel gets items) exits and processes items uninterrupted — the
 other workers' conditions are checked after the first worker finishes, finding the
 channel closed-and-empty. Example distribution with 3 workers: 30/0/0, not
-10/10/10. This is an interpreter-era limitation; a native backend with real threads
-has true parallelism.
+10/10/10.
+
+**Compiled, work really does distribute** — the workers are OS threads contending on a
+mutex/condvar channel, so each takes items as it becomes free. Do not assert an exact
+split, though: the distribution is genuinely nondeterministic. Assert the invariant (every
+item processed exactly once, totals correct), which is what the compiler's own fan-out
+test does.
 
 **Consequence 2 — `Yield.` in a producer with a blocking collector deadlocks.**
 ```
@@ -1563,7 +1601,13 @@ ALL outer workers' `DrainUntil` conditions (`chan.IsClosed`) become TRUE. Every
 blocked worker exits cleanly via `void`. No worker hangs at close. This is the
 coordination property the scheduler does guarantee.
 
-**The fix (future slice):** `ExecuteStatementsAsync` — task bodies use `await` at
-channel operations, re-enqueuing their continuation via the SynchronizationContext.
-True per-item interleaving then emerges naturally. Until then, treat all fan-out
-patterns as "first-to-unblock worker gets all."
+**Where this leaves you.** Compiling is what resolves all three: real threads block
+independently, so work distributes, the Consequence-2 deadlock cannot arise, and close still
+wakes every blocked receiver. The interpreter's cooperative scheduler is unchanged and
+these artefacts remain there — which is why the compiler's concurrency tests assert
+order-independent invariants against the binary rather than comparing output with the
+interpreter, and why the interpreter's particular interleaving is explicitly not part of
+the language specification.
+
+When writing a fan-out program that must run on **both** backends, treat the interpreted
+distribution as "first-to-unblock worker gets all" and depend only on the aggregate.
