@@ -2,7 +2,13 @@
 
 The complete reference for Cufet `0.9.0`. For a quick introduction and taste of
 the language, see [README.md](README.md). For what's planned and the reasoning
-behind the design, see [ROADMAP.md](ROADMAP.md).
+behind the design, see [ROADMAP.md](ROADMAP.md). For reserved words, sharp edges,
+and the constraints worth knowing before you hit them, see [GRAMMAR.md](GRAMMAR.md).
+
+Cufet either runs interpreted or compiles to a native binary, and the two share a
+front end. **Everything here applies to both** unless it says otherwise; the few
+deliberate differences are marked where they arise and summarised under
+[Compiling to a native binary](#compiling-to-a-native-binary).
 
 ---
 
@@ -50,6 +56,14 @@ behind the design, see [ROADMAP.md](ROADMAP.md).
     - [Process execution](#process-execution)
     - [Environment variables](#environment-variables)
     - [Directory traversal](#directory-traversal)
+  - [Regions (`Pull a rabbit`)](#regions-pull-a-rabbit)
+  - [Concurrency (tasks and channels)](#concurrency-tasks-and-channels)
+  - [Streaming pipes](#streaming-pipes)
+  - [Books (the standard library)](#books-the-standard-library)
+  - [Matrix](#matrix)
+  - [Sorting](#sorting)
+  - [Operator overloading](#operator-overloading)
+  - [Compiling to a native binary](#compiling-to-a-native-binary)
   - [Signal handling](#signal-handling)
   - [Type system](#type-system)
   - [Identifiers](#identifiers)
@@ -1714,6 +1728,488 @@ nor a directory (device node, dangling symlink, etc.) makes `exists` true but bo
 
 ---
 
+## Regions (`Pull a rabbit`)
+
+A **region** — a "rabbit" — is a block whose reference-typed values all live and die
+together. `Pull a rabbit.` opens one; `Done.` closes it and releases everything created
+inside.
+
+```
+Define totals as a series of number with ().
+
+Pull a rabbit.
+    Define scratch as a series of number with (1, 2, 3, 4, 5).
+    Define sum as 0.
+    For each n in scratch, repeat:
+        sum becomes sum + n.
+    Done.
+    Add sum to totals.
+Done.
+
+State totals.        ← (15)
+```
+
+`scratch` is gone after `Done.`; `totals` is not, and the value added to it survives.
+
+A rabbit may be named. The name is a handle you can pass to a function so the callee
+allocates in *your* region:
+
+```
+Pull a rabbit as workspace.
+    Define note as "built" joined to " inside".
+    State note.
+Done.
+```
+
+### The outward-only rule
+
+**A value may be stored somewhere longer-lived than itself, never somewhere
+shorter-lived.** That single rule is the whole safety story. The type checker enforces
+it from the static block structure — there is no garbage collector and no borrow
+checker.
+
+Storing outward is fine, and is what the example above does. Storing *inward* — parking
+a value in a container that will outlive the region the value came from, in a way that
+would leave the container pointing at released memory — is a compile-time error:
+
+```
+Bind series of number to smuggle, given (the series of number s):
+    return s.
+Done.
+
+Define outer as a series of number with ().
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    outer becomes Cast smuggle on (inner).    ← REJECTED
+Done.
+```
+
+The error names the region mismatch, and it is caught even though the value was
+laundered through a function's return value.
+
+Returning a value out of a region is allowed and does the safe thing: the value stays
+valid for the caller.
+
+### Two backends, one rule
+
+Interpreted, "released at `Done.`" is modelled semantically — values simply become
+unreachable and .NET's collector reclaims them whenever it likes. Compiled, the region
+is a real bump-allocated arena, thread-local, freed in one shot. A region is released on
+**every** exit from it, not only the normal one: `Done.`, `return`, `Stop`, `Skip`,
+`Suppress`, a failure unwind, an exception, an interrupt.
+
+The rule above is what makes the compiled version safe, which is why it is enforced even
+though the interpreter would forgive breaking it.
+
+### When to reach for one
+
+- **Long-running loops.** Put a rabbit *inside* the loop body and each iteration's
+  working memory is released at the end of that iteration. Without one, a compiled
+  program's allocations accumulate until the enclosing block ends.
+- **Concurrency.** A rabbit is also the structured-concurrency boundary — see below.
+
+---
+
+## Concurrency (tasks and channels)
+
+### Tasks
+
+`Have rabbit start a task: … Done.` runs a block concurrently. It must appear inside a
+rabbit, and **the rabbit's `Done.` waits for every task it started**. A task therefore
+cannot outlive the region that launched it.
+
+Name a task with `as <name>` and it can `return` a value, which you collect with
+`the awaited result of <name>`:
+
+```
+Pull a rabbit.
+    Have rabbit start a task as left:
+        return 1 + 2 + 3.
+    Done.
+    Have rabbit start a task as right:
+        return 4 + 5 + 6.
+    Done.
+    State (the awaited result of left) + (the awaited result of right).
+Done.
+```
+```
+21
+```
+
+An unnamed task is fire-and-forget: it still joins at `Done.`, but any value it returns
+is dropped. Awaiting the same task twice is fine — the body runs once and the result is
+remembered.
+
+### Channels
+
+A channel is a typed queue for passing values between tasks. `Send <value> through
+<channel>.` puts one in; `the delivery from <channel>` takes one out, yielding
+`voidable T` — void once the channel is closed and empty, which is how a receiver knows
+to stop.
+
+```
+Pull a rabbit.
+    Define results as a channel of number.
+    Have rabbit start a task:
+        Send 10 through results.
+        Send 20 through results.
+        Close results.
+    Done.
+    Define total as 0.
+    Define got as the delivery from results.
+    While got is not void, repeat:
+        total becomes total + (got but void is 0).
+        got becomes the delivery from results.
+    Done.
+    State total.
+Done.
+```
+```
+30
+```
+
+`Close` is idempotent; sending after a close is a runtime error. A blocked receive wakes
+when a value arrives, when the channel closes, or when the program is interrupted.
+
+### What crosses a boundary, and what a task may touch
+
+**Values are deep-copied when they cross between tasks** — both on a channel send and
+when a task captures a variable from outside itself. Each side ends up owning its own
+memory, which is what keeps one task's region from becoming entangled with another's.
+
+A task may freely **read** anything from the enclosing scope, of any type. A task may
+**not change** something it captured:
+
+```
+Define data as a series of number with (1, 2, 3).
+Pull a rabbit.
+    Have rabbit start a task:
+        Add 99 to data.        ← REJECTED when compiled
+    Done.
+Done.
+```
+
+The compiler refuses this and points you at channels. The reason is worth knowing: the
+task holds its own copy, so the change could never be seen outside — and two tasks doing
+it at once is a straightforward data race. Send the result back through a channel, or
+`return` it from a named task and await it.
+
+> ⚠ The interpreter does **not** enforce this — it hands task bodies the live enclosing
+> binding, and runs one task at a time, so the mutation appears to work. Write to the
+> rule and both backends agree.
+
+### Interpreted versus compiled
+
+This is the one part of the language where the two backends deliberately differ.
+Interpreted, tasks are **cooperative**: one runs at a time, interleaving only at
+`Yield.` and at blocking channel operations. Compiled, each task is a **real OS thread**
+and they run genuinely in parallel.
+
+So **no particular interleaving is specified**. Write concurrent programs to depend on
+the aggregate result, not the order — the same discipline the compiler's own tests use,
+which assert order-independent invariants and run under ThreadSanitizer. See
+[GRAMMAR.md](GRAMMAR.md) for the cooperative scheduler's specific artefacts, including
+why fan-out work-queues do not distribute when interpreted.
+
+---
+
+## Streaming pipes
+
+`producer | consumer.` connects functions into a pipeline. A stage emits with `output
+<value>.` and consumes with `for each <name> from the input:`.
+
+```
+Bind void to emit-numbers:
+    output 1.
+    output 2.
+    output 3.
+    output 4.
+Done.
+
+Bind void to keep-even:
+    for each n from the input:
+        If n % 2 is 0:
+            output n.
+        Done.
+    Done.
+Done.
+
+Bind void to show:
+    for each n from the input:
+        State "kept " joined to (n converted to text).
+    Done.
+Done.
+
+emit-numbers | keep-even | show.
+```
+```
+kept 2
+kept 4
+```
+
+A stage ends its output stream by returning, which tells the next stage downstream that
+the values have run out. Stages need no enclosing rabbit — a pipe spawns its stages,
+joins them, and cleans up its channels on its own.
+
+Interpreted, a pipe is buffered: each stage runs to completion and the next drains the
+buffer. Compiled, every stage is its own thread and values stream through as produced.
+The observable output order is the same either way, because each channel is FIFO.
+
+### Restrictions
+
+- **A pipe is all function stages or all `run` stages** — the subprocess form
+  (`run "ls" | run "wc"`, covered under Process execution) cannot be mixed with function
+  stages. Doing so is rejected with a message naming the offending stage.
+- **A stage function may be used at one input element type** across the whole program.
+- ⚠ **Stage types are not checked against each other.** If a producer emits `number` and
+  the consumer treats its input as `text`, nothing catches it up front: interpreted it
+  surfaces as a host-level crash, compiled as a `gcc` error against the generated C.
+  It always fails loudly rather than silently, but neither message is a Cufet error.
+  This is a known rough edge.
+
+---
+
+## Books (the standard library)
+
+Capability that most programs do not need lives in a **book**, brought into scope for a
+block with `Pull a book on <name>. … Done.` Members are reached with the possessive:
+`math's square root of (144)`.
+
+Books are resolved at compile time. There is no dynamic loading, and no external loader
+yet — the bundled books are `math`, `collections`, and `chance`.
+
+```
+Pull a book on math.
+    State math's square root of (144).
+    State math's absolute value of (0 - 7).
+    State math's pi.
+Done.
+```
+```
+12
+7
+3.14159265358979
+```
+
+`math` provides `square root`, `log`, `power`, `floor`, `ceiling`, `round`, `absolute
+value`, and the constants `pi` and `e`. Rounding, flooring and absolute value are exact
+decimal operations. The transcendentals are computed in double precision on both
+backends — which means `power` with a fractional exponent can differ in its last digit
+across platforms, because the underlying library *is* the platform's own.
+
+```
+Pull a book on collections.
+    Define scores as a series of number with (5, 3, 9, 3).
+    State collections's maximum of (scores).
+    State collections's average of (scores).
+    State collections's unique of (scores).
+Done.
+```
+```
+9
+5
+(5, 3, 9)
+```
+
+`collections` provides `minimum`, `maximum`, `average`, and `unique` (first occurrence
+wins, order preserved). Each yields void for an empty series. `average` is exact — it
+does not go through floating point. The `matrix` type also lives in this book; see below.
+
+`chance` provides random numbers, random selection, and shuffling, plus `Seed the chance
+with <n>.` Seeding makes a run reproducible **within one backend**; the interpreter and a
+compiled binary use different generators, so a seeded program is not expected to produce
+the same sequence in both.
+
+---
+
+## Matrix
+
+`matrix` is a rectangular grid of numbers, available inside `Pull a book on collections.`
+Arithmetic is exact decimal, and is **fallible** — dimensions have to agree, so `+`, `-`
+and `*` on matrices must be handled with `Try to:`, `but on failure`, or `or pass the
+failure off`. Using one bare is a static type error.
+
+```
+Pull a book on collections.
+    Define m as a matrix with ((1, 2), (3, 4)).
+    Define n as a matrix with ((5, 6), (7, 8)).
+    State m.
+
+    Try to:
+        State m + n.
+        State m * n.
+    Done.
+    In case of failure:
+        State "failed: " joined to the message of the failure.
+    Done.
+
+    Define bad as a matrix with ((1, 2, 3)).
+    Try to:
+        State m + bad.
+    Done.
+    In case of failure:
+        State "failed: " joined to the message of the failure.
+    Done.
+Done.
+```
+```
+matrix((1, 2), (3, 4))
+matrix((6, 8), (10, 12))
+matrix((19, 22), (43, 50))
+failed: matrices must have equal dimensions for addition
+```
+
+`*` is matrix multiplication, not element-wise. `collections's transpose of (m)` flips
+rows and columns. There is no matrix division — it would require inversion, which is
+deliberately not provided.
+
+---
+
+## Sorting
+
+`sorted` is a postfix operator on a series. It returns a **new** series; the original is
+untouched.
+
+```
+Define nums as a series of number with (5, 1, 4, 1, 3).
+State nums sorted.
+State nums sorted in reverse.
+
+Define words as a series of text with ("pear", "apple", "fig").
+State words sorted.
+```
+```
+(1, 1, 3, 4, 5)
+(5, 4, 3, 1, 1)
+(apple, fig, pear)
+```
+
+Numbers sort numerically and text sorts ordinally. For a series of records or objects,
+sort by a field with `sorted by the <field>`:
+
+```
+Define object person with (the text name, the number age).
+
+Define folks as a series of person with ().
+Add a new person { the name "Ada", the age 36 } to folks.
+Add a new person { the name "Bo", the age 24 } to folks.
+
+For each p in folks sorted by the age, repeat:
+    State p's name.
+Done.
+```
+```
+Bo
+Ada
+```
+
+The sort is **stable** — equal elements keep their original relative order — and
+`in reverse` composes with `by the <field>`.
+
+> Because `sorted` produces a copy, `Add x to (items sorted)` would mutate a temporary
+> and lose the result. The type checker catches that.
+
+---
+
+## Operator overloading
+
+`+`, `-`, `*`, and `/` can be given a meaning for a user-defined object type:
+
+```
+Define object vec2 with (the number x, the number y).
+
+Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):
+    return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.
+Done.
+
+Bind overloading *, given (the lhs is a vec2, the rhs is a vec2):
+    return lhs's x * rhs's x + lhs's y * rhs's y.
+Done.
+
+Define u as a new vec2 { the x 1, the y 2 }.
+Define w as a new vec2 { the x 3, the y 4 }.
+State u + w.
+State u * w.
+```
+```
+vec2(x: 4, y: 6)
+11
+```
+
+The rules are deliberately narrow, which is what keeps the feature predictable:
+
+- **Only `+ - * /`.** Comparisons and `is` are not overloadable, so equality keeps one
+  meaning everywhere — including inside `unique`, map keys, and `sorted`.
+- **Both operands must be the same object type**, and it must be an object type. There
+  is no conversion or promotion, so there is never more than one candidate and never any
+  ambiguity about which one applies.
+- **One overload per type and operator**, enforced by the type checker.
+- **Built-ins cannot be shadowed** — `number + number` always means addition.
+- **The return type is whatever the body returns.** A dot product returning `number`, as
+  above, is fine.
+- **An overload may fail.** Returning `a failure` makes it fallible, and it then composes
+  with `Try to:`, `but on failure`, and `or pass the failure off` like any other fallible
+  call. This is exactly how matrix arithmetic is built.
+
+Declarations are free-standing and top-level, not members of the object.
+
+---
+
+## Compiling to a native binary
+
+Cufet runs two ways. Interpreted, it executes directly. Compiled, it emits C, invokes
+`gcc`, and produces a native executable with no managed runtime — no .NET, no garbage
+collector, no interpreter loop.
+
+```
+cufet program.cufe                  run it (interpreted)
+cufet build program.cufe            compile to a native binary
+cufet emit-c program.cufe out.c     emit the C, without invoking gcc
+```
+
+`build` requires **`gcc` on your `PATH`**. Nothing else — the generated C is
+self-contained, with no external libraries and no flags beyond `-pthread` and `-lm`.
+`emit-c` is the escape hatch for cross-toolchain builds and for reading what was
+generated.
+
+The lexer, parser, and type checker are shared, so a program that type-checks does so
+identically either way, and every error message you have seen in this document is the
+same in both.
+
+### What you get
+
+A compiled program is an ordinary native executable. Its sections are real: functions
+you `Bind` become machine symbols, a text value bound `permanently` sits in read-only
+data, and each thread's region stack is thread-local storage.
+
+`number` compiles to an exact software decimal that is bit-for-bit identical to the
+interpreter's, so arithmetic does not quietly change meaning when you compile. Regions
+become real bump-allocated arenas. Tasks become real threads.
+
+### Where the two differ
+
+Compiled output is expected to equal interpreted output — that is enforced by the test
+suite, which compiles each program, runs the binary, and compares. Where they disagree,
+one of them is a bug rather than a documented difference.
+
+The exceptions are few and each is noted where it arises:
+
+- **Concurrency scheduling** — cooperative when interpreted, genuinely parallel when
+  compiled. No interleaving is specified.
+- **`power` with a fractional exponent** may differ in its last digit; the underlying
+  routine is the platform's own.
+- **Seeded randomness** is reproducible within a backend, not across them.
+- **Filesystem enumeration order** and **ASCII-versus-locale casing** are
+  platform-owned.
+
+### Platform notes
+
+Concurrency, subprocesses, and signal handling use POSIX facilities and need Linux,
+macOS, or WSL. On Windows with mingw, programs that avoid those features compile and run
+normally; programs that use them will not build.
+
+---
+
 ## Signal handling
 
 Cufet provides **cooperative (poll-based) interrupt handling**. When the process
@@ -1739,15 +2235,39 @@ Done.
   until acknowledged.
 - **`Acknowledge the interrupt.`** — statement; clears the pending interrupt flag.
   Subsequent checks return false until the next `SIGINT`.
-- **`Yield.`** — cooperative scheduler yield and interrupt checkpoint (v0.9.0).
-  The scheduler checks the interrupt flag at each dequeue; blocked `the delivery
-  from` and `the awaited result of` also wake on interrupt. Programs that `Yield.`
-  naturally are interruptible without polling `an interrupt is requested`.
-- **Cooperative, not fully preemptive.** A tight loop with no `Yield.` and no
-  blocking calls cannot be mid-loop interrupted. True preemption is deferred to
-  the native era (requires OS-thread infrastructure).
-- `SIGTERM` and raw `sigaction`-level signal handling are not exposed in the
-  interpreter era; they require the native backend.
+- **`Yield.`** — yields to the scheduler and acts as an interrupt checkpoint.
+  Blocked `the delivery from` and `the awaited result of` also wake on interrupt, so
+  a program that yields or blocks naturally is interruptible without polling
+  `an interrupt is requested`.
+
+### How far an interrupt reaches
+
+The polling constructs above behave identically on both backends. What differs is what
+happens when you *don't* poll.
+
+**Interpreted, interruption is checkpoint-only.** A tight loop containing no `Yield.`
+and no blocking call cannot be interrupted mid-loop — the scheduler never gets a turn.
+
+**Compiled, interruption is genuinely preemptive.** The runtime installs a real
+`sigaction` handler whose only job is to set a flag (so it is async-signal-safe), and
+each thread establishes a landing pad it unwinds to at its next checkpoint. In practice:
+
+| Situation | Interpreted | Compiled |
+|---|---|---|
+| Loop containing `Yield.` | interruptible | interruptible |
+| Tight loop, no checkpoint at all | not interruptible | not interruptible |
+| Blocked on `the delivery from` | interruptible | interruptible — a real blocked thread genuinely wakes |
+| Inside a running task | interruptible at its checkpoints | interruptible; the task unwinds, its destructors run, its files close, and the rabbit reaps it at the join |
+| Waiting at a rabbit's `Done.` for tasks | n/a | the wait ends as its tasks unwind, and the program then tears down |
+
+An interrupt that is never acknowledged tears the program down cleanly — open files are
+flushed and closed, channels freed, regions released — and exits with status 130, the
+conventional `128 + SIGINT`.
+
+Handling signals **other than `SIGINT`** is not a language feature on either backend.
+Note also that arithmetic faults never arrive as `SIGFPE`: `number` is a software
+decimal, so division by zero is a checked condition raised as an ordinary catchable
+Cufet exception. See the error-handling section.
 
 ---
 
