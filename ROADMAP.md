@@ -13,6 +13,33 @@ language is considered stable.
 
 ## What's built (the language today)
 
+**Two backends**
+
+Cufet has a tree-walking **interpreter** and a native **compiler** that emits C and
+invokes `gcc` to produce a real executable. The entire front end — lexer, parser,
+type checker — is shared, so a program that type-checks does so identically for
+both.
+
+The interpreter is the **oracle**. The compiler's test suite compiles each program,
+runs the binary, and asserts its output equals the interpreter's. Where the two
+disagree, one of them is wrong; it is never written down as a caveat. Either the
+behaviour becomes precise on both sides, or the compiler refuses with a clean
+error. The narrow exception is behaviour that is genuinely undefined or
+platform-owned — `pow`'s last digit, filesystem enumeration order, ASCII casing —
+where there is no single right answer to converge on.
+
+Everything described in this section works on **both** backends unless a note says
+otherwise. The places where they legitimately differ are few, and each is called
+out where it arises: chiefly that compiled concurrency is genuinely parallel while
+the interpreter's scheduler is cooperative, so the interpreter's particular
+interleaving is not a specification.
+
+```
+cufet program.cufe                  run it (interpreted)
+cufet build program.cufe            compile to a native binary
+cufet emit-c program.cufe out.c     emit the C without invoking gcc
+```
+
 **Core**
 - Values and state: `Define name as value.` (declare), `name becomes value.`
   (reassign). No null — every value is initialized.
@@ -317,10 +344,14 @@ language is considered stable.
   scheduler yield that also checks the interrupt flag — every explicit yield point
   and every blocked `the delivery from` / `the awaited result of` is an interrupt
   point, so programs no longer need to poll manually if they yield for other
-  reasons. True preemptive interruptibility (mid-tight-loop, no yield) is deferred
-  to the native backend.
+  reasons. *Compiled:* interruption is genuinely preemptive — a real `sigaction`
+  handler plus per-thread `sigsetjmp` landing pads, so a tight loop with a
+  checkpoint, a thread blocked in a channel receive, and a running worker task can
+  all be interrupted.
 
-**Concurrency** *(complete — cooperative, interpreter era)*
+**Concurrency** *(complete. Cooperative when interpreted; genuinely parallel when
+compiled — this is the one place the two backends deliberately differ, so the
+interpreter's particular interleaving is not a specification.)*
 - **Scheduler** — `CufetScheduler`, a custom C# `SynchronizationContext`. All
   continuations routed to a single per-thread FIFO queue on the same OS thread —
   no interpreter-internal data races by construction. Sequential programs run
@@ -439,14 +470,17 @@ see [What's built](#whats-built-the-language-today) above.*
 
 - **Scalar matrix multiply** (`matrix * number`) and **Hadamard product** — deferred. Scalar multiply requires mixed-type dispatch (not yet designed). Hadamard, if added, will be a named `collections` function, not an operator (the `*` operator means matrix product, one canonical way). Neither blocks any planned near-term work.
 
-### Memory model (interpreter era)
+### Memory model
 
-- **Rabbit — block-scoped arenas (Layer 3)** *(complete)* — `Pull a rabbit. <name> ... Done.`
-  creates a named, block-scoped region; reference-typed values inside live in
-  the rabbit and are freed at `Done.`. The full three-hole soundness arc was
-  built on top of this primitive. See the memory model section in Long-term
-  direction for the design; see the soundness arc narrative for the static
-  enforcement that makes it safe.
+*(The rabbit/region model is **built**, on both backends — see "What's built" above
+and the memory-model section under Long-term direction. What remains planned here
+is the one optimisation below.)*
+
+- **Move semantics at channel send** — a send currently deep-copies the value
+  across the thread boundary. That is sound, and it is what keeps the two threads'
+  arenas disentangled, but it is not free. A move — transferring ownership and
+  invalidating the sender's binding — would avoid the copy. Needs a way to express
+  "this binding is spent," which the language does not have yet.
 
 ### Tooling
 
@@ -607,8 +641,8 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   function book (same inputs, same outputs, no side effects). `chance` has internal
   RNG state — it is effectful by design. Keeping the two separate is a named
   structural choice: as Cufet gains more books, the effectful/pure distinction will
-  matter for reasoning about code, testing, and eventually (in the native era) for
-  safe concurrency. Per-interpreter RNG (`Random _rng` on the `Interpreter` instance,
+  matter for reasoning about code, testing, and for safe concurrency (which now
+  means real threads). Per-interpreter RNG (`Random _rng` on the `Interpreter` instance,
   not static) gives free test isolation: each `new Interpreter()` gets its own entropy
   seed.
 
@@ -724,7 +758,9 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   await with `CufetScheduler` (custom `SynchronizationContext`) routes all
   continuations to a single per-thread FIFO queue — no OS-thread parallelism, no
   interpreter-internal data races by construction. Sequential programs unchanged.
-  True parallelism is deferred to the native backend.
+  *Resolved:* the compiler lowers tasks to pthreads, so compiled programs are
+  genuinely parallel. Their tests assert order-independent invariants rather than a
+  particular interleaving, and run under ThreadSanitizer.
 
   *Five slices:*
   1. **Scheduler** — `CufetScheduler` engine. Validated: two async units interleave
@@ -750,8 +786,8 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   delivery, no hang). Also found: fan-out distribution doesn't balance under the
   cooperative scheduler — one worker drains everything while others starve. This is
   an interpreter-era characteristic: the FIFO cooperative scheduler serves one
-  worker until it blocks. Native's OS-thread scheduler resolves it. Logged,
-  deferred; "verify at native" note.
+  worker until it blocks. *Resolved as predicted* — under real OS threads the work
+  actually distributes, and the compiled fan-out test asserts it.
 
   *The Dijkstra connection — map-key value-type constraint (concept car #5).*
   The Dijkstra concept car surfaced the root cause of its silent-wrong-answer bug:
@@ -762,11 +798,17 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   objects as keys, analogous to Python's hashable/Rust's Hash+Eq) is deferred — it
   requires a deliberate equality contract that Cufet doesn't have yet.
 
-  *Remaining named constraint (deferred to native).*
-  Task bodies may read reference-type variables from the enclosing scope. Mutating
-  them is not enforced against in the cooperative era (safe: one task at a time).
-  Named here as a load-bearing note for the native-era enforcer: **task bodies must
-  not mutate captured reference-type state from outer scopes.**
+  *Named constraint — now enforced.*
+  This was recorded as a note for a future enforcer: **task bodies must not mutate
+  captured reference-type state from outer scopes.** The compiler enforces it. A
+  captured series, map, object, or text is deep-copied across the thread boundary
+  the same way a channel message is, and a task that would *change* one is refused
+  at compile time, with the error pointing at channels instead. Three reasons it is
+  a refusal rather than a silent copy: the interpreter hands task bodies the live
+  enclosing binding, so a copy would visibly disagree with it; sharing instead is
+  unsound, because arenas are per-thread and a mutation that grows a shared series
+  would reallocate into the task's own arena; and the pattern is a genuine data
+  race that only the cooperative scheduler was hiding.
 
 ---
 
@@ -797,29 +839,32 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   deferred (use `append ... to the file` for whole-value appends in the
   meantime).
 
-- **Captured-state mutation in tasks: named constraint, deferred enforcement.**
-  Task bodies may read reference-type variables from their enclosing rabbit scope.
-  Mutating those variables (series, map, object, matrix) is not enforced against in
-  the cooperative era — one task runs at a time, so there are no actual races. The
-  native era will introduce true parallelism; the constraint is named here so the
-  native-era enforcer (borrow checker or ownership analysis) does not inherit an
-  unguarded pattern: **task bodies must not mutate captured reference-type state
-  from outer scopes.**
+- **Captured-state mutation in tasks — enforced when compiled, unenforced when
+  interpreted.** The rule is: **task bodies must not mutate captured
+  reference-type state from outer scopes.** Compiled, this is a compile-time
+  refusal (see the concurrency section above for why refusing beats copying).
+  Interpreted, it is still merely a convention — the interpreter gives task bodies
+  the live enclosing binding and one task runs at a time, so nothing goes wrong,
+  but nothing stops you either. Write to the rule and both backends agree; break
+  it and the compiler tells you.
 
-- **SIGINT is yield-point-only (not preemptive).** `Yield.`, blocked channel
-  receives, and blocked task-awaits are all interrupt points — programs that yield
-  naturally are interruptible without polling. A tight loop with no yield points is
-  still not mid-computation interruptible. True preemptive interruptibility (mid-loop,
-  no yield) requires native threading and is explicitly deferred to the native backend.
+- **SIGINT interruptibility differs by backend.** *Interpreted:* yield-point-only.
+  `Yield.`, blocked channel receives, and blocked task-awaits are interrupt points,
+  so a program that yields naturally is interruptible without polling — but a tight
+  loop with no yield points is not. *Compiled:* genuinely preemptive, via a real
+  `sigaction` handler and per-thread `sigsetjmp` landing pads. A thread blocked in
+  a channel receive really wakes, and a running worker task really unwinds — running
+  its destructors and closing its files on the way out.
 
-- **Destructor RAII is semantic-only in the interpreter era (native-escape not
-  solved).** In the interpreter, `unmake` fires when an object's binding goes out
-  of scope — GC handles the actual memory. For the native backend, an object that
-  *escapes outward* (returned or stored into a longer-lived rabbit) requires the
-  rabbit-passing pattern: the caller allocates/passes a rabbit; the callee fills it.
-  The native-allocation mechanism for escaped objects is deferred to the native
-  backend and is **not** solved by the destructor slice. The design docs must not
-  imply that destructor semantics for escaping objects "just work" in native.
+- **Destructor timing has two known gaps, matched deliberately on both backends.**
+  Unmakers fire at block scope exit, LIFO, for `Define`d object bindings — but not
+  at function-frame exit and not at top level. The compiler reproduces the
+  interpreter's behaviour exactly, including those gaps and including the
+  double-fire on a value copy, rather than fixing one side into disagreement with
+  the other. Escaping objects are handled by the region model: a value stored
+  outward is deep-copied into the destination's region, so there is no dangling
+  object for a destructor to chase. Closing the frame-exit gap is a language
+  decision about ownership, not a backend limitation.
 
 ---
 
@@ -904,50 +949,67 @@ a prompt, should a bare expression auto-print its value. Worth considering
 accelerates the use-driven development loop, and an interactive back-and-forth
 suits a language built to read like natural language.
 
-### Cufet as a readable systems language (the real destination)
+### Cufet as a readable systems language (the destination — now reached)
 
-The true finish line: **Cufet as a native-compiled (or non-managed-runtime)
-systems language in the Rust/Zig/Nim lineage** — a more humane surface for
-real systems programming. "A better C" where `readelf`-ing a Cufet binary
-shows Cufet's own `.data`/`.text`/`.bss` sections, where memory is real and
-manually managed, where OS signals are caught at the signal wire, not
-intercepted by a managed runtime.
+The stated finish line was **Cufet as a native-compiled systems language in the
+Rust/Zig/Nim lineage** — "a better C" where `readelf`-ing a Cufet binary shows
+real sections, where memory is real and manually managed, and where OS signals
+are caught at the signal wire rather than intercepted by a managed runtime.
 
-The concrete north star is a shell program, process creation, signal handling, memory inspection — *done in Cufet the way it would be done in C++*. Pressure-testing against the actual homework assignments revealed the honest finish line:
+**That line has been crossed.** `cufet build program.cufe` produces a native
+executable through a C intermediate. There is no managed runtime in the result —
+no .NET, no GC, no interpreter loop.
 
-- **Task 3 (memory layout — `readelf`/`nm` on a real binary to find
-  globals in `.data`, locals on the stack):** a simulated memory arena
-  inside the .NET interpreter would only ever show .NET's sections, not
-  Cufet's. The "call `readelf` as a subprocess" workaround fails the spirit
-  of the task — it explicitly demands real machine memory inspectable by
-  real tools. Memory inspection is **post-native-backend**.
-- **Task 4 (catch a real `SIGFPE` via `sigaction`):** a managed runtime
-  intercepts signals before user code can see them. Catching a real OS
-  signal at the `sigaction` level is **post-native-backend**.
+The two tasks recorded here as *falsifying tests* were chosen precisely because a
+managed runtime could not fake them. Their current status:
 
-These two tasks are the falsifying tests that establish "Cufet as OS
-orchestrator" as a *waypoint*, not the destination.
+- **Task 3 (memory layout — `readelf`/`nm` on a real binary).** Passed. A compiled
+  Cufet program is an ordinary ELF executable: `.text`, `.rodata`, `.data`, `.bss`,
+  and — because each thread bump-allocates in its own arena — `.tdata`/`.tbss`.
+  Cufet functions are real machine symbols (a `Bind` becomes a `.text` entry), the
+  arena stack is a `.bss` object, and a `permanently`-bound text literal sits in
+  `.rodata`. The one honest qualification: Cufet has no *global* variable form, so
+  top-level bindings are `main`'s stack locals rather than `.data` entries. Locals
+  on the stack, constants in `.rodata` — inspectable by real tools, as the task
+  demanded.
+- **Task 4 (catch a real OS signal via `sigaction`).** Mechanism reached, surface
+  not yet exposed. The runtime installs a genuine `sigaction` handler for `SIGINT`
+  with an async-signal-safe handler and per-thread `sigsetjmp` landing pads, so
+  signals *are* caught at the wire. What is not a language feature yet is letting
+  a program handle an *arbitrary* signal. `SIGFPE` specifically is a poor fit:
+  Cufet's `number` is a software decimal, so division by zero is a checked
+  condition raised as a catchable Cufet exception rather than a hardware trap.
 
-**The current interpreter is the reference implementation / executable spec.**
-The 1327 tests (140 lexer + 1187 interpreter) define Cufet's semantics. A future
-native backend (native compilation, compile-to-C/LLVM, or a from-scratch
-non-managed runtime) implements those same semantics against real metal. Nothing
-built is wasted — this is the path most serious languages took (Lua defined its
-semantics via tree-walker; LuaJIT implements them natively; Rust bootstrapped
-through an OCaml compiler).
+**The interpreter is now the reference implementation in a much stronger sense
+than "executable spec": it is the compiler's oracle.** Every compiler test
+compiles a program, runs the binary, and asserts its output equals the
+interpreter's. Where the two disagreed, one of them was wrong — and that
+discipline is what most of the correctness work has consisted of.
 
-**Shell / OS orchestration as a waypoint.** The interpreter era will be able
-to run programs, read/write files, handle stdin/stdout, and orchestrate OS
-tools as subprocesses. That's real and valuable — it's the OS homework's
-*scripting-layer* tasks (building a shell, running `ls`, reading `$PATH`).
-It is not the tasks that require seeing through the managed runtime
-(real memory layout, raw OS signals). A Cufet shell that can `fork`/`exec`
-subprocesses and handle `SIGINT` is achievable in the interpreter era; a
-Cufet binary whose `.data` section you can `readelf` is post-native.
+**The differential-testing result is worth stating plainly.** Holding two
+independent backends against each other surfaced roughly seventeen latent bugs.
+Most of them were not code-generation mistakes; they were **defects in the
+language design** that a single implementation had silently absorbed — `is a`
+being kind-erased for containers, record fields printing in construction order,
+containers sharing rather than copying value types on insertion, remove-by-value
+using reference identity. A tree-walker on a GC forgives all of these. A compiler
+does not, and neither would a second independent implementation of any kind.
 
-**What's already built toward the systems goal:**
+**The governing rule that came out of it, now locked:** a configuration where the
+same program takes a different branch compiled versus interpreted never ships as a
+documented caveat. Either the behaviour is made precise on both sides, or the
+compiler refuses with a clean error. The only exceptions are cases that are
+genuinely undefined or platform-owned, where there is no single right answer to
+converge on — last-digit differences in `pow` (where .NET's `Math.Pow` *is* the
+platform libm), filesystem enumeration order, ASCII-versus-locale casing.
 
-| Foundation | Status | Why it matters for native |
+**Shell / OS orchestration**, recorded here as a waypoint, is complete on both
+backends: files, streams, stdin/stdout, subprocess `fork`/`exec`/`wait`, pipes,
+environment variables, directory traversal, and interruptible waits.
+
+**The foundations, and what each became natively:**
+
+| Foundation | Status | What it became in the native backend |
 |---|---|---|
 | Static type system, explicit types everywhere | ✅ built | Type info available for codegen; no runtime type discovery needed |
 | Lexical block scope (`Done.`-bounded) | ✅ built | Defines lifetimes; load-bearing for everything after |
@@ -955,7 +1017,7 @@ Cufet binary whose `.data` section you can `readelf` is post-native.
 | `failure T`, `Try/In case of exception` | ✅ built | `failure T` = Rust's `Result<T,E>`; exceptions → `sigaction` in native |
 | Closures (lexical capture) | ✅ built | Closure record / function pointer + captured env — direct native analog |
 | Value semantics for records/objects | ✅ built | C/Zig struct semantics — copy on assign, native-compatible |
-| Text toolkit complete + string interpolation | ✅ built | Needed for any real program; native backend needs a string library |
+| Text toolkit complete + string interpolation | ✅ built | Became an immutable, arena-allocated `const char*` — literals stay static, each operation allocates a fresh result in the current region. Immutability is what kept it simple: no capacity, no growth |
 | Constants, interfaces, maps | ✅ built | Standard type-system infrastructure |
 | Standard input (`read a line/all/all lines from the input`) | ✅ built | Shell needs stdin; pipes need readable streams |
 | File I/O (read/write/append/scoped streams) | ✅ built | Core OS capability; `With ... open` lifecycle = RAII analog |
@@ -963,57 +1025,56 @@ Cufet binary whose `.data` section you can `readelf` is post-native.
 | Union types + narrowing (`(A or B)`, `is a <type>`, elimination) | ✅ built | Discriminated unions — tagged values with type-safe dispatch; native analog is tag + union struct |
 | Environment variables (`the environment variable "X"`) | ✅ built | Shell needs to read `$PATH`, `$HOME`, etc.; pre-process-launch setup |
 | Directory traversal (`the contents of the directory`, `the path … exists/is a file/is a directory`) | ✅ built | Shell needs to list directories, test paths; directory walk is a core shell primitive |
-| Cooperative signal handling (`an interrupt is requested` / `Acknowledge the interrupt.` / `Yield.`) | ✅ built | SIGINT interruptibility in the interpreter era; preemptive form deferred to native |
+| Cooperative signal handling (`an interrupt is requested` / `Acknowledge the interrupt.` / `Yield.`) | ✅ built | Became a real `sigaction` handler + per-thread `sigsetjmp` landing pads: a thread blocked in a channel receive genuinely wakes, which the cooperative interpreter cannot do |
 | Getters / setters (uniform property access, Dart-style) | ✅ built | Controlled field access without syntax change; relevant to native struct layout control |
 | Named constructors (`Bind making a <type>`) | ✅ built | User-defined construction logic; factory pattern without a new keyword |
-| Destructors / RAII (`Bind unmaking a <type>`, LIFO scope-exit) | ✅ built | First step toward native RAII; destructor semantics define the cleanup contract the native backend must implement |
+| Destructors / RAII (`Bind unmaking a <type>`, LIFO scope-exit) | ✅ built | Fire LIFO on every exit path, including `return`, `Stop`, failure propagation, exception unwind, and now an interrupt — via a thread-local registry, since objects are stack values and must be unmade while still live |
 | Operator overloading (user-defined `+`, `-`, `*`, etc.; fallible overloads) | ✅ built | Enables domain types to use arithmetic syntax; fallible overloads proven viable |
 | Books / `Pull` mechanism (bundled: `math`, `collections`, `chance`) | ✅ built | Module-loading boundary established; type-introducing books work; external loader deferred |
 | Matrix type + arithmetic (`+`, `-`, `*`; fallible; dimension-mismatch failures) | ✅ built | First type-introducing book; demonstrates the operator-overloading + fallibility pattern |
-| Region-model soundness (three-hole adversarial arc — all holes closed) | ✅ built | Outward-only invariant now sound w.r.t. function-call laundering, method/getter laundering, and capture-store laundering |
-| Cooperative concurrency (scheduler + tasks + channels + task results + SIGINT/Yield) | ✅ built | Message-passing + structured concurrency; sound by construction (inherits region model); cooperative scheduler = no interpreter-internal races |
+| Region-model soundness (three-hole adversarial arc — all holes closed) | ✅ built | The invariant the native backend actually runs on. Under a GC a region error is invisible; compiled it is a use-after-free, so the arc was re-run against a real allocator and the region test is now *structural* over a value's whole shape rather than a list of types |
+| Cooperative concurrency (scheduler + tasks + channels + task results + SIGINT/Yield) | ✅ built | Became real pthreads with a structured join — a rabbit joins every task it spawned before releasing its region, so a task provably cannot outlive it. Channels are mutex/condvar queues; values crossing a thread boundary are deep-copied, so neither thread's arena is entangled with the other's. TSan-clean |
 | Streaming task pipes (`producer \| consumer`, `output`, `for each from the input`) | ✅ built | Pipeline composition; subprocess pipe enhancements (command substitution, exit-code, stderr-visible) |
 | Map key value-type constraint (text/number/fact only; reference types → static error) | ✅ built | Prevents the silent-miss class of bugs (reference identity lost under deep-copy); Dijkstra bug root cause fixed |
 | Comparison unification + trap sweep (`true`/`false`, ordinals-as-identifiers, negated word-forms, educational errors) | ✅ built | Most-slipped-on rules retired; `true`/`false` work; word and symbol comparison forms position-agnostic |
 
-**All interpreter-era language prerequisites are now complete.** The path forward:
+**Every feature in the table above compiles natively**, and every item once
+bundled as "deferred to native" has landed: `pull a rabbit` as a real
+task-lifetime arena, true fan-out distribution under OS threads, and
+preemptive SIGINT that reaches non-yielding loops, blocked channel waits, and
+worker tasks alike.
 
-- **Native backend** — the mountain, probably larger than everything built so far
-  combined. Bundled with native: `pull a rabbit` as a task-lifetime arena (its
-  physical-arena point only matters once GC is off), true fan-out distribution
-  (the work-queue finding — native's OS-thread scheduler resolves the cooperative-
-  era starvation), true preemptive SIGINT (non-yielding tight loops), and
-  move-semantics at channel send (ownership transfer).
-- Then: **multi-directional predicate dispatch** — design-first arc; the
-  type-system mountain. Not orderable until designed.
-- Then: close gaps, polish, **finish line**.
+**The three frictions recorded here as unsolved were each solved. How:**
 
-**Then the native-backend era:**
+- **`number` = `decimal` had no hardware instruction set.** Resolved with a
+  self-contained software decimal, `CufetDec`, that is bit-identical to .NET's
+  `System.Decimal` — including round-half-to-even and the 28-digit scale.
+  `libmpdec` was rejected: it implements IEEE-754 decimal, a *different* format,
+  and would have added a link dependency. `double` was never on the table; it
+  would have made compiled arithmetic silently disagree with interpreted, which
+  is exactly the divergence class the project refuses.
+- **Reference-type lifetimes needed an ownership model.** Resolved with regions
+  plus static escape analysis. The type checker computes, for every store, the
+  region depth the value must survive to; the compiler deep-copies it there.
+  Values escape outward only, never inward. No GC, no borrow checker, no
+  reference counting.
+- **`text` needed a real native string type.** Resolved as an immutable,
+  arena-allocated `const char*`: literals stay static, each operation allocates a
+  fresh result in the current region, and everything is released when the region
+  ends. Immutability is what made this simple — there is no capacity to grow.
 
-7. **Native compilation or compile-to-C** — the real mountain. Probably
-   larger than everything built so far combined.
-8. **Manual memory model** (`rabbit`/`stash` concept) — real heap/stack
-   distinction, explicit lifetime management. Must be designed native-first;
-   interpreter sugar would be the wrong order for this one.
-9. **Real signal handling at the `sigaction` level.**
-10. **Real memory layout** — globals in `.data`, locals on the stack,
-    inspectable by `readelf`/`nm`/`gdb`.
+**What genuinely remains:**
 
-**Known native-backend friction to record now:**
-
-- **`number` = `decimal`**: C# `decimal` is a 128-bit fixed-point type with
-  no hardware instruction set. The native backend needs a software decimal
-  library (e.g. `libmpdec`). Switching to `double` would betray the
-  "no floating-point surprises" north star. Accepted cost; not a design error.
-- **Reference-type lifetime question (series, maps):** .NET's GC handles
-  series/map lifetimes silently. The native backend needs an ownership model.
-  **Decided: regions** — see "The memory model" section below. Series/maps
-  live in an implicit scope-region (stack lifetime) or an explicit rabbit
-  (arena lifetime); freed when their region ends. No GC, no borrow checker.
-- **`text` type for native:** immutable string with rich ops is the right
-  semantics. Native implementation needs a real string type
-  (`(ptr, len, capacity)` or arena-backed). Non-trivial; its own native
-  feature.
+- **Multi-directional predicate dispatch** — a design-first arc and the real
+  type-system mountain, deliberately placed after the current version rather than
+  allowed to drag the finish line. Not orderable until designed.
+- **Move semantics at channel send** — sends deep-copy across the thread boundary,
+  which is sound but not free. A move, with the sender's binding invalidated,
+  would avoid the copy.
+- **A REPL** — see above; still the highest-value ergonomic gap.
+- **Separate compilation and an external book loader** — the whole program is
+  compiled at once today, which is what makes the bounded open-union
+  representation sound. Either feature would require revisiting that.
 
 ### The memory model (the foundational decision)
 
@@ -1195,24 +1256,45 @@ the rabbit's birth-scope — storing shorter-lived locals is a static error.
 **Handles = normal references (no distinct type).** Safety comes from the
 downward-only rule (rabbit outlives all callees), not from a special type.
 
-**Interpreter vs. native.** In the interpreter (.NET, GC-backed), "freed at
-`Done.`" is modeled semantically — values become unreachable when the block
-ends; the GC handles actual reclamation. The interpreter enforces the *static
-safety rules* and *observable semantics*; physical arena allocation is the
-native backend's job.
+**Interpreter vs. compiled.** Interpreted, "freed at `Done.`" is modelled
+semantically — values become unreachable when the block ends and the GC reclaims
+them whenever it likes. The interpreter enforces the *static safety rules* and the
+*observable semantics*; it does not actually free anything on cue.
 
-**NOT in Layer 3:** `pull a rabbit` for task-lifetime (concurrency era);
-physical arena allocation (native backend); returning a rabbit / lifetime
-parameters (deliberately not solved — handle-passing covers the real cases).
+Compiled, the arena is physical: a `Pull a rabbit` pushes a bump-allocated,
+thread-local region and `Done.` frees every block in it at once. A region is
+released on **every** way out — `Done.`, `return`, `Stop`, `Skip`, `Suppress`, a
+failure unwind, an exception, an interrupt — not just the normal one. Returning a
+value out of a region hands that region's memory to the caller's rather than
+freeing it, so the value stays valid and is reclaimed one level out; nothing is
+copied, because a returned value may be the caller's own and the two backends have
+to keep sharing it.
+
+**This is where the GC was doing real work, and it shows.** Because the
+interpreter forgives a region mistake and a real allocator does not, moving to a
+physical arena turned several latent design bugs into hard use-after-frees. The
+outward-store invariant had to become *structural* over a value's whole shape,
+rather than a list of reference types, once a `record containing a series` proved
+it could launder a covered type past the check. That is the honest argument for
+building the compiler: it audits the memory model in a way a tree-walker
+structurally cannot.
+
+**Not in Layer 3, and since delivered:** physical arena allocation, and
+`pull a rabbit` in the task-lifetime sense. Still deliberately unsolved: returning
+a rabbit / lifetime parameters — handle-passing covers the real cases.
 
 **Layers still ahead.**
 
 - **`book` as a module conformer:** the loading face, gated by a standard
-  library existing.
-- **`pull a rabbit` as a task-lifetime arena:** the concurrency model is built
-  (v0.9.0), but `pull a rabbit` in the task-lifetime sense — a named arena whose
-  physical lifetime is a concurrent task rather than a lexical block — is native-era.
-  Its physical-arena point only matters once GC is off. The concurrency model uses
-  the block-scoped rabbit for task scope; the task-lifetime arena form is a
-  native-backend feature.
+  library existing — and now also by separate compilation, since books are
+  resolved at compile time today.
+- **`pull a rabbit` as a task-lifetime arena — delivered.** This was recorded as
+  native-era future work, and the native backend is where it landed, but the
+  feature is not a new form of rabbit: it is the **structured join**. A rabbit
+  joins every task it spawned before releasing its arena, so a task provably
+  cannot outlive the region it was launched from. Each thread bump-allocates in
+  its own arena, so concurrent tasks never contend, and values crossing a thread
+  boundary are deep-copied rather than shared. The physical-arena point that
+  "only matters once GC is off" is exactly what makes this real: the join is not
+  bookkeeping, it is what keeps a task from reading freed memory.
   
