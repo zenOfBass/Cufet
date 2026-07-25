@@ -1522,6 +1522,11 @@ static void* cufet_pipe_stage(void* argp) {
     /* Interrupt landing pad (CONC.E): if a blocked recv inside the stage is interrupted, it unwinds
        to here and the stage tears down normally (arena pop + close output + reaped by the pipe join). */
     if (sigsetjmp(cufet_thread_top, 1) == 0) { cufet_pad_set = 1; a->fn(a->env); }
+    /* INT.1: run this thread's pending unmakers + close its open files before tearing down. Both
+       registries are _Thread_local, so this touches only the stage's own. On the interrupt path
+       these would otherwise be skipped entirely (destructors never fire, buffered writes lost). */
+    cufet_run_unmakers_to(0);
+    cufet_close_files_from(0);
     cufet_arena_pop();
     if (a->out) cufet_chan_close(a->out);      /* signal downstream: no more values */
     free(a);
@@ -3783,6 +3788,12 @@ static void* cufet_pipe_stage(void* argp) {
                     // frees too — no leak). Awaited tasks (cf_jflag set) were freed at their await site.
                     sb.AppendLine($"{inner}for (int cf_ji = 0; cf_ji < cf_nthr{n}; cf_ji++) if (!cf_jflag{n}[cf_ji]) {{ void* cf_jr = NULL; pthread_join(cf_thr{n}[cf_ji], &cf_jr); if (cf_jr) {{ if (cf_jfree{n}[cf_ji]) cf_jfree{n}[cf_ji](cf_jr); else free(cf_jr); }} }}");
                     sb.AppendLine($"{inner}for (int cf_ci = 0; cf_ci < cf_nchan{n}; cf_ci++) cufet_chan_free_if_live(cf_chan{n}[cf_ci]);");
+                    // INT.1 — the join above is the one place this thread parks for an unbounded
+                    // time, and pthread_join is not a checkpoint. An interrupt delivered while
+                    // tasks were running unwinds THEM (their own pads), but this thread would sail
+                    // on with the flag still set and never tear down. Check as soon as the join
+                    // releases, so Ctrl-C during a task actually ends the program.
+                    sb.AppendLine($"{inner}cufet_checkpoint();");
                 }
                 sb.AppendLine($"{indent}}}");
                 sb.AppendLine($"{indent}cufet_arena_pop();");
@@ -5589,15 +5600,43 @@ static void* cufet_pipe_stage(void* argp) {
         _currentReturnType = resultType;
         _currentTaskReturn = (resultType, resultCType);
         _inTaskBody        = true;
-        var savedTF = EnterFrame(_taskFns, "    ");
-        EmitBlock(_taskFns, lts.Body, "    ");
+        // INT.1 — this thread's interrupt landing pad, mirroring cufet_pipe_stage. Without it a
+        // worker's `cufet_checkpoint()` is a silent no-op (the check requires cufet_pad_set, which
+        // is _Thread_local), so Ctrl-C during a task was simply ignored and the program hung.
+        // The body is INLINE here rather than behind a function pointer as it is for a pipe stage,
+        // but wrapping the emitted statements works the same way. Only `cf_a` is read after the
+        // pad, and it is assigned before the sigsetjmp and never reassigned, so C11's
+        // indeterminate-locals rule is satisfied (the same argument the pipe stage relies on).
+        bool pad = _usesSignals || _usesConcurrency;
+        string bodyIndent = "    ";
+        if (pad)
+        {
+            _taskFns.AppendLine($"#if defined(__unix__) || defined(__APPLE__)");
+            _taskFns.AppendLine($"    if (sigsetjmp(cufet_thread_top, 1) == 0) {{ cufet_pad_set = 1;");
+            _taskFns.AppendLine($"#endif");
+            bodyIndent = "        ";
+        }
+        var savedTF = EnterFrame(_taskFns, bodyIndent);
+        EmitBlock(_taskFns, lts.Body, bodyIndent);
         ExitFrame(savedTF);
         _currentReturnType = savedRet;
         _excOpen = savedExcOpen;
         _currentTaskReturn = savedTaskRet;
         _inTaskBody        = savedInTask;
-        // Fall-through epilogue (reached by fire-and-forget/void tasks; a value-returning task is
-        // required to return on every path — CheckLaunchTask — so this is dead code there but safe).
+        if (pad)
+        {
+            _taskFns.AppendLine($"#if defined(__unix__) || defined(__APPLE__)");
+            _taskFns.AppendLine($"    }}");
+            _taskFns.AppendLine($"#endif");
+        }
+        // Fall-through epilogue — reached by a fire-and-forget/void task finishing normally, and by
+        // an INTERRUPTED task of any kind unwinding to the pad above. A value-returning task is
+        // required to return on every path (CheckLaunchTask), so for it this is the interrupt path
+        // only, and it yields NULL: the task is ABANDONED and reaped by the rabbit's structured
+        // join, exactly as an interrupted pipe stage is. Run this thread's pending unmakers and
+        // close its open files first — both registries are _Thread_local, so a worker touches only
+        // its own — otherwise an interrupt would skip every destructor and lose buffered writes.
+        _taskFns.AppendLine($"    {UnmakerRunStmt("0")}cufet_close_files_from(0);");
         _taskFns.AppendLine($"    cufet_arena_pop();");
         _taskFns.AppendLine($"    free(cf_a);");
         _taskFns.AppendLine($"    return NULL;");
@@ -5771,10 +5810,15 @@ static void* cufet_pipe_stage(void* argp) {
         // (arenacopy) and free the envelope (freeenv). The cached cf_tres_ is the arena copy — a re-await
         // reads it without re-joining (the body ran once). POD results copy identically (arenacopy is a
         // struct read, freeenv a plain free) — CONC.C's scalar path unchanged.
+        // INT.1 — an INTERRUPTED task is abandoned at its landing pad and yields NULL instead of a
+        // result envelope, so the copy has to be guarded or it dereferences null. There is no
+        // sensible value to await in that case: the interrupt that killed the task is meant for
+        // this thread too, so check in (this thread has a pad — it unwinds to teardown and exits).
         _preEmits.Add(
             $"if (!cf_jflag{ctx}[cf_slot_{sfx}]) {{ void* cf_ar = NULL; " +
             $"pthread_join(cf_thr{ctx}[cf_slot_{sfx}], &cf_ar); cf_jflag{ctx}[cf_slot_{sfx}] = 1; " +
-            $"cf_tres_{sfx} = {ChanArenaCopy(resultType)}(cf_ar); {ChanFreeEnv(resultType)}(cf_ar); }}");
+            $"if (cf_ar) {{ cf_tres_{sfx} = {ChanArenaCopy(resultType)}(cf_ar); {ChanFreeEnv(resultType)}(cf_ar); }} " +
+            $"else cufet_checkpoint(); }}");
         return $"cf_tres_{sfx}";
     }
 

@@ -4017,6 +4017,105 @@ public class PipelineTests
         Assert.Equal("waiting", output);
     }
 
+    // ── INT.1: worker tasks are interruptible too ─────────────────────────────────────────────
+    // Before this, only main and pipe-stage threads established a landing pad, so a worker's
+    // `cufet_checkpoint()` was a silent no-op — and main is parked in pthread_join at the rabbit's
+    // Done., which is not a checkpoint. Every case below HUNG INDEFINITELY on Ctrl-C (measured).
+    // The 3-second-ish timeouts in these tests are the real assertion: a regression re-hangs.
+
+    [Fact]
+    public void Interrupt_InsideWorkerTask_UnwindsAndStops()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        var (code, output) = CompileAndInterrupt("""
+            Pull a rabbit.
+                Have rabbit start a task:
+                    Define i as 0.
+                    While 1 is 1, repeat:
+                        i becomes i + 1.
+                        Yield.
+                    Done.
+                Done.
+            Done.
+            State "finished".
+            """, 500);
+        Assert.Equal(130, code);
+        Assert.Equal("", output);   // never reaches "finished"
+    }
+
+    [Fact]
+    public void Interrupt_WorkerTaskBlockedOnChannel_UnwindsAndStops()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // Previously the interrupted recv returned -1, the no-op checkpoint let it fall through as
+        // "stream closed", and the task carried on as though it had been handed a value.
+        var (code, output) = CompileAndInterrupt("""
+            Pull a rabbit.
+                Define work as a channel of number.
+                Have rabbit start a task:
+                    Define job as the delivery from work.
+                    State "got something".
+                Done.
+            Done.
+            State "finished".
+            """, 500);
+        Assert.Equal(130, code);
+        Assert.Equal("", output);
+    }
+
+    [Fact]
+    public void Interrupt_NamedTaskPendingAwait_DoesNotDereferenceNull()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // An abandoned task yields NULL instead of a result envelope; the await has to notice
+        // rather than hand NULL to arenacopy. ASan-clean in WSL.
+        var (code, output) = CompileAndInterrupt("""
+            Pull a rabbit.
+                Have rabbit start a task as slow:
+                    Define i as 0.
+                    While 1 is 1, repeat:
+                        i becomes i + 1.
+                        Yield.
+                    Done.
+                    return 1.
+                Done.
+                State the awaited result of slow.
+            Done.
+            State "finished".
+            """, 500);
+        Assert.Equal(130, code);
+        Assert.Equal("", output);
+    }
+
+    [Fact]
+    public void Interrupt_InsideWorkerTask_StillRunsDestructors()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The unwind runs the thread's pending unmakers and closes its files before tearing down —
+        // both registries are _Thread_local, so a worker only ever touches its own.
+        var (code, output) = CompileAndInterrupt(UnmakerHdr + """
+            Pull a rabbit.
+                Have rabbit start a task:
+                    Pull a rabbit.
+                        Define h as a new handle { the id "IN-TASK" }.
+                        Define i as 0.
+                        While 1 is 1, repeat:
+                            i becomes i + 1.
+                            Yield.
+                        Done.
+                    Done.
+                Done.
+            Done.
+            State "finished".
+            """, 500);
+        Assert.Equal(130, code);
+        Assert.Equal("unmake IN-TASK", output);
+    }
+
     // Compiles + runs the binary, delivers SIGINT after delayMs, returns (exit code, stdout). Linux
     // only (POSIX signal delivery via /bin/kill). Used to verify the true-preemptive interrupt.
     private static (int ExitCode, string Output) CompileAndInterrupt(string source, int delayMs)
