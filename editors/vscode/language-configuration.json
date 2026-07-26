@@ -1,0 +1,46 @@
+{
+  // Cufet has no line comment — [[ ]] is all there is, and it nests.
+  "comments": {
+    "blockComment": ["[[", "]]"]
+  },
+
+  "brackets": [
+    ["[[", "]]"],
+    ["(", ")"],
+    ["{", "}"]
+  ],
+
+  "autoClosingPairs": [
+    { "open": "[[", "close": " ]]" },
+    { "open": "(", "close": ")" },
+    { "open": "{", "close": "}" },
+    // No pair for ' — the possessive 's would auto-close into nonsense on every field access.
+    { "open": "\"", "close": "\"", "notIn": ["string", "comment"] }
+  ],
+
+  "surroundingPairs": [
+    ["(", ")"],
+    ["{", "}"],
+    ["\"", "\""]
+  ],
+
+  // Hyphens are identifier characters in Cufet: 'add-edge' is ONE name, not two words with a
+  // dash between them. Without this, double-clicking it selects only 'add', word-wise cursor
+  // movement stops inside it, and selecting a name to rename picks up half of one.
+  "wordPattern": "[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*|\\d+(?:\\.\\d+)?",
+
+  // A block opens with a trailing ':' and closes with 'Done.' or 'Until ...'. 'Otherwise'
+  // closes the arm above it and opens its own, so it dedents on the way in, and its own
+  // trailing ':' indents the body back out again.
+  "indentationRules": {
+    "increaseIndentPattern": ":\\s*$",
+    "decreaseIndentPattern": "^\\s*(?i:done|until|otherwise)(?![\\w-])"
+  },
+
+  "onEnterRules": [
+    {
+      "beforeText": ":\\s*$",
+      "action": { "indent": "indent" }
+    }
+  ]
+}

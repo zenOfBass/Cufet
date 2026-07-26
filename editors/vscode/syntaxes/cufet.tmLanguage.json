@@ -1,0 +1,281 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Cufet",
+  "scopeName": "source.cufet",
+
+  "_readme": [
+    "A TextMate grammar assigns SCOPES; the colour theme maps scopes to colours. So this file",
+    "names scopes from the standard vocabulary every theme already styles, and never picks a",
+    "colour. Scope names are three-part — <standard-prefix>.<cufet-role>.cufet — so a plain",
+    "theme colours them by the prefix it already knows, and a theme with a wide palette can",
+    "pull the Cufet-specific roles apart if it wants to.",
+    "",
+    "THE ONE RULE THAT MATTERS: articles and prepositions get NO scope. 'a', 'an', 'the', 'of',",
+    "'to', 'as', 'with', 'on', 'by', 'from', 'in', 'at', 'for', 'after' and 'through' render as",
+    "plain body text. Cufet reads as English because it is full of them, and colouring them",
+    "would turn every line into a wall of keyword. Unscoped, they recede and the content words",
+    "carry the line. This is deliberate. Do not 'fix' it.",
+    "",
+    "WORD BOUNDARIES: \\b is wrong here. Hyphens are identifier characters in Cufet, so 'add-edge'",
+    "is ONE name — but \\b sees a boundary at the hyphen and would colour the 'add' in it as a",
+    "keyword. Every keyword pattern below is fenced with (?<![\\w-]) ... (?![\\w-]) instead.",
+    "",
+    "Keywords are case-insensitive in the lexer, hence (?i:...) throughout."
+  ],
+
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#string" },
+    { "include": "#number" },
+    { "include": "#declaration" },
+    { "include": "#accessor-phrase" },
+    { "include": "#phrase" },
+    { "include": "#possessive" },
+    { "include": "#keyword" },
+    { "include": "#operator" },
+    { "include": "#punctuation" }
+  ],
+
+  "repository": {
+
+    "comment": {
+      "comment": "Cufet comments nest — an inner [[ must be closed before the outer one ends. The self-include is what implements that, and it is the whole reason commenting out a block that already contains comments works.",
+      "name": "comment.block.cufet",
+      "begin": "\\[\\[",
+      "end": "\\]\\]",
+      "beginCaptures": { "0": { "name": "punctuation.definition.comment.begin.cufet" } },
+      "endCaptures":   { "0": { "name": "punctuation.definition.comment.end.cufet" } },
+      "patterns": [ { "include": "#comment" } ]
+    },
+
+    "string": {
+      "name": "string.quoted.double.cufet",
+      "begin": "\"",
+      "end": "\"",
+      "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.cufet" } },
+      "endCaptures":   { "0": { "name": "punctuation.definition.string.end.cufet" } },
+      "patterns": [
+        {
+          "comment": "\\{ and \\} are literal braces, NOT interpolation — so they must be taken before #interpolation gets a look.",
+          "name": "constant.character.escape.cufet",
+          "match": "\\\\[ntr\\\\\"{}]"
+        },
+        {
+          "comment": "The lexer rejects any other escape outright, so flagging it here is accurate, not a guess.",
+          "name": "invalid.illegal.unknown-escape.cufet",
+          "match": "\\\\."
+        },
+        { "include": "#interpolation" }
+      ]
+    },
+
+    "interpolation": {
+      "comment": "A hole holds a full expression, including nested strings with holes of their own — hence $self.",
+      "name": "meta.interpolation.cufet",
+      "begin": "\\{",
+      "end": "\\}",
+      "beginCaptures": { "0": { "name": "punctuation.section.interpolation.begin.cufet" } },
+      "endCaptures":   { "0": { "name": "punctuation.section.interpolation.end.cufet" } },
+      "patterns": [ { "include": "$self" } ]
+    },
+
+    "number": {
+      "comment": "Matches the lexer exactly: a '.' is a decimal point only when a digit follows it, so the '.' in 'State 3.' stays a statement terminator.",
+      "name": "constant.numeric.cufet",
+      "match": "(?<![\\w-])\\d+(?:\\.\\d+)?(?![\\w-])"
+    },
+
+    "declaration": {
+      "patterns": [
+        {
+          "comment": "Bind <return type> to <name>. The return type may itself contain 'to' — 'Bind map from text to number to dijkstra' — so the middle is greedy and backtracks to the LAST 'to', which is the one that introduces the name. 'unto' is not caught by it, because the left fence rejects a preceding word character.",
+          "match": "((?i:bind))(?![\\w-])([^,:\\n]*)(?<![\\w-])(?i:to)(?![\\w-])\\s+([a-z][A-Za-z0-9-]*)",
+          "captures": {
+            "1": { "name": "storage.type.declaration.cufet" },
+            "2": { "patterns": [ { "include": "$self" } ] },
+            "3": { "name": "entity.name.function.cufet" }
+          }
+        },
+        {
+          "comment": "Define object <name> with (...)",
+          "match": "((?i:define))(?![\\w-])\\s+((?i:object))(?![\\w-])\\s+([a-z][A-Za-z0-9-]*)",
+          "captures": {
+            "1": { "name": "storage.type.declaration.cufet" },
+            "2": { "name": "storage.type.declaration.cufet" },
+            "3": { "name": "entity.name.type.cufet" }
+          }
+        },
+        {
+          "comment": "Define <name> as an interface for {...} — here the name comes BEFORE the keyword that identifies the form, so the literal 'interface' is what keeps this off ordinary 'Define x as 1'.",
+          "match": "((?i:define))(?![\\w-])\\s+([a-z][A-Za-z0-9-]*)\\s+(?i:as)(?![\\w-])\\s+(?:(?i:an|a)(?![\\w-])\\s+)?((?i:interface))(?![\\w-])",
+          "captures": {
+            "1": { "name": "storage.type.declaration.cufet" },
+            "2": { "name": "entity.name.type.cufet" },
+            "3": { "name": "storage.type.declaration.cufet" }
+          }
+        },
+        {
+          "comment": "a new <type> { ... }",
+          "match": "((?i:new))(?![\\w-])\\s+([a-z][A-Za-z0-9-]*)",
+          "captures": {
+            "1": { "name": "storage.type.declaration.cufet" },
+            "2": { "name": "entity.name.type.cufet" }
+          }
+        },
+        {
+          "comment": "Bind <ret> to <name> unto <type> — the method's owning type.",
+          "match": "((?i:unto))(?![\\w-])\\s+([a-z][A-Za-z0-9-]*)",
+          "captures": {
+            "1": { "name": "storage.type.declaration.cufet" },
+            "2": { "name": "entity.name.type.cufet" }
+          }
+        },
+        {
+          "comment": "Cast <name> on (...). The article is optional and stays unscoped, like every other article.",
+          "match": "((?i:cast))(?![\\w-])\\s+(?:(?i:the|an|a)(?![\\w-])\\s+)?([a-z][A-Za-z0-9-]*)",
+          "captures": {
+            "1": { "name": "keyword.control.statement.cufet" },
+            "2": { "name": "entity.name.function.cufet" }
+          }
+        },
+        {
+          "comment": "Pull a book on <name> [as <alias>] / Pull books on <n>, <n>, and <n>. Both the book names and a local alias are namespace names, so one sub-pattern covers the tail.",
+          "match": "((?i:pull))(?![\\w-])\\s+(?:(?i:the|an|a)(?![\\w-])\\s+)?((?i:books|book))(?![\\w-])\\s+(?i:on)(?![\\w-])([^.:\\n]*)",
+          "captures": {
+            "1": { "name": "keyword.control.statement.cufet" },
+            "2": { "name": "support.type.cufet" },
+            "3": { "patterns": [
+              { "match": "(?<![\\w-])(?i:and)(?![\\w-])", "name": "keyword.operator.word.cufet" },
+              { "match": "(?<![\\w-])(?i:as)(?![\\w-])" },
+              { "match": "[a-z][A-Za-z0-9-]*", "name": "entity.name.namespace.cufet" }
+            ] }
+          }
+        }
+      ]
+    },
+
+    "accessor-phrase": {
+      "comment": "Cufet's positional and built-in-field accessors are CONTEXTUAL, not reserved — 'first', 'last' and 'value' are ordinary identifiers that the parser only recognises in a particular shape. Anchoring on the article in front of them reproduces that shape closely enough to colour them like the reserved accessors they sit beside, so 'the key of pair' and 'the value of pair' don't come out looking like two different things.",
+      "patterns": [
+        {
+          "match": "(?<![\\w-])(?i:the)(?![\\w-])\\s+((?i:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|last|value))(?![\\w-])",
+          "captures": { "1": { "name": "support.function.builtin.cufet" } }
+        },
+        {
+          "match": "((?i:awaited))(?![\\w-])\\s+((?i:result))(?![\\w-])",
+          "captures": {
+            "1": { "name": "support.function.builtin.cufet" },
+            "2": { "name": "support.function.builtin.cufet" }
+          }
+        },
+        {
+          "comment": "read all / read line / read lines / read input — the form words are contextual too.",
+          "match": "((?i:read))(?![\\w-])\\s+((?i:lines|line|all|input))(?![\\w-])",
+          "captures": {
+            "1": { "name": "keyword.control.statement.cufet" },
+            "2": { "name": "support.function.builtin.cufet" }
+          }
+        }
+      ]
+    },
+
+    "phrase": {
+      "comment": "Multi-word operators, coloured as a unit. These must run before the single-word keywords: colouring 'is greater' and leaving a plain 'than' hanging off the end looks broken, and 'for' on its own has no business being loud in 'open for reading'.",
+      "patterns": [
+        {
+          "name": "keyword.control.flow.cufet",
+          "match": "(?<![\\w-])(?i:for\\s+each|in\\s+case\\s+of)(?![\\w-])"
+        },
+        {
+          "name": "keyword.operator.word.cufet",
+          "match": "(?<![\\w-])(?i:is\\s+not|is\\s+greater\\s+than|is\\s+less\\s+than|or\\s+more|or\\s+less|joined\\s+to|converted\\s+to|in\\s+uppercase|in\\s+lowercase|in\\s+reverse|split\\s+by|sorted\\s+by|counting\\s+by|randomly\\s+shuffled|filled\\s+with)(?![\\w-])"
+        }
+      ]
+    },
+
+    "possessive": {
+      "match": "('s)(?![\\w-])\\s*([a-z][A-Za-z0-9-]*)?",
+      "captures": {
+        "1": { "name": "keyword.operator.possessive.cufet" },
+        "2": { "name": "variable.other.property.cufet" }
+      }
+    },
+
+    "keyword": {
+      "patterns": [
+        {
+          "comment": "Flow.",
+          "name": "keyword.control.flow.cufet",
+          "match": "(?<![\\w-])(?i:if|otherwise|done|while|repeat|until|stop|skip|return|try|case|pass|off|suppress|yield|but)(?![\\w-])"
+        },
+        {
+          "comment": "Statement verbs — the words that open a statement and say what it does.",
+          "name": "keyword.control.statement.cufet",
+          "match": "(?<![\\w-])(?i:state|add|remove|replace|send|close|seed|acknowledge|write|append|read|run|open|cast|pull|have|start)(?![\\w-])"
+        },
+        {
+          "comment": "Words that introduce a definition.",
+          "name": "storage.type.declaration.cufet",
+          "match": "(?<![\\w-])(?i:define|bind|object|interface|given|unto|unmaking|making|overloading|get|set|new)(?![\\w-])"
+        },
+        {
+          "name": "storage.modifier.cufet",
+          "match": "(?<![\\w-])(?i:permanently|shadow)(?![\\w-])"
+        },
+        {
+          "comment": "Type names. 'text' and 'fact' are contextual rather than reserved — the lexer has no token for either — but they are types to anyone reading the code, so they are coloured as types.",
+          "name": "support.type.cufet",
+          "match": "(?<![\\w-])(?i:number|text|fact|series|record|matrix|map|channel|rabbit|task|stream|function|voidable|void|catalogue|atlas|failure|exception|books|book)(?![\\w-])"
+        },
+        {
+          "comment": "Word-form operators.",
+          "name": "keyword.operator.word.cufet",
+          "match": "(?<![\\w-])(?i:becomes|is|not|and|or|greater|less|than|more|has|contains|like|joined|converted|split|sorted|shuffled|randomly|reverse|trimmed|uppercase|lowercase|counting|filled)(?![\\w-])"
+        },
+        {
+          "comment": "Built-in accessors and nouns.",
+          "name": "support.function.builtin.cufet",
+          "match": "(?<![\\w-])(?i:length|size|position|characters|end|item|key|entry|contents|directory|path|environment|interrupt|delivery|awaited|category|file|rows|columns|randomly|random|guess|range)(?![\\w-])"
+        },
+        {
+          "name": "constant.language.boolean.cufet",
+          "match": "(?<![\\w-])(?i:true|false)(?![\\w-])"
+        },
+        {
+          "comment": "'it' is the last stated value; 'one' is the self-reference inside a method body. Both are the language handing you a name, which is what variable.language means.",
+          "name": "variable.language.cufet",
+          "match": "(?<![\\w-])(?i:it|one)(?![\\w-])"
+        }
+      ]
+    },
+
+    "operator": {
+      "patterns": [
+        {
+          "comment": "Binary '-' needs spaces around it, because a hyphen with a letter or digit after it is part of an identifier: 'count-1' is one name, 'count - 1' is subtraction. The identifier pattern is not scoped, so the two really do render differently — which is the point.",
+          "name": "keyword.operator.arithmetic.cufet",
+          "match": "[+*/%]|(?<=\\s)-(?=\\s)"
+        },
+        {
+          "name": "keyword.operator.comparison.cufet",
+          "match": "<=|>=|<|>|="
+        },
+        {
+          "comment": "The streaming pipe: A | B wires A's output to B's input.",
+          "name": "keyword.operator.pipe.cufet",
+          "match": "\\|"
+        }
+      ]
+    },
+
+    "punctuation": {
+      "patterns": [
+        { "name": "punctuation.terminator.statement.cufet", "match": "\\." },
+        { "name": "punctuation.section.block.begin.cufet",  "match": ":" },
+        { "name": "punctuation.separator.cufet",            "match": "," },
+        { "name": "meta.brace.round.cufet",                 "match": "[()]" },
+        { "name": "meta.brace.curly.cufet",                 "match": "[{}]" }
+      ]
+    }
+  }
+}

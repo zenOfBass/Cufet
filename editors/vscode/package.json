@@ -1,0 +1,82 @@
+{
+  "name": "cufet",
+  "displayName": "Cufet",
+  "description": "Syntax highlighting and live error checking for the Cufet programming language.",
+  "version": "0.10.0",
+  "publisher": "cufet",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:cufet"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "cufet",
+        "aliases": ["Cufet", "cufet"],
+        "extensions": [".cufe"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "cufet",
+        "scopeName": "source.cufet",
+        "path": "./syntaxes/cufet.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      { "command": "cufet.check", "title": "Check File",            "category": "Cufet" },
+      { "command": "cufet.run",   "title": "Run File",              "category": "Cufet" },
+      { "command": "cufet.build", "title": "Build Native Binary",   "category": "Cufet" }
+    ],
+    "configuration": {
+      "title": "Cufet",
+      "properties": {
+        "cufet.executable": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the Cufet executable. Leave empty to search the workspace for a build under `src/App/bin/*/net*/`, then fall back to `cufet` on your PATH."
+        },
+        "cufet.checkOn": {
+          "type": "string",
+          "enum": ["save", "type", "never"],
+          "enumDescriptions": [
+            "Check when the file is opened and saved.",
+            "Check as you type, after a short pause. Unsaved text is checked via a temporary file.",
+            "Only check when you run the Cufet: Check File command."
+          ],
+          "default": "save",
+          "description": "When to check a Cufet file for errors."
+        },
+        "cufet.checkNativeCompatibility": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Also report constructs the native compiler refuses. These run fine under the interpreter, so they are reported as **warnings**, not errors."
+        }
+      }
+    },
+    "problemMatchers": [
+      {
+        "name": "cufet",
+        "owner": "cufet",
+        "source": "cufet",
+        "fileLocation": ["absolute"],
+        "pattern": {
+          "regexp": "^(.*?):(\\d+):\\s+(error|warning):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "severity": 3,
+          "message": 4
+        }
+      }
+    ]
+  }
+}
