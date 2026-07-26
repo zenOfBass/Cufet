@@ -170,6 +170,16 @@ Latent language and soundness bugs surfaced by holding the two backends against 
 - **A map key built inside a region and stored in a longer-lived map was freed with that
   region.** A map is the only place in the language that stores two values at once, and only
   the value half was ever checked for escape.
+- **Pipe stages were never type-checked against each other — or, in a consumer's case,
+  at all.** `for each n from the input:` gives the iterator no type, so a stage's input
+  type can only come from the stage before it, and nothing was carrying it across. A
+  producer emitting numbers into a stage that treated them as text got past the front end
+  entirely and failed much later and much worse: interpreted, as a raw .NET exception with
+  a stack trace; compiled, as a `gcc` error about generated C. The type checker now walks
+  each pipe in order, carries every stage's output type into the next as its input, and
+  checks the body against it — so the mismatch is an ordinary Cufet type error on the
+  offending line. Reusing one stage function at two different element types is now also a
+  front-end error rather than a compiler-only refusal.
 - **Ctrl-C was ignored while a task was running.** Only the main thread and streaming-pipe
   stages had somewhere to unwind to, so an interrupt inside a `Have rabbit start a task` body
   did nothing at all — and the main thread, waiting at the rabbit's `Done.`, never looked at the
