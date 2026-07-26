@@ -6,7 +6,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
-## [Unreleased]
+## [0.10.0] — 2026-07-25
 
 The **native compiler** era. Cufet now has two backends: the tree-walking interpreter
 (the reference implementation) and a compiler that emits C and invokes gcc to produce a
@@ -180,8 +180,9 @@ Latent language and soundness bugs surfaced by holding the two backends against 
   internal slice number, and a list of unrelated features. It now says that a task cannot await
   another task's result yet, names the task you referred to, and tells you to await it from the
   rabbit body or pass the value through a channel. The same pass removed every other mention of
-  internal slice numbers from user-facing errors, and gave every type a real Cufet name so no
-  message can print a C# class name again.
+  internal slice numbers from user-facing errors, and gave every type a real Cufet name, so no
+  message prints an implementation class name any more — the few remaining "this construct
+  isn't handled" fallbacks now name the construct in the language's own words.
 - **`range` could not be used as a value.** `range 1 to 5` worked as the thing a `For each`
   loops over, but not as something you could name — `Define halves as range 1 to 2 counting by
   0.5.`, an example in the reference itself, would not compile. It now produces a series like

@@ -2844,7 +2844,7 @@ static void* cufet_pipe_stage(void* argp) {
             case NumberType or FactType or TextType: break;
             default:
                 throw new CompilerException(
-                    $"a channel of '{t.GetType().Name}' is not supported (channel elements are number/fact/text/series/map/record/object/union/voidable/matrix).");
+                    $"a channel of '{FormatTypeName(t)}' is not supported (channel elements are number/fact/text/series/map/record/object/union/voidable/matrix).");
         }
         return idx;
     }
@@ -2967,7 +2967,7 @@ static void* cufet_pipe_stage(void* argp) {
                 break;
             }
             default:
-                throw new CompilerException($"channel deep-copy of '{t.GetType().Name}' is unsupported.");
+                throw new CompilerException($"channel deep-copy of '{FormatTypeName(t)}' is unsupported.");
         }
         sb.AppendLine(" }");
     }
@@ -3018,7 +3018,7 @@ static void* cufet_pipe_stage(void* argp) {
                 break;
             }
             default:
-                throw new CompilerException($"channel deep-copy of '{t.GetType().Name}' is unsupported.");
+                throw new CompilerException($"channel deep-copy of '{FormatTypeName(t)}' is unsupported.");
         }
         sb.AppendLine(" }");
     }
@@ -3029,7 +3029,7 @@ static void* cufet_pipe_stage(void* argp) {
     {
         NumberType => $"cufet_cmp({a}, {b})",
         TextType   => $"strcmp({a}, {b})",
-        _ => throw new CompilerException($"sorting by a '{t.GetType().Name}' key is not supported — sort keys must be number or text."),
+        _ => throw new CompilerException($"sorting by a '{FormatTypeName(t)}' key is not supported — sort keys must be number or text."),
     };
 
     // `<series> sorted [in reverse] [by <field>]` — a NEW series (non-mutating), stably sorted.
@@ -3157,6 +3157,24 @@ static void* cufet_pipe_stage(void* argp) {
                              : string.Join(" or ", u.Cases.Select(FormatTypeName)),
         _               => "value",
     };
+
+    // A readable name for an AST node, for the three "this construct isn't handled" catch-alls.
+    // They used to print the C# class name verbatim — a reader who tried a range in value position
+    // was told about a 'RangeExpression'. Split the CamelCase and drop the Expression/Statement
+    // suffix so the phrase at least reads like the language it is refusing.
+    private static string NodeName(object node)
+    {
+        var n = node.GetType().Name;
+        foreach (var suffix in new[] { "Expression", "Statement", "Literal", "Declaration" })
+            if (n.EndsWith(suffix) && n.Length > suffix.Length) { n = n[..^suffix.Length]; break; }
+        var sb = new StringBuilder();
+        for (int i = 0; i < n.Length; i++)
+        {
+            if (i > 0 && char.IsUpper(n[i])) sb.Append(' ');
+            sb.Append(char.ToLowerInvariant(n[i]));
+        }
+        return sb.ToString();
+    }
 
     // ISA.1 — ELEMENT-AWARE for containers (was kind-erased, matching the interpreter's old bug).
     // Series/maps now recurse into their element/key/value types, so `series of text` no longer
@@ -3377,7 +3395,7 @@ static void* cufet_pipe_stage(void* argp) {
         FunctionType => $"(({a}).fn == ({b}).fn && ({a}).env == ({b}).env)",   // function values: reference equality
         UnionType uqo when uqo.Cases == null => $"{OpenUnionStruct}_eq({a}, {b})",
         UnionType uq when uq.Cases != null => $"{RegisterUnionStruct(uq)}_eq({a}, {b})",   // tag + payload
-        _ => throw new CompilerException($"equality on a '{t.GetType().Name}' is not yet supported by the compiler.")
+        _ => throw new CompilerException($"equality on a '{FormatTypeName(t)}' is not yet supported by the compiler.")
     };
 
     // The C expression that writes `valExpr` inline (no trailing newline), dispatching
@@ -3397,7 +3415,7 @@ static void* cufet_pipe_stage(void* argp) {
         UnionType uwo when uwo.Cases == null => $"{OpenUnionStruct}_write({valExpr})",
         UnionType uw when uw.Cases != null => $"{RegisterUnionStruct(uw)}_write({valExpr})",   // prints as the underlying value
         _ => throw new CompilerException(
-                 $"printing a '{t.GetType().Name}' is not yet supported by the compiler.")
+                 $"printing a '{FormatTypeName(t)}' is not yet supported by the compiler.")
     };
 
     // ── UNMK frame setup ───────────────────────────────────────────────────────
@@ -3582,7 +3600,7 @@ static void* cufet_pipe_stage(void* argp) {
                     // synthesized container helpers call, so a bare `State <union>` matches an
                     // element printed inside a catalogue.
                     UnionType       => $"{WriteCall(valExpr, t)}; printf(\"\\n\")",
-                    _ => throw new CompilerException($"State of a '{t.GetType().Name}' is not yet supported by the compiler.")
+                    _ => throw new CompilerException($"State of a '{FormatTypeName(t)}' is not yet supported by the compiler.")
                 };
                 sb.AppendLine($"{indent}{printStmt};");
                 break;
@@ -4075,7 +4093,7 @@ static void* cufet_pipe_stage(void* argp) {
 
             default:
                 throw new CompilerException(
-                    $"'{stmt.GetType().Name}' is not yet supported by the compiler.");
+                    $"'{NodeName(stmt)}' is not yet supported by the compiler.");
         }
     }
 
@@ -4500,7 +4518,7 @@ static void* cufet_pipe_stage(void* argp) {
         // `series of text or failure` is seen only by FallibleReturnType — the file-read convention).
         DirectoryContentsExpression => new SeriesType(TText),
         _ => throw new CompilerException(
-                 $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
+                 $"'{NodeName(expr)}' expressions are not yet supported by the compiler.")
     };
 
     // A book member's declared type (for TypeOf on a `<book>'s <member> of (...)` cast). math totals
@@ -4643,7 +4661,7 @@ static void* cufet_pipe_stage(void* argp) {
         if (t is MappingType mp) return fieldName == "key" ? mp.KeyType : mp.ValueType;   // the key/value of pair
         if (t is RecordType rt) return rt.NamedFields.First(f => f.Name == fieldName).Type;
         if (t is ObjectType ot) return ObjectMemberType(ot.Name, fieldName);
-        throw new CompilerException($"field access on '{t.GetType().Name}' is not yet supported by the compiler.");
+        throw new CompilerException($"field access on '{FormatTypeName(t)}' is not yet supported by the compiler.");
     }
 
     // Static type of an object member, walking the embed chain (getter → own field →
@@ -5018,7 +5036,7 @@ static void* cufet_pipe_stage(void* argp) {
         // A failure literal only has meaning where a T-or-failure is expected (return/coercion).
         FailureLiteral        => throw new CompilerException("'a failure' is only valid where a 'T or failure' is expected (e.g. a return)."),
         _ => throw new CompilerException(
-                 $"'{expr.GetType().Name}' expressions are not yet supported by the compiler.")
+                 $"'{NodeName(expr)}' expressions are not yet supported by the compiler.")
     };
 
     // Coerces `expr` to `target`, performing the language's one implicit coercion: widening
@@ -5057,7 +5075,7 @@ static void* cufet_pipe_stage(void* argp) {
             int k = UnionCaseIndex(ut, et0);
             if (k < 0)
                 throw new CompilerException(
-                    $"a value of type '{et0?.GetType().Name}' is not one of this catalogue's declared cases.");
+                    $"a value of type '{(et0 == null ? "unknown" : FormatTypeName(et0))}' is not one of this catalogue's declared cases.");
             return $"(({cun}){{ .tag = {k}, .val.c{k} = {EmitExpr(expr)} }})";
         }
         if (target is VoidableType vt)
@@ -5942,7 +5960,7 @@ static void* cufet_pipe_stage(void* argp) {
         NumberType => $"cufet_text_from_dec({EmitExpr(tc.Value)})",
         FactType   => $"({EmitExpr(tc.Value)} ? \"true\" : \"false\")",
         TextType   => EmitExpr(tc.Value),
-        var t => throw new CompilerException($"'converted to text' of a '{t.GetType().Name}' is not yet supported by the compiler.")
+        var t => throw new CompilerException($"'converted to text' of a '{FormatTypeName(t)}' is not yet supported by the compiler.")
     };
 
     // converted to number → voidable number (void when unparseable). Parses into a temp.
@@ -6819,7 +6837,7 @@ static void* cufet_pipe_stage(void* argp) {
             {
                 TokenType.Equal    => $"({eq})",
                 TokenType.NotEqual => $"(!({eq}))",
-                _ => throw new CompilerException($"'{b.Op}' on a '{lt.GetType().Name}' is not supported (only is / is not).")
+                _ => throw new CompilerException($"'{b.Op}' on a '{FormatTypeName(lt)}' is not supported (only is / is not).")
             };
         }
 
@@ -6828,7 +6846,7 @@ static void* cufet_pipe_stage(void* argp) {
         {
             TokenType.Equal    => $"({L} == {R})",
             TokenType.NotEqual => $"({L} != {R})",
-            _ => throw new CompilerException($"Binary operator '{b.Op}' on '{lt.GetType().Name}' is not yet supported by the compiler.")
+            _ => throw new CompilerException($"Binary operator '{b.Op}' on '{FormatTypeName(lt)}' is not yet supported by the compiler.")
         };
     }
 
