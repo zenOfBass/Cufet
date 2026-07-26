@@ -1961,11 +1961,33 @@ The observable output order is the same either way, because each channel is FIFO
   (`run "ls" | run "wc"`, covered under Process execution) cannot be mixed with function
   stages. Doing so is rejected with a message naming the offending stage.
 - **A stage function may be used at one input element type** across the whole program.
-- ⚠ **Stage types are not checked against each other.** If a producer emits `number` and
-  the consumer treats its input as `text`, nothing catches it up front: interpreted it
-  surfaces as a host-level crash, compiled as a `gcc` error against the generated C.
-  It always fails loudly rather than silently, but neither message is a Cufet error.
-  This is a known rough edge.
+  Feeding the same function numbers in one pipe and text in another is a type error.
+
+### How stage types are checked
+
+`for each n from the input:` gives the iterator no type, so a stage's input type can only
+come from the stage before it. The type checker walks each pipe left to right, carrying
+every stage's output type into the next as its input, and checks that stage's body
+against it:
+
+```
+Bind void to emit-nums:
+    output 1.
+Done.
+
+Bind void to shout:
+    for each n from the input:
+        State the length of n.      ← type error: 'the length of' works on text only
+    Done.
+Done.
+
+emit-nums | shout.
+```
+
+The consequence to be aware of: **a consumer body is checked at the pipe, not where it is
+written.** A stage function never used in a pipe has an unchecked `from the input` body.
+And stages reached indirectly — a lambda, or a function held in a variable — stop the
+chain, leaving stages after them unchecked rather than wrongly reported.
 
 ---
 
