@@ -495,6 +495,78 @@ is the one optimisation below.)*
 
 ---
 
+## What's next (ordered, post-0.10.0)
+
+The language is feature-complete against its original finish line and released. This is
+the ordered backlog, grouped by what unblocks what rather than by size. Two things
+determine the order:
+
+- **Sockets, POSIX/Windows APIs, and threading primitives are not separate items.** They
+  are all "call a C function," so a **C FFI** collapses them into one item and turns each
+  of them into a book rather than a language feature.
+- **Multi-directional predicate dispatch is not free-floating** — it is on the critical
+  path to self-hosting. A lexer, parser and type checker are one enormous dispatch on node
+  type; written as `is a` chains, a Cufet-in-Cufet compiler is miserable to write and worse
+  to read.
+
+**Tier 0 — cheap, and closes open edges**
+1. Number-base literals (hex/octal/binary) — lexer-only, no interaction with anything,
+   table stakes for systems work. The cheapest real win available.
+2. Book-scoped keyword reservation — reserve a book's keywords only inside
+   `Pull a book on <name>`. This gets harder with every book added; `seed` already
+   collided with a user identifier.
+3. `cufet` as an installed binary — today it is `dotnet run --project src/App/…`, which
+   gates everything in Tier 1.
+4. Working directory — there is currently no `cd`, no way to query one, and no way to set
+   one on a subprocess. A hole in an otherwise complete OS-orchestration story.
+5. Awaits inside tasks — the last loud refusal inside a shipped arc.
+
+**Tier 1 — usable by someone other than the author**
+6. REPL.
+7. Syntax highlighter. *Not* the same item as an LSP, and far higher value per hour.
+   Note the real design problem: because keywords are English words in prose positions,
+   naive keyword highlighting lights up `the`, `of`, `to`, `a` on every line.
+8. A diagnostics tier (warnings). Everything today is an error or nothing. This unblocks
+   the dead-capture-write warning, the style linter above, and a worthwhile formatter.
+9. Formatter.
+
+**Tier 2 — leverage**
+10. C FFI, including an explicit address-of. This is what makes "anything can be written
+    in Cufet" literally rather than nearly true.
+
+**Tier 3 — the design mountain**
+11. Multi-directional predicate dispatch. Needs its own design session; watch the
+    no-subtyping invariant. See the note above on why it is not optional.
+
+**Tier 4 — modules (strictly in this order)**
+12. Separate compilation + an external book loader. ⚠ Known collision: the bounded
+    open-union representation is sound *because* the whole program compiles at once.
+    Either feature forces revisiting it.
+13. A package manager for books.
+
+**Tier 5 — self-hosting (Cufet written in Cufet)**
+14. The blockers are ergonomic, not capability: the data model, text handling and I/O are
+    already sufficient, and emitting C is a route a Cufet-written compiler can also take.
+    ★ The test oracle already exists — a self-hosted compiler can be validated by asserting
+    its C output matches this compiler's, giving a third implementation held against the
+    other two.
+
+**Ongoing, no fixed slot:** dead-capture-write warning (after diagnostics) · Approach B
+parser-hardening · move semantics at channel send · a formal soundness proof or fresh-eyes
+red-team · a periodic error-message audit for internal vocabulary · a performance number
+against C · logic gates as a book · design patterns as a book.
+
+**Deliberately outside the tiers:** a full shell (Xonsh/csh style) is a *product built with
+Cufet*, not work on Cufet — a flagship application, needing `cd`, job control, globbing,
+history and completion.
+
+**Considered and set aside:** four-valued logic / tetralemma (`fact`, `voidable` and unions
+already cover the space; a fourth overlapping way to say "not exactly true" cuts against
+one-canonical-way) · assembly and LLVM IR interop (the emitted C already reaches `asm` when
+needed; FFI covers the motivating cases) · an LSP before a highlighter and formatter exist.
+
+---
+
 ## Design decisions (the reasoning behind the language)
 
 These record *why* the language is shaped as it is, so the rationale isn't lost.
@@ -1075,6 +1147,51 @@ worker tasks alike.
 - **Separate compilation and an external book loader** — the whole program is
   compiled at once today, which is what makes the bounded open-union
   representation sound. Either feature would require revisiting that.
+
+### What a rabbit actually is (the original conception, and where it still leads)
+
+The rabbit shipped as a memory region, and everything written about it above describes it
+that way. That is accurate but incomplete about the intent.
+
+**A rabbit was conceived as a control-flow primitive that happens to use memory.** The
+arena is the *substrate*; the purpose is control-flow machinery — continuations,
+suspend/resume, capturing and restoring execution state. Concurrency belongs to the same
+family, because a task that yields and resumes *is* a continuation being captured and
+restored. Green threads are continuations; coroutines are continuations; the exception path
+is a one-shot escaping continuation. One primitive underneath all of them.
+
+Two pieces of evidence that this is not retrofitted reasoning:
+
+- **The implementation already contains two restricted continuations.** `In case of
+  exception` compiles to `setjmp`/`longjmp` — a one-shot escaping continuation. Tasks are
+  the parallel form. The unified substrate is half-real already.
+- **The surface drifted toward the conception on its own.** An earlier design session
+  settled on *implementation coupling* — a unified substrate underneath, but a standalone
+  `Start a task:` surface spawnable anywhere. What actually got built is
+  `Have rabbit start a task:`, which *requires* an enclosing rabbit, and channels require
+  one too. That is surface coupling, and it is what the original conception implies.
+
+**The open questions, in the order they need answering:**
+
+1. **Surface or implementation coupling?** The code and the recorded decision disagree, and
+   everything downstream — how `bury`/`unbury`/continuations read — inherits the answer.
+2. **Which restriction?** This decides whether the feature is buildable at all. Full
+   first-class continuations would require CPS-transforming the whole program (destroying
+   the readable, self-contained C the compiler emits) or copying the machine stack
+   (nonportable, and in conflict with both the sanitizers and thread-local arenas).
+   Coroutine-shaped continuations — save state, resume in order, one live resumption — are
+   very achievable and cover nearly all of the value.
+   ★ **The no-divergence rule decides this**, independent of implementation cost: whatever
+   ships must work identically on both backends, and a tree-walking interpreter cannot
+   faithfully offer `call/cc` either. The oracle discipline makes the design call.
+3. **No implicit accumulator.** The original sketch had the rabbit *hold* an unburied value
+   in temporary state until used — an invisible register. That cuts against a language
+   that made narrowing explicit and refuses invisible capture writes. `Define x as unbury
+   <stash>.` gets the same feature with no hidden state.
+
+**A stash is saved execution state, not a stack data structure.** It cannot be a library:
+suspend/resume needs compiler and runtime support. (The naming is Turing's — the ACE design
+used *bury* and *unbury* for subroutine linkage.)
 
 ### The memory model (the foundational decision)
 
