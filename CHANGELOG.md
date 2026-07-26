@@ -174,6 +174,13 @@ Latent language and soundness bugs surfaced by holding the two backends against 
 - **A map key built inside a region and stored in a longer-lived map was freed with that
   region.** A map is the only place in the language that stores two values at once, and only
   the value half was ever checked for escape.
+- **`range` could not be used as a value.** `range 1 to 5` worked as the thing a `For each`
+  loops over, but not as something you could name — `Define halves as range 1 to 2 counting by
+  0.5.`, an example in the reference itself, would not compile. It now produces a series like
+  any other expression, using the same stepping and direction logic as the loop form so the two
+  cannot drift apart. A `counting by` step that computes to zero or a negative number now also
+  raises the same error compiled as interpreted, instead of looping forever; a literal zero was
+  already caught before the program ran.
 - **An empty collection did not know what it was meant to hold.** `is a` recurses into a
   collection's elements to answer precisely, but an empty one has no elements — so an empty
   `series of text` answered yes to `is a series of number` as readily as to its own type.
