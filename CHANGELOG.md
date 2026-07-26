@@ -88,9 +88,13 @@ language itself, several of which predated the compiler entirely.
 - **A task can capture any type**, not just numbers, facts, and channels. A captured series,
   map, object, record, text, or catalogue is deep-copied across the thread boundary the same
   way a channel message is, so the two threads' memory stays completely separate. A task that
-  would *change* something it captured is refused, and pointed at channels instead: the change
+  would *change* anything it captured is refused, and pointed at channels instead: the change
   could not be seen outside, and two tasks changing one captured value is a genuine race that
-  only shows up once the tasks really run in parallel.
+  only shows up once the tasks really run in parallel. This covers plain numbers too, and
+  there it closed a real disagreement — a task doing `tally becomes tally + 5` produced 5
+  interpreted and 0 compiled, because the interpreter hands task bodies the live enclosing
+  variable while a compiled task writes its own copy. Nothing about a value being small
+  makes the write meaningful; the task still cannot show it to anyone.
 
 **I/O, exceptions, and the standard library**
 - Files, streams and `With ... open`, stdin/stdout, subprocess `run`, and shell pipes —
