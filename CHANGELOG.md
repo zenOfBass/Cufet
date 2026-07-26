@@ -6,6 +6,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Comments nest.** An inner `[[` now opens a nested comment, and the outer one ends only
+  at the `]]` that closes it. Previously the first `]]` closed everything, which meant that
+  commenting out a block of code containing a comment silently ended the comment early, let
+  the rest of the block be read as code, and reported the leftover `]]` as an unexpected
+  character — with nothing in the message to suggest a comment was involved. Commenting out
+  a block is one of the most common things anyone does while working, and it should not stop
+  working just because the block was documented. Nesting is strictly more permissive, so
+  every program that worked before still works.
+
+---
+
 ## [0.10.0] — 2026-07-25
 
 The **native compiler** era. Cufet now has two backends: the tree-walking interpreter
@@ -24,8 +39,8 @@ language itself, several of which predated the compiler entirely.
 - `[[` opens a comment; the first `]]` closes it. Everything between is stripped by
   the lexer before tokenisation — dots, keywords, newlines, and any Cufet syntax inside
   are all ignored. Single delimiters cover both single-line and multi-line comments.
-- Non-nesting: the first `]]` always closes, regardless of any `[[` inside the
-  comment. Consistent with standard lexer comment semantics.
+- Non-nesting in this release: the first `]]` closed the comment regardless of any
+  `[[` inside. (Changed immediately after — see Unreleased.)
 - Unterminated comment (`[[` with no `]]` before EOF) is a `LexerException` naming
   the opening line.
 - `[` and `]` are otherwise completely unused in Cufet's surface syntax — zero

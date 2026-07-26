@@ -275,7 +275,7 @@ The lexer strips `[[ ... ]]` before tokenizing — comment content produces no t
 Define x as 5.  [[ inline ]]
 ```
 
-**`[` and `]` are otherwise unused** in Cufet's surface syntax (no bracket-indexed access, no type annotations using brackets), so `[[`/`]]` collide with nothing. **Not nesting:** the first `]]` closes, regardless of inner `[[`. **Unterminated** (`[[` with no `]]` before EOF) is a lexer error.
+**`[` and `]` are otherwise unused** in Cufet's surface syntax (no bracket-indexed access, no type annotations using brackets), so `[[`/`]]` collide with nothing. **Comments NEST:** an inner `[[` opens a nested comment and the outer one ends only at the `]]` closing it, so commenting out a block that already contains comments works. **Unterminated** (a `[[` whose `]]` never arrives) is a lexer error naming the **outermost** opening line.
 
 ---
 

@@ -103,7 +103,24 @@ Define y as 10.
 
 **One rule for both forms.** There is no separate line-comment syntax — `[[ short ]]` and a multi-line block both use `[[`/`]]`.
 
-**Not nesting.** The first `]]` closes the comment, regardless of any `[[` inside: `[[ outer [[ inner ]] still outer? no — closed here ]]`. If you need to comment out a block that already contains comments, remove the inner ones first, or leave them in (the first `]]` ends the outer comment and the remaining `]]` will cause a parse error).
+**Comments nest.** An inner `[[` opens a nested comment, and the outer one ends only at the
+`]]` that closes it — so you can comment out a block that already contains comments, which
+is the usual reason to reach for a block comment at all:
+
+```
+[[ disabled while I test something else
+
+Bind number to helper, given (the number n):
+    [[ double it ]]
+    return n * 2.
+Done.
+
+]]
+```
+
+Everything above is commented out, including the inner `[[ double it ]]`. A `[[` that is
+never closed is a lexer error naming the line the **outermost** comment opened on — the one
+you have to go find.
 
 **Square brackets are otherwise unused** in Cufet's surface syntax — all series/map/matrix access uses words (`item N of`, `the first of`, `the item at (r, c) of`) or parentheses, never brackets — so `[[`/`]]` collide with nothing.
 
