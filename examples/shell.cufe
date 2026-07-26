@@ -1,0 +1,97 @@
+[[ A simplified command shell, read-eval-loop over standard input.
+
+   Six permitted commands (clear, pwd, time, date, ls, which), arguments passed
+   through, anything else refused. `Quit!!!` on a line by itself exits; so does
+   end of input.
+
+   Two things worth noticing:
+
+   - There is no shell underneath this shell. `run` is fork + execvp directly —
+     the program name and each argument cross to the child as separate OS-level
+     arguments, so nothing is ever re-parsed by /bin/sh and quoting cannot bite.
+
+   - `run` takes its arguments as a fixed list, so the dispatch below branches on
+     how many words were typed rather than building an array. That is the whole
+     shape of the program: split the line, look at what you got, choose a call.
+
+   Run it interpreted, or compile it — `cufet build examples/shell.cufe` produces
+   a native binary with no managed runtime under it. The subprocess machinery is
+   POSIX, so a compiled shell needs Linux, macOS, or WSL. ]]
+
+Bind fact to permitted, given (the text name):
+    If name is "clear", return true.
+    If name is "pwd",   return true.
+    If name is "time",  return true.
+    If name is "date",  return true.
+    If name is "ls",    return true.
+    If name is "which", return true.
+    return false.
+Done.
+
+[[ A child's stderr is worth seeing before its stdout — an error explains an empty
+   result. Both arrive already captured, so this is the only place either is shown. ]]
+Bind void to show, given (the text out, the text err):
+    If the length of err is greater than 0:
+        State err trimmed.
+    Done.
+    If the length of out is greater than 0:
+        State out trimmed.
+    Done.
+Done.
+
+Define running as true.
+While running, repeat:
+    Define raw as read a line from the input.
+
+    [[ Void means end of input — the user closed the stream instead of saying Quit!!! ]]
+    If raw is void:
+        running becomes false.
+    Done.
+
+    If raw is not void:
+        Define line as raw trimmed.
+
+        If line is "Quit!!!":
+            running becomes false.
+        Done.
+
+        If line is not "Quit!!!":
+            [[ A blank line is not an error; it is just nothing to do. ]]
+            If the length of line is greater than 0:
+                Define parts as line split by " ".
+                Define cmd   as the first of parts.
+                Define n     as the number of parts.
+
+                If Cast permitted on (cmd):
+                    [[ Launching can fail — the program may not exist, or may not be
+                       executable. That is a failure value, not a crash, so it is
+                       handled here and the loop carries on. ]]
+                    Try to:
+                        If n is 1:
+                            Define r as run cmd.
+                            Cast show on (the output of r, the errors of r).
+                        Done.
+                        If n is 2:
+                            Define r2 as run cmd with arguments (item 2 of parts).
+                            Cast show on (the output of r2, the errors of r2).
+                        Done.
+                        If n is 3:
+                            Define r3 as run cmd with arguments (item 2 of parts, item 3 of parts).
+                            Cast show on (the output of r3, the errors of r3).
+                        Done.
+                        If n is greater than 3:
+                            State "cufetsh: too many arguments".
+                        Done.
+                    Done.
+                    In case of failure:
+                        State "cufetsh: " joined to the message of the failure.
+                    Done.
+                Done.
+
+                If Cast permitted on (cmd) is false:
+                    State "cufetsh: " joined to cmd joined to ": command not permitted".
+                Done.
+            Done.
+        Done.
+    Done.
+Done.

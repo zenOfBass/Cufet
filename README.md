@@ -231,6 +231,9 @@ tests/
   Interpreter.Tests/
   Compiler.Tests/                     — oracle tests: compiled output vs. interpreted output
   fixtures/soundness/                 — region-model probe programs (see that folder's README)
+examples/                             — runnable programs; `shell.cufe` is a working
+                                        command shell in ~60 lines, `dijkstra.cufe` and
+                                        `nqueens.cufe` the algorithm end
 ```
 
 The lexer, parser, and type checker are **shared** by both backends, so a program
