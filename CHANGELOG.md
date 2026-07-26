@@ -174,6 +174,14 @@ Latent language and soundness bugs surfaced by holding the two backends against 
 - **A map key built inside a region and stored in a longer-lived map was freed with that
   region.** A map is the only place in the language that stores two values at once, and only
   the value half was ever checked for escape.
+- **Some refusal messages talked about the compiler's internals instead of your program.**
+  Trying to await one task's result from inside another reported `'TaskHandleType' is not yet
+  supported by the compiler (slice 5B: records + objects + text)` — an internal class name, an
+  internal slice number, and a list of unrelated features. It now says that a task cannot await
+  another task's result yet, names the task you referred to, and tells you to await it from the
+  rabbit body or pass the value through a channel. The same pass removed every other mention of
+  internal slice numbers from user-facing errors, and gave every type a real Cufet name so no
+  message can print a C# class name again.
 - **`range` could not be used as a value.** `range 1 to 5` worked as the thing a `For each`
   loops over, but not as something you could name — `Define halves as range 1 to 2 counting by
   0.5.`, an example in the reference itself, would not compile. It now produces a series like
