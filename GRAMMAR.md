@@ -1180,6 +1180,36 @@ producing a false positive.
 
 ## 8. Sharp edges
 
+### ★ Transformations TRAIL, accessors LEAD
+
+The single most useful rule for guessing right the first time, because English will
+often supply the wrong order confidently.
+
+**Transformations follow the thing they act on** (they read as past participles or
+trailing phrases):
+
+```
+nums sorted            nums sorted by the age        nums in reverse
+s trimmed              s in uppercase                s split by ","
+score converted to text                              first joined to last
+```
+
+**Accessors lead, as noun phrases** (`the … of …`):
+
+```
+the length of s        the number of s               the first of s
+the last of s          the position of x in s        the size of m
+```
+
+So it is `nums sorted`, never `sorted nums`. If you are reaching for a
+transformation, it goes *after*.
+
+### Binary `-` needs spaces, because hyphens are identifier characters
+
+`grand-total` and `start-seed` are single names, so `x-y` is one identifier, not
+subtraction. Write `x - y` with spaces. Digits cannot start an identifier, so `1-1`
+is unambiguous and works either way — the rule only bites between names.
+
 ### Top-level functions see other functions, but not top-level data
 
 `Bind void to f:` at the top level creates a **global procedure**, not a closure.
