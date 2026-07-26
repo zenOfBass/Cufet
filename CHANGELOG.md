@@ -8,6 +8,38 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+**Editor support — syntax highlighting and error squiggles**
+
+- **`editors/vscode/`** — a Visual Studio Code extension. A TextMate grammar for
+  highlighting, and a checker that turns the front end's own diagnostics into squiggles.
+  No build step and no dependencies: link the directory into your extensions folder and
+  reload. Comments nest in the editor the way they nest in the lexer, string interpolation
+  highlights the expression inside the hole, and `wordPattern` knows that hyphens are
+  identifier characters, so double-clicking `add-edge` selects all of it.
+
+  The grammar assigns *scopes* and never colours — so it fits whatever theme you already
+  use. Articles and prepositions (`a`, `the`, `of`, `to`, `as`, `with`, …) are deliberately
+  given no scope at all: Cufet reads like English because it is full of them, and colouring
+  them would turn every line into a wall of keyword.
+
+  One consequence worth having: because hyphens bind into identifiers, `count - 1` shows
+  the `-` as an operator while `count-1` stays one flat name. The sharp edge is now visible
+  in the editor instead of waiting to surprise you.
+
+- **`cufet check [--json] [--native] <file>`** — lexes, parses and type-checks a program
+  and reports what fails, *without running it*. `Interpret` finds the same errors, but
+  finding them by running the program is not an option for an editor when the program reads
+  input, writes files, or takes a minute.
+
+  Reports as `path:line: error: message` (which the extension's `$cufet` problem matcher
+  parses), or as one JSON object per diagnostic under `--json`, which keeps the multi-line
+  body of a type error intact instead of flattening it. `--native` additionally runs code
+  generation and reports what the native compiler refuses — as **warnings**, not errors,
+  because those programs interpret fine. Exits 0 clean, 1 for problems, 2 if the file could
+  not be read.
+
 ### Changed
 
 - **Comments nest.** An inner `[[` now opens a nested comment, and the outer one ends only
