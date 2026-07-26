@@ -840,8 +840,8 @@ These record *why* the language is shaped as it is, so the rationale isn't lost.
   meantime).
 
 - **Captured-state mutation in tasks — enforced when compiled, unenforced when
-  interpreted.** The rule is: **task bodies must not mutate captured
-  reference-type state from outer scopes.** Compiled, this is a compile-time
+  interpreted.** The rule is: **task bodies must not mutate anything captured from an
+  outer scope** — a plain number as much as a series. Compiled, this is a compile-time
   refusal (see the concurrency section above for why refusing beats copying).
   Interpreted, it is still merely a convention — the interpreter gives task bodies
   the live enclosing binding and one task runs at a time, so nothing goes wrong,
