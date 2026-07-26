@@ -4945,8 +4945,7 @@ public class PipelineTests
     [InlineData("a series of number with ()",                    "number")]
     [InlineData("(a series of number with ()) sorted",           "number")]
     [InlineData("((\"a,b\" split by \",\") sorted)",                "text")]
-    // (A `range` in value position is omitted: the compiler does not yet support RangeExpression
-    //  outside a for-each source — a pre-existing gap, unrelated to the carrier.)
+    [InlineData("((range 1 to 3) sorted in reverse)",             "number")]
     public void EmptySeries_FromEveryCreationRoute_CarriesItsElementType(string expr, string expected)
     {
         string src = $"""
@@ -6613,6 +6612,85 @@ public class PipelineTests
                 Define r as the awaited result of worker.
                 State "result " joined to (r converted to text).
             Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // ── `range` in value position ─────────────────────────────────────────────────────────────
+    // Only the for-each form was ever emitted, so `Define halves as range 1 to 2 counting by 0.5.`
+    // — an example in REFERENCE.md — did not compile at all.
+
+    [Fact]
+    public void Range_InValuePosition_MatchesInterpreter()
+    {
+        const string src = """
+            Define halves as range 1 to 2 counting by 0.5.
+            State halves.
+            Define ups as range 1 to 5.
+            State ups.
+            State the number of ups.
+            Define downs as range 5 to 1 counting by 2.
+            State downs.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // Materializing a range and iterating one must agree — the value form reuses the for-each
+    // form's direction and step logic precisely so they cannot drift.
+    [Fact]
+    public void Range_ValueFormAndForEachForm_Agree()
+    {
+        const string src = """
+            Define collected as a series of number with ().
+            For each n in range 5 to 1 counting by 2, repeat:
+                Add n to collected.
+            Done.
+            State collected.
+            State range 5 to 1 counting by 2.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // A LITERAL zero step is rejected by the shared type checker, but a computed one can only be
+    // caught at runtime — where the compiler would otherwise spin forever. The interpreter uses
+    // two different messages for zero and negative, so both are matched.
+    [Theory]
+    [InlineData("0",     "never makes progress")]
+    [InlineData("0 - 2", "must be positive")]
+    public void Range_NonPositiveComputedStep_RaisesLikeTheInterpreter(string stepExpr, string fragment)
+    {
+        string src = $$"""
+            Define z as {{stepExpr}}.
+            Try to:
+                Define bad as range 1 to 5 counting by z.
+                State bad.
+            Done.
+            In case of exception (the exception):
+                State "caught: " joined to the message of the exception.
+                Suppress the exception.
+            Done.
+            State "after".
+            """;
+        Assert.Contains(fragment, Interpret(src));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // The same guard on the for-each form, which had it neither.
+    [Fact]
+    public void Range_ForEachWithNonPositiveComputedStep_RaisesLikeTheInterpreter()
+    {
+        const string src = """
+            Define z as 0.
+            Try to:
+                For each n in range 1 to 5 counting by z, repeat:
+                    State n.
+                Done.
+            Done.
+            In case of exception (the exception):
+                State "caught: " joined to the message of the exception.
+                Suppress the exception.
+            Done.
+            State "after".
             """;
         Assert.Equal(Interpret(src), Compile(src));
     }

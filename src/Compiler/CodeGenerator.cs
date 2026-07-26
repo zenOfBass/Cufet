@@ -4193,6 +4193,9 @@ static void* cufet_pipe_stage(void* argp) {
         string stepExpr = range.Step != null ? EmitExpr(range.Step) : "cufet_dec_from_ll(1)";
         FlushPreEmits(sb, inner);
         sb.AppendLine($"{inner}CufetDec {st} = {stepExpr};");
+        // Same non-positive-step guard the value form uses — the interpreter raises on both, and
+        // without it a zero step spins here forever.
+        sb.AppendLine($"{inner}{RangeStepGuard(st, range.Line)}");
         sb.AppendLine($"{inner}int {d}  = cufet_cmp({s}, {e}) <= 0 ? 1 : -1;");
         sb.AppendLine($"{inner}for (CufetDec {iterName} = {s}; {d} > 0 ? cufet_cmp({iterName}, {e}) <= 0 : cufet_cmp({iterName}, {e}) >= 0; {iterName} = {d} > 0 ? cufet_add({iterName}, {st}) : cufet_sub({iterName}, {st})) {{");
         // Track the loop variable's type (a number) so it resolves in the body — and so a task
@@ -4941,6 +4944,7 @@ static void* cufet_pipe_stage(void* argp) {
         CastExpression cast   => EmitCastExpr(cast),
         LambdaLiteral lam     => EmitLambda(lam),
         SeriesLiteral sl      => EmitSeriesLiteral(sl),
+        RangeExpression re    => EmitRangeSeries(re),
         SeriesLength sl2      => $"cufet_dec_from_ll(({EmitExpr(sl2.Series)})->len)",
         SeriesAccess sa       => EmitSeriesAccess(sa),
         RecordLiteral rl      => EmitRecordLiteral(rl),
@@ -5940,6 +5944,38 @@ static void* cufet_pipe_stage(void* argp) {
     // `<text> split by <delim>` → a series of text (arena series of arena substrings). Matches
     // the interpreter's C# string.Split(string): N delimiter hits → N+1 parts, empties kept,
     // trailing/leading delimiter → empty parts, delimiter-not-found → single whole-string element.
+    // `range A to B [counting by S]` in VALUE position — materialize it as a series of number.
+    // Only the for-each form was ever emitted, so `Define halves as range 1 to 2 counting by 0.5.`
+    // (a REFERENCE example) did not compile. The loop below mirrors EmitForEachRange exactly —
+    // direction taken from start-vs-end, step defaulting to 1 — so the two forms cannot drift
+    // apart: iterating a range and materializing it must produce the same numbers.
+    private string EmitRangeSeries(RangeExpression range)
+    {
+        string name      = RegisterSeriesStruct(new SeriesType(TNumber));
+        string startExpr = EmitExpr(range.Start);
+        string endExpr   = EmitExpr(range.End);
+        string stepExpr  = range.Step != null ? EmitExpr(range.Step) : "cufet_dec_from_ll(1)";
+        int id = _freshId++;
+        string tmp = $"cs_{id}", s = $"cf_rs{id}", e = $"cf_re{id}",
+               st = $"cf_rt{id}", d = $"cf_rd{id}", it = $"cf_ri{id}";
+        _preEmits.Add($"{name}* {tmp} = {name}_new();");
+        _preEmits.Add(
+            $"{{ CufetDec {s} = {startExpr}; CufetDec {e} = {endExpr}; CufetDec {st} = {stepExpr}; " +
+            $"{RangeStepGuard(st, range.Line)}" +
+            $"int {d} = cufet_cmp({s}, {e}) <= 0 ? 1 : -1; " +
+            $"for (CufetDec {it} = {s}; {d} > 0 ? cufet_cmp({it}, {e}) <= 0 : cufet_cmp({it}, {e}) >= 0; " +
+            $"{it} = {d} > 0 ? cufet_add({it}, {st}) : cufet_sub({it}, {st})) {name}_append({tmp}, {it}); }}");
+        return tmp;
+    }
+
+    // A non-positive `counting by` step is a runtime error in the interpreter; compiled it would
+    // spin forever, so raise the same catchable exception. A LITERAL zero never reaches here — the
+    // shared type checker rejects it statically — but a computed step can be anything, and the
+    // interpreter distinguishes zero from negative with two different messages, so match both.
+    private string RangeStepGuard(string stepVar, int line) =>
+        $"if (cufet_cmp({stepVar}, cufet_dec_from_ll(0)) == 0) cufet_raise(cufet_msgf(\"'counting by 0' never makes progress (line {line}).\")); " +
+        $"if (cufet_cmp({stepVar}, cufet_dec_from_ll(0)) < 0) cufet_raise(cufet_msgf(\"the step in 'counting by' must be positive (line {line}).\")); ";
+
     private string EmitTextSplit(TextSplit ts)
     {
         string name = RegisterSeriesStruct(new SeriesType(TText));
