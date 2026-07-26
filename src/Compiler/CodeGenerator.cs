@@ -2262,7 +2262,7 @@ static void* cufet_pipe_stage(void* argp) {
         UnionType u1 when u1.Cases is { Count: 1 } => TypeSig(u1.Cases[0]),
         UnionType u => u.Cases == null ? "U(*)" : "U(" + string.Join(",", FlatCases(u.Cases).Select(TypeSig)) + ")",
         _ => throw new CompilerException(
-                 $"'{t.GetType().Name}' is not yet supported by the compiler (slice 5B: records + objects + text).")
+                 $"the compiler cannot represent a {FormatTypeName(t)} yet.")
     };
 
     // A union whose case is ITSELF a union (`(number or (text or fact))` — the front-end parses and
@@ -3138,11 +3138,24 @@ static void* cufet_pipe_stage(void* argp) {
         return hits.Count == 1 ? hits[0] : -1;
     }
 
+    // A user-facing name for a type. Every arm matters: this feeds error messages, and the
+    // fallback used to print the C# class name — a reader hitting an unsupported feature was told
+    // about a 'TaskHandleType', which is not a phrase that appears anywhere in Cufet.
     private static string FormatTypeName(CufetType t) => t switch
     {
         NumberType => "number", TextType => "text", FactType => "fact",
         SeriesType => "series", MapType => "map", RecordType => "record", MatrixType => "matrix",
-        ObjectType o => o.Name, _ => t.GetType().Name,
+        ObjectType o    => o.Name,
+        VoidType        => "void",
+        VoidableType v  => $"voidable {FormatTypeName(v.Inner)}",
+        FailureType f   => $"{FormatTypeName(f.Inner)} or failure",
+        ChannelType c   => $"channel of {FormatTypeName(c.ElementType)}",
+        TaskHandleType  => "task",
+        FunctionType    => "function",
+        InterfaceType i => i.Name,
+        UnionType u     => u.Cases == null ? "catalogue value"
+                             : string.Join(" or ", u.Cases.Select(FormatTypeName)),
+        _               => "value",
     };
 
     // ISA.1 — ELEMENT-AWARE for containers (was kind-erased, matching the interpreter's old bug).
@@ -5493,7 +5506,7 @@ static void* cufet_pipe_stage(void* argp) {
     {
         _usesConcurrency = true;
         if (_rabbitCtx.Count == 0)
-            throw new CompilerException("a channel must be created inside a rabbit (Pull a rabbit) in this slice.");
+            throw new CompilerException("a channel has to be created inside a rabbit — put `Define <name> as a channel of <type>.` inside a `Pull a rabbit. … Done.` block, which is what frees it when the rabbit ends.");
         RegisterChanElem(cc.ElementType, isTop: true);
         string ctx = _rabbitCtx[^1];
         int id = _freshId++;
@@ -5564,6 +5577,16 @@ static void* cufet_pipe_stage(void* argp) {
         // TCAP — a capture of ANY type is allowed, but the task must not MUTATE one. Every capture
         // crosses a thread boundary and so is the task's OWN copy; writing to it changes only that
         // copy. See TaskBodyMayMutate for why this is a refusal rather than a silent copy.
+        // A captured TASK HANDLE means this body awaits another task. Say so here: otherwise the
+        // handle reaches the arg-struct type lowering below and the reader gets a generic
+        // "cannot represent a task" instead of the actual, actionable restriction.
+        foreach (var c in caps)
+            if (_varTypes[c] is TaskHandleType)
+                throw new CompilerException(
+                    $"a task cannot await another task's result yet: this task uses '{c}', which is a task. " +
+                    $"Await it from the rabbit body instead — `Define r as the awaited result of {c}.` outside " +
+                    "any task — or pass the value between the two tasks through a channel.");
+
         foreach (var c in caps)
             if (TaskBodyMayMutate(lts.Body, c))
                 throw new CompilerException(
@@ -5805,7 +5828,7 @@ static void* cufet_pipe_stage(void* argp) {
     private string EmitAwaitedRaw(AwaitedResultExpression are, out (string Ctx, string ResultCType, CufetType? ResultType) info)
     {
         if (_inTaskBody)
-            throw new CompilerException("awaiting a task's result inside another task is deferred (this slice awaits from the rabbit body).");
+            throw new CompilerException("a task cannot await another task's result yet. Await it from the rabbit body instead — `Define r as the awaited result of <name>.` outside any task — or pass the value between the two tasks through a channel.");
         _usesConcurrency = true;
         if (are.Task is not VariableReference vr || !_taskInfos.TryGetValue(vr.Name, out info))
             throw new CompilerException("'the awaited result of' requires a named task declared with 'Have rabbit start a task as <name>:'.");
@@ -6838,7 +6861,7 @@ static void* cufet_pipe_stage(void* argp) {
         UnionType ut => RegisterUnionStruct(ut),               // a closed union is a {tag, payload} value struct
 
         _ => throw new CompilerException(
-                 $"'{type!.GetType().Name}' is not yet supported by the compiler (slice 5B: records + text; objects/maps later).")
+                 $"the compiler cannot represent a {FormatTypeName(type!)} yet.")
     };
 
     // Emits a number literal as a CufetDec constructor, decomposing the C# decimal

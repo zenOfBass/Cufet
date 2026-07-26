@@ -6616,6 +6616,46 @@ public class PipelineTests
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ── Refusal messages are user-facing ──────────────────────────────────────────────────────
+    // A refusal is a fine place to be, but only if it says something true and actionable. Awaiting
+    // inside a task used to report `'TaskHandleType' is not yet supported by the compiler (slice 5B:
+    // records + objects + text)` — an internal class name, an internal slice number, and a list of
+    // features that have nothing to do with it. These pin the messages a reader actually meets.
+
+    [Fact]
+    public void Refusal_AwaitInsideTask_ExplainsTheRestriction()
+    {
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as inner:
+                    return 7.
+                Done.
+                Have rabbit start a task as outer:
+                    Define got as the awaited result of inner.
+                    return got + 1.
+                Done.
+                State the awaited result of outer.
+            Done.
+            """;
+        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        Assert.Contains("cannot await another task's result", ex.Message);
+        Assert.Contains("inner", ex.Message);             // names the reader's own task
+        Assert.DoesNotContain("TaskHandleType", ex.Message);
+        Assert.DoesNotContain("slice", ex.Message);
+    }
+
+    [Fact]
+    public void Refusal_ChannelOutsideRabbit_ExplainsTheRestriction()
+    {
+        const string src = """
+            Define ch as a channel of number.
+            State "unreached".
+            """;
+        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        Assert.Contains("inside a rabbit", ex.Message);
+        Assert.DoesNotContain("slice", ex.Message);
+    }
+
     // ── `range` in value position ─────────────────────────────────────────────────────────────
     // Only the for-each form was ever emitted, so `Define halves as range 1 to 2 counting by 0.5.`
     // — an example in REFERENCE.md — did not compile at all.
