@@ -3191,19 +3191,15 @@ static void* cufet_pipe_stage(void* argp) {
     // lets the interpreter answer by declared type; then this guard lifts again.
     private static bool IsErasableContainer(CufetType t) => t is SeriesType or MapType;
 
+    // ISA.2d — LIFTED. This used to refuse `is a <container>` on a union that could also hold a
+    // DIFFERENT container type, because an empty container carried no element type at runtime: the
+    // interpreter answered vacuously true for every container case while the compiler answered by
+    // tag, so the two backends took different branches. The interpreter's containers now carry the
+    // element type they were created with (Interpreter.Core.cs, CufetSeries/CufetMap), so it answers
+    // an empty container from that type — precisely, and agreeing with the tag. Nothing to guard.
     private static void GuardUnionContainerNarrow(IReadOnlyList<CufetType> cases, CufetType tested)
     {
-        if (!IsErasableContainer(tested)) return;
-        // A container case that doesn't match the tested type is the hazard: its EMPTY instances
-        // match vacuously in the interpreter but not by tag in the compiler. A case that DOES match
-        // is fine (both say true, empty or not), as is a union with no container cases at all.
-        if (!cases.Any(c => IsErasableContainer(c) && !StaticKindMatches(c, tested))) return;
-        throw new CompilerException(
-            $"narrowing a catalogue with `is a {FormatTypeName(tested)}` is not supported yet when the " +
-            "catalogue can also hold a DIFFERENT container type. An empty container carries no element " +
-            "type at runtime, so the two backends would disagree about which branch it takes — the " +
-            "compiler refuses rather than diverge. Narrow on a scalar or object case, or keep one " +
-            "container type per catalogue. (Lifts once containers carry their element type — ISA.2d.)");
+        _ = cases; _ = tested;
     }
 
     private static void GuardTestedNotUnion(CufetType tested)

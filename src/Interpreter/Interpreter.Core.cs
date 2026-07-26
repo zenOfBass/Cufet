@@ -85,6 +85,39 @@ public sealed partial class Interpreter
     // the single policy that keeps value semantics consistent everywhere a value comes to rest,
     // and it matches the native compiler (where a value struct copies on every store). Records
     // and objects DeepCopy so nested value fields copy too; series/maps and scalars pass through.
+    // ── ISA.2d — containers that remember the element type they were declared with ────────────
+    // A bare List carries no element type, so an EMPTY one cannot say whether it is a
+    // `series of number` or a `series of text`. That is the last place `is a` was imprecise:
+    // ISA.1 answers a NON-empty container by recursing into its elements, and ISA.2a answers from
+    // the declared static type wherever there is one — but a value reached through a UNION has no
+    // useful static type, and if it is also empty there is nothing left to ask.
+    //
+    // These subclass List/Dictionary rather than wrapping them, so every `is List<object>` and
+    // `(List<object>)` site in the interpreter keeps working untouched — the carrier is additive.
+    // The type is recorded at CREATION, which is the only place it is known; a container that
+    // reaches `is a` without one falls back to the old vacuous answer rather than guessing.
+    internal sealed class CufetSeries : List<object>
+    {
+        public CufetType? DeclaredElement { get; init; }
+        public CufetSeries() { }
+        public CufetSeries(IEnumerable<object> items) : base(items) { }
+    }
+
+    internal sealed class CufetMap : Dictionary<object, object>
+    {
+        public CufetType? DeclaredKey   { get; init; }
+        public CufetType? DeclaredValue { get; init; }
+    }
+
+    // Builds a series carrying `elem`. Used at every site that creates one.
+    private static List<object> Series(IEnumerable<object> items, CufetType? elem) =>
+        new CufetSeries(items) { DeclaredElement = elem };
+
+    // The element type a series is carrying, if any — so a derived series (sorted, shuffled,
+    // unique, a channel copy) inherits it rather than losing it.
+    private static CufetType? ElementTypeOf(object? v) =>
+        v is CufetSeries cs ? cs.DeclaredElement : null;
+
     private static object BindCopy(object v) =>
         v is RecordValue rv ? rv.DeepCopy() :
         v is ObjectValue ov ? ov.DeepCopy() : v;
@@ -825,7 +858,9 @@ public sealed partial class Interpreter
                                      : throw new RuntimeException(UndefinedVariableMessage(r.Name, r.Line)),
         UnaryExpression  u    => EvaluateUnary(u),
         BinaryExpression b    => EvaluateBinary(b),
-        SeriesLiteral    sl   => (object)sl.Elements.Select(e => BindCopy(Evaluate(e))).ToList(),
+        // ISA.2d — the literal's Annotation is the declared element type, and it is REQUIRED for an
+        // empty literal, so `a series of text with ()` always knows what it holds.
+        SeriesLiteral    sl   => Series(sl.Elements.Select(e => BindCopy(Evaluate(e))), sl.Annotation),
         SeriesAccess     sa   => EvaluateSeriesAccess(sa),
         SeriesLength     sl   => Evaluate(sl.Series) is List<object> slList
                                      ? (decimal)slList.Count
@@ -908,13 +943,13 @@ public sealed partial class Interpreter
     private object EvaluateRandomlyShuffled(RandomlyShuffled rs)
     {
         var list = (List<object>)Evaluate(rs.Series);
-        var copy = new List<object>(list);
+        var copy = new List<object>(list);   // ISA.2d: rebuilt as a carrier on return
         for (int i = copy.Count - 1; i > 0; i--)
         {
             int j = _rng.Next(0, i + 1);
             (copy[i], copy[j]) = (copy[j], copy[i]);
         }
-        return (object)copy;
+        return Series(copy, ElementTypeOf(list));   // ISA.2d — a shuffle keeps the element type
     }
 
     private object EvaluateEnvVar(EnvironmentVariableExpression env)
@@ -942,7 +977,7 @@ public sealed partial class Interpreter
                 string? next;
                 while ((next = sv.Reader.ReadLine()) != null)
                     lineList.Add((object)next);
-                return lineList;
+                return Series(lineList, new TextType());   // ISA.2d
 
             default:
                 throw new InvalidOperationException($"Unknown ReadForm {re.Form}");
@@ -1073,7 +1108,7 @@ public sealed partial class Interpreter
         var delimiter = (string)Evaluate(split.Delimiter);
         if (delimiter.Length == 0)
             throw new RuntimeException($"'split by' needs a non-empty delimiter (line {split.Line}).");
-        return (object)text.Split(delimiter).Select(s => (object)s).ToList();
+        return Series(text.Split(delimiter).Select(s => (object)s), new TextType());   // ISA.2d
     }
 
     private object EvaluateTextContains(TextContains contains)
@@ -1177,13 +1212,14 @@ public sealed partial class Interpreter
         }
 
         var list = new List<object>();
+        // ISA.2d — a descending or zero-width range yields an EMPTY series of number.
         if (start <= end)
             for (decimal n = start; n <= end; n += step)
                 list.Add(n);
         else
             for (decimal n = start; n >= end; n -= step)
                 list.Add(n);
-        return (object)list;
+        return Series(list, new NumberType());   // ISA.2d
     }
 
     private object EvaluateUnary(UnaryExpression u)
@@ -1549,12 +1585,21 @@ public sealed partial class Interpreter
         TextType        => value is string,
         FactType        => value is bool,
         VoidType        => value is VoidValue,
+        // ISA.2d — a non-empty container is answered by its elements (ISA.1). An EMPTY one has no
+        // element to ask, so it answers from the type it was created with; only a container that
+        // reached here without a carrier falls back to the old vacuously-true answer.
         SeriesType st   => value is List<object> sl
-                           && sl.All(e => RuntimeIsType(e, st.ElementType)),
+                           && (sl.Count > 0
+                                 ? sl.All(e => RuntimeIsType(e, st.ElementType))
+                                 : ElementTypeOf(sl) is not { } de || StaticMatch(de, st.ElementType)),
         MatrixType      => value is MatrixValue,
         MapType mt      => value is Dictionary<object, object> md
-                           && md.All(kv => RuntimeIsType(kv.Key, mt.KeyType)
-                                        && RuntimeIsType(kv.Value, mt.ValueType)),
+                           && (md.Count > 0
+                                 ? md.All(kv => RuntimeIsType(kv.Key, mt.KeyType)
+                                             && RuntimeIsType(kv.Value, mt.ValueType))
+                                 : md is not CufetMap cm || cm.DeclaredKey is not { } dk
+                                     || cm.DeclaredValue is not { } dv
+                                     || (StaticMatch(dk, mt.KeyType) && StaticMatch(dv, mt.ValueType))),
         RecordType      => value is RecordValue,
         ObjectType ot   => value is ObjectValue ov && ov.TypeName == ot.Name,
         InterfaceType   => false, // interfaces have no runtime representation to check

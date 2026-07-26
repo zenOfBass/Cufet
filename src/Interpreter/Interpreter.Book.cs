@@ -65,7 +65,7 @@ public sealed partial class Interpreter
             ["unique"] = args =>
             {
                 var xs     = (List<object>)args[0];
-                var result = new List<object>();
+                var result = new List<object>();   // ISA.2d: rebuilt as a carrier below
                 foreach (var elem in xs)
                 {
                     bool seen = false;
@@ -73,7 +73,7 @@ public sealed partial class Interpreter
                         if (ValuesEqual(r, elem)) { seen = true; break; }
                     if (!seen) result.Add(elem);
                 }
-                return (object)result;
+                return Series(result, ElementTypeOf(xs));   // ISA.2d — dedup keeps the element type
             },
         };
         books["collections"] = new BookValue(

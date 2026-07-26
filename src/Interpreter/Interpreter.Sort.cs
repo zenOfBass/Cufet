@@ -22,7 +22,7 @@ public sealed partial class Interpreter
             ? list.OrderByDescending(KeyOf, CufetNaturalComparer.Instance)
             : list.OrderBy(KeyOf, CufetNaturalComparer.Instance);
 
-        return ordered.ToList();
+        return Series(ordered, ElementTypeOf(list));   // ISA.2d — a sort keeps the element type
     }
 
     private object GetSortKey(object element, string fieldName, int line)

@@ -4892,15 +4892,14 @@ public class PipelineTests
     }
 
     [Fact]
-    public void Catalogue_ContainerVsContainerUnion_RefusedNotDiverged()
+    public void Catalogue_ContainerVsContainerUnion_NarrowsPrecisely()
     {
-        // ISA.2c — REFUSE RATHER THAN DIVERGE. ISA.1 made non-empty narrowing precise on both
-        // backends, but an EMPTY container carries no element type at runtime: the compiler answers
-        // from its TAG (precise), the interpreter from the VALUE (vacuously matches any container).
-        // Both are safe — an empty container has no element to misread — but they take DIFFERENT
-        // BRANCHES, and a divergence never ships. So the compiler refuses while the catalogue can
-        // hold a container type other than the tested one. Lifts when containers carry their element
-        // type (ISA.2d), which restores this to an oracle-match test.
+        // ISA.2d — was an ISA.2c clean-throw, now an oracle match. Narrowing a catalogue that can
+        // hold two DIFFERENT container types used to be refused: an empty container carried no
+        // element type at runtime, so the compiler answered from its TAG (precise) while the
+        // interpreter answered from the VALUE (vacuously matching any container), and the two took
+        // different branches. The interpreter's containers now carry their declared element type,
+        // so both are precise and the refusal is gone.
         const string src = """
             Define nums as a series of number with (1, 2).
             Define txts as a series of text with ("x").
@@ -4910,10 +4909,56 @@ public class PipelineTests
                 Otherwise, State "texts " joined to (the number of g converted to text).
             Done.
             """;
-        var tokens  = new CufetLexer(src).Tokenize();
-        var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
-        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // ★ The case the refusal existed for: EMPTY containers, where there is no element to inspect
+    // and the answer can only come from the type the container was created with.
+    [Fact]
+    public void Catalogue_EmptyContainerCases_NarrowPreciselyOnBothBackends()
+    {
+        const string src = """
+            Define items as a catalogue of ((series of number) or (series of text)) with ().
+            Add a series of text with () to items.
+            Add a series of number with () to items.
+            For each item in items, repeat:
+                If item is a series of number:
+                    State "matched: series of number".
+                Done.
+                If item is a series of text:
+                    State "matched: series of text".
+                Done.
+            Done.
+            """;
+        // Each empty container matches exactly ONE case — previously it matched both interpreted.
+        Assert.Equal("matched: series of text\nmatched: series of number", Interpret(src));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // Completeness guard for the carrier. An empty series can be produced several ways, and a
+    // creation route that forgets to record its element type would silently revert to the old
+    // vacuous answer — the exact failure mode that made a side-table design too risky. Each route
+    // below must narrow precisely, so a missed one fails loudly here instead.
+    [Theory]
+    [InlineData("a series of text with ()",                      "text")]
+    [InlineData("(a series of text with ()) sorted",             "text")]
+    [InlineData("a series of number with ()",                    "number")]
+    [InlineData("(a series of number with ()) sorted",           "number")]
+    [InlineData("((\"a,b\" split by \",\") sorted)",                "text")]
+    // (A `range` in value position is omitted: the compiler does not yet support RangeExpression
+    //  outside a for-each source — a pre-existing gap, unrelated to the carrier.)
+    public void EmptySeries_FromEveryCreationRoute_CarriesItsElementType(string expr, string expected)
+    {
+        string src = $"""
+            Define items as a catalogue of ((series of number) or (series of text)) with ().
+            Add {expr} to items.
+            For each item in items, repeat:
+                If item is a series of number, State "number".
+                Otherwise, State "text".
+            Done.
+            """;
+        Assert.Equal(expected, Interpret(src));
+        Assert.Equal(Interpret(src), Compile(src));
     }
 
     [Fact]
@@ -5657,10 +5702,10 @@ public class PipelineTests
     }
 
     [Fact]
-    public void OpenCatalogue_ContainerCases_RefusedNotDiverged()
+    public void OpenCatalogue_ContainerCases_NarrowPrecisely()
     {
-        // The OPEN-union twin of the ISA.2c refusal: the discovered case set contains two container
-        // types, so an empty instance of the non-tested one would diverge (see the closed-union test).
+        // The OPEN-union twin, also lifted by ISA.2d: the discovered case set holds two container
+        // types, which used to mean an empty instance of the non-tested one would diverge.
         const string src = """
             Define mixed as a catalogue with ((a series of number with (1,2)), (a series of text with ("a"))).
             For each m in mixed, repeat:
@@ -5668,10 +5713,7 @@ public class PipelineTests
                 Otherwise, State "other".
             Done.
             """;
-        var tokens  = new CufetLexer(src).Tokenize();
-        var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
-        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+        Assert.Equal(Interpret(src), Compile(src));
     }
 
     [Fact]
