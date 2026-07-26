@@ -90,15 +90,54 @@ public class CommentTests
         Assert.DoesNotContain(tokens, t => t.Type == TokenType.Define);
     }
 
-    // ── Non-nesting: first ']]' closes ───────────────────────────────────
+    // ── Nesting: an inner '[[' must be closed before the outer comment ends ──────────────
+    // Comments nest so that commenting out a block which already contains comments works.
+    // Under the old non-nesting rule the inner ']]' ended the outer comment, the rest of the
+    // block was lexed as code, and the trailing ']]' became "Unexpected character ']'".
 
     [Fact]
-    public void Comment_NonNesting_FirstCloserEnds()
+    public void Comment_Nesting_InnerCloserDoesNotEndOuter()
     {
-        // [[ a [[ b ]] → comment closes at the inner ']]'; 'c' following is code
-        var tokens = LexTokens("[[ a [[ b ]] c");
+        // The first ']]' closes only the INNER comment; 'c' is still commented out.
+        var tokens = LexTokens("[[ a [[ b ]] c ]] d");
         Assert.Single(tokens);
-        Assert.Equal("c", tokens[0].Lexeme);
+        Assert.Equal("d", tokens[0].Lexeme);
+    }
+
+    [Fact]
+    public void Comment_Nesting_CommentingOutABlockThatHasComments()
+    {
+        // The motivating case, in the shape people actually write it.
+        var tokens = LexTokens("""
+            [[ disabled for now
+
+            Bind number to helper, given (the number n):
+                [[ double it ]]
+                return n * 2.
+            Done.
+
+            ]]
+            after
+            """);
+        Assert.Single(tokens);
+        Assert.Equal("after", tokens[0].Lexeme);
+    }
+
+    [Fact]
+    public void Comment_Nesting_DeeplyNested()
+    {
+        var tokens = LexTokens("[[ one [[ two [[ three ]] two ]] one ]] out");
+        Assert.Single(tokens);
+        Assert.Equal("out", tokens[0].Lexeme);
+    }
+
+    [Fact]
+    public void Comment_Nesting_UnclosedInnerIsUnterminated()
+    {
+        // An inner '[[' that never closes leaves the outer open too — and the error names the
+        // OUTERMOST opening line, which is the one the author has to go find.
+        var ex = Assert.Throws<LexerException>(() => Lex("[[ outer [[ inner ]]"));
+        Assert.Contains("unterminated comment", ex.Message);
     }
 
     // ── Unterminated comment is a lexer error ─────────────────────────────

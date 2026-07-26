@@ -425,11 +425,22 @@ public sealed class Lexer
     }
 
     // Consumes a [[ ... ]] comment. Called after consuming the opening '[['.
-    // Non-nesting: the first ']]' ends the comment, regardless of any inner '[['.
-    // Unterminated (no ']]' before EOF) is a lexer error.
+    //
+    // NESTING: an inner '[[' opens a nested comment, and the outer one ends only at the ']]'
+    // that closes it. This is what makes "comment out this whole block while I test something"
+    // work when the block already contains comments — the most common editing operation there
+    // is, and the one C's non-nesting comments famously break. Rust, Swift, Haskell and D all
+    // nest for the same reason.
+    //
+    // It costs a depth counter, not a grammar rule: comments are scanned here in the lexer, so
+    // counting is just an integer in a loop that already carries state.
+    //
+    // Unterminated (depth never returns to zero before EOF) is a lexer error naming the line
+    // the OUTERMOST comment opened on — that is the one the author has to go find.
     private void SkipComment()
     {
         int startLine = _line;
+        int depth = 1;
         Advance(); // consume first '['
         Advance(); // consume second '['
         while (true)
@@ -438,11 +449,17 @@ public sealed class Lexer
                 throw new LexerException(startLine, "unterminated comment — expected ']]' to close it");
             char c = Peek();
             if (c == '\n') { _line++; Advance(); }
+            else if (c == '[' && _pos + 1 < _source.Length && _source[_pos + 1] == '[')
+            {
+                depth++;
+                Advance(); // consume first '['
+                Advance(); // consume second '['
+            }
             else if (c == ']' && _pos + 1 < _source.Length && _source[_pos + 1] == ']')
             {
                 Advance(); // consume first ']'
                 Advance(); // consume second ']'
-                return;
+                if (--depth == 0) return;
             }
             else Advance();
         }
