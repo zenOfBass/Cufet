@@ -1878,13 +1878,16 @@ when a task captures a variable from outside itself. Each side ends up owning it
 memory, which is what keeps one task's region from becoming entangled with another's.
 
 A task may freely **read** anything from the enclosing scope, of any type. A task may
-**not change** something it captured:
+**not change** something it captured — and this holds for a plain number just as much as
+for a series:
 
 ```
 Define data as a series of number with (1, 2, 3).
+Define tally as 0.
 Pull a rabbit.
     Have rabbit start a task:
         Add 99 to data.        ← REJECTED when compiled
+        tally becomes tally + 1.   ← REJECTED too, for the same reason
     Done.
 Done.
 ```
@@ -1893,6 +1896,28 @@ The compiler refuses this and points you at channels. The reason is worth knowin
 task holds its own copy, so the change could never be seen outside — and two tasks doing
 it at once is a straightforward data race. Send the result back through a channel, or
 `return` it from a named task and await it.
+
+This is about *writing* to a capture, not about captures being restricted. Reading one is
+free, and a counter the task defines itself is a local, not a capture:
+
+```
+Define step as 5.
+Pull a rabbit.
+    Have rabbit start a task as run-it:
+        Define total as 0.          ← the task's own; fine to change
+        Define i as 0.
+        While i is less than 4, repeat:
+            total becomes total + step.   ← reads the capture; fine
+            i becomes i + 1.
+        Done.
+        return total.
+    Done.
+    State the awaited result of run-it.
+Done.
+```
+```
+20
+```
 
 > ⚠ The interpreter does **not** enforce this — it hands task bodies the live enclosing
 > binding, and runs one task at a time, so the mutation appears to work. Write to the
