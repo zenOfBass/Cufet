@@ -1154,18 +1154,27 @@ supported. The shared front end rejects it identically on both backends, with a 
 naming the `run` result record as the offending stage. A pipe is either all `run` stages
 (a subprocess pipeline) or all function stages (a task pipeline).
 
-**A stage function may be used at only one input element type** across all the pipes in a
-program. Reusing the same function at two positions that would feed it different types is
-a clean compiler error.
+**Cross-stage element types are checked.** A stage's input type is written down nowhere —
+`for each n from the input:` declares no type — so it can only come from the stage
+upstream. The type checker walks each pipe left to right, carries every stage's output
+element type into the next as its input, and type-checks that stage's body against it.
+A producer emitting `number` into a stage that does `the length of n` is a normal type
+error, at the offending line, on both backends.
 
-⚠ **Cross-pipe type compatibility is NOT checked by the type checker.** A consumer's body
-is never type-checked against the producer's output type, and there is no runtime type
-enforcement either. A mismatch — `output 1.` feeding a stage that does `the length of s` —
-is caught late and badly: interpreted it surfaces as an unhandled host exception with a
-.NET stack trace; compiled it surfaces as a `gcc` type error against generated C. Neither
-is a Cufet error message. It fails loudly rather than silently, so nothing unsound gets
-through, but this is a known rough edge and the one place in the pipe surface where the
-front end is not yet pulling its weight.
+Two consequences worth knowing:
+
+- **A consumer's body is checked at the pipe, not where it is written.** A `Bind` whose
+  body reads `from the input` is only fully checked once a pipe says what flows into it.
+  A stage function that is never used in any pipe has an unchecked `for each … from the
+  input` body.
+- **A stage function may be used at only one input element type** across the whole
+  program. Feeding the same function `number` in one pipe and `text` in another is a
+  clean type error naming both.
+
+Stages reached indirectly — a lambda, or a function value held in a variable — stop the
+chain rather than erroring: their bodies were checked where they were written, and there
+is no declared element type to propagate, so downstream stages go unchecked instead of
+producing a false positive.
 
 ---
 
