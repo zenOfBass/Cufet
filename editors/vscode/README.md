@@ -1,0 +1,116 @@
+# Cufet for Visual Studio Code
+
+Syntax highlighting and error squiggles for [Cufet](../../README.md).
+
+Two pieces, both small:
+
+- **A TextMate grammar** (`syntaxes/cufet.tmLanguage.json`) — pure data, no code.
+- **A checker** (`extension.js`) — runs `cufet check --json` on the file you are editing and turns
+  what it says into squiggles. About 200 lines of dependency-free JavaScript.
+
+## Installing
+
+The extension needs no build step — there is nothing to compile and no `npm install` to run.
+Point VS Code at this directory and reload.
+
+**Windows** (a junction works without administrator rights, and edits to the extension take
+effect on the next reload):
+
+```powershell
+New-Item -ItemType Junction -Path "$env:USERPROFILE\.vscode\extensions\cufet" -Target "$PWD\editors\vscode"
+```
+
+**macOS / Linux:**
+
+```sh
+ln -s "$PWD/editors/vscode" ~/.vscode/extensions/cufet
+```
+
+Then run **Developer: Reload Window** from the command palette. Open any `.cufe` file to confirm
+it is highlighted and that the status bar says `Cufet`.
+
+To copy instead of linking, replace the command with a plain `cp -r` / `Copy-Item -Recurse`.
+
+## The checker needs something to run
+
+Error squiggles come from the real front end, so there has to be a build of it:
+
+```sh
+dotnet build
+```
+
+The extension finds `src/App/bin/*/net*/Cufet.App` under any workspace folder on its own, and
+prefers the most recently built one. If your Cufet lives somewhere else, set `cufet.executable`
+to its full path. Failing both, it tries `cufet` on your `PATH`.
+
+If it cannot run anything it says so once, offers to run `dotnet build` for you, and stays quiet
+after that.
+
+## Settings
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `cufet.executable` | *(empty)* | Full path to the Cufet executable. Empty means search the workspace, then `PATH`. |
+| `cufet.checkOn` | `save` | `save` — check on open and save. `type` — check as you type, after a short pause. `never` — only on command. |
+| `cufet.checkNativeCompatibility` | `true` | Also flag constructs the native compiler refuses. These run fine interpreted, so they appear as **warnings**. |
+
+With `checkOn: "type"`, unsaved text is checked through a temporary copy. That is safe because
+`check` never runs your program — nothing in it resolves a path relative to the source file.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| **Cufet: Check File** | Check the active file now, whatever `checkOn` says. |
+| **Cufet: Run File** | Save and run it under the interpreter, in a terminal. |
+| **Cufet: Build Native Binary** | Save and compile it to a native executable via `cufet build`. |
+
+## Using it from a task instead
+
+If you would rather not have the extension check for you, the repository's
+[`.vscode/tasks.json`](../../.vscode/tasks.json) drives the same checker through a build task.
+It uses the `$cufet` problem matcher this extension contributes, which parses the plain-text
+form of `cufet check`:
+
+```
+/path/to/thing.cufe:12: error: That doesn't work: 'x' holds numbers.
+```
+
+Set `cufet.checkOn` to `never` if you want the task to be the only source of squiggles.
+
+## About the highlighting
+
+**A grammar assigns scopes; your theme assigns colours.** So this file names scopes from the
+standard vocabulary every theme already styles, and never picks a colour — whatever theme you
+use, Cufet arrives already fitting in.
+
+Scope names are three parts, `<standard-prefix>.<cufet-role>.cufet`, so a theme that only knows
+`keyword.control` colours them anyway, while a theme with a wide palette can pull
+`keyword.control.flow.cufet` and `keyword.control.statement.cufet` apart if it wants to.
+
+**Articles and prepositions get no scope at all.** `a`, `an`, `the`, `of`, `to`, `as`, `with`,
+`on`, `by`, `from`, `in`, `at`, `for`, `after` and `through` render as plain body text. Cufet
+reads like English *because* it is full of them; colouring them would turn every line into a
+wall of keyword. Unscoped, they recede, and the words that carry meaning carry the line. This is
+deliberate.
+
+Two consequences worth knowing about:
+
+- **Hyphens are identifier characters**, so `add-edge` is one name and highlights as one name.
+  This is why the grammar fences keywords with `(?<![\w-])` instead of `\b` — with `\b`, the
+  `add` in `add-edge` would light up as a keyword. `wordPattern` knows it too, so
+  double-clicking `add-edge` selects all of it.
+- **Binary `-` needs spaces**, and now you can see it: `count - 1` colours the `-` as an
+  operator, while `count-1` stays one flat identifier. The sharp edge is visible instead of
+  waiting to surprise you.
+
+### Known limits
+
+Several of Cufet's accessor words — `first`, `last`, `value`, `result`, `all` — are *contextual*
+rather than reserved: the parser recognises them only in a particular shape, and you are free to
+name a variable `first`. The grammar anchors on the article in front of them, which reproduces
+that shape closely enough to keep `the key of pair` and `the value of pair` looking alike. A
+variable actually named `first` will pick up the accessor colour when written as `the first`.
+
+The checker reports one diagnostic at a time, because the front end stops at the first error.
+Fix it and the next one appears.
