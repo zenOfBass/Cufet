@@ -174,6 +174,14 @@ Latent language and soundness bugs surfaced by holding the two backends against 
 - **A map key built inside a region and stored in a longer-lived map was freed with that
   region.** A map is the only place in the language that stores two values at once, and only
   the value half was ever checked for escape.
+- **An empty collection did not know what it was meant to hold.** `is a` recurses into a
+  collection's elements to answer precisely, but an empty one has no elements — so an empty
+  `series of text` answered yes to `is a series of number` as readily as to its own type.
+  That was only reachable through a catalogue, where the declared type cannot narrow it, and
+  it made compiled and interpreted programs take different branches, so narrowing a catalogue
+  that could hold two different collection types was refused outright. Collections now
+  remember the element type they were created with, so an empty one answers from that. Both
+  backends agree, and the refusal is gone.
 - **Pipe stages were never type-checked against each other — or, in a consumer's case,
   at all.** `for each n from the input:` gives the iterator no type, so a stage's input
   type can only come from the stage before it, and nothing was carrying it across. A
