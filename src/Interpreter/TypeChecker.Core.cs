@@ -684,6 +684,7 @@ public sealed partial class TypeChecker
                 new FunctionType(paramTypes, bind.ReturnType),
                 new VariableReference(bind.Name, 0),
                 bind.Line);
+            _freeBinds[bind.Name] = bind;   // so a pipe can re-check this body with a known input type
         }
 
         // Gather named constructors ('Bind making a <type> to <name>'), validate their target types,

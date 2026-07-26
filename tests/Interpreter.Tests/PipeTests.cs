@@ -456,4 +456,103 @@ public class PipeTests
             """);
         Assert.Equal("2", output);
     }
+
+    // ── Cross-stage element types ─────────────────────────────────────────────────────────
+    // A stage's input type is declared nowhere — `for each n from the input:` gives the
+    // iterator no type — so it can only come from the stage upstream. Until the checker
+    // carried it across, a consumer body was never type-checked AT ALL: this mismatch
+    // escaped the front end and surfaced as a raw .NET InvalidCastException interpreted,
+    // and a gcc error against generated C when compiled. Neither was a Cufet error.
+
+    [Fact]
+    public void Pipe_ConsumerBodyIsTypeCheckedAgainstProducerOutput()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Bind void to emit-nums:
+                output 1.
+            Done.
+
+            Bind void to shout:
+                for each n from the input:
+                    State the length of n.
+                Done.
+            Done.
+
+            emit-nums | shout.
+            """));
+        Assert.Contains("length", ex.Message);
+    }
+
+    [Fact]
+    public void Pipe_MatchingElementTypes_StillTypeCheck()
+    {
+        var output = Run("""
+            Bind void to emit-words:
+                output "alpha".
+                output "be".
+            Done.
+
+            Bind void to shout:
+                for each w from the input:
+                    State the length of w converted to text.
+                Done.
+            Done.
+
+            emit-words | shout.
+            """);
+        Assert.Equal("5\n2", output);
+    }
+
+    // A stage reads one kind of value across the whole program. This was previously a
+    // compiler-only refusal; it is now a front-end error, so both backends agree.
+    [Fact]
+    public void Pipe_StageReusedAtTwoElementTypes_IsRejected()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Bind void to emit-nums:
+                output 1.
+            Done.
+
+            Bind void to emit-words:
+                output "hi".
+            Done.
+
+            Bind void to sink:
+                for each v from the input:
+                    State v.
+                Done.
+            Done.
+
+            emit-nums | sink.
+            emit-words | sink.
+            """));
+        Assert.Contains("already reads", ex.Message);
+    }
+
+    // Three stages: the element type has to survive being carried through the middle one,
+    // whose own output is what the last stage is checked against.
+    [Fact]
+    public void Pipe_ElementTypePropagatesThroughAMiddleStage()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Bind void to emit-nums:
+                output 1.
+            Done.
+
+            Bind void to double-them:
+                for each n from the input:
+                    output n * 2.
+                Done.
+            Done.
+
+            Bind void to shout:
+                for each n from the input:
+                    State the length of n.
+                Done.
+            Done.
+
+            emit-nums | double-them | shout.
+            """));
+        Assert.Contains("length", ex.Message);
+    }
 }

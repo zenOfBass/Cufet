@@ -4,16 +4,31 @@ public sealed partial class TypeChecker
 {
     // ── Pipe type checking ────────────────────────────────────────────────────
     //
-    // v1 scope: structural validation only.
-    //   Subprocess branch: both operands must be RunExpressions (text-typed I/O).
-    //   Task branch: both operands must evaluate to FunctionType.
+    //   Subprocess branch: every stage must be a RunExpression (text-typed I/O).
+    //   Task branch: every stage must evaluate to a FunctionType.
     //
-    // Cross-pipe type compatibility (producer outputs T, consumer reads T) is NOT
-    // statically checked in v1: the consumer body is checked with an unknown iterator
-    // type, meaning body expressions are left unverified by the type checker until
-    // the pipe is formed. The runtime catches mismatches. This mirrors how lambdas
-    // are checked lazily in closure contexts. A future slice can tighten this by
-    // storing bind bodies and re-checking the consumer body in pipe context.
+    // Cross-stage element types ARE checked. A stage's input type is not written down
+    // anywhere — `for each n from the input:` declares no type — so it can only come
+    // from the stage upstream. That means a consumer body cannot be checked where it is
+    // written; it has to be re-checked here, once the pipe says what flows into it.
+    //
+    // Until this existed, a consumer body was never type-checked AT ALL, and a mismatch
+    // (a producer emitting `number` into a stage doing `the length of n`) escaped the
+    // front end entirely — surfacing interpreted as a host-level cast exception, and
+    // compiled as a gcc error against generated C. Loud, but neither was a Cufet error.
+
+    // Free functions by name, so a stage named in a pipe can have its body re-checked.
+    // Filled by the same hoisting pre-pass that registers their signatures.
+    private readonly Dictionary<string, BindStatement> _freeBinds = new();
+
+    // The element type flowing INTO the stage currently being re-checked. Null everywhere
+    // except during that re-check — which is what keeps `for each … from the input` a
+    // no-op when a stage's body is checked normally, at its own Bind site.
+    private CufetType? _pipeInputElem;
+
+    // Each stage's settled input element type, so a function reused across pipes at two
+    // different element types is caught rather than silently re-checked twice.
+    private readonly Dictionary<string, CufetType> _pipeStageElem = new();
 
     private void CheckPipe(PipeExpression pipe)
     {
@@ -47,21 +62,82 @@ public sealed partial class TypeChecker
                     $"use a {FormatType(t)} as a pipe stage",
                     "Pipe stages must be Bind'd functions or lambdas. Did you mean to use '|' between function names?"));
         }
+
+        CheckStageElementTypes(stages);
     }
+
+    // Walks the pipe left to right, carrying each stage's output element type into the next
+    // stage as its input, and re-checking that stage's body with the iterator bound to it.
+    private void CheckStageElementTypes(List<IExpression> stages)
+    {
+        CufetType? flowing = null;   // nothing flows into the first stage
+        foreach (var stage in stages)
+        {
+            // Only a stage named directly can be re-checked — a lambda's body was already
+            // checked inline where it was written, and an indirect function value has no body
+            // to reach. Both leave `flowing` unknown, which stops the chain without erroring:
+            // an unchecked stage should not cause a false positive downstream.
+            if (stage is not VariableReference vr || !_freeBinds.TryGetValue(vr.Name, out var bind))
+            {
+                flowing = null;
+                continue;
+            }
+
+            // One input element type per stage function, across every pipe in the program —
+            // the same restriction the compiler enforces, checked here so the message is a
+            // Cufet error rather than a codegen refusal.
+            if (flowing != null && _pipeStageElem.TryGetValue(vr.Name, out var settled)
+                && !settled.Equals(flowing))
+                throw new TypeException(FormatTypeError(
+                    $"'{vr.Name}' already reads {FormatTypePlural(settled)} from its input",
+                    null, GetExprLine(stage),
+                    $"also use it on a pipe carrying {FormatTypePlural(flowing)}",
+                    "A pipe stage reads one kind of value. Write a separate function for the other pipe."));
+            if (flowing != null) _pipeStageElem[vr.Name] = flowing;
+
+            flowing = CheckStageBody(bind, flowing);
+        }
+    }
+
+    // Re-checks one stage's body with `incoming` bound to its `from the input` iterator, and
+    // returns the element type the stage itself emits (from the first `output` it reaches).
+    // CheckBind saves and restores scopes, so running it a second time is self-contained.
+    private CufetType? CheckStageBody(BindStatement bind, CufetType? incoming)
+    {
+        var savedElem = _pipeInputElem;
+        var savedOut  = _pipeOutputElem;
+        _pipeInputElem  = incoming;
+        _pipeOutputElem = null;
+        try
+        {
+            CheckBind(bind);
+            return _pipeOutputElem;
+        }
+        finally { _pipeInputElem = savedElem; _pipeOutputElem = savedOut; }
+    }
+
+    // The element type of the stage body currently being re-checked, taken from its first
+    // `output` — set by CheckOutputStatement while _pipeInputElem is active.
+    private CufetType? _pipeOutputElem;
 
     private void CheckOutputStatement(OutputStatement os)
     {
-        // Just validate the value is typeable. Context enforcement (must be in a producer)
-        // is done at runtime.
-        InferType(os.Value);
+        var t = InferType(os.Value);
+        // Record the producer's element type for the stage downstream. First `output` wins,
+        // matching how the compiler infers a stage's output type.
+        if (_pipeOutputElem == null && t != null) _pipeOutputElem = t;
     }
 
     private void CheckForEachFromInput(ForEachFromInputStatement fe)
     {
-        // The iterator type is only known in pipe context (from the producer's output type).
-        // In v1, skip body type-checking for consumer loops — the runtime enforces types.
-        // A future slice will re-check the body with the correct element type once the
-        // producer's output type is determined at the pipe site.
+        // Outside a pipe re-check there is no way to know the iterator's type — the stage has
+        // not been connected to a producer yet — so the body is left for the pipe site.
+        if (_pipeInputElem is not { } elem) return;
+
+        EnterScope();
+        Scope[fe.IteratorName] = new TypeInfo(ResolveParamType(elem), null!, fe.Line);
+        try { CheckBlock(fe.Body); }
+        finally { ExitScope(); }
     }
 
     // Expression-position subprocess pipe: 'run A | run B' used as a value.
