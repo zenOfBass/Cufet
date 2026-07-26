@@ -5561,14 +5561,15 @@ static void* cufet_pipe_stage(void* argp) {
         var refs = new HashSet<string>(); var defs = new HashSet<string>();
         foreach (var s in lts.Body) CollectRefsDefs(s, refs, defs);
         var caps = refs.Where(r => !defs.Contains(r) && _varTypes.ContainsKey(r)).OrderBy(x => x).ToList();
-        // TCAP — a capture of ANY type is allowed, but a region-typed one is deep-copied across the
-        // thread boundary (below), so the task must not MUTATE it. See TaskBodyMayMutate.
+        // TCAP — a capture of ANY type is allowed, but the task must not MUTATE one. Every capture
+        // crosses a thread boundary and so is the task's OWN copy; writing to it changes only that
+        // copy. See TaskBodyMayMutate for why this is a refusal rather than a silent copy.
         foreach (var c in caps)
-            if (_varTypes[c] is not (NumberType or FactType or ChannelType) && TaskBodyMayMutate(lts.Body, c))
+            if (TaskBodyMayMutate(lts.Body, c))
                 throw new CompilerException(
                     $"this task changes '{c}', which it captured from outside the task. A task gets its own copy of " +
-                    $"a captured series, map, object, or text — it crosses a thread boundary — so the change would be " +
-                    $"invisible outside, and two tasks changing it at once would race. Send the result back through a " +
+                    $"everything it captures — captures cross a thread boundary — so the change would not be visible " +
+                    $"outside the task, and two tasks changing it at once would race. Send the result back through a " +
                     $"channel, or return it from a named task and await it.");
 
         // TCAP — a capture crosses a thread boundary, so it travels the same way a channel message
@@ -5667,16 +5668,21 @@ static void* cufet_pipe_stage(void* argp) {
     private static string TaskSuffix(string name) => name.Replace('-', '_');
 
     // ── TCAP — may this task body CHANGE the captured binding `name`? ──────────────────────────
-    // A region capture crosses the thread boundary by deep copy (the channel-send bridge), so a
-    // task that mutated one would change only its own copy — while the interpreter, which hands
-    // task bodies the LIVE enclosing binding, changes the original. The rabbit's join is a
-    // happens-before edge, so both answers are well-defined and they DIFFER: the class that never
-    // ships silently. Hence the refusal.
+    // Every capture crosses the thread boundary as the task's OWN copy — a value one is snapshot
+    // into the arg struct, a region one is deep-copied through the channel-send bridge. So a task
+    // that mutated a capture would change only that copy, while the interpreter, which hands task
+    // bodies the LIVE enclosing binding, changes the original. The rabbit's join is a happens-before
+    // edge, so both answers are well-defined and they DIFFER: the class that never ships silently.
+    // Hence the refusal.
     //
-    // Sharing instead is not available: arenas are thread-local, so a mutation that grows a shared
-    // series reallocates into the TASK's arena and dangles the parent's pointer when the task pops.
-    // And refusing is the honest answer on its own terms — two tasks appending to one captured
-    // series is a real data race that the cooperative interpreter merely hides.
+    // ★ This applies to plain numbers exactly as much as to series. It originally did not, and that
+    // gap was a live divergence: `tally becomes tally + 5` inside a task printed 5 interpreted and
+    // 0 compiled. Nothing about the value being small or copyable makes the write meaningful.
+    //
+    // Sharing instead is not available for regions: arenas are thread-local, so a mutation that
+    // grows a shared series reallocates into the TASK's arena and dangles the parent's pointer when
+    // the task pops. And refusing is the honest answer on its own terms — two tasks writing one
+    // captured variable is a real data race that the cooperative interpreter merely hides.
     //
     // The statement list below IS the complete set of mutating statements in Ast.cs (the ones
     // carrying a write target). A CALL is treated as a possible mutation because argument binding

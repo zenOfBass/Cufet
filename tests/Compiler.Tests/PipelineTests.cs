@@ -6717,6 +6717,54 @@ public class PipelineTests
         Assert.Contains("captured from outside the task", ex.Message);
     }
 
+    // ★ A captured NUMBER is refused on exactly the same terms, and this one was a live divergence
+    // before it was: `tally becomes tally + 5` inside a task printed 5 interpreted (the interpreter
+    // hands task bodies the live enclosing binding) and 0 compiled (the task writes its snapshot).
+    // The parent never touches `tally` after the spawn and the rabbit's join is a happens-before
+    // edge, so this is not a race — it is one program with two well-defined, differing answers.
+    // Nothing about a value being small or trivially copyable makes the write meaningful.
+    [Fact]
+    public void TaskCapture_MutatingACapturedNumber_IsRefused()
+    {
+        const string src = """
+            Define tally as 0.
+            Pull a rabbit.
+                Have rabbit start a task as bump:
+                    tally becomes tally + 5.
+                    return 1.
+                Done.
+                State the awaited result of bump.
+            Done.
+            State tally.
+            """;
+        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        Assert.Contains("captured from outside the task", ex.Message);
+    }
+
+    // The guard is about WRITING to a capture, not about captures being unusable: a task reads a
+    // captured number freely, and a counter it defines ITSELF is a local, not a capture.
+    [Fact]
+    public void TaskCapture_ReadingANumberAndCountingLocally_StillWorks()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+        const string src = """
+            Define step as 5.
+            Pull a rabbit.
+                Have rabbit start a task as run-it:
+                    Define total as 0.
+                    Define i as 0.
+                    While i is less than 4, repeat:
+                        total becomes total + step.
+                        i becomes i + 1.
+                    Done.
+                    return total.
+                Done.
+                State the awaited result of run-it.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     // Mutation reached through a CALL is refused too — argument binding shares series and maps with
     // the callee, so a callee can mutate through its parameter.
     [Fact]
