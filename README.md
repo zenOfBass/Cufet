@@ -200,7 +200,16 @@ dotnet run --project src\App\Cufet.App.csproj -- myprogram.cufe
 
 # Or pipe from stdin
 echo "State 1 + 1." | dotnet run --project src\App\Cufet.App.csproj
+
+# Check a program for errors without running it
+dotnet run --project src\App\Cufet.App.csproj -- check myprogram.cufe
 ```
+
+`check` lexes, parses and type-checks, then reports the first problem as
+`myprogram.cufe:12: error: ...` and exits 1 — or says nothing and exits 0. Add
+`--native` to also flag constructs the native compiler refuses (reported as
+warnings, since they interpret fine), and `--json` for one JSON object per
+diagnostic, which is what the editor extension consumes.
 
 ### Compiling to a native binary
 
@@ -215,6 +224,24 @@ dotnet run --project src\App\Cufet.App.csproj -- emit-c myprogram.cufe myprogram
 Programs using POSIX-only features — concurrency, subprocesses, signals — need a
 POSIX toolchain to build; the rest compile anywhere gcc runs.
 
+### Editor support
+
+[`editors/vscode/`](editors/vscode/) is a Visual Studio Code extension giving
+syntax highlighting and error squiggles. It needs no build step — link it into
+your extensions folder and reload:
+
+```powershell
+New-Item -ItemType Junction -Path "$env:USERPROFILE\.vscode\extensions\cufet" -Target "$PWD\editors\vscode"
+```
+
+```sh
+ln -s "$PWD/editors/vscode" ~/.vscode/extensions/cufet
+```
+
+The squiggles are the front end's own diagnostics, by way of `cufet check`
+— never a second opinion from a re-implementation that could drift out of step
+with it. See [its README](editors/vscode/README.md) for settings and details.
+
 ---
 
 ## Project layout
@@ -225,7 +252,10 @@ src/
   Interpreter/     Cufet.Interpreter  — AST, parser, type checker, tree-walking interpreter
                                         (the reference implementation / oracle)
   Compiler/        Cufet.Compiler     — native backend: AST → C source → gcc
-  App/             Cufet.App          — thin console entry point (interpret / build / emit-c)
+  App/             Cufet.App          — thin console entry point
+                                        (interpret / check / build / emit-c)
+editors/
+  vscode/                             — VS Code extension: TextMate grammar + error squiggles
 tests/
   Lexer.Tests/
   Interpreter.Tests/
