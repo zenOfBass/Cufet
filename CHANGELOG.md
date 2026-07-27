@@ -59,6 +59,34 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   yields `bits and fact` and is refused at compile time. Keeping bit patterns out of `number`
   closes that footgun for free.
 
+**`bits` — conversions, completing the type**
+
+- **`n converted to hex` / `to binary` / `to octal`**, and back with `converted to number` or
+  `converted to text`. Postfix transforms, consistent with `converted to text` — the crossing
+  between a quantity and a pattern is explicit in both directions, since there is no implicit
+  conversion.
+
+- **`bits converted to number` can never fail**, because 64 bits always fits a number's 96-bit
+  mantissa. So it yields a plain `number`, not the voidable that `text converted to number`
+  gives. Total one way, checked the other.
+
+- Going the other way **raises** on a fraction, a negative, or a value past 2⁶⁴ — matching
+  arithmetic overflow rather than becoming a voidable, since these are programming errors and a
+  voidable would force an unwrap at every crossing.
+
+- **This is what makes a computed value showable in hex** — `total converted to hex` — which a
+  literal-only notation never could. It recovers the one advantage the rejected display-only
+  design had, while keeping the type.
+
+- `hex`, `binary` and `octal` are not reserved words.
+
+- **[`examples/permissions.cufe`](examples/permissions.cufe)** — a worked Unix-permissions
+  program: building a mode with `or`, testing with `and`, clearing with `and not`, positioning
+  with a shift, and the `(1 << n) - 1` mask idiom. No divide-and-modulo standing in for a mask
+  anywhere, which is exactly what this type was for.
+
+- A full **REFERENCE chapter**, held back deliberately until the type was whole.
+
 **`bits` — shifts**
 
 - **`n shifted left by 3` / `shifted right by 3`.** Shifting is wiring rather than a gate — it
