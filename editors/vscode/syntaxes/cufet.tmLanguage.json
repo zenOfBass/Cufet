@@ -38,6 +38,8 @@
     { "include": "#possessive" },
     { "include": "#keyword" },
     { "include": "#operator" },
+    { "include": "#function-word" },
+    { "include": "#identifier" },
     { "include": "#punctuation" }
   ],
 
@@ -85,9 +87,21 @@
     },
 
     "number": {
-      "comment": "Matches the lexer exactly: a '.' is a decimal point only when a digit follows it, so the '.' in 'State 3.' stays a statement terminator.",
-      "name": "constant.numeric.cufet",
-      "match": "(?<![\\w-])\\d+(?:\\.\\d+)?(?![\\w-])"
+      "patterns": [
+        {
+          "comment": "A '-' hard against a digit, with no word character in front of it. The left fence is what separates this from 'batch-1', where the '-' follows a letter and the whole thing is one identifier. Scoped as operator-plus-number rather than one numeric token, so it renders identically to the binary 'x - 1' — the parser, not the grammar, decides which it is, and the highlighting should not claim to know better.",
+          "match": "(?<![\\w-])(-)(\\d+(?:\\.\\d+)?)(?![\\w-])",
+          "captures": {
+            "1": { "name": "keyword.operator.arithmetic.cufet" },
+            "2": { "name": "constant.numeric.cufet" }
+          }
+        },
+        {
+          "comment": "Matches the lexer exactly: a '.' is a decimal point only when a digit follows it, so the '.' in 'State 3.' stays a statement terminator.",
+          "name": "constant.numeric.cufet",
+          "match": "(?<![\\w-])\\d+(?:\\.\\d+)?(?![\\w-])"
+        }
+      ]
     },
 
     "declaration": {
@@ -271,6 +285,17 @@
           "match": "\\|"
         }
       ]
+    },
+
+    "function-word": {
+      "comment": "Articles and prepositions, matched WITH NO NAME so they are consumed and left unscoped. This rule earns its place by running before #identifier: without it the catch-all below would claim 'the' and 'of' as variables and light up every line, which is the exact outcome the no-scope-for-function-words rule exists to prevent. Words that also carry structural weight ('unto', 'but', 'not') are keywords and are claimed earlier.",
+      "match": "(?<![\\w-])(?i:an|a|the|of|to|as|with|on|by|from|in|at|for|after|through|than|each)(?![\\w-])"
+    },
+
+    "identifier": {
+      "comment": "Everything still standing is a name the author chose — locals, parameters, fields, arguments. Scoping them matters more in Cufet than in a symbol-heavy language: strip the articles and prepositions out of a line and most of what remains IS an identifier, so leaving them at default foreground is what makes a Cufet file read flatter than the C# next to it. Themes give variable.other its own colour.",
+      "name": "variable.other.cufet",
+      "match": "[a-z][A-Za-z0-9-]*"
     },
 
     "punctuation": {
