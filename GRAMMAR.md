@@ -255,6 +255,10 @@ names, parameter names, field names, and iterator names:
 `line`, `lines`, `all`, `input`, `arguments`, `reading`, `writing`, `exists`,
 `variable`, `requested`, `output`
 
+**Type names** — `text`, `fact` and `bits` are contextual too. The lexer has no token for any
+of them; they are recognised by lexeme in type position, so `Define text as "hi".` is legal.
+(`number` *is* reserved, because `the number of s` needs its own token.)
+
 **Ordinals** (`first`, `second`, `third`, `fourth`, `fifth`, `sixth`, `seventh`,
 `eighth`, `ninth`, `tenth`, `last`) — contextual in the accessor shape:
 - **Accessor position:** `the <ordinal> of <series>` / `<ordinal> of <series>` → positional series access
@@ -263,6 +267,51 @@ names, parameter names, field names, and iterator names:
 
 The accessor shape takes priority in `the <ordinal> of X` — if you name an object field `first`, access
 it via `one's first` / `alice's first` (possessive), not `the first of alice` (which is always series access).
+
+### Bit patterns — `0x` / `0b` / `0o`
+
+`bits` is a **bit pattern, not a quantity**. `0o755` is three permission triples, not "seven
+hundred fifty-five" — so it is a separate type from `number`, with no implicit conversion in
+either direction. `0xFF = 255` is a type error; cross over with `converted to number` /
+`converted to hex`.
+
+```
+State 0xFF.          [[ 0xFF   — hex ]]
+State 0b1010.        [[ 0b1010 — binary ]]
+State 0o755.         [[ 0o755  — octal ]]
+State 0xDE_AD_BE_EF. [[ 0xDEADBEEF — '_' groups digits and is dropped ]]
+```
+
+A value **prints in the base it was written in**. Hex digits print uppercase: a computed value
+has no literal to take its case from.
+
+**No bare-zero octal.** `0755` is seven hundred and fifty-five, not 493. C's footgun is not
+reproduced — octal must say `0o`.
+
+**`_` groups digits, and only in these bases.** Decimal gets no separator at all: grouping in
+hex, binary and octal is structural (nibbles, bytes, permission triples), while in decimal it is
+cosmetic and in a fraction it marks nothing. It must sit *between* digits — `0x_FF`, `0xFF_` and
+`0xF__F` are all errors.
+
+**Ceiling is 64 bits.** That covers every C flag set, file mode and address there is; anything
+wider is cryptography or scientific computing, which belongs behind a foreign-function boundary
+rather than distorting this type.
+
+### ★ Leading zeros are significant — the width comes from the digit count
+
+This is the one genuinely unfamiliar rule, and it is **unlike C, Java, Rust, Go and Python**,
+where `0x0F` and `0xF` are the same value and width is a property of the declared type.
+
+```
+State 0xF.     [[ 0xF   — 4 bits ]]
+State 0x0F.    [[ 0x0F  — 8 bits ]]
+State 0x000F.  [[ 0x000F — 16 bits ]]
+```
+
+They compare equal — equality is on value, so `0xF = 0x0F` is true — but they display
+differently, and the width is what `not` flips within. That is the point: it is what lets
+`not 0xFF` be `0x00` instead of `-6`, with no signed reading and no negative numbers anywhere
+in the type. Zero-padding hex to a byte boundary is already a habit; here it carries meaning.
 
 ### Comments — `[[ ... ]]`
 
