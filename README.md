@@ -191,18 +191,34 @@ Requires [.NET 10 SDK](https://dotnet.microsoft.com/download). Compiling to a
 native binary additionally requires **gcc** on `PATH` — the compiler emits C and
 invokes it.
 
+### Installing `cufet`
+
+Cufet ships as a .NET global tool, so `cufet` becomes a command on your `PATH`.
+The SDK already keeps its tools directory on `PATH` — no shell configuration and
+no administrator rights:
+
+```
+dotnet pack src\App\Cufet.App.csproj -c Release
+dotnet tool install --global --add-source src\App\bin\Release Cufet
+```
+
+Then, from anywhere:
+
+```
+cufet myprogram.cufe                  # run it
+echo "State 1 + 1." | cufet           # or pipe it in
+cufet check myprogram.cufe            # report errors without running it
+cufet --help
+```
+
+Re-run `dotnet pack` and `dotnet tool update --global --add-source src\App\bin\Release Cufet`
+to pick up changes. Every command below also works as
+`dotnet run --project src\App\Cufet.App.csproj -- <args>` if you would rather not
+install anything.
+
 ```
 # Run all tests
 dotnet test Cufet.sln
-
-# Interpret a Cufet program
-dotnet run --project src\App\Cufet.App.csproj -- myprogram.cufe
-
-# Or pipe from stdin
-echo "State 1 + 1." | dotnet run --project src\App\Cufet.App.csproj
-
-# Check a program for errors without running it
-dotnet run --project src\App\Cufet.App.csproj -- check myprogram.cufe
 ```
 
 `check` lexes, parses and type-checks, then reports the first problem as
@@ -215,10 +231,10 @@ diagnostic, which is what the editor extension consumes.
 
 ```
 # Compile to an executable (emits C, then invokes gcc)
-dotnet run --project src\App\Cufet.App.csproj -- build myprogram.cufe
+cufet build myprogram.cufe
 
 # Emit the generated C without compiling — useful for cross-toolchain builds
-dotnet run --project src\App\Cufet.App.csproj -- emit-c myprogram.cufe myprogram.c
+cufet emit-c myprogram.cufe myprogram.c
 ```
 
 Programs using POSIX-only features — concurrency, subprocesses, signals — need a
