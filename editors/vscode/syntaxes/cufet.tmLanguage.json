@@ -213,11 +213,32 @@
     },
 
     "possessive": {
-      "match": "('s)(?![\\w-])\\s*([a-z][A-Za-z0-9-]*)?",
-      "captures": {
-        "1": { "name": "keyword.operator.possessive.cufet" },
-        "2": { "name": "variable.other.property.cufet" }
-      }
+      "comment": "The 's goes with the OWNER, not on its own. In English \"one's\" is one word — the genitive of \"one\" — and colouring the marker separately splits a word down the middle. A '.' between identifiers gets away with staying plain because it is a symbol and reads as a gap; 's contains a letter, so a differently-coloured 's welded to the end of a name just looks like the name lost its colour halfway through.",
+      "patterns": [
+        {
+          "comment": "The reserved pronouns keep their own scope through the marker.",
+          "match": "((?i:one|it)'s)(?![\\w-])\\s*([a-z][A-Za-z0-9-]*)?",
+          "captures": {
+            "1": { "name": "variable.language.cufet" },
+            "2": { "name": "variable.other.property.cufet" }
+          }
+        },
+        {
+          "match": "([a-z][A-Za-z0-9-]*'s)(?![\\w-])\\s*([a-z][A-Za-z0-9-]*)?",
+          "captures": {
+            "1": { "name": "variable.other.cufet" },
+            "2": { "name": "variable.other.property.cufet" }
+          }
+        },
+        {
+          "comment": "After a closing paren — '(the first of pq)'s pq-dist' — there is no word to attach to, so here the marker really is standing on its own and is scoped as the operator it is.",
+          "match": "('s)(?![\\w-])\\s*([a-z][A-Za-z0-9-]*)?",
+          "captures": {
+            "1": { "name": "keyword.operator.possessive.cufet" },
+            "2": { "name": "variable.other.property.cufet" }
+          }
+        }
+      ]
     },
 
     "keyword": {
