@@ -904,6 +904,7 @@ public sealed partial class Interpreter
         TextJoin   tj => EvaluateTextJoin(tj),
         TextConvert tc => (object)Format(Evaluate(tc.Value)),
         NumberConvert nc => EvaluateNumberConvert(nc),
+        BitsConvert bc   => EvaluateBitsConvert(bc),
         TextLength  tl => (object)(decimal)((string)Evaluate(tl.Target)).Length,
         TextSplit        split => EvaluateTextSplit(split),
         TextContains     tc2   => EvaluateTextContains(tc2),
@@ -1209,7 +1210,15 @@ public sealed partial class Interpreter
 
     private object EvaluateNumberConvert(NumberConvert nc)
     {
-        var text    = (string)Evaluate(nc.Value);
+        // Evaluated ONCE, then its type picks the path — re-evaluating inside a pattern test
+        // would run the operand's side effects twice.
+        var value = Evaluate(nc.Value);
+
+        // Bits to number is total — 64 bits always fits a 96-bit mantissa — so it yields the
+        // quantity directly rather than a voidable.
+        if (value is BitsValue bits) return (object)(decimal)bits.Value;
+
+        var text    = (string)value;
         var trimmed = text.Trim();
         if (NumberLiteralPattern.IsMatch(trimmed) &&
             decimal.TryParse(trimmed, System.Globalization.NumberStyles.AllowDecimalPoint | System.Globalization.NumberStyles.AllowLeadingSign,
@@ -1285,6 +1294,34 @@ public sealed partial class Interpreter
         int bits = 0;
         while (v != 0) { bits++; v >>= 1; }
         return bits;
+    }
+
+    // <number> converted to hex|binary|octal.
+    //
+    // The width is the smallest that holds the value, rounded up to whole digits of the target
+    // base — so 255 becomes 0xFF and 16 becomes 0x10. Raises rather than yielding a voidable,
+    // matching arithmetic overflow: the failures here are programming errors, not the data
+    // condition that makes text-to-number voidable.
+    private object EvaluateBitsConvert(BitsConvert convert)
+    {
+        decimal raw = ToNumber(Evaluate(convert.Target), "converted to bits");
+
+        if (raw % 1 != 0)
+            throw new RuntimeException(
+                $"only a whole number can become a bit pattern, and {raw} is not one (line {convert.Line}).");
+        if (raw < 0)
+            throw new RuntimeException(
+                $"{raw} is negative, and bit patterns are unsigned (line {convert.Line}).");
+        if (raw > ulong.MaxValue)
+            throw new RuntimeException(
+                $"{raw} does not fit in 64 bits (line {convert.Line}).");
+
+        ulong value = (ulong)raw;
+        int perDigit = convert.ToBase switch { 'x' => 4, 'o' => 3, _ => 1 };
+        int minimum  = Math.Max(MinimumWidth(value), 1);
+        // Round the width up to whole digits, so the display has no partial leading digit.
+        int width    = (minimum + perDigit - 1) / perDigit * perDigit;
+        return new BitsValue(value, convert.ToBase, width);
     }
 
     // <bits> shifted left|right by <number>.

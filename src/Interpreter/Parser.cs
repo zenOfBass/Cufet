@@ -1785,9 +1785,19 @@ public sealed class Parser
                 Advance(); // consume 'text'
                 baseExpr = new TextConvert(baseExpr, line);
             }
+            // 'converted to hex/binary/octal' crosses from a quantity to a bit pattern. The base
+            // names are contextual, like 'text' — recognised here and ordinary identifiers
+            // everywhere else.
+            else if (targetTok.Type == TokenType.Identifier
+                     && BitsBaseFor(targetTok.Lexeme) is { } toBase)
+            {
+                Advance(); // consume 'hex' / 'binary' / 'octal'
+                baseExpr = new BitsConvert(baseExpr, toBase, line);
+            }
             else
             {
-                throw new ParseException(targetTok, "text or number — expected after 'converted to'");
+                throw new ParseException(targetTok,
+                    "text, number, hex, binary or octal — expected after 'converted to'");
             }
             SkipNoise();
         }
@@ -3659,6 +3669,16 @@ public sealed class Parser
     // Collects StringPiece tokens and InterpolHoleOpen…InterpolHoleClose expression
     // sequences, building a left-associative TextJoin chain where each embedded
     // expression is wrapped in TextConvert (text/number/fact — type-checker enforces).
+    // The base a 'converted to <base>' target names, or null if the word is not one. Contextual
+    // by lexeme, so 'hex', 'binary' and 'octal' stay usable as ordinary names.
+    private static char? BitsBaseFor(string lexeme) => lexeme.ToLowerInvariant() switch
+    {
+        "hex"    => 'x',
+        "binary" => 'b',
+        "octal"  => 'o',
+        _        => null,
+    };
+
     // Decodes a Bits token into value, display base and width. The lexer has already validated
     // the digits and stripped the '_' separators, and normalised the prefix to lowercase — so the
     // lexeme is "0" + base + digits, and the digit COUNT is what sets the width. That is why

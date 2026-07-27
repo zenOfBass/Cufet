@@ -841,6 +841,18 @@ static CufetBits cufet_bits_mod(CufetBits a, CufetBits b, int line) {
 
    Note the >= 64 guards: shifting by at least the operand's width is UNDEFINED BEHAVIOUR in C,
    so the answer has to be written out rather than left to the hardware. */
+/* <number> converted to hex|binary|octal. Width is the smallest that holds the value, rounded up
+   to whole digits of the target base, so 255 becomes 0xFF and 16 becomes 0x10. Raises rather than
+   yielding a voidable, matching arithmetic overflow. */
+static CufetBits cufet_bits_from_number(CufetDec d, char base_, int line);
+static CufetDec cufet_bits_to_number(CufetBits b) {
+    CufetDec d;
+    d.coef  = (unsigned __int128)b.value;
+    d.scale = 0;
+    d.sign  = 0;
+    return d;
+}
+
 /* Whole iff dividing the coefficient down by its scale leaves no remainder. Done on the struct
    so it stays exact and cannot overflow, unlike round-tripping through an int. */
 static int cufet_bits_whole(CufetDec d) {
@@ -876,6 +888,35 @@ static CufetBits cufet_bits_shift(CufetBits a, CufetDec amount, int left, int li
         cufet_raise(cufet_msgf("%s shifted left by %s does not fit in 64 bits (line %d).", x, buf, line));
     }
     return cufet_bits_combine(a, by >= 64 ? 0ULL : (a.value << by));
+}
+
+static CufetBits cufet_bits_from_number(CufetDec d, char base_, int line) {
+    char buf[64];
+    if (!cufet_bits_whole(d)) {
+        cufet_format_number(buf, sizeof(buf), d);
+        cufet_raise(cufet_msgf("only a whole number can become a bit pattern, and %s is not one (line %d).", buf, line));
+    }
+    if (d.sign) {
+        cufet_format_number(buf, sizeof(buf), d);
+        cufet_raise(cufet_msgf("%s is negative, and bit patterns are unsigned (line %d).", buf, line));
+    }
+    /* Compare against 2^64-1 before narrowing, since the coefficient is 128 bits wide. */
+    unsigned __int128 whole = d.coef;
+    for (int s = d.scale; s > 0; s--) whole /= 10;
+    if (whole > (unsigned __int128)~0ULL) {
+        cufet_format_number(buf, sizeof(buf), d);
+        cufet_raise(cufet_msgf("%s does not fit in 64 bits (line %d).", buf, line));
+    }
+
+    unsigned long long value = (unsigned long long)whole;
+    int per = base_ == 'x' ? 4 : (base_ == 'o' ? 3 : 1);
+    int min = cufet_bits_minwidth(value);
+    if (min < 1) min = 1;
+    CufetBits out;
+    out.value = value;
+    out.base  = base_;
+    out.width = (min + per - 1) / per * per;   /* whole digits, no partial leading one */
+    return out;
 }
 
 /* A caught failure (in an In-case-of-failure handler) — T-agnostic, so one handler works
@@ -4572,6 +4613,7 @@ static void* cufet_pipe_stage(void* argp) {
         NumberLiteral         => TNumber,
         BitsLiteral           => TBits,
         BitsShift             => TBits,
+        BitsConvert           => TBits,
         BooleanLiteral        => TFact,
         StringLiteral         => TText,
         RangeExpression       => new SeriesType(TNumber),
@@ -4634,6 +4676,9 @@ static void* cufet_pipe_stage(void* argp) {
         TextJoin or TextConvert or TextSubstringRange or TextSubstringEdge
             or TextReplace or TextCase or TextTrim => TText,
         TextSplit             => new SeriesType(TText),
+        // From bits this is total — 64 bits always fits a 96-bit mantissa — so it is a plain
+        // number. From text it may simply not be one, hence the voidable.
+        NumberConvert nvc when TypeOf(nvc.Value) is BitsType => TNumber,
         NumberConvert or TextFind => new VoidableType(TNumber),
         TextLength            => TNumber,
         TextContains          => TFact,
@@ -5109,6 +5154,7 @@ static void* cufet_pipe_stage(void* argp) {
         NumberLiteral n       => EmitNumberLiteral(n.Value),
         BitsLiteral b         => $"(CufetBits){{ {b.Value}ULL, '{b.Base}', {b.Width} }}",
         BitsShift bs          => $"cufet_bits_shift({EmitExpr(bs.Target)}, {EmitExpr(bs.Amount)}, {(bs.Left ? 1 : 0)}, {bs.Line})",
+        BitsConvert bc        => $"cufet_bits_from_number({EmitExpr(bc.Target)}, '{bc.ToBase}', {bc.Line})",
         BooleanLiteral bl     => bl.Value ? "1" : "0",
         StringLiteral s       => EscapeStringLiteral(s.Value),   // text-as-stored-data: static C string
         UnaryExpression u     => EmitUnary(u),
@@ -6112,12 +6158,27 @@ static void* cufet_pipe_stage(void* argp) {
         NumberType => $"cufet_text_from_dec({EmitExpr(tc.Value)})",
         FactType   => $"({EmitExpr(tc.Value)} ? \"true\" : \"false\")",
         TextType   => EmitExpr(tc.Value),
+        BitsType   => EmitBitsToText(tc),
         var t => throw new CompilerException($"'converted to text' of a '{FormatTypeName(t)}' is not yet supported by the compiler.")
     };
 
-    // converted to number → voidable number (void when unparseable). Parses into a temp.
+    // A bits value converts to the text it displays as — "0xFF", prefix and all. Formatted into
+    // an arena buffer, since the result is an ordinary Cufet text from here on.
+    private string EmitBitsToText(TextConvert tc)
+    {
+        int id = _freshId++;
+        _preEmits.Add($"char* cf_bt{id} = (char*)cufet_arena_alloc(80); " +
+                      $"cufet_format_bits(cf_bt{id}, 80, {EmitExpr(tc.Value)});");
+        return $"cf_bt{id}";
+    }
+
+    // converted to number. From bits this is TOTAL — 64 bits always fits a 96-bit mantissa — so
+    // it yields a plain number. From text it may simply not be one, hence the voidable.
     private string EmitNumberConvert(NumberConvert nc)
     {
+        if (TypeOf(nc.Value) is BitsType)
+            return $"cufet_bits_to_number({EmitExpr(nc.Value)})";
+
         string cvd = RegisterVoidableStruct(new VoidableType(TNumber));
         string s = EmitExpr(nc.Value);
         int id = _freshId++;

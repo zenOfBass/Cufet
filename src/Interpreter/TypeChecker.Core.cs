@@ -1209,6 +1209,7 @@ public sealed partial class TypeChecker
         TextJoin tj                                                                                      => InferTextJoin(tj),
         TextConvert tc                                                                                   => InferTextConvert(tc),
         NumberConvert nc                                                                                 => InferNumberConvert(nc),
+        BitsConvert bc                                                                                  => InferBitsConvert(bc),
         TextLength tl                                                                                    => InferTextLength(tl),
         TextSplit split                                                                                  => InferTextSplit(split),
         TextContains contains                                                                            => InferTextContains(contains),

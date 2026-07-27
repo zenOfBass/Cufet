@@ -20,6 +20,12 @@ public sealed record BitsLiteral(ulong Value, char Base, int Width, int Line)   
 // representation.
 public sealed record BitsShift(IExpression Target, bool Left, IExpression Amount, int Line)  : IExpression;
 
+// <number> converted to hex|binary|octal. ToBase is 'x', 'b' or 'o'. The crossing from quantity
+// to pattern is explicit in both directions — there is no implicit conversion — and this is
+// also what gives back the expressiveness a display-only transform would have had: a COMPUTED
+// value can be shown in hex, not just a literal.
+public sealed record BitsConvert(IExpression Target, char ToBase, int Line)                  : IExpression;
+
 public sealed record StringLiteral(string Value)                                         : IExpression;
 public sealed record BooleanLiteral(bool Value, int Line)                                : IExpression;
 public sealed record VariableReference(string Name, int Line)                            : IExpression;

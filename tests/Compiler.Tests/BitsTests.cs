@@ -498,6 +498,78 @@ public class BitsTests
         Oracle("Define right as 9.\nState right.", "9");
     }
 
+    // ── Crossing between quantity and pattern ────────────────────────────
+    // Explicit in both directions, since there is no implicit conversion. This is also what
+    // recovers the expressiveness a display-only transform would have had: a COMPUTED value can
+    // be shown in hex, not only a literal written that way.
+
+    [Theory]
+    [InlineData("State 255 converted to hex.",    "0xFF")]
+    [InlineData("State 16 converted to hex.",     "0x10")]
+    [InlineData("State 0 converted to hex.",      "0x0")]
+    [InlineData("State 10 converted to binary.",  "0b1010")]
+    [InlineData("State 493 converted to octal.",  "0o755")]
+    public void Bits_FromNumber(string source, string expected) => Oracle(source, expected);
+
+    [Fact]
+    public void Bits_AComputedValueCanBeShownInHex()
+    {
+        Oracle("Define total as 200 + 55.\nState total converted to hex.", "0xFF");
+    }
+
+    [Fact]
+    public void Bits_ToNumberIsTotal()
+    {
+        // 64 bits always fits a 96-bit mantissa, so this cannot fail — it yields a plain
+        // number, not a voidable one the way text-to-number does.
+        Oracle("State 0xFF converted to number.",    "255");
+        Oracle("State 0b1010 converted to number.",  "10");
+        Oracle("State (0xF0 or 0x0F) converted to number.", "255");
+        // Plain, not voidable: it can be used directly in arithmetic with no unwrapping.
+        Oracle("State (0xFF converted to number) + 1.", "256");
+    }
+
+    [Fact]
+    public void Bits_ToText()
+        => Oracle("State 0xFF converted to text.", "0xFF");
+
+    [Fact]
+    public void Bits_ConversionRaisesRatherThanYieldingAVoidable()
+    {
+        // Matching arithmetic overflow: these are programming errors, not the data condition
+        // that makes text-to-number voidable, so a voidable would only force an unwrap at
+        // every crossing.
+        var frac = Assert.Throws<RuntimeException>(() => Interpret("State 3.5 converted to hex."));
+        Assert.Contains("whole number", frac.Message);
+        var neg = Assert.Throws<RuntimeException>(() =>
+            Interpret("Define n as -1.\nState n converted to hex."));
+        Assert.Contains("unsigned", neg.Message);
+        var big = Assert.Throws<RuntimeException>(() =>
+            Interpret("Define big as 20000000000000000000.\nState big converted to hex."));
+        Assert.Contains("64 bits", big.Message);
+    }
+
+    [Fact]
+    public void Bits_ConvertingABitsValueToABaseIsRefused()
+    {
+        // It is already a pattern; the message says how to restate it in another base.
+        var ex = Assert.Throws<TypeException>(() => Interpret("State 0xFF converted to hex."));
+        Assert.Contains("already a bit pattern", ex.Message);
+    }
+
+    [Fact]
+    public void Bits_ShowingAPatternInAnotherBase()
+        => Oracle("State 0xFF converted to number converted to binary.", "0b11111111");
+
+    [Fact]
+    public void Bits_BaseNamesAreNotReserved()
+    {
+        // 'hex', 'binary' and 'octal' are matched by lexeme in the conversion shape only.
+        Oracle("Define hex as 5.\nState hex.", "5");
+        Oracle("Define binary as 6.\nState binary.", "6");
+        Oracle("Define octal as 7.\nState octal.", "7");
+    }
+
     [Fact]
     public void Gates_BitsAlwaysEvaluateBothSides()
     {

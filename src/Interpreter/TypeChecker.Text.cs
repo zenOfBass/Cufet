@@ -32,28 +32,67 @@ public sealed partial class TypeChecker
     {
         var operand = InferType(tc.Value);
         if (operand == null) return CufetType.Text;
-        if (operand == CufetType.Number || operand == CufetType.Fact || operand == CufetType.Text)
+        // A bits value converts to the text it displays as — "0xFF", prefix and all.
+        if (operand == CufetType.Number || operand == CufetType.Fact || operand == CufetType.Text
+            || operand == CufetType.Bits)
             return CufetType.Text;
         throw new TypeException(FormatTypeError(
             $"'converted to text' doesn't work on {FormatTypePlural(operand)}",
             null,
             tc.Line,
             $"convert a {FormatType(operand)} to text",
-            "Only numbers and facts can be converted to text."));
+            "Only numbers, facts and bits can be converted to text."));
     }
 
     private CufetType InferNumberConvert(NumberConvert nc)
     {
         var operand = InferType(nc.Value);
+
+        // Bits to number is TOTAL and cannot fail: bits hold at most 64 bits, and a number's
+        // mantissa is 96, so every pattern has a quantity. So this yields a plain number, not a
+        // voidable one — unlike text, which may simply not be a number at all.
+        if (operand == CufetType.Bits) return CufetType.Number;
+
         if (operand != null && operand != CufetType.Text)
             throw new TypeException(FormatTypeError(
-                "'converted to number' expects text",
+                "'converted to number' expects text or bits",
                 null,
                 nc.Line,
                 $"convert a {FormatType(operand)} to number",
-                "Only text can be converted to number. The result is a voidable number — void if the text isn't a valid number."));
+                "Text converts to a voidable number — void if it isn't a valid number. Bits " +
+                "convert to a plain number, since every bit pattern is some quantity."));
         return new VoidableType(CufetType.Number);
     }
+
+    // <number> converted to hex|binary|octal — the crossing from quantity to pattern.
+    //
+    // This is what recovers the expressiveness a display-only transform would have had: a
+    // COMPUTED value can be shown in hex, not just a literal written that way.
+    //
+    // It RAISES rather than yielding a voidable, for the same reason arithmetic overflow does —
+    // a voidable would ride in the type and force an unwrap at every crossing. The failures are
+    // programming errors (a fraction, a negative, something past 64 bits), not data conditions
+    // the way "this text isn't a number" is.
+    private CufetType InferBitsConvert(BitsConvert bc)
+    {
+        var operand = InferType(bc.Target);
+        if (operand != null && operand != CufetType.Number)
+            throw new TypeException(FormatTypeError(
+                $"'converted to {BitsBaseName(bc.ToBase)}' expects a number",
+                null,
+                bc.Line,
+                $"convert a {FormatType(operand)} to {BitsBaseName(bc.ToBase)}",
+                operand == CufetType.Bits
+                    ? "This is already a bit pattern. To show it in another base, convert it to " +
+                      "a number first: 'x converted to number converted to binary'."
+                    : "Only a number can be converted to a bit pattern."));
+        return CufetType.Bits;
+    }
+
+    internal static string BitsBaseName(char b) => b switch
+    {
+        'x' => "hex", 'o' => "octal", 'b' => "binary", _ => "bits",
+    };
 
     private CufetType InferTextLength(TextLength tl)
     {
