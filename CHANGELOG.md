@@ -32,8 +32,35 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   cryptography or scientific computing — a different domain, and one for a foreign-function
   boundary rather than for distorting this type.
 
-  Still to come in this arc: the gates (`and`/`or`/`not`/`xor`), arithmetic and integer
-  division, shifts, and `converted to hex` / `converted to number`.
+**`bits` — the gates**
+
+- **`and`, `or`, `not` and `xor` on bit patterns.** A 32-bit AND *is* 32 AND gates side by
+  side, so the same words serve a `fact` (one bit) and a `bits` value (N of them) — they are
+  already the gate names, already English, and already keywords. Only `xor` is new, and it
+  works on facts too, where it was missing.
+
+- **Gates refuse `number`.** `5 and 3` and `not 5` are type errors: a quantity has no bits to
+  combine. This is what makes `not 0xFF` equal `0x00` — the `-6` that a signed reading of a
+  decimal would produce is now unwriteable.
+
+- **A result takes the LEFT operand's base and width**, because in real bit code the left
+  operand is the accumulator (`flags or MASK`, `flags and not MASK`). So `0xFF and 0b1010` is
+  `0x0A` while `0b1010 and 0xFF` is `0b1010`. Results widen when the value needs more room and
+  never truncate — narrow deliberately with an `and`.
+
+- **Precedence is `and` > `xor` > `or`**, mirroring `&` > `^` > `|`.
+
+- **`and`/`or` short-circuit on facts and cannot on bits** — combining two patterns needs both
+  patterns. The same word taking a different evaluation strategy by operand type is the same
+  deliberate exception matrix arithmetic already makes for `+` and `*`.
+
+- **C's most famous precedence bug is a type error here.** In C, `a & b == c` silently parses
+  as `a & (b == c)` and computes nonsense. Cufet has the same precedence, but the mis-parse
+  yields `bits and fact` and is refused at compile time. Keeping bit patterns out of `number`
+  closes that footgun for free.
+
+  Still to come in this arc: arithmetic and integer division, shifts, and
+  `converted to hex` / `converted to number`.
 
 **`cufet` is a command now**
 
