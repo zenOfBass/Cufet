@@ -48,6 +48,7 @@ deliberate differences are marked where they arise and summarised under
   - [Error handling (failures and exceptions)](#error-handling-failures-and-exceptions)
     - [Failure values (`failure T`)](#failure-values-failure-t)
     - [Block form: `Try to`](#block-form-try-to)
+  - [Bit patterns (`bits`)](#bit-patterns-bits)
   - [Maps](#maps)
   - [Catalogue and atlas (heterogeneous collections)](#catalogue-and-atlas-heterogeneous-collections)
   - [Input and output](#input-and-output)
@@ -1369,6 +1370,149 @@ Done.
 At least one handler is required. The two paths are independent — a failure
 goes only to `In case of failure`; an exception goes only to
 `In case of exception`.
+
+---
+
+## Bit patterns (`bits`)
+
+A **bit pattern is not a quantity.** `0o755` is three permission triples, not "seven hundred and
+fifty-five"; `0xFF` is eight set bits, not a count of anything. So `bits` is its own type, and
+bitwise operations live here and are absent from `number`.
+
+That separation is what keeps the type well behaved. In a language where you flip the bits of a
+decimal, `not 5` comes out as `-6` — correct, and baffling. Here it cannot be written at all.
+
+### Writing one
+
+```
+Define mask as 0xFF.        [[ hex ]]
+Define flag as 0b1010.      [[ binary ]]
+Define mode as 0o755.       [[ octal ]]
+```
+
+`_` groups digits and is dropped: `0xDE_AD_BE_EF`, `0b1010_1010`. It is allowed **only** in
+these bases — grouping here is structural (nibbles, bytes, permission triples), while in decimal
+it is cosmetic and in a fraction it marks nothing.
+
+There is **no bare-zero octal**: `0755` is seven hundred and fifty-five. Octal must say `0o`.
+
+A value **prints in the base it was written in**, and hex digits print uppercase.
+
+### Width comes from the digit count
+
+This is the one rule that is unlike other languages. In C, Java, Rust, Go and Python, `0x0F` and
+`0xF` are the same value and width belongs to the declared type. Here the digits *are* the
+width:
+
+```
+State 0xF.      [[ 0xF    — 4 bits ]]
+State 0x0F.     [[ 0x0F   — 8 bits ]]
+State 0x000F.   [[ 0x000F — 16 bits ]]
+```
+
+They compare **equal** — equality is on the value — but they display differently, and the width
+is what `not` flips within. Zero-padding hex to a byte boundary is already a habit; here it
+carries meaning.
+
+The ceiling is **64 bits**, which covers every C flag set, file mode and address there is.
+
+### Gates
+
+A 32-bit AND *is* 32 AND gates side by side, so the same words serve a `fact` (one bit) and a
+`bits` value (N of them):
+
+```
+State 0xFF and 0x0F.        [[ 0x0F  — mask ]]
+State 0xF0 or 0x0F.         [[ 0xFF  — set ]]
+State 0b1100 xor 0b1010.    [[ 0b0110 ]]
+State not 0xFF.             [[ 0x00 ]]
+```
+
+Clearing a bit is `and not`, which is the only clean way to unset one:
+
+```
+Define flags as 0b1111.
+State flags and not 0b0100.   [[ 0b1011 ]]
+```
+
+`xor` works on facts too. Precedence is `and` > `xor` > `or`.
+
+**Gates refuse numbers.** `5 and 3` and `not 5` are type errors.
+
+### The left operand decides how the result looks
+
+In real bit code the left operand is the accumulator — `flags or MASK` — so its base and width
+are the ones that survive:
+
+```
+State 0xFF and 0b1010.    [[ 0x0A   ]]
+State 0b1010 and 0xFF.    [[ 0b1010 ]]
+```
+
+A result **widens** when the value needs more room and never truncates. It does not shrink back
+afterwards, so a value that has grown stays wide.
+
+### Arithmetic
+
+`+ - * / %` all work, with **`/` as integer division** — `0x07 / 0x02` is `0x03`, where `7 / 2`
+is `3.5`. Ordering comparisons work too. Unary minus is refused: bits are unsigned.
+
+A result with **no representation raises**, exactly as division by zero does — `0x00 - 0x1`
+would be negative, `0xFFFFFFFFFFFFFFFF + 0x1` does not fit. They are exceptions rather than
+value-level failures, because a failure would ride in the type as `bits or failure` and force an
+unwrap after every masking expression.
+
+### Shifts
+
+```
+State 0b0001 shifted left by 3.    [[ 0b1000 ]]
+State 0xFF shifted right by 4.     [[ 0x0F ]]
+```
+
+The amount is a **number** — it counts positions, a quantity, like the `3` in `item 3 of s`. It
+must be whole and non-negative.
+
+Left shifts widen so nothing is lost; **right shifts discard the low bits**, which is what a
+right shift is rather than a failure. Being unsigned, there is no arithmetic-versus-logical
+right shift to choose between.
+
+`left` and `right` are **not reserved** — `the left of node` still works.
+
+### Crossing over
+
+No implicit conversion, in either direction:
+
+```
+State 255 converted to hex.        [[ 0xFF ]]
+State 10 converted to binary.      [[ 0b1010 ]]
+State 0xFF converted to number.    [[ 255 ]]
+State 0xFF converted to text.      [[ "0xFF" ]]
+```
+
+`bits converted to number` **can never fail** — 64 bits always fits a number's 96-bit mantissa —
+so it gives a plain number rather than a voidable. The other direction raises if the number is
+not whole, is negative, or is past 2⁶⁴.
+
+This is what lets a **computed** value be shown in hex:
+
+```
+Define total as 200 + 55.
+State total converted to hex.      [[ 0xFF ]]
+```
+
+To restate a pattern in a different base, route through a number:
+`x converted to number converted to binary`.
+
+`hex`, `binary` and `octal` are not reserved words.
+
+### A free consequence worth knowing
+
+C's most famous precedence bug is `a & b == c`, which silently parses as `a & (b == c)`. Cufet
+has the same precedence, but the mis-parse produces `bits and fact` — **a type error**, caught
+at compile time rather than computing quietly wrong answers.
+
+See [`examples/permissions.cufe`](examples/permissions.cufe) for a worked Unix-permissions
+program using all of this.
 
 ---
 
