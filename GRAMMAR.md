@@ -351,6 +351,39 @@ let a mask's notation hijack the display of the thing being masked.
 A result **widens** when the value needs more room (`0b1 or 0xFF` → `0b11111111`) and never
 truncates. Nothing silently falls off the end; narrow deliberately with an `and`.
 
+### Crossing between a quantity and a pattern
+
+There is no implicit conversion, so you say which you mean:
+
+```
+State 255 converted to hex.        [[ 0xFF ]]
+State 10 converted to binary.      [[ 0b1010 ]]
+State 493 converted to octal.      [[ 0o755 ]]
+State 0xFF converted to number.    [[ 255 ]]
+State 0xFF converted to text.      [[ "0xFF" ]]
+```
+
+**`bits converted to number` can never fail** — 64 bits always fits a number's 96-bit mantissa —
+so it gives a plain `number`, not a voidable one the way `text converted to number` does.
+
+Going the other way **raises** if the number is not a whole, non-negative value below 2⁶⁴. Like
+arithmetic overflow and unlike text-to-number, these are programming errors rather than a data
+condition, so a voidable would only force an unwrap at every crossing.
+
+This is also what makes a **computed** value showable in hex, which a literal-only notation
+could never do:
+
+```
+Define total as 200 + 55.
+State total converted to hex.      [[ 0xFF ]]
+```
+
+To restate a pattern in another base, go through a number: `x converted to number converted to
+binary`.
+
+**`hex`, `binary` and `octal` are not reserved** — they are matched by lexeme in this shape
+only, so `Define hex as 5.` still works.
+
 ### Shifts — `shifted left by` / `shifted right by`
 
 **Shifting is wiring, not a gate** — it moves bits rather than combining them — so it is a
