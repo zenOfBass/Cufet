@@ -239,7 +239,9 @@ cp -r "$PWD/editors/vscode" ~/.vscode/extensions/cufet
 ```
 
 Copy it — do not symlink. A linked directory is silently skipped by the
-extension scan, with nothing logged.
+extension scan, with nothing logged. Insiders uses a separate folder,
+`~/.vscode-insiders/extensions`, and fails the same silent way if you install
+into the wrong one.
 
 The squiggles are the front end's own diagnostics, by way of `cufet check`
 — never a second opinion from a re-implementation that could drift out of step

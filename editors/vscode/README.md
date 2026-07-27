@@ -21,6 +21,11 @@ Copy-Item "$PWD\editors\vscode" "$env:USERPROFILE\.vscode\extensions\cufet" -Rec
 cp -r "$PWD/editors/vscode" ~/.vscode/extensions/cufet
 ```
 
+> **Using Insiders?** It keeps a completely separate extensions folder — `~/.vscode-insiders/`
+> `extensions` rather than `~/.vscode/extensions`. Installing into the wrong one fails exactly
+> the way a symlink does: no error, no log entry, the extension simply is not there. Confirm
+> with `Help ▸ About` which build you are running.
+
 Then **quit VS Code completely and start it again** — not *Developer: Reload Window*. Reloading
 restarts the workbench but can reuse a cached extension scan, so a newly-added extension may not
 be picked up until the process restarts. Open a `.cufe` file to confirm: it should be coloured,
