@@ -422,6 +422,82 @@ public class BitsTests
         Assert.Throws<TypeException>(() => Interpret("State 0xFF < 255."));
     }
 
+    // ── Shifts ───────────────────────────────────────────────────────────
+    // Shifting is wiring, not a gate: it moves bits rather than combining them. So it is a
+    // trailing transform in the `sorted` / `trimmed` family, not an operator.
+
+    [Theory]
+    [InlineData("State 0b0001 shifted left by 3.",  "0b1000")]
+    [InlineData("State 0xFF shifted left by 4.",    "0xFF0")]   // widened, nothing lost
+    [InlineData("State 0xFF shifted right by 4.",   "0x0F")]
+    [InlineData("State 0b1111 shifted right by 2.", "0b0011")]
+    [InlineData("State 0x1 shifted left by 0.",     "0x1")]
+    public void Bits_Shifts(string source, string expected) => Oracle(source, expected);
+
+    [Fact]
+    public void Bits_RightShiftDiscardsTheLowBits()
+    {
+        // The one place something genuinely falls off — and it is not an inconsistency with
+        // "nothing is ever lost": discarding the low bits IS a right shift, rather than a
+        // failure of representation. Unsigned also means there is no arithmetic-vs-logical
+        // question, because there is no sign bit.
+        Oracle("State 0b1011 shifted right by 3.", "0b0001");
+        Oracle("State 0b1111 shifted right by 8.", "0b0000");
+    }
+
+    [Fact]
+    public void Bits_ShiftAmountIsANumberNotAPattern()
+    {
+        // It counts POSITIONS — a quantity, like the 3 in 'item 3 of s'.
+        var ex = Assert.Throws<TypeException>(() => Interpret("State 0xFF shifted left by 0x1."));
+        Assert.Contains("counts positions", ex.Message);
+    }
+
+    [Fact]
+    public void Bits_ShiftingANumberIsRefused()
+    {
+        var ex = Assert.Throws<TypeException>(() => Interpret("State 5 shifted left by 1."));
+        Assert.Contains("no bit positions", ex.Message);
+    }
+
+    [Fact]
+    public void Bits_ShiftAmountMustBeWholeAndNonNegative()
+    {
+        var frac = Assert.Throws<RuntimeException>(() => Interpret("State 0xFF shifted left by 1.5."));
+        Assert.Contains("whole number of positions", frac.Message);
+        var neg = Assert.Throws<RuntimeException>(() => Interpret("State 0xFF shifted left by -1."));
+        Assert.Contains("cannot be negative", neg.Message);
+    }
+
+    [Fact]
+    public void Bits_LeftShiftPastTheCeilingRaises()
+    {
+        // Shifting by at least the width is undefined behaviour in C, so the answer is written
+        // out explicitly in the emitted code rather than left to the hardware.
+        var ex = Assert.Throws<RuntimeException>(() => Interpret("State 0x1 shifted left by 64."));
+        Assert.Contains("64 bits", ex.Message);
+        Assert.Throws<RuntimeException>(() => Interpret("State 0xFF shifted left by 60."));
+    }
+
+    [Fact]
+    public void Bits_TheMaskIdiom()
+    {
+        // (1 << n) - 1, the standard way to build a mask of n bits.
+        Oracle("Define n as 8.\nState (0b1 shifted left by n) - 0x1.", "0b011111111");
+    }
+
+    // ── 'left' and 'right' stay ordinary identifiers ─────────────────────
+
+    [Fact]
+    public void Shift_DirectionWordsAreNotReserved()
+    {
+        // 'the left of node' is the most natural thing anyone writes for a binary tree, and one
+        // operator is not worth forbidding it. They are matched by lexeme in the shift shape only.
+        Oracle("Define node as a record with (the left 1, the right 2).\nState the left of node.", "1");
+        Oracle("Define left as 7.\nState left.", "7");
+        Oracle("Define right as 9.\nState right.", "9");
+    }
+
     [Fact]
     public void Gates_BitsAlwaysEvaluateBothSides()
     {

@@ -879,6 +879,7 @@ public sealed partial class Interpreter
     {
         NumberLiteral    n    => (object)n.Value,  // decimal — no floating-point surprises
         BitsLiteral      b    => new BitsValue(b.Value, b.Base, b.Width),
+        BitsShift        bs   => EvaluateBitsShift(bs),
         StringLiteral    s    => s.Value,
         BooleanLiteral   b    => (object)b.Value,
         VariableReference r   => TryLookupValue(r.Name, out var val)
@@ -1284,6 +1285,42 @@ public sealed partial class Interpreter
         int bits = 0;
         while (v != 0) { bits++; v >>= 1; }
         return bits;
+    }
+
+    // <bits> shifted left|right by <number>.
+    //
+    // Shifting LEFT widens, so nothing is lost — until the 64-bit ceiling, where the bits that
+    // would leave have nowhere to go and it raises, like a multiply overflow.
+    //
+    // Shifting RIGHT discards the low bits. That is the one place something genuinely falls off,
+    // and it is not an inconsistency: discarding them IS the operation, not a failure of
+    // representation. Bits being unsigned also means there is no arithmetic-versus-logical
+    // question here — no sign bit, so only one answer.
+    private object EvaluateBitsShift(BitsShift shift)
+    {
+        if (Evaluate(shift.Target) is not BitsValue bits)
+            throw new RuntimeException($"only a bits value can be shifted (line {shift.Line}).");
+
+        decimal raw = ToNumber(Evaluate(shift.Amount), "shifted by");
+        if (raw % 1 != 0)
+            throw new RuntimeException(
+                $"the shift amount must be a whole number of positions, not {raw} (line {shift.Line}).");
+        if (raw < 0)
+            throw new RuntimeException(
+                $"the shift amount cannot be negative — shift the other way instead (line {shift.Line}).");
+
+        int by = raw > 64 ? 65 : (int)raw;   // anything past the ceiling behaves the same
+
+        if (!shift.Left)
+            return new BitsValue(by >= 64 ? 0 : bits.Value >> by, bits.Base, bits.Width);
+
+        // Left: refuse to drop bits off the top rather than wrapping silently.
+        if (by >= 64 && bits.Value != 0
+            || by < 64 && bits.Value > ulong.MaxValue >> by)
+            throw new RuntimeException(
+                $"{bits} shifted left by {raw} does not fit in 64 bits (line {shift.Line}).");
+
+        return Combine(bits, by >= 64 ? 0 : bits.Value << by);
     }
 
     // Arithmetic on bit patterns. Division is integer division, and the type is unsigned with a

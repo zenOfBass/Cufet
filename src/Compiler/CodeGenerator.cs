@@ -836,6 +836,48 @@ static CufetBits cufet_bits_mod(CufetBits a, CufetBits b, int line) {
     return cufet_bits_combine(a, a.value % b.value);
 }
 
+/* Shifting. The amount arrives as a CufetDec because it counts POSITIONS — a quantity, like the
+   3 in "item 3 of s" — so it has to be whole and non-negative.
+
+   Note the >= 64 guards: shifting by at least the operand's width is UNDEFINED BEHAVIOUR in C,
+   so the answer has to be written out rather than left to the hardware. */
+/* Whole iff dividing the coefficient down by its scale leaves no remainder. Done on the struct
+   so it stays exact and cannot overflow, unlike round-tripping through an int. */
+static int cufet_bits_whole(CufetDec d) {
+    unsigned __int128 c = d.coef;
+    for (int s = d.scale; s > 0; s--) { if (c % 10 != 0) return 0; c /= 10; }
+    return 1;
+}
+static CufetBits cufet_bits_shift(CufetBits a, CufetDec amount, int left, int line) {
+    char buf[64];
+    if (!cufet_bits_whole(amount)) {
+        cufet_format_number(buf, sizeof(buf), amount);
+        cufet_raise(cufet_msgf("the shift amount must be a whole number of positions, not %s (line %d).", buf, line));
+    }
+    if (cufet_cmp(amount, cufet_dec_from_ll(0)) < 0)
+        cufet_raise(cufet_msgf("the shift amount cannot be negative — shift the other way instead (line %d).", line));
+
+    /* Clamp before converting: anything past the ceiling behaves identically, and cufet_to_int
+       would overflow on a genuinely huge amount. */
+    int by = cufet_cmp(amount, cufet_dec_from_ll(64)) > 0 ? 65 : cufet_to_int(amount);
+
+    if (!left) {
+        CufetBits out;
+        out.value = by >= 64 ? 0ULL : (a.value >> by);
+        out.base  = a.base;
+        out.width = a.width;
+        return out;
+    }
+
+    if ((by >= 64 && a.value != 0) || (by < 64 && a.value > (~0ULL >> by))) {
+        char x[80];
+        cufet_format_bits(x, sizeof(x), a);
+        cufet_format_number(buf, sizeof(buf), amount);
+        cufet_raise(cufet_msgf("%s shifted left by %s does not fit in 64 bits (line %d).", x, buf, line));
+    }
+    return cufet_bits_combine(a, by >= 64 ? 0ULL : (a.value << by));
+}
+
 /* A caught failure (in an In-case-of-failure handler) — T-agnostic, so one handler works
    regardless of which fallible call's T produced the failure. category NULL = absent. */
 typedef struct { const char* message; const char* category; } CufetFailure;
@@ -4529,6 +4571,7 @@ static void* cufet_pipe_stage(void* argp) {
     {
         NumberLiteral         => TNumber,
         BitsLiteral           => TBits,
+        BitsShift             => TBits,
         BooleanLiteral        => TFact,
         StringLiteral         => TText,
         RangeExpression       => new SeriesType(TNumber),
@@ -5065,6 +5108,7 @@ static void* cufet_pipe_stage(void* argp) {
     {
         NumberLiteral n       => EmitNumberLiteral(n.Value),
         BitsLiteral b         => $"(CufetBits){{ {b.Value}ULL, '{b.Base}', {b.Width} }}",
+        BitsShift bs          => $"cufet_bits_shift({EmitExpr(bs.Target)}, {EmitExpr(bs.Amount)}, {(bs.Left ? 1 : 0)}, {bs.Line})",
         BooleanLiteral bl     => bl.Value ? "1" : "0",
         StringLiteral s       => EscapeStringLiteral(s.Value),   // text-as-stored-data: static C string
         UnaryExpression u     => EmitUnary(u),

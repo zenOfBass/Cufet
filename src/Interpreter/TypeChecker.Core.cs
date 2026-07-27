@@ -1189,6 +1189,7 @@ public sealed partial class TypeChecker
     {
         NumberLiteral                                                                                    => CufetType.Number,
         BitsLiteral                                                                                     => CufetType.Bits,
+        BitsShift bs                                                                                    => InferBitsShift(bs),
         StringLiteral                                                                                    => CufetType.Text,
         BooleanLiteral                                                                                   => CufetType.Fact,
         VoidLiteral                                                                                      => CufetType.Void,
@@ -1282,6 +1283,35 @@ public sealed partial class TypeChecker
             ReadForm.AllLines => new SeriesType(CufetType.Text),
             _                 => throw new InvalidOperationException($"Unknown ReadForm {re.Form}"),
         };
+    }
+
+    // <bits> shifted left|right by <number>. Shifting is wiring, not a gate — it moves bits
+    // rather than combining them — so it is a transform of its own rather than an operator, and
+    // the amount is a COUNT OF POSITIONS: a quantity, like the 3 in 'item 3 of s', not a pattern.
+    private CufetType? InferBitsShift(BitsShift shift)
+    {
+        var target = InferType(shift.Target);
+        var amount = InferType(shift.Amount);
+
+        if (target != null && target != CufetType.Bits)
+            throw new TypeException(FormatTypeError(
+                "shifting works on bits",
+                null, shift.Line,
+                $"shift a {FormatType(target)}",
+                target == CufetType.Number
+                    ? "A number is a quantity, and has no bit positions to move. Write the " +
+                      "value as a bit pattern (0xFF, 0b1010, 0o755) if that is what you meant."
+                    : "Only a bits value can be shifted."));
+
+        if (amount != null && amount != CufetType.Number)
+            throw new TypeException(FormatTypeError(
+                "the shift amount counts positions, so it is a number",
+                null, shift.Line,
+                $"shift by a {FormatType(amount)}",
+                "Write how many places to move as an ordinary number — 'flags shifted left by 3' " +
+                "— not as a bit pattern. It is a count, like the 3 in 'item 3 of s'."));
+
+        return CufetType.Bits;
     }
 
     private CufetType? InferUnary(UnaryExpression unary)

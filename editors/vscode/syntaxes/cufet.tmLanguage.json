@@ -212,7 +212,7 @@
         },
         {
           "name": "keyword.operator.word.cufet",
-          "match": "(?<![\\w-])(?i:is\\s+not|is\\s+greater\\s+than|is\\s+less\\s+than|or\\s+more|or\\s+less|joined\\s+to|converted\\s+to|in\\s+uppercase|in\\s+lowercase|in\\s+reverse|split\\s+by|sorted\\s+by|counting\\s+by|randomly\\s+shuffled|filled\\s+with)(?![\\w-])"
+          "match": "(?<![\\w-])(?i:is\\s+not|is\\s+greater\\s+than|is\\s+less\\s+than|or\\s+more|or\\s+less|joined\\s+to|converted\\s+to|in\\s+uppercase|in\\s+lowercase|in\\s+reverse|split\\s+by|sorted\\s+by|counting\\s+by|randomly\\s+shuffled|filled\\s+with|shifted\\s+left\\s+by|shifted\\s+right\\s+by)(?![\\w-])"
         }
       ]
     },

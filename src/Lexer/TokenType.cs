@@ -126,6 +126,12 @@ public enum TokenType
     Uppercase,  // "uppercase"  — in "<text> in uppercase"
     Lowercase,  // "lowercase"  — in "<text> in lowercase"
     Trimmed,    // "trimmed"    — in "<text> trimmed"
+    Shifted,    // "shifted"    — in "<bits> shifted left by <n>" / "shifted right by <n>".
+                //                 A past-participle transform, like Sorted and Trimmed, so it
+                //                 TRAILS its operand. 'left' and 'right' are deliberately NOT
+                //                 reserved — 'the left of node' is the most natural thing anyone
+                //                 writes for a binary tree, and one operator is not worth
+                //                 forbidding it. They are matched by lexeme in this shape only.
 
     // ── Sort ──────────────────────────────────────────────────────────────────
     Sorted,   // "sorted"   — in "<series> sorted", "<series> sorted in reverse", "<series> sorted by <field>"

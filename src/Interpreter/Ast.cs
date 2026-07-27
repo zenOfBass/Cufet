@@ -14,6 +14,12 @@ public sealed record NumberLiteral(decimal Value)                               
 // and no negative numbers anywhere.
 public sealed record BitsLiteral(ulong Value, char Base, int Width, int Line)             : IExpression;
 
+// <bits> shifted left|right by <number>. The Amount is a NUMBER, not bits: it counts positions,
+// which is a quantity, the way the 3 in "item 3 of s" is. Left shifts widen so nothing is lost;
+// right shifts discard the low bits, which is what a right shift IS rather than a failure of
+// representation.
+public sealed record BitsShift(IExpression Target, bool Left, IExpression Amount, int Line)  : IExpression;
+
 public sealed record StringLiteral(string Value)                                         : IExpression;
 public sealed record BooleanLiteral(bool Value, int Line)                                : IExpression;
 public sealed record VariableReference(string Name, int Line)                            : IExpression;

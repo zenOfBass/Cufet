@@ -162,6 +162,7 @@ public sealed class Lexer
             "uppercase"  => TokenType.Uppercase,
             "lowercase"  => TokenType.Lowercase,
             "trimmed"    => TokenType.Trimmed,
+            "shifted"    => TokenType.Shifted,
             "sorted"     => TokenType.Sorted,
             "reverse"    => TokenType.Reverse,
             "random"     => TokenType.Random,

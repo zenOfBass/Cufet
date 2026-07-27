@@ -1805,8 +1805,34 @@ public sealed class Parser
         // enclosing construct to consume.
         while (Peek().Type == TokenType.Trimmed ||
                Peek().Type == TokenType.Sorted ||
+               Peek().Type == TokenType.Shifted ||
                (Peek().Type == TokenType.In && PeekAfterCurrent() is TokenType.Uppercase or TokenType.Lowercase))
         {
+            if (Peek().Type == TokenType.Shifted)
+            {
+                var line = Advance().Line;   // consume 'shifted'
+                SkipNoise();
+                // 'left' and 'right' are ordinary identifiers everywhere else — matched here by
+                // lexeme so that 'the left of node' keeps working.
+                var dir = Peek();
+                bool left = dir.Type == TokenType.Identifier
+                            && dir.Lexeme.Equals("left", StringComparison.OrdinalIgnoreCase);
+                bool right = dir.Type == TokenType.Identifier
+                             && dir.Lexeme.Equals("right", StringComparison.OrdinalIgnoreCase);
+                if (!left && !right)
+                    throw new ParseException(dir.Line, "expected 'left' or 'right' after 'shifted'");
+                Advance();                   // consume the direction
+                SkipNoise();
+                Consume(TokenType.By);
+                SkipNoise();
+                // ParseUnary, not ParseExpression: 'x shifted left by 2 + 1' still reads as
+                // '(x shifted left by 2) + 1', matching how the other trailing transforms bind,
+                // but 'by -1' reaches the amount check and gets told what is wrong with it
+                // instead of dying as "expected expression, got Minus".
+                baseExpr = new BitsShift(baseExpr, left, ParseUnary(), line);
+                SkipNoise();
+                continue;
+            }
             if (Peek().Type == TokenType.Sorted)
             {
                 var line = Advance().Line; // consume 'sorted'
