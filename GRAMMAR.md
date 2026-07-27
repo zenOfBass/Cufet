@@ -351,6 +351,36 @@ let a mask's notation hijack the display of the thing being masked.
 A result **widens** when the value needs more room (`0b1 or 0xFF` → `0b11111111`) and never
 truncates. Nothing silently falls off the end; narrow deliberately with an `and`.
 
+### Shifts — `shifted left by` / `shifted right by`
+
+**Shifting is wiring, not a gate** — it moves bits rather than combining them — so it is a
+trailing transform in the `sorted` / `trimmed` family, not an operator.
+
+```
+State 0b0001 shifted left by 3.    [[ 0b1000 ]]
+State 0xFF shifted left by 4.      [[ 0xFF0  — widened, nothing lost ]]
+State 0xFF shifted right by 4.     [[ 0x0F ]]
+```
+
+**The amount is a `number`, not bits.** It counts *positions* — a quantity, like the `3` in
+`item 3 of s`. `0xFF shifted left by 0x1` is a type error. It must be whole and non-negative.
+
+**Left shifts widen; right shifts discard the low bits.** That is the one place something
+genuinely falls off, and it is not an inconsistency: discarding them *is* a right shift, rather
+than a failure of representation. Being unsigned also means there is no arithmetic-versus-logical
+right shift — no sign bit, so only one answer.
+
+Shifting left past the 64-bit ceiling raises, like a multiply overflow.
+
+**`left` and `right` are not reserved.** They are matched by lexeme in this shape only, so
+`the left of node` and `Define left as 7.` both keep working — a binary tree should not have to
+give up its field names to spell one operator.
+
+```
+Define n as 8.
+State (0b1 shifted left by n) - 0x1.   [[ 0b011111111 — the standard n-bit mask ]]
+```
+
 ### Arithmetic — and what has no representation
 
 `+ - * / %` work on two bit patterns. **`/` is integer division**, unlike on numbers — the same
