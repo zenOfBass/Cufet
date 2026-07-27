@@ -1255,22 +1255,74 @@ public sealed partial class Interpreter
         if (u.Op == TokenType.Not)
         {
             var val = Evaluate(u.Operand);
+            // On a bit pattern, flip every bit WITHIN ITS OWN WIDTH: 'not 0xFF' is 0x00, and
+            // 'not 0b1010' is 0b0101. That the type is unsigned and carries a width is exactly
+            // why those are the answers, instead of the -6 a signed reading would produce.
+            // The width is unchanged — flipping bits cannot need more of them.
+            if (val is BitsValue bits)
+            {
+                ulong mask = bits.Width >= 64 ? ulong.MaxValue : (1UL << bits.Width) - 1;
+                return new BitsValue(~bits.Value & mask, bits.Base, bits.Width);
+            }
             if (val is not bool b)
-                throw new RuntimeException($"'not' requires a true-or-false value (line {u.Line}).");
+                throw new RuntimeException($"'not' requires a true-or-false value or a bits value (line {u.Line}).");
             return (object)!b;
         }
         return (object)(-ToNumber(Evaluate(u.Operand), "unary -"));
     }
 
+    // The width a gate's result carries: the LEFT operand's, widened when the value needs more.
+    // Left because in real bit code the left operand is the accumulator — `flags or MASK`,
+    // `flags and not MASK` — so it is the thing you care about and will print. Widening rather
+    // than truncating means nothing ever silently falls off the end; narrow deliberately with
+    // an `and` if that is what you want.
+    private static BitsValue Combine(BitsValue left, ulong result)
+        => new(result, left.Base, Math.Max(left.Width, MinimumWidth(result)));
+
+    private static int MinimumWidth(ulong v)
+    {
+        int bits = 0;
+        while (v != 0) { bits++; v >>= 1; }
+        return bits;
+    }
+
     private object EvaluateBinary(BinaryExpression b)
     {
-        // Short-circuit: evaluate right only when the left doesn't decide the result.
-        if (b.Op is TokenType.And or TokenType.Or)
+        // The gates. The left operand is evaluated ONCE here and the type it produces picks the
+        // strategy — evaluating it inside a pattern test per branch would run its side effects
+        // more than once.
+        if (b.Op is TokenType.And or TokenType.Or or TokenType.Xor)
         {
-            var opName = b.Op == TokenType.And ? "and" : "or";
+            var opName = b.Op == TokenType.And ? "and" : b.Op == TokenType.Or ? "or" : "xor";
             var lv = Evaluate(b.Left);
+
+            // On bit patterns, no short-circuit is possible — you need both patterns in hand to
+            // combine them. Same word, different evaluation strategy chosen by type: the same
+            // deliberate exception matrix arithmetic already makes for '+' and '*'.
+            if (lv is BitsValue lbits)
+            {
+                if (Evaluate(b.Right) is not BitsValue rbits)
+                    throw new RuntimeException($"'{opName}' needs a bits value on both sides (line {b.Line}).");
+                return Combine(lbits, b.Op switch
+                {
+                    TokenType.And => lbits.Value & rbits.Value,
+                    TokenType.Or  => lbits.Value | rbits.Value,
+                    _             => lbits.Value ^ rbits.Value,
+                });
+            }
+
             if (lv is not bool lb)
                 throw new RuntimeException($"'{opName}' requires true-or-false values on both sides (line {b.Line}).");
+
+            // xor never short-circuits, on facts either: both sides always decide the answer.
+            if (b.Op == TokenType.Xor)
+            {
+                if (Evaluate(b.Right) is not bool rxb)
+                    throw new RuntimeException($"'xor' requires true-or-false values on both sides (line {b.Line}).");
+                return (object)(lb ^ rxb);
+            }
+
+            // Short-circuit: evaluate right only when the left doesn't decide the result.
             if (b.Op == TokenType.And && !lb) return (object)false;
             if (b.Op == TokenType.Or  &&  lb) return (object)true;
             var rv = Evaluate(b.Right);

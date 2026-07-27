@@ -181,4 +181,146 @@ public class BitsTests
             Interpret("Define x as 0x0F.\nx becomes 3."));
         Assert.Contains("0x0F", ex.Message);
     }
+
+    // ── The gates ────────────────────────────────────────────────────────
+    // A 32-bit AND is 32 AND gates side by side, so the same words serve a fact (one bit) and
+    // a bits value (N of them).
+
+    [Theory]
+    [InlineData("State 0xFF and 0x0F.",     "0x0F")]
+    [InlineData("State 0xF0 or 0x0F.",      "0xFF")]
+    [InlineData("State 0b1100 xor 0b1010.", "0b0110")]
+    public void Bits_Gates(string source, string expected) => Oracle(source, expected);
+
+    [Fact]
+    public void Bits_NotFlipsWithinItsOwnWidth()
+    {
+        // The headline. A signed reading would make `not 0xFF` come out as -6-style nonsense;
+        // unsigned with a known width makes it 0x00, which is what anyone would expect.
+        Oracle("State not 0xFF.",   "0x00");
+        Oracle("State not 0b1010.", "0b0101");
+        Oracle("State not 0x0.",    "0xF");     // one digit = 4 bits, so all four flip
+        Oracle("State not 0x00.",   "0xFF");    // two digits = 8 bits
+    }
+
+    [Fact]
+    public void Bits_ClearingABit()
+    {
+        // `flags and not MASK` is the only clean way to unset a bit, and is why `not` had to
+        // exist on bits at all rather than being dropped for being surprising.
+        Oracle("Define flags as 0b1111.\nState flags and not 0b0100.", "0b1011");
+    }
+
+    // ── The left operand dominates, for both base and width ──────────────
+    // In real bit code the left operand is the accumulator, so its notation is the one that
+    // should survive into the output.
+
+    [Fact]
+    public void Bits_ResultTakesTheLeftOperandsBaseAndWidth()
+    {
+        Oracle("State 0xFF and 0b1010.", "0x0A");     // hex on the left → hex out
+        Oracle("State 0b1010 and 0xFF.", "0b1010");   // binary on the left → binary out
+    }
+
+    [Fact]
+    public void Bits_ResultWidensWhenTheValueNeedsMoreRoom()
+    {
+        // Nothing ever silently falls off the end; narrow deliberately with an `and`.
+        Oracle("State 0x0F or 0xF0.", "0xFF");
+        Oracle("State 0b1 or 0xFF.",  "0b11111111");  // 1-bit left operand grows to hold 255
+    }
+
+    // ── Precedence: and > xor > or, mirroring & > ^ > | ──────────────────
+
+    [Fact]
+    public void Bits_XorBindsTighterThanOrAndLooserThanAnd()
+    {
+        // 0b1100 and 0b1010 = 0b1000; 0b1000 xor 0b0011 = 0b1011; 0b1011 or 0b0100 = 0b1111.
+        // Any other grouping gives a different answer, so this pins the precedence.
+        Oracle("State 0b1100 and 0b1010 xor 0b0011 or 0b0100.", "0b1111");
+    }
+
+    [Fact]
+    public void Xor_OnFacts()
+    {
+        Oracle("State true xor false.", "true");
+        Oracle("State true xor true.",  "false");
+        Oracle("State false xor false.", "false");
+    }
+
+    [Fact]
+    public void Xor_WorksInAConditionToo()
+    {
+        // The condition parser has its own precedence chain; xor has to mean the same in both.
+        Oracle("If true xor false:\n    State \"yes\".\nDone.", "yes");
+    }
+
+    // ── Gates stay off numbers, which is the whole point ─────────────────
+
+    [Fact]
+    public void Gates_RefuseNumbers()
+    {
+        var ex = Assert.Throws<TypeException>(() => Interpret("State 5 and 3."));
+        Assert.Contains("gate", ex.Message);
+        Assert.Contains("quantity", ex.Message);
+    }
+
+    [Fact]
+    public void Not_RefusesNumbers()
+    {
+        // `not 5` is the expression that started the whole design conversation. It cannot be
+        // written, so it cannot surprise anyone with -6.
+        var ex = Assert.Throws<TypeException>(() => Interpret("State not 5."));
+        Assert.Contains("no bits to flip", ex.Message);
+    }
+
+    [Fact]
+    public void Gates_RefuseMixedFactAndBits()
+    {
+        Assert.Throws<TypeException>(() => Interpret("State 0xFF and true."));
+        Assert.Throws<TypeException>(() => Interpret("State true and 0xFF."));
+    }
+
+    [Fact]
+    public void Gates_CsMostFamousPrecedenceBugIsATypeErrorHere()
+    {
+        // In C, `a & b == c` silently parses as `a & (b == c)` and computes nonsense. Cufet has
+        // the same precedence, but keeping bit patterns out of `number` turns the mis-parse into
+        // `bits and fact` — refused at compile time instead of quietly wrong.
+        Assert.Throws<TypeException>(() => Interpret("State 0xFF and 0x0F = 0x0F."));
+    }
+
+    // ── The deliberate short-circuit asymmetry ───────────────────────────
+
+    [Fact]
+    public void Gates_ShortCircuitOnFactsButNotOnBits()
+    {
+        // On facts `and` skips the right side when the left already decides it. On bits it
+        // cannot — combining two patterns needs both. Same word, different strategy, chosen by
+        // type: the exception matrix arithmetic already makes for '+' and '*'.
+        const string facts = """
+            Bind fact to noisy, given (the number n):
+                State "ran".
+                Return true.
+            Done.
+            If false and cast noisy on (1):
+                State "unreachable".
+            Done.
+            State "end".
+            """;
+        Oracle(facts, "end");   // "ran" never printed — the right side was skipped
+    }
+
+    [Fact]
+    public void Gates_BitsAlwaysEvaluateBothSides()
+    {
+        const string bits = """
+            Bind bits to noisy, given (the number n):
+                State "ran".
+                Return 0x0F.
+            Done.
+            State 0x00 and cast noisy on (1).
+            """;
+        Oracle(bits, "ran\n0x00");   // "ran" printed even though 0x00 fixes the answer
+    }
 }

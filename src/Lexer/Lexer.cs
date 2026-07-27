@@ -102,6 +102,7 @@ public sealed class Lexer
             "than"      => TokenType.Than,
             "or"        => TokenType.Or,
             "and"       => TokenType.And,
+            "xor"       => TokenType.Xor,
             "more"      => TokenType.More,
             "while"     => TokenType.While,
             "repeat"    => TokenType.Repeat,

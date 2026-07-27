@@ -275,7 +275,7 @@
         {
           "comment": "Word-form operators.",
           "name": "keyword.operator.word.cufet",
-          "match": "(?<![\\w-])(?i:becomes|is|not|and|or|greater|less|than|more|has|contains|like|joined|converted|split|sorted|shuffled|randomly|reverse|trimmed|uppercase|lowercase|counting|filled)(?![\\w-])"
+          "match": "(?<![\\w-])(?i:becomes|is|not|and|or|xor|greater|less|than|more|has|contains|like|joined|converted|split|sorted|shuffled|randomly|reverse|trimmed|uppercase|lowercase|counting|filled)(?![\\w-])"
         },
         {
           "comment": "Built-in accessors and nouns.",

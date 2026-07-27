@@ -1327,13 +1327,28 @@ public sealed class Parser
 
     private IExpression ParseLogicalOr()
     {
-        var left = ParseLogicalAnd();
+        var left = ParseLogicalXor();
         while (Peek().Type == TokenType.Or)
         {
             var line = Advance().Line;
             SkipNoise();
-            var right = ParseLogicalAnd();
+            var right = ParseLogicalXor();
             left = new BinaryExpression(left, TokenType.Or, right, line);
+        }
+        return left;
+    }
+
+    // The condition chain mirrors the expression chain — same precedence, so `xor` means the
+    // same thing in `If a xor b:` as it does in `Define c as a xor b.`
+    private IExpression ParseLogicalXor()
+    {
+        var left = ParseLogicalAnd();
+        while (Peek().Type == TokenType.Xor)
+        {
+            var line = Advance().Line;
+            SkipNoise();
+            var right = ParseLogicalAnd();
+            left = new BinaryExpression(left, TokenType.Xor, right, line);
         }
         return left;
     }
@@ -1551,12 +1566,26 @@ public sealed class Parser
 
     private IExpression ParseExprOr()
     {
-        var left = ParseExprAnd();
+        var left = ParseExprXor();
         while (Peek().Type == TokenType.Or && PeekAfterCurrent() != TokenType.Pass)
         {
             var line = Advance().Line;
             SkipNoise();
-            left = new BinaryExpression(left, TokenType.Or, ParseExprAnd(), line);
+            left = new BinaryExpression(left, TokenType.Or, ParseExprXor(), line);
+        }
+        return left;
+    }
+
+    // xor binds tighter than or and looser than and, mirroring the & > ^ > | nesting every
+    // C-family language uses — so `a and b xor c or d` groups as `((a and b) xor c) or d`.
+    private IExpression ParseExprXor()
+    {
+        var left = ParseExprAnd();
+        while (Peek().Type == TokenType.Xor)
+        {
+            var line = Advance().Line;
+            SkipNoise();
+            left = new BinaryExpression(left, TokenType.Xor, ParseExprAnd(), line);
         }
         return left;
     }

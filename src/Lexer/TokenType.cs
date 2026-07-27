@@ -53,6 +53,8 @@ public enum TokenType
     Than,     // "than"  — in "is greater/less than"
     Or,       // "or"    — logical-or, and comparison tail in "or more" / "or less"
     And,      // "and"   — logical-and
+    Xor,      // "xor"   — exclusive-or. A gate, so it works on both facts (1 bit) and bits
+              //           (N bits), same as and/or. Sits between them in precedence.
     More,     // "more"  — in "or more"
 
     // ── Loops ─────────────────────────────────────────────────────────────

@@ -768,6 +768,37 @@ static void cufet_print_fact(int b) { cufet_write_fact(b); printf("\n"); }
 static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n"); }
 static void cufet_print_bits(CufetBits x) { cufet_write_bits(x); printf("\n"); }
 
+/* The gates. A result carries the LEFT operand's base and width, widened when the value needs
+   more room — left because in real bit code the left operand is the accumulator
+   (`flags or MASK`, `flags and not MASK`), so it is the thing you will print. Widening rather
+   than truncating means nothing ever silently falls off the end. */
+static int cufet_bits_minwidth(unsigned long long v) {
+    int n = 0;
+    while (v) { n++; v >>= 1; }
+    return n;
+}
+static CufetBits cufet_bits_combine(CufetBits left, unsigned long long result) {
+    int min = cufet_bits_minwidth(result);
+    CufetBits out;
+    out.value = result;
+    out.base  = left.base;
+    out.width = left.width > min ? left.width : min;
+    return out;
+}
+static CufetBits cufet_bits_and(CufetBits a, CufetBits b) { return cufet_bits_combine(a, a.value & b.value); }
+static CufetBits cufet_bits_or (CufetBits a, CufetBits b) { return cufet_bits_combine(a, a.value | b.value); }
+static CufetBits cufet_bits_xor(CufetBits a, CufetBits b) { return cufet_bits_combine(a, a.value ^ b.value); }
+/* Flips every bit WITHIN the value's own width, so not 0xFF is 0x00 and not 0b1010 is 0b0101.
+   Unsigned with a known width is precisely why those are the answers rather than a negative. */
+static CufetBits cufet_bits_not(CufetBits a) {
+    unsigned long long mask = a.width >= 64 ? ~0ULL : ((1ULL << a.width) - 1ULL);
+    CufetBits out;
+    out.value = (~a.value) & mask;
+    out.base  = a.base;
+    out.width = a.width;
+    return out;
+}
+
 /* A caught failure (in an In-case-of-failure handler) — T-agnostic, so one handler works
    regardless of which fallible call's T produced the failure. category NULL = absent. */
 typedef struct { const char* message; const char* category; } CufetFailure;
@@ -4467,7 +4498,9 @@ static void* cufet_pipe_stage(void* argp) {
         SeriesLiteral sl      => new SeriesType(SeriesElementType(sl)),
         SeriesLength          => TNumber,
         SeriesAccess sa       => SeriesAccessType(sa),
-        UnaryExpression u     => u.Op == TokenType.Not ? TFact : TNumber,
+        // 'not' over a bit pattern gives a bit pattern back, same width; over a fact, a fact.
+        UnaryExpression u     => u.Op != TokenType.Not ? TNumber
+                               : TypeOf(u.Operand) is BitsType ? TBits : TFact,
         // A matrix binary op's VALUE type is matrix (the raw `matrix or failure` is seen only by
         // FallibleReturnType — same unwrap convention as fallible calls).
         // An overloaded operator's VALUE type is the overload's declared return — which may be ANY
@@ -4475,6 +4508,11 @@ static void* cufet_pipe_stage(void* argp) {
         // overload unwraps to its success type, the same convention as a fallible call.
         BinaryExpression b    => IsMatrixOp(b) ? MatrixType.Instance
                                : OverloadFor(b) is { } ov ? OverloadValueType(ov, b.Op)
+                               // A gate over bit patterns yields a bit pattern; over facts, a
+                               // fact. Checked before the arithmetic/comparison split, which
+                               // would otherwise call every non-arithmetic result a fact.
+                               : b.Op is TokenType.And or TokenType.Or or TokenType.Xor
+                                 && TypeOf(b.Left) is BitsType ? TBits
                                : IsArithmeticOp(b.Op) ? TNumber : TFact,
         MatrixLiteral         => MatrixType.Instance,
         MatrixSized           => MatrixType.Instance,
@@ -6787,6 +6825,8 @@ static void* cufet_pipe_stage(void* argp) {
     private string EmitUnary(UnaryExpression u) => u.Op switch
     {
         TokenType.Minus => $"cufet_neg({EmitExpr(u.Operand)})",
+        TokenType.Not when TypeOf(u.Operand) is BitsType
+                        => $"cufet_bits_not({EmitExpr(u.Operand)})",
         TokenType.Not   => $"(!{EmitExpr(u.Operand)})",
         _ => throw new CompilerException($"Unary operator '{u.Op}' is not yet supported by the compiler.")
     };
@@ -6827,8 +6867,17 @@ static void* cufet_pipe_stage(void* argp) {
             case TokenType.Star:    return $"cufet_mul({L}, {R})";
             case TokenType.Slash:   return $"cufet_div({L}, {R}, {b.Line})";
             case TokenType.Percent: return $"cufet_mod({L}, {R}, {b.Line})";
+            // Gates on bit patterns. Note these are function calls, not && / ||: combining two
+            // patterns needs both operands, so there is nothing to short-circuit. That
+            // asymmetry with the fact case below is deliberate and type-directed.
+            case TokenType.And when TypeOf(b.Left) is BitsType: return $"cufet_bits_and({L}, {R})";
+            case TokenType.Or  when TypeOf(b.Left) is BitsType: return $"cufet_bits_or({L}, {R})";
+            case TokenType.Xor when TypeOf(b.Left) is BitsType: return $"cufet_bits_xor({L}, {R})";
             case TokenType.And:     return $"({L} && {R})";
             case TokenType.Or:      return $"({L} || {R})";
+            // On facts, xor cannot short-circuit either — both sides always decide the answer.
+            // '!=' on two normalised ints is exclusive-or.
+            case TokenType.Xor:     return $"(!!({L}) != !!({R}))";
         }
 
         // Comparison / equality. Numbers via cufet_cmp; text via strcmp; facts are ints.

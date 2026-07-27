@@ -1291,12 +1291,21 @@ public sealed partial class TypeChecker
         if (unary.Op == TokenType.Not)
         {
             if (operand == CufetType.Fact) return CufetType.Fact;
+            // On bits, 'not' flips every bit inside the value's own width — 'not 0xFF' is 0x00.
+            // The type is unsigned and has a width, which is exactly why that is the answer
+            // rather than the -6 a signed reading would give.
+            if (operand == CufetType.Bits) return CufetType.Bits;
             throw new TypeException(FormatTypeError(
-                "'not' works on true-or-false values only",
+                "'not' flips a fact or a bit pattern",
                 null,
                 unary.Line,
                 $"negate a {FormatType(operand)} value",
-                "Make sure the value you're negating is a fact (a true or false value). Write a comparison like 'x is 5' if you need one."));
+                operand == CufetType.Number
+                    ? "A number is a quantity, and has no bits to flip. Write the value as a " +
+                      "bit pattern (0xFF, 0b1010, 0o755) if that is what you meant, or use " +
+                      "unary minus if you wanted to negate the quantity."
+                    : "Make sure the value you're negating is a fact (a true or false value) " +
+                      "or a bits value. Write a comparison like 'x is 5' if you need one."));
         }
         // unary minus
         if (operand == CufetType.Number) return CufetType.Number;
@@ -1402,16 +1411,35 @@ public sealed partial class TypeChecker
                     bin.Line,
                     $"order a {FormatType(l)} and a {FormatType(r)}",
                     "Ordering comparisons (>, <, >=, <=) require both sides to be numbers.")),
-            TokenType.And or TokenType.Or
+            // The gates. A 32-bit AND *is* 32 AND gates side by side, so the same words work at
+            // both widths: a fact is one bit, a bits value is N. They stay off `number`
+            // deliberately — a quantity has no bits to combine, and that separation is what
+            // keeps `not 5` from meaning -6.
+            TokenType.And or TokenType.Or or TokenType.Xor
                 when l == CufetType.Fact && r == CufetType.Fact
                 => CufetType.Fact,
-            TokenType.And or TokenType.Or
+            TokenType.And or TokenType.Or or TokenType.Xor
+                when l == CufetType.Bits && r == CufetType.Bits
+                => CufetType.Bits,
+            TokenType.And or TokenType.Or or TokenType.Xor
+                when l == CufetType.Number || r == CufetType.Number
                 => throw new TypeException(FormatTypeError(
-                    $"'{FormatOp(bin.Op)}' requires true-or-false values on both sides",
+                    $"'{FormatOp(bin.Op)}' is a gate, and a number has no bits to combine",
                     null,
                     bin.Line,
                     $"use '{FormatOp(bin.Op)}' with {FormatType(l)} and {FormatType(r)}",
-                    $"Both sides of '{FormatOp(bin.Op)}' must be a fact (a true or false value). Did you mean to write a comparison like 'x is 0' rather than just 'x'?")),
+                    "Gates work on facts (one bit) and on bits (a pattern of them), not on " +
+                    "numbers. A number is a quantity — 255 counts something, where 0xFF is a " +
+                    "pattern of eight bits. Write the value as a bit pattern (0xFF, 0b1010, " +
+                    "0o755), or convert with 'converted to hex'.")),
+            TokenType.And or TokenType.Or or TokenType.Xor
+                => throw new TypeException(FormatTypeError(
+                    $"'{FormatOp(bin.Op)}' needs both sides to be the same kind of thing",
+                    null,
+                    bin.Line,
+                    $"use '{FormatOp(bin.Op)}' with {FormatType(l)} and {FormatType(r)}",
+                    $"Both sides of '{FormatOp(bin.Op)}' must be facts, or both must be bits. " +
+                    "Did you mean to write a comparison like 'x is 0' rather than just 'x'?")),
             _ => null
         };
     }
@@ -1729,6 +1757,7 @@ public sealed partial class TypeChecker
         TokenType.Percent => "%",
         TokenType.And     => "and",
         TokenType.Or      => "or",
+        TokenType.Xor     => "xor",
         _                 => op.ToString().ToLower(),
     };
 }
