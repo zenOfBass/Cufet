@@ -53,15 +53,24 @@ changes to `extension.js` or the grammar.
 
 ## The checker needs something to run
 
-Error squiggles come from the real front end, so there has to be a build of it:
+Error squiggles come from the real front end, so there has to be a Cufet to run. Install it once
+and squiggles work on any `.cufe` file anywhere:
 
 ```sh
-dotnet build
+dotnet pack src/App/Cufet.App.csproj -c Release
+dotnet tool install --global --add-source src/App/bin/Release Cufet
 ```
 
-The extension finds `src/App/bin/*/net*/Cufet.App` under any workspace folder on its own, and
-prefers the most recently built one. If your Cufet lives somewhere else, set `cufet.executable`
-to its full path. Failing both, it tries `cufet` on your `PATH`.
+The extension resolves what to run in this order:
+
+1. `cufet.executable`, if you set it.
+2. The most recently built `src/App/bin/*/net*/Cufet.App` under any workspace folder — so when
+   you are working *on* the compiler, your local build wins over the installed one, which is
+   what you want.
+3. `cufet` on your `PATH`.
+
+Step 2 is why `dotnet build` alone is enough inside this repository. Outside it, you need the
+installed tool — otherwise there is nothing to find.
 
 If it cannot run anything it says so once, offers to run `dotnet build` for you, and stays quiet
 after that.
