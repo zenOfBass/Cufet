@@ -351,6 +351,39 @@ let a mask's notation hijack the display of the thing being masked.
 A result **widens** when the value needs more room (`0b1 or 0xFF` → `0b11111111`) and never
 truncates. Nothing silently falls off the end; narrow deliberately with an `and`.
 
+### Arithmetic — and what has no representation
+
+`+ - * / %` work on two bit patterns. **`/` is integer division**, unlike on numbers — the same
+surface with a different meaning per operand type, as matrix arithmetic already does.
+
+```
+State 0x0F + 0x01.   [[ 0x10 ]]
+State 0xFF * 0x02.   [[ 0x1FE  — widened to hold it ]]
+State 0xFF / 0x10.   [[ 0x0F   — integer division ]]
+State 0x07 / 0x02.   [[ 0x03   — where 7 / 2 is 3.5 ]]
+```
+
+Ordering (`<`, `>`, `<=`, `>=`, and the word forms) works too. **Equality and ordering compare
+the VALUE**, so base and width are ignored: `0xFF = 0x00FF` and `0o377 = 0xFF` are both true.
+
+**Unary minus is refused** — bits are unsigned and have no negative. You probably want `not`.
+
+**A result with no representation raises**, exactly as division by zero does:
+
+```
+State 0x00 - 0x1.               [[ would be negative, and bits are unsigned ]]
+State 0xFFFFFFFFFFFFFFFF + 0x1. [[ does not fit in 64 bits ]]
+```
+
+These raise rather than becoming value-level failures on purpose. A failure would ride in the
+type as `bits or failure` and force an unwrap after *every* masking expression — which is
+precisely why division by zero is not one either. Catch them with `In case of exception` if you
+need to.
+
+**Width never shrinks back.** The rule is the left operand's width raised to fit, so once a
+value has widened it stays wide: `(0b1 * 0x100) - 0x1` prints `0b011111111`, nine digits, not
+eight. Narrow deliberately with an `and` if you want the shorter form.
+
 ### ★ `and`/`or` short-circuit on facts, and cannot on bits
 
 ```
