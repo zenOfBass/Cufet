@@ -11,25 +11,40 @@ Two pieces, both small:
 ## Installing
 
 The extension needs no build step — there is nothing to compile and no `npm install` to run.
-Point VS Code at this directory and reload.
-
-**Windows** (a junction works without administrator rights, and edits to the extension take
-effect on the next reload):
+**Copy** the directory into your extensions folder:
 
 ```powershell
-New-Item -ItemType Junction -Path "$env:USERPROFILE\.vscode\extensions\cufet" -Target "$PWD\editors\vscode"
+Copy-Item "$PWD\editors\vscode" "$env:USERPROFILE\.vscode\extensions\cufet" -Recurse
 ```
-
-**macOS / Linux:**
 
 ```sh
-ln -s "$PWD/editors/vscode" ~/.vscode/extensions/cufet
+cp -r "$PWD/editors/vscode" ~/.vscode/extensions/cufet
 ```
 
-Then run **Developer: Reload Window** from the command palette. Open any `.cufe` file to confirm
-it is highlighted and that the status bar says `Cufet`.
+Then **quit VS Code completely and start it again** — not *Developer: Reload Window*. Reloading
+restarts the workbench but can reuse a cached extension scan, so a newly-added extension may not
+be picked up until the process restarts. Open a `.cufe` file to confirm: it should be coloured,
+and the language indicator in the status bar should read `Cufet`.
 
-To copy instead of linking, replace the command with a plain `cp -r` / `Copy-Item -Recurse`.
+> **Do not symlink it.** A junction (`New-Item -ItemType Junction`) or symlink looks like it
+> should work and silently does not: Node reports a linked directory with `isDirectory() ===
+> false` and `isSymbolicLink() === true`, and the extension scan skips it. Nothing is logged —
+> the extension simply never appears. Verified on Windows; not worth the risk elsewhere.
+
+Because it is a copy, editing the files in this repository does **not** change what VS Code is
+running. Re-copy after a change, or use the development host below.
+
+### Working on the extension itself
+
+For live editing, skip the extensions folder entirely and use the officially supported path —
+it loads the extension straight from the repository, with no copy and no install:
+
+```sh
+code --extensionDevelopmentPath="$PWD/editors/vscode" .
+```
+
+That opens a second window running this extension from source. Reload that window to pick up
+changes to `extension.js` or the grammar.
 
 ## The checker needs something to run
 

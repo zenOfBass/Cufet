@@ -227,16 +227,19 @@ POSIX toolchain to build; the rest compile anywhere gcc runs.
 ### Editor support
 
 [`editors/vscode/`](editors/vscode/) is a Visual Studio Code extension giving
-syntax highlighting and error squiggles. It needs no build step — link it into
-your extensions folder and reload:
+syntax highlighting and error squiggles. It needs no build step — copy it into
+your extensions folder, then quit and restart VS Code:
 
 ```powershell
-New-Item -ItemType Junction -Path "$env:USERPROFILE\.vscode\extensions\cufet" -Target "$PWD\editors\vscode"
+Copy-Item "$PWD\editors\vscode" "$env:USERPROFILE\.vscode\extensions\cufet" -Recurse
 ```
 
 ```sh
-ln -s "$PWD/editors/vscode" ~/.vscode/extensions/cufet
+cp -r "$PWD/editors/vscode" ~/.vscode/extensions/cufet
 ```
+
+Copy it — do not symlink. A linked directory is silently skipped by the
+extension scan, with nothing logged.
 
 The squiggles are the front end's own diagnostics, by way of `cufet check`
 — never a second opinion from a re-implementation that could drift out of step
