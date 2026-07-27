@@ -59,8 +59,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   yields `bits and fact` and is refused at compile time. Keeping bit patterns out of `number`
   closes that footgun for free.
 
-  Still to come in this arc: arithmetic and integer division, shifts, and
-  `converted to hex` / `converted to number`.
+**`bits` — arithmetic, ordering, and equality**
+
+- **`+ - * / %` on bit patterns, with `/` as integer division** — the same surface meaning
+  something different per operand type, as matrix arithmetic already does. Building a mask
+  (`(1 shifted left by n) - 1`) needs subtraction and address work needs addition, so leaving
+  arithmetic out would have hobbled the type.
+
+- **Ordering comparisons** (`<`, `>`, `<=`, `>=` and the word forms) work on bits, which are
+  unsigned and therefore well ordered.
+
+- **A result with no representation raises**, exactly as division by zero already does:
+  `0x00 - 0x1` would be negative, and `0xFFFFFFFFFFFFFFFF + 0x1` does not fit in 64 bits.
+  Deliberately not value-level failures — a failure would ride in the type as `bits or failure`
+  and force an unwrap after every masking expression, which is why divide-by-zero is not one.
+
+- **Unary minus is refused** on bits, which are unsigned. The message points at `not`.
+
+### Fixed
+
+- **Equality on bits compared base and width as well as value**, so `0xFF = 0x00FF` came back
+  `false` when the two are the same pattern written two ways. Both backends were affected; the
+  runtime representation is a value struct on each side and default structural equality took
+  all three fields. Equality and ordering now compare the value alone — the one place width
+  must not be load-bearing. Introduced by the literals slice, which never compared across
+  widths.
 
 **`cufet` is a command now**
 
