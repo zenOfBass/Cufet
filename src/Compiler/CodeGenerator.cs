@@ -426,6 +426,7 @@ public sealed class CodeGenerator
 
     // Cached type singletons (record-equality types, so `new NumberType() == Number`).
     private static readonly CufetType TNumber = new NumberType();
+    private static readonly CufetType TBits   = new BitsType();
     private static readonly CufetType TFact   = new FactType();
     private static readonly CufetType TText    = new TextType();
     private static readonly CufetType TVoid    = new VoidType();
@@ -732,14 +733,40 @@ static void cufet_format_number(char* buf, size_t bufsz, CufetDec d) {
     out[p] = '\0';
     snprintf(buf, bufsz, "%s", out);
 }
+/* A bit pattern: unsigned, at most 64 bits. `base` is the display base ('x', 'o' or 'b') —
+   a pattern shows itself in the base it was written in — and `width` is the bit width the
+   literal's digits spelled out, which is what `not` flips within and what pads the display.
+   Both ride on the value rather than the type, so every bits value is assignable to any other. */
+typedef struct { unsigned long long value; char base; int width; } CufetBits;
+
 /* write_ = format inline (no newline), for nested printing inside records/objects/series.
    print_ = write_ + newline, for a top-level State. */
 static void cufet_write_number(CufetDec d) { char b[64]; cufet_format_number(b, sizeof(b), d); printf("%s", b); }
 static void cufet_write_fact(int b) { printf("%s", b ? "true" : "false"); }
 static void cufet_write_text(const char* s) { printf("%s", s); }
+/* Digits are padded out to the declared width, so 0x0F prints as 0x0F and not 0xF. A value that
+   outgrew its width prints in the smallest width that holds it — nothing is ever truncated.
+   Hex digits are canonically uppercase: a computed value has no literal to take its case from. */
+static void cufet_write_bits(CufetBits x) {
+    int per = x.base == 'x' ? 4 : (x.base == 'o' ? 3 : 1);
+    int declared = (x.width + per - 1) / per;
+    char ds[68];
+    int n = 0;
+    unsigned long long v = x.value;
+    if (v == 0) ds[n++] = '0';
+    while (v) {
+        int d = (int)(v & (unsigned long long)((1 << per) - 1));
+        ds[n++] = (char)(d < 10 ? '0' + d : 'A' + d - 10);
+        v >>= per;
+    }
+    printf("0%c", x.base);
+    for (int i = n; i < declared; i++) putchar('0');
+    for (int i = n - 1; i >= 0; i--) putchar(ds[i]);
+}
 static void cufet_print_number(CufetDec d) { cufet_write_number(d); printf("\n"); }
 static void cufet_print_fact(int b) { cufet_write_fact(b); printf("\n"); }
 static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n"); }
+static void cufet_print_bits(CufetBits x) { cufet_write_bits(x); printf("\n"); }
 
 /* A caught failure (in an In-case-of-failure handler) — T-agnostic, so one handler works
    regardless of which fallible call's T produced the failure. category NULL = absent. */
@@ -3588,6 +3615,7 @@ static void* cufet_pipe_stage(void* argp) {
                 string printStmt = t switch
                 {
                     NumberType    => $"cufet_print_number({valExpr})",
+                    BitsType      => $"cufet_print_bits({valExpr})",
                     FactType      => $"cufet_print_fact({valExpr})",
                     TextType      => $"cufet_print_text({valExpr})",
                     SeriesType st => $"{RegisterSeriesStruct(st)}_write({valExpr}); printf(\"\\n\")",
@@ -4432,6 +4460,7 @@ static void* cufet_pipe_stage(void* argp) {
     private CufetType TypeOf(IExpression expr) => expr switch
     {
         NumberLiteral         => TNumber,
+        BitsLiteral           => TBits,
         BooleanLiteral        => TFact,
         StringLiteral         => TText,
         RangeExpression       => new SeriesType(TNumber),
@@ -4957,6 +4986,7 @@ static void* cufet_pipe_stage(void* argp) {
     private string EmitExpr(IExpression expr) => expr switch
     {
         NumberLiteral n       => EmitNumberLiteral(n.Value),
+        BitsLiteral b         => $"(CufetBits){{ {b.Value}ULL, '{b.Base}', {b.Width} }}",
         BooleanLiteral bl     => bl.Value ? "1" : "0",
         StringLiteral s       => EscapeStringLiteral(s.Value),   // text-as-stored-data: static C string
         UnaryExpression u     => EmitUnary(u),
@@ -6861,6 +6891,7 @@ static void* cufet_pipe_stage(void* argp) {
     {
         null       => "void",
         NumberType => "CufetDec",
+        BitsType   => "CufetBits",
         FactType   => "int",
         TextType   => "const char*",
         SeriesType st => RegisterSeriesStruct(st) + "*",   // series are arena pointers (reference type)

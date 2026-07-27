@@ -269,8 +269,94 @@ public sealed class Lexer
         throw new LexerException(_line, '\'');
     }
 
+    // Bit-pattern literals: 0x hex, 0b binary, 0o octal. There is deliberately no bare-0 octal
+    // (C's footgun, where 0755 silently means 493). Prefixes and hex digits are case-insensitive,
+    // matching keywords.
+    //
+    // '_' groups digits and is dropped. It is allowed ONLY here, never in decimal: grouping in
+    // these bases is structural — nibbles, bytes, permission triples — while in decimal it is
+    // cosmetic and in a fraction it marks nothing at all.
+    //
+    // The WIDTH is the digit count times the bits each digit carries, so 0x0F is 8 bits and 0xF
+    // is 4. Leading zeros are therefore significant, which is genuinely unlike C, Java, Rust, Go
+    // and Python, where 0x0F and 0xF are the same value and width comes from the declared type.
+    // It is what lets `not` be obvious: `not 0xFF` is 0x00, with no negative numbers in sight.
+    private static int BitsPerDigit(char prefix) => char.ToLowerInvariant(prefix) switch
+    {
+        'x' => 4,
+        'o' => 3,
+        'b' => 1,
+        _   => throw new InvalidOperationException($"BitsPerDigit called on non-prefix '{prefix}'"),
+    };
+
+    private static bool IsDigitOfBase(char c, char prefix) => char.ToLowerInvariant(prefix) switch
+    {
+        'x' => Uri.IsHexDigit(c),
+        'o' => c is >= '0' and <= '7',
+        'b' => c is '0' or '1',
+        _   => false,
+    };
+
+    private static string BaseName(char prefix) => char.ToLowerInvariant(prefix) switch
+    {
+        'x' => "hex", 'o' => "octal", 'b' => "binary", _ => "unknown",
+    };
+
+    private Token ReadBits()
+    {
+        int startLine = _line;
+        Advance();                      // consume '0'
+        char prefix = Peek();
+        Advance();                      // consume the base prefix
+
+        var digits = new System.Text.StringBuilder();
+        while (!AtEnd())
+        {
+            char c = Peek();
+            if (c == '_')
+            {
+                // A separator has to sit between digits; a leading, trailing or doubled one is
+                // a typo, and silently accepting it would let 0xFF__ and 0xFF look different
+                // while meaning the same thing.
+                if (digits.Length == 0 || _pos + 1 >= _source.Length || !IsDigitOfBase(_source[_pos + 1], prefix))
+                    throw new LexerException(startLine,
+                        $"'_' must sit between digits in a 0{prefix} literal");
+                Advance();
+                continue;
+            }
+            if (!IsDigitOfBase(c, prefix)) break;
+            digits.Append(c);
+            Advance();
+        }
+
+        if (digits.Length == 0)
+            throw new LexerException(startLine,
+                $"'0{prefix}' needs at least one {BaseName(prefix)} digit after it");
+
+        // A letter or digit still sitting here is a digit of the wrong base — 0b12, 0xG1 — and
+        // saying which base it was written in is far more use than "unexpected character".
+        if (!AtEnd() && char.IsLetterOrDigit(Peek()))
+            throw new LexerException(startLine,
+                $"'{Peek()}' is not a {BaseName(prefix)} digit");
+
+        int width = digits.Length * BitsPerDigit(prefix);
+        if (width > 64)
+            throw new LexerException(startLine,
+                $"this literal is {width} bits wide, and bits values hold at most 64 — " +
+                $"64 bits covers every C flag set and address, so anything wider belongs in a " +
+                $"library reached through the foreign function interface");
+
+        return new Token(TokenType.Bits, $"0{char.ToLowerInvariant(prefix)}{digits}", startLine);
+    }
+
     private Token ReadNumber()
     {
+        // 0x / 0b / 0o open a bit pattern rather than a quantity. Any other digit after a
+        // leading 0 stays decimal — 0755 is seven hundred and fifty-five.
+        if (Peek() == '0' && _pos + 1 < _source.Length
+            && char.ToLowerInvariant(_source[_pos + 1]) is 'x' or 'b' or 'o')
+            return ReadBits();
+
         int start = _pos;
         while (!AtEnd() && char.IsDigit(Peek()))
             Advance();

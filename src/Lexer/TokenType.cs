@@ -6,6 +6,13 @@ public enum TokenType
     It,       // reserved pronoun — never an Identifier
     Article,  // "a" | "an" | "the" — noise; parser discards
     Number,   // numeric literal: digit { digit } [ "." digit { digit } ]
+    Bits,     // bit-pattern literal: 0x… | 0b… | 0o…, with '_' group separators.
+              //   A quantity and a bit pattern are different things — 0o755 is three
+              //   permission triples, not "seven hundred fifty-five" — so these are a
+              //   separate token, not a Number spelled differently. The lexeme keeps its
+              //   prefix and its digits (separators stripped), because BOTH still carry
+              //   meaning downstream: the prefix picks the display base, and the digit
+              //   COUNT sets the width, so 0x0F is 8 bits where 0xF is 4.
     String,   // "..." with backslash escapes; no bare '{' inside
 
     // ── String interpolation (lexer-generated; never emitted for plain strings) ──

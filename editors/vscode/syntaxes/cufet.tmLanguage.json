@@ -89,6 +89,11 @@
     "number": {
       "patterns": [
         {
+          "comment": "Bit patterns: 0x hex, 0b binary, 0o octal, with '_' grouping digits. Must come before the decimal rule, which would otherwise match the leading 0, fail its right fence against the base letter, and leave 'xFF' to be read as an identifier. No bare-0 octal, so 0755 stays decimal and falls through to the rule below.",
+          "match": "(?<![\\w-])0[xX][0-9a-fA-F][0-9a-fA-F_]*(?![\\w-])|(?<![\\w-])0[bB][01][01_]*(?![\\w-])|(?<![\\w-])0[oO][0-7][0-7_]*(?![\\w-])",
+          "name": "constant.numeric.bits.cufet"
+        },
+        {
           "comment": "A '-' hard against a digit, with no word character in front of it. The left fence is what separates this from 'batch-1', where the '-' follows a letter and the whole thing is one identifier. Scoped as operator-plus-number rather than one numeric token, so it renders identically to the binary 'x - 1' — the parser, not the grammar, decides which it is, and the highlighting should not claim to know better.",
           "match": "(?<![\\w-])(-)(\\d+(?:\\.\\d+)?)(?![\\w-])",
           "captures": {
@@ -263,9 +268,9 @@
           "match": "(?<![\\w-])(?i:permanently|shadow)(?![\\w-])"
         },
         {
-          "comment": "Type names. 'text' and 'fact' are contextual rather than reserved — the lexer has no token for either — but they are types to anyone reading the code, so they are coloured as types.",
+          "comment": "Type names. 'text', 'fact' and 'bits' are contextual rather than reserved — the lexer has no token for any of them — but they are types to anyone reading the code, so they are coloured as types.",
           "name": "support.type.cufet",
-          "match": "(?<![\\w-])(?i:number|text|fact|series|record|matrix|map|channel|rabbit|task|stream|function|voidable|void|catalogue|atlas|failure|exception|books|book)(?![\\w-])"
+          "match": "(?<![\\w-])(?i:number|text|fact|bits|series|record|matrix|map|channel|rabbit|task|stream|function|voidable|void|catalogue|atlas|failure|exception|books|book)(?![\\w-])"
         },
         {
           "comment": "Word-form operators.",

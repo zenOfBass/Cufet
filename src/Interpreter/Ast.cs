@@ -6,6 +6,14 @@ public interface IExpression { }
 public interface IStatement  { }
 
 public sealed record NumberLiteral(decimal Value)                                        : IExpression;
+
+// A bit pattern, deliberately not a quantity: 0o755 is three permission triples, not "seven
+// hundred fifty-five". Base is the display base ('x', 'b' or 'o') — a bits value shows itself
+// in the base it was written in. Width is how many bits the literal's digits spelled out, so
+// 0x0F is 8 bits where 0xF is 4; that is what lets `not 0xFF` be 0x00 with no signed reading
+// and no negative numbers anywhere.
+public sealed record BitsLiteral(ulong Value, char Base, int Width, int Line)             : IExpression;
+
 public sealed record StringLiteral(string Value)                                         : IExpression;
 public sealed record BooleanLiteral(bool Value, int Line)                                : IExpression;
 public sealed record VariableReference(string Name, int Line)                            : IExpression;

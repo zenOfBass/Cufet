@@ -237,6 +237,33 @@ public sealed partial class Interpreter
         public decimal GetItem(int row, int col) => _data[(row - 1) * Cols + (col - 1)];
     }
 
+    // A bit pattern. Unsigned and at most 64 bits, which is every C flag set, file mode and
+    // address there is — anything wider is cryptography or scientific computing, a different
+    // domain that belongs behind the foreign function interface rather than distorting this type.
+    //
+    // Base and Width ride on the VALUE rather than the type, so all bits values remain mutually
+    // assignable and `bits` stays a single type. Base is the display base, because a pattern
+    // shows itself in the base it was written in. Width is what `not` flips within, and is the
+    // only place width is load-bearing: equality compares Value alone, so 0xFF equals 0x00FF.
+    private readonly record struct BitsValue(ulong Value, char Base, int Width)
+    {
+        // Digits are padded out to the declared width, which is what makes 0x0F print as 0x0F
+        // rather than 0xF. A value that outgrew its width (0xFF + 1) prints in the smallest
+        // width that holds it instead of being truncated — nothing ever falls off the end.
+        public override string ToString()
+        {
+            int perDigit = Base switch { 'x' => 4, 'o' => 3, _ => 1 };
+            int declared = (Width + perDigit - 1) / perDigit;
+            string digits = Base switch
+            {
+                'x' => Value.ToString("X"),
+                'o' => Convert.ToString((long)Value, 8),
+                _   => Convert.ToString((long)Value, 2),
+            };
+            return $"0{Base}{digits.PadLeft(declared, '0')}";
+        }
+    }
+
     // The singleton runtime representation of the void value (the absent case of any voidable T).
     // Distinct from C# null, which means "this function returned nothing" in the call machinery.
     private sealed class VoidValue
@@ -851,6 +878,7 @@ public sealed partial class Interpreter
     private object Evaluate(IExpression expr) => expr switch
     {
         NumberLiteral    n    => (object)n.Value,  // decimal — no floating-point surprises
+        BitsLiteral      b    => new BitsValue(b.Value, b.Base, b.Width),
         StringLiteral    s    => s.Value,
         BooleanLiteral   b    => (object)b.Value,
         VariableReference r   => TryLookupValue(r.Name, out var val)
@@ -1453,6 +1481,7 @@ public sealed partial class Interpreter
         VoidValue        => "void",
         bool b           => b ? "true" : "false",
         decimal d        => NormalizeDecimal(d).ToString(),
+        BitsValue bv     => bv.ToString(),   // prints in the base it was written in
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
         FunctionValue        => "<function>",
         RabbitValue rv       => $"<rabbit {rv.Name}>",

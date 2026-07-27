@@ -8,6 +8,7 @@ namespace Cufet.Interpreter;
 public abstract class CufetType
 {
     public static readonly CufetType Number = new NumberType();
+    public static readonly CufetType Bits   = new BitsType();
     public static readonly CufetType Text   = new TextType();
     public static readonly CufetType Fact   = new FactType();
     public static readonly CufetType Void   = new VoidType();
@@ -27,6 +28,18 @@ public sealed class NumberType : CufetType
 {
     public override bool Equals(object? obj) => obj is NumberType;
     public override int GetHashCode() => typeof(NumberType).GetHashCode();
+}
+
+// A bit pattern: unsigned, at most 64 bits wide, and NOT a quantity. Bitwise operations live
+// here and are deliberately absent from `number` — doing them on a decimal was the category
+// error that made `not 5` come out as -6. There is no implicit conversion either way, so
+// `0xFF = 255` is a type error; cross over explicitly with `converted to number` / `converted
+// to hex`. Width and display base ride on the VALUE, not the type, so every bits value is
+// assignable to every other and this stays a single type.
+public sealed class BitsType : CufetType
+{
+    public override bool Equals(object? obj) => obj is BitsType;
+    public override int GetHashCode() => typeof(BitsType).GetHashCode();
 }
 
 public sealed class TextType : CufetType
@@ -1175,6 +1188,7 @@ public sealed partial class TypeChecker
     private CufetType? InferTypeCore(IExpression expr) => expr switch
     {
         NumberLiteral                                                                                    => CufetType.Number,
+        BitsLiteral                                                                                     => CufetType.Bits,
         StringLiteral                                                                                    => CufetType.Text,
         BooleanLiteral                                                                                   => CufetType.Fact,
         VoidLiteral                                                                                      => CufetType.Void,
@@ -1606,6 +1620,7 @@ public sealed partial class TypeChecker
     private static string FormatType(CufetType type) => type switch
     {
         NumberType                           => "number",
+        BitsType                             => "bits",
         TextType                             => "text",
         FactType                             => "fact",
         VoidType                             => "void",
@@ -1652,6 +1667,7 @@ public sealed partial class TypeChecker
     private static string FormatTypePlural(CufetType type) => type switch
     {
         NumberType                           => "numbers",
+        BitsType                             => "bits",   // already plural
         TextType                             => "text",
         FactType                             => "facts",
         VoidType                             => "void values",
@@ -1682,10 +1698,27 @@ public sealed partial class TypeChecker
     {
         NumberLiteral    { Value: var v } => v.ToString(),
         StringLiteral    { Value: var v } => $"\"{v}\"",
+        // Rebuilt from the parts rather than kept as source text, so it echoes back in the same
+        // base and width the author wrote — quoting "0xFF" at them is only useful if it looks
+        // like what they typed.
+        BitsLiteral      b                => FormatBitsLiteral(b),
         VariableReference { Name: var n } => n,
         PossessiveAccess pa               => $"{FormatExpr(pa.Target)}'s {pa.Member}",
         _                                 => "<expression>",
     };
+
+    internal static string FormatBitsLiteral(BitsLiteral b)
+    {
+        int perDigit = b.Base switch { 'x' => 4, 'o' => 3, _ => 1 };
+        int declared = (b.Width + perDigit - 1) / perDigit;
+        string digits = b.Base switch
+        {
+            'x' => b.Value.ToString("X"),
+            'o' => Convert.ToString((long)b.Value, 8),
+            _   => Convert.ToString((long)b.Value, 2),
+        };
+        return $"0{b.Base}{digits.PadLeft(declared, '0')}";
+    }
 
     private static string FormatOp(TokenType op) => op switch
     {

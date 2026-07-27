@@ -391,6 +391,15 @@ public sealed class Parser
             Advance();
             return new FactType();
         }
+        // 'bits' is contextual, like 'text' and 'fact' — a type name recognised by lexeme rather
+        // than a reserved word, so it stays usable as an ordinary name. Plural deliberately: a
+        // bit is one bit and 0xFF is eight, and it pairs with 'fact' as one bit against N.
+        if (tok.Type == TokenType.Identifier &&
+            tok.Lexeme.Equals("bits", StringComparison.OrdinalIgnoreCase))
+        {
+            Advance();
+            return new BitsType();
+        }
         if (tok.Type == TokenType.Series)
         {
             Advance(); // consume "series"
@@ -1851,6 +1860,9 @@ public sealed class Parser
         {
             case TokenType.Number:
                 baseExpr = new NumberLiteral(decimal.Parse(Advance().Lexeme));
+                break;
+            case TokenType.Bits:
+                baseExpr = ParseBitsLiteral(Advance());
                 break;
             case TokenType.String:
                 baseExpr = new StringLiteral(Advance().Lexeme);
@@ -3592,6 +3604,25 @@ public sealed class Parser
     // Collects StringPiece tokens and InterpolHoleOpen…InterpolHoleClose expression
     // sequences, building a left-associative TextJoin chain where each embedded
     // expression is wrapped in TextConvert (text/number/fact — type-checker enforces).
+    // Decodes a Bits token into value, display base and width. The lexer has already validated
+    // the digits and stripped the '_' separators, and normalised the prefix to lowercase — so the
+    // lexeme is "0" + base + digits, and the digit COUNT is what sets the width. That is why
+    // 0x0F and 0xF are different values here despite being equal numerically: the first is 8
+    // bits, the second is 4, and `not` reads that width.
+    private static BitsLiteral ParseBitsLiteral(Token token)
+    {
+        char displayBase = token.Lexeme[1];
+        string digits    = token.Lexeme[2..];
+        int fromBase     = displayBase switch { 'x' => 16, 'o' => 8, 'b' => 2, _ => 10 };
+        int bitsPerDigit = displayBase switch { 'x' => 4,  'o' => 3, 'b' => 1, _ => 0 };
+
+        return new BitsLiteral(
+            Convert.ToUInt64(digits, fromBase),
+            displayBase,
+            digits.Length * bitsPerDigit,
+            token.Line);
+    }
+
     private IExpression ParseInterpolatedString()
     {
         int line = _tokens[_pos - 1].Line; // line of the InterpolOpen
