@@ -313,6 +313,67 @@ differently, and the width is what `not` flips within. That is the point: it is 
 `not 0xFF` be `0x00` instead of `-6`, with no signed reading and no negative numbers anywhere
 in the type. Zero-padding hex to a byte boundary is already a habit; here it carries meaning.
 
+### Gates — `and` / `or` / `not` / `xor`
+
+**A 32-bit AND is 32 AND gates side by side.** So the same words serve a `fact` (one bit) and a
+`bits` value (N of them) — the words are already the gate names, already English, and already
+Cufet keywords. Only `xor` is new.
+
+```
+State 0xFF and 0x0F.        [[ 0x0F ]]
+State 0xF0 or 0x0F.         [[ 0xFF ]]
+State 0b1100 xor 0b1010.    [[ 0b0110 ]]
+State not 0xFF.             [[ 0x00 ]]
+State true xor false.       [[ true ]]
+```
+
+**Gates do not work on `number`.** A quantity has no bits to combine — `5 and 3` and `not 5` are
+type errors. That separation is the point: it is why `not 0xFF` is `0x00` and why the `-6` a
+signed reading would give can never appear.
+
+**`not` flips within the value's own width.** `not 0x0` is `0xF` (one digit, four bits) while
+`not 0x00` is `0xFF` (two digits, eight). Clearing a bit is `flags and not MASK`.
+
+**Precedence: `and` > `xor` > `or`**, mirroring `&` > `^` > `|`, and all three sit below
+comparisons — so `a and b xor c or d` groups as `((a and b) xor c) or d`.
+
+### ★ The result takes the LEFT operand's base and width
+
+```
+State 0xFF and 0b1010.    [[ 0x0A     — hex on the left, so hex out ]]
+State 0b1010 and 0xFF.    [[ 0b1010   — binary on the left, so binary out ]]
+```
+
+Left, because in real bit code the left operand is the **accumulator** — `flags or MASK`,
+`flags and not MASK` — so it is the thing you care about and will print. Right-dominance would
+let a mask's notation hijack the display of the thing being masked.
+
+A result **widens** when the value needs more room (`0b1 or 0xFF` → `0b11111111`) and never
+truncates. Nothing silently falls off the end; narrow deliberately with an `and`.
+
+### ★ `and`/`or` short-circuit on facts, and cannot on bits
+
+```
+false and cast f on ()    [[ f never runs ]]
+0x00  and cast f on ()    [[ f always runs ]]
+```
+
+Combining two patterns needs both patterns, so there is nothing to skip. The same word takes a
+different evaluation strategy depending on operand type — statically determined, and the same
+deliberate exception matrix arithmetic already makes for `+` and `*`. (`xor` never
+short-circuits, on facts either: both sides always decide the answer.)
+
+### C's most famous precedence bug is a type error here
+
+In C, `a & b == c` silently parses as `a & (b == c)` and computes nonsense. Cufet has the same
+precedence — but the mis-parse produces `bits and fact`, which is **refused at compile time**:
+
+```
+State 0xFF and 0x0F = 0x0F.   [[ type error, not a wrong answer ]]
+```
+
+Keeping bit patterns out of `number` closes that footgun for free.
+
 ### Comments — `[[ ... ]]`
 
 The lexer strips `[[ ... ]]` before tokenizing — comment content produces no tokens and is never parsed.
