@@ -10,6 +10,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+**`cufet` is a command now**
+
+- Packaged as a **.NET global tool**, so `cufet myprogram.cufe` replaces
+  `dotnet run --project src\App\Cufet.App.csproj -- myprogram.cufe`. The SDK already keeps
+  its tools directory on `PATH`, so installing needs no shell configuration and no
+  administrator rights, and it behaves identically on Windows, macOS and Linux.
+
+  This is also what makes the editor extension useful outside this repository. It looks for
+  a local build first — so your working copy wins while you are developing the compiler —
+  and falls back to `cufet` on `PATH`. Without an installed `cufet`, a `.cufe` file opened
+  anywhere else had nothing to run and got no diagnostics at all.
+
+  The assembly is still `Cufet.App`, so the development build path is unchanged.
+
+- **`cufet --help` and `cufet --version`.** Anything that is not a recognised verb is treated
+  as a filename, so a mistyped verb used to surface as an unhandled `FileNotFoundException`
+  and a stack trace. A missing file now reports the problem and points at `--help`, exiting 2.
+  Tolerable behaviour for a `dotnet run` incantation; not for a command people type.
+
 **Editor support — syntax highlighting and error squiggles**
 
 - **`editors/vscode/`** — a Visual Studio Code extension. A TextMate grammar for
