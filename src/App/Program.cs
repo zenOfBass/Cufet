@@ -6,7 +6,11 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-if (args.Length >= 2 && args[0].Equals("build", StringComparison.OrdinalIgnoreCase))
+if (args.Length >= 1 && args[0] is "--help" or "-h" or "help" or "-?" or "/?")
+    Help();
+else if (args.Length >= 1 && args[0] is "--version" or "-v")
+    Console.WriteLine($"cufet {Version()}");
+else if (args.Length >= 2 && args[0].Equals("build", StringComparison.OrdinalIgnoreCase))
     Build(args[1]);
 else if (args.Length >= 2 && args[0].Equals("emit-c", StringComparison.OrdinalIgnoreCase))
     EmitC(args[1], args.Length >= 3 ? args[2] : Path.ChangeExtension(args[1], ".c"));
@@ -14,6 +18,27 @@ else if (args.Length >= 2 && args[0].Equals("check", StringComparison.OrdinalIgn
     Check(args[1..]);
 else
     Interpret(args);
+
+static string Version() =>
+    typeof(Lexer).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "unknown";
+
+// A verb typed wrong lands here as a filename, so the usage text has to be worth reading.
+static void Help()
+{
+    Console.WriteLine($"""
+        cufet {Version()} — the Cufet programming language.
+
+          cufet <file.cufe>                    run it
+          cufet                                run what is piped in on stdin
+          cufet check [--json] [--native] <f>  report errors without running it
+          cufet build <file.cufe>              compile to a native binary (needs gcc)
+          cufet emit-c <file.cufe> [out.c]     write the generated C without compiling
+
+        check exits 0 when clean and 1 when it finds something. --native additionally
+        reports what the native compiler refuses; those programs still interpret, so
+        they come back as warnings. --json writes one diagnostic per line, for editors.
+        """);
+}
 
 // Emits C source only (no gcc) — used to cross-compile in another toolchain (e.g. WSL gcc for
 // POSIX subprocess code that this box's mingw gcc can't build).
@@ -171,9 +196,24 @@ static void Build(string sourcePath)
 
 static void Interpret(string[] args)
 {
-    var source = args.Length > 0
-        ? File.ReadAllText(args[0])
-        : Console.In.ReadToEnd();
+    string source;
+    if (args.Length > 0)
+    {
+        // Reached by a mistyped verb as well as a missing file, since anything that is not a
+        // recognised verb is treated as a path — so point at the usage text rather than
+        // letting an unhandled exception print a stack trace at someone.
+        try { source = File.ReadAllText(args[0]); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"{e.Message} Run 'cufet --help' for usage.");
+            Environment.Exit(2);
+            return;
+        }
+    }
+    else
+    {
+        source = Console.In.ReadToEnd();
+    }
 
     try
     {

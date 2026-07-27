@@ -8,6 +8,28 @@
     <Version>0.10.0</Version>
   </PropertyGroup>
 
+  <!--
+    Packaged as a .NET global tool, so `cufet` is a real command on PATH instead of a
+    `dotnet run` incantation. The SDK already keeps its tools directory on PATH, so
+    installing needs no shell configuration and no administrator rights, and it behaves
+    the same on Windows, macOS and Linux. See the README for the install commands.
+
+    ToolCommandName is what you type. The assembly stays Cufet.App, so the development
+    build path (src/App/bin/<config>/<tfm>/Cufet.App) is unchanged; the editor extension
+    and .vscode/tasks.json both look for it there and prefer it over the installed copy,
+    which is what you want while working on the compiler itself.
+  -->
+  <PropertyGroup>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>cufet</ToolCommandName>
+    <PackageId>Cufet</PackageId>
+    <Authors>zenOfBass</Authors>
+    <Description>The Cufet programming language — interpreter and native compiler.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/zenOfBass/Cufet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/zenOfBass/Cufet.git</RepositoryUrl>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Interpreter\Cufet.Interpreter.csproj" />
     <ProjectReference Include="..\Compiler\Cufet.Compiler.csproj" />
