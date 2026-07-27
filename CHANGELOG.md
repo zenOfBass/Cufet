@@ -10,6 +10,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+**`bits` — a bit-pattern type (first slice: literals)**
+
+- **`0x` hex, `0b` binary, `0o` octal literals**, with `_` grouping digits. A value prints in
+  the base it was written in: `State 0o755.` prints `0o755`. No bare-zero octal — `0755` is
+  seven hundred and fifty-five, not 493.
+
+- **`bits` is not `number`, and does not convert to it implicitly.** `0xFF = 255` is a type
+  error. A bit pattern is not a quantity: `0o755` is three permission triples, and treating it
+  as a decimal is a category error. This is what makes the coming bitwise operators well
+  behaved — they will live on `bits` and be absent from `number`, so `not 5` cannot be written
+  and cannot surprise anyone with `-6`.
+
+- **★ Leading zeros are significant.** The width comes from the digit count, so `0xF` is 4 bits
+  and `0x0F` is 8, and they print differently while comparing equal. This is deliberately
+  unlike C, Java, Rust, Go and Python, where the two are identical and width belongs to the
+  declared type. It is what will let `not 0xFF` be `0x00` rather than `-6` — the type is
+  unsigned and never negative.
+
+- **Ceiling is 64 bits**, which covers every C flag set, file mode and address. Wider is
+  cryptography or scientific computing — a different domain, and one for a foreign-function
+  boundary rather than for distorting this type.
+
+  Still to come in this arc: the gates (`and`/`or`/`not`/`xor`), arithmetic and integer
+  division, shifts, and `converted to hex` / `converted to number`.
+
 **`cufet` is a command now**
 
 - Packaged as a **.NET global tool**, so `cufet myprogram.cufe` replaces
