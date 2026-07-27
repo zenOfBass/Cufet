@@ -1,9 +1,14 @@
 {
-  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Cufet",
   "scopeName": "source.cufet",
 
   "_readme": [
+    "There is deliberately no $schema here. The only TextMate grammar schema in circulation is",
+    "a third-party file on raw.githubusercontent.com, which VS Code refuses to fetch unless you",
+    "add the domain to json.schemaDownload trusted locations — so referencing it shows everyone",
+    "who opens this file a warning, in exchange for nothing at load time: the grammar loader",
+    "ignores $schema. Add it back locally if you want completions while editing.",
+    "",
     "A TextMate grammar assigns SCOPES; the colour theme maps scopes to colours. So this file",
     "names scopes from the standard vocabulary every theme already styles, and never picks a",
     "colour. Scope names are three-part — <standard-prefix>.<cufet-role>.cufet — so a plain",

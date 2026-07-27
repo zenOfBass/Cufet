@@ -1,4 +1,11 @@
 {
+  // The matcher is written out in full rather than referenced as "$cufet", so these tasks work
+  // in a fresh clone with no extension installed. The extension contributes "$cufet" as the
+  // same thing, for your own tasks.json once you have it.
+  //
+  // Only `check` emits locatable diagnostics — `path:line: severity: message`. Interpreting and
+  // building report errors as plain `Line N: ...` with no file, which no matcher can attach to
+  // a document, so those tasks declare no matcher rather than one that silently never fires.
   "version": "2.0.0",
   "tasks": [
     {
@@ -9,7 +16,18 @@
       "windows": {
         "command": "${workspaceFolder}/src/App/bin/Debug/net10.0/Cufet.App.exe"
       },
-      "problemMatcher": "$cufet",
+      "problemMatcher": {
+        "owner": "cufet",
+        "source": "cufet",
+        "fileLocation": ["absolute"],
+        "pattern": {
+          "regexp": "^(.*?):(\\d+):\\s+(error|warning):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "severity": 3,
+          "message": 4
+        }
+      },
       "presentation": { "reveal": "silent", "clear": true },
       "group": { "kind": "build", "isDefault": true }
     },
@@ -21,7 +39,7 @@
       "windows": {
         "command": "${workspaceFolder}/src/App/bin/Debug/net10.0/Cufet.App.exe"
       },
-      "problemMatcher": "$cufet",
+      "problemMatcher": [],
       "presentation": { "reveal": "always", "clear": true }
     },
     {
@@ -32,7 +50,7 @@
       "windows": {
         "command": "${workspaceFolder}/src/App/bin/Debug/net10.0/Cufet.App.exe"
       },
-      "problemMatcher": "$cufet",
+      "problemMatcher": [],
       "presentation": { "reveal": "always", "clear": true }
     }
   ]

@@ -68,15 +68,25 @@ With `checkOn: "type"`, unsaved text is checked through a temporary copy. That i
 ## Using it from a task instead
 
 If you would rather not have the extension check for you, the repository's
-[`.vscode/tasks.json`](../../.vscode/tasks.json) drives the same checker through a build task.
-It uses the `$cufet` problem matcher this extension contributes, which parses the plain-text
-form of `cufet check`:
+[`.vscode/tasks.json`](../../.vscode/tasks.json) drives the same checker through a build task
+(`Ctrl+Shift+B`). Set `cufet.checkOn` to `never` if you want the task to be the only source of
+squiggles.
+
+Both routes parse the plain-text form of `cufet check`:
 
 ```
 /path/to/thing.cufe:12: error: That doesn't work: 'x' holds numbers.
 ```
 
-Set `cufet.checkOn` to `never` if you want the task to be the only source of squiggles.
+This extension contributes that pattern as the **`$cufet`** problem matcher, so your own tasks
+can just say `"problemMatcher": "$cufet"`. The repository's `tasks.json` deliberately does
+*not* — it spells the matcher out in full, so it still works in a fresh clone where the
+extension has not been installed. Referring to `$cufet` before the extension is loaded is an
+error, not a silent no-op.
+
+Only `check` produces locatable diagnostics. Interpreting and building report errors as plain
+`Line N: ...` with no filename, and a problem matcher has nothing to attach that to — so the
+run and build tasks declare no matcher rather than one that would never fire.
 
 ## About the highlighting
 
