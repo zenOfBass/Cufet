@@ -59,6 +59,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   yields `bits and fact` and is refused at compile time. Keeping bit patterns out of `number`
   closes that footgun for free.
 
+**`bits` — shifts**
+
+- **`n shifted left by 3` / `shifted right by 3`.** Shifting is wiring rather than a gate — it
+  moves bits instead of combining them — so it is a trailing transform in the `sorted` /
+  `trimmed` family, not an operator.
+
+- **The amount is a `number`, not bits**, because it counts *positions*: a quantity, like the
+  `3` in `item 3 of s`. It must be whole and non-negative, and both are checked.
+
+- **Left shifts widen, right shifts discard the low bits.** The second is the one place
+  something genuinely falls off, and it is the operation rather than a failure of
+  representation. Unsigned means there is no arithmetic-versus-logical right shift to choose
+  between. Shifting left past the ceiling raises, like a multiply overflow.
+
+- **`left` and `right` are not reserved words.** They are matched by lexeme in this shape only,
+  so `the left of node` and `Define left as 7.` keep working. A binary tree should not have to
+  surrender its field names to spell one operator.
+
+  (In the emitted C, shifting by at least the operand width is undefined behaviour, so the
+  generated code writes the answer out explicitly rather than trusting the hardware.)
+
 **`bits` — arithmetic, ordering, and equality**
 
 - **`+ - * / %` on bit patterns, with `/` as integer division** — the same surface meaning
