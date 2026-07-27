@@ -1286,6 +1286,52 @@ public sealed partial class Interpreter
         return bits;
     }
 
+    // Arithmetic on bit patterns. Division is integer division, and the type is unsigned with a
+    // 64-bit ceiling — so a result that would go negative or need a 65th bit has no
+    // representation. Those RAISE, like division by zero already does, rather than becoming
+    // value-level failures: a failure would ride in the type as `bits or failure` and force an
+    // unwrap after every masking expression, which is precisely why divide-by-zero is not one.
+    private static object EvaluateBitsArithmetic(TokenType op, BitsValue l, BitsValue r, int line)
+    {
+        switch (op)
+        {
+            case TokenType.Plus:
+            {
+                if (l.Value > ulong.MaxValue - r.Value)
+                    throw new RuntimeException(
+                        $"{l} + {r} does not fit in 64 bits (line {line}).");
+                return Combine(l, l.Value + r.Value);
+            }
+            case TokenType.Minus:
+            {
+                if (r.Value > l.Value)
+                    throw new RuntimeException(
+                        $"{l} - {r} would be negative, and bits are unsigned (line {line}).");
+                return Combine(l, l.Value - r.Value);
+            }
+            case TokenType.Star:
+            {
+                if (l.Value != 0 && r.Value > ulong.MaxValue / l.Value)
+                    throw new RuntimeException(
+                        $"{l} * {r} does not fit in 64 bits (line {line}).");
+                return Combine(l, l.Value * r.Value);
+            }
+            case TokenType.Slash:
+                if (r.Value == 0) throw new RuntimeException($"Division by zero on line {line}.");
+                return Combine(l, l.Value / r.Value);
+            case TokenType.Percent:
+                if (r.Value == 0) throw new RuntimeException($"Modulo by zero on line {line}.");
+                return Combine(l, l.Value % r.Value);
+
+            // Ordering is on the value, so it ignores base and width just as equality does.
+            case TokenType.Lt:  return (object)(l.Value <  r.Value);
+            case TokenType.Gt:  return (object)(l.Value >  r.Value);
+            case TokenType.Lte: return (object)(l.Value <= r.Value);
+            case TokenType.Gte: return (object)(l.Value >= r.Value);
+        }
+        throw new RuntimeException($"'{op}' does not work on bits (line {line}).");
+    }
+
     private object EvaluateBinary(BinaryExpression b)
     {
         // The gates. The left operand is evaluated ONCE here and the type it produces picks the
@@ -1344,6 +1390,13 @@ public sealed partial class Interpreter
         if (b.Op is TokenType.Plus or TokenType.Minus or TokenType.Star &&
             lv2 is MatrixValue lmv && rv2 is MatrixValue rmv)
             return ExecuteMatrixOp(b.Op, lmv, rmv, b.Line);
+
+        // Bit-pattern arithmetic and ordering. Before the numeric switch, which would otherwise
+        // try to read a BitsValue as a decimal.
+        if (lv2 is BitsValue lbv && rv2 is BitsValue rbv
+            && b.Op is TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash
+                     or TokenType.Percent or TokenType.Lt or TokenType.Gt or TokenType.Lte or TokenType.Gte)
+            return EvaluateBitsArithmetic(b.Op, lbv, rbv, b.Line);
 
         return b.Op switch
         {
@@ -1428,6 +1481,12 @@ public sealed partial class Interpreter
         if (a is null || b is null) return false;
         if (a is VoidValue && b is VoidValue) return true;
         if (a is VoidValue || b is VoidValue) return false;
+
+        // Bit patterns compare by VALUE, ignoring base and width — 0xFF, 0x00FF and 0b11111111
+        // are all the same pattern, differing only in how they were written and displayed.
+        // Without this the record struct's own equality would compare all three fields and call
+        // them different, which is the one place width must NOT be load-bearing.
+        if (a is BitsValue ab && b is BitsValue bb) return ab.Value == bb.Value;
 
         if (a is List<object> la && b is List<object> lb)
         {

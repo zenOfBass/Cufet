@@ -747,7 +747,7 @@ static void cufet_write_text(const char* s) { printf("%s", s); }
 /* Digits are padded out to the declared width, so 0x0F prints as 0x0F and not 0xF. A value that
    outgrew its width prints in the smallest width that holds it — nothing is ever truncated.
    Hex digits are canonically uppercase: a computed value has no literal to take its case from. */
-static void cufet_write_bits(CufetBits x) {
+static void cufet_format_bits(char* buf, size_t bufsz, CufetBits x) {
     int per = x.base == 'x' ? 4 : (x.base == 'o' ? 3 : 1);
     int declared = (x.width + per - 1) / per;
     char ds[68];
@@ -759,10 +759,16 @@ static void cufet_write_bits(CufetBits x) {
         ds[n++] = (char)(d < 10 ? '0' + d : 'A' + d - 10);
         v >>= per;
     }
-    printf("0%c", x.base);
-    for (int i = n; i < declared; i++) putchar('0');
-    for (int i = n - 1; i >= 0; i--) putchar(ds[i]);
+    char out[80];
+    int p = 0;
+    out[p++] = '0';
+    out[p++] = x.base;
+    for (int i = n; i < declared; i++) out[p++] = '0';
+    for (int i = n - 1; i >= 0; i--) out[p++] = ds[i];
+    out[p] = '\0';
+    snprintf(buf, bufsz, "%s", out);
 }
+static void cufet_write_bits(CufetBits x) { char b[80]; cufet_format_bits(b, sizeof(b), x); printf("%s", b); }
 static void cufet_print_number(CufetDec d) { cufet_write_number(d); printf("\n"); }
 static void cufet_print_fact(int b) { cufet_write_fact(b); printf("\n"); }
 static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n"); }
@@ -797,6 +803,37 @@ static CufetBits cufet_bits_not(CufetBits a) {
     out.base  = a.base;
     out.width = a.width;
     return out;
+}
+
+/* Arithmetic. The type is unsigned with a 64-bit ceiling, so a result that would go negative or
+   need a 65th bit has no representation and RAISES — the same treatment division by zero already
+   gets. A value-level failure would ride in the type as `bits or failure` and force an unwrap
+   after every masking expression, which is exactly why divide-by-zero is not one. */
+static void cufet_bits_overflow(CufetBits a, CufetBits b, const char* op, const char* why, int line) {
+    char x[80], y[80];
+    cufet_format_bits(x, sizeof(x), a);
+    cufet_format_bits(y, sizeof(y), b);
+    cufet_raise(cufet_msgf("%s %s %s %s (line %d).", x, op, y, why, line));
+}
+static CufetBits cufet_bits_add(CufetBits a, CufetBits b, int line) {
+    if (a.value > ~0ULL - b.value) cufet_bits_overflow(a, b, "+", "does not fit in 64 bits", line);
+    return cufet_bits_combine(a, a.value + b.value);
+}
+static CufetBits cufet_bits_sub(CufetBits a, CufetBits b, int line) {
+    if (b.value > a.value) cufet_bits_overflow(a, b, "-", "would be negative, and bits are unsigned", line);
+    return cufet_bits_combine(a, a.value - b.value);
+}
+static CufetBits cufet_bits_mul(CufetBits a, CufetBits b, int line) {
+    if (a.value != 0 && b.value > ~0ULL / a.value) cufet_bits_overflow(a, b, "*", "does not fit in 64 bits", line);
+    return cufet_bits_combine(a, a.value * b.value);
+}
+static CufetBits cufet_bits_div(CufetBits a, CufetBits b, int line) {
+    if (b.value == 0) cufet_raise(cufet_msgf("Division by zero on line %d.", line));
+    return cufet_bits_combine(a, a.value / b.value);
+}
+static CufetBits cufet_bits_mod(CufetBits a, CufetBits b, int line) {
+    if (b.value == 0) cufet_raise(cufet_msgf("Modulo by zero on line %d.", line));
+    return cufet_bits_combine(a, a.value % b.value);
 }
 
 /* A caught failure (in an In-case-of-failure handler) — T-agnostic, so one handler works
@@ -4513,6 +4550,9 @@ static void* cufet_pipe_stage(void* argp) {
                                // would otherwise call every non-arithmetic result a fact.
                                : b.Op is TokenType.And or TokenType.Or or TokenType.Xor
                                  && TypeOf(b.Left) is BitsType ? TBits
+                               // Arithmetic over bit patterns stays bits; the ordering and
+                               // equality operators still yield a fact, as for any type.
+                               : IsArithmeticOp(b.Op) && TypeOf(b.Left) is BitsType ? TBits
                                : IsArithmeticOp(b.Op) ? TNumber : TFact,
         MatrixLiteral         => MatrixType.Instance,
         MatrixSized           => MatrixType.Instance,
@@ -6862,6 +6902,13 @@ static void* cufet_pipe_stage(void* argp) {
 
         switch (b.Op)
         {
+            // Bit-pattern arithmetic, before the decimal path — the operands are CufetBits,
+            // not CufetDec. Division is INTEGER division here.
+            case TokenType.Plus    when TypeOf(b.Left) is BitsType: return $"cufet_bits_add({L}, {R}, {b.Line})";
+            case TokenType.Minus   when TypeOf(b.Left) is BitsType: return $"cufet_bits_sub({L}, {R}, {b.Line})";
+            case TokenType.Star    when TypeOf(b.Left) is BitsType: return $"cufet_bits_mul({L}, {R}, {b.Line})";
+            case TokenType.Slash   when TypeOf(b.Left) is BitsType: return $"cufet_bits_div({L}, {R}, {b.Line})";
+            case TokenType.Percent when TypeOf(b.Left) is BitsType: return $"cufet_bits_mod({L}, {R}, {b.Line})";
             case TokenType.Plus:    return $"cufet_add({L}, {R})";
             case TokenType.Minus:   return $"cufet_sub({L}, {R})";
             case TokenType.Star:    return $"cufet_mul({L}, {R})";
@@ -6882,6 +6929,22 @@ static void* cufet_pipe_stage(void* argp) {
 
         // Comparison / equality. Numbers via cufet_cmp; text via strcmp; facts are ints.
         var lt = TypeOf(b.Left);
+
+        // Bit patterns compare on VALUE ALONE, ignoring base and width: 0xFF, 0x00FF and
+        // 0b11111111 are the same pattern written three ways. Comparing the structs field by
+        // field would call them different, and width must not be load-bearing here.
+        if (lt is BitsType)
+            return b.Op switch
+            {
+                TokenType.Equal    => $"(({L}).value == ({R}).value)",
+                TokenType.NotEqual => $"(({L}).value != ({R}).value)",
+                TokenType.Lt       => $"(({L}).value <  ({R}).value)",
+                TokenType.Gt       => $"(({L}).value >  ({R}).value)",
+                TokenType.Lte      => $"(({L}).value <= ({R}).value)",
+                TokenType.Gte      => $"(({L}).value >= ({R}).value)",
+                _ => throw new CompilerException($"Binary operator '{b.Op}' is not yet supported on bits.")
+            };
+
         if (lt is NumberType)
         {
             string cmp = $"cufet_cmp({L}, {R})";

@@ -311,6 +311,117 @@ public class BitsTests
         Oracle(facts, "end");   // "ran" never printed — the right side was skipped
     }
 
+    // ── Equality is on the VALUE — base and width are ignored ────────────
+    // The one place width must not be load-bearing. This shipped broken in the literals slice:
+    // the runtime value is a record struct, whose default equality compares base and width too,
+    // so 0xFF = 0x00FF came back false.
+
+    [Fact]
+    public void Bits_EqualityIgnoresWidthAndBase()
+    {
+        Oracle("State 0xFF = 0x00FF.",      "true");
+        Oracle("State 0xFF = 0b11111111.",  "true");
+        Oracle("State 0xF = 0x0F.",         "true");
+        Oracle("State 0o377 = 0xFF.",       "true");
+        Oracle("State 0xFF = 0xF0.",        "false");
+    }
+
+    // ── Arithmetic ───────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("State 0x0F + 0x01.", "0x10")]
+    [InlineData("State 0x10 - 0x0F.", "0x01")]
+    [InlineData("State 0xFF * 0x02.", "0x1FE")]
+    [InlineData("State 0xFF / 0x10.", "0x0F")]   // integer division: 255 / 16 = 15
+    [InlineData("State 0xFF % 0x10.", "0x0F")]
+    public void Bits_Arithmetic(string source, string expected) => Oracle(source, expected);
+
+    [Fact]
+    public void Bits_ArithmeticWidensButNeverShrinks()
+    {
+        Oracle("State 0xFF + 0x01.", "0x100");     // grew past 8 bits
+        // Width never shrinks back once widened — the rule is the LEFT operand's width, raised
+        // to fit, and the left operand of the subtraction is already 9 bits wide.
+        Oracle("Define b as 0b1.\nState (b * 0x100) - 0x1.", "0b011111111");
+    }
+
+    [Fact]
+    public void Bits_DivisionIsIntegerDivision()
+    {
+        // '/' means something different on bits than on numbers — the same surface with a
+        // different meaning per operand type, as matrix arithmetic already does.
+        Oracle("State 0x07 / 0x02.", "0x03");
+        Oracle("State 7 / 2.",       "3.5");
+    }
+
+    // ── No representation means it raises, not fails ─────────────────────
+    // A value-level failure would ride in the type as `bits or failure` and force an unwrap
+    // after every masking expression, which is why divide-by-zero is not one either.
+
+    [Fact]
+    public void Bits_SubtractionBelowZeroRaises()
+    {
+        var ex = Assert.Throws<RuntimeException>(() => Interpret("State 0x00 - 0x1."));
+        Assert.Contains("would be negative", ex.Message);
+        Assert.Contains("unsigned", ex.Message);
+    }
+
+    [Fact]
+    public void Bits_OverflowPastSixtyFourBitsRaises()
+    {
+        var add = Assert.Throws<RuntimeException>(() => Interpret("State 0xFFFFFFFFFFFFFFFF + 0x1."));
+        Assert.Contains("64 bits", add.Message);
+        var mul = Assert.Throws<RuntimeException>(() => Interpret("State 0x1000000000000000 * 0x10."));
+        Assert.Contains("64 bits", mul.Message);
+    }
+
+    [Fact]
+    public void Bits_DivideAndModuloByZeroRaise()
+    {
+        Assert.Throws<RuntimeException>(() => Interpret("State 0xFF / 0x0."));
+        Assert.Throws<RuntimeException>(() => Interpret("State 0xFF % 0x0."));
+    }
+
+    [Fact]
+    public void Bits_OverflowMessageIsIdenticalInBothBackends()
+    {
+        // The message quotes both operands in their own base and width, so the two backends
+        // have to format bits identically — worth pinning, since each has its own formatter.
+        const string src = "State 0x00 - 0x1.";
+        var interpreted = Assert.Throws<RuntimeException>(() => Interpret(src)).Message;
+        Assert.Equal("0x00 - 0x1 would be negative, and bits are unsigned (line 1).", interpreted);
+    }
+
+    // ── Ordering ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Bits_Ordering()
+    {
+        Oracle("State 0x0F is less than 0xFF.",    "true");
+        Oracle("State 0xFF is greater than 0x0F.", "true");
+        Oracle("State 0xFF < 0x0F.",               "false");
+        // Ordering is on the value, so width is ignored here too.
+        Oracle("State 0x0F < 0x00FF.",             "true");
+    }
+
+    // ── Unary minus is refused ───────────────────────────────────────────
+
+    [Fact]
+    public void Bits_UnaryMinusIsRefused()
+    {
+        var ex = Assert.Throws<TypeException>(() => Interpret("State -0xFF."));
+        Assert.Contains("unsigned", ex.Message);
+        Assert.Contains("not", ex.Message);   // points at the operation they probably wanted
+    }
+
+    [Fact]
+    public void Bits_ArithmeticWithANumberIsRefused()
+    {
+        Assert.Throws<TypeException>(() => Interpret("State 0xFF + 1."));
+        Assert.Throws<TypeException>(() => Interpret("State 1 + 0xFF."));
+        Assert.Throws<TypeException>(() => Interpret("State 0xFF < 255."));
+    }
+
     [Fact]
     public void Gates_BitsAlwaysEvaluateBothSides()
     {

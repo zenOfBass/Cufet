@@ -1314,7 +1314,10 @@ public sealed partial class TypeChecker
             null,
             unary.Line,
             $"negate a {FormatType(operand)} value",
-            "Make sure the value you're negating is a number."));
+            operand == CufetType.Bits
+                ? "Bits are unsigned — a bit pattern has no negative. Did you mean 'not', " +
+                  "which flips every bit within the value's width?"
+                : "Make sure the value you're negating is a number."));
     }
 
     private CufetType? InferBinary(BinaryExpression bin)
@@ -1369,6 +1372,13 @@ public sealed partial class TypeChecker
             TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or TokenType.Percent
                 when l == CufetType.Number && r == CufetType.Number
                 => CufetType.Number,
+            // Arithmetic on bit patterns. '/' is INTEGER division here, unlike on numbers —
+            // the same surface with a different meaning per operand type, as matrix already
+            // does. Building a mask needs subtraction ((1 shifted left by n) - 1) and address
+            // work needs addition, so leaving arithmetic out would hobble the type.
+            TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or TokenType.Percent
+                when l == CufetType.Bits && r == CufetType.Bits
+                => CufetType.Bits,
             TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or TokenType.Percent
                 => throw new TypeException(FormatTypeError(
                     "arithmetic requires numbers on both sides",
@@ -1402,15 +1412,17 @@ public sealed partial class TypeChecker
                     $"compare a {FormatType(l)} to a {FormatType(r)}",
                     $"A {FormatType(l)} and a {FormatType(r)} can never be equal — this is likely a mistake. Check which side has the wrong type.")),
             TokenType.Lt or TokenType.Gt or TokenType.Lte or TokenType.Gte
-                when l == CufetType.Number && r == CufetType.Number
+                when (l == CufetType.Number && r == CufetType.Number)
+                  || (l == CufetType.Bits   && r == CufetType.Bits)   // unsigned, so well-ordered
                 => CufetType.Fact,
             TokenType.Lt or TokenType.Gt or TokenType.Lte or TokenType.Gte
                 => throw new TypeException(FormatTypeError(
-                    "ordering works on numbers only",
+                    "ordering works on numbers and on bits",
                     null,
                     bin.Line,
                     $"order a {FormatType(l)} and a {FormatType(r)}",
-                    "Ordering comparisons (>, <, >=, <=) require both sides to be numbers.")),
+                    "Ordering comparisons (>, <, >=, <=) need both sides to be numbers, or " +
+                    "both to be bits.")),
             // The gates. A 32-bit AND *is* 32 AND gates side by side, so the same words work at
             // both widths: a fact is one bit, a bits value is N. They stay off `number`
             // deliberately — a quantity has no bits to combine, and that separation is what
