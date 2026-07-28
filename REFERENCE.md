@@ -1,8 +1,8 @@
 # Cufet Language Reference
 
 The complete reference for Cufet `0.10.0`. For a quick introduction and taste of
-the language, see [README.md](README.md). For what's planned and the reasoning
-behind the design, see [ROADMAP.md](ROADMAP.md). For reserved words, sharp edges,
+the language, see [README.md](README.md). For the reasoning behind the
+design, see [DESIGN.md](DESIGN.md); for what comes next, see [ROADMAP.md](ROADMAP.md). For reserved words, sharp edges,
 and the constraints worth knowing before you hit them, see [GRAMMAR.md](GRAMMAR.md).
 
 Cufet either runs interpreted or compiles to a native binary, and the two share a

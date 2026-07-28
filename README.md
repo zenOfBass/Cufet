@@ -178,10 +178,9 @@ State the result's output.
 ```
 
 For the language in depth — every statement, the type system, records, objects,
-functions, collections, error handling, and I/O — see **[REFERENCE.md](REFERENCE.md)**.
-(Concurrency, pipes, regions, and the standard-library books are shipped but not
-yet written up there; [GRAMMAR.md](GRAMMAR.md) covers their syntax and sharp edges
-in the meantime.)
+functions, collections, bit patterns, error handling, I/O, regions, concurrency,
+pipes and the standard-library books — see **[REFERENCE.md](REFERENCE.md)**.
+[GRAMMAR.md](GRAMMAR.md) states the rules precisely and collects the sharp edges.
 
 ---
 
@@ -294,8 +293,8 @@ See [REFERENCE.md](REFERENCE.md) for the complete language reference.
 See [GRAMMAR.md](GRAMMAR.md) for the grammar and constraints reference — reserved
 keywords, object field scope rules, expression vs condition contexts, and sharp
 edges for writing Cufet correctly upfront.
-See [ROADMAP.md](ROADMAP.md) for what's built, what's planned, and the design
-decisions behind the language.
+See [DESIGN.md](DESIGN.md) for why the language is shaped the way it is.
+See [ROADMAP.md](ROADMAP.md) for what comes next.
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute.
 

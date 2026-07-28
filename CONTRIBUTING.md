@@ -152,15 +152,25 @@ A contribution should leave all tests passing and should add tests for any new b
 **Every feature change updates the docs.** This is a standing requirement, not a
 nice-to-have. When you add or change language behavior:
 
+Each document answers exactly one question, so there is exactly one right place for
+any given change. Nothing restates another document — that is what let ROADMAP.md drift
+until it listed shipped features as planned.
+
 | What changed | What to update |
 |---|---|
 | New syntax or keyword | GRAMMAR.md (§ appropriate section) |
 | New built-in behavior | REFERENCE.md (relevant section) |
-| New planned/done feature | ROADMAP.md (What's built or Planned features) |
-| New design decision / rationale | ROADMAP.md Design decisions section |
-| **New compiler slice / codegen change** | **CHANGELOG.md `[Unreleased]`; ROADMAP.md if it closes a planned item** |
+| Anything user-visible at all | CHANGELOG.md `[Unreleased]` |
+| A new design decision, or the reasoning behind one | DESIGN.md |
+| A plan changed, or an item shipped / was set aside | ROADMAP.md |
+| A codebase invariant a future change could break | CONTRIBUTING.md, *Implementation invariants* |
+| An accepted limitation | CONTRIBUTING.md, *Known limitations* |
 | **A backend divergence found or closed** | **CHANGELOG.md, and the rule below** |
 | Released (minor version bump) | CHANGELOG.md, README.md, REFERENCE.md header, .csproj files |
+
+**ROADMAP.md records only what is *not yet done*.** When an item ships, delete it from
+the roadmap — its record is the CHANGELOG entry, and its rationale is DESIGN.md. Leaving
+a shipped item behind is how the file becomes fiction.
 
 Docs that go stale are worse than no docs. If code and docs disagree, the code
 is the truth — but the docs should always catch up before merging.
@@ -195,7 +205,7 @@ line number) is the right default for everything else.
 but never *inward* to a shorter-lived one. This is the whole safety story for the
 regions model. Any feature that touches region depths, function return values, or
 captures must be checked against this invariant. See the soundness arc narrative in
-ROADMAP.md Design decisions.
+[DESIGN.md](DESIGN.md).
 
 ---
 
@@ -249,11 +259,131 @@ These are open tasks that are explicitly tracked, not forgotten:
   thread boundary, which is sound but not free. A move (with the sender's binding
   invalidated) would avoid the copy.
 
-- **Documentation catch-up** — REFERENCE.md has no sections for concurrency, streaming
-  pipes, regions (`Pull a rabbit`), the standard-library books, matrix, or operator
-  overloading, all of which ship in both backends. That is the largest body of
-  undocumented working surface in the repo.
-
 *(Previously listed here and since completed: true preemptive SIGINT, task-lifetime
-memory scoping, and fan-out distribution under OS threads — all shipped with the
-native backend.)*
+memory scoping, fan-out distribution under OS threads, and the REFERENCE chapters for
+concurrency, pipes, regions, books, matrix and operator overloading.)*
+
+---
+
+## Implementation invariants
+
+Things that are true of the codebase and must stay true. Breaking one of these tends to
+fail quietly rather than loudly, which is why they are written down.
+
+- **`CufetType` equality is explicit, not record-automatic.** Type
+  representations are hand-written classes with explicit `Equals` / `GetHashCode`
+  (so `FunctionType` can do deep `SequenceEqual` on parameter lists for exact
+  matching; record types compare structurally; object types compare nominally).
+  **Any new type kind must implement `Equals` / `GetHashCode` correctly —
+  including deep/order-correct equality for collection members — or matching
+  silently breaks.** (Named record fields compare order-insensitively; positional
+  fields order-sensitively — `Equals` and `GetHashCode` must agree on this.)
+
+- **The type checker is effectively two-pass for top-level declarations**
+  (signatures/definitions hoisted, then bodies checked) and stays cheap because
+  signatures are *explicitly declared* — gather-then-check, not Hindley-Milner
+  unification. Preserve explicit signature types to keep any future expansion
+  (e.g. nested functions) tractable.
+
+- **Recursion depth (`MaxCallDepth`, default 1000) is decoupled from the native
+  stack.** The interpreter runs on a dedicated large-stack thread (16 MB), and
+  the test harness does the same (`RunOnLargeStack`), so the graceful limit fires
+  before any native overflow. Never let a host/test stack size dictate the
+  language's recursion ceiling (this once caused a false-positive recursion error).
+
+- **Possible static-coverage gap in `ToNumber`** — the runtime `ToNumber` check
+  fires for non-number arithmetic. Verify whether the type checker should catch
+  all such cases statically, or whether this is a genuine runtime backstop for
+  `SeriesPending` / unresolved paths. Currently flagged with a code comment.
+
+- **I/O failure boundary is at the .NET edge, not inside Cufet.** All .NET
+  `IOException`/`UnauthorizedAccessException`/`Win32Exception` are translated to
+  `FailureUnwind` at the outermost call site (file open, file read, process
+  launch). Cufet code never sees a .NET exception from an I/O operation —
+  only a Cufet failure. This invariant must be preserved when adding new I/O
+  primitives: always wrap the outermost .NET call, not inner helpers.
+
+- **`_inTryBlock` flag controls file-read type inference.** Inside a `Try`
+  block, `InferFileReadExpr` and `InferRunExpr` return the plain success type
+  (not `failure T`), because the `Try` block is the designated handler. This
+  allows reading results directly without `or pass the failure off`. Outside a
+  `Try` block, the failable type is returned and must be handled. Any new I/O
+  primitive that produces a failable value should follow this same pattern —
+  check `_inTryBlock` in `InferType`, and return the unwrapped type when true.
+
+- **`ExecuteWithOpen` uses `try/finally` for stream lifecycle.** The scope is
+  entered and the stream is bound before the `try`, so the `finally` always
+  has the stream to dispose. This is the correct pattern — do not push
+  `EnterScope` inside the `try`, because then an open failure would skip
+  `ExitScope`. New scoped-resource primitives should follow the same structure:
+  open → EnterScope → bind → try { body } finally { ExitScope; Dispose }.
+
+- **Big files are split by concern via `partial class`; the file boundaries are
+  the navigation.** `TypeChecker` is split into `Core` + per-feature files
+  (`.Functions`, `.Series`, `.Records`, `.Objects`, `.Text`, `.Maps`);
+  `Interpreter` similarly (`Core`, `.Functions`, `.Objects`, `.Maps`). A typical
+  feature task loads `Core` + the one relevant feature file instead of the whole
+  file. The parser is deliberately *not* split — its precedence chain is linear,
+  so splitting would scatter coupled code. **Do not maintain a line-number index
+  doc** — one was tried and abandoned: keeping line numbers accurate cost more
+  than the reading it saved, and a stale line-map is worse than none. The
+  self-maintaining file/section boundaries are the index.
+
+---
+
+## Known limitations
+
+Behaviour that is understood, deliberate or accepted — not bugs waiting to be found.
+User-facing sharp edges are also called out in [GRAMMAR.md](GRAMMAR.md) §8.
+
+- **`converted to text` precedence in named-access position** — `the value of
+  person converted to text` parses as `the value of (person converted to text)`,
+  because the named-access path's inner expression parse absorbs the postfix
+  `converted to text`. Workaround: name the access first (`Define v as the value
+  of person. State v converted to text.`). Pre-existing; consistent with the
+  "name your values" guidance, so acceptable. Revisit if it bites in practice.
+
+- **Nested-function-type parameter placeholder names** — in a function-type
+  annotation, a nested function-type parameter requires a placeholder name that
+  is parsed and discarded. Minor syntax wart. Acceptable; revisit only if nested
+  function types become common (unlikely).
+
+- **`or pass the failure off` on file reads inside `Try`** — inside a `Try`
+  block, `InferFileReadExpr` returns the plain success type (not `failure T`),
+  because the `Try` block is already the handler. This means `or pass the
+  failure off` on a file read inside `Try` is a static type error — correctly
+  rejected, since there's nothing to propagate past the enclosing `Try`. If you
+  need both "catch some failures here" and "propagate others to my caller," use
+  `or pass the failure off` outside the `Try` block instead.
+
+- **`With ... open for writing` always truncates** — opening a file for writing
+  via the stream form always creates or truncates; append mode for streams is
+  deferred (use `append ... to the file` for whole-value appends in the
+  meantime).
+
+- **Captured-state mutation in tasks — enforced when compiled, unenforced when
+  interpreted.** The rule is: **task bodies must not mutate anything captured from an
+  outer scope** — a plain number as much as a series. Compiled, this is a compile-time
+  refusal (see the concurrency section above for why refusing beats copying).
+  Interpreted, it is still merely a convention — the interpreter gives task bodies
+  the live enclosing binding and one task runs at a time, so nothing goes wrong,
+  but nothing stops you either. Write to the rule and both backends agree; break
+  it and the compiler tells you.
+
+- **SIGINT interruptibility differs by backend.** *Interpreted:* yield-point-only.
+  `Yield.`, blocked channel receives, and blocked task-awaits are interrupt points,
+  so a program that yields naturally is interruptible without polling — but a tight
+  loop with no yield points is not. *Compiled:* genuinely preemptive, via a real
+  `sigaction` handler and per-thread `sigsetjmp` landing pads. A thread blocked in
+  a channel receive really wakes, and a running worker task really unwinds — running
+  its destructors and closing its files on the way out.
+
+- **Destructor timing has two known gaps, matched deliberately on both backends.**
+  Unmakers fire at block scope exit, LIFO, for `Define`d object bindings — but not
+  at function-frame exit and not at top level. The compiler reproduces the
+  interpreter's behaviour exactly, including those gaps and including the
+  double-fire on a value copy, rather than fixing one side into disagreement with
+  the other. Escaping objects are handled by the region model: a value stored
+  outward is deep-copied into the destination's region, so there is no dangling
+  object for a destructor to chase. Closing the frame-exit gap is a language
+  decision about ownership, not a backend limitation.
