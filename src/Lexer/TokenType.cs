@@ -140,8 +140,6 @@ public enum TokenType
     // ── Chance book (randomness) ───────────────────────────────────────────────
     Random,   // "random"   — in "a random number/item/guess"
     Randomly, // "randomly" — in "randomly shuffled <series>"
-    Shuffled, // "shuffled" — in "randomly shuffled <series>" (past-participle transform, like Sorted)
-    Guess,    // "guess"    — in "a random guess"
     SeedKw,   // "seed"     — in "Seed the chance with <number>."
 
     // ── Range ─────────────────────────────────────────────────────────────────
@@ -192,10 +190,6 @@ public enum TokenType
     AtlasKw,     // "atlas"     — heterogeneous map:    value  type is a union
 
     Matrix,    // "matrix"  — type introduced by the 'collections' book
-    At,        // "at"      — in "the item at (row, col) of <matrix>"
-    RowsKw,    // "rows"    — in "the rows of <matrix>"; excluded from field-name access
-    ColumnsKw, // "columns" — in "the columns of <matrix>"; excluded from field-name access
-    FilledKw,  // "filled"  — in "a matrix with <rows> by <columns> filled with <value>"
 
     // ── I/O ───────────────────────────────────────────────────────────────────
     Read,     // "read"   — starts a read expression; the form words (line/lines/all/input) are
