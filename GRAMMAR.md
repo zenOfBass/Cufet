@@ -259,6 +259,24 @@ names, parameter names, field names, and iterator names:
 of them; they are recognised by lexeme in type position, so `Define text as "hi".` is legal.
 (`number` *is* reserved, because `the number of s` needs its own token.)
 
+**Book vocabulary** — `at`, `filled`, `guess`, `shuffled`, `rows`, `columns`, `matrix`,
+`random` and `randomly` are contextual. A reserved word is taken from *every* program in the
+language, whether or not it pulls the book that wanted it; these are recognised by shape
+instead, so `Define rows as 5.` works even though the collections book uses the word.
+
+`the rows of x` is resolved by the **type of `x`** — a matrix's row count, or a record's field
+— exactly as `the key of mapping` already is. The parser cannot tell, but a reader never has
+the ambiguity.
+
+**The rule for when a word can go contextual**, and the three that cannot:
+- Its shape needs a **mandatory distinguishing token**. `a matrix with …` has `with`;
+  `a random number/item/guess` and `randomly shuffled` each have a required next word.
+  **`catalogue` and `atlas` have optional tails** — `a catalogue` alone is valid — so nothing
+  separates them from a variable of that name. They stay reserved.
+- A **statement-initial** word must be conventionally lowercase, because statement keywords are
+  capitalised and identifiers must start lowercase. `output` qualifies; **`Seed` does not**, so
+  it stays reserved too.
+
 **Ordinals** (`first`, `second`, `third`, `fourth`, `fifth`, `sixth`, `seventh`,
 `eighth`, `ninth`, `tenth`, `last`) — contextual in the accessor shape:
 - **Accessor position:** `the <ordinal> of <series>` / `<ordinal> of <series>` → positional series access
