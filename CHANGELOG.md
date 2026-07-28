@@ -59,6 +59,32 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   yields `bits and fact` and is refused at compile time. Keeping bit patterns out of `number`
   closes that footgun for free.
 
+**Book vocabulary no longer costs every program a name**
+
+- **Nine words freed:** `at`, `filled`, `guess`, `shuffled`, `rows`, `columns`, `matrix`,
+  `random`, `randomly`. They are now recognised by *shape* in the one position that needs
+  them, and are ordinary names everywhere else — so `Define rows as 5.` and
+  `given (the number rows, the number columns)` both work, in a language where they were
+  previously forbidden.
+
+  A reserved word is taken from every program, whether or not it pulls the book that wanted
+  it. Reserving `guess` for the chance book meant no program anywhere could have a variable
+  called `guess`, and the cost compounded with each book added.
+
+- **`the rows of x` is now resolved by the type of `x`** — a matrix's row count, or a record's
+  field. The parser cannot tell them apart, so the decision moved to the type checker, where
+  `the key of mapping` already lives. A reader never had the ambiguity. **This deleted the
+  `MatrixRows` and `MatrixColumns` AST nodes**, so the change is net less code.
+
+- **Two rules emerged for when a word can go contextual**, and three words fail them:
+  - Its shape needs a **mandatory distinguishing token**. `catalogue` and `atlas` have optional
+    tails (`a catalogue` alone is valid), so nothing separates them from a variable name.
+  - A **statement-initial** word must be conventionally lowercase, since statement keywords are
+    capitalised and identifiers must start lowercase. `Seed the chance with 5.` is capitalised,
+    so freeing `seed` would have changed how the statement is written.
+
+  Those three stay reserved, deliberately and for stated reasons rather than by omission.
+
 **`bits` — conversions, completing the type**
 
 - **`n converted to hex` / `to binary` / `to octal`**, and back with `converted to number` or
