@@ -187,6 +187,35 @@ button:disabled {
 #output[data-kind="empty"] { color: var(--muted); }
 #output[data-kind="error"] { color: var(--error); }
 
+/* ---- colophon ---- */
+
+.colophon {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 7px 18px;
+    background: var(--bg-raised);
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.colophon a {
+    color: var(--muted);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.colophon a:hover,
+.colophon a:focus-visible { color: var(--text); }
+
+.colophon strong {
+    color: var(--text);
+    font-weight: 600;
+}
+
 /* ---- narrow screens ---- */
 
 @media (max-width: 820px) {

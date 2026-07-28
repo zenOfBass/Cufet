@@ -12,7 +12,8 @@
 // --bundle=<path>. A CI checkout has no spaces, so there it is an ordinary one-liner.
 
 import * as esbuild from 'esbuild';
-import { cp, mkdir, rm, readdir, stat } from 'node:fs/promises';
+import { convertTheme } from './build-theme.mjs';
+import { cp, mkdir, rm, readdir, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -69,7 +70,27 @@ await esbuild.build({
     outfile: join(out, 'editor.worker.js'),
 });
 
-// --- 2. the page -------------------------------------------------------------------------------
+// --- 2. highlighting: the grammar, the theme, and the regex engine ------------------------------
+
+// The grammar is taken from the VS Code extension, not copied into the playground. One grammar,
+// one source of truth — the editor and this page cannot drift apart, which is the whole reason
+// for going through TextMate instead of hand-porting to Monaco's own Monarch format.
+await cp(join(here, '..', 'editors', 'vscode', 'syntaxes', 'cufet.tmLanguage.json'),
+         join(out, 'cufet.tmLanguage.json'));
+
+// Oniguruma is the regex engine TextMate grammars are written against; JavaScript's own RegExp
+// cannot run them (no \h, no (?i:...) inline groups, different backreference rules). It ships as
+// WebAssembly and is fetched at runtime, so it is copied rather than bundled.
+await cp(join(here, 'node_modules', 'vscode-oniguruma', 'release', 'onig.wasm'),
+         join(out, 'onig.wasm'));
+
+// Arctic Candy Darker by Kenan Salar, MIT, vendored under vendor/ with its licence.
+const theme = await convertTheme(
+    join(here, 'vendor', 'arctic-candy-dark', 'Arctic Candy Darker-color-theme.json'));
+await writeFile(join(out, 'cufet-theme.json'), JSON.stringify(theme));
+console.log(`\ntheme: ${theme.rules.length} token rules, ${Object.keys(theme.colors).length} editor colours`);
+
+// --- 3. the page -------------------------------------------------------------------------------
 
 for (const file of ['index.html', 'app.css'])
     await cp(join(here, 'web', file), join(out, file));
@@ -79,7 +100,7 @@ for (const file of ['index.html', 'app.css'])
 // this the deployed site is a page that cannot find .NET.
 await cp(join(here, 'web', '.nojekyll'), join(out, '.nojekyll'));
 
-// --- 3. the runtime ----------------------------------------------------------------------------
+// --- 4. the runtime ----------------------------------------------------------------------------
 
 if (!existsSync(appBundle)) {
     console.error(`\nNo AppBundle at:\n  ${appBundle}\n\n` +

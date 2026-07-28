@@ -10,7 +10,9 @@
     "serve": "node serve.mjs"
   },
   "dependencies": {
-    "monaco-editor": "0.56.0"
+    "monaco-editor": "0.56.0",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"

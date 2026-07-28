@@ -11,6 +11,8 @@
 // The specifier looks short because monaco-editor's exports map rewrites "./*" to "./esm/vs/*.js"
 // — spelling out the esm/vs prefix here resolves to esm/vs/esm/vs/... and fails.
 import * as monaco from 'monaco-editor/editor/editor.api';
+import { loadWASM, OnigScanner, OnigString } from 'vscode-oniguruma';
+import { Registry, INITIAL, parseRawGrammar } from 'vscode-textmate';
 
 const LANGUAGE_ID = 'cufet';
 
@@ -34,10 +36,6 @@ self.MonacoEnvironment = {
     getWorkerUrl: () => './editor.worker.js',
 };
 
-// Cufet has no Monaco grammar yet. Registering the language without one is deliberate: the plan
-// is to feed Monaco the SAME TextMate grammar the VS Code extension uses, via the oniguruma
-// bridge, rather than hand-port it to Monarch — one grammar, so the two cannot drift. Until then
-// the editor is unhighlighted, which is honest, where a half-ported Monarch grammar would not be.
 monaco.languages.register({ id: LANGUAGE_ID, extensions: ['.cufe'], aliases: ['Cufet'] });
 
 // Mirrors editors/vscode/language-configuration.json. Keep the two in step — they are the same
@@ -78,10 +76,67 @@ monaco.languages.setLanguageConfiguration(LANGUAGE_ID, {
     ],
 });
 
+// ── Highlighting ─────────────────────────────────────────────────────────────────────────────
+//
+// Monaco's own tokenizer format is Monarch, and porting the grammar to it was rejected: there
+// would then be two grammars for one language, and they would drift. Instead the editor is given
+// the SAME TextMate grammar file the VS Code extension uses, run through the same engine VS Code
+// runs it through — vscode-textmate over an Oniguruma regex engine compiled to WebAssembly.
+//
+// It also buys the theme. VS Code colour themes are scope→colour rules, so they only mean
+// anything if the tokenizer produces real TextMate scopes. Monarch could not have consumed one.
+//
+// All of it is async (a wasm fetch, two JSON fetches), so it deliberately does NOT block the
+// editor from appearing. Monaco renders unhighlighted for a moment, then re-tokenizes.
+async function startHighlighting() {
+    const [wasm, grammarSource, theme] = await Promise.all([
+        fetch('./onig.wasm').then(r => r.arrayBuffer()),
+        fetch('./cufet.tmLanguage.json').then(r => r.text()),
+        fetch('./cufet-theme.json').then(r => r.json()),
+    ]);
+
+    await loadWASM(wasm);
+
+    const registry = new Registry({
+        onigLib: Promise.resolve({
+            createOnigScanner: sources => new OnigScanner(sources),
+            createOnigString:  s => new OnigString(s),
+        }),
+        loadGrammar: scopeName => Promise.resolve(
+            scopeName === 'source.cufet'
+                ? parseRawGrammar(grammarSource, 'cufet.tmLanguage.json')
+                : null),
+    });
+
+    const grammar = await registry.loadGrammar('source.cufet');
+    if (!grammar) throw new Error('the Cufet grammar did not load');
+
+    monaco.editor.defineTheme('arctic-candy-darker', theme);
+    monaco.editor.setTheme('arctic-candy-darker');
+
+    monaco.languages.setTokensProvider(LANGUAGE_ID, {
+        getInitialState: () => INITIAL,
+        tokenize(line, state) {
+            const result = grammar.tokenizeLine(line, state);
+            return {
+                // TextMate gives each token the whole stack of scopes that applies to it; Monaco
+                // matches a single string. The INNERMOST scope is the most specific one, and
+                // Monaco's own theme matching is prefix-based on the dots, so a rule for
+                // "comment" still catches "comment.line.double-slash.cufet".
+                tokens: result.tokens.map(t => ({
+                    startIndex: t.startIndex,
+                    scopes: t.scopes[t.scopes.length - 1],
+                })),
+                endState: result.ruleStack,
+            };
+        },
+    });
+}
+
 const editor = monaco.editor.create(document.getElementById('editor'), {
     value: STARTER,
     language: LANGUAGE_ID,
-    theme: 'vs-dark',
+    theme: 'vs-dark',   // replaced by Arctic Candy Darker once the theme has been fetched
     automaticLayout: true,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
@@ -144,3 +199,8 @@ function onRuntimeReady() {
 // runtime finished booting before this module ran — the event would already be gone.
 if (globalThis.cufetReady) onRuntimeReady();
 else document.addEventListener('cufet-ready', onRuntimeReady, { once: true });
+
+// Highlighting is a nicety; running Cufet is the point. If the grammar, the theme or the regex
+// engine fails to load, say so in the console and leave a working uncoloured editor rather than
+// taking the page down with it.
+startHighlighting().catch(e => console.error('syntax highlighting failed to start:', e));
