@@ -89,48 +89,56 @@ Identifiers are not (see [Identifiers](#identifiers)).
 
 ## Comments
 
-Comments are delimited by `[[` and `]]`. Everything between them — including newlines, `.`s, and any Cufet syntax — is stripped by the lexer before parsing. The same delimiter works for single-line and multi-line comments.
+Cufet has two comment forms, spelled the way C, Rust, Go and JavaScript spell them: `//` to the
+end of a line, and `/* ... */` for a block. Everything inside either — including newlines, `.`s,
+and any Cufet syntax — is stripped by the lexer before parsing.
 
 ```
-[[ this is a comment ]]
+// this is a comment
 
-Define x as 5.  [[ inline comment after a statement ]]
+Define x as 5.   // inline comment after a statement
 
-[[ a longer comment
+/* a longer comment
    spanning multiple
-   lines — same delimiter ]]
+   lines */
 Define y as 10.
 ```
 
-**One rule for both forms.** There is no separate line-comment syntax — `[[ short ]]` and a multi-line block both use `[[`/`]]`.
+**`//` needs no terminator.** It ends at the newline, or at end of file if it is the last line.
 
-**Comments nest.** An inner `[[` opens a nested comment, and the outer one ends only at the
-`]]` that closes it — so you can comment out a block that already contains comments, which
+**Block comments nest.** An inner `/*` opens a nested comment, and the outer one ends only at the
+`*/` that closes it — so you can comment out a block that already contains comments, which
 is the usual reason to reach for a block comment at all:
 
 ```
-[[ disabled while I test something else
+/* disabled while I test something else
 
 Bind number to helper, given (the number n):
-    [[ double it ]]
+    /* double it */
     return n * 2.
 Done.
 
-]]
+*/
 ```
 
-Everything above is commented out, including the inner `[[ double it ]]`. A `[[` that is
-never closed is a lexer error naming the line the **outermost** comment opened on — the one
-you have to go find.
+Everything above is commented out, including the inner `/* double it */`. This is the one place
+Cufet's comments differ from C's, and it is the difference Rust, Swift and D also make: C's
+non-nesting block comment ends at the first `*/`, which breaks exactly the case above.
 
-**Square brackets are otherwise unused** in Cufet's surface syntax — all series/map/matrix access uses words (`item N of`, `the first of`, `the item at (r, c) of`) or parentheses, never brackets — so `[[`/`]]` collide with nothing.
+**They do not interfere with each other.** A `/*` inside a `//` comment does not open a block, and
+a `//` inside a block comment is just text. Comment markers inside a string literal are text too —
+`State "http://example.com".` prints the whole URL.
 
-**Unterminated comment.** A `[[` with no matching `]]` before end of file is a lexer error:
+**Division is unaffected.** `/` is a single-character token, so `6 / 2` and `6/2` both divide.
+Nothing that was previously a valid program has changed meaning.
+
+**Unterminated comment.** A `/*` with no matching `*/` before end of file is a lexer error naming
+the line the **outermost** comment opened on — the one you have to go find:
 
 ```
-[[ forgot to close
+/* forgot to close
 ```
-→ `Line N: unterminated comment — expected ']]' to close it.`
+→ `Line N: unterminated comment — expected '*/' to close it.`
 
 ---
 
@@ -1385,9 +1393,9 @@ decimal, `not 5` comes out as `-6` — correct, and baffling. Here it cannot be 
 ### Writing one
 
 ```
-Define mask as 0xFF.        [[ hex ]]
-Define flag as 0b1010.      [[ binary ]]
-Define mode as 0o755.       [[ octal ]]
+Define mask as 0xFF.   // hex
+Define flag as 0b1010.   // binary
+Define mode as 0o755.   // octal
 ```
 
 `_` groups digits and is dropped: `0xDE_AD_BE_EF`, `0b1010_1010`. It is allowed **only** in
@@ -1405,9 +1413,9 @@ This is the one rule that is unlike other languages. In C, Java, Rust, Go and Py
 width:
 
 ```
-State 0xF.      [[ 0xF    — 4 bits ]]
-State 0x0F.     [[ 0x0F   — 8 bits ]]
-State 0x000F.   [[ 0x000F — 16 bits ]]
+State 0xF.   // 0xF    — 4 bits
+State 0x0F.   // 0x0F   — 8 bits
+State 0x000F.   // 0x000F — 16 bits
 ```
 
 They compare **equal** — equality is on the value — but they display differently, and the width
@@ -1422,17 +1430,17 @@ A 32-bit AND *is* 32 AND gates side by side, so the same words serve a `fact` (o
 `bits` value (N of them):
 
 ```
-State 0xFF and 0x0F.        [[ 0x0F  — mask ]]
-State 0xF0 or 0x0F.         [[ 0xFF  — set ]]
-State 0b1100 xor 0b1010.    [[ 0b0110 ]]
-State not 0xFF.             [[ 0x00 ]]
+State 0xFF and 0x0F.   // 0x0F  — mask
+State 0xF0 or 0x0F.   // 0xFF  — set
+State 0b1100 xor 0b1010.   // 0b0110
+State not 0xFF.   // 0x00
 ```
 
 Clearing a bit is `and not`, which is the only clean way to unset one:
 
 ```
 Define flags as 0b1111.
-State flags and not 0b0100.   [[ 0b1011 ]]
+State flags and not 0b0100.   // 0b1011
 ```
 
 `xor` works on facts too. Precedence is `and` > `xor` > `or`.
@@ -1445,8 +1453,8 @@ In real bit code the left operand is the accumulator — `flags or MASK` — so 
 are the ones that survive:
 
 ```
-State 0xFF and 0b1010.    [[ 0x0A   ]]
-State 0b1010 and 0xFF.    [[ 0b1010 ]]
+State 0xFF and 0b1010.   // 0x0A
+State 0b1010 and 0xFF.   // 0b1010
 ```
 
 A result **widens** when the value needs more room and never truncates. It does not shrink back
@@ -1465,8 +1473,8 @@ unwrap after every masking expression.
 ### Shifts
 
 ```
-State 0b0001 shifted left by 3.    [[ 0b1000 ]]
-State 0xFF shifted right by 4.     [[ 0x0F ]]
+State 0b0001 shifted left by 3.   // 0b1000
+State 0xFF shifted right by 4.   // 0x0F
 ```
 
 The amount is a **number** — it counts positions, a quantity, like the `3` in `item 3 of s`. It
@@ -1483,10 +1491,10 @@ right shift to choose between.
 No implicit conversion, in either direction:
 
 ```
-State 255 converted to hex.        [[ 0xFF ]]
-State 10 converted to binary.      [[ 0b1010 ]]
-State 0xFF converted to number.    [[ 255 ]]
-State 0xFF converted to text.      [[ "0xFF" ]]
+State 255 converted to hex.   // 0xFF
+State 10 converted to binary.   // 0b1010
+State 0xFF converted to number.   // 255
+State 0xFF converted to text.   // "0xFF"
 ```
 
 `bits converted to number` **can never fail** — 64 bits always fits a number's 96-bit mantissa —
@@ -1497,7 +1505,7 @@ This is what lets a **computed** value be shown in hex:
 
 ```
 Define total as 200 + 55.
-State total converted to hex.      [[ 0xFF ]]
+State total converted to hex.   // 0xFF
 ```
 
 To restate a pattern in a different base, route through a number:
