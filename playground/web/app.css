@@ -11,7 +11,49 @@
   are the theme's own colours, so the page still looks right rather than merely working.
 */
 
+/*
+  JetBrains Mono — SIL Open Font Licence 1.1, vendored (see vendor/jetbrains-mono/LICENSE).
+  Four faces because the theme uses all of them: comments render italic, constants bold.
+  font-display: swap so text is readable immediately and reflows when the face arrives.
+*/
+
+@font-face {
+    font-family: 'JetBrains Mono';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('./fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'JetBrains Mono';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url('./fonts/jetbrains-mono-latin-400-italic.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'JetBrains Mono';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('./fonts/jetbrains-mono-latin-700-normal.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'JetBrains Mono';
+    font-style: italic;
+    font-weight: 700;
+    font-display: swap;
+    src: url('./fonts/jetbrains-mono-latin-700-italic.woff2') format('woff2');
+}
+
 :root {
+    /* One definition of the code font, shared by the editor and the output pane. app.js reads
+       it back off the document rather than repeating the stack in JavaScript. */
+    --mono: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Courier New', monospace;
+
     --bg:          #14161a;
     --bg-raised:   #121416;
     --bg-sunken:   #121416;
@@ -185,7 +227,7 @@ button:disabled {
     overflow: auto;
     background: var(--bg);
     color: var(--text);
-    font-family: 'Cascadia Code', 'Fira Code', Consolas, 'Courier New', monospace;
+    font-family: var(--mono);
     font-size: 13.5px;
     line-height: 1.6;
     /* Cufet's error messages are prose and run long; wrap them rather than scroll sideways. */

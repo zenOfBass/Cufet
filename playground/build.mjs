@@ -97,7 +97,34 @@ console.log(`\ntheme: ${theme.monaco.rules.length} token rules, ` +
             `${Object.keys(theme.monaco.colors).length} editor colours, ` +
             `${Object.values(theme.chrome).filter(Boolean).length} chrome variables`);
 
-// --- 3. the page -------------------------------------------------------------------------------
+// --- 3. the typeface ---------------------------------------------------------------------------
+
+// JetBrains Mono, SIL Open Font Licence 1.1, vendored rather than fetched from a font CDN for the
+// same reason Monaco is: a language's front door should not stop looking right because someone
+// else's server is having a bad day.
+//
+// Only the LATIN subset, and only woff2 — every browser that can run WebAssembly can read woff2,
+// so the .woff fallbacks would be dead weight. Four faces are needed rather than one because the
+// theme genuinely uses them: comments are italic and constants are bold.
+const FONT_DIR = join(here, 'node_modules', '@fontsource', 'jetbrains-mono', 'files');
+const FONT_FILES = [
+    'jetbrains-mono-latin-400-normal.woff2',
+    'jetbrains-mono-latin-400-italic.woff2',
+    'jetbrains-mono-latin-700-normal.woff2',
+    'jetbrains-mono-latin-700-italic.woff2',
+];
+
+await mkdir(join(out, 'fonts'), { recursive: true });
+for (const file of FONT_FILES) {
+    // Named explicitly, and missing is an ERROR rather than a silent skip. A dropped face would
+    // otherwise fall back to a system monospace mid-page, which looks like a rendering bug and is
+    // exactly the kind of thing nobody notices until it ships.
+    if (!existsSync(join(FONT_DIR, file)))
+        throw new Error(`font file missing: ${file}\nRun npm install, or update FONT_FILES if @fontsource renamed it.`);
+    await cp(join(FONT_DIR, file), join(out, 'fonts', file));
+}
+
+// --- 4. the page -------------------------------------------------------------------------------
 
 for (const file of ['index.html', 'app.css'])
     await cp(join(here, 'web', file), join(out, file));
@@ -107,7 +134,7 @@ for (const file of ['index.html', 'app.css'])
 // this the deployed site is a page that cannot find .NET.
 await cp(join(here, 'web', '.nojekyll'), join(out, '.nojekyll'));
 
-// --- 4. the runtime ----------------------------------------------------------------------------
+// --- 5. the runtime ----------------------------------------------------------------------------
 
 if (!existsSync(appBundle)) {
     console.error(`\nNo AppBundle at:\n  ${appBundle}\n\n` +

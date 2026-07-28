@@ -143,11 +143,22 @@ const editor = monaco.editor.create(document.getElementById('editor'), {
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    fontFamily: "'Cascadia Code', 'Fira Code', Consolas, 'Courier New', monospace",
+    // Read from the stylesheet rather than repeated here, so the editor and the output pane
+    // cannot end up on different fonts.
+    fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--mono').trim()
+        || "'JetBrains Mono', Consolas, monospace",
+    fontLigatures: true,
     tabSize: 4,
     renderLineHighlight: 'none',
     padding: { top: 16, bottom: 16 },
 });
+
+// Monaco measures character width once, when it is created. With font-display: swap the editor
+// is very likely to be built while a fallback face is still showing, and every column position —
+// the cursor, selections, the current-line highlight — stays measured against that fallback until
+// it is told otherwise. The misalignment is subtle enough to look like a Monaco bug rather than a
+// font-loading one, which is exactly why it is worth an explicit line.
+document.fonts.ready.then(() => monaco.editor.remeasureFonts());
 
 const runButton = document.getElementById('run');
 const outputPane = document.getElementById('output');
