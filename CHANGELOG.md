@@ -455,8 +455,8 @@ Latent language and soundness bugs surfaced by holding the two backends against 
 
 ## [0.9.0] — 2026-07-03
 
-The complete concurrency core is built, sound, and hardened by five concept cars.
-All concept-car findings are resolved. The interpreter-era language is now
+The complete concurrency core is built, sound, and hardened by five tests programs.
+All test findings are resolved. The interpreter-era language is now
 complete — native backend is the next era.
 
 ### Added
@@ -626,7 +626,7 @@ exercise of operator overloading.
 
 **Region-model soundness — three-hole adversarial arc**
 - Three holes in the outward-only invariant were found adversarially and closed.
-  See Design decisions in ROADMAP.md for the full narrative. In brief:
+  See DESIGN.md for the full narrative. In brief:
   - *Hole #1 (function-call depth laundering):* `ReturnDepthSignature` on
     `FunctionType`, computed by `ComputeReturnDepthSignature` at `CheckBind`
     time; `ValueDepthOf` reads the signature and takes `max(subset)` of
