@@ -64,6 +64,36 @@ function selectorsOf(scope) {
         .filter(s => !s.includes(' '));   // descendant selectors — Monaco cannot express them
 }
 
+// The page around the editor is styled from the SAME theme, so the chrome cannot drift away from
+// what the editor is showing. A VS Code theme already describes every surface an editor sits in —
+// title bar, side bar, tab strip, borders — so the page borrows those rather than inventing a
+// palette next to them. Each entry falls back down a chain, so a theme that omits a workbench
+// colour still produces something coherent instead of nothing.
+function chromeVars(colors) {
+    const pick = (...keys) => keys.map(k => colors[k]).find(Boolean);
+
+    return {
+        // The editor's own background, used for the output pane so the two panes agree.
+        '--bg': pick('editor.background'),
+        // Chrome: header, footer, pane headings. In most dark themes this is a shade darker
+        // than the editor, which is what gives the panes their edge without a heavy border.
+        '--bg-raised': pick('titleBar.activeBackground', 'sideBar.background', 'editor.background'),
+        '--bg-sunken': pick('editorGroupHeader.tabsBackground', 'sideBar.background', 'editor.background'),
+        '--line': pick('panel.border', 'titleBar.border', 'sideBar.border', 'contrastBorder'),
+        '--text': pick('editor.foreground', 'foreground'),
+        '--muted': pick('statusBar.foreground', 'descriptionForeground', 'tab.inactiveForeground'),
+        '--faint': pick('tab.inactiveForeground', 'editorLineNumber.foreground'),
+        // The cursor colour is a good accent: themes choose something that must stand out
+        // against the editor background, which is exactly what a primary button needs.
+        '--accent': pick('editorCursor.foreground', 'tab.activeForeground', 'textLink.foreground'),
+        // Text ON the accent. The editor background is the darkest surface the theme defines,
+        // so it reads against an accent chosen to be visible against that same background.
+        '--accent-text': pick('editor.background'),
+        '--link': pick('textLink.foreground', 'tab.activeForeground'),
+        '--error': pick('editorError.foreground'),
+    };
+}
+
 export async function convertTheme(themePath) {
     const vs = JSON.parse(await readFile(themePath, 'utf8'));
 
@@ -94,11 +124,24 @@ export async function convertTheme(themePath) {
         if (vs.colors?.[key]) colors[key] = vs.colors[key];
 
     return {
-        // "type" is optional in a VS Code theme; fall back to reading the background, since a
-        // light base under a dark background is far more wrong than the reverse.
-        base: (vs.type ?? '').toLowerCase() === 'light' ? 'vs' : 'vs-dark',
-        inherit: true,   // anything this theme does not colour keeps Monaco's own defaults
-        rules,
-        colors,
+        monaco: {
+            // "type" is optional in a VS Code theme; fall back to reading the background, since a
+            // light base under a dark background is far more wrong than the reverse.
+            base: (vs.type ?? '').toLowerCase() === 'light' ? 'vs' : 'vs-dark',
+            inherit: true,   // anything this theme does not colour keeps Monaco's own defaults
+            rules,
+            colors,
+        },
+        chrome: chromeVars(vs.colors ?? {}),
     };
+}
+
+// The chrome variables as a stylesheet, so the page picks them up before first paint rather than
+// flashing an unstyled palette while the theme JSON is still being fetched.
+export function chromeStylesheet(chrome) {
+    const body = Object.entries(chrome)
+        .filter(([, v]) => v)
+        .map(([k, v]) => `    ${k}: ${v};`)
+        .join('\n');
+    return `/* Generated from the vendored VS Code theme. Do not edit — see build-theme.mjs. */\n:root {\n${body}\n}\n`;
 }

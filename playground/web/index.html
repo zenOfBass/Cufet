@@ -5,8 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cufet Playground</title>
   <meta name="description" content="Run Cufet in your browser — a statically-typed, natural-language programming language.">
-  <!-- Monaco's own styles, emitted by the bundler from the editor's imports; then the page's. -->
+  <!-- Monaco's own styles, emitted by the bundler from the editor's imports. -->
   <link rel="stylesheet" href="./playground.css">
+  <!-- The palette, generated from the same VS Code theme the editor uses. Must come before
+       app.css, which consumes these variables and only carries fallbacks for them. -->
+  <link rel="stylesheet" href="./theme-chrome.css">
   <link rel="stylesheet" href="./app.css">
 </head>
 <body>

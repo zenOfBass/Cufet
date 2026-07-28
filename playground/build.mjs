@@ -12,7 +12,7 @@
 // --bundle=<path>. A CI checkout has no spaces, so there it is an ordinary one-liner.
 
 import * as esbuild from 'esbuild';
-import { convertTheme } from './build-theme.mjs';
+import { convertTheme, chromeStylesheet } from './build-theme.mjs';
 import { cp, mkdir, rm, readdir, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -87,8 +87,15 @@ await cp(join(here, 'node_modules', 'vscode-oniguruma', 'release', 'onig.wasm'),
 // Arctic Candy Darker by Kenan Salar, MIT, vendored under vendor/ with its licence.
 const theme = await convertTheme(
     join(here, 'vendor', 'arctic-candy-dark', 'Arctic Candy Darker-color-theme.json'));
-await writeFile(join(out, 'cufet-theme.json'), JSON.stringify(theme));
-console.log(`\ntheme: ${theme.rules.length} token rules, ${Object.keys(theme.colors).length} editor colours`);
+
+// The editor's half is fetched at runtime; the page's half is a stylesheet, so the chrome is
+// correct at first paint instead of flashing a placeholder palette while JSON loads.
+await writeFile(join(out, 'cufet-theme.json'), JSON.stringify(theme.monaco));
+await writeFile(join(out, 'theme-chrome.css'), chromeStylesheet(theme.chrome));
+
+console.log(`\ntheme: ${theme.monaco.rules.length} token rules, ` +
+            `${Object.keys(theme.monaco.colors).length} editor colours, ` +
+            `${Object.values(theme.chrome).filter(Boolean).length} chrome variables`);
 
 // --- 3. the page -------------------------------------------------------------------------------
 

@@ -2,20 +2,27 @@
   The playground's own chrome. Monaco brings its own stylesheet for everything inside the editor,
   so this file only styles what surrounds it.
 
-  Dark only, deliberately: the editor is themed dark (and the theme this will eventually carry is
-  a dark one), and a light page around a dark editor reads as a mistake rather than a choice.
+  ★ THE PALETTE IS NOT DEFINED HERE. It is generated into theme-chrome.css from the same VS Code
+  theme the editor is coloured with (see build-theme.mjs), and that stylesheet is linked BEFORE
+  this one. A page whose chrome is invented next to a themed editor never quite matches it — the
+  greys are a different temperature, and it reads as two designs bolted together.
+
+  The values below are only fallbacks, for the case where the generated sheet is missing. They
+  are the theme's own colours, so the page still looks right rather than merely working.
 */
 
 :root {
-    --bg:        #16161e;
-    --bg-raised: #1c1c26;
-    --bg-sunken: #12121a;
-    --line:      #2a2a38;
-    --text:      #d6d6e0;
-    --muted:     #7d7d94;
-    --accent:    #ff8b6b;
-    --accent-dk: #e0714f;
-    --error:     #ff6b8b;
+    --bg:          #14161a;
+    --bg-raised:   #121416;
+    --bg-sunken:   #121416;
+    --line:        #0f1013a1;
+    --text:        #d1d2d4;
+    --muted:       #b7b9bbbb;
+    --faint:       #5d5f62;
+    --accent:      #84c5e4;
+    --accent-text: #14161a;
+    --link:        #63c0ff;
+    --error:       #e55454;
 }
 
 * { box-sizing: border-box; }
@@ -68,7 +75,7 @@ body {
 }
 
 .tagline {
-    color: var(--muted);
+    color: var(--faint);
     font-size: 13px;
     /* The first thing to go when the header runs out of room; the name and the links matter more. */
     overflow: hidden;
@@ -128,7 +135,7 @@ main {
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--faint);
 }
 
 .actions {
@@ -148,18 +155,20 @@ button {
     border: 0;
     border-radius: 5px;
     background: var(--accent);
-    color: #1a1116;
+    color: var(--accent-text);
     font: inherit;
     font-size: 14px;
     font-weight: 650;
     cursor: pointer;
+    transition: filter 120ms ease, opacity 120ms ease;
 }
 
-button:hover:not(:disabled) { background: var(--accent-dk); }
+/* Brightened rather than given a second hard-coded colour — the accent comes from the theme, so
+   any hover shade written here would be a guess about a colour this file does not choose. */
+button:hover:not(:disabled) { filter: brightness(1.12); }
 
 button:disabled {
-    background: var(--line);
-    color: var(--muted);
+    opacity: 0.4;
     cursor: default;
 }
 
@@ -198,7 +207,7 @@ button:disabled {
     padding: 7px 18px;
     background: var(--bg-raised);
     border-top: 1px solid var(--line);
-    color: var(--muted);
+    color: var(--faint);
     font-size: 12px;
 }
 
@@ -209,7 +218,7 @@ button:disabled {
 }
 
 .colophon a:hover,
-.colophon a:focus-visible { color: var(--text); }
+.colophon a:focus-visible { color: var(--link); }
 
 .colophon strong {
     color: var(--text);

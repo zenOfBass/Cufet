@@ -111,6 +111,8 @@ async function startHighlighting() {
     const grammar = await registry.loadGrammar('source.cufet');
     if (!grammar) throw new Error('the Cufet grammar did not load');
 
+    // The page's half of this theme is already applied — build.mjs emits it as theme-chrome.css,
+    // linked in the page head — so only the editor's half is set here.
     monaco.editor.defineTheme('arctic-candy-darker', theme);
     monaco.editor.setTheme('arctic-candy-darker');
 
