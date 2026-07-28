@@ -1,17 +1,17 @@
 {
-  // Cufet has no line comment — [[ ]] is all there is, and it nests.
+  // C-style, with one difference: the block form NESTS, as it does in Rust and Swift.
   "comments": {
-    "blockComment": ["[[", "]]"]
+    "lineComment": "//",
+    "blockComment": ["/*", "*/"]
   },
 
   "brackets": [
-    ["[[", "]]"],
     ["(", ")"],
     ["{", "}"]
   ],
 
   "autoClosingPairs": [
-    { "open": "[[", "close": " ]]" },
+    { "open": "/*", "close": " */" },
     { "open": "(", "close": ")" },
     { "open": "{", "close": "}" },
     // No pair for ' — the possessive 's would auto-close into nonsense on every field access.

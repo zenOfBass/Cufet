@@ -29,6 +29,7 @@
   ],
 
   "patterns": [
+    { "include": "#line-comment" },
     { "include": "#comment" },
     { "include": "#string" },
     { "include": "#number" },
@@ -45,11 +46,19 @@
 
   "repository": {
 
+    "line-comment": {
+      "comment": "Matched BEFORE #comment so that a '/*' appearing inside a // comment does not open a block. Runs to end of line; nothing inside it is scoped further.",
+      "name": "comment.line.double-slash.cufet",
+      "begin": "//",
+      "end": "$",
+      "beginCaptures": { "0": { "name": "punctuation.definition.comment.cufet" } }
+    },
+
     "comment": {
-      "comment": "Cufet comments nest — an inner [[ must be closed before the outer one ends. The self-include is what implements that, and it is the whole reason commenting out a block that already contains comments works.",
+      "comment": "Cufet block comments nest — an inner /* must be closed before the outer one ends. The self-include is what implements that, and it is the whole reason commenting out a block that already contains comments works. Rust and Swift nest theirs the same way.",
       "name": "comment.block.cufet",
-      "begin": "\\[\\[",
-      "end": "\\]\\]",
+      "begin": "/\\*",
+      "end": "\\*/",
       "beginCaptures": { "0": { "name": "punctuation.definition.comment.begin.cufet" } },
       "endCaptures":   { "0": { "name": "punctuation.definition.comment.end.cufet" } },
       "patterns": [ { "include": "#comment" } ]

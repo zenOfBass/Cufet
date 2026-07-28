@@ -43,13 +43,13 @@ monaco.languages.register({ id: LANGUAGE_ID, extensions: ['.cufe'], aliases: ['C
 // Mirrors editors/vscode/language-configuration.json. Keep the two in step — they are the same
 // language, and every rule below was worked out once already for the extension.
 monaco.languages.setLanguageConfiguration(LANGUAGE_ID, {
-    // Cufet has no line comment. [[ ]] is all there is, and it nests.
-    comments: { blockComment: ['[[', ']]'] },
+    // C-style, with one difference: the block form NESTS, as it does in Rust and Swift.
+    comments: { lineComment: '//', blockComment: ['/*', '*/'] },
 
-    brackets: [['[[', ']]'], ['(', ')'], ['{', '}']],
+    brackets: [['(', ')'], ['{', '}']],
 
     autoClosingPairs: [
-        { open: '[[', close: ' ]]' },
+        { open: '/*', close: ' */' },
         { open: '(', close: ')' },
         { open: '{', close: '}' },
         // No pair for ' — the possessive 's would auto-close into nonsense on every field access.
