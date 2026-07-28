@@ -33,32 +33,32 @@ public class CommentTests
     [Fact]
     public void Comment_BeforeStatement_Ignored()
     {
-        Assert.Equal("5", Run("[[ note ]] Define x as 5. State x."));
+        Assert.Equal("5", Run("/* note */ Define x as 5. State x."));
     }
 
     [Fact]
     public void Comment_AfterStatement_Ignored()
     {
-        Assert.Equal("5", Run("Define x as 5. [[ note ]] State x."));
+        Assert.Equal("5", Run("Define x as 5. /* note */ State x."));
     }
 
     [Fact]
     public void Comment_InlineAfterStatementBeforeNext_Ignored()
     {
-        Assert.Equal("5", Run("Define x as 5. [[ note ]] State x."));
+        Assert.Equal("5", Run("Define x as 5. /* note */ State x."));
     }
 
     [Fact]
     public void Comment_MultiLine_Ignored()
     {
-        Assert.Equal("5", Run("[[ line one\nline two ]] Define x as 5. State x."));
+        Assert.Equal("5", Run("/* line one\nline two */ Define x as 5. State x."));
     }
 
     [Fact]
     public void Comment_DotInsideIsNotTerminator()
     {
         // The '.' inside the comment must not end a statement — x should still be defined.
-        Assert.Equal("5", Run("[[ this. has. periods. ]] Define x as 5. State x."));
+        Assert.Equal("5", Run("/* this. has. periods. */ Define x as 5. State x."));
     }
 
     [Fact]
@@ -66,12 +66,52 @@ public class CommentTests
     {
         // "Define y as 99." inside a comment — y must NOT be defined.
         // The only variable defined and stated is x = 5.
-        Assert.Equal("5", Run("[[ Define y as 99. ]] Define x as 5. State x."));
+        Assert.Equal("5", Run("/* Define y as 99. */ Define x as 5. State x."));
     }
 
     [Fact]
     public void Comment_BetweenStatements_Ignored()
     {
-        Assert.Equal("5\n10", Run("Define x as 5. [[ between ]] Define y as 10. State x. State y."));
+        Assert.Equal("5\n10", Run("Define x as 5. /* between */ Define y as 10. State x. State y."));
+    }
+
+    // ── Line comments ────────────────────────────────────────────────────
+
+    [Fact]
+    public void LineComment_BeforeStatement_Ignored()
+    {
+        Assert.Equal("5", Run("// note\nDefine x as 5. State x."));
+    }
+
+    [Fact]
+    public void LineComment_TrailingAStatement_Ignored()
+    {
+        Assert.Equal("5", Run("Define x as 5. // note\nState x."));
+    }
+
+    [Fact]
+    public void LineComment_CufetSyntaxInsideIsNotParsed()
+    {
+        // "Define y as 99." inside a comment — y must NOT be defined.
+        Assert.Equal("5", Run("// Define y as 99.\nDefine x as 5. State x."));
+    }
+
+    [Fact]
+    public void LineComment_DoesNotConsumeTheNextStatement()
+    {
+        // The most damaging way a line comment can be wrong: swallowing the line after it.
+        Assert.Equal("5\n10", Run("Define x as 5. // between\nDefine y as 10. State x. State y."));
+    }
+
+    [Fact]
+    public void LineCommentMarker_InsideText_IsPrintedNotStripped()
+    {
+        Assert.Equal("http://example.com", Run("State \"http://example.com\"."));
+    }
+
+    [Fact]
+    public void Division_IsUnaffectedByCommentSyntax()
+    {
+        Assert.Equal("3", Run("State 6 / 2."));
     }
 }
