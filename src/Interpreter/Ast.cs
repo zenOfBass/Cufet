@@ -563,12 +563,6 @@ public sealed record MatrixAccess(
 // Dimension expressions must evaluate to positive whole numbers.
 public sealed record MatrixSized(IExpression Rows, IExpression Cols, IExpression? Fill, int Line) : IExpression;
 
-// the rows of <matrix> — row count as number; access syntax (no pull needed).
-public sealed record MatrixRows(IExpression Target, int Line) : IExpression;
-
-// the columns of <matrix> — column count as number; access syntax (no pull needed).
-public sealed record MatrixColumns(IExpression Target, int Line) : IExpression;
-
 // Pull a book on <name> [as <local>]. ... Done.              — single book, Done.-delimited scope
 // Pull books on <n1> [as <l1>], <n2> [as <l2>], and <n3>. ... Done. — multiple books, shared scope
 // Books is never empty; single-book pull = one-element list; plural = two-or-more.

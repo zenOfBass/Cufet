@@ -36,6 +36,7 @@ public sealed class Parser
             TokenType.Define     => ParseDefineStatement(),
             // 'output <value>.' — contextual producer statement; 'output' is NOT reserved
             TokenType.Identifier when IsOutputStatement() => ParseOutputStatement(),
+            TokenType.SeedKw     => ParseSeedChanceStatement(),
             // 'name | name.' — pipe statement starting with a variable reference
             TokenType.Identifier when PeekAfterCurrent() == TokenType.Pipe => ParsePipeStatement(),
             TokenType.Identifier => IsOrdinalAccessorStatement() ? ParseSeriesSetStatement() : ParseBecomesStatement(),
@@ -73,7 +74,6 @@ public sealed class Parser
             TokenType.YieldKw       => ParseYieldStatement(),
             TokenType.GetKw => ParseGetterUntoDeclaration(),
             TokenType.SetKw => ParseSetterUntoDeclaration(),
-            TokenType.SeedKw => ParseSeedChanceStatement(),
             _ => throw new ParseException(tok, "statement keyword"),
         };
     }
@@ -438,9 +438,9 @@ public sealed class Parser
             Consume(TokenType.Of); SkipNoise();
             return new ChannelType(ParseTypeAnnotation());
         }
-        if (tok.Type == TokenType.Matrix ||
-            (tok.Type == TokenType.Identifier &&
-             tok.Lexeme.Equals("matrices", StringComparison.OrdinalIgnoreCase)))
+        // 'matrix' is contextual, so in TYPE position it is matched by lexeme. Type position is
+        // unambiguous — nothing there can be a variable reference — so no lookahead is needed.
+        if (IsWord("matrix") || IsWord("matrices"))
         {
             Advance();
             return MatrixType.Instance;
@@ -1921,7 +1921,9 @@ public sealed class Parser
         SkipNoise(); // articles are noise before any value
         var tok = Peek();
         IExpression baseExpr;
-        switch (tok.Type)
+        // EffectiveType, not tok.Type: book words lex as Identifiers so they stay usable as
+        // names, and this is where a confirmed shape routes one to its own case.
+        switch (EffectiveType(tok))
         {
             case TokenType.Number:
                 baseExpr = new NumberLiteral(decimal.Parse(Advance().Lexeme));
@@ -1999,7 +2001,7 @@ public sealed class Parser
             {
                 var itemTok = Advance();
                 SkipNoise();
-                if (Peek().Type == TokenType.At)
+                if (IsWord("at"))
                 {
                     // Matrix indexing: "item at (row, col) of <matrix>"
                     Advance(); SkipNoise();              // consume 'at'
@@ -2067,7 +2069,7 @@ public sealed class Parser
                     var colsExpr = ParseExpression();
                     SkipNoise();
                     IExpression? fillExpr = null;
-                    if (Peek().Type == TokenType.FilledKw)
+                    if (IsWord("filled"))
                     {
                         Advance(); // consume 'filled'
                         SkipNoise();
@@ -2110,7 +2112,7 @@ public sealed class Parser
                     // outer RandomItem, not to the series target.
                     baseExpr = new RandomItem(ParseCorePrimary(), randomLine);
                 }
-                else if (Peek().Type == TokenType.Guess)
+                else if (IsWord("guess"))
                 {
                     Advance(); // consume 'guess'
                     baseExpr = new RandomGuess(randomLine);
@@ -2126,7 +2128,7 @@ public sealed class Parser
                 // 'randomly shuffled <series>' — non-mutating shuffle; returns new series of same type.
                 var randomlyLine = Advance().Line; // consume 'randomly'
                 SkipNoise();
-                Consume(TokenType.Shuffled);
+                ConsumeWord("shuffled");
                 SkipNoise();
                 // ParseCorePrimary so postfix ops bind to the outer RandomlyShuffled.
                 baseExpr = new RandomlyShuffled(ParseCorePrimary(), randomlyLine);
@@ -2507,26 +2509,9 @@ public sealed class Parser
                 baseExpr = new MapSize(ParseCorePrimary(), sizeLine);
                 break;
             }
-            case TokenType.RowsKw:
-            {
-                // "the rows of <matrix>" — row count as number; access, no pull needed
-                var rowsLine = Advance().Line; // consume 'rows'
-                SkipNoise();
-                Consume(TokenType.Of);
-                SkipNoise();
-                baseExpr = new MatrixRows(ParseCorePrimary(), rowsLine);
-                break;
-            }
-            case TokenType.ColumnsKw:
-            {
-                // "the columns of <matrix>" — column count as number; access, no pull needed
-                var colsLine = Advance().Line; // consume 'columns'
-                SkipNoise();
-                Consume(TokenType.Of);
-                SkipNoise();
-                baseExpr = new MatrixColumns(ParseCorePrimary(), colsLine);
-                break;
-            }
+            // 'the rows of <matrix>' and 'the columns of <matrix>' have no case here on purpose.
+            // They are ordinary named access now, and the type checker decides what the field
+            // means from the type of the target — see InferRecordNamedAccess.
             case TokenType.FunctionKw:
             {
                 // "a function given (<params>): <body>" — anonymous lambda literal.
@@ -3669,6 +3654,30 @@ public sealed class Parser
     // Collects StringPiece tokens and InterpolHoleOpen…InterpolHoleClose expression
     // sequences, building a left-associative TextJoin chain where each embedded
     // expression is wrapped in TextConvert (text/number/fact — type-checker enforces).
+    // ── Contextual words ─────────────────────────────────────────────────
+    //
+    // A contextual word is an ordinary Identifier that one construct recognises by LEXEME in one
+    // specific position. Everywhere else it is just a name.
+    //
+    // This is how the standard library pays for its own vocabulary. A reserved word is taken from
+    // every program in the language, whether or not it pulls the book that wanted it — so
+    // reserving 'rows' for the collections book means no program anywhere can have a variable
+    // called `rows`. The cost compounds with each book added, and it has already bitten once.
+    // Recognising by shape instead keeps the word available.
+    //
+    // Deliberately NOT scope-aware: the word is recognised in its shape whether or not the book
+    // was pulled, and using the feature without it is a type error — which it already was. That
+    // is strictly less machinery for the same diagnosis.
+    //
+    // Testing is `IsWord`, which already existed for the I/O form words (line, lines, all).
+    // This is its mandatory counterpart, for a position where the word is required rather than
+    // optional.
+    private Token ConsumeWord(string word)
+    {
+        if (!IsWord(word)) throw new ParseException(Peek(), $"'{word}'");
+        return Advance();
+    }
+
     // The base a 'converted to <base>' target names, or null if the word is not one. Contextual
     // by lexeme, so 'hex', 'binary' and 'octal' stay usable as ordinary names.
     private static char? BitsBaseFor(string lexeme) => lexeme.ToLowerInvariant() switch
@@ -3748,5 +3757,37 @@ public sealed class Parser
         int i = _pos + 1;
         while (i < _tokens.Count && _tokens[i].IsNoise) i++;
         return i < _tokens.Count ? _tokens[i].Type : TokenType.Eof;
+    }
+
+    // True when the first non-noise token after the current one has this lexeme.
+    private bool NextWordIs(string word)
+    {
+        int i = _pos + 1;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count && _tokens[i].Lexeme.Equals(word, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // What the primary switch should treat this token AS.
+    //
+    // Book words lex as ordinary Identifiers so they stay usable as names, but the switch
+    // dispatches on token TYPE — so it has to be told which shape it is looking at. The
+    // lookahead is what keeps `Define matrix as 5.` a variable reference while
+    // `a matrix with (...)` is a matrix literal.
+    //
+    // Only words whose shape has a MANDATORY distinguishing token can be freed this way.
+    // 'catalogue' and 'atlas' cannot: their tails are optional, so `a catalogue` on its own is
+    // valid and is indistinguishable from a variable of that name. They stay reserved, and that
+    // is the line — not an oversight.
+    private TokenType EffectiveType(Token tok)
+    {
+        if (tok.Type != TokenType.Identifier) return tok.Type;
+        return tok.Lexeme.ToLowerInvariant() switch
+        {
+            "matrix"   when PeekAfterCurrent() == TokenType.With     => TokenType.Matrix,
+            "randomly" when NextWordIs("shuffled")                   => TokenType.Randomly,
+            "random"   when PeekAfterCurrent() is TokenType.NumberKw or TokenType.Item
+                            || NextWordIs("guess")                   => TokenType.Random,
+            _ => tok.Type,
+        };
     }
 }

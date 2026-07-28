@@ -211,6 +211,11 @@
           "match": "(?<![\\w-])(?i:for\\s+each|in\\s+case\\s+of)(?![\\w-])"
         },
         {
+          "comment": "'matrix' is contextual — a type only where the mandatory 'with' follows it, exactly as the parser decides. Everywhere else it is an ordinary name and renders as one. The lookahead does not consume the 'with', which stays an unscoped preposition.",
+          "match": "(?<![\\w-])((?i:matrix))(?=\\s+(?i:with)(?![\\w-]))",
+          "captures": { "1": { "name": "support.type.cufet" } }
+        },
+        {
           "name": "keyword.operator.word.cufet",
           "match": "(?<![\\w-])(?i:is\\s+not|is\\s+greater\\s+than|is\\s+less\\s+than|or\\s+more|or\\s+less|joined\\s+to|converted\\s+to|in\\s+uppercase|in\\s+lowercase|in\\s+reverse|split\\s+by|sorted\\s+by|counting\\s+by|randomly\\s+shuffled|filled\\s+with|shifted\\s+left\\s+by|shifted\\s+right\\s+by|converted\\s+to\\s+(?:hex|binary|octal))(?![\\w-])"
         }
@@ -270,17 +275,17 @@
         {
           "comment": "Type names. 'text', 'fact' and 'bits' are contextual rather than reserved — the lexer has no token for any of them — but they are types to anyone reading the code, so they are coloured as types.",
           "name": "support.type.cufet",
-          "match": "(?<![\\w-])(?i:number|text|fact|bits|series|record|matrix|map|channel|rabbit|task|stream|function|voidable|void|catalogue|atlas|failure|exception|books|book)(?![\\w-])"
+          "match": "(?<![\\w-])(?i:number|text|fact|bits|series|record|map|channel|rabbit|task|stream|function|voidable|void|catalogue|atlas|failure|exception|books|book)(?![\\w-])"
         },
         {
           "comment": "Word-form operators.",
           "name": "keyword.operator.word.cufet",
-          "match": "(?<![\\w-])(?i:becomes|is|not|and|or|xor|greater|less|than|more|has|contains|like|joined|converted|split|sorted|shuffled|randomly|reverse|trimmed|uppercase|lowercase|counting|filled)(?![\\w-])"
+          "match": "(?<![\\w-])(?i:becomes|is|not|and|or|xor|greater|less|than|more|has|contains|like|joined|converted|split|sorted|reverse|trimmed|uppercase|lowercase|counting)(?![\\w-])"
         },
         {
           "comment": "Built-in accessors and nouns.",
           "name": "support.function.builtin.cufet",
-          "match": "(?<![\\w-])(?i:length|size|position|characters|end|item|key|entry|contents|directory|path|environment|interrupt|delivery|awaited|category|file|rows|columns|randomly|random|guess|range)(?![\\w-])"
+          "match": "(?<![\\w-])(?i:length|size|position|characters|end|item|key|entry|contents|directory|path|environment|interrupt|delivery|awaited|category|file|range)(?![\\w-])"
         },
         {
           "name": "constant.language.boolean.cufet",

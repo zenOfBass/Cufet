@@ -351,30 +351,6 @@ public sealed partial class TypeChecker
         return MatrixType.Instance;
     }
 
-    private CufetType InferMatrixRows(MatrixRows mr)
-    {
-        var t = InferType(mr.Target);
-        if (t != null && t is not MatrixType)
-            throw new TypeException(FormatTypeError(
-                $"'the rows of' requires a matrix, but found a {FormatType(t)}",
-                null, mr.Line,
-                $"query the row count of a {FormatType(t)}",
-                "Use 'the rows of' with a matrix value."));
-        return CufetType.Number;
-    }
-
-    private CufetType InferMatrixColumns(MatrixColumns mc)
-    {
-        var t = InferType(mc.Target);
-        if (t != null && t is not MatrixType)
-            throw new TypeException(FormatTypeError(
-                $"'the columns of' requires a matrix, but found a {FormatType(t)}",
-                null, mc.Line,
-                $"query the column count of a {FormatType(t)}",
-                "Use 'the columns of' with a matrix value."));
-        return CufetType.Number;
-    }
-
     private CufetType InferMatrixAccess(MatrixAccess ma)
     {
         var matType = InferType(ma.Matrix);

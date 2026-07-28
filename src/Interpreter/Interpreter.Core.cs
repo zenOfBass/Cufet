@@ -933,8 +933,6 @@ public sealed partial class Interpreter
         MatrixLiteral ml      => EvaluateMatrixLiteral(ml),
         MatrixSized   mz      => EvaluateMatrixSized(mz),
         MatrixAccess  ma      => EvaluateMatrixAccess(ma),
-        MatrixRows    mr      => EvaluateMatrixRows(mr),
-        MatrixColumns mc      => EvaluateMatrixColumns(mc),
         IsTypeCheck   tc      => EvaluateIsTypeCheck(tc),
         EnvironmentVariableExpression env => EvaluateEnvVar(env),
         DirectoryContentsExpression   dce => EvaluateDirectoryContents(dce),
@@ -1076,6 +1074,19 @@ public sealed partial class Interpreter
                 "value" => mv.Value,
                 _ => throw new RuntimeException(
                     $"A mapping only has 'key' and 'value' fields (line {rna.Line}).")
+            };
+        }
+
+        // 'the rows of m' / 'the columns of m' — the same named-access shape a record uses,
+        // resolved by the target's type rather than by reserving the two words.
+        if (target is MatrixValue mxv)
+        {
+            return rna.FieldName switch
+            {
+                "rows"    => (object)(decimal)mxv.Rows,
+                "columns" => (object)(decimal)mxv.Cols,
+                _ => throw new RuntimeException(
+                    $"A matrix only has 'rows' and 'columns' (line {rna.Line}).")
             };
         }
 

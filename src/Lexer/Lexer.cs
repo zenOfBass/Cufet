@@ -165,10 +165,16 @@ public sealed class Lexer
             "shifted"    => TokenType.Shifted,
             "sorted"     => TokenType.Sorted,
             "reverse"    => TokenType.Reverse,
-            "random"     => TokenType.Random,
-            "randomly"   => TokenType.Randomly,
-            "shuffled"   => TokenType.Shuffled,
-            "guess"      => TokenType.Guess,
+            // 'random' and 'randomly' are contextual — see Parser.EffectiveType. Their shapes
+            // ('a random number/item/guess', 'randomly shuffled X') each have a mandatory next
+            // word, which is what lets a variable of the same name still parse as a variable.
+            // 'shuffled' and 'guess' are CONTEXTUAL — see Parser.IsWord. The standard library
+            // does not get to take a name from every program that never pulls its book.
+            // 'seed' STAYS RESERVED, unlike the rest of the book vocabulary. 'Seed the chance
+            // with <n>.' is written capitalised like every other statement keyword, and an
+            // identifier must start lowercase — so it cannot be an identifier without changing
+            // how the statement is spelled. Statement-initial words can only go contextual when
+            // they are conventionally lowercase, which is why 'output' can and this cannot.
             "seed"       => TokenType.SeedKw,
             "unto"       => TokenType.Unto,
             "get"        => TokenType.GetKw,
@@ -203,13 +209,17 @@ public sealed class Lexer
             "pull"       => TokenType.Pull,
             "book"       => TokenType.Book,
             "books"      => TokenType.Books,
-            "matrix"     => TokenType.Matrix,
-            "at"         => TokenType.At,
+            // 'matrix' is contextual — 'a matrix with …' in expression position (the 'with' is
+            // mandatory, so it disambiguates) and by lexeme in type position.
+            // 'at' is contextual — only in 'the item at (row, col) of <matrix>'.
             "catalogue"  => TokenType.CatalogueKw,
             "atlas"      => TokenType.AtlasKw,
-            "rows"       => TokenType.RowsKw,
-            "columns"    => TokenType.ColumnsKw,
-            "filled"     => TokenType.FilledKw,
+            // 'rows' and 'columns' are contextual. They reach the ordinary named-access path
+            // ('the rows of m'), and the TYPE of the target decides whether that means a
+            // matrix's row count or a record's field — the same way 'the key of mapping'
+            // already resolves. Reserving them would cost every program two of the names most
+            // likely to be wanted for tabular data.
+            // 'filled' is contextual — only in 'a matrix with R by C filled with V'.
             "contents"    => TokenType.ContentsKw,
             "directory"   => TokenType.DirectoryKw,
             "path"        => TokenType.PathKw,

@@ -4642,8 +4642,6 @@ static void* cufet_pipe_stage(void* argp) {
         MatrixLiteral         => MatrixType.Instance,
         MatrixSized           => MatrixType.Instance,
         MatrixAccess          => TNumber,
-        MatrixRows            => TNumber,
-        MatrixColumns         => TNumber,
         VariableReference vr  => vr.Name == "input" ? new ReadableStreamType(TText)   // `the input` = stdin
                                : _narrowedVars.TryGetValue(vr.Name, out var nt) ? nt.Type
                                : _closureSelf is { } cs && vr.Name == cs.Name ? cs.Type   // recursive self-reference
@@ -4854,6 +4852,7 @@ static void* cufet_pipe_stage(void* argp) {
         // the message of the exception → text (ExceptionValue exposes only Message).
         if (t is ExceptionMarkerType) return TText;
         if (t is MappingType mp) return fieldName == "key" ? mp.KeyType : mp.ValueType;   // the key/value of pair
+        if (t is MatrixType) return TNumber;   // the rows/columns of m — counts, via named access
         if (t is RecordType rt) return rt.NamedFields.First(f => f.Name == fieldName).Type;
         if (t is ObjectType ot) return ObjectMemberType(ot.Name, fieldName);
         throw new CompilerException($"field access on '{FormatTypeName(t)}' is not yet supported by the compiler.");
@@ -5048,6 +5047,9 @@ static void* cufet_pipe_stage(void* argp) {
             return EmitBookConstant(bookName, member);
         return TypeOf(target) switch
         {
+            // the rows/columns of m — named access, resolved by the target's type rather than
+            // by reserving the two words.
+            MatrixType        => $"cufet_dec_from_ll(({EmitExpr(target)})->{(member == "rows" ? "rows" : "cols")})",
             ObjectType ot     => EmitObjectMemberRead(EmitExpr(target), ot.Name, member),
             // the message of the exception → the saved fault message (arena text).
             ExceptionMarkerType => _currentExcVar ?? throw new CompilerException("'the exception' is only available inside an 'In case of exception' handler."),
@@ -5210,8 +5212,6 @@ static void* cufet_pipe_stage(void* argp) {
         MatrixLiteral ml      => EmitMatrixLiteral(ml),
         MatrixSized ms        => EmitMatrixSized(ms),
         MatrixAccess ma       => EmitMatrixAccess(ma),
-        MatrixRows mr         => $"cufet_dec_from_ll(({EmitExpr(mr.Target)})->rows)",
-        MatrixColumns mc      => $"cufet_dec_from_ll(({EmitExpr(mc.Target)})->cols)",
         RandomNumber rn       => EmitRandomNumber(rn),
         RandomGuess           => EmitRandomGuess(),
         RandomItem ri         => EmitRandomItem(ri),

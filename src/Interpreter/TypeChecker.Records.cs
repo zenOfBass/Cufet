@@ -124,6 +124,24 @@ public sealed partial class TypeChecker
             };
         }
 
+        // A matrix exposes 'rows' and 'columns' as counts. These are ordinary named access, not
+        // reserved words, so `the rows of x` reads as a record field when x is a record and as
+        // the row count when x is a matrix — resolved here, where the type is known, because the
+        // parser has no way to tell and a human reader never has to.
+        if (recordType is MatrixType)
+        {
+            return rna.FieldName switch
+            {
+                "rows" or "columns" => CufetType.Number,
+                _ => throw new TypeException(FormatTypeError(
+                    "a matrix only has 'rows' and 'columns'",
+                    null, rna.Line,
+                    $"access field '{rna.FieldName}' on a matrix",
+                    "Use 'the rows of m' or 'the columns of m'. For an element, use " +
+                    "'the item at (row, column) of m'."))
+            };
+        }
+
         // Exception values expose only 'message' (text).
         if (recordType is ExceptionMarkerType)
         {

@@ -1237,8 +1237,6 @@ public sealed partial class TypeChecker
         MatrixLiteral ml                                                                                 => InferMatrixLiteral(ml),
         MatrixSized   mz                                                                                 => InferMatrixSized(mz),
         MatrixAccess  ma                                                                                 => InferMatrixAccess(ma),
-        MatrixRows    mr                                                                                 => InferMatrixRows(mr),
-        MatrixColumns mc                                                                                 => InferMatrixColumns(mc),
         IsTypeCheck   tc                                                                                 => InferIsTypeCheck(tc),
         EnvironmentVariableExpression env                                                                => InferEnvVar(env),
         DirectoryContentsExpression   dce                                                                => InferDirectoryContents(dce),
