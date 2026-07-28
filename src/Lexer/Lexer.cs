@@ -516,47 +516,61 @@ public sealed class Lexer
             char c = Peek();
             if (c == '\n') { _line++; Advance(); }
             else if (char.IsWhiteSpace(c)) Advance();
-            else if (c == '[' && _pos + 1 < _source.Length && _source[_pos + 1] == '[')
-                SkipComment();
+            else if (c == '/' && Next() == '/') SkipLineComment();
+            else if (c == '/' && Next() == '*') SkipBlockComment();
             else break;
         }
     }
 
-    // Consumes a [[ ... ]] comment. Called after consuming the opening '[['.
+    // Consumes a // comment: everything to the end of the line.
     //
-    // NESTING: an inner '[[' opens a nested comment, and the outer one ends only at the ']]'
+    // The newline itself is deliberately LEFT for SkipWhitespace to consume, so that _line is
+    // incremented in exactly one place. A comment on the last line of a file simply ends at EOF.
+    //
+    // There is no ambiguity with division. '/' is a single-character token with no lookahead of
+    // its own, so a source '//' could only ever have parsed as division by a unary slash, which
+    // is not an expression Cufet has. Nothing valid is being taken away.
+    private void SkipLineComment()
+    {
+        while (!AtEnd() && Peek() != '\n') Advance();
+    }
+
+    // Consumes a /* ... */ comment.
+    //
+    // NESTING: an inner '/*' opens a nested comment, and the outer one ends only at the '*/'
     // that closes it. This is what makes "comment out this whole block while I test something"
     // work when the block already contains comments — the most common editing operation there
-    // is, and the one C's non-nesting comments famously break. Rust, Swift, Haskell and D all
-    // nest for the same reason.
+    // is, and the one C's non-nesting comments famously break. Rust, Swift and D spell their
+    // block comments exactly this way AND nest them, so this is the familiar surface with the
+    // better semantics, not a departure from it.
     //
     // It costs a depth counter, not a grammar rule: comments are scanned here in the lexer, so
     // counting is just an integer in a loop that already carries state.
     //
     // Unterminated (depth never returns to zero before EOF) is a lexer error naming the line
     // the OUTERMOST comment opened on — that is the one the author has to go find.
-    private void SkipComment()
+    private void SkipBlockComment()
     {
         int startLine = _line;
         int depth = 1;
-        Advance(); // consume first '['
-        Advance(); // consume second '['
+        Advance(); // consume '/'
+        Advance(); // consume '*'
         while (true)
         {
             if (AtEnd())
-                throw new LexerException(startLine, "unterminated comment — expected ']]' to close it");
+                throw new LexerException(startLine, "unterminated comment — expected '*/' to close it");
             char c = Peek();
             if (c == '\n') { _line++; Advance(); }
-            else if (c == '[' && _pos + 1 < _source.Length && _source[_pos + 1] == '[')
+            else if (c == '/' && Next() == '*')
             {
                 depth++;
-                Advance(); // consume first '['
-                Advance(); // consume second '['
+                Advance(); // consume '/'
+                Advance(); // consume '*'
             }
-            else if (c == ']' && _pos + 1 < _source.Length && _source[_pos + 1] == ']')
+            else if (c == '*' && Next() == '/')
             {
-                Advance(); // consume first ']'
-                Advance(); // consume second ']'
+                Advance(); // consume '*'
+                Advance(); // consume '/'
                 if (--depth == 0) return;
             }
             else Advance();
@@ -564,6 +578,12 @@ public sealed class Lexer
     }
 
     private char Peek() => _source[_pos];
+
+    // One character of lookahead, '\0' past the end. Both comment forms are two characters, so
+    // every one of their checks needs this; returning a sentinel rather than making each caller
+    // bounds-check keeps those conditions readable.
+    private char Next() => _pos + 1 < _source.Length ? _source[_pos + 1] : '\0';
+
     private void Advance() => _pos++;
     private bool AtEnd() => _pos >= _source.Length;
 }
