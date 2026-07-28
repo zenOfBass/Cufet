@@ -9,57 +9,58 @@
 
 Pull a book on collections.
 
-    [[ Each permission is one bit. Written in octal because the grouping is the meaning:
-       one digit per triple, owner then group then other. ]]
-    Define owner-read     as 0o400.
-    Define owner-write    as 0o200.
-    Define owner-execute  as 0o100.
-    Define group-read     as 0o040.
-    Define group-write    as 0o020.
-    Define group-execute  as 0o010.
-    Define other-read     as 0o004.
-    Define other-write    as 0o002.
-    Define other-execute  as 0o001.
+   [[ Each permission is one bit.
+      Written in octal because the grouping is the meaning:
+      one digit per triple, owner then group then other. ]]
+   Define owner-read     as 0o400.
+   Define owner-write    as 0o200.
+   Define owner-execute  as 0o100.
+   Define group-read     as 0o040.
+   Define group-write    as 0o020.
+   Define group-execute  as 0o010.
+   Define other-read     as 0o004.
+   Define other-write    as 0o002.
+   Define other-execute  as 0o001.
 
-    [[ Setting bits is `or`; the accumulator goes on the left, so the result stays octal. ]]
-    Define mode as owner-read or owner-write or owner-execute
-                or group-read or group-execute
-                or other-read or other-execute.
+   [[ Setting bits is `or`; the accumulator goes on the left, so the result stays octal. ]]
+   Define mode as owner-read or owner-write or owner-execute
+               or group-read or group-execute
+               or other-read or other-execute.
 
-    State "mode:        {mode converted to text}".
-    State "as a number: {mode converted to number converted to text}".
-    State "in binary:   {mode converted to number converted to binary converted to text}".
+   State "mode:        {mode converted to text}".
+   State "as a number: {mode converted to number converted to text}".
+   State "in binary:   {mode converted to number converted to binary converted to text}".
 
-    [[ Testing a bit is `and` — non-zero means the bit was set. ]]
-    Bind fact to allows, given (the bits m, the bits flag):
-        Return (m and flag) is not 0o000.
-    Done.
+   [[ Testing a bit is `and` — non-zero means the bit was set. ]]
+   Bind fact to allows, given (the bits m, the bits flag):
+      Return (m and flag) is not 0o000.
+   Done.
 
-    State "".
-    State "owner may write:  {cast allows on (mode, owner-write) converted to text}".
-    State "group may write:  {cast allows on (mode, group-write) converted to text}".
-    State "other may execute: {cast allows on (mode, other-execute) converted to text}".
+   State "".
+   State "owner may write:  {cast allows on (mode, owner-write) converted to text}".
+   State "group may write:  {cast allows on (mode, group-write) converted to text}".
+   State "other may execute: {cast allows on (mode, other-execute) converted to text}".
 
-    [[ Clearing a bit is `and not` — the only clean way to unset one, and the reason `not`
-       had to exist on bits rather than being dropped for being surprising. ]]
-    Define tightened as mode and not other-read and not other-execute.
-    State "".
-    State "after removing other's read and execute: {tightened converted to text}".
+   [[ Clearing a bit is `and not` — the only clean way to unset one, and the reason `not`
+      had to exist on bits rather than being dropped for being surprising. ]]
+   Define tightened as mode and not other-read and not other-execute.
+   State "".
+   State "after removing other's read and execute: {tightened converted to text}".
 
-    [[ Shifting moves a triple into position. The amount is a NUMBER — it counts places, which
-       is a quantity, not a pattern. ]]
-    Define owner-triple as 0o7.
-    State "".
-    State "0o7 shifted into the owner triple: {(owner-triple shifted left by 6) converted to text}".
+   [[ Shifting moves a triple into position. The amount is a NUMBER — it counts places, which
+      is a quantity, not a pattern. ]]
+   Define owner-triple as 0o7.
+   State "".
+   State "0o7 shifted into the owner triple: {(owner-triple shifted left by 6) converted to text}".
 
-    [[ Building a mask: (1 << n) - 1, the standard idiom. ]]
-    Define low-six as (0o1 shifted left by 6) - 0o1.
-    State "the low six bits: {low-six converted to text}".
-    State "mode within them: {(mode and low-six) converted to text}".
+   [[ Building a mask: (1 << n) - 1, the standard idiom. ]]
+   Define low-six as (0o1 shifted left by 6) - 0o1.
+   State "the low six bits: {low-six converted to text}".
+   State "mode within them: {(mode and low-six) converted to text}".
 
-    [[ A umask subtracts permissions, which is exactly `and not`. ]]
-    Define umask as 0o022.
-    Define after-umask as 0o777 and not umask.
-    State "".
-    State "0o777 with a 0o022 umask: {after-umask converted to text}".
+   [[ A umask subtracts permissions, which is exactly `and not`. ]]
+   Define umask as 0o022.
+   Define after-umask as 0o777 and not umask.
+   State "".
+   State "0o777 with a 0o022 umask: {after-umask converted to text}".
 Done.
