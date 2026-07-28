@@ -294,10 +294,10 @@ either direction. `0xFF = 255` is a type error; cross over with `converted to nu
 `converted to hex`.
 
 ```
-State 0xFF.          [[ 0xFF   — hex ]]
-State 0b1010.        [[ 0b1010 — binary ]]
-State 0o755.         [[ 0o755  — octal ]]
-State 0xDE_AD_BE_EF. [[ 0xDEADBEEF — '_' groups digits and is dropped ]]
+State 0xFF.   // 0xFF   — hex
+State 0b1010.   // 0b1010 — binary
+State 0o755.   // 0o755  — octal
+State 0xDE_AD_BE_EF.   // 0xDEADBEEF — '_' groups digits and is dropped
 ```
 
 A value **prints in the base it was written in**. Hex digits print uppercase: a computed value
@@ -321,9 +321,9 @@ This is the one genuinely unfamiliar rule, and it is **unlike C, Java, Rust, Go 
 where `0x0F` and `0xF` are the same value and width is a property of the declared type.
 
 ```
-State 0xF.     [[ 0xF   — 4 bits ]]
-State 0x0F.    [[ 0x0F  — 8 bits ]]
-State 0x000F.  [[ 0x000F — 16 bits ]]
+State 0xF.   // 0xF   — 4 bits
+State 0x0F.   // 0x0F  — 8 bits
+State 0x000F.   // 0x000F — 16 bits
 ```
 
 They compare equal — equality is on value, so `0xF = 0x0F` is true — but they display
@@ -338,11 +338,11 @@ in the type. Zero-padding hex to a byte boundary is already a habit; here it car
 Cufet keywords. Only `xor` is new.
 
 ```
-State 0xFF and 0x0F.        [[ 0x0F ]]
-State 0xF0 or 0x0F.         [[ 0xFF ]]
-State 0b1100 xor 0b1010.    [[ 0b0110 ]]
-State not 0xFF.             [[ 0x00 ]]
-State true xor false.       [[ true ]]
+State 0xFF and 0x0F.   // 0x0F
+State 0xF0 or 0x0F.   // 0xFF
+State 0b1100 xor 0b1010.   // 0b0110
+State not 0xFF.   // 0x00
+State true xor false.   // true
 ```
 
 **Gates do not work on `number`.** A quantity has no bits to combine — `5 and 3` and `not 5` are
@@ -358,8 +358,8 @@ comparisons — so `a and b xor c or d` groups as `((a and b) xor c) or d`.
 ### ★ The result takes the LEFT operand's base and width
 
 ```
-State 0xFF and 0b1010.    [[ 0x0A     — hex on the left, so hex out ]]
-State 0b1010 and 0xFF.    [[ 0b1010   — binary on the left, so binary out ]]
+State 0xFF and 0b1010.   // 0x0A     — hex on the left, so hex out
+State 0b1010 and 0xFF.   // 0b1010   — binary on the left, so binary out
 ```
 
 Left, because in real bit code the left operand is the **accumulator** — `flags or MASK`,
@@ -374,11 +374,11 @@ truncates. Nothing silently falls off the end; narrow deliberately with an `and`
 There is no implicit conversion, so you say which you mean:
 
 ```
-State 255 converted to hex.        [[ 0xFF ]]
-State 10 converted to binary.      [[ 0b1010 ]]
-State 493 converted to octal.      [[ 0o755 ]]
-State 0xFF converted to number.    [[ 255 ]]
-State 0xFF converted to text.      [[ "0xFF" ]]
+State 255 converted to hex.   // 0xFF
+State 10 converted to binary.   // 0b1010
+State 493 converted to octal.   // 0o755
+State 0xFF converted to number.   // 255
+State 0xFF converted to text.   // "0xFF"
 ```
 
 **`bits converted to number` can never fail** — 64 bits always fits a number's 96-bit mantissa —
@@ -393,7 +393,7 @@ could never do:
 
 ```
 Define total as 200 + 55.
-State total converted to hex.      [[ 0xFF ]]
+State total converted to hex.   // 0xFF
 ```
 
 To restate a pattern in another base, go through a number: `x converted to number converted to
@@ -408,9 +408,9 @@ only, so `Define hex as 5.` still works.
 trailing transform in the `sorted` / `trimmed` family, not an operator.
 
 ```
-State 0b0001 shifted left by 3.    [[ 0b1000 ]]
-State 0xFF shifted left by 4.      [[ 0xFF0  — widened, nothing lost ]]
-State 0xFF shifted right by 4.     [[ 0x0F ]]
+State 0b0001 shifted left by 3.   // 0b1000
+State 0xFF shifted left by 4.   // 0xFF0  — widened, nothing lost
+State 0xFF shifted right by 4.   // 0x0F
 ```
 
 **The amount is a `number`, not bits.** It counts *positions* — a quantity, like the `3` in
@@ -429,7 +429,7 @@ give up its field names to spell one operator.
 
 ```
 Define n as 8.
-State (0b1 shifted left by n) - 0x1.   [[ 0b011111111 — the standard n-bit mask ]]
+State (0b1 shifted left by n) - 0x1.   // 0b011111111 — the standard n-bit mask
 ```
 
 ### Arithmetic — and what has no representation
@@ -438,10 +438,10 @@ State (0b1 shifted left by n) - 0x1.   [[ 0b011111111 — the standard n-bit mas
 surface with a different meaning per operand type, as matrix arithmetic already does.
 
 ```
-State 0x0F + 0x01.   [[ 0x10 ]]
-State 0xFF * 0x02.   [[ 0x1FE  — widened to hold it ]]
-State 0xFF / 0x10.   [[ 0x0F   — integer division ]]
-State 0x07 / 0x02.   [[ 0x03   — where 7 / 2 is 3.5 ]]
+State 0x0F + 0x01.   // 0x10
+State 0xFF * 0x02.   // 0x1FE  — widened to hold it
+State 0xFF / 0x10.   // 0x0F   — integer division
+State 0x07 / 0x02.   // 0x03   — where 7 / 2 is 3.5
 ```
 
 Ordering (`<`, `>`, `<=`, `>=`, and the word forms) works too. **Equality and ordering compare
@@ -452,8 +452,8 @@ the VALUE**, so base and width are ignored: `0xFF = 0x00FF` and `0o377 = 0xFF` a
 **A result with no representation raises**, exactly as division by zero does:
 
 ```
-State 0x00 - 0x1.               [[ would be negative, and bits are unsigned ]]
-State 0xFFFFFFFFFFFFFFFF + 0x1. [[ does not fit in 64 bits ]]
+State 0x00 - 0x1.   // would be negative, and bits are unsigned
+State 0xFFFFFFFFFFFFFFFF + 0x1.   // does not fit in 64 bits
 ```
 
 These raise rather than becoming value-level failures on purpose. A failure would ride in the
@@ -468,8 +468,8 @@ eight. Narrow deliberately with an `and` if you want the shorter form.
 ### ★ `and`/`or` short-circuit on facts, and cannot on bits
 
 ```
-false and cast f on ()    [[ f never runs ]]
-0x00  and cast f on ()    [[ f always runs ]]
+false and cast f on ()   // f never runs
+0x00  and cast f on ()   // f always runs
 ```
 
 Combining two patterns needs both patterns, so there is nothing to skip. The same word takes a
@@ -483,23 +483,35 @@ In C, `a & b == c` silently parses as `a & (b == c)` and computes nonsense. Cufe
 precedence — but the mis-parse produces `bits and fact`, which is **refused at compile time**:
 
 ```
-State 0xFF and 0x0F = 0x0F.   [[ type error, not a wrong answer ]]
+State 0xFF and 0x0F = 0x0F.   // type error, not a wrong answer
 ```
 
 Keeping bit patterns out of `number` closes that footgun for free.
 
-### Comments — `[[ ... ]]`
+### Comments — `//` and `/* ... */`
 
-The lexer strips `[[ ... ]]` before tokenizing — comment content produces no tokens and is never parsed.
+The lexer strips both forms before tokenizing — comment content produces no tokens and is never parsed.
 
 ```
-[[ single-line comment ]]
-[[ multi-line
-   comment — same delimiter ]]
-Define x as 5.  [[ inline ]]
+// to the end of the line
+/* a block, which
+   may span lines */
+Define x as 5.   // inline
 ```
 
-**`[` and `]` are otherwise unused** in Cufet's surface syntax (no bracket-indexed access, no type annotations using brackets), so `[[`/`]]` collide with nothing. **Comments NEST:** an inner `[[` opens a nested comment and the outer one ends only at the `]]` closing it, so commenting out a block that already contains comments works. **Unterminated** (a `[[` whose `]]` never arrives) is a lexer error naming the **outermost** opening line.
+**`//` runs to the end of the line.** There is no ambiguity with division: `/` is a
+single-character token with no lookahead of its own, so `//` could only ever have parsed as
+division by a unary slash, which is not an expression Cufet has.
+
+**Block comments NEST** — an inner `/*` opens a nested comment and the outer one ends only at
+the `*/` closing it, so commenting out a block that already contains comments works. This is the
+one place Cufet differs from C, and it differs the way Rust, Swift and D do. **Unterminated**
+(a `/*` whose `*/` never arrives) is a lexer error naming the **outermost** opening line; a `//`
+needs no terminator and may end at end-of-file.
+
+A `/*` inside a `//` comment does not open a block, and a `//` inside a block comment is just
+text. Comment markers inside a string literal are text — strings are consumed whole before
+whitespace-skipping ever looks at them.
 
 ---
 
