@@ -1,11 +1,11 @@
-[[ EXPECTED: REJECTED at type-check, identically by both backends.
+/* EXPECTED: REJECTED at type-check, identically by both backends.
    Region escape THROUGH A FUNCTION BOUNDARY: a function launders a rabbit-scoped
    series out by returning its own parameter (the checker's ReturnDepthSignature
    propagates the argument's depth to the call site, so this is still caught).
 
    The outward-only region-store invariant refuses it: the value lives in a
    shorter-lived rabbit region than its destination, so it would dangle after
-   the rabbit's Done. pops that region. Nothing below ever executes. ]]
+   the rabbit's Done. pops that region. Nothing below ever executes. */
 
 Bind series of number to smuggle, given (the series of number s):
     return s.

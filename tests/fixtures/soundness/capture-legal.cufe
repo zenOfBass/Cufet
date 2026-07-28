@@ -1,4 +1,4 @@
-[[ EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+/* EXPECTED: COMPILES and runs; compiled output must match the interpreter.
 
    Legal captures — none of these escape a region, so the outward-only invariant
    has nothing to refuse. Each closure captures an enclosing binding and WRITES to it.
@@ -10,7 +10,7 @@
 
    This file is also the regression case for the capture-completeness bug: a body that
    only WRITES a captured variable (never reads it) used to leave the variable
-   uncaptured, emitting an undeclared C variable. ]]
+   uncaptured, emitting an undeclared C variable. */
 
 Bind number to run-size, given (the series of number s):
     Define count as 0.

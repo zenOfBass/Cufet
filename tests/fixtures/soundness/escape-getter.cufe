@@ -1,10 +1,10 @@
-[[ EXPECTED: REJECTED at type-check, identically by both backends.
+/* EXPECTED: REJECTED at type-check, identically by both backends.
    Region escape via a GETTER: the rabbit-scoped series leaves through a computed
    property on an object built inside the rabbit.
 
    The outward-only region-store invariant refuses it: the value lives in a
    shorter-lived rabbit region than its destination, so it would dangle after
-   the rabbit's Done. pops that region. Nothing below ever executes. ]]
+   the rabbit's Done. pops that region. Nothing below ever executes. */
 
 Define object bag with (the series of number items):
     Get payload as series of number:
