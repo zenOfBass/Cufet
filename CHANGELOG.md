@@ -211,14 +211,29 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
-- **Comments nest.** An inner `[[` now opens a nested comment, and the outer one ends only
-  at the `]]` that closes it. Previously the first `]]` closed everything, which meant that
-  commenting out a block of code containing a comment silently ended the comment early, let
-  the rest of the block be read as code, and reported the leftover `]]` as an unexpected
-  character — with nothing in the message to suggest a comment was involved. Commenting out
-  a block is one of the most common things anyone does while working, and it should not stop
-  working just because the block was documented. Nesting is strictly more permissive, so
-  every program that worked before still works.
+- **Comments are now `//` and `/* ... */`, replacing `[[ ... ]]`.** Two things drove this. The
+  first is that Cufet had **no line comment at all** — every passing note, every temporarily
+  disabled line, paid for an opening *and* a closing delimiter. That is friction on every line of
+  every program, and it is what a newcomer feels first. The second is conventionality: an
+  unfamiliar delimiter is a cost paid by every reader arriving from any other language, and it
+  buys nothing that `//` does not. Every character of this is a straight swap; no program changes
+  meaning, only its spelling.
+
+  **Block comments still nest.** An inner `/*` opens a nested comment, and the outer one ends only
+  at the `*/` that closes it. C's do not, which is why commenting out a block that already
+  contains a comment silently ends the comment early, lets the rest be read as code, and reports
+  the leftover `*/` as an unexpected character. Rust, Swift and D all nest theirs for exactly this
+  reason, so this is the familiar surface with the better semantics rather than a departure from
+  it. (Nesting itself was added earlier in this unreleased cycle, under the old delimiters.)
+
+  **Division is untouched.** `/` is a single-character token with no lookahead of its own, so a
+  source `//` could only ever have parsed as division by a unary slash — not an expression Cufet
+  has. Nothing valid was taken away, and `6 / 2` and `6/2` both still divide.
+
+  `[` and `]` are now unused in Cufet's surface syntax entirely, and are free for future use.
+
+  Updated with it: the lexer, GRAMMAR and REFERENCE, every example and soundness fixture, the
+  VS Code extension's grammar and language configuration, and the playground's editor config.
 
 ---
 
