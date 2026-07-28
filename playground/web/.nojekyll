@@ -1,0 +1,5 @@
+Marks the deployed site as plain static files.
+
+GitHub Pages runs a site through Jekyll by default, and Jekyll silently omits any file or
+directory whose name begins with an underscore. The .NET runtime is served from _framework/,
+so without this file the page deploys and then fails to find WebAssembly at all.

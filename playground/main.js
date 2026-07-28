@@ -1,6 +1,6 @@
-// Boots the .NET runtime and hands the two exported functions to whatever is on the page.
-// There is no UI here yet — this cut of the project exists to answer one question: how many
-// megabytes is a Cufet interpreter in a browser?
+// The .NET runtime's entry point. Boots WebAssembly, exposes the two exported functions, and
+// announces that they are callable. It deliberately knows nothing about the page — the editor and
+// the buttons live in web/app.js, so this file stays the same whatever the interface becomes.
 
 import { dotnet } from './_framework/dotnet.js';
 
@@ -12,7 +12,8 @@ globalThis.cufet = {
     check: source => exports.Cufet.Playground.Runtime.Check(source),
 };
 
-// Prove it works without needing a page: run one program at boot and report the result.
-const probe = 'Define greeting as "hello from WebAssembly".\nState greeting.\nState 6 * 7.';
-console.log(globalThis.cufet.run(probe));
+// A flag as well as an event, because the two are loaded as separate modules and this one has a
+// top-level await. If the runtime happens to finish booting before app.js has registered its
+// listener, the event alone would be missed and the Run button would never enable.
+globalThis.cufetReady = true;
 document.dispatchEvent(new CustomEvent('cufet-ready'));

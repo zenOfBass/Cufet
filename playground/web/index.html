@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cufet Playground</title>
+  <meta name="description" content="Run Cufet in your browser — a statically-typed, natural-language programming language.">
+  <!-- Monaco's own styles, emitted by the bundler from the editor's imports; then the page's. -->
+  <link rel="stylesheet" href="./playground.css">
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">&#129432;</span>
+      <h1>Cufet</h1>
+      <span class="tagline">a natural-language systems programming language</span>
+    </div>
+    <nav>
+      <a href="https://github.com/zenOfBass/Cufet">GitHub</a>
+      <a href="https://github.com/zenOfBass/Cufet/blob/main/REFERENCE.md">Reference</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="pane" id="editor-pane">
+      <div class="pane-head">
+        <h2>Program</h2>
+        <div class="actions">
+          <span id="status" class="status">loading the runtime&hellip;</span>
+          <button id="run" type="button" disabled>Run</button>
+        </div>
+      </div>
+      <!-- Monaco replaces the contents of this element once the module loads. -->
+      <div id="editor"></div>
+    </section>
+
+    <section class="pane" id="output-pane">
+      <div class="pane-head"><h2>Output</h2></div>
+      <pre id="output" data-kind="empty" aria-live="polite">The interpreter is still starting. This page runs Cufet entirely in your browser — nothing is sent to a server.</pre>
+    </section>
+  </main>
+
+  <!--
+    Two modules, loaded in this order for a reason.
+
+    main.js is the .NET runtime's own entry point: it boots WebAssembly, hangs run/check off
+    globalThis.cufet, and fires "cufet-ready" when they are callable. app.js builds the editor
+    immediately and waits for that event before enabling the Run button, so the page is visible
+    and typable while several megabytes of runtime are still arriving.
+  -->
+  <script type="module" src="./main.js"></script>
+  <script type="module" src="./playground.js"></script>
+</body>
+</html>

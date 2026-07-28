@@ -1,0 +1,18 @@
+{
+  "name": "cufet-playground",
+  "version": "0.10.0",
+  "description": "Browser playground for the Cufet language — the interpreter compiled to WebAssembly.",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "serve": "node serve.mjs"
+  },
+  "dependencies": {
+    "monaco-editor": "0.56.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
