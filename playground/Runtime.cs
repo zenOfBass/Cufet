@@ -1,0 +1,108 @@
+using System.Runtime.InteropServices.JavaScript;
+using Cufet.Interpreter;
+using Cufet.Lexer;
+using CufetLexer = Cufet.Lexer.Lexer;
+using CufetInterpreter = Cufet.Interpreter.Interpreter;
+
+namespace Cufet.Playground;
+
+// The whole browser-facing surface of the playground: two functions taking source text.
+//
+// The interpreter already accepts a TextWriter and TextReader — that is how the test suite has
+// always driven it — so capturing output needs no change to it at all. Nothing here reaches for
+// Console.
+public static partial class Runtime
+{
+    // Runs a program and returns everything it printed. A Cufet-level error (bad syntax, a type
+    // error, an uncaught exception) is part of the ANSWER here, not an exception to propagate
+    // into JavaScript: the playground wants to show the message the same way a terminal would.
+    [JSExport]
+    internal static string Run(string source)
+    {
+        var output = new StringWriter();
+        try
+        {
+            var tokens  = new CufetLexer(source).Tokenize();
+            var program = new Parser(tokens).Parse();
+            new TypeChecker().Check(program);
+            // All three streams are passed explicitly. Leaving any of them null falls back to
+            // Console, and Console.In throws PlatformNotSupported in a browser — there is no
+            // stdin to read. Error goes to the same buffer as output so nothing a program
+            // writes can silently vanish.
+            new CufetInterpreter(output, new StringReader(""), output).Execute(program);
+        }
+        catch (Exception e) when (e is LexerException or ParseException or TypeException or RuntimeException)
+        {
+            output.Write(e.Message);
+            if (!e.Message.EndsWith('\n')) output.Write('\n');
+        }
+        return output.ToString();
+    }
+
+    // The same front end the editor extension calls, so the playground's squiggles and the
+    // editor's are the same diagnostics from the same code — never a re-implementation that
+    // could drift. One JSON object, or "" when the program is clean.
+    [JSExport]
+    internal static string Check(string source)
+    {
+        try
+        {
+            var tokens  = new CufetLexer(source).Tokenize();
+            var program = new Parser(tokens).Parse();
+            new TypeChecker().Check(program);
+            return "";
+        }
+        catch (Exception e) when (e is LexerException or ParseException or TypeException)
+        {
+            // Written by hand rather than with JsonSerializer. Reflection-based serialization
+            // needs metadata that trimming removes, so it throws PlatformNotSupported in a
+            // trimmed WASM build — and three fields do not justify a source-generated context,
+            // let alone shipping System.Text.Json to every visitor.
+            return "{\"line\":" + LineOf(e)
+                 + ",\"severity\":\"error\",\"message\":" + JsonString(e.Message) + "}";
+        }
+    }
+
+    private static string JsonString(string s)
+    {
+        var sb = new System.Text.StringBuilder(s.Length + 16).Append('"');
+        foreach (char c in s)
+            sb.Append(c switch
+            {
+                '"'  => "\\\"",
+                '\\' => "\\\\",
+                '\n' => "\\n",
+                '\r' => "\\r",
+                '\t' => "\\t",
+                < ' ' => "\\u" + ((int)c).ToString("x4"),
+                _ => c.ToString(),
+            });
+        return sb.Append('"').ToString();
+    }
+
+    // Lexer and parse errors carry a line. Type errors do not — TypeException holds only a
+    // message — but nearly all of them come from FormatTypeError, which always writes
+    // "Here on line N, you're trying to ...". That anchor is tried first because a message may
+    // name several lines and the violation is the one to underline.
+    private static int LineOf(Exception e) => e switch
+    {
+        LexerException le => le.Line,
+        ParseException pe => pe.Line,
+        _ => LineFromMessage(e.Message),
+    };
+
+    private static int LineFromMessage(string message)
+    {
+        var anchored = System.Text.RegularExpressions.Regex.Match(message, @"Here on line (\d+)");
+        if (anchored.Success) return int.Parse(anchored.Groups[1].Value);
+        var mentioned = System.Text.RegularExpressions.Regex.Match(
+            message, @"\bline (\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return mentioned.Success ? int.Parse(mentioned.Groups[1].Value) : 1;
+    }
+}
+
+public static class Program
+{
+    // browser-wasm still wants an entry point; the real surface is the [JSExport]s above.
+    public static void Main() { }
+}

@@ -349,7 +349,13 @@ public sealed partial class Interpreter
         _scopes[0]["input"] = new ReadableStreamValue(_in);
         // e.Cancel = true: convert Ctrl-C from "terminate process" into "set our flag."
         // The handler runs on the signal-dispatch thread; volatile bool handles the cross-thread write.
-        Console.CancelKeyPress += (_, e) => { e.Cancel = true; _interruptRequested = true; };
+        //
+        // Skipped in the browser, where Console.CancelKeyPress throws PlatformNotSupported —
+        // there is no Ctrl-C to intercept. Being in the CONSTRUCTOR, it otherwise made every
+        // program fail under WebAssembly while the front end worked perfectly, which is a
+        // confusing shape of bug: type errors reported fine, nothing would run.
+        if (!OperatingSystem.IsBrowser())
+            Console.CancelKeyPress += (_, e) => { e.Cancel = true; _interruptRequested = true; };
     }
 
     // Flattens statements through Pull...Done scope bodies so that hoisting passes see

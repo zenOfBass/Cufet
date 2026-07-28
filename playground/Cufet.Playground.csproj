@@ -1,0 +1,49 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Cufet interpreter, compiled to WebAssembly.
+
+    Deliberately NOT a Blazor project. Blazor is a UI framework — renderer, router, DI,
+    component model — and none of that is wanted here: the page is Monaco plus a Run button,
+    so all this needs to be is "call C# from JavaScript". A plain browser-wasm project with
+    [JSExport] does exactly that, ships less, and avoids the SPA-routing workaround Blazor
+    apps need on GitHub Pages.
+
+    The compiler backend is NOT referenced. It shells out to gcc, which has no meaning in a
+    browser, and leaving it out keeps the payload to the front end plus the interpreter.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-browser</TargetFramework>
+    <RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <WasmMainJSPath>main.js</WasmMainJSPath>
+
+    <!-- Payload is the whole point of this project's first cut, so trim hard and measure. -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <EventSourceSupport>false</EventSourceSupport>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+
+    <!--
+      InvariantGlobalization is DELIBERATELY ABSENT, and it is not an oversight.
+
+      Setting it forces emscripten to relink the native runtime instead of using the prebuilt
+      dotnet.native.wasm — and that relink cannot handle a space in the build path. This
+      repository lives under "…\My Stuff\…", so turning it on fails locally with a wasm-ld
+      "cannot open output file" that names a directory which demonstrably exists. Bisected:
+      the same project builds with it in a space-free path, and builds without it here.
+
+      It WOULD shrink the payload (ICU data is a real chunk of it), and a CI runner has no
+      spaces in its checkout path, so a publish workflow can turn it back on. Measure the
+      difference before deciding it matters.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\Interpreter\Cufet.Interpreter.csproj" />
+  </ItemGroup>
+
+</Project>
