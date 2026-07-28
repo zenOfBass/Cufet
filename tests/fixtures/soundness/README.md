@@ -49,7 +49,7 @@ theories would silently become no-ops and the suite would still pass.
 
 ## Adding a probe
 
-Drop in a `.cufe` file named for its expected outcome, and lead with an `[[ EXPECTED: … ]]` comment
+Drop in a `.cufe` file named for its expected outcome, and lead with a `/* EXPECTED: … */` comment
 saying which route it exercises and why. The test suite picks it up automatically; update the
 `FixtureCorpus_IsPresent` counts in `tests/Compiler.Tests/SoundnessFixtureTests.cs`.
 
