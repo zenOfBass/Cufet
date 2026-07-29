@@ -214,6 +214,13 @@ button:disabled {
     cursor: default;
 }
 
+/* While a program is in flight the same button stops it. Coloured with the theme's error red so
+   it reads as an interrupt rather than a second way to start something. */
+button.is-stop {
+    background: var(--error);
+    color: var(--bg);
+}
+
 #editor {
     flex: 1;
     min-height: 0;

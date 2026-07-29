@@ -146,11 +146,11 @@ if (!existsSync(appBundle)) {
 // _framework/ is the runtime itself and can only come from the publish.
 await cp(join(appBundle, '_framework'), join(out, '_framework'), { recursive: true });
 
-// main.js is taken from SOURCE, not from the bundle, even though the bundle contains a copy of
-// it. The SDK's copy is verbatim but incrementally cached, so editing main.js and republishing
-// can leave a stale copy in the bundle — which is exactly what happened the first time this ran,
-// and it is silent: the page loads and behaves like an older version of itself.
-await cp(join(here, 'main.js'), join(out, 'main.js'));
+// worker.js is taken from SOURCE, not from the bundle, even though the bundle contains a copy of
+// it. The SDK's copy is verbatim but incrementally cached, so editing it and republishing can
+// leave a stale copy in the bundle — which is exactly what happened the first time this ran, and
+// it is silent: the page loads and behaves like an older version of itself.
+await cp(join(here, 'worker.js'), join(out, 'worker.js'));
 
 // --- report ------------------------------------------------------------------------------------
 

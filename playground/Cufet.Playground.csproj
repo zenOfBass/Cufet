@@ -20,7 +20,13 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <WasmMainJSPath>main.js</WasmMainJSPath>
+    <!--
+      The SDK's entry script. It is named worker.js because that is where it runs: the page
+      spawns it as a Web Worker rather than loading it itself, so a synchronous Cufet program
+      cannot freeze the UI thread. The SDK only copies this file; it does not care which thread
+      ends up evaluating it.
+    -->
+    <WasmMainJSPath>worker.js</WasmMainJSPath>
 
     <!-- Payload is the whole point of this project's first cut, so trim hard and measure. -->
     <PublishTrimmed>true</PublishTrimmed>

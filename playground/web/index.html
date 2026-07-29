@@ -55,14 +55,10 @@
   </footer>
 
   <!--
-    Two modules, loaded in this order for a reason.
-
-    main.js is the .NET runtime's own entry point: it boots WebAssembly, hangs run/check off
-    globalThis.cufet, and fires "cufet-ready" when they are callable. app.js builds the editor
-    immediately and waits for that event before enabling the Run button, so the page is visible
-    and typable while several megabytes of runtime are still arriving.
+    One module. The .NET runtime is NOT loaded here — playground.js spawns worker.js to boot it
+    on a separate thread, so a Cufet program that never terminates cannot take the page with it.
+    The editor is built immediately and is typable while several megabytes of runtime arrive.
   -->
-  <script type="module" src="./main.js"></script>
   <script type="module" src="./playground.js"></script>
 </body>
 </html>

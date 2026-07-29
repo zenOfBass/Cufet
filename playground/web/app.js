@@ -169,49 +169,100 @@ function setOutput(text, kind) {
     outputPane.dataset.kind = kind;
 }
 
-function run() {
-    if (!globalThis.cufet) return;
+// ── The runtime, which lives in a worker ─────────────────────────────────────────────────────
+//
+// Cufet runs synchronously, so it cannot share a thread with the interface: a slow program would
+// freeze the page and a non-terminating one would end it. Everything below is the small amount of
+// bookkeeping that buys — a Stop button that always works, because stopping is killing the worker.
 
-    runButton.disabled = true;
-    // The interpreter runs synchronously on this thread, so a long program freezes the page until
-    // it finishes. Yield one frame first, otherwise the button never visibly changes state and a
-    // slow program looks like a dead page. Moving the runtime to a worker is the real fix, and it
-    // is worth doing before anyone can paste an accidental infinite loop in here.
-    requestAnimationFrame(() => {
-        try {
-            const started = performance.now();
-            const result = globalThis.cufet.run(editor.getValue());
-            const elapsed = Math.round(performance.now() - started);
-            setOutput(result.length ? result : '(no output)', result.length ? 'normal' : 'empty');
-            statusText.textContent = `ran in ${elapsed} ms`;
-        } catch (e) {
-            // Run() catches everything Cufet-level and returns it as text, so reaching here means
-            // the runtime itself failed — worth showing plainly rather than only in the console.
-            setOutput(String(e), 'error');
-            statusText.textContent = 'the runtime failed';
-        } finally {
-            runButton.disabled = false;
-        }
-    });
+let worker = null;
+let booted = false;
+let running = null;      // the id of the run in flight, or null
+let nextRunId = 1;
+
+function spawnWorker() {
+    booted = false;
+    // A module worker, because the .NET runtime's loader is an ES module. Same-origin, same
+    // directory — the runtime resolves _framework/ relative to this script, exactly as it would
+    // have on the page.
+    worker = new Worker('./worker.js', { type: 'module' });
+    worker.onmessage = onWorkerMessage;
+    worker.onerror = e => {
+        setOutput(`the runtime failed to start: ${e.message}`, 'error');
+        setBusy(false);
+        statusText.textContent = 'the runtime failed';
+    };
 }
 
-runButton.addEventListener('click', run);
+function onWorkerMessage({ data }) {
+    if (data.ready) {
+        booted = true;
+        setBusy(false);
+        statusText.textContent = 'ready';
+        if (pendingAutoRun) { pendingAutoRun = false; run(); }
+        return;
+    }
+
+    // A reply from a run that was already abandoned — the worker it came from has been replaced.
+    // Ignoring it keeps a stale result from overwriting whatever the page shows now.
+    if (data.id !== running) return;
+    running = null;
+    setBusy(false);
+
+    if (data.ok) {
+        const text = data.result;
+        setOutput(text.length ? text : '(no output)', text.length ? 'normal' : 'empty');
+        statusText.textContent = `ran in ${Math.round(data.elapsed)} ms`;
+    } else {
+        setOutput(data.error, 'error');
+        statusText.textContent = 'the runtime failed';
+    }
+}
+
+// The Run button becomes Stop while a program is in flight. One control, and it is always the
+// thing you want: a runaway program is precisely when a visitor is looking for a way out.
+function setBusy(busy) {
+    runButton.textContent = busy ? 'Stop' : 'Run';
+    runButton.classList.toggle('is-stop', busy);
+    runButton.disabled = !busy && !booted;
+}
+
+function run() {
+    if (!booted || running !== null) return;
+    running = nextRunId++;
+    setBusy(true);
+    statusText.textContent = 'running…';
+    worker.postMessage({ id: running, kind: 'run', source: editor.getValue() });
+}
+
+function stop() {
+    if (running === null) return;
+    // terminate() is the only thing that can interrupt a synchronous WebAssembly loop from
+    // outside. The worker is then unusable, so a fresh one is started immediately and the next
+    // Run waits for it — see the comment at the top of worker.js for why it has to be this way.
+    worker.terminate();
+    running = null;
+    setOutput('Stopped.', 'empty');
+    statusText.textContent = 'restarting the runtime…';
+    // Respawn BEFORE repainting the button: spawnWorker clears `booted`, and setBusy reads it to
+    // decide whether Run is clickable. The other order leaves the button briefly live over a
+    // runtime that does not exist yet.
+    spawnWorker();
+    setBusy(false);
+}
+
+runButton.addEventListener('click', () => (running === null ? run() : stop()));
 
 // Ctrl/Cmd-Enter runs, which is what every playground on the web has trained people to expect.
-editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, run);
+editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => run());
 
-function onRuntimeReady() {
-    runButton.disabled = false;
-    statusText.textContent = 'ready';
-    // Run the starter program once, so the output pane shows something real on arrival instead of
-    // an empty box the visitor has to guess at.
-    run();
-}
+// Run the starter program once the runtime is up, so the output pane shows something real on
+// arrival instead of an empty box the visitor has to guess at. Only on the FIRST boot — a restart
+// after Stop must not immediately re-run the program the visitor just stopped.
+let pendingAutoRun = true;
 
-// main.js sets the flag before firing the event. Checking it first covers the case where the
-// runtime finished booting before this module ran — the event would already be gone.
-if (globalThis.cufetReady) onRuntimeReady();
-else document.addEventListener('cufet-ready', onRuntimeReady, { once: true });
+setBusy(false);
+spawnWorker();
 
 // Highlighting is a nicety; running Cufet is the point. If the grammar, the theme or the regex
 // engine fails to load, say so in the console and leave a working uncoloured editor rather than
