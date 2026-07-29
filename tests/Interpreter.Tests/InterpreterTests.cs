@@ -1,8 +1,9 @@
-﻿using Cufet.Interpreter;
+using Cufet.Interpreter;
 using Cufet.Lexer;
 using System.Runtime.ExceptionServices;
 using Xunit;
 using CufetLexer = Cufet.Lexer.Lexer;
+using static Cufet.Interpreter.Tests.PlatformCommands;
 
 namespace Cufet.Interpreter.Tests;
 
@@ -7335,6 +7336,9 @@ public class InterpreterTests
     }
 
     // ── I/O — process execution (run) ─────────────────────────────────────────
+    //
+    // The programs these launch are chosen per-OS in PlatformCommands — see that file for why
+    // `run` cannot just use a shell of its own.
 
     [Fact]
     public void IO_Run_ExitCode_Zero()
@@ -7344,7 +7348,7 @@ public class InterpreterTests
         // (the inner ParsePrimary greedily eats 'converted to text').
         Assert.Equal("0", Run(
             "Try to:\n" +
-            "    Define result as run \"cmd\" with arguments (\"/C\", \"exit /b 0\").\n" +
+            $"    Define result as run \"{Shell}\" with arguments (\"{ShellFlag}\", \"{ExitWith(0)}\").\n" +
             "    Define code as the exit-code of result.\n" +
             "    State code converted to text.\n" +
             "Done.\n" +
@@ -7360,7 +7364,7 @@ public class InterpreterTests
         // Inline If to avoid the per-arm Done. requirement.
         Assert.Equal("got it", Run(
             "Try to:\n" +
-            "    Define result as run \"cmd\" with arguments (\"/C\", \"exit /b 42\").\n" +
+            $"    Define result as run \"{Shell}\" with arguments (\"{ShellFlag}\", \"{ExitWith(42)}\").\n" +
             "    If the exit-code of result is 42, State \"got it\".\n" +
             "    Otherwise, State \"wrong\".\n" +
             "Done.\n" +
@@ -7375,7 +7379,7 @@ public class InterpreterTests
         // exit-code field is a number; non-zero exit codes are captured correctly.
         Assert.Equal("42", Run(
             "Try to:\n" +
-            "    Define result as run \"cmd\" with arguments (\"/C\", \"exit /b 42\").\n" +
+            $"    Define result as run \"{Shell}\" with arguments (\"{ShellFlag}\", \"{ExitWith(42)}\").\n" +
             "    Define code as the exit-code of result.\n" +
             "    State code converted to text.\n" +
             "Done.\n" +
@@ -7390,7 +7394,7 @@ public class InterpreterTests
         // stdout is captured in the 'output' field of the result record.
         Assert.Equal("hello", Run(
             "Try to:\n" +
-            "    Define result as run \"cmd\" with arguments (\"/C\", \"echo hello\").\n" +
+            $"    Define result as run \"{Shell}\" with arguments (\"{ShellFlag}\", \"echo hello\").\n" +
             "    State (the output of result) trimmed.\n" +
             "Done.\n" +
             "In case of failure:\n" +
@@ -7404,7 +7408,7 @@ public class InterpreterTests
         // stderr is captured in the 'errors' field; stdout is empty when only stderr is written.
         Assert.Equal("stderr-data", Run(
             "Try to:\n" +
-            "    Define result as run \"cmd\" with arguments (\"/C\", \"echo stderr-data>&2\").\n" +
+            $"    Define result as run \"{Shell}\" with arguments (\"{ShellFlag}\", \"{EchoToStderr("stderr-data")}\").\n" +
             "    State (the errors of result) trimmed.\n" +
             "Done.\n" +
             "In case of failure:\n" +
@@ -7418,7 +7422,7 @@ public class InterpreterTests
         // Each argument in 'with arguments (...)' is passed directly as a separate OS argument.
         Assert.Equal("passed-arg", Run(
             "Try to:\n" +
-            "    Define result as run \"cmd\" with arguments (\"/C\", \"echo\", \"passed-arg\").\n" +
+            $"    Define result as run \"{EchoArgProgram}\" with arguments ({EchoArgList("passed-arg")}).\n" +
             "    State (the output of result) trimmed.\n" +
             "Done.\n" +
             "In case of failure:\n" +
@@ -7471,7 +7475,7 @@ public class InterpreterTests
         // 'or pass the failure off' propagates launch failures to the caller.
         Assert.Equal("hello", Run(
             "Bind text or failure to run-it:\n" +
-            "    Define result as run \"cmd\" with arguments (\"/C\", \"echo hello\") or pass the failure off.\n" +
+            $"    Define result as run \"{Shell}\" with arguments (\"{ShellFlag}\", \"echo hello\") or pass the failure off.\n" +
             "    Return (the output of result) trimmed.\n" +
             "Done.\n" +
             "Try to:\n" +
@@ -7487,9 +7491,9 @@ public class InterpreterTests
     {
         // The program to run can be any text expression, including a variable.
         Assert.Equal("0", Run(
-            "Define prog as \"cmd\".\n" +
+            $"Define prog as \"{Shell}\".\n" +
             "Try to:\n" +
-            "    Define result as run prog with arguments (\"/C\", \"exit /b 0\").\n" +
+            $"    Define result as run prog with arguments (\"{ShellFlag}\", \"{ExitWith(0)}\").\n" +
             "    Define code as the exit-code of result.\n" +
             "    State code converted to text.\n" +
             "Done.\n" +
@@ -7505,7 +7509,7 @@ public class InterpreterTests
         // Intermediate variable for exit-code to avoid 'converted to text' mis-parse.
         Assert.Equal("hello\n0", Run(
             "Try to:\n" +
-            "    Define result as run \"cmd\" with arguments (\"/C\", \"echo hello\").\n" +
+            $"    Define result as run \"{Shell}\" with arguments (\"{ShellFlag}\", \"echo hello\").\n" +
             "    State (the output of result) trimmed.\n" +
             "    Define code as the exit-code of result.\n" +
             "    State code converted to text.\n" +
@@ -7520,7 +7524,7 @@ public class InterpreterTests
     {
         // Using a run result without handling the launch failure is a static type error.
         Assert.Throws<TypeException>(() => Run(
-            "Define result as run \"cmd\" with arguments (\"/C\", \"exit /b 0\").\n" +
+            $"Define result as run \"{Shell}\" with arguments (\"{ShellFlag}\", \"{ExitWith(0)}\").\n" +
             "State the exit-code of result."));
     }
 
@@ -7543,7 +7547,7 @@ public class InterpreterTests
         // Each argument must be text — a number argument is a static error.
         Assert.Throws<TypeException>(() => Run(
             "Try to:\n" +
-            "    Define result as run \"cmd\" with arguments (\"/C\", 42).\n" +
+            $"    Define result as run \"{Shell}\" with arguments (\"{ShellFlag}\", 42).\n" +
             "Done.\n" +
             "In case of failure:\n" +
             "    State \"failed\".\n" +

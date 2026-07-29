@@ -3,6 +3,7 @@ using Cufet.Lexer;
 using System.Runtime.ExceptionServices;
 using Xunit;
 using CufetLexer = Cufet.Lexer.Lexer;
+using static Cufet.Interpreter.Tests.PlatformCommands;
 
 namespace Cufet.Interpreter.Tests;
 
@@ -359,13 +360,13 @@ public class PipeTests
 
     // A subprocess pipe in expression position captures stdout as the 'output' field.
     // This is command substitution: 'Define x as the output of (run "a" | run "b")'.
-    // Uses cmd.exe + findstr.exe — guaranteed on any Windows installation.
+    // The shell and the filter program are chosen per-OS; see PlatformCommands.
     [Fact]
     public void SubprocessPipe_ExprPosition_CapturesOutput()
     {
-        var output = Run("""
+        var output = Run($"""
             Try to:
-                Define r as (run "cmd" with arguments ("/c", "echo", "hello") | run "findstr" with arguments ("hello")).
+                Define r as (run "{Shell}" with arguments ("{ShellFlag}", "echo hello") | run "{Grep}" with arguments ("hello")).
                 State (the output of r).
             Done.
             In case of failure:
@@ -380,9 +381,9 @@ public class PipeTests
     [Fact]
     public void SubprocessPipe_ExprPosition_ExitCodeZeroOnSuccess()
     {
-        var output = Run("""
+        var output = Run($"""
             Try to:
-                Define r as (run "cmd" with arguments ("/c", "exit", "0") | run "cmd" with arguments ("/c", "exit", "0")).
+                Define r as (run "{Shell}" with arguments ("{ShellFlag}", "{ExitWith(0)}") | run "{Shell}" with arguments ("{ShellFlag}", "{ExitWith(0)}")).
                 State (the exit-code of r) converted to text.
             Done.
             In case of failure:
@@ -397,9 +398,9 @@ public class PipeTests
     [Fact]
     public void SubprocessPipe_ExprPosition_AnyStageFailureReflectedInExitCode()
     {
-        var output = Run("""
+        var output = Run($"""
             Try to:
-                Define r as (run "cmd" with arguments ("/c", "exit", "1") | run "cmd" with arguments ("/c", "exit", "0")).
+                Define r as (run "{Shell}" with arguments ("{ShellFlag}", "{ExitWith(1)}") | run "{Shell}" with arguments ("{ShellFlag}", "{ExitWith(0)}")).
                 State (the exit-code of r) converted to text.
             Done.
             In case of failure:
@@ -413,9 +414,9 @@ public class PipeTests
     [Fact]
     public void SubprocessPipe_ExprPosition_NonZeroNotAutoFatal()
     {
-        var output = Run("""
+        var output = Run($"""
             Try to:
-                Define r as (run "cmd" with arguments ("/c", "exit", "1") | run "cmd" with arguments ("/c", "exit", "0")).
+                Define r as (run "{Shell}" with arguments ("{ShellFlag}", "{ExitWith(1)}") | run "{Shell}" with arguments ("{ShellFlag}", "{ExitWith(0)}")).
                 State "no-throw".
             Done.
             In case of failure:
@@ -429,9 +430,9 @@ public class PipeTests
     [Fact]
     public void SubprocessPipe_ExprPosition_LaunchFailureCatchable()
     {
-        var output = Run("""
+        var output = Run($"""
             Try to:
-                Define r as (run "nonexistent-xyz-cmd-abc" | run "cmd" with arguments ("/c", "exit", "0")).
+                Define r as (run "nonexistent-xyz-cmd-abc" | run "{Shell}" with arguments ("{ShellFlag}", "{ExitWith(0)}")).
                 State "no-error".
             Done.
             In case of failure:
@@ -445,9 +446,9 @@ public class PipeTests
     [Fact]
     public void SubprocessPipe_ExprPosition_RightmostNonZeroExitCode()
     {
-        var output = Run("""
+        var output = Run($"""
             Try to:
-                Define r as (run "cmd" with arguments ("/c", "exit", "1") | run "cmd" with arguments ("/c", "exit", "2")).
+                Define r as (run "{Shell}" with arguments ("{ShellFlag}", "{ExitWith(1)}") | run "{Shell}" with arguments ("{ShellFlag}", "{ExitWith(2)}")).
                 State (the exit-code of r) converted to text.
             Done.
             In case of failure:
