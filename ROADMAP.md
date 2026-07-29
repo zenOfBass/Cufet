@@ -54,10 +54,15 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    subprocess. A hole in an otherwise complete OS-orchestration story — and the one visible
    gap in `examples/shell.cufe`, which is the program most likely to be shown to someone.
 2. **Awaits inside tasks.** The last loud refusal inside a shipped arc.
+3. **Write up the recursive-structure pattern in REFERENCE.** `voidable` supplies the "or
+   nothing" terminator a recursive shape needs — a node's `next` is `a voidable node` — and
+   [`examples/arbtree.cufe`](examples/arbtree.cufe) exercises it, but REFERENCE never states
+   the pattern, so a reader has to reverse-engineer it from an example. Nothing blocks this; it
+   is simply unwritten.
 
 ### Tier 1 — usable by someone other than the author
 
-3. **Column tracking, then semantic tokens.** `Token` carries a line and no column, and the
+4. **Column tracking, then semantic tokens.** `Token` carries a line and no column, and the
    AST carries `Line` in roughly ninety places. Threading columns through the shared front
    end pays for two things at once: **semantic highlighting** that knows a name's kind the
    way a language server does, and **diagnostics that underline the actual expression**
@@ -66,30 +71,45 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    Worth being clear about the ceiling it lifts: a TextMate grammar is regex over one line
    and cannot know what a name *refers to*. No amount of grammar work closes that gap.
 
-4. **A diagnostics tier (warnings).** Everything today is an error or nothing. This unblocks
-   the dead-capture-write warning, a style linter, and a worthwhile formatter.
-5. **Formatter.**
+5. **A diagnostics tier (warnings).** Everything today is an error or nothing — which is what
+   blocks the two items below, plus the dead-capture-write warning.
+6. **Style linter.** A layer separate from the parser, flagging legal-but-unclear code as
+   warnings and never errors. First intended rule: **warn on nested bare-`it` loops** —
+   shadowing is legal and well defined (innermost wins), but a reader loses track. Also the
+   natural home for the "capitalise the start of a statement" guidance the parser deliberately
+   does not enforce, and for suggesting multiline formatting of large record and object shapes.
+7. **Formatter.**
 
 ### Tier 2 — leverage
 
-6. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+8. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
 
 ### Tier 3 — the design mountain
 
-7. **Multi-directional predicate dispatch.** Needs its own design session; watch the
+9. **Multi-directional predicate dispatch.** Needs its own design session; watch the
    no-subtyping invariant. See above for why it is not optional.
+
+   It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
+   `matrix * number` scalar scaling, which is deferred today for exactly that reason. (The
+   Hadamard product is *not* blocked — it is decided: if ever added it will be a named
+   `collections` function, never an operator, because `*` means matrix product and there is one
+   canonical way.)
 
 ### Tier 4 — modules, strictly in this order
 
-8. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
-   open-union representation is sound *because* the whole program compiles at once. Either
-   feature forces revisiting it.
-9. **A package manager for books.**
+10. **The `module` interface.** A named interface defining the contract for any loadable thing.
+    It comes first because it is the stable seam everything else in this tier depends on, and it
+    is buildable well before the loader — which means the loader can arrive later without
+    churning what already uses a book.
+11. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+    open-union representation is sound *because* the whole program compiles at once. Either
+    feature forces revisiting it.
+12. **A package manager for books.**
 
 ### Tier 5 — self-hosting
 
-10. **Cufet written in Cufet.** The blockers are ergonomic rather than capability: the data
+13. **Cufet written in Cufet.** The blockers are ergonomic rather than capability: the data
     model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
@@ -98,10 +118,65 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Ongoing, no fixed slot
 
-Dead-capture-write warning (after diagnostics) · Approach B parser-hardening · move semantics
-at channel send · a formal soundness proof or a fresh-eyes red-team · a periodic
-error-message audit for internal vocabulary · a performance number against C · logic gates as
-a book · design patterns as a book · an in-memory filesystem for the playground.
+Dead-capture-write warning (after diagnostics) · Approach B parser-hardening · a formal
+soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
+vocabulary · a performance number against C · logic gates as a book · design patterns as a
+book · an in-memory filesystem for the playground.
+
+---
+
+## Deferred — blocked on something that is not itself on the list
+
+These are **not** numbered above, and that is the point rather than an oversight. Everything in
+*What's next* is ordered because its blocker is either nothing or another numbered item. Each
+entry here is blocked on an arc that has not been designed, or on a use case that has not
+arrived — so giving it a position would be fiction, and the ordering above is only worth
+anything if it means something.
+
+They are also not *Considered and set aside* below: nothing here has been argued down. Each
+states its blocker, because a deferral without one is indistinguishable from having forgotten.
+
+**Promote an item the moment its blocker becomes a numbered item.**
+
+### Language
+
+- **Ordering by an explicit basis.** Ordering works on numbers and bits. Extending it to text
+  and beyond should use a stated basis rather than new operators or a silent default:
+  `is less than X by length`, `is greater than X by character code`, a series sorted `by size`.
+  Naming the basis is what avoids undefined-collation problems — case, locale and Unicode
+  become named bases instead of hidden assumptions. *Blocker:* intended shape only, undesigned
+  in detail.
+
+- **Text refinements.** The everyday toolkit is complete (join, measure, convert both ways,
+  split, search, find, slice, replace, case, trim). What remains is fancier: locale-aware
+  casing (`in uppercase`/`in lowercase` are invariant-only today), title-case, leading-only or
+  trailing-only trim, and a character-sequence type — `text` stays opaque, with no
+  character-level indexing. *Blocker:* waiting on a real use case, deliberately.
+
+- **Expression-level flow-narrowing.** Narrowing works on *variables* today
+  (`If maybe-x is not void: … maybe-x`). Narrowing a value produced by an *expression* — say
+  re-reading `the entry for "alice" in ages` inside an already-checked branch without naming
+  it — is not supported. *Blocker:* the checker would have to track which expression was
+  checked and invalidate on mutation, which is unsound against mutable maps unless done very
+  carefully. "Name your lookups" covers the need meanwhile.
+
+### Types and objects
+
+- **Reference-semantics opt-in.** Objects and map values are value-typed. An explicit way to
+  ask for shared semantics has no syntax. *Blocker:* its own design session; it interacts with
+  the region model, which is what currently makes value semantics free.
+
+- **Fallible setters.** A setter that can reject a value is deliberately not supported, because
+  the current rule keeps `becomes` infallible *everywhere*. *Blocker:* an effect-tracking arc —
+  a fallible setter would require effect annotations on every assignment expression. Not
+  designed, not near-term.
+
+### Memory and concurrency
+
+- **Move semantics at channel send.** A send deep-copies across the thread boundary. That is
+  sound, and it is what keeps the two threads' arenas disentangled, but it is not free. A move
+  — transferring ownership and invalidating the sender's binding — would avoid the copy.
+  *Blocker:* the language has no way to express "this binding is spent."
 
 ---
 
