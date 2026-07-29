@@ -1,3 +1,6 @@
 node_modules/
 site/
-package-lock.json
+
+# package-lock.json IS committed, deliberately. CI installs with `npm ci`, which requires it and
+# installs exactly the versions recorded here — so a deploy cannot pick up a different Monaco or
+# a different JetBrains Mono than the one this page was built and checked against.

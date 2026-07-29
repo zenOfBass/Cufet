@@ -1,0 +1,121 @@
+# Builds the Cufet playground and publishes it to GitHub Pages.
+#
+# The site is entirely static — the interpreter is compiled to WebAssembly and runs in the
+# visitor's browser, so there is nothing to host but files. That is deliberate: Cufet can spawn
+# subprocesses and touch the filesystem, and running strangers' programs on a server would be a
+# real security hole rather than a theoretical one.
+#
+# Repository setting required once, by hand: Settings → Pages → Build and deployment →
+# Source: "GitHub Actions". Without it this workflow builds happily and deploys nowhere.
+
+name: Playground
+
+on:
+  push:
+    branches: [main]
+    # The runtime is the interpreter, so a change to the compiler backend cannot affect this
+    # site. Everything else that can is listed.
+    paths:
+      - 'playground/**'
+      - 'src/Lexer/**'
+      - 'src/Interpreter/**'
+      - 'editors/vscode/syntaxes/**'   # the playground shares the extension's grammar
+      - '.github/workflows/playground.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one midway: a half-published Pages site is worse than
+# an out-of-date one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Front end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Lexer and interpreter only. They are the code the playground actually ships, they need
+      # no gcc, and they finish in seconds — so this gates the deploy without slowing it down.
+      # The compiler suite is deliberately not run here; see the note at the bottom of this file.
+      - name: Test the lexer
+        run: dotnet test tests/Lexer.Tests/Cufet.Lexer.Tests.csproj --nologo
+
+      - name: Test the interpreter
+        run: dotnet test tests/Interpreter.Tests/Cufet.Interpreter.Tests.csproj --nologo
+
+  build:
+    name: Build the site
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Required for the browser-wasm runtime identifier. Without it, publish fails with a
+      # message about a missing workload rather than anything about WebAssembly.
+      - name: Install the wasm workload
+        run: dotnet workload install wasm-tools
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: playground/package-lock.json
+
+      # `ci`, not `install` — it installs exactly the versions in the lockfile and fails if the
+      # lockfile and package.json disagree, so a deploy cannot quietly pick up a different Monaco.
+      - name: Install the page's dependencies
+        working-directory: playground
+        run: npm ci
+
+      # NOTE: InvariantGlobalization is deliberately NOT set here yet, though CI is the one place
+      # it would work (it forces an emscripten relink that cannot handle the space in the local
+      # checkout path — see the csproj). It would save roughly 200 KB of ICU data, but it also
+      # changes culture-sensitive formatting, and this is the first deploy. Turn it on as its own
+      # change, once there is a published site to compare against.
+      - name: Publish the interpreter to WebAssembly
+        run: dotnet publish playground/Cufet.Playground.csproj -c Release
+
+      - name: Assemble the site
+        working-directory: playground
+        run: node build.mjs --bundle=bin/Release/net10.0-browser/browser-wasm/AppBundle
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: playground/site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+# Worth doing next, but deliberately not here: a full-suite CI job.
+#
+# The compiler test suite contains a large number of tests that are LINUX-ONLY — subprocesses,
+# concurrency, signals, and every ASan/TSan check — and they early-return on Windows. They
+# therefore never run on the machine this project is developed on except by hand through WSL.
+# A Linux CI job would run them automatically for the first time, which is genuinely valuable
+# and also fairly likely to surface something. That deserves its own change rather than riding
+# along with a deploy workflow, where a surprise failure would block publishing the site.
