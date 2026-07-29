@@ -13,14 +13,11 @@ name: Playground
 on:
   push:
     branches: [main]
-    # The runtime is the interpreter, so a change to the compiler backend cannot affect this
-    # site. Everything else that can is listed.
-    paths:
-      - 'playground/**'
-      - 'src/Lexer/**'
-      - 'src/Interpreter/**'
-      - 'editors/vscode/syntaxes/**'   # the playground shares the extension's grammar
-      - '.github/workflows/playground.yml'
+    # No `paths:` filter, deliberately. There was one — it listed the playground, the lexer, the
+    # interpreter and the grammar — and it left out `tests/`, so a commit that fixed the tests this
+    # workflow gates on did not trigger the workflow. Nothing ran, nothing said why, and the site
+    # silently stayed as it was. A filter that skips a run is indistinguishable from a filter that
+    # works, which makes it a bad trade for the couple of minutes it saves.
   workflow_dispatch:
 
 permissions:
