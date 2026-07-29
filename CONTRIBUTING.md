@@ -166,11 +166,20 @@ until it listed shipped features as planned.
 | A codebase invariant a future change could break | CONTRIBUTING.md, *Implementation invariants* |
 | An accepted limitation | CONTRIBUTING.md, *Known limitations* |
 | **A backend divergence found or closed** | **CHANGELOG.md, and the rule below** |
-| Released (minor version bump) | CHANGELOG.md, README.md, REFERENCE.md header, .csproj files |
+| Released (minor version bump) | CHANGELOG.md, README.md line 1, REFERENCE.md header, **all four `.csproj` files**, `playground/package.json`, `editors/vscode/package.json` |
 
 **ROADMAP.md records only what is *not yet done*.** When an item ships, delete it from
 the roadmap — its record is the CHANGELOG entry, and its rationale is DESIGN.md. Leaving
 a shipped item behind is how the file becomes fiction.
+
+**The version lives in eight files.** Four `.csproj`s, two `package.json`s, and a line each in
+README and REFERENCE. The two `package.json` files were both missed on the 0.11.0 pass and found
+only by grepping the whole tree for the outgoing version — so do that grep as the last step of any
+release, rather than trusting this list to be complete:
+
+```
+grep -rn "0\.11\.0" --exclude-dir={node_modules,site,bin,obj,.git} --exclude=CHANGELOG.md .
+```
 
 Docs that go stale are worse than no docs. If code and docs disagree, the code
 is the truth — but the docs should always catch up before merging.

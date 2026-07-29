@@ -8,9 +8,49 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+---
+
+## [0.11.0] — 2026-07-28
+
+0.10.0 made Cufet compile. **0.11.0 makes it usable by someone who is not its author.**
+
+There is now a **playground** at <https://zenofbass.github.io/Cufet/> — the interpreter compiled
+to WebAssembly, so a stranger can run Cufet ten seconds after reading about it, with nothing
+installed and nothing sent to a server. There is a **VS Code extension**, and `cufet` is an
+**installed command** rather than a `dotnet run` incantation. Comments are spelled the way every
+other language spells them.
+
+And there is one new type. `bits` is the first full value type since failures, and the first
+built entirely in this release: literals, gates, shifts, arithmetic, and conversions.
+
+**Breaking:** the comment syntax changed. See *Changed*.
+
 ### Added
 
-**`bits` — a bit-pattern type (first slice: literals)**
+**A browser playground**
+
+- **[`playground/`](playground/)** — the interpreter compiled to `browser-wasm` and served as a
+  static page. Nothing executes on a server, deliberately: Cufet can spawn subprocesses and touch
+  the filesystem, so running strangers' programs server-side would be a real security hole rather
+  than a theoretical one. Deployed by GitHub Actions on every push.
+
+- **The editor is Monaco, fed the same TextMate grammar the VS Code extension uses** — through
+  `vscode-textmate` over an Oniguruma engine compiled to WebAssembly, rather than hand-ported to
+  Monaco's own Monarch format. One grammar, so the editor and the page cannot drift apart. It is
+  also what lets a VS Code colour theme work at all, since themes are scope→colour rules that
+  Monarch could not consume.
+
+- **Cufet runs in a Web Worker, not on the page.** The interpreter executes synchronously, so on
+  the UI thread a non-terminating program would kill the tab outright — and a playground is
+  exactly where someone writes an accidental infinite loop. Stop works by terminating the worker,
+  which is the only thing that can interrupt synchronous WebAssembly from outside; a cooperative
+  flag would need `SharedArrayBuffer` and headers GitHub Pages cannot send.
+
+- Set in **JetBrains Mono** (OFL-1.1) and coloured with **Arctic Candy Darker** by
+  [Kenan Salar](https://github.com/KenanSalar) (MIT), both vendored with their licences. The page
+  chrome is generated from the same theme file as the editor, so the two cannot disagree.
+
+**`bits` — a bit-pattern type**
 
 - **`0x` hex, `0b` binary, `0o` octal literals**, with `_` grouping digits. A value prints in
   the base it was written in: `State 0o755.` prints `0o755`. No bare-zero octal — `0755` is
@@ -59,60 +99,6 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   yields `bits and fact` and is refused at compile time. Keeping bit patterns out of `number`
   closes that footgun for free.
 
-**Book vocabulary no longer costs every program a name**
-
-- **Nine words freed:** `at`, `filled`, `guess`, `shuffled`, `rows`, `columns`, `matrix`,
-  `random`, `randomly`. They are now recognised by *shape* in the one position that needs
-  them, and are ordinary names everywhere else — so `Define rows as 5.` and
-  `given (the number rows, the number columns)` both work, in a language where they were
-  previously forbidden.
-
-  A reserved word is taken from every program, whether or not it pulls the book that wanted
-  it. Reserving `guess` for the chance book meant no program anywhere could have a variable
-  called `guess`, and the cost compounded with each book added.
-
-- **`the rows of x` is now resolved by the type of `x`** — a matrix's row count, or a record's
-  field. The parser cannot tell them apart, so the decision moved to the type checker, where
-  `the key of mapping` already lives. A reader never had the ambiguity. **This deleted the
-  `MatrixRows` and `MatrixColumns` AST nodes**, so the change is net less code.
-
-- **Two rules emerged for when a word can go contextual**, and three words fail them:
-  - Its shape needs a **mandatory distinguishing token**. `catalogue` and `atlas` have optional
-    tails (`a catalogue` alone is valid), so nothing separates them from a variable name.
-  - A **statement-initial** word must be conventionally lowercase, since statement keywords are
-    capitalised and identifiers must start lowercase. `Seed the chance with 5.` is capitalised,
-    so freeing `seed` would have changed how the statement is written.
-
-  Those three stay reserved, deliberately and for stated reasons rather than by omission.
-
-**`bits` — conversions, completing the type**
-
-- **`n converted to hex` / `to binary` / `to octal`**, and back with `converted to number` or
-  `converted to text`. Postfix transforms, consistent with `converted to text` — the crossing
-  between a quantity and a pattern is explicit in both directions, since there is no implicit
-  conversion.
-
-- **`bits converted to number` can never fail**, because 64 bits always fits a number's 96-bit
-  mantissa. So it yields a plain `number`, not the voidable that `text converted to number`
-  gives. Total one way, checked the other.
-
-- Going the other way **raises** on a fraction, a negative, or a value past 2⁶⁴ — matching
-  arithmetic overflow rather than becoming a voidable, since these are programming errors and a
-  voidable would force an unwrap at every crossing.
-
-- **This is what makes a computed value showable in hex** — `total converted to hex` — which a
-  literal-only notation never could. It recovers the one advantage the rejected display-only
-  design had, while keeping the type.
-
-- `hex`, `binary` and `octal` are not reserved words.
-
-- **[`examples/permissions.cufe`](examples/permissions.cufe)** — a worked Unix-permissions
-  program: building a mode with `or`, testing with `and`, clearing with `and not`, positioning
-  with a shift, and the `(1 << n) - 1` mask idiom. No divide-and-modulo standing in for a mask
-  anywhere, which is exactly what this type was for.
-
-- A full **REFERENCE chapter**, held back deliberately until the type was whole.
-
 **`bits` — shifts**
 
 - **`n shifted left by 3` / `shifted right by 3`.** Shifting is wiring rather than a gate — it
@@ -151,14 +137,59 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 - **Unary minus is refused** on bits, which are unsigned. The message points at `not`.
 
-### Fixed
+**`bits` — conversions, completing the type**
 
-- **Equality on bits compared base and width as well as value**, so `0xFF = 0x00FF` came back
-  `false` when the two are the same pattern written two ways. Both backends were affected; the
-  runtime representation is a value struct on each side and default structural equality took
-  all three fields. Equality and ordering now compare the value alone — the one place width
-  must not be load-bearing. Introduced by the literals slice, which never compared across
-  widths.
+- **`n converted to hex` / `to binary` / `to octal`**, and back with `converted to number` or
+  `converted to text`. Postfix transforms, consistent with `converted to text` — the crossing
+  between a quantity and a pattern is explicit in both directions, since there is no implicit
+  conversion.
+
+- **`bits converted to number` can never fail**, because 64 bits always fits a number's 96-bit
+  mantissa. So it yields a plain `number`, not the voidable that `text converted to number`
+  gives. Total one way, checked the other.
+
+- Going the other way **raises** on a fraction, a negative, or a value past 2⁶⁴ — matching
+  arithmetic overflow rather than becoming a voidable, since these are programming errors and a
+  voidable would force an unwrap at every crossing.
+
+- **This is what makes a computed value showable in hex** — `total converted to hex` — which a
+  literal-only notation never could. It recovers the one advantage the rejected display-only
+  design had, while keeping the type.
+
+- `hex`, `binary` and `octal` are not reserved words.
+
+- **[`examples/permissions.cufe`](examples/permissions.cufe)** — a worked Unix-permissions
+  program: building a mode with `or`, testing with `and`, clearing with `and not`, positioning
+  with a shift, and the `(1 << n) - 1` mask idiom. No divide-and-modulo standing in for a mask
+  anywhere, which is exactly what this type was for.
+
+- A full **REFERENCE chapter**, held back deliberately until the type was whole.
+
+**Book vocabulary no longer costs every program a name**
+
+- **Nine words freed:** `at`, `filled`, `guess`, `shuffled`, `rows`, `columns`, `matrix`,
+  `random`, `randomly`. They are now recognised by *shape* in the one position that needs
+  them, and are ordinary names everywhere else — so `Define rows as 5.` and
+  `given (the number rows, the number columns)` both work, in a language where they were
+  previously forbidden.
+
+  A reserved word is taken from every program, whether or not it pulls the book that wanted
+  it. Reserving `guess` for the chance book meant no program anywhere could have a variable
+  called `guess`, and the cost compounded with each book added.
+
+- **`the rows of x` is now resolved by the type of `x`** — a matrix's row count, or a record's
+  field. The parser cannot tell them apart, so the decision moved to the type checker, where
+  `the key of mapping` already lives. A reader never had the ambiguity. **This deleted the
+  `MatrixRows` and `MatrixColumns` AST nodes**, so the change is net less code.
+
+- **Two rules emerged for when a word can go contextual**, and three words fail them:
+  - Its shape needs a **mandatory distinguishing token**. `catalogue` and `atlas` have optional
+    tails (`a catalogue` alone is valid), so nothing separates them from a variable name.
+  - A **statement-initial** word must be conventionally lowercase, since statement keywords are
+    capitalised and identifiers must start lowercase. `Seed the chance with 5.` is capitalised,
+    so freeing `seed` would have changed how the statement is written.
+
+  Those three stay reserved, deliberately and for stated reasons rather than by omission.
 
 **`cufet` is a command now**
 
@@ -235,7 +266,50 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   Updated with it: the lexer, GRAMMAR and REFERENCE, every example and soundness fixture, the
   VS Code extension's grammar and language configuration, and the playground's editor config.
 
+- **Documentation restructured so each file answers one question.** ROADMAP.md had grown to 1417
+  lines and was answering five at once — it listed number-base literals under *Planned* the day
+  after they shipped, and described a REPL as worth considering against a settled decision that a
+  playground beats one. It drifted precisely *because* it restated the other documents.
+
+  **[DESIGN.md](DESIGN.md) is new** and holds the "why" — what Cufet is for, and the decisions
+  that follow from it. ROADMAP.md is now 206 lines and records **only what is not yet done**; when
+  something ships it is deleted from the roadmap, because its record is the changelog entry and
+  its rationale is DESIGN.md. Implementation invariants and known limitations moved to
+  CONTRIBUTING.md. Nothing restates anything else, which is the only thing that actually prevents
+  drift.
+
+- **The soundness probes moved** from `examples/` to
+  [`tests/fixtures/soundness/`](tests/fixtures/soundness/). Six of the nine are *supposed* to fail
+  type-checking, so they read as broken demos while they sat beside the showcase programs. They
+  are now enforced by a test that enumerates the directory, so a new probe is a drop-in.
+
 ---
+
+### Fixed
+
+- **Equality on bits compared base and width as well as value**, so `0xFF = 0x00FF` came back
+  `false` when the two are the same pattern written two ways. Both backends were affected; the
+  runtime representation is a value struct on each side and default structural equality took
+  all three fields. Equality and ordering now compare the value alone — the one place width
+  must not be load-bearing. Introduced by the literals slice, which never compared across
+  widths.
+
+- **The interpreter's entire subprocess test surface only ever ran on Windows.** Fifteen tests
+  hard-coded `cmd` with `/C`, plus `findstr`, so on Linux every one of them turned into a launch
+  failure — `run`, argument passing, exit codes, stderr capture and subprocess pipes had no
+  passing coverage on the platform Cufet's compiler actually targets. The programs are now chosen
+  per-OS in one place, `tests/Interpreter.Tests/PlatformCommands.cs`, so the next test to launch
+  something cannot quietly reintroduce it.
+
+  Found by the first CI run ever executed on this repository, which is the point of having one.
+  One test needed real thought rather than translation: the case asserting each argument arrives
+  as a *separate* OS argument would have passed while testing nothing under `sh -c`, since
+  `sh -c echo passed-arg` makes the argument into `$0` and prints an empty line.
+
+- **A GitHub Actions workflow** now tests the front end and deploys the playground. Its first
+  version carried a `paths:` filter that omitted `tests/`, so the commit fixing the tests it
+  gates on did not trigger it — a filter that skips a run is indistinguishable from one that
+  works, so the filter is gone.
 
 ## [0.10.0] — 2026-07-25
 

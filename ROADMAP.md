@@ -57,20 +57,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 1 — usable by someone other than the author
 
-3. **The playground.** A browser-hosted Cufet: edit, run, see output, with no install. This
-   is the conversion path — read a post, click a link, try the language — and an install step
-   loses nearly everyone before they reach it.
-
-   *Feasibility is proven.* The interpreter runs under WebAssembly at roughly **2.2 MB
-   gzipped**, and because its scheduler is cooperative rather than threaded, tasks and
-   channels work in the browser unchanged. Only file I/O and subprocesses degrade, and they
-   degrade into ordinary Cufet failures. See `playground/`.
-
-   Remaining: the page itself, Monaco wired to the existing TextMate grammar through
-   `monaco-editor-textmate` (one grammar shared with the editor extension, not a Monarch
-   port), and a publish workflow to GitHub Pages.
-
-4. **Column tracking, then semantic tokens.** `Token` carries a line and no column, and the
+3. **Column tracking, then semantic tokens.** `Token` carries a line and no column, and the
    AST carries `Line` in roughly ninety places. Threading columns through the shared front
    end pays for two things at once: **semantic highlighting** that knows a name's kind the
    way a language server does, and **diagnostics that underline the actual expression**
@@ -79,30 +66,30 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    Worth being clear about the ceiling it lifts: a TextMate grammar is regex over one line
    and cannot know what a name *refers to*. No amount of grammar work closes that gap.
 
-5. **A diagnostics tier (warnings).** Everything today is an error or nothing. This unblocks
+4. **A diagnostics tier (warnings).** Everything today is an error or nothing. This unblocks
    the dead-capture-write warning, a style linter, and a worthwhile formatter.
-6. **Formatter.**
+5. **Formatter.**
 
 ### Tier 2 — leverage
 
-7. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+6. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
 
 ### Tier 3 — the design mountain
 
-8. **Multi-directional predicate dispatch.** Needs its own design session; watch the
+7. **Multi-directional predicate dispatch.** Needs its own design session; watch the
    no-subtyping invariant. See above for why it is not optional.
 
 ### Tier 4 — modules, strictly in this order
 
-9. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+8. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
    open-union representation is sound *because* the whole program compiles at once. Either
    feature forces revisiting it.
-10. **A package manager for books.**
+9. **A package manager for books.**
 
 ### Tier 5 — self-hosting
 
-11. **Cufet written in Cufet.** The blockers are ergonomic rather than capability: the data
+10. **Cufet written in Cufet.** The blockers are ergonomic rather than capability: the data
     model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
