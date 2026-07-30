@@ -50,11 +50,18 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 0 — cheap, and closes open edges
 
-1. **Write up the recursive-structure pattern in REFERENCE.** `voidable` supplies the "or
-   nothing" terminator a recursive shape needs — a node's `next` is `a voidable node` — and
-   [`examples/arbtree.cufe`](examples/arbtree.cufe) exercises it, but REFERENCE never states
-   the pattern, so a reader has to reverse-engineer it from an example. Nothing blocks this; it
-   is simply unwritten.
+1. **Widen values at object construction.** `a new holder { the maybe 5 }` is rejected when the
+   field is declared `voidable number`, and so is `the maybe void` — a plain value cannot be put
+   into an optional field. `becomes` and `return` widen correctly, so this is one site behaving
+   differently from every other assignment, not a missing feature.
+
+   The cause is a wrong comparison: object construction tests `valType != fieldType` where the
+   others call `IsAssignable(target, source)`, and the compiler emits the field with `EmitExpr`
+   where it needs `EmitAsType`. Two sites each side, positional and named, with the widening
+   machinery already built.
+
+   Any object with an optional field hits this; recursive shapes only make it unavoidable,
+   because a terminator has to be void.
 
 ### Tier 1 — usable by someone other than the author
 
@@ -180,7 +187,9 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
 Dead-capture-write warning (after diagnostics) · Approach B parser-hardening · a formal
 soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary · a performance number against C · design patterns as a book · an in-memory
-filesystem for the playground.
+filesystem for the playground · a REFERENCE chapter on recursive shapes (a node holds its
+children in a `series of node`, which is a reference and so closes the type; holding one by
+value does not, and the compiler says so).
 
 **A logic-gates book** — circuit composition over `bits`: gates as components you wire together,
 rather than the operators `bits` already shipped.
