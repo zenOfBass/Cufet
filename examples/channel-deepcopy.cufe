@@ -14,7 +14,7 @@ Pull a rabbit.
 
     Have rabbit start a task as map-producer:
         Define batch as a series of number with (1, 2, 3).
-        Define data as a map from text to series of number with ().
+        Define data as a map from text to series of number.
         In data, the entry for "batch" becomes batch.
         Send data through ch-map.
         Add 999 to batch.
@@ -36,7 +36,7 @@ Pull a rabbit.
     Have rabbit start a task as map-consumer:
         Define received as the delivery from ch-map.
         While received is not void, repeat:
-            Define r as (received but void is (a map from text to series of number with ())).
+            Define r as (received but void is (a map from text to series of number)).
             Define batch-copy as (the entry for "batch" in r but void is (a series of number)).
             State "batch-len=" joined to (the number of batch-copy) converted to text.
             received becomes the delivery from ch-map.
