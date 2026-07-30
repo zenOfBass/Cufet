@@ -14,7 +14,7 @@ public sealed partial class TypeChecker
             if (setterSig != null)
             {
                 var setterValueType = InferType(stmt.Value);
-                if (setterValueType != null && setterValueType != setterSig.Value.ParamType)
+                if (setterValueType != null && !IsAssignable(setterSig.Value.ParamType, setterValueType))
                     throw new TypeException(FormatTypeError(
                         $"setter for '{stmt.FieldName}' expects a {FormatType(setterSig.Value.ParamType)}, not a {FormatType(setterValueType)}",
                         null, stmt.Line,
@@ -54,7 +54,7 @@ public sealed partial class TypeChecker
         }
 
         var valueType = InferType(stmt.Value);
-        if (valueType != null && valueType != field.Type)
+        if (valueType != null && !IsAssignable(field.Type, valueType))
             throw new TypeException(FormatTypeError(
                 $"field '{stmt.FieldName}' holds a {FormatType(field.Type)}, not a {FormatType(valueType)}",
                 null, stmt.Line,

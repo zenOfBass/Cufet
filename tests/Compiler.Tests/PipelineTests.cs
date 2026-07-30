@@ -1520,6 +1520,155 @@ public class PipelineTests
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ── Voidable object FIELDS: the widening a field slot used to be denied ─────
+    //
+    // A field slot is an assignment target, so it takes the language's one implicit coercion —
+    // a plain T (or a bare `void`) widening into `voidable T`. The checker compared field types
+    // with raw equality and the compiler emitted the raw value, so these programs were rejected
+    // at check time; both sides now go through IsAssignable / EmitAsType together.
+
+    [Fact]
+    public void Object_ConstructVoidableField_PlainValue_MatchesInterpreter()
+    {
+        const string src = """
+            Define object box with (the voidable number maybe).
+            Define b as a new box { the maybe 5 }.
+            State the maybe of b.
+            State b.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_ConstructVoidableField_Void_MatchesInterpreter()
+    {
+        const string src = """
+            Define object box with (the voidable number maybe).
+            Define b as a new box { the maybe void }.
+            State the maybe of b.
+            State b.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_ConstructVoidableField_Positional_MatchesInterpreter()
+    {
+        // Same widening on the positional construction path (both cases in one program).
+        const string src = """
+            Define object slot with (voidable number, number).
+            Define s as a new slot { 5, 1 }.
+            Define t as a new slot { void, 2 }.
+            State the first of s.
+            State the first of t.
+            State s.
+            State t.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_SetVoidableField_PlainValue_MatchesInterpreter()
+    {
+        // Both write forms: possessive and `the <field> of <obj> becomes`.
+        const string src = """
+            Define object box with (the voidable number maybe).
+            Define b as a new box { the maybe void }.
+            b's maybe becomes 5.
+            State the maybe of b.
+            the maybe of b becomes 9.
+            State the maybe of b.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_SetVoidableField_Void_MatchesInterpreter()
+    {
+        const string src = """
+            Define object box with (the voidable number maybe).
+            Define b as a new box { the maybe 5 }.
+            b's maybe becomes void.
+            State the maybe of b.
+            If b's maybe is void, State "absent". Otherwise, State "present".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_PlainNumberField_ConstructAndSet_MatchesInterpreter()
+    {
+        // Regression: nothing widens here, so routing through EmitAsType must be a no-op.
+        const string src = """
+            Define object box with (the number plain).
+            Define b as a new box { the plain 1 }.
+            State the plain of b.
+            b's plain becomes 2.
+            State the plain of b.
+            State b.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_SetterWithVoidableParam_PlainValue_MatchesInterpreter()
+    {
+        // A setter's parameter is an assignment target too: a plain number widens into its
+        // `voidable number` parameter, and the compiler widens at the call site (EmitAsType
+        // against the setter's ParamType) rather than passing a bare CufetDec.
+        const string src = """
+            Define object sensor with (the voidable number celsius):
+                Set display given (the voidable number v):
+                    one's celsius becomes v.
+                Done.
+            Done.
+            Define s as a new sensor { the celsius void }.
+            s's display becomes 5.
+            State the celsius of s.
+            the display of s becomes 9.
+            State the celsius of s.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Object_SetterWithVoidableParam_Void_MatchesInterpreter()
+    {
+        const string src = """
+            Define object sensor with (the voidable number celsius):
+                Set display given (the voidable number v):
+                    one's celsius becomes v.
+                Done.
+            Done.
+            Define s as a new sensor { the celsius 5 }.
+            State the celsius of s.
+            s's display becomes void.
+            State the celsius of s.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Record_SetVoidableField_MatchesInterpreter()
+    {
+        // Records are structural, so a voidable field only exists when the record was built
+        // from a voidable value — then a plain number and a bare void both write into it.
+        const string src = """
+            Bind voidable number to maybe, given (the number n):
+                If n > 0, return n.
+                return void.
+            Done.
+            Define r as a record with (the score cast maybe on (1)).
+            State the score of r.
+            the score of r becomes 7.
+            State the score of r.
+            the score of r becomes void.
+            State the score of r.
+            State r.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     // ── Slice 5D: maps (arena association list; lookup → voidable; on 5A/5B/5C) ──
 
     // ── A book pull is a scope the pre-scans used to look straight past ──────

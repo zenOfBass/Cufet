@@ -20,7 +20,7 @@ public sealed partial class TypeChecker
         if (setterSig != null)
         {
             var valueType = InferType(stmt.Value);
-            if (valueType != null && valueType != setterSig.Value.ParamType)
+            if (valueType != null && !IsAssignable(setterSig.Value.ParamType, valueType))
                 throw new TypeException(FormatTypeError(
                     $"setter for '{stmt.Member}' expects a {FormatType(setterSig.Value.ParamType)}, not a {FormatType(valueType)}",
                     null, stmt.Line,
@@ -65,7 +65,7 @@ public sealed partial class TypeChecker
                 $"set the embed handle '{fieldName}'",
                 $"Mutate individual fields of the embedded object instead."));
         var valueType = InferType(value);
-        if (valueType != null && valueType != fieldType)
+        if (valueType != null && !IsAssignable(fieldType, valueType))
             throw new TypeException(FormatTypeError(
                 $"field '{fieldName}' holds a {FormatType(fieldType)}, not a {FormatType(valueType)}",
                 null, line,
@@ -580,7 +580,7 @@ public sealed partial class TypeChecker
         for (int i = 0; i < lit.PositionalValues.Count; i++)
         {
             var valType = InferType(lit.PositionalValues[i]);
-            if (valType != null && valType != allPositionals[i])
+            if (valType != null && !IsAssignable(allPositionals[i], valType))
                 throw new TypeException(FormatTypeError(
                     $"positional field {i + 1} of '{lit.TypeName}' must be a {FormatType(allPositionals[i])}",
                     null, lit.Line,
@@ -615,7 +615,7 @@ public sealed partial class TypeChecker
                         ? $"Available named fields: {string.Join(", ", allNamedFields.Select(f => $"'{f.FieldName}'"))}."
                         : $"'{lit.TypeName}' has no named fields."));
             var valType = InferType(expr);
-            if (valType != null && valType != fieldType)
+            if (valType != null && !IsAssignable(fieldType, valType))
                 throw new TypeException(FormatTypeError(
                     $"field '{name}' of '{lit.TypeName}' must be a {FormatType(fieldType)}",
                     null, lit.Line,

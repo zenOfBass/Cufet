@@ -3484,6 +3484,24 @@ public class InterpreterTests
     }
 
     [Fact]
+    public void Object_VoidableField_WidensOnConstructAndSet()
+    {
+        // A voidable field slot takes the language's one implicit coercion: a plain number (or a
+        // bare void) widens into `voidable number` at construction AND on a field write, exactly
+        // as it does for `becomes` and `return`.
+        Assert.Equal("5\nvoid\nvoid\n7", Run(
+            "Define object box with (the voidable number maybe).\n" +
+            "Define b as a new box { the maybe 5 }.\n" +
+            "Define c as a new box { the maybe void }.\n" +
+            "State the maybe of b.\n" +
+            "State the maybe of c.\n" +
+            "b's maybe becomes void.\n" +
+            "State the maybe of b.\n" +
+            "the maybe of c becomes 7.\n" +
+            "State the maybe of c."));
+    }
+
+    [Fact]
     public void Object_NominalTyping_SameShapeDifferentNameThrowsTypeError()
     {
         // Two objects with identical shapes but different names are distinct types.

@@ -5265,10 +5265,14 @@ static void* cufet_pipe_stage(void* argp) {
                                IExpression value, int? escapeToDepth = null)
     {
         string baseExpr = EmitExpr(target);
-        string val      = EmitEscapeCopy(EmitExpr(value), TypeOf(value), escapeToDepth);   // ESC.2
+        bool   isRecv   = target is VariableReference { Name: "one" };
+        // Widen first (a plain T into a voidable/union slot — the one implicit coercion),
+        // then escape-copy the value that is actually stored.
+        string val      = EmitEscapeCopy(EmitAsType(value, MemberSetSlotType(TypeOf(target), member, isRecv)),
+                                         TypeOf(value), escapeToDepth);                   // ESC.2
         FlushPreEmits(sb, indent);
         string stmt = TypeOf(target) is ObjectType ot
-            ? EmitObjectMemberSet(baseExpr, ot.Name, member, val, target is VariableReference { Name: "one" })
+            ? EmitObjectMemberSet(baseExpr, ot.Name, member, val, isRecv)
             : $"({baseExpr}).{MangleName(member)} = {val};";   // record field
         sb.AppendLine($"{indent}{stmt}");
     }
@@ -5283,6 +5287,31 @@ static void* cufet_pipe_stage(void* argp) {
         if (def.EmbeddedTypeName != null)
             return EmitObjectMemberSet($"({baseExpr}).{MangleName(def.EmbeddedTypeName)}", def.EmbeddedTypeName, member, val, false);
         throw new CompilerException($"'{objName}' has no member '{member}'.");
+    }
+
+    // The DECLARED type of a member write slot — what the value is being stored INTO, so
+    // EmitAsType can widen a plain T into it. Mirrors the checker's field resolution: a
+    // setter's parameter type when a setter intercepts, else the object's own field, else a
+    // promoted field down the embed chain; a record field for a record target. null = nothing
+    // to widen into (EmitAsType then falls through to EmitExpr).
+    private CufetType? MemberSetSlotType(CufetType? targetType, string member, bool isReceiver) =>
+        targetType switch
+        {
+            ObjectType ot => ObjectMemberSetSlotType(ot.Name, member, isReceiver),
+            RecordType rt => rt.NamedFields.FirstOrDefault(f => f.Name == member).Type,
+            _             => null,
+        };
+
+    private CufetType? ObjectMemberSetSlotType(string objName, string member, bool isReceiver)
+    {
+        if (!_objectDefs.TryGetValue(objName, out var def)) return null;
+        var setter = SetterFor(objName, member);
+        if (setter is not null && !(isReceiver && _inSetterForField == member)) return setter.ParamType;
+        var own = def.NamedFields.FirstOrDefault(f => f.FieldName == member);
+        if (own != default) return own.FieldType;
+        if (def.EmbeddedTypeName != null && def.EmbeddedTypeName != member)
+            return ObjectMemberSetSlotType(def.EmbeddedTypeName, member, false);
+        return null;   // the embed handle itself, or not a field
     }
 
     // A method's C signature: takes the receiver as a pointer (so mutations to `one`
@@ -6658,13 +6687,16 @@ static void* cufet_pipe_stage(void* argp) {
         var def = _objectDefs[objName];
         var parts = new List<string>();
         int ownPos = def.PositionalTypes.Count;
-        for (int i = 0; i < ownPos; i++) parts.Add($".p{i} = {EmitExpr(positionals[i])}");
+        // EmitAsType, not EmitExpr: a field slot is an assignment target, so a plain T (or a
+        // bare `void`) widens into a voidable/union field — the checker's one implicit coercion.
+        for (int i = 0; i < ownPos; i++) parts.Add($".p{i} = {EmitAsType(positionals[i], def.PositionalTypes[i])}");
 
         var ownFieldNames = def.NamedFields.Select(f => f.FieldName).ToHashSet();
         var remaining = new List<(string, IExpression)>();
         foreach (var (name, val) in named)
         {
-            if (ownFieldNames.Contains(name)) parts.Add($".{MangleName(name)} = {EmitExpr(val)}");
+            if (ownFieldNames.Contains(name))
+                parts.Add($".{MangleName(name)} = {EmitAsType(val, def.NamedFields.First(f => f.FieldName == name).FieldType)}");
             else remaining.Add((name, val));
         }
 
