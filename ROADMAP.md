@@ -126,10 +126,6 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-    (Note it is no longer *set aside*. It was, on the grounds that a playground converts new
-    users far better — which was true and is now discharged, because the playground shipped.
-    The objection was never to the REPL's value.)
-
 13. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
@@ -137,9 +133,6 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     completion needs raw terminal mode. Neither is in the language and neither should become a
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
-
-    (Also no longer set aside. The objection was that a shell is *a product built with Cufet,
-    not work on Cufet* — which writing it in Cufet is precisely what answers.)
 
 14. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
@@ -177,8 +170,8 @@ entry here is blocked on an arc that has not been designed, or on a use case tha
 arrived — so giving it a position would be fiction, and the ordering above is only worth
 anything if it means something.
 
-They are also not *Considered and set aside* below: nothing here has been argued down. Each
-states its blocker, because a deferral without one is indistinguishable from having forgotten.
+Nothing here has been argued down. Each states its blocker, because a deferral without one is
+indistinguishable from having forgotten.
 
 **Promote an item the moment its blocker becomes a numbered item.**
 
@@ -214,6 +207,13 @@ states its blocker, because a deferral without one is indistinguishable from hav
   the current rule keeps `becomes` infallible *everywhere*. *Blocker:* an effect-tracking arc —
   a fallible setter would require effect annotations on every assignment expression. Not
   designed, not near-term.
+
+### Tooling
+
+- **An LSP.** The front end emits one diagnostic per run, with a line and a long prose
+  explanation, so LSP's incremental machinery has nothing to earn back on diagnostics alone.
+  *Blocker:* wanting go-to-definition, completion or rename — the features that genuinely need a
+  resident index, and that nobody has asked for yet.
 
 ### Memory and concurrency
 
@@ -289,17 +289,3 @@ Two pieces of evidence that this is not retrofitted reasoning:
 **A stash is saved execution state, not a stack data structure.** It cannot be a library:
 suspend and resume need compiler and runtime support. (The naming is Turing's — the ACE design
 used *bury* and *unbury* for subroutine linkage.)
-
----
-
-## Considered and set aside
-
-Recorded so they stop coming back. Each can be reopened by a new argument, not by a fresh
-suggestion of the same one.
-
-- **Assembly and LLVM IR interop.** The emitted C already reaches `asm` when needed, and FFI
-  covers the motivating cases.
-- **An LSP.** The front end emits one diagnostic per run with a line and a long prose
-  explanation, so LSP's incremental machinery has nothing to earn back. Revisit for
-  go-to-definition, completion and rename — the features that genuinely need a resident index.
-
