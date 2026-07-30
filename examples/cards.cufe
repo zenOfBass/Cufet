@@ -36,7 +36,7 @@ Done.
 Bind making a deck to new-deck:
     Define suits as a series of text with ("Spades", "Hearts", "Diamonds", "Clubs").
     Define ranks as a series of text with ("Ace", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Jack", "Queen", "King").
-    Define cards as a series of card with ().
+    Define cards as a series of card.
     For each suit in suits, repeat:
         For each rank in ranks, repeat:
             Add a new card { the suit suit, the rank rank } to cards.
