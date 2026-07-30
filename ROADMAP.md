@@ -285,11 +285,6 @@ used *bury* and *unbury* for subroutine linkage.)
 Recorded so they stop coming back. Each can be reopened by a new argument, not by a fresh
 suggestion of the same one.
 
-- **A REPL as the bridge to new users** — still set aside, and still for the original reason: the
-  funnel is *read a post → click a link → try it*, and a REPL requires an install where a
-  playground does not. What is **no longer** set aside is a REPL as a *program written in Cufet*;
-  that moved to Tier 5. Two different claims about the same artefact, and only the first was ever
-  rejected.
 - **Four-valued logic / tetralemma.** `fact`, `voidable` and unions already cover the space,
   and a fourth overlapping way to say "not exactly true" cuts against one-canonical-way.
 - **Assembly and LLVM IR interop.** The emitted C already reaches `asm` when needed, and FFI
