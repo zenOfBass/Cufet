@@ -48,24 +48,9 @@ Ordered by what unblocks what, not by size. Two framings set the order:
   to self-hosting. A lexer, parser and type checker are one enormous dispatch on node type;
   written as `is a` chains, a Cufet-in-Cufet compiler is miserable to write and worse to read.
 
-### Tier 0 — cheap, and closes open edges
-
-1. **Widen values at object construction.** `a new holder { the maybe 5 }` is rejected when the
-   field is declared `voidable number`, and so is `the maybe void` — a plain value cannot be put
-   into an optional field. `becomes` and `return` widen correctly, so this is one site behaving
-   differently from every other assignment, not a missing feature.
-
-   The cause is a wrong comparison: object construction tests `valType != fieldType` where the
-   others call `IsAssignable(target, source)`, and the compiler emits the field with `EmitExpr`
-   where it needs `EmitAsType`. Two sites each side, positional and named, with the widening
-   machinery already built.
-
-   Any object with an optional field hits this; recursive shapes only make it unavoidable,
-   because a terminator has to be void.
-
 ### Tier 1 — usable by someone other than the author
 
-2. **Column tracking, then semantic tokens.** `Token` carries a line and no column, and the
+1. **Column tracking, then semantic tokens.** `Token` carries a line and no column, and the
    AST carries `Line` in roughly ninety places. Threading columns through the shared front
    end pays for two things at once: **semantic highlighting** that knows a name's kind the
    way a language server does, and **diagnostics that underline the actual expression**
@@ -74,9 +59,9 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    Worth being clear about the ceiling it lifts: a TextMate grammar is regex over one line
    and cannot know what a name *refers to*. No amount of grammar work closes that gap.
 
-3. **A diagnostics tier (warnings).** Everything today is an error or nothing — which is what
+2. **A diagnostics tier (warnings).** Everything today is an error or nothing — which is what
    blocks the two items below, plus the dead-capture-write warning.
-4. **Style linter.** A layer separate from the parser, flagging legal-but-unclear code as
+3. **Style linter.** A layer separate from the parser, flagging legal-but-unclear code as
    warnings and never errors. Intended rules so far:
    - **Nested bare-`it` loops** — shadowing is legal and well defined (innermost wins), but a
      reader loses track.
@@ -87,11 +72,11 @@ Ordered by what unblocks what, not by size. Two framings set the order:
      *before* spawning) that the refusal message recommends. A warning is the right severity.
    - The **"capitalise the start of a statement"** guidance the parser deliberately does not
      enforce, and suggesting multiline formatting of large record and object shapes.
-5. **Formatter.**
+4. **Formatter.**
 
 ### Tier 2 — leverage
 
-6. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+5. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
 
 ### Tier 3 — the design mountains
@@ -99,7 +84,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 Both need a design session before they can be ordered against anything. Neither is blocked by a
 numbered item; they are here because they are large, not because they are waiting.
 
-7. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+6. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
@@ -108,7 +93,7 @@ numbered item; they are here because they are large, not because they are waitin
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-8. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+7. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -142,14 +127,14 @@ numbered item; they are here because they are large, not because they are waitin
 
 ### Tier 4 — modules, strictly in this order
 
-9. **The `module` interface.** A named interface defining the contract for any loadable thing.
+8. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-10. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+9. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-11. **A package manager for books.**
+10. **A package manager for books.**
 
 ### Tier 5 — Cufet in Cufet
 
@@ -159,7 +144,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-12. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+11. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -167,7 +152,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-13. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
+12. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on item 8, the C FFI.** Job control needs process groups and signalling a child;
@@ -175,7 +160,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-14. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+13. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 

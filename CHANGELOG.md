@@ -108,6 +108,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   Both pre-passes were fixed together rather than only the one that surfaced: a fix that closes
   the case you noticed is not a fix.
 
+- **A plain value now widens into an optional field.** `a new holder { the maybe 5 }` and
+  `the maybe void` were rejected when the field was declared `voidable number`, even though
+  `becomes` on a local and `return` widened correctly — object and record field slots were the
+  one place the language's single implicit coercion did not reach. Construction, field-set, and a
+  value handed to a user setter now all accept a plain `T` (or `void`) into a `voidable T`, union,
+  or failable field, the way every other assignment does.
+
+  The type checker was the side rejecting these programs; the compiler already carried the
+  widening emitter and now uses it at the same sites, so both backends stay in agreement rather
+  than the checker allowing what the generated C would then reject.
+
 ---
 
 ## [0.11.0] — 2026-07-28
