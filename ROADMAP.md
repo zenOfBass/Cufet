@@ -88,10 +88,13 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 7. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
 
-### Tier 3 — the design mountain
+### Tier 3 — the design mountains
 
-8. **Multi-directional predicate dispatch.** Needs its own design session; watch the
-   no-subtyping invariant. See above for why it is not optional.
+Both need a design session before they can be ordered against anything. Neither is blocked by a
+numbered item; they are here because they are large, not because they are waiting.
+
+8. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+   it is not optional.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
    `matrix * number` scalar scaling, which is deferred today for exactly that reason. (The
@@ -99,16 +102,48 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
+9. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+   written about it says so, which is accurate but incomplete: **the arena is the substrate, and
+   the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
+   restoring execution state. A task that yields and resumes *is* a continuation; so are green
+   threads, coroutines, and the exception path. One primitive underneath all of them.
+
+   Not retrofitted reasoning. **Two restricted continuations already exist** — `In case of
+   exception` compiles to `setjmp`/`longjmp` (a one-shot escaping continuation) and tasks are the
+   parallel form — and the surface drifted toward the conception on its own: the recorded decision
+   was a standalone `Start a task:`, but what got built was `Have rabbit start a task:`, which
+   *requires* an enclosing rabbit, as do channels.
+
+   **The open questions, in the order they need answering:**
+   1. **Surface or implementation coupling?** The code and the recorded decision disagree, and
+      everything downstream — how `bury`, `unbury` and continuations read — inherits the answer.
+   2. **Which restriction?** This decides whether it is buildable at all. Full first-class
+      continuations need either CPS-transforming the whole program (destroying the readable,
+      self-contained C the compiler emits) or copying the machine stack (nonportable, and in
+      conflict with both the sanitizers and the thread-local arenas). Coroutine-shaped ones —
+      save state, resume in order, one live resumption — are very achievable and cover nearly all
+      the value. ★ **The no-divergence rule decides this independent of implementation cost:**
+      whatever ships must work identically on both backends, and a tree-walking interpreter
+      cannot faithfully offer `call/cc` either.
+   3. **No implicit accumulator.** The original sketch had the rabbit *hold* an unburied value in
+      temporary state until used — an invisible register, which cuts against a language that made
+      narrowing explicit and refuses invisible capture writes. `Define x as unbury <stash>.` gets
+      the same feature with no hidden state.
+
+   **A stash is saved execution state, not a stack data structure**, so it cannot be a library:
+   suspend and resume need compiler and runtime support. (The naming is Turing's — the ACE design
+   used *bury* and *unbury* for subroutine linkage.)
+
 ### Tier 4 — modules, strictly in this order
 
-9. **The `module` interface.** A named interface defining the contract for any loadable thing.
+10. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-10. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+11. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-11. **A package manager for books.**
+12. **A package manager for books.**
 
 ### Tier 5 — Cufet in Cufet
 
@@ -118,7 +153,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-12. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+13. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -126,7 +161,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-13. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
+14. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on item 8, the C FFI.** Job control needs process groups and signalling a child;
@@ -134,7 +169,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-14. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+15. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
@@ -221,71 +256,3 @@ indistinguishable from having forgotten.
   sound, and it is what keeps the two threads' arenas disentangled, but it is not free. A move
   — transferring ownership and invalidating the sender's binding — would avoid the copy.
   *Blocker:* the language has no way to express "this binding is spent."
-
----
-
-## Long-term direction
-
-Not queued features. These are the directions that orient nearer decisions, and their main
-present value is revealing which nearer items are load-bearing.
-
-### The memory model
-
-**Cufet manages memory through regions.** A region is a span of memory whose contents all
-live and die together: every value lives in some region, and when the region ends, everything
-in it is freed at once. There is no garbage collector and no manual `free`.
-
-`Pull a rabbit.` opens a region; its `Done.` closes it. The invariant that makes this sound
-is **outward-only**: a value may be stored into a longer-lived region, never the reverse. The
-type checker annotates every store that crosses a boundary, and the compiler copies the value
-outward so nothing is left pointing into memory that is about to vanish.
-
-This is settled and shipped. It is listed here because it is the decision everything else
-rests on — see [DESIGN.md](DESIGN.md) for the reasoning and the adversarial arc that closed
-the last holes in it.
-
-### What a rabbit actually is
-
-The rabbit shipped as a memory region, and everything written about it describes it that way.
-That is accurate but incomplete about the intent.
-
-**A rabbit was conceived as a control-flow primitive that happens to use memory.** The arena
-is the *substrate*; the purpose is control-flow machinery — continuations, suspend and resume,
-capturing and restoring execution state. Concurrency belongs to the same family, because a
-task that yields and resumes *is* a continuation being captured and restored. Green threads
-are continuations; coroutines are continuations; the exception path is a one-shot escaping
-continuation. One primitive underneath all of them.
-
-Two pieces of evidence that this is not retrofitted reasoning:
-
-- **The implementation already contains two restricted continuations.** `In case of exception`
-  compiles to `setjmp`/`longjmp` — a one-shot escaping continuation. Tasks are the parallel
-  form. The unified substrate is half-real already.
-- **The surface drifted toward the conception on its own.** An earlier design session settled
-  on *implementation* coupling: a unified substrate underneath, but a standalone
-  `Start a task:` surface spawnable anywhere. What actually got built is
-  `Have rabbit start a task:`, which *requires* an enclosing rabbit — and channels require one
-  too. That is surface coupling, and it is what the original conception implies.
-
-**The open questions, in the order they need answering:**
-
-1. **Surface or implementation coupling?** The code and the recorded decision disagree, and
-   everything downstream — how `bury`, `unbury` and continuations read — inherits the answer.
-2. **Which restriction?** This decides whether the feature is buildable at all. Full
-   first-class continuations would need CPS-transforming the whole program (destroying the
-   readable, self-contained C the compiler emits) or copying the machine stack (nonportable,
-   and in conflict with both the sanitizers and the thread-local arenas). Coroutine-shaped
-   continuations — save state, resume in order, one live resumption — are very achievable and
-   cover nearly all of the value.
-
-   ★ **The no-divergence rule decides this independent of implementation cost.** Whatever
-   ships must work identically on both backends, and a tree-walking interpreter cannot
-   faithfully offer `call/cc` either. The oracle discipline makes the design call.
-3. **No implicit accumulator.** The original sketch had the rabbit *hold* an unburied value in
-   temporary state until used — an invisible register. That cuts against a language that made
-   narrowing explicit and refuses invisible capture writes. `Define x as unbury <stash>.` gets
-   the same feature with no hidden state.
-
-**A stash is saved execution state, not a stack data structure.** It cannot be a library:
-suspend and resume need compiler and runtime support. (The naming is Turing's — the ACE design
-used *bury* and *unbury* for subroutine linkage.)
