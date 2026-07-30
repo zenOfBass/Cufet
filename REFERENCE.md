@@ -1537,7 +1537,13 @@ Typed key→value collections. Keys are one type, values are one type
 Define ages as a map with ("alice" : 30, "bob" : 25).          ← populated, inferred types
 Define ages as a map from text to number with ("alice" : 30).  ← populated, typed
 Define ages as a map from text to number with ().               ← empty, typed
+Define ages as a map from text to number.                       ← empty, typed (same thing)
 ```
+
+**`with ()` is optional once the types are given** — `a map from text to number.` is an empty
+typed map, matching `a series of number.`, `a catalogue of (number or text).` and
+`an atlas from text to (number or text).`, which all read the same way. The clause is still
+required without the types, since `a map.` has neither an annotation nor entries to infer from.
 
 **Lookup** — returns `voidable <value-type>` (the key might be absent):
 ```

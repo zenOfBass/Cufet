@@ -45,6 +45,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   prints and the loop carries on. It also makes the already-permitted `pwd` mean something, since
   it can now report somewhere you chose.
 
+**An empty map no longer needs `with ()`**
+
+- **`Define ages as a map from text to number.`** now builds an empty typed map, the same way
+  `a series of number.`, `a catalogue of (number or text).` and
+  `an atlas from text to (number or text).` already did. Map was the only container that still
+  demanded the empty parentheses — and `atlas`, the map analogue, did not.
+
+  Purely additive: `with ()` keeps working and no existing program is affected. The clause is
+  still required when the types are absent, because `a map.` has neither an annotation nor
+  entries to infer from.
+
+  Found by writing the examples in the sugared style and noticing where it stopped working — the
+  kind of gap that only shows up when someone uses the language uniformly rather than feature by
+  feature.
+
 ---
 
 ## [0.11.0] — 2026-07-28
