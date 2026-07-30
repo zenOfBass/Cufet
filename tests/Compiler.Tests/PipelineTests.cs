@@ -3420,6 +3420,155 @@ public class PipelineTests
     // cooperative interpreter deterministically (no deadlock) and the awaited VALUE is
     // deterministic regardless of timing — so these ARE true Compile == Interpret oracle tests.
 
+    // ── Awaits inside tasks (result boxes) ───────────────────────────────────
+    // A named task publishes its result to a box; awaiters wait on the box and deep-copy into
+    // their own arena. Nobody joins at an await site — pthread_join happens once, in the rabbit's
+    // Done. teardown. That is what makes the two-awaiters case below safe BY CONSTRUCTION: a
+    // check-then-join guard is only sound while exactly one thread can run it.
+    //
+    // A cycle cannot be written: awaiting a task needs its name in scope, so it was declared
+    // earlier, so the wait graph is a DAG and the front end rejects the forward reference a cycle
+    // would require. There is no deadlock case to test because there is no deadlock to have.
+
+    [Fact]
+    public void Concurrency_TwoTasksAwaitTheSameTask_MatchesInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // THE case the previous design could not express. Both awaiters get their own arena copy
+        // of one published envelope; 5*2 + 5*3 = 25.
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as base-task:
+                    return 5.
+                Done.
+                Have rabbit start a task as left-task:
+                    Define v as the awaited result of base-task.
+                    return v * 2.
+                Done.
+                Have rabbit start a task as right-task:
+                    Define w as the awaited result of base-task.
+                    return w * 3.
+                Done.
+                State (the awaited result of left-task) + (the awaited result of right-task).
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_AwaitChainThreeDeep_MatchesInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as one-task:
+                    return 1.
+                Done.
+                Have rabbit start a task as two-task:
+                    Define a-val as the awaited result of one-task.
+                    return a-val + 1.
+                Done.
+                Have rabbit start a task as three-task:
+                    Define b-val as the awaited result of two-task.
+                    return b-val + 1.
+                Done.
+                State the awaited result of three-task.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_AwaitInsideTask_NestedReference_DeepCopies()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // The crux: an object holding a series crosses task → task. Arenas are thread-local, so a
+        // shallow copy would dangle the moment the producing task pops its arena — which ASan
+        // catches. Reading 4 back means the copy went all the way through.
+        const string src = """
+            Define object box with (the series of number nums, the text label):
+            Done.
+            Pull a rabbit.
+                Have rabbit start a task as maker:
+                    Define b as a new box { the nums (a series of number with (1, 2, 3, 4)), the label "b" }.
+                    return b.
+                Done.
+                Have rabbit start a task as reader:
+                    Define got as the awaited result of maker.
+                    return the number of (the nums of got).
+                Done.
+                State the awaited result of reader.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_AwaitInsideTask_TextResult_MatchesInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as maker:
+                    return "hello".
+                Done.
+                Have rabbit start a task as user:
+                    Define s as the awaited result of maker.
+                    return s joined to " world".
+                Done.
+                State the awaited result of user.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_AwaitInsideTask_FallibleResult_MatchesInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as risky:
+                    If 1 is 2, return 1.
+                    return a failure "nope" of category "test".
+                Done.
+                Have rabbit start a task as handler:
+                    Define v as (the awaited result of risky) but on failure 99.
+                    return v.
+                Done.
+                State the awaited result of handler.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Concurrency_NamedTaskNeverAwaited_StillFreesItsResult()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // Ownership moved: the envelope now lives in the box until Done. frees it through the
+        // recorded freeenv, rather than being freed at an await that may never happen. A
+        // reference-typed result nobody reads must still free deeply — LSan is the real assertion.
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as ignored:
+                    return "never read".
+                Done.
+                Have rabbit start a task as loud:
+                    return 7.
+                Done.
+                State the awaited result of loud.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     [Fact]
     public void Concurrency_AwaitedResult_Number()
     {
@@ -6812,9 +6961,14 @@ public class PipelineTests
     // records + objects + text)` — an internal class name, an internal slice number, and a list of
     // features that have nothing to do with it. These pin the messages a reader actually meets.
 
+    // Was Refusal_AwaitInsideTask_ExplainsTheRestriction, asserting a clean refusal. Awaiting
+    // inside a task now works, so the test asserts the behaviour instead of the apology — the
+    // same conversion every shipped deferral in this suite has had.
     [Fact]
-    public void Refusal_AwaitInsideTask_ExplainsTheRestriction()
+    public void Concurrency_AwaitInsideTask_MatchesInterpreter()
     {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
         const string src = """
             Pull a rabbit.
                 Have rabbit start a task as inner:
@@ -6827,11 +6981,7 @@ public class PipelineTests
                 State the awaited result of outer.
             Done.
             """;
-        var ex = Assert.Throws<CompilerException>(() => Compile(src));
-        Assert.Contains("cannot await another task's result", ex.Message);
-        Assert.Contains("inner", ex.Message);             // names the reader's own task
-        Assert.DoesNotContain("TaskHandleType", ex.Message);
-        Assert.DoesNotContain("slice", ex.Message);
+        Assert.Equal(Interpret(src), Compile(src));
     }
 
     [Fact]

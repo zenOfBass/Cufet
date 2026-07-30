@@ -1694,6 +1694,62 @@ static int cufet_chan_recv(cufet_chan* ch, void** out) {
     }
     pthread_mutex_unlock(&ch->m); return 0;
 }
+/* ── A named task's result box ───────────────────────────────────────────────
+   The task publishes its result envelope here exactly once; any number of awaiters — the rabbit
+   body, other tasks, or the same awaiter twice — wait for it and deep-copy into their own arena.
+
+   ★ Nobody joins at an await site. pthread_join happens once, in the rabbit's Done. teardown,
+   which the structured guarantee requires anyway. That is what makes N awaiters safe BY
+   CONSTRUCTION: a check-then-join guard is only sound while exactly one thread may run it, and
+   `the awaited result of x` can now appear in several tasks at once.
+
+   The box owns the envelope until teardown frees it through `freeenv`, so awaiters only ever
+   read it. Awaiters copy rather than share because arenas are thread-local — each one needs the
+   value in its own. */
+typedef struct {
+    pthread_mutex_t m;
+    pthread_cond_t  c;
+    int    done;                  /* published (a NULL env means the task was abandoned) */
+    void*  env;                   /* malloc'd result envelope, owned by the box */
+    void (*freeenv)(void*);       /* per-element-type deep free, recorded at spawn */
+} cufet_rbox;
+
+static cufet_rbox* cufet_rbox_new(void (*freeenv)(void*)) {
+    cufet_rbox* b = (cufet_rbox*)malloc(sizeof(cufet_rbox));
+    pthread_mutex_init(&b->m, NULL);
+    pthread_cond_init(&b->c, NULL);
+    b->done = 0; b->env = NULL; b->freeenv = freeenv;
+    return b;
+}
+static void cufet_rbox_publish(cufet_rbox* b, void* env) {
+    if (!b) { if (env) free(env); return; }
+    pthread_mutex_lock(&b->m);
+    b->env = env; b->done = 1;
+    pthread_cond_broadcast(&b->c);
+    pthread_mutex_unlock(&b->m);
+}
+/* Returns the envelope, still owned by the box. Waits on a 50ms poll for the same reason
+   cufet_chan_recv does: a thread blocked in an untimed wait cannot notice SIGINT, and INT.1
+   made every blocking point interruptible. NULL means abandoned — the caller checkpoints. */
+static void* cufet_rbox_await(cufet_rbox* b) {
+    pthread_mutex_lock(&b->m);
+    while (!b->done) {
+        if (cufet_interrupted) { pthread_mutex_unlock(&b->m); return NULL; }
+        struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_nsec += 50000000L; if (ts.tv_nsec >= 1000000000L) { ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
+        pthread_cond_timedwait(&b->c, &b->m, &ts);
+    }
+    void* e = b->env;
+    pthread_mutex_unlock(&b->m);
+    return e;
+}
+static void cufet_rbox_free(cufet_rbox* b) {
+    if (!b) return;
+    if (b->env) { if (b->freeenv) b->freeenv(b->env); else free(b->env); }
+    pthread_mutex_destroy(&b->m);
+    pthread_cond_destroy(&b->c);
+    free(b);
+}
 static void cufet_chan_close(cufet_chan* ch) {
     pthread_mutex_lock(&ch->m); ch->closed = 1; pthread_cond_broadcast(&ch->c); pthread_mutex_unlock(&ch->m);
 }
@@ -3898,9 +3954,14 @@ static void* cufet_pipe_stage(void* argp) {
                         FlushPreEmits(sb, indent);
                         int rid = _freshId++;
                         sb.AppendLine($"{indent}void* cf_tret{rid} = {ChanHeapEnv(tctx.ResultType)}({retExpr});");
+                        // PUBLISHED to the result box rather than returned. The thread's return value
+                        // is no longer how a result travels: awaiters read the box, and pthread_join
+                        // happens once at the rabbit's Done. Publishing before the arena is popped is
+                        // safe because the envelope is already self-contained heap.
+                        sb.AppendLine($"{indent}cufet_rbox_publish(cf_a->cf_selfbox, cf_tret{rid});");
                         // ESC.3: the result is already on the heap, so rabbits this return jumps out
                         // of are genuinely reclaimed before the task's own arena goes.
-                        sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{ArenaPopStmts(0)}cufet_arena_pop(); free(cf_a); return cf_tret{rid};");
+                        sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{ArenaPopStmts(0)}cufet_arena_pop(); free(cf_a); return NULL;");
                     }
                     else
                     {
@@ -4033,14 +4094,15 @@ static void* cufet_pipe_stage(void* argp) {
                 {
                     sb.AppendLine($"{inner}pthread_t cf_thr{n}[CUFET_TASK_MAX]; int cf_nthr{n} = 0;");
                     sb.AppendLine($"{inner}cufet_chan* cf_chan{n}[CUFET_TASK_MAX]; int cf_nchan{n} = 0;");
-                    // cf_jflag[k] marks a task already joined at its await site (CONC.C), so Done.
-                    // does not re-join it (double pthread_join is undefined). Zero = not yet joined.
-                    sb.AppendLine($"{inner}int cf_jflag{n}[CUFET_TASK_MAX] = {{0}};");
-                    // cf_jfree[k] = the freeenv for slot k's result envelope (named tasks; NULL for
-                    // fire-and-forget). The Done. teardown frees a never-awaited result THROUGH it, so a
-                    // reference-typed result's nested heap frees too (not just the envelope pointer).
-                    sb.AppendLine($"{inner}void (*cf_jfree{n}[CUFET_TASK_MAX])(void*) = {{0}};");
-                    sb.AppendLine($"{inner}(void)cf_thr{n}; (void)cf_chan{n}; (void)cf_jflag{n}; (void)cf_jfree{n};");
+                    // cf_rbox[k] = slot k's result box (named tasks; NULL for fire-and-forget). The box
+                    // owns the result envelope and knows how to free it deeply, so the teardown below
+                    // reclaims a never-awaited result the same way an awaited one is reclaimed.
+                    //
+                    // There is no longer a cf_jflag: with awaits reading boxes instead of joining,
+                    // the teardown joins EVERY task unconditionally, which is both simpler and the
+                    // only thing that stays correct once several tasks may await the same task.
+                    sb.AppendLine($"{inner}cufet_rbox* cf_rbox{n}[CUFET_TASK_MAX] = {{0}};");
+                    sb.AppendLine($"{inner}(void)cf_thr{n}; (void)cf_chan{n}; (void)cf_rbox{n};");
                     _rabbitCtx.Add(n);
                 }
                 _rabbitDepth++;   // this rabbit pops its arena at Done. (independent of concurrency) —
@@ -4049,11 +4111,14 @@ static void* cufet_pipe_stage(void* argp) {
                 if (_usesConcurrency)
                 {
                     _rabbitCtx.RemoveAt(_rabbitCtx.Count - 1);
-                    // Structured join: reap every not-yet-awaited task, freeing its result heap-bridge
-                    // via the slot's freeenv (fire-and-forget → cf_jfree NULL + returns NULL → skip; a
-                    // named-but-never-awaited result → freed deeply, so a reference result's nested heap
-                    // frees too — no leak). Awaited tasks (cf_jflag set) were freed at their await site.
-                    sb.AppendLine($"{inner}for (int cf_ji = 0; cf_ji < cf_nthr{n}; cf_ji++) if (!cf_jflag{n}[cf_ji]) {{ void* cf_jr = NULL; pthread_join(cf_thr{n}[cf_ji], &cf_jr); if (cf_jr) {{ if (cf_jfree{n}[cf_ji]) cf_jfree{n}[cf_ji](cf_jr); else free(cf_jr); }} }}");
+                    // Structured join: reap EVERY task — no exceptions now, because no await joins.
+                    // Then free each result box, which frees the envelope through its own freeenv, so
+                    // a reference-typed result's nested heap goes too whether it was awaited N times
+                    // or never. Freeing after the join is what makes it safe: no task can still be
+                    // publishing, and no awaiter can still be reading, once every thread has been
+                    // reaped and this is the only thread left in the rabbit.
+                    sb.AppendLine($"{inner}for (int cf_ji = 0; cf_ji < cf_nthr{n}; cf_ji++) pthread_join(cf_thr{n}[cf_ji], NULL);");
+                    sb.AppendLine($"{inner}for (int cf_bi = 0; cf_bi < cf_nthr{n}; cf_bi++) cufet_rbox_free(cf_rbox{n}[cf_bi]);");
                     sb.AppendLine($"{inner}for (int cf_ci = 0; cf_ci < cf_nchan{n}; cf_ci++) cufet_chan_free_if_live(cf_chan{n}[cf_ci]);");
                     // INT.1 — the join above is the one place this thread parks for an unbounded
                     // time, and pthread_join is not a checkpoint. An interrupt delivered while
@@ -5865,15 +5930,14 @@ static void* cufet_pipe_stage(void* argp) {
         // TCAP — a capture of ANY type is allowed, but the task must not MUTATE one. Every capture
         // crosses a thread boundary and so is the task's OWN copy; writing to it changes only that
         // copy. See TaskBodyMayMutate for why this is a refusal rather than a silent copy.
-        // A captured TASK HANDLE means this body awaits another task. Say so here: otherwise the
-        // handle reaches the arg-struct type lowering below and the reader gets a generic
-        // "cannot represent a task" instead of the actual, actionable restriction.
-        foreach (var c in caps)
-            if (_varTypes[c] is TaskHandleType)
-                throw new CompilerException(
-                    $"a task cannot await another task's result yet: this task uses '{c}', which is a task. " +
-                    $"Await it from the rabbit body instead — `Define r as the awaited result of {c}.` outside " +
-                    "any task — or pass the value between the two tasks through a channel.");
+        // A captured TASK HANDLE means this body awaits another task. It rides as the awaited task's
+        // result-box pointer — shared, never copied, because a box is a synchronisation object like
+        // a channel rather than arena memory.
+        //
+        // A cycle cannot be built out of these: awaiting a task requires its name to be in scope,
+        // which means it was declared earlier, so the wait graph is a DAG by construction and the
+        // front end rejects the forward reference a cycle would need.
+        foreach (var c in caps) if (_varTypes[c] is TaskHandleType) _usesConcurrency = true;
 
         foreach (var c in caps)
             if (TaskBodyMayMutate(lts.Body, c))
@@ -5889,18 +5953,31 @@ static void* cufet_pipe_stage(void* argp) {
         // deep-copied into a malloc'd envelope at spawn and copied into the task's OWN arena on
         // arrival. That keeps the two threads' arenas completely disentangled, exactly as
         // `Send v through ch` already does — the same cchan_<i> family, no new machinery.
-        bool Bridged(string c) => _varTypes[c] is not (NumberType or FactType or ChannelType);
+        // A TASK HANDLE joins the shared-by-pointer group for the same reason a channel does.
+        bool Bridged(string c) => _varTypes[c] is not (NumberType or FactType or ChannelType or TaskHandleType);
         foreach (var c in caps) if (Bridged(c)) RegisterChanElem(_varTypes[c], isTop: true);
 
-        // Arg struct + thread function (accumulated; emitted before the bodies).
-        _taskFns.AppendLine($"struct cufet_targ{tid} {{ {string.Join(" ", caps.Select(c => $"{(Bridged(c) ? "void*" : EmitCType(_varTypes[c]))} {MangleName(c)};"))} }};");
+        string CapCType(string c) =>
+            Bridged(c) ? "void*" : _varTypes[c] is TaskHandleType ? "cufet_rbox*" : EmitCType(_varTypes[c]);
+
+        // Arg struct + thread function (accumulated; emitted before the bodies). cf_selfbox is where
+        // a named task publishes its own result; it is unused by fire-and-forget tasks.
+        _taskFns.AppendLine($"struct cufet_targ{tid} {{ cufet_rbox* cf_selfbox; {string.Join(" ", caps.Select(c => $"{CapCType(c)} {MangleName(c)};"))} }};");
         _taskFns.AppendLine($"static void* cufet_task{tid}(void* argp) {{");
         _taskFns.AppendLine($"    struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)argp;");
         // The arena must exist before a bridged capture can be copied into it.
         _taskFns.AppendLine($"    cufet_arena_push();");
         foreach (var c in caps)
         {
-            string t = EmitCType(_varTypes[c]), m = MangleName(c);
+            string m = MangleName(c);
+            // A captured task handle materialises under the same name the rabbit body uses for it,
+            // so an await inside this task emits exactly the expression it would outside one.
+            if (_varTypes[c] is TaskHandleType)
+            {
+                _taskFns.AppendLine($"    cufet_rbox* {m} = cf_a->{m}; (void){m};");
+                continue;
+            }
+            string t = EmitCType(_varTypes[c]);
             _taskFns.AppendLine(Bridged(c)
                 ? $"    {t} {m} = {ChanArenaCopy(_varTypes[c])}(cf_a->{m}); {ChanFreeEnv(_varTypes[c])}(cf_a->{m}); (void){m};"
                 : $"    {t} {m} = cf_a->{m}; (void){m};");
@@ -5947,6 +6024,12 @@ static void* cufet_pipe_stage(void* argp) {
         // only, and it yields NULL: the task is ABANDONED and reaped by the rabbit's structured
         // join, exactly as an interrupted pipe stage is. Run this thread's pending unmakers and
         // close its open files first — both registries are _Thread_local, so a worker touches only
+        // ★ Publish nothing, but publish it. A task reaching here either fell off the end or was
+        // abandoned at its landing pad by an interrupt, and in both cases it never published a
+        // result — so any awaiter would wait forever. An empty publish wakes them with NULL, which
+        // the await site reads as "no result" and turns into a checkpoint. Harmless when nobody is
+        // waiting, and NULL for a fire-and-forget task whose box does not exist.
+        _taskFns.AppendLine($"    cufet_rbox_publish(cf_a->cf_selfbox, NULL);");
         // its own — otherwise an interrupt would skip every destructor and lose buffered writes.
         _taskFns.AppendLine($"    {UnmakerRunStmt("0")}cufet_close_files_from(0);");
         _taskFns.AppendLine($"    cufet_arena_pop();");
@@ -5954,24 +6037,28 @@ static void* cufet_pipe_stage(void* argp) {
         _taskFns.AppendLine($"    return NULL;");
         _taskFns.AppendLine($"}}");
 
-        // A named task records its array slot + a stored-result var (set once, at its await site) so
-        // `the awaited result of <name>` can join THIS task and cache the value for re-awaits.
-        if (lts.Name != null && resultCType != null)
-        {
-            string sfx = TaskSuffix(lts.Name);
-            sb.AppendLine($"{indent}int cf_slot_{sfx} = 0; (void)cf_slot_{sfx};");
-            sb.AppendLine($"{indent}{resultCType} cf_tres_{sfx} = {{0}}; (void)cf_tres_{sfx};");
-            sb.AppendLine($"{indent}cf_slot_{sfx} = cf_nthr{ctx};");
-        }
+        // A named task gets a result box, held in a variable named exactly as the task is. That
+        // naming is load-bearing: inside a task that awaits this one, the capture machinery
+        // materialises the captured handle under the SAME mangled name, so `the awaited result of
+        // <name>` emits one expression that is correct in the rabbit body and in a task alike.
+        if (lts.Name != null && resultType != null)
+            sb.AppendLine($"{indent}cufet_rbox* {MangleName(lts.Name)} = cufet_rbox_new({ChanFreeEnv(resultType)});");
 
         // Spawn: snapshot captures into the heap arg (PODs copied, channels shared by pointer,
         // regions deep-copied into a heap envelope the task owns and frees) + create.
         sb.AppendLine($"{indent}{{ struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)malloc(sizeof(struct cufet_targ{tid}));");
         foreach (var c in caps)
             sb.AppendLine($"{indent}  cf_a->{MangleName(c)} = {(Bridged(c) ? $"{ChanHeapEnv(_varTypes[c])}({MangleName(c)})" : MangleName(c))};");
-        // Record the slot's result freeenv so a never-awaited result frees deeply at Done. (named only).
+        // The task publishes into its own box, so it needs a pointer to it; the rabbit records the
+        // same pointer per slot so the teardown can free it.
         if (lts.Name != null && resultType != null)
-            sb.AppendLine($"{indent}  cf_jfree{ctx}[cf_nthr{ctx}] = {ChanFreeEnv(resultType)};");
+        {
+            sb.AppendLine($"{indent}  cf_a->cf_selfbox = {MangleName(lts.Name)};");
+            sb.AppendLine($"{indent}  cf_rbox{ctx}[cf_nthr{ctx}] = {MangleName(lts.Name)};");
+        }
+        else
+            // Fire-and-forget: malloc does not zero, and the unwind path publishes unconditionally.
+            sb.AppendLine($"{indent}  cf_a->cf_selfbox = NULL;");
         sb.AppendLine($"{indent}  pthread_create(&cf_thr{ctx}[cf_nthr{ctx}++], NULL, cufet_task{tid}, cf_a); }}");
     }
 
@@ -6115,28 +6202,30 @@ static void* cufet_pipe_stage(void* argp) {
     // propagate), mirroring how file-read fallibility is factored.
     private string EmitAwaitedRaw(AwaitedResultExpression are, out (string Ctx, string ResultCType, CufetType? ResultType) info)
     {
-        if (_inTaskBody)
-            throw new CompilerException("a task cannot await another task's result yet. Await it from the rabbit body instead — `Define r as the awaited result of <name>.` outside any task — or pass the value between the two tasks through a channel.");
         _usesConcurrency = true;
         if (are.Task is not VariableReference vr || !_taskInfos.TryGetValue(vr.Name, out info))
             throw new CompilerException("'the awaited result of' requires a named task declared with 'Have rabbit start a task as <name>:'.");
-        string sfx = TaskSuffix(vr.Name);
-        string ctx = info.Ctx;
         var resultType = info.ResultType ?? TNumber;
-        // Join once (guarded by cf_jflag), then DEEP-COPY the heap envelope into this (awaiter's) arena
-        // (arenacopy) and free the envelope (freeenv). The cached cf_tres_ is the arena copy — a re-await
-        // reads it without re-joining (the body ran once). POD results copy identically (arenacopy is a
-        // struct read, freeenv a plain free) — CONC.C's scalar path unchanged.
-        // INT.1 — an INTERRUPTED task is abandoned at its landing pad and yields NULL instead of a
-        // result envelope, so the copy has to be guarded or it dereferences null. There is no
-        // sensible value to await in that case: the interrupt that killed the task is meant for
-        // this thread too, so check in (this thread has a pad — it unwinds to teardown and exits).
-        _preEmits.Add(
-            $"if (!cf_jflag{ctx}[cf_slot_{sfx}]) {{ void* cf_ar = NULL; " +
-            $"pthread_join(cf_thr{ctx}[cf_slot_{sfx}], &cf_ar); cf_jflag{ctx}[cf_slot_{sfx}] = 1; " +
-            $"if (cf_ar) {{ cf_tres_{sfx} = {ChanArenaCopy(resultType)}(cf_ar); {ChanFreeEnv(resultType)}(cf_ar); }} " +
-            $"else cufet_checkpoint(); }}");
-        return $"cf_tres_{sfx}";
+        string box = MangleName(vr.Name);
+        string rc  = EmitCType(resultType);
+        int aid = _freshId++;
+
+        // Wait on the task's result box, then DEEP-COPY the envelope into THIS awaiter's arena.
+        // The box keeps owning the envelope — the rabbit's Done. frees it — so several awaiters, in
+        // the rabbit body or in other tasks, can each take their own copy. Copying rather than
+        // sharing is not a choice: arenas are thread-local, so a value is only usable here once it
+        // is in this thread's arena.
+        //
+        // `box` resolves to the spawn-site variable in the rabbit body and to the captured alias
+        // inside a task — the same name in both, which is why this emits one expression.
+        //
+        // INT.1 — an interrupted task is abandoned at its landing pad and publishes nothing, and an
+        // interrupted awaiter stops waiting; both surface as NULL. There is no sensible value to
+        // await then, and the interrupt is meant for this thread too, so check in.
+        _preEmits.Add($"{rc} cf_ares{aid}; {{ void* cf_ar = cufet_rbox_await({box}); " +
+                      $"if (cf_ar) cf_ares{aid} = {ChanArenaCopy(resultType)}(cf_ar); " +
+                      $"else {{ cufet_checkpoint(); memset(&cf_ares{aid}, 0, sizeof cf_ares{aid}); }} }}");
+        return $"cf_ares{aid}";
     }
 
     // Collects referenced variable names (refs) and locally-defined/iterated/parameter names (defs) in
