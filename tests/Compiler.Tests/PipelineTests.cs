@@ -1523,6 +1523,20 @@ public class PipelineTests
     // ── Slice 5D: maps (arena association list; lookup → voidable; on 5A/5B/5C) ──
 
     [Fact]
+    public void Map_TypedWithoutWith_MatchesInterpreter()
+    {
+        // The empty-map sugar has to build the same map on both backends, not just parse.
+        var src = """
+            Define m as a map from text to number.
+            State the size of m.
+            In m, the entry for "alice" becomes 30.
+            State the size of m.
+            State the entry for "alice" in m but void is 0.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
     public void Map_CoreOperations_MatchesInterpreter()
     {
         // Construct, print (insertion order), size, lookup (present/absent → voidable),

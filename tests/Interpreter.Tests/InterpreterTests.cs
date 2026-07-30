@@ -5216,6 +5216,47 @@ public class InterpreterTests
     // references), so lookups would silently always-miss — wrong answers, no error.
     // The TypeChecker catches these at declaration time with an educational message.
 
+    // ── Empty-map sugar: 'with ()' is optional once the types are given ──────
+    // Map was the only container missing this. `a series of number.`,
+    // `a catalogue of (…).` and `an atlas from … to (…).` all already worked.
+
+    [Fact]
+    public void Map_TypedWithoutWith_IsEmptyMap()
+    {
+        Assert.Equal("0", Run("Define m as a map from text to number. State the size of m."));
+    }
+
+    [Fact]
+    public void Map_TypedWithoutWith_IsUsableAfterwards()
+    {
+        Assert.Equal("1\n30", Run(
+            "Define m as a map from text to number.\n" +
+            "In m, the entry for \"alice\" becomes 30.\n" +
+            "State the size of m.\n" +
+            "State the entry for \"alice\" in m but void is 0."));
+    }
+
+    [Fact]
+    public void Map_TypedWithoutWith_WorksWithVoidableValues()
+    {
+        Assert.Equal("0", Run("Define m as a map from text to voidable number. State the size of m."));
+    }
+
+    [Fact]
+    public void Map_ExplicitEmptyWith_StillWorks()
+    {
+        // The spelling every existing program and doc example uses — must not regress.
+        Assert.Equal("0", Run("Define m as a map from text to number with (). State the size of m."));
+    }
+
+    [Fact]
+    public void Map_UntypedWithoutWith_IsStillAnError()
+    {
+        // `a map.` has neither an annotation nor entries, so there is nothing to infer a type
+        // from. Dropping 'with' is sugar for the TYPED form only.
+        Assert.Throws<ParseException>(() => Run("Define m as a map. State the size of m."));
+    }
+
     [Fact]
     public void Map_ObjectKey_TypeCheckError()
     {

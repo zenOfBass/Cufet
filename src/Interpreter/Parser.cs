@@ -2455,29 +2455,38 @@ public sealed class Parser
                     Consume(TokenType.To); SkipNoise();
                     mapValType = ParseTypeAnnotation(); SkipNoise();
                 }
-                Consume(TokenType.With);
-                SkipNoise();
-                Consume(TokenType.LParen);
-                SkipNoise();
                 var pairs = new List<(IExpression Key, IExpression Value)>();
-                if (Peek().Type != TokenType.RParen)
+                // 'with (...)' is OPTIONAL once the types are given: `a map from text to number.`
+                // is an empty typed map, the same sugar `a series of number.` and
+                // `an atlas from text to (…)` already had. Map was the only container missing it.
+                //
+                // Still required when the types are absent, because `a map.` has neither an
+                // annotation nor entries to infer from — there would be nothing to build.
+                if (mapValType == null || Peek().Type == TokenType.With)
                 {
-                    var k = ParseExpression(); SkipNoise();
-                    Consume(TokenType.Colon); SkipNoise();
-                    var v = ParseExpression();
-                    pairs.Add((k, v));
+                    Consume(TokenType.With);
                     SkipNoise();
-                    while (Peek().Type == TokenType.Comma)
+                    Consume(TokenType.LParen);
+                    SkipNoise();
+                    if (Peek().Type != TokenType.RParen)
                     {
-                        Advance(); SkipNoise();
-                        var k2 = ParseExpression(); SkipNoise();
+                        var k = ParseExpression(); SkipNoise();
                         Consume(TokenType.Colon); SkipNoise();
-                        var v2 = ParseExpression();
-                        pairs.Add((k2, v2));
+                        var v = ParseExpression();
+                        pairs.Add((k, v));
                         SkipNoise();
+                        while (Peek().Type == TokenType.Comma)
+                        {
+                            Advance(); SkipNoise();
+                            var k2 = ParseExpression(); SkipNoise();
+                            Consume(TokenType.Colon); SkipNoise();
+                            var v2 = ParseExpression();
+                            pairs.Add((k2, v2));
+                            SkipNoise();
+                        }
                     }
+                    Consume(TokenType.RParen);
                 }
-                Consume(TokenType.RParen);
                 baseExpr = new MapLiteral(mapKeyType, mapValType, pairs, mapLine);
                 break;
             }
