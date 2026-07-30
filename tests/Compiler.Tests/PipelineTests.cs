@@ -1972,6 +1972,113 @@ public class PipelineTests
         finally { foreach (var p in paths) try { File.Delete(p.Replace('/', Path.DirectorySeparatorChar)); } catch { } }
     }
 
+    // Like AssertFileOracle, but for programs that CHANGE the working directory. {DIR} becomes a
+    // fresh empty temp directory, forward-slashed.
+    //
+    // The save/restore is not politeness. The working directory is process-global and Interpret()
+    // runs in-process, so a leaked change would follow every later test in the class — and would
+    // also be inherited by every compiled binary launched afterwards, since a child process starts
+    // in its parent's directory. The failure that causes looks like an unrelated test breaking.
+    private static void AssertCwdOracle(string template)
+    {
+        var original = Directory.GetCurrentDirectory();
+        var dir = Path.Combine(Path.GetTempPath(), "cufet-cwd-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var src = template.Replace("{DIR}", dir.Replace('\\', '/'));
+        try
+        {
+            var interpreted = Interpret(src);
+            Directory.SetCurrentDirectory(original);   // before compiling, so the child starts clean
+            var compiled = Compile(src);
+            Assert.Equal(interpreted, compiled);
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(original);
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    // ── Current directory ────────────────────────────────────────────────
+
+    [Fact]
+    public void CurrentDirectory_Read_IsPresentOnBothBackends()
+    {
+        Assert.Equal(Interpret("State the current directory is not void."),
+                     Compile("State the current directory is not void."));
+    }
+
+    // The headline test, and it deliberately does NOT compare the printed path. Two runtimes can
+    // canonicalise the same directory differently (casing, separators, symlink resolution), so
+    // asserting on the string would test path spelling rather than the feature. Writing to a
+    // RELATIVE filename after the change proves the change actually took effect, on both sides.
+    [Fact]
+    public void CurrentDirectory_Change_AffectsRelativePaths_MatchesInterpreter()
+    {
+        AssertCwdOracle("""
+            The current directory becomes "{DIR}".
+            Write "landed here" to the file "probe.txt".
+            Try to:
+                Define c as read all from the file "probe.txt".
+                State c.
+            Done.
+            In case of failure:
+                State "could not read it back".
+            Done.
+            """);
+    }
+
+    [Fact]
+    public void CurrentDirectory_MissingPath_FailsIdentically()
+    {
+        AssertCwdOracle("""
+            Try to:
+                The current directory becomes "/cufet-no-such-directory-xyz-9876".
+            Done.
+            In case of failure:
+                State the category of the failure but void is "(none)".
+                State the message of the failure.
+            Done.
+            """);
+    }
+
+    [Fact]
+    public void CurrentDirectory_PathIsAFile_FailsIdentically()
+    {
+        // The category that exists only because both backends stat before changing: .NET cannot
+        // distinguish this from not-found by exception type, and Windows chdir reports ENOENT
+        // rather than ENOTDIR. Getting "not-a-directory" from both is the whole point.
+        AssertCwdOracle("""
+            Write "x" to the file "{DIR}/afile.txt".
+            Try to:
+                The current directory becomes "{DIR}/afile.txt".
+            Done.
+            In case of failure:
+                State the category of the failure but void is "(none)".
+            Done.
+            """);
+    }
+
+    [Fact]
+    public void CurrentDirectory_ChangeInsideTask_IsRefusedCleanly()
+    {
+        // A process has one working directory, so changing it from a task races every other
+        // thread's relative-path resolution. The compiler refuses rather than shipping a
+        // construct the cooperative interpreter would run deterministically.
+        var ex = Assert.Throws<CompilerException>(() => Compile("""
+            Pull a rabbit.
+                Have rabbit start a task as worker:
+                    The current directory becomes "/tmp".
+                    return 1.
+                Done.
+                Define r as the awaited result of worker.
+                State r.
+            Done.
+            """));
+        Assert.Contains("cannot change the current directory", ex.Message);
+        Assert.DoesNotContain("slice", ex.Message);
+    }
+
     [Fact]
     public void File_WriteReadRoundtrip_MatchesInterpreter()
     {

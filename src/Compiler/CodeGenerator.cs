@@ -1175,6 +1175,54 @@ static const char* cufet_stream_read_all(FILE* f) {
     return r;
 }
 
+/* ── Current directory ──────────────────────────────────────────────────────
+   `the current directory` → voidable text; void only when the process has no working
+   directory to report, which in practice means it was removed underneath it.
+   `The current directory becomes <p>.` → fallible statement.
+
+   ★ The stat() checks run BEFORE chdir(), and that ordering is load-bearing for matching the
+   interpreter. .NET collapses "no such directory" and "that is a file" into a single
+   IOException, so the interpreter must test existence itself; relying on errno here instead
+   would diverge on Windows, where _chdir onto a file reports ENOENT rather than ENOTDIR.
+   Checking the same way on both sides is what makes the failure CATEGORY agree everywhere. */
+#include <unistd.h>
+static const char* cufet_getcwd(void) {
+    /* Grown rather than fixed at PATH_MAX: a truncated answer would be a silent divergence from
+       the interpreter, which has no length ceiling. Superseded buffers stay in the arena and die
+       with it, and the loop runs a handful of times at most. */
+    size_t cap = 512;
+    for (;;) {
+        char* buf = (char*)cufet_arena_alloc(cap);
+        if (getcwd(buf, cap)) return buf;
+        if (errno != ERANGE || cap > (1u << 20)) return NULL;
+        cap *= 2;
+    }
+}
+static int cufet_chdir(const char* path, CufetFailure* err) {
+    struct stat st;
+    if (stat(path, &st) != 0) {
+        err->category = "not-found";
+        err->message  = cufet_arena_msg("the directory '%s' was not found", path);
+        return 0;
+    }
+    if (!S_ISDIR(st.st_mode)) {
+        err->category = "not-a-directory";
+        err->message  = cufet_arena_msg("'%s' is not a directory", path);
+        return 0;
+    }
+    if (chdir(path) != 0) {
+        if (errno == EACCES || errno == EPERM) {
+            err->category = "permission-denied";
+            err->message  = cufet_arena_msg("permission denied entering directory '%s'", path);
+        } else {
+            err->category = "disk-error";
+            err->message  = cufet_arena_msg("changing to the directory '%s' failed", path);
+        }
+        return 0;
+    }
+    return 1;
+}
+
 /* ── Directory contents (cleanup slice) ─────────────────────────────────────
    `the contents of the directory <p>` → SORTED (ordinal, strcmp) full paths "<p><sep><name>",
    skipping "." / "..". Both backends sort: the raw OS order is filesystem-dependent, so sorting
@@ -3242,6 +3290,16 @@ static void* cufet_pipe_stage(void* argp) {
 
     // `the environment variable "X"` → voidable text: void when unset (matches the interpreter's
     // GetEnvironmentVariable-null→void). getenv's storage is stable here (Cufet has no setenv).
+    // `the current directory` → voidable text. NULL only when getcwd cannot answer, which mirrors
+    // the interpreter turning the equivalent exception into void.
+    private string EmitCurrentDirectory()
+    {
+        string cvd = RegisterVoidableStruct(new VoidableType(TText));
+        int id = _freshId++;
+        _preEmits.Add($"const char* cf_cwd{id} = cufet_getcwd();");
+        return $"(cf_cwd{id} ? ({cvd}){{ .has = 1, .val = cf_cwd{id} }} : ({cvd}){{ .has = 0 }})";
+    }
+
     private string EmitEnvVar(EnvironmentVariableExpression env)
     {
         string cvd = RegisterVoidableStruct(new VoidableType(TText));
@@ -3886,6 +3944,9 @@ static void* cufet_pipe_stage(void* argp) {
                 break;
             }
 
+            case CurrentDirectorySetStatement cd:
+                EmitCurrentDirectorySet(sb, cd, indent);
+                break;
             case FileWriteStatement fw:
                 EmitFileWrite(sb, fw, indent);
                 break;
@@ -4706,6 +4767,7 @@ static void* cufet_pipe_stage(void* argp) {
         RandomItem ri         => new VoidableType(((SeriesType)TypeOf(ri.Series)).ElementType),   // void on empty
         RandomlyShuffled rs   => TypeOf(rs.Series),             // element-type-preserving, like sorted
         EnvironmentVariableExpression => new VoidableType(TText),   // void when unset
+        CurrentDirectoryExpression    => new VoidableType(TText),   // void when there is none to report
         IsTypeCheck           => TFact,
         // A directory listing is fallible; its post-check VALUE type is series of text (raw
         // `series of text or failure` is seen only by FallibleReturnType — the file-read convention).
@@ -5217,6 +5279,7 @@ static void* cufet_pipe_stage(void* argp) {
         RandomItem ri         => EmitRandomItem(ri),
         RandomlyShuffled rs   => EmitRandomlyShuffled(rs),
         EnvironmentVariableExpression env => EmitEnvVar(env),
+        CurrentDirectoryExpression        => EmitCurrentDirectory(),
         IsTypeCheck tc        => EmitIsTypeCheck(tc),
         DirectoryContentsExpression dce =>
             EmitFallibleCheckGoto(EmitDirRaw(dce), RegisterFailableStruct(new FailureType(new SeriesType(TText)))),
@@ -6281,6 +6344,34 @@ static void* cufet_pipe_stage(void* argp) {
     // the enclosing Try handler (goto), exactly like a bare fallible call. With no enclosing Try,
     // an I/O failure has nowhere to go: abort with the message (the interpreter's uncaught failure
     // is likewise fatal). The common path — a successful write — emits and continues.
+    // `The current directory becomes <path>.` — a fallible statement, emitted exactly like a file
+    // write: call, then either jump to the enclosing Try's handler or abort with the message.
+    //
+    // ★ Refused inside a task body. A process has ONE working directory, so changing it from a
+    // task races every other thread's relative-path resolution, with no happens-before edge to
+    // order them — two well-defined answers, which is the never-ship class rather than the
+    // platform-owned exception. The cooperative interpreter would run it deterministically and
+    // hide the problem entirely. (Reading stays allowed everywhere; with writes refused inside
+    // tasks, the remaining window is a rabbit body writing while its own tasks read.)
+    private void EmitCurrentDirectorySet(StringBuilder sb, CurrentDirectorySetStatement cd, string indent)
+    {
+        if (_inTaskBody)
+            throw new CompilerException(
+                "a task cannot change the current directory. A process has only one, so changing it " +
+                "from a task would race every other task reading a relative path. Change it in the " +
+                "rabbit body before starting the task, or pass the directory in and build full paths.");
+
+        string pathExpr = EmitExpr(cd.Path);
+        FlushPreEmits(sb, indent);
+        int id = _freshId++;
+        string ok = $"cf_cd{id}", err = $"cf_cde{id}";
+        sb.AppendLine($"{indent}{{ CufetFailure {err}; int {ok} = cufet_chdir({pathExpr}, &{err});");
+        if (_currentTryHandler is { } h)
+            sb.AppendLine($"{indent}  if (!{ok}) {{ {FailureGotoBody(h, $"{err}.message", $"{err}.category")} }} }}");
+        else
+            sb.AppendLine($"{indent}  if (!{ok}) {{ fprintf(stderr, \"%s\\n\", {err}.message); exit(1); }} }}");
+    }
+
     private void EmitFileWrite(StringBuilder sb, FileWriteStatement fw, string indent)
     {
         string valExpr = EmitExpr(fw.Value);
