@@ -455,6 +455,15 @@ public sealed record FileReadExpression(FileReadForm Form, IExpression Path, int
 // the environment variable <name>  →  voidable text (void when the variable is unset; name is a text expr)
 public sealed record EnvironmentVariableExpression(IExpression Name, int Line) : IExpression;
 
+// the current directory  →  voidable text. Void only in the pathological case where the process
+// has no working directory to report — the directory was deleted out from under it. Voidable
+// rather than plain text to match `the environment variable`, which asks the OS the same way.
+public sealed record CurrentDirectoryExpression(int Line) : IExpression;
+
+// The current directory becomes <path>.  →  a FALLIBLE statement, like `write ... to ...`:
+// the path may not exist, may not be a directory, or may not be reachable.
+public sealed record CurrentDirectorySetStatement(IExpression Path, int Line) : IStatement;
+
 // ── Directory traversal ───────────────────────────────────────────────────────────────────────────
 
 // the contents of the directory <path>  →  series of text or failure

@@ -174,6 +174,20 @@ public sealed partial class TypeChecker
 
     // write <text> to the file "<path>"  /  append <text> to the file "<path>"
     // Validates operand types; failure is runtime-only (caught by enclosing Try if present).
+    // 'The current directory becomes <path>.' — only the operand needs checking. Like a file
+    // write, this is a fallible STATEMENT rather than a fallible value: it is caught by an
+    // enclosing Try, and aborts with its message when there is none.
+    private void CheckCurrentDirectorySet(CurrentDirectorySetStatement cd)
+    {
+        var pathType = InferType(cd.Path);
+        if (pathType != null && pathType != CufetType.Text)
+            throw new TypeException(FormatTypeError(
+                "a directory path must be text",
+                null, cd.Line,
+                $"use a {FormatType(pathType)} as a directory path",
+                "The path must be a text expression (a string literal or a text variable)."));
+    }
+
     private void CheckFileWrite(FileWriteStatement fw)
     {
         var valueType = InferType(fw.Value);

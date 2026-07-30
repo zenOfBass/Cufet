@@ -116,6 +116,48 @@ public sealed partial class Interpreter
         }
     }
 
+    // Its own templates rather than DirectoryIoFailure's, which say "reading the directory" —
+    // accurate for listing, wrong for changing into one. As everywhere on this boundary, the text
+    // is deterministic rather than ex.Message, because the native backend reproduces it from errno.
+    private static FailureUnwind ChangeDirectoryFailure(string path, string kind)
+    {
+        var (category, message) = kind switch
+        {
+            "not-found"      => ("not-found",       $"the directory '{path}' was not found"),
+            "not-a-directory"=> ("not-a-directory", $"'{path}' is not a directory"),
+            "permission"     => ("permission-denied", $"permission denied entering directory '{path}'"),
+            _                => ("disk-error",      $"changing to the directory '{path}' failed"),
+        };
+        return new FailureUnwind(new FailureValue(message, category));
+    }
+
+    // 'The current directory becomes <path>.' — a fallible statement, like writing to a file.
+    //
+    // The existence checks run BEFORE SetCurrentDirectory because .NET collapses "no such
+    // directory" and "that is a file" into the same IOException, while POSIX chdir distinguishes
+    // them as ENOENT and ENOTDIR. Checking here is what lets both backends produce the same
+    // category — `cd` onto a file is an ordinary typo and deserves to say so.
+    private void ExecuteCurrentDirectorySetStatement(CurrentDirectorySetStatement cd)
+    {
+        var path = (string)Evaluate(cd.Path);
+
+        if (!Directory.Exists(path))
+            throw ChangeDirectoryFailure(path, File.Exists(path) ? "not-a-directory" : "not-found");
+
+        try
+        {
+            Directory.SetCurrentDirectory(path);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw ChangeDirectoryFailure(path, "permission");
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException)
+        {
+            throw ChangeDirectoryFailure(path, "other");
+        }
+    }
+
     private void ExecuteFileWriteStatement(FileWriteStatement fw)
     {
         var value = (string)Evaluate(fw.Value);

@@ -212,6 +212,9 @@ public enum TokenType
     ContentsKw,   // "contents"   — in "the contents of the directory <path>"
     DirectoryKw,  // "directory"  — in "the contents of the directory <path>" / "the path ... is a directory"
     PathKw,       // "path"       — in "the path <path> exists/is a directory/is a file"
+    CurrentKw,    // "current"    — in "the current directory". NOT produced by the lexer: the
+                  // parser's EffectiveType promotes the identifier when 'directory' follows it,
+                  // so `Define current as 0.` keeps working.
                   //                 "exists" is contextual (lexeme-checked), not reserved
 
     // ── Environment ───────────────────────────────────────────────────────────────

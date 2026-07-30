@@ -39,6 +39,10 @@ public sealed class Parser
             TokenType.SeedKw     => ParseSeedChanceStatement(),
             // 'name | name.' — pipe statement starting with a variable reference
             TokenType.Identifier when PeekAfterCurrent() == TokenType.Pipe => ParsePipeStatement(),
+            // 'The current directory becomes <path>.' — the leading article is consumed as noise
+            // (IsNamedAccessPattern needs 'of' after the field name and there is none), so the
+            // statement arrives here starting at 'current'.
+            TokenType.Identifier when IsCurrentDirectorySet() => ParseCurrentDirectorySetStatement(),
             TokenType.Identifier => IsOrdinalAccessorStatement() ? ParseSeriesSetStatement() : ParseBecomesStatement(),
             // 'run X | run Y.' — subprocess pipe (or standalone run that must be piped)
             TokenType.Run        => ParsePipeStatement(),
@@ -922,6 +926,32 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Dot);
         return new RecordNamedSetStatement(fieldTok.Lexeme, record, value, line);
+    }
+
+    // True when the statement starting here is 'current directory becomes ...'. Checked by lexeme
+    // rather than token type because 'current' is an ordinary identifier everywhere else.
+    private bool IsCurrentDirectorySet()
+    {
+        if (!Peek().Lexeme.Equals("current", StringComparison.OrdinalIgnoreCase)) return false;
+        int i = _pos + 1;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count && _tokens[i].Type == TokenType.DirectoryKw;
+    }
+
+    // 'The current directory becomes <path>.' — a fallible statement, like writing to a file:
+    // the path may not exist, may not be a directory, or may not be reachable.
+    private CurrentDirectorySetStatement ParseCurrentDirectorySetStatement()
+    {
+        var line = Advance().Line;   // consume 'current'
+        SkipNoise();
+        Consume(TokenType.DirectoryKw);
+        SkipNoise();
+        Consume(TokenType.Becomes);
+        SkipNoise();
+        var path = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new CurrentDirectorySetStatement(path, line);
     }
 
     private SeriesSetStatement ParseSeriesSetStatement()
@@ -2719,6 +2749,17 @@ public sealed class Parser
                 baseExpr = new EnvironmentVariableExpression(ParseExprOr(), envLine);
                 break;
             }
+            case TokenType.CurrentKw:
+            {
+                // 'the current directory'. 'current' only reaches this case through EffectiveType,
+                // which promotes the identifier when 'directory' follows it — so `Define current
+                // as 0.` is untouched.
+                var cdLine = Advance().Line;   // consume 'current'
+                SkipNoise();
+                Consume(TokenType.DirectoryKw);
+                baseExpr = new CurrentDirectoryExpression(cdLine);
+                break;
+            }
             case TokenType.InterruptKw:
             {
                 // "an interrupt is requested" — fixed-phrase fact; 'an' consumed by SkipNoise above.
@@ -3783,6 +3824,7 @@ public sealed class Parser
         if (tok.Type != TokenType.Identifier) return tok.Type;
         return tok.Lexeme.ToLowerInvariant() switch
         {
+            "current"  when PeekAfterCurrent() == TokenType.DirectoryKw => TokenType.CurrentKw,
             "matrix"   when PeekAfterCurrent() == TokenType.With     => TokenType.Matrix,
             "randomly" when NextWordIs("shuffled")                   => TokenType.Randomly,
             "random"   when PeekAfterCurrent() is TokenType.NumberKw or TokenType.Item

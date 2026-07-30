@@ -967,6 +967,9 @@ public sealed partial class TypeChecker
                         "suppress an exception outside an exception handler",
                         "Move 'Suppress the exception.' inside an 'In case of exception' block."));
                 break;
+            case CurrentDirectorySetStatement cd:
+                CheckCurrentDirectorySet(cd);
+                break;
             case FileWriteStatement fw:
                 CheckFileWrite(fw);
                 break;
@@ -1239,6 +1242,10 @@ public sealed partial class TypeChecker
         MatrixAccess  ma                                                                                 => InferMatrixAccess(ma),
         IsTypeCheck   tc                                                                                 => InferIsTypeCheck(tc),
         EnvironmentVariableExpression env                                                                => InferEnvVar(env),
+        // Voidable for the same reason the environment variable is: the answer comes from the OS
+        // and the OS is allowed to have none. Void only when the directory was removed underneath
+        // the process, which is rare enough that nobody writes for it and real enough to not lie.
+        CurrentDirectoryExpression                                                                       => new VoidableType(CufetType.Text),
         DirectoryContentsExpression   dce                                                                => InferDirectoryContents(dce),
         PathCheckExpression           pce                                                                => InferPathCheck(pce),
         InterruptRequestedExpression                                                                     => CufetType.Fact,

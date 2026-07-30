@@ -700,6 +700,9 @@ public sealed partial class Interpreter
             case ReturnStatement ret:
                 throw new ReturnException(ret.Value != null ? Evaluate(ret.Value) : null);
 
+            case CurrentDirectorySetStatement cd:
+                ExecuteCurrentDirectorySetStatement(cd);
+                break;
             case FileWriteStatement fw:
                 ExecuteFileWriteStatement(fw);
                 break;
@@ -941,6 +944,7 @@ public sealed partial class Interpreter
         MatrixAccess  ma      => EvaluateMatrixAccess(ma),
         IsTypeCheck   tc      => EvaluateIsTypeCheck(tc),
         EnvironmentVariableExpression env => EvaluateEnvVar(env),
+        CurrentDirectoryExpression => EvaluateCurrentDirectory(),
         DirectoryContentsExpression   dce => EvaluateDirectoryContents(dce),
         PathCheckExpression           pce => EvaluatePathCheck(pce),
         InterruptRequestedExpression      => (object)_interruptRequested,
@@ -991,6 +995,21 @@ public sealed partial class Interpreter
         var name = (string)Evaluate(env.Name)!;
         var value = System.Environment.GetEnvironmentVariable(name);
         return value ?? (object)VoidValue.Instance;
+    }
+
+    // `the current directory` → voidable text. Void is the pathological case only: the process's
+    // working directory was deleted while it was running, which POSIX getcwd reports as an error
+    // and .NET surfaces as an exception. Every ordinary program gets a value.
+    private object EvaluateCurrentDirectory()
+    {
+        try
+        {
+            return Directory.GetCurrentDirectory();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return VoidValue.Instance;
+        }
     }
 
     private object EvaluateReadExpr(ReadExpression re)
