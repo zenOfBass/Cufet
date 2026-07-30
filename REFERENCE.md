@@ -1851,6 +1851,54 @@ Define path-val as the environment variable "PATH" but void is "".
 - The name is any text expression (literal, variable, or interpolated string).
 - Read-only — Cufet does not expose setting environment variables.
 
+### The current directory
+
+**Read it** — `the current directory` returns `voidable text`:
+
+```
+Define here as the current directory but void is "(unknown)".
+State here.
+```
+
+It is voidable for the same reason the environment variable is: the answer comes from the
+operating system, and the operating system is allowed to have none. In practice `void` means the
+directory was removed out from under the running process. Every ordinary program gets a value.
+
+**Change it** — `The current directory becomes path.` is a statement, and a fallible one:
+
+```
+Try to:
+    The current directory becomes "/tmp".
+    Write "notes" to the file "scratch.txt".   /* relative to /tmp now */
+Done.
+In case of failure:
+    State "could not move there: " joined to the message of the failure.
+Done.
+```
+
+Failure categories, and the message each produces:
+
+| Category | When | Message |
+| --- | --- | --- |
+| `not-found` | nothing is there | `the directory '<p>' was not found` |
+| `not-a-directory` | it exists, but is a file | `'<p>' is not a directory` |
+| `permission-denied` | it exists, but you may not enter | `permission denied entering directory '<p>'` |
+| `disk-error` | anything else | `changing to the directory '<p>' failed` |
+
+- **It affects relative paths** for everything afterwards — file reads and writes, directory
+  listings, and subprocesses launched with `run`, which inherit it.
+- **A failure is recoverable.** A bad path costs you a handled failure, not the program, which is
+  what lets [`examples/shell.cufe`](examples/shell.cufe) implement `cd` without a typo ending the
+  session.
+- **Not allowed inside a task.** A process has exactly one working directory, so changing it from
+  a task would race every other task resolving a relative path. The compiler refuses with an
+  explanation; change it in the rabbit body before starting tasks, or pass the directory in and
+  build full paths. (Reading it from a task is fine.)
+
+> **Windows paths need doubled backslashes.** `"C:\Windows"` is a *lexer* error, because `\W` is
+> not a recognised escape. Write `"C:\\Windows"` or — usually nicer — `"C:/Windows"`, which
+> Windows accepts everywhere Cufet passes a path through.
+
 ### Directory traversal
 
 **List a directory** — `the contents of the directory path` returns the names of

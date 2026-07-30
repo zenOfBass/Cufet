@@ -8,6 +8,43 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+**The current directory**
+
+- **`the current directory`** reads it, as `voidable text` — void only when the process has none
+  to report, which means it was removed underneath it. Voidable for the same reason
+  `the environment variable` is: the answer comes from the OS, and the OS is allowed to have none.
+
+- **`The current directory becomes <path>.`** changes it. A fallible *statement*, like writing to
+  a file — a bad path is a handled failure, not the end of the program, which is what lets a shell
+  implement `cd` without a typo ending the session.
+
+- **`current` is not reserved.** It is promoted to a keyword only when `directory` immediately
+  follows, so `Define current as 0.` and `given (the number current)` keep working. This matters
+  more than it did for the alternative spelling — `current` is a far more tempting variable name
+  than `working`, so the shorter phrase is also the safer one.
+
+- **Four failure categories**, of which one is new: `not-found`, **`not-a-directory`**,
+  `permission-denied`, `disk-error`. Changing into a file is an ordinary typo and now says so
+  rather than hiding inside a generic error.
+
+  ★ That category cost something to make honest. .NET collapses "no such directory" and "that is
+  a file" into one `IOException`, while POSIX `chdir` separates them as `ENOENT` and `ENOTDIR` —
+  and Windows reports `ENOENT` for both anyway. So **both backends now `stat` the path before
+  changing into it**, which is what makes the category agree everywhere rather than only on Linux.
+
+- **Refused inside a task.** A process has exactly one working directory, so changing it from a
+  task races every other task resolving a relative path — with the rabbit's join providing no
+  ordering between them. Two well-defined answers is the never-ship class, not the platform-owned
+  exception, and the cooperative interpreter would have hidden it by running deterministically.
+  The compiler refuses with an explanation. Reading from a task stays allowed.
+
+- **[`examples/shell.cufe`](examples/shell.cufe) has `cd`.** The gap the roadmap called the one
+  visible hole in the program most likely to be shown to someone. Bare `cd` goes home; a bad path
+  prints and the loop carries on. It also makes the already-permitted `pwd` mean something, since
+  it can now report somewhere you chose.
+
 ---
 
 ## [0.11.0] — 2026-07-28

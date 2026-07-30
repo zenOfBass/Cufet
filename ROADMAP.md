@@ -50,11 +50,8 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 0 — cheap, and closes open edges
 
-1. **Working directory.** There is no `cd`, no way to query one, and no way to set one on a
-   subprocess. A hole in an otherwise complete OS-orchestration story — and the one visible
-   gap in `examples/shell.cufe`, which is the program most likely to be shown to someone.
-2. **Awaits inside tasks.** The last loud refusal inside a shipped arc.
-3. **Write up the recursive-structure pattern in REFERENCE.** `voidable` supplies the "or
+1. **Awaits inside tasks.** The last loud refusal inside a shipped arc.
+2. **Write up the recursive-structure pattern in REFERENCE.** `voidable` supplies the "or
    nothing" terminator a recursive shape needs — a node's `next` is `a voidable node` — and
    [`examples/arbtree.cufe`](examples/arbtree.cufe) exercises it, but REFERENCE never states
    the pattern, so a reader has to reverse-engineer it from an example. Nothing blocks this; it
@@ -62,7 +59,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 1 — usable by someone other than the author
 
-4. **Column tracking, then semantic tokens.** `Token` carries a line and no column, and the
+3. **Column tracking, then semantic tokens.** `Token` carries a line and no column, and the
    AST carries `Line` in roughly ninety places. Threading columns through the shared front
    end pays for two things at once: **semantic highlighting** that knows a name's kind the
    way a language server does, and **diagnostics that underline the actual expression**
@@ -71,23 +68,23 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    Worth being clear about the ceiling it lifts: a TextMate grammar is regex over one line
    and cannot know what a name *refers to*. No amount of grammar work closes that gap.
 
-5. **A diagnostics tier (warnings).** Everything today is an error or nothing — which is what
+4. **A diagnostics tier (warnings).** Everything today is an error or nothing — which is what
    blocks the two items below, plus the dead-capture-write warning.
-6. **Style linter.** A layer separate from the parser, flagging legal-but-unclear code as
+5. **Style linter.** A layer separate from the parser, flagging legal-but-unclear code as
    warnings and never errors. First intended rule: **warn on nested bare-`it` loops** —
    shadowing is legal and well defined (innermost wins), but a reader loses track. Also the
    natural home for the "capitalise the start of a statement" guidance the parser deliberately
    does not enforce, and for suggesting multiline formatting of large record and object shapes.
-7. **Formatter.**
+6. **Formatter.**
 
 ### Tier 2 — leverage
 
-8. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+7. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
 
 ### Tier 3 — the design mountain
 
-9. **Multi-directional predicate dispatch.** Needs its own design session; watch the
+8. **Multi-directional predicate dispatch.** Needs its own design session; watch the
    no-subtyping invariant. See above for why it is not optional.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
@@ -98,18 +95,18 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 4 — modules, strictly in this order
 
-10. **The `module` interface.** A named interface defining the contract for any loadable thing.
+9. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-11. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+10. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-12. **A package manager for books.**
+11. **A package manager for books.**
 
 ### Tier 5 — self-hosting
 
-13. **Cufet written in Cufet.** The blockers are ergonomic rather than capability: the data
+12. **Cufet written in Cufet.** The blockers are ergonomic rather than capability: the data
     model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 

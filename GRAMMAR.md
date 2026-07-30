@@ -268,6 +268,13 @@ instead, so `Define rows as 5.` works even though the collections book uses the 
 — exactly as `the key of mapping` already is. The parser cannot tell, but a reader never has
 the ambiguity.
 
+**`current`** is contextual, promoted only when `directory` immediately follows it — so
+`the current directory` is the working directory while `Define current as 0.`,
+`given (the number current)` and `the current of r` all keep working. It qualifies under the
+rule below because `directory` is a mandatory following token and is itself already reserved.
+Worth having: `current` is a far more tempting variable name than the alternative spelling
+`working` would have been, which is why the shorter phrase is also the safer one.
+
 **The rule for when a word can go contextual**, and the three that cannot:
 - Its shape needs a **mandatory distinguishing token**. `a matrix with …` has `with`;
   `a random number/item/guess` and `randomly shuffled` each have a required next word.
