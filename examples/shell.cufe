@@ -62,6 +62,31 @@ While running, repeat:
                 Define cmd   as the first of parts.
                 Define n     as the number of parts.
 
+                /* `cd` is the shell's own, not a program to launch. A child process cannot change
+                   its parent's directory, which is why every real shell builds this one in. With
+                   it, the permitted `pwd` finally reports somewhere you chose. A bad path is a
+                   failure value, so a typo costs you a line of output and not the session. */
+                If cmd is "cd":
+                    Try to:
+                        If n is 1:
+                            Define home as the environment variable "HOME" but void is "".
+                            If the length of home is 0:
+                                home becomes the environment variable "USERPROFILE" but void is "/".
+                            Done.
+                            The current directory becomes home.
+                        Done.
+                        If n is 2:
+                            The current directory becomes item 2 of parts.
+                        Done.
+                        If n is greater than 2:
+                            State "cufetsh: cd: too many arguments".
+                        Done.
+                    Done.
+                    In case of failure:
+                        State "cufetsh: cd: " joined to the message of the failure.
+                    Done.
+                Done.
+
                 If Cast permitted on (cmd):
                     /* Launching can fail — the program may not exist, or may not be
                        executable. That is a failure value, not a crash, so it is
@@ -88,7 +113,9 @@ While running, repeat:
                     Done.
                 Done.
 
-                If Cast permitted on (cmd) is false:
+                /* 'cd' is handled above and is not a program, so it must not fall through to the
+                   refusal — it is not permitted to LAUNCH, which is a different thing. */
+                If Cast permitted on (cmd) is false and cmd is not "cd":
                     State "cufetsh: " joined to cmd joined to ": command not permitted".
                 Done.
             Done.
