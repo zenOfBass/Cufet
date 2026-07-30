@@ -45,6 +45,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   prints and the loop carries on. It also makes the already-permitted `pwd` mean something, since
   it can now report somewhere you chose.
 
+
 **An empty map no longer needs `with ()`**
 
 - **`Define ages as a map from text to number.`** now builds an empty typed map, the same way
@@ -59,6 +60,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   Found by writing the examples in the sugared style and noticing where it stopped working — the
   kind of gap that only shows up when someone uses the language uniformly rather than feature by
   feature.
+
+### Fixed
+
+- **Concurrency and signals inside a `Pull a book on …` block were invisible to the compiler.**
+  Both discovery pre-passes recursed into rabbits, loops, ifs, tries, with-blocks and binds — and
+  neither had an arm for the *book* pull, which is a compile-time scope whose body is still
+  ordinary program text. So the substrate was never emitted, the rabbit never established its
+  context, and a channel declared inside it was refused with *"a channel has to be created inside
+  a rabbit"* — while sitting in one.
+
+  A refusal is a legitimate place to ship, but only when it is *true*; this one was simply wrong,
+  and the same program interpreted fine. It bit hardest with `matrix`, whose type only exists
+  inside `Pull a book on collections.` — so **any** concurrent matrix program hit it.
+
+  Both pre-passes were fixed together rather than only the one that surfaced: a fix that closes
+  the case you noticed is not a fix.
 
 ---
 
