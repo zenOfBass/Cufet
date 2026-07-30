@@ -71,10 +71,16 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 4. **A diagnostics tier (warnings).** Everything today is an error or nothing — which is what
    blocks the two items below, plus the dead-capture-write warning.
 5. **Style linter.** A layer separate from the parser, flagging legal-but-unclear code as
-   warnings and never errors. First intended rule: **warn on nested bare-`it` loops** —
-   shadowing is legal and well defined (innermost wins), but a reader loses track. Also the
-   natural home for the "capitalise the start of a statement" guidance the parser deliberately
-   does not enforce, and for suggesting multiline formatting of large record and object shapes.
+   warnings and never errors. Intended rules so far:
+   - **Nested bare-`it` loops** — shadowing is legal and well defined (innermost wins), but a
+     reader loses track.
+   - **Changing the current directory in a rabbit that also spawns tasks.** The compiler refuses
+     this *inside a task*, where copy-versus-share has two well-defined answers. A rabbit body
+     doing it while its own tasks resolve relative paths is a genuine race and therefore
+     undefined, so refusing would be over-strict — and would outlaw the safe ordering (change it
+     *before* spawning) that the refusal message recommends. A warning is the right severity.
+   - The **"capitalise the start of a statement"** guidance the parser deliberately does not
+     enforce, and suggesting multiline formatting of large record and object shapes.
 6. **Formatter.**
 
 ### Tier 2 — leverage
