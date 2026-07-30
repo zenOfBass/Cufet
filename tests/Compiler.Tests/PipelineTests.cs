@@ -1522,6 +1522,75 @@ public class PipelineTests
 
     // ── Slice 5D: maps (arena association list; lookup → voidable; on 5A/5B/5C) ──
 
+    // ── A book pull is a scope the pre-scans used to look straight past ──────
+    //
+    // `Pull a book on <name>.` is a compile-time scope, but its body is program text. Both
+    // discovery pre-scans recursed into rabbits, loops, ifs, tries, with-blocks and binds — and
+    // neither had an arm for the book pull. So concurrency or signals used INSIDE one were
+    // invisible: the substrate was never emitted, the rabbit never established its context, and a
+    // channel declared inside it was refused for not being in a rabbit while sitting in one.
+    //
+    // Codegen-only (GenerateC), not Compile: these are concurrency programs, which cannot be
+    // built or run on Windows. The bug was in discovery, so reaching codegen at all is the test.
+
+    [Fact]
+    public void BookPull_ContainingConcurrency_IsDiscovered()
+    {
+        var c = GenerateC("""
+            Pull a book on collections.
+                Pull a rabbit.
+                    Define ch as a channel of number.
+                    Have rabbit start a task as p:
+                        Send 7 through ch.
+                        Close ch.
+                    Done.
+                    Define g as the delivery from ch.
+                    State g but void is 0.
+                Done.
+            Done.
+            """);
+        // The substrate is only emitted when the pre-scan found the concurrency.
+        Assert.Contains("cufet_chan", c);
+    }
+
+    [Fact]
+    public void BookPull_ContainingSignals_IsDiscovered()
+    {
+        var c = GenerateC("""
+            Pull a book on math.
+                Define n as 0.
+                While n is less than 2, repeat:
+                    n becomes n + 1.
+                    Yield.
+                Done.
+                State n.
+            Done.
+            """);
+        Assert.Contains("cufet_checkpoint", c);
+    }
+
+    [Fact]
+    public void BookPull_MatrixOverChannel_ReachesCodegen()
+    {
+        // The shape that surfaced the bug: a matrix channel necessarily sits inside a book pull,
+        // because `matrix` is only in scope there.
+        var c = GenerateC("""
+            Pull a book on collections.
+                Pull a rabbit.
+                    Define ch as a channel of matrix.
+                    Have rabbit start a task as p:
+                        Send (a matrix with ((1, 2), (3, 4))) through ch.
+                        Close ch.
+                    Done.
+                    Define g as the delivery from ch.
+                    If g is not void: State "received". Done.
+                Done.
+            Done.
+            """);
+        Assert.Contains("CufetMatrix", c);
+        Assert.Contains("cufet_chan", c);
+    }
+
     [Fact]
     public void Map_TypedWithoutWith_MatchesInterpreter()
     {

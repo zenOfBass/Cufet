@@ -5718,6 +5718,12 @@ static void* cufet_pipe_stage(void* argp) {
                 case OutputStatement or ForEachFromInputStatement: return true;
                 case PipeExpression pe when !FlattenPipeAll(pe).TrueForAll(x => x is RunExpression): return true;
                 case PullRabbitStatement p when ProgramUsesConcurrency(p.Body): return true;
+                // `Pull a book on <name>.` — a compile-time scope, but its body is still program
+                // text and may hold a rabbit. Missing this arm made concurrency INSIDE a book pull
+                // invisible to the pre-scan, so the substrate was never emitted, the rabbit never
+                // established its context, and a channel declared inside it was refused for not
+                // being in a rabbit — while sitting in one. Interpreted fine; compiled, refused.
+                case PullStatement pb when ProgramUsesConcurrency(pb.Body): return true;
                 case IfStatement iff when iff.Arms.Any(a => ProgramUsesConcurrency(a.Body)) || (iff.ElseBody != null && ProgramUsesConcurrency(iff.ElseBody)): return true;
                 case WhileStatement w when ProgramUsesConcurrency(w.Body): return true;
                 case RepeatUntilStatement r when ProgramUsesConcurrency(r.Body): return true;
@@ -5752,6 +5758,9 @@ static void* cufet_pipe_stage(void* argp) {
                 case ForEachStatement fe when ProgramUsesSignals(fe.Body): return true;
                 case ForEachFromInputStatement fi when ProgramUsesSignals(fi.Body): return true;
                 case PullRabbitStatement p when ProgramUsesSignals(p.Body): return true;
+                // Same gap as in ProgramUsesConcurrency: a book pull is a compile-time scope, but
+                // its body is program text and may hold Yield / Acknowledge / an interrupt poll.
+                case PullStatement pb when ProgramUsesSignals(pb.Body): return true;
                 case TryStatement t when ProgramUsesSignals(t.Body) || (t.FailureHandler != null && ProgramUsesSignals(t.FailureHandler)): return true;
                 case WithOpenStatement wo when ProgramUsesSignals(wo.Body): return true;
                 case BindStatement b when ProgramUsesSignals(b.Body): return true;
