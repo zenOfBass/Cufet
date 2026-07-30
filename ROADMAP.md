@@ -152,8 +152,35 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
 
 Dead-capture-write warning (after diagnostics) · Approach B parser-hardening · a formal
 soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
-vocabulary · a performance number against C · logic gates as a book · design patterns as a
-book · an in-memory filesystem for the playground.
+vocabulary · a performance number against C · design patterns as a book · an in-memory
+filesystem for the playground.
+
+**A logic-gates book** — circuit composition over `bits`, with pipes as the dataflow and a book
+as the namespace. `bits` shipped the gate *operations*; this is the layer above them, where gates
+become components you wire together rather than operators you apply.
+
+- ★ **Its signal type is four-valued, and that is not a philosophical flourish.** Verilog signals
+  are `0`, `1`, `X` and `Z`; VHDL's `std_logic` has nine. A circuit library with only true and
+  false cannot model an uninitialised signal, a tri-state bus, or two drivers contending — so the
+  domain wants four states whether or not anyone mentions the tetralemma. The correspondence is
+  real rather than a pun: **"both" is bus contention** (two drivers, opposite values) and
+  **"neither" is floating** (no driver at all).
+
+  This is why four-valued logic is set aside *in core* and live *here*. In core it would be a
+  rival way to say "not exactly true", competing with `fact` and `voidable`. In a circuit book it
+  is not about uncertainty at all — it is the state of a wire. Different domain, no overlap, and
+  book-scoped so nobody else pays for it.
+
+  ⚠ **The truth tables come from hardware, not from the philosophy.** In Verilog `0 & X` is `0`,
+  because anything AND false is false even when the other input is unknown — which is *not* what
+  a naive four-valued logic would say. The tetralemma earns the shape and the naming; Verilog
+  earns the semantics. Where they disagree, hardware wins, or the library reads beautifully and
+  models circuits incorrectly.
+
+- ★ **The open design question, to settle before building:** is a circuit a **value** you
+  construct and then evaluate, or a **pipeline** you push signals through? Cufet has both shapes
+  already — records and objects for the first, task pipes for the second — and the answer decides
+  the whole surface.
 
 ---
 
@@ -285,8 +312,6 @@ used *bury* and *unbury* for subroutine linkage.)
 Recorded so they stop coming back. Each can be reopened by a new argument, not by a fresh
 suggestion of the same one.
 
-- **Four-valued logic / tetralemma.** `fact`, `voidable` and unions already cover the space,
-  and a fourth overlapping way to say "not exactly true" cuts against one-canonical-way.
 - **Assembly and LLVM IR interop.** The emitted C already reaches `asm` when needed, and FFI
   covers the motivating cases.
 - **An LSP.** The front end emits one diagnostic per run with a line and a long prose
