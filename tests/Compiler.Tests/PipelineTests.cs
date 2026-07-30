@@ -1533,6 +1533,53 @@ public class PipelineTests
     // Codegen-only (GenerateC), not Compile: these are concurrency programs, which cannot be
     // built or run on Windows. The bug was in discovery, so reaching codegen at all is the test.
 
+    // ── Recursive object types ───────────────────────────────────────────────
+
+    [Fact]
+    public void SelfReferentialObject_IsRefusedCleanly()
+    {
+        // A by-value self-reference has no finite size in C. This used to reach gcc: codegen
+        // succeeded, `check --native` reported no problems, and `build` then died with
+        // "unknown type name 'cd_node'" plus a cascade — the late, raw failure the whole
+        // refuse-rather-than-diverge rule exists to prevent.
+        const string src = """
+            Define object node with (the number value, the voidable node next):
+            Done.
+            Bind voidable node to no-node:
+                Return void.
+            Done.
+            Define tail as a new node { the value 3, the next Cast no-node on () }.
+            State the value of tail.
+            """;
+        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        Assert.Contains("contains itself", ex.Message);
+        Assert.Contains("series of node", ex.Message);   // names the shape that does work
+        Assert.DoesNotContain("slice", ex.Message);
+    }
+
+    [Fact]
+    public void RecursionThroughASeries_CompilesAndMatchesInterpreter()
+    {
+        // The supported recursive shape, and the one the refusal points at: a series field is an
+        // arena POINTER, so the struct closes. 1 + 2 + 3 = 6.
+        const string src = """
+            Define object node with (the number value, the series of node children):
+            Done.
+            Define leaf1 as a new node { the value 2, the children (a series of node) }.
+            Define leaf2 as a new node { the value 3, the children (a series of node) }.
+            Define root  as a new node { the value 1, the children (a series of node with (leaf1, leaf2)) }.
+            Bind number to total, given (the node n):
+                Define sum as the value of n.
+                For each kid in the children of n, repeat:
+                    sum becomes sum + Cast total on (kid).
+                Done.
+                Return sum.
+            Done.
+            State Cast total on (root).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     [Fact]
     public void BookPull_ContainingConcurrency_IsDiscovered()
     {

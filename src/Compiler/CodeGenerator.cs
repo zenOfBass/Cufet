@@ -2800,8 +2800,52 @@ static void* cufet_pipe_stage(void* argp) {
     // Emits all synthesized value structs — records, objects, and voidable tagged structs —
     // in dependency order (a struct's nested value-struct fields / a voidable's inner type
     // must be declared before it; the graph is a DAG), each with `_write` and `_eq` helpers.
+    // Refuses an object that transitively contains ITSELF by value. Records, objects, voidables,
+    // failables and unions all lower to C structs holding their contents INLINE, so such a type
+    // has no finite size — `struct node { struct { int has; struct node val; } next; }` cannot be
+    // laid out, and the emitted C fails at gcc with "unknown type name" and a cascade after it.
+    //
+    // This is a REFUSAL rather than a fix because the fix is a real feature: recursive data needs
+    // indirection, and adding it means deciding what a pointer-backed field does to the value
+    // semantics every other field has. Refusing keeps the promise that matters — the compiler
+    // says no in Cufet's own words instead of letting gcc say it in C's.
+    //
+    // Going THROUGH a container is fine and is the supported way to build a tree: a series, map or
+    // matrix field is an arena POINTER, so the struct closes. `the series of node children` works
+    // on both backends today.
+    private void GuardNotSelfReferential(string objName, CufetType t, HashSet<string> visiting)
+    {
+        switch (t)
+        {
+            case ObjectType ot:
+                if (ot.Name == objName)
+                    throw new CompilerException(
+                        $"'{objName}' contains itself directly, and a value of it would have no fixed size. " +
+                        $"A field holding a '{objName}' — or a 'voidable {objName}', a record containing one, " +
+                        $"or a catalogue case — stores it inline, so the type would never end. " +
+                        $"Hold the nested values in a container instead: `the series of {objName} children` " +
+                        $"works, because a series is a reference. A recursive shape needs that indirection.");
+                if (!visiting.Add(ot.Name)) return;                 // already on this path — no cycle of our own
+                if (_objectDefs.TryGetValue(ot.Name, out var od))
+                    foreach (var f in ObjectFields(od)) GuardNotSelfReferential(objName, f.Type, visiting);
+                visiting.Remove(ot.Name);
+                break;
+            // Every arm below stores its contents INLINE, so a self-reference through one is fatal.
+            case RecordType rt:   foreach (var f in RecordFields(rt)) GuardNotSelfReferential(objName, f.Type, visiting); break;
+            case VoidableType vt: GuardNotSelfReferential(objName, vt.Inner, visiting); break;
+            case FailureType ft:  GuardNotSelfReferential(objName, ft.Inner, visiting); break;
+            case UnionType ut:    foreach (var c in UnionCases(ut)) GuardNotSelfReferential(objName, c, visiting); break;
+            // Series / map / matrix / channel / function are pointers — recursion through them is
+            // exactly what makes a tree expressible, so stop descending here.
+        }
+    }
+
     private void EmitStructs(StringBuilder sb)
     {
+        foreach (var def in _objectDefs.Values)
+            foreach (var f in ObjectFields(def))
+                GuardNotSelfReferential(def.Name, f.Type, new HashSet<string> { def.Name });
+
         var specs = new Dictionary<string, (List<FieldSpec> Fields, string WritePrefix)>();
         foreach (var (name, rt) in _recordStructs) specs[name] = (RecordFields(rt), "record");
         foreach (var def in _objectDefs.Values)    specs[ObjStructName(def.Name)] = (ObjectFields(def), def.Name);
