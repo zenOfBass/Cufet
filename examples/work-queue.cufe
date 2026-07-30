@@ -53,7 +53,7 @@ Pull a rabbit.
     Done.
 
     Have rabbit start a task as collector:
-        Define received as a series of number with ().
+        Define received as a series of number.
         Define got as the delivery from results.
         While got is not void, repeat:
             Add (got but void is 0) to received.
