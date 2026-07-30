@@ -2,7 +2,7 @@ Define object edge with (the text edge-dest, the number edge-weight).
 Define object pq-entry with (the text pq-name, the number pq-dist).
 
 Bind void to add-edge, given (the map from text to series of edge adj, the text src, the text dest, the number weight):
-    Define fallback as a series of edge with ().
+    Define fallback as a series of edge.
     Define edges    as (the entry for src in adj) but void is fallback.
     Add a new edge { the edge-dest dest, the edge-weight weight } to edges.
     In adj, the entry for src becomes edges.
@@ -28,12 +28,12 @@ Done.
 Bind map from text to number to dijkstra, given (the map from text to series of edge adj, the text source):
     Define dist as a map from text to number with ().
     Define visited as a map from text to number with ().
-    Define pq as a series of pq-entry with ().
+    Define pq as a series of pq-entry.
 
     In dist, the entry for source becomes 0.
     Add a new pq-entry { the pq-name source, the pq-dist 0 } to pq.
 
-    Define empty-edges as a series of edge with ().
+    Define empty-edges as a series of edge.
     While the number of pq is greater than 0, repeat:
         Define current as cast extract-min on pq.
         Define current-dist as (the entry for current in dist) but void is 0.
