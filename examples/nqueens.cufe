@@ -38,5 +38,5 @@ Bind void to solve, given (the series of number board, the number n):
     Done.
 Done.
 
-Define board as a series of number with ().
+Define board as a series of number.
 Cast solve on (board, 4).
