@@ -4,7 +4,7 @@ Pull a rabbit.
 
     Have rabbit start a task as list-producer:
         Define inner as a series of number with (10, 20, 30).
-        Define outer as a series of series of number with ().
+        Define outer as a series of series of number.
         Add inner to outer.
         Send outer through ch-list.
         Add 999 to inner.
