@@ -61,6 +61,37 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   kind of gap that only shows up when someone uses the language uniformly rather than feature by
   feature.
 
+**A task can await another task**
+
+- `the awaited result of <name>` now works **inside a task body**, not only in the rabbit body,
+  and **several tasks may await the same task**. Work can be staged rather than only fanned out.
+  The interpreter always allowed this; only the native backend refused, so the oracle already
+  defined the answer.
+
+- **The compiler's await no longer joins.** A named task publishes its result to a small box
+  (mutex, condvar, envelope); awaiters wait on the box and deep-copy into their own arena, and
+  `pthread_join` happens exactly once, in the rabbit's `Done.` teardown that the structured
+  guarantee requires anyway.
+
+  ★ That change is what makes N awaiters correct **by construction** rather than by guarding.
+  The old design's check-then-join guard was sound only while exactly one thread could run it;
+  with two tasks awaiting one task, a mutex around it would have had to be held across the join,
+  which reintroduces the deadlock the language's own scoping rules had just made impossible.
+  Removing the join removed the whole class.
+
+- **No deadlock is possible.** Awaiting a task requires its name to be in scope, so it was
+  declared earlier — the wait graph is a DAG by construction, and the forward reference a cycle
+  would need is a type error. Nothing had to be built to detect this; the scoping rule already
+  guaranteed it.
+
+- Ownership moved with it: the result envelope now lives in the box until `Done.` frees it
+  through the recorded deep-free, instead of being freed at an await that may never happen. A
+  reference-typed result nobody reads still frees deeply.
+
+- Verified on Linux: oracle-matched across number, text, series, an object holding a series, a
+  fallible result, a three-deep chain and two tasks awaiting one — **ASan/LSan clean and TSan
+  clean** on every one.
+
 ### Fixed
 
 - **Concurrency and signals inside a `Pull a book on …` block were invisible to the compiler.**

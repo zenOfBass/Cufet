@@ -1071,6 +1071,10 @@ Done.   ← all tasks spawned in this rabbit JOIN here
 - **Optional name** (`as <name>`) — binds an identity so the task's result can be awaited
   with `the awaited result of <name>`. Both backends support this; an anonymous task is
   fire-and-forget and its `return` value is dropped.
+- **An await may appear inside another task**, not only in the rabbit body, and several tasks
+  may await the same task. The awaited task must be declared **earlier**, since its name has to
+  be in scope — which makes the wait graph acyclic by construction, so tasks cannot deadlock on
+  each other. Awaiting a task declared later is a type error rather than a hang.
 
 **Semantics:**
 

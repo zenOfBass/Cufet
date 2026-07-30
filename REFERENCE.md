@@ -2060,8 +2060,31 @@ Done.
 ```
 
 An unnamed task is fire-and-forget: it still joins at `Done.`, but any value it returns
-is dropped. Awaiting the same task twice is fine — the body runs once and the result is
-remembered.
+is dropped. Awaiting the same task twice is fine — the body runs once either way.
+
+**A task can await another task**, so work can be staged rather than only fanned out:
+
+```
+Pull a rabbit.
+    Have rabbit start a task as fetch:
+        return 21.
+    Done.
+    Have rabbit start a task as double-it:
+        Define v as the awaited result of fetch.
+        return v * 2.
+    Done.
+    State the awaited result of double-it.
+Done.
+```
+```
+42
+```
+
+Several tasks may await the same task; each gets its own copy of the result.
+
+**A task can only await one declared before it**, because the name has to be in scope — which
+also means a cycle of tasks waiting on each other cannot be written, so this cannot deadlock.
+Awaiting a task declared later is a type error, not a hang.
 
 ### Channels
 
