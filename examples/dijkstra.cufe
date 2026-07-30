@@ -26,8 +26,8 @@ Bind text to extract-min, given (the series of pq-entry pq):
 Done.
 
 Bind map from text to number to dijkstra, given (the map from text to series of edge adj, the text source):
-    Define dist as a map from text to number with ().
-    Define visited as a map from text to number with ().
+    Define dist as a map from text to number.
+    Define visited as a map from text to number.
     Define pq as a series of pq-entry.
 
     In dist, the entry for source becomes 0.
@@ -58,7 +58,7 @@ Bind map from text to number to dijkstra, given (the map from text to series of 
     Return dist.
 Done.
 
-Define adj as a map from text to series of edge with ().
+Define adj as a map from text to series of edge.
 Cast add-edge on (adj, "A", "B", 4).
 Cast add-edge on (adj, "A", "C", 2).
 Cast add-edge on (adj, "B", "C", 1).
