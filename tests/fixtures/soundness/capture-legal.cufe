@@ -31,7 +31,7 @@ Bind void to run-value, given (the number n):
 Done.
 
 Bind void to run-local, given ():
-    Define store as a series of number with ().
+    Define store as a series of number.
     Define fresh as a series of number with (7, 8, 9).
     Bind void to fill, given ():
         store becomes fresh.

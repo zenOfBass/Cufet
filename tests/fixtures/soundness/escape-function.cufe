@@ -11,7 +11,7 @@ Bind series of number to smuggle, given (the series of number s):
     return s.
 Done.
 
-Define outer as a series of number with ().
+Define outer as a series of number.
 Pull a rabbit.
     Define inner as a series of number with (1, 2, 3).
     outer becomes Cast smuggle on (inner).

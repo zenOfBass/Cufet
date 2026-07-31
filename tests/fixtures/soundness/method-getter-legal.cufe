@@ -14,7 +14,7 @@ Bind series of number to get-items unto bag:
     return one's items.
 Done.
 
-Define outer as a series of number with ().
+Define outer as a series of number.
 Define b as a new bag { the items outer }.
 outer becomes b's payload.
 outer becomes Cast get-items on (b).

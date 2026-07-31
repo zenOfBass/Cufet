@@ -6,7 +6,7 @@
    shorter-lived rabbit region than its destination, so it would dangle after
    the rabbit's Done. pops that region. Nothing below ever executes. */
 
-Define outer as a series of number with ().
+Define outer as a series of number.
 Pull a rabbit.
     Define inner as a series of number with (1, 2, 3).
     outer becomes inner.

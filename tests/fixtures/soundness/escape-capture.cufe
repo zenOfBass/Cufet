@@ -7,7 +7,7 @@
    the rabbit's Done. pops that region. Nothing below ever executes. */
 
 Bind void to run-with, given (the series of number s):
-    Define sink as a series of number with ().
+    Define sink as a series of number.
     Bind void to stash, given ():
         sink becomes s.
     Done.

@@ -12,7 +12,7 @@ Define object bag with (the series of number items):
     Done.
 Done.
 
-Define outer as a series of number with ().
+Define outer as a series of number.
 Pull a rabbit.
     Define inner as a series of number with (1, 2, 3).
     Define b as a new bag { the items inner }.
