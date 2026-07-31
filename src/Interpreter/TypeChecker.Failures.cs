@@ -8,21 +8,21 @@ public sealed partial class TypeChecker
     {
         var msgType = InferType(lit.Message);
         if (msgType != null && msgType != CufetType.Text)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "a failure message must be text",
-                null, lit.Line,
+                null, lit.Line, lit.Column,
                 $"use a {FormatType(msgType)} as the failure message",
-                "Write the message as a text literal, e.g. a failure \"something went wrong\"."));
+                "Write the message as a text literal, e.g. a failure \"something went wrong\".");
 
         if (lit.Category != null)
         {
             var catType = InferType(lit.Category);
             if (catType != null && catType != CufetType.Text)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     "a failure category must be text",
-                    null, lit.Line,
+                    null, lit.Line, lit.Column,
                     $"use a {FormatType(catType)} as the failure category",
-                    "Write the category as a text literal, e.g. of category \"bad-input\"."));
+                    "Write the category as a text literal, e.g. of category \"bad-input\".");
         }
 
         return CufetType.FailureMarker;
@@ -41,21 +41,21 @@ public sealed partial class TypeChecker
         if (fallibleType is FailureType f)
         {
             if (defaultType != null && !IsAssignable(f.Inner, defaultType))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"the default value is a {FormatType(defaultType)}, but the fallible holds {FormatTypePlural(f.Inner)}",
-                    null, ff.Line,
+                    null, ff.Line, ff.Column,
                     $"use a {FormatType(defaultType)} as the default for a {FormatType(f.Inner)} or failure",
-                    $"The default after 'but on failure' must be a {FormatType(f.Inner)}."));
+                    $"The default after 'but on failure' must be a {FormatType(f.Inner)}.");
             return f.Inner;
         }
         if (fallibleType is FailureMarkerType)
             return defaultType; // always-failure: result is always the default
         if (fallibleType != null)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{FormatType(fallibleType)}' can never fail",
-                null, ff.Line,
+                null, ff.Line, ff.Column,
                 $"use 'but on failure' on a {FormatType(fallibleType)} value",
-                "Only fallible values (declared as 'T or failure') can fail. 'but on failure' is only needed for fallible values."));
+                "Only fallible values (declared as 'T or failure') can fail. 'but on failure' is only needed for fallible values.");
         return null;
     }
 
@@ -71,29 +71,29 @@ public sealed partial class TypeChecker
         if (fallibleType is FailureType f)
         {
             if (_expectedReturnType is not FailureType)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     "you can only propagate a failure from a function declared as fallible",
-                    null, fp.Line,
+                    null, fp.Line, fp.Column,
                     "propagate a failure from a non-fallible function",
-                    "Declare this function's return type as 'T or failure' to allow propagation, or handle the failure with 'but on failure' or a Try block instead."));
+                    "Declare this function's return type as 'T or failure' to allow propagation, or handle the failure with 'but on failure' or a Try block instead.");
             return f.Inner;
         }
         if (fallibleType is FailureMarkerType)
         {
             if (_expectedReturnType is not FailureType)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     "you can only propagate a failure from a function declared as fallible",
-                    null, fp.Line,
+                    null, fp.Line, fp.Column,
                     "propagate a failure from a non-fallible function",
-                    "Declare this function's return type as 'T or failure' to allow propagation, or handle the failure with 'but on failure' or a Try block instead."));
+                    "Declare this function's return type as 'T or failure' to allow propagation, or handle the failure with 'but on failure' or a Try block instead.");
             return null;
         }
         if (fallibleType != null)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{FormatType(fallibleType)}' can never fail — nothing to propagate",
-                null, fp.Line,
+                null, fp.Line, fp.Column,
                 $"propagate a failure from a {FormatType(fallibleType)} value",
-                "Only fallible values (declared as 'T or failure') can be propagated."));
+                "Only fallible values (declared as 'T or failure') can be propagated.");
         return null;
     }
 
@@ -108,11 +108,11 @@ public sealed partial class TypeChecker
     {
         var pathType = InferType(fe.Path);
         if (pathType != null && pathType != CufetType.Text)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "a file path must be text",
-                null, fe.Line,
+                null, fe.Line, fe.Column,
                 $"use a {FormatType(pathType)} as a file path",
-                "Write the path as a text literal like \"config.txt\", or use a text variable."));
+                "Write the path as a text literal like \"config.txt\", or use a text variable.");
 
         CufetType successType = fe.Form == FileReadForm.AllLines
             ? new SeriesType(CufetType.Text)
@@ -122,11 +122,11 @@ public sealed partial class TypeChecker
             return successType; // inside Try body: failure branch not taken, unwrap to T
 
         if (!_inFailureHandledContext)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "reading from a file can fail — you must handle the failure",
-                null, fe.Line,
+                null, fe.Line, fe.Column,
                 "use a file read's result without handling the failure",
-                "Wrap the read in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'."));
+                "Wrap the read in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'.");
 
         return new FailureType(successType);
     }
@@ -139,22 +139,22 @@ public sealed partial class TypeChecker
     {
         var pathType = InferType(dce.Path);
         if (pathType != null && pathType != CufetType.Text)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "a directory path must be text",
-                null, dce.Line,
+                null, dce.Line, dce.Column,
                 $"use a {FormatType(pathType)} as a directory path",
-                "Write the path as a text literal like \"/home/user\", or use a text variable."));
+                "Write the path as a text literal like \"/home/user\", or use a text variable.");
 
         var successType = new SeriesType(CufetType.Text);
 
         if (_inTryBlock) return successType;
 
         if (!_inFailureHandledContext)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "listing a directory can fail — you must handle the failure",
-                null, dce.Line,
+                null, dce.Line, dce.Column,
                 "use a directory listing's result without handling the failure",
-                "Wrap it in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'."));
+                "Wrap it in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'.");
 
         return new FailureType(successType);
     }
@@ -164,11 +164,11 @@ public sealed partial class TypeChecker
     {
         var pathType = InferType(pce.Path);
         if (pathType != null && pathType != CufetType.Text)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "a path must be text",
-                null, pce.Line,
+                null, pce.Line, pce.Column,
                 $"use a {FormatType(pathType)} as a path",
-                "Write the path as a text literal, or use a text variable."));
+                "Write the path as a text literal, or use a text variable.");
         return CufetType.Fact;
     }
 
@@ -181,30 +181,30 @@ public sealed partial class TypeChecker
     {
         var pathType = InferType(cd.Path);
         if (pathType != null && pathType != CufetType.Text)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "a directory path must be text",
-                null, cd.Line,
+                null, cd.Line, cd.Column,
                 $"use a {FormatType(pathType)} as a directory path",
-                "The path must be a text expression (a string literal or a text variable)."));
+                "The path must be a text expression (a string literal or a text variable).");
     }
 
     private void CheckFileWrite(FileWriteStatement fw)
     {
         var valueType = InferType(fw.Value);
         if (valueType != null && valueType != CufetType.Text)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "you can only write text to a file",
-                null, fw.Line,
+                null, fw.Line, fw.Column,
                 $"write a {FormatType(valueType)} to a file",
-                "Convert the value to text first with 'converted to text', or build a text value with 'joined to'."));
+                "Convert the value to text first with 'converted to text', or build a text value with 'joined to'.");
 
         var pathType = InferType(fw.Path);
         if (pathType != null && pathType != CufetType.Text)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "a file path must be text",
-                null, fw.Line,
+                null, fw.Line, fw.Column,
                 $"use a {FormatType(pathType)} as a file path",
-                "Write the path as a text literal like \"output.txt\", or use a text variable."));
+                "Write the path as a text literal like \"output.txt\", or use a text variable.");
     }
 
     // With the file "<path>" open for reading/writing as <name>: ... Done.
@@ -213,18 +213,18 @@ public sealed partial class TypeChecker
     {
         var pathType = InferType(wos.Path);
         if (pathType != null && pathType != CufetType.Text)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "a file path must be text",
-                null, wos.Line,
+                null, wos.Line, wos.Column,
                 $"use a {FormatType(pathType)} as a file path",
-                "Write the path as a text literal like \"data.txt\", or use a text variable."));
+                "Write the path as a text literal like \"data.txt\", or use a text variable.");
 
         var streamType = wos.Mode == OpenMode.Reading
             ? (CufetType)new ReadableStreamType(CufetType.Text)
             : (CufetType)new WritableStreamType(CufetType.Text);
 
         EnterScope();
-        Scope[wos.BindingName] = new TypeInfo(streamType, new VariableReference(wos.BindingName, wos.Line), wos.Line);
+        Scope[wos.BindingName] = new TypeInfo(streamType, new VariableReference(wos.BindingName, wos.Line, wos.Column), wos.Line);
         foreach (var stmt in wos.Body)
             CheckStatement(stmt);
         ExitScope();
@@ -236,19 +236,19 @@ public sealed partial class TypeChecker
     {
         var valueType = InferType(wts.Value);
         if (valueType != null && valueType != CufetType.Text)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "you can only write text to a stream",
-                null, wts.Line,
+                null, wts.Line, wts.Column,
                 $"write a {FormatType(valueType)} to a stream",
-                "Convert the value to text first with 'converted to text', or build a text value with 'joined to'."));
+                "Convert the value to text first with 'converted to text', or build a text value with 'joined to'.");
 
         var streamType = InferType(wts.Stream);
         if (streamType != null && streamType is not WritableStreamType { ElementType: TextType })
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "write expects a writable stream of text",
-                null, wts.Line,
+                null, wts.Line, wts.Column,
                 $"write to a {FormatType(streamType)}",
-                "Use a writable stream — open a file 'for writing' with 'With the file ... open for writing as s:'."));
+                "Use a writable stream — open a file 'for writing' with 'With the file ... open for writing as s:'.");
     }
 
     // ── Process execution ─────────────────────────────────────────────────────
@@ -273,32 +273,32 @@ public sealed partial class TypeChecker
     {
         var programType = InferType(run.Program);
         if (programType != null && programType != CufetType.Text)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "the program to run must be text",
-                null, run.Line,
+                null, run.Line, run.Column,
                 $"use a {FormatType(programType)} as the program name",
-                "Write the program name as a text literal like \"ls\", or use a text variable."));
+                "Write the program name as a text literal like \"ls\", or use a text variable.");
 
         foreach (var arg in run.Args)
         {
             var argType = InferType(arg);
             if (argType != null && argType != CufetType.Text)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     "each argument must be text",
-                    null, run.Line,
+                    null, run.Line, run.Column,
                     $"use a {FormatType(argType)} as a program argument",
-                    "Arguments are passed directly to the program — each must be a text value."));
+                    "Arguments are passed directly to the program — each must be a text value.");
         }
 
         if (_inTryBlock)
             return RunResultType;
 
         if (!_inFailureHandledContext)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "running a program can fail — you must handle the failure",
-                null, run.Line,
+                null, run.Line, run.Column,
                 "use a run result without handling the launch failure",
-                "Wrap in 'Try to: / In case of failure:', use 'but on failure <default>', or use 'or pass the failure off'."));
+                "Wrap in 'Try to: / In case of failure:', use 'but on failure <default>', or use 'or pass the failure off'.");
 
         return new FailureType(RunResultType);
     }
@@ -306,11 +306,11 @@ public sealed partial class TypeChecker
     private void CheckTryStatement(TryStatement trySt)
     {
         if (trySt.FailureHandler == null && trySt.ExceptionHandler == null)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "a 'Try' block must have at least one handler",
-                null, trySt.Line,
+                null, trySt.Line, trySt.Column,
                 "write a Try block with no handlers",
-                "Add 'In case of failure:' and/or 'In case of exception (the exception):' after the Try body."));
+                "Add 'In case of failure:' and/or 'In case of exception (the exception):' after the Try body.");
 
         // Body: only set _inTryBlock when there IS a failure handler, so CastExpression results
         // of FailureType(T) auto-unwrap to T. Without a failure handler, fallible calls inside
@@ -326,7 +326,7 @@ public sealed partial class TypeChecker
         {
             EnterScope();
             Scope["the failure"] = new TypeInfo(CufetType.FailureMarker,
-                new VariableReference("the failure", trySt.Line), trySt.Line);
+                new VariableReference("the failure", trySt.Line, trySt.Column), trySt.Line);
             try { CheckBlock(trySt.FailureHandler); }
             finally { ExitScope(); }
         }
@@ -336,7 +336,7 @@ public sealed partial class TypeChecker
         {
             EnterScope();
             Scope["the exception"] = new TypeInfo(CufetType.ExceptionMarker,
-                new VariableReference("the exception", trySt.Line), trySt.Line);
+                new VariableReference("the exception", trySt.Line, trySt.Column), trySt.Line);
             var savedInEx = _inExceptionHandler;
             _inExceptionHandler = true;
             try { CheckBlock(trySt.ExceptionHandler); }

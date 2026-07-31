@@ -8,7 +8,7 @@ public sealed partial class TypeChecker
     // references), so lookups would silently always-miss (the map behaves empty, wrong answers,
     // no error). Every systems language draws this line: Python non-hashable lists, Rust
     // Hash+Eq bounds, Java hashCode/equals contract.
-    private static void RequireValidMapKeyType(CufetType keyType, int line)
+    private static void RequireValidMapKeyType(CufetType keyType, int line, int col)
     {
         if (keyType is NumberType or TextType or FactType) return;
 
@@ -21,15 +21,15 @@ public sealed partial class TypeChecker
             RecordType => "a record",
             _          => "a reference type"
         };
-        throw new TypeException(FormatTypeError(
+        throw TypeError(
             "map keys must be value types (text, number, or fact)",
             $"'{typeName}' is {kind} — reference types can't be map keys because their identity " +
             "changes when copied, so lookups silently always-fail (the map behaves empty, " +
             "computing wrong answers with no error)",
-            line,
+            line, col,
             $"use a '{typeName}' as a map key",
             $"Key by a value field instead: e.g. 'map from text to ...' keyed by a name field, " +
-            "or 'map from number to ...' keyed by an id field."));
+            "or 'map from number to ...' keyed by an id field.");
     }
 
     private void CheckMapSet(MapSetStatement mapSet)
@@ -37,30 +37,30 @@ public sealed partial class TypeChecker
         var mapType = InferType(mapSet.Map);
         if (mapType == null) return;
         if (mapType is not MapType mt)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "the target of a map entry assignment must be a map",
-                null, mapSet.Line,
+                null, mapSet.Line, mapSet.Column,
                 "assign a map entry on a non-map value",
-                "Only maps support 'in map, the entry for key becomes value'."));
+                "Only maps support 'in map, the entry for key becomes value'.");
 
         var keyType = InferType(mapSet.Key);
         if (keyType != null && !IsAssignable(mt.KeyType, keyType))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"this map uses {FormatType(mt.KeyType)} keys",
-                null, mapSet.Line,
+                null, mapSet.Line, mapSet.Column,
                 $"use a {FormatType(keyType)} as a key",
-                $"Keys in this map must be {FormatTypePlural(mt.KeyType)}."));
+                $"Keys in this map must be {FormatTypePlural(mt.KeyType)}.");
 
         var valType = InferType(mapSet.Value);
         if (valType != null && !IsAssignable(mt.ValueType, valType))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"this map holds {FormatTypePlural(mt.ValueType)}",
-                null, mapSet.Line,
+                null, mapSet.Line, mapSet.Column,
                 $"store a {FormatType(valType)} in it",
-                $"Values in this map must be {FormatTypePlural(mt.ValueType)}."));
+                $"Values in this map must be {FormatTypePlural(mt.ValueType)}.");
 
         // Region invariant: don't store a rabbit-scoped value in a longer-lived map.
-        CheckRegionStore(mapSet.Value, valType, ContainerDepthOf(mapSet.Map), mapSet.Line,
+        CheckRegionStore(mapSet.Value, valType, ContainerDepthOf(mapSet.Map), mapSet.Line, mapSet.Column,
             "store a rabbit-scoped value in a map that lives in a longer-lived region");
         mapSet.EscapeToDepth = EscapeDepthFor(mapSet.Value, valType, ContainerDepthOf(mapSet.Map));
         // The key is stored too, so it escapes on the same terms as the value (a text key built
@@ -75,7 +75,7 @@ public sealed partial class TypeChecker
         // Empty map — type annotation required; provided by parser
         if (lit.Pairs.Count == 0)
         {
-            RequireValidMapKeyType(lit.KeyType!, lit.Line);
+            RequireValidMapKeyType(lit.KeyType!, lit.Line, lit.Column);
             return new MapType(lit.KeyType!, lit.ValueType!);
         }
 
@@ -83,23 +83,23 @@ public sealed partial class TypeChecker
         // and return the declared map type (preserving union value types).
         if (lit.KeyType != null && lit.ValueType != null)
         {
-            RequireValidMapKeyType(lit.KeyType, lit.Line);
+            RequireValidMapKeyType(lit.KeyType, lit.Line, lit.Column);
             foreach (var (kExpr, vExpr) in lit.Pairs)
             {
                 var kType = InferType(kExpr);
                 if (kType != null && !IsAssignable(lit.KeyType, kType))
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         $"this atlas uses {FormatType(lit.KeyType)} keys",
-                        null, lit.Line,
+                        null, lit.Line, lit.Column,
                         $"use a {FormatType(kType)} as a key",
-                        $"Keys in this atlas must be {FormatTypePlural(lit.KeyType)}."));
+                        $"Keys in this atlas must be {FormatTypePlural(lit.KeyType)}.");
                 var vType = InferType(vExpr);
                 if (vType != null && !IsAssignable(lit.ValueType, vType))
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         $"this atlas holds {FormatTypePlural(lit.ValueType)}",
-                        null, lit.Line,
+                        null, lit.Line, lit.Column,
                         $"store a {FormatType(vType)} in it",
-                        $"Values in this atlas must be {FormatTypePlural(lit.ValueType)}."));
+                        $"Values in this atlas must be {FormatTypePlural(lit.ValueType)}.");
             }
             return new MapType(lit.KeyType, lit.ValueType);
         }
@@ -118,16 +118,16 @@ public sealed partial class TypeChecker
             {
                 if (inferredKey == null)
                 {
-                    RequireValidMapKeyType(kType, lit.Line);
+                    RequireValidMapKeyType(kType, lit.Line, lit.Column);
                     inferredKey = kType;
                 }
                 else if (inferredKey != kType)
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         "all keys in a map must be the same type",
                         $"The first key is a {FormatType(inferredKey)}, so all keys must be {FormatTypePlural(inferredKey)}",
-                        lit.Line,
+                        lit.Line, lit.Column,
                         $"mix a {FormatType(kType)} key with {FormatTypePlural(inferredKey)} keys",
-                        "Make all keys the same type."));
+                        "Make all keys the same type.");
             }
 
             if (vType != null)
@@ -135,12 +135,12 @@ public sealed partial class TypeChecker
                 if (inferredVal == null)
                     inferredVal = vType;
                 else if (inferredVal != vType)
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         "all values in a map must be the same type",
                         $"The first value is a {FormatType(inferredVal)}, so all values must be {FormatTypePlural(inferredVal)}",
-                        lit.Line,
+                        lit.Line, lit.Column,
                         $"mix a {FormatType(vType)} value with {FormatTypePlural(inferredVal)} values",
-                        "Make all values the same type."));
+                        "Make all values the same type.");
             }
         }
 
@@ -155,19 +155,19 @@ public sealed partial class TypeChecker
         var mapType = InferType(lookup.Map);
         if (mapType == null) return null;
         if (mapType is not MapType mt)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "'the entry for ... in ...' requires a map",
-                null, lookup.Line,
+                null, lookup.Line, lookup.Column,
                 $"look up an entry in a {FormatType(mapType)}",
-                "Only maps support entry lookup. Use 'the entry for key in map'."));
+                "Only maps support entry lookup. Use 'the entry for key in map'.");
 
         var keyType = InferType(lookup.Key);
         if (keyType != null && !IsAssignable(mt.KeyType, keyType))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"this map uses {FormatType(mt.KeyType)} keys",
-                null, lookup.Line,
+                null, lookup.Line, lookup.Column,
                 $"look up using a {FormatType(keyType)} key",
-                $"Keys in this map are {FormatTypePlural(mt.KeyType)}."));
+                $"Keys in this map are {FormatTypePlural(mt.KeyType)}.");
 
         // Flatten: a map whose value type is already voidable must not produce
         // 'voidable voidable V' from a lookup — the nesting never surfaces to the user.
@@ -181,11 +181,11 @@ public sealed partial class TypeChecker
         {
             var keyType = InferType(hasKey.Key);
             if (keyType != null && !IsAssignable(mt.KeyType, keyType))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"this map uses {FormatType(mt.KeyType)} keys",
-                    null, hasKey.Line,
+                    null, hasKey.Line, hasKey.Column,
                     $"check for a {FormatType(keyType)} key",
-                    $"Keys in this map are {FormatTypePlural(mt.KeyType)}."));
+                    $"Keys in this map are {FormatTypePlural(mt.KeyType)}.");
         }
         return CufetType.Fact;
     }
@@ -197,11 +197,11 @@ public sealed partial class TypeChecker
         {
             var keyType = InferType(hasEntry.Key);
             if (keyType != null && !IsAssignable(mt.KeyType, keyType))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"this map uses {FormatType(mt.KeyType)} keys",
-                    null, hasEntry.Line,
+                    null, hasEntry.Line, hasEntry.Column,
                     $"check for a {FormatType(keyType)} key",
-                    $"Keys in this map are {FormatTypePlural(mt.KeyType)}."));
+                    $"Keys in this map are {FormatTypePlural(mt.KeyType)}.");
         }
         return CufetType.Fact;
     }
@@ -210,11 +210,11 @@ public sealed partial class TypeChecker
     {
         var mapType = InferType(size.Map);
         if (mapType != null && mapType is not MapType)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "'the size of' works on maps",
-                null, size.Line,
+                null, size.Line, size.Column,
                 $"get the size of a {FormatType(mapType)}",
-                "For series, use 'the number of'. For text, use 'the length of'."));
+                "For series, use 'the number of'. For text, use 'the length of'.");
         return CufetType.Number;
     }
 }

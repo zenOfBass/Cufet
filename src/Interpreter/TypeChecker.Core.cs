@@ -372,9 +372,21 @@ public sealed class UnionType : CufetType
 
 public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false, int RabbitDepth = 0, bool IsParameter = false);
 
+// Line/Column point at the violation — the position the message's "Here on line N" sentence
+// names. They are 0 only for the rare error with no AST node to blame; a diagnostic consumer
+// treats 0 as "no position" and falls back to the top of the file.
 public sealed class TypeException : Exception
 {
+    public int Line { get; }
+    public int Column { get; }
+
     public TypeException(string message) : base(message) { }
+
+    public TypeException(string message, int line, int column) : base(message)
+    {
+        Line = line;
+        Column = column;
+    }
 }
 
 public sealed partial class TypeChecker
@@ -552,7 +564,7 @@ public sealed partial class TypeChecker
     // Built-in stream binding — seeded into every scope (global and each fresh function scope)
     // so 'the input' is visible everywhere, including inside function bodies.
     private static readonly TypeInfo BuiltinInput =
-        new TypeInfo(new ReadableStreamType(CufetType.Text), new VariableReference("input", 0), 0);
+        new TypeInfo(new ReadableStreamType(CufetType.Text), new VariableReference("input", 0, 0), 0);
 
     // Flattens statements through Pull...Done scope bodies so that Bind/Object/etc. declarations
     // inside Pull scopes are visible to the hoisting passes (hoisting is transparent to Pull scopes).
@@ -621,11 +633,11 @@ public sealed partial class TypeChecker
                 foreach (var um in untoMethods)
                 {
                     if (methodSigs.Any(s => s.Name == um.Name))
-                        throw new TypeException(FormatTypeError(
+                        throw TypeError(
                             $"'{od.Name}' already has a method '{um.Name}'",
-                            null, um.Line,
+                            null, um.Line, um.Column,
                             $"declare another method named '{um.Name}' for '{od.Name}'",
-                            "Method names must be unique per type, whether declared nested or with 'unto'. Rename one of them."));
+                            "Method names must be unique per type, whether declared nested or with 'unto'. Rename one of them.");
                     methodSigs.Add((um.Name, new FunctionType(um.Parameters.Select(p => p.Type).ToList(), um.ReturnType)));
                 }
             }
@@ -635,11 +647,11 @@ public sealed partial class TypeChecker
                 foreach (var ug in untoGetters)
                 {
                     if (getterSigs.Any(g => g.Item1 == ug.Name))
-                        throw new TypeException(FormatTypeError(
+                        throw TypeError(
                             $"'{od.Name}' already has a getter '{ug.Name}'",
-                            null, ug.Line,
+                            null, ug.Line, ug.Column,
                             $"declare another getter named '{ug.Name}' for '{od.Name}'",
-                            "Getter names must be unique per type. Rename one of them."));
+                            "Getter names must be unique per type. Rename one of them.");
                     getterSigs.Add((ug.Name, ug.ReturnType));
                 }
             }
@@ -649,11 +661,11 @@ public sealed partial class TypeChecker
                 foreach (var us in untoSetters)
                 {
                     if (setterSigs.Any(s => s.Item1 == us.Name))
-                        throw new TypeException(FormatTypeError(
+                        throw TypeError(
                             $"'{od.Name}' already has a setter '{us.Name}'",
-                            null, us.Line,
+                            null, us.Line, us.Column,
                             $"declare another setter named '{us.Name}' for '{od.Name}'",
-                            "Setter names must be unique per type. Rename one of them."));
+                            "Setter names must be unique per type. Rename one of them.");
                     setterSigs.Add((us.Name, us.ParamType, us.ParamName));
                 }
             }
@@ -670,23 +682,23 @@ public sealed partial class TypeChecker
             var reason = _interfaceDefs.ContainsKey(targetName)
                 ? $"'{targetName}' is an interface, not an object type — methods can't be attached to it with 'unto'"
                 : $"'{targetName}' is not a defined object type";
-            throw new TypeException(FormatTypeError(
-                reason, null, methods[0].Line,
+            throw TypeError(
+                reason, null, methods[0].Line, methods[0].Column,
                 $"declare a method unto '{targetName}'",
-                $"'unto' only attaches methods to object types defined in this program. Define 'object {targetName}' first, or check the spelling."));
+                $"'unto' only attaches methods to object types defined in this program. Define 'object {targetName}' first, or check the spelling.");
         }
         foreach (var (targetName, getters) in untoGettersByType)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{targetName}' is not a defined object type",
-                null, getters[0].Line,
+                null, getters[0].Line, getters[0].Column,
                 $"declare a getter unto '{targetName}'",
-                $"'unto' only attaches getters to object types defined in this program. Define 'object {targetName}' first, or check the spelling."));
+                $"'unto' only attaches getters to object types defined in this program. Define 'object {targetName}' first, or check the spelling.");
         foreach (var (targetName, setters) in untoSettersByType)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{targetName}' is not a defined object type",
-                null, setters[0].Line,
+                null, setters[0].Line, setters[0].Column,
                 $"declare a setter unto '{targetName}'",
-                $"'unto' only attaches setters to object types defined in this program. Define 'object {targetName}' first, or check the spelling."));
+                $"'unto' only attaches setters to object types defined in this program. Define 'object {targetName}' first, or check the spelling.");
 
         foreach (var stmt in FlattenHoistable(program.Statements))
         {
@@ -695,7 +707,7 @@ public sealed partial class TypeChecker
             var paramTypes = bind.Parameters.Select(p => p.Type).ToList();
             Scope[bind.Name] = new TypeInfo(
                 new FunctionType(paramTypes, bind.ReturnType),
-                new VariableReference(bind.Name, 0),
+                new VariableReference(bind.Name, 0, 0),
                 bind.Line);
             _freeBinds[bind.Name] = bind;   // so a pipe can re-check this body with a known input type
         }
@@ -714,21 +726,21 @@ public sealed partial class TypeChecker
         foreach (var (typeName, ctors) in ctorsByType)
         {
             if (!_objectDefs.TryGetValue(typeName, out var ot))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{typeName}' is not a defined object type — 'making a {typeName}' has no type to register on",
-                    null, ctors[0].Line,
+                    null, ctors[0].Line, ctors[0].Column,
                     $"declare a constructor for '{typeName}'",
-                    $"Define 'object {typeName}' before declaring constructors for it, or check the spelling."));
+                    $"Define 'object {typeName}' before declaring constructors for it, or check the spelling.");
 
             var newCtorNames = ot.Constructors.ToList();
             foreach (var ctor in ctors)
             {
                 if (newCtorNames.Contains(ctor.Name))
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         $"'{typeName}' already has a constructor named '{ctor.Name}'",
-                        null, ctor.Line,
+                        null, ctor.Line, ctor.Column,
                         $"declare another constructor named '{ctor.Name}' for '{typeName}'",
-                        "Constructor names must be unique per type. Rename one of them."));
+                        "Constructor names must be unique per type. Rename one of them.");
                 newCtorNames.Add(ctor.Name);
 
                 // Fix up scope entry: resolve the shell ObjectType to the canonical instance.
@@ -738,7 +750,7 @@ public sealed partial class TypeChecker
                 var paramTypes = ctor.Parameters.Select(p => p.Type).ToList();
                 Scope[ctor.Name] = new TypeInfo(
                     new FunctionType(paramTypes, resolvedReturn),
-                    new VariableReference(ctor.Name, 0),
+                    new VariableReference(ctor.Name, 0, 0),
                     ctor.Line);
             }
 
@@ -755,21 +767,21 @@ public sealed partial class TypeChecker
         {
             if (stmt is not UnmakerDeclaration ud) continue;
             if (unmakeByType.ContainsKey(ud.UnmakesTypeName))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{ud.UnmakesTypeName}' already has a destructor — 'Bind unmaking a {ud.UnmakesTypeName}' appeared twice",
-                    null, ud.Line,
+                    null, ud.Line, ud.Column,
                     $"declare a second destructor for '{ud.UnmakesTypeName}'",
-                    "Remove the duplicate. Each type has exactly one destructor — one way to die."));
+                    "Remove the duplicate. Each type has exactly one destructor — one way to die.");
             unmakeByType[ud.UnmakesTypeName] = ud;
         }
         foreach (var (typeName, ud) in unmakeByType)
         {
             if (!_objectDefs.TryGetValue(typeName, out var ot))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{typeName}' is not a defined object type — 'unmaking a {typeName}' has no type to register on",
-                    null, ud.Line,
+                    null, ud.Line, ud.Column,
                     $"declare a destructor for '{typeName}'",
-                    $"Define 'object {typeName}' before declaring a destructor for it, or check the spelling."));
+                    $"Define 'object {typeName}' before declaring a destructor for it, or check the spelling.");
             _objectDefs[typeName] = new ObjectType(
                 ot.Name, ot.PositionalTypes, ot.NamedFields, ot.Methods,
                 ot.Getters, ot.Setters, ot.EmbeddedTypeName, ot.ConformedInterfaces,
@@ -933,23 +945,23 @@ public sealed partial class TypeChecker
                     var paramTypes = bind.Parameters.Select(p => p.Type).ToList();
                     Scope[bind.Name] = new TypeInfo(
                         new FunctionType(paramTypes, bind.ReturnType),
-                        new VariableReference(bind.Name, 0),
+                        new VariableReference(bind.Name, 0, 0),
                         bind.Line);
                 }
                 CheckBind(bind);
                 break;
             case CastStatement cs:
             {
-                var (funcType, displayName, declLine, argsToValidate) = ResolveForCast(cs.Function, cs.Args, cs.Line);
+                var (funcType, displayName, declLine, argsToValidate) = ResolveForCast(cs.Function, cs.Args, cs.Line, cs.Column);
                 if (funcType != null)
                 {
-                    ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cs.Line);
+                    ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cs.Line, cs.Column);
                     if (!_inTryBlock && funcType.ReturnType is FailureType)
-                        throw new TypeException(FormatTypeError(
+                        throw TypeError(
                             $"{displayName} can fail — you must handle the failure",
-                            null, cs.Line,
+                            null, cs.Line, cs.Column,
                             $"call a fallible function without handling the failure",
-                            "Wrap this call in a 'Try to: / In case of failure:' block."));
+                            "Wrap this call in a 'Try to: / In case of failure:' block.");
                 }
                 break;
             }
@@ -961,11 +973,11 @@ public sealed partial class TypeChecker
                 break;
             case SuppressStatement ss:
                 if (!_inExceptionHandler)
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         "'Suppress the exception.' is only valid inside an exception handler",
-                        null, ss.Line,
+                        null, ss.Line, ss.Column,
                         "suppress an exception outside an exception handler",
-                        "Move 'Suppress the exception.' inside an 'In case of exception' block."));
+                        "Move 'Suppress the exception.' inside an 'In case of exception' block.");
                 break;
             case CurrentDirectorySetStatement cd:
                 CheckCurrentDirectorySet(cd);
@@ -1037,37 +1049,37 @@ public sealed partial class TypeChecker
     {
         var type = InferType(define.Value);
         if (type == null)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"the type of the value for '{define.Name}' can't be determined",
                 null,
-                define.Line,
+                define.Line, define.Column,
                 "define a variable without a clear starting type",
-                "Start with a literal value or a defined variable so the type is clear from the beginning."));
+                "Start with a literal value or a defined variable so the type is clear from the beginning.");
 
         if (Scope.ContainsKey(define.Name))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{define.Name}' is already defined in this scope",
-                null, define.Line,
+                null, define.Line, define.Column,
                 $"define '{define.Name}' again in the same block",
-                "Each name can only be defined once per block. Use 'becomes' to reassign it, or choose a different name."));
+                "Each name can only be defined once per block. Use 'becomes' to reassign it, or choose a different name.");
 
         if (TryLookupOuter(define.Name, out var outer))
         {
             if (!define.Shadow)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{define.Name}' already exists in an enclosing scope",
                     $"It was defined on line {outer.EstablishingLine}",
-                    define.Line,
+                    define.Line, define.Column,
                     $"declare '{define.Name}' in this block without shadowing the outer one",
-                    $"To deliberately shadow it, write 'Define a shadow {define.Name} as ...'."));
+                    $"To deliberately shadow it, write 'Define a shadow {define.Name} as ...'.");
         }
         else if (define.Shadow)
         {
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'a shadow {define.Name}' — there's nothing named '{define.Name}' in an enclosing scope to shadow",
-                null, define.Line,
+                null, define.Line, define.Column,
                 $"shadow a name that doesn't exist in any enclosing scope",
-                $"Remove 'a shadow' if you're just defining a new variable, or check the spelling."));
+                $"Remove 'a shadow' if you're just defining a new variable, or check the spelling.");
         }
 
         Scope[define.Name] = new TypeInfo(type, define.Value, define.Line, define.Permanent, _rabbitDepth);
@@ -1082,26 +1094,26 @@ public sealed partial class TypeChecker
             return;
 
         if (existing.Permanent)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{becomes.Name}' is permanent",
                 $"It was fixed with a value on line {existing.EstablishingLine} and can't be reassigned",
-                becomes.Line,
+                becomes.Line, becomes.Column,
                 "reassign it",
-                "If it needs to change, define it without 'permanently'."));
+                "If it needs to change, define it without 'permanently'.");
 
         var rhsType = InferType(becomes.Value);
         if (rhsType == null) return;
 
         if (!IsAssignable(existing.Type, rhsType))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{becomes.Name}' holds {FormatTypePlural(existing.Type)}",
                 $"You set it to {FormatExpr(existing.EstablishingExpr)} on line {existing.EstablishingLine}, so it can only ever hold {FormatTypePlural(existing.Type)}",
-                becomes.Line,
+                becomes.Line, becomes.Column,
                 $"give it a {FormatType(rhsType)} value",
-                $"Variables keep their type for life. If you need a {FormatType(rhsType)} value here, define a new name for it instead."));
+                $"Variables keep their type for life. If you need a {FormatType(rhsType)} value here, define a new name for it instead.");
 
         // Region invariant: don't let a shorter-lived reference escape into longer-lived storage.
-        CheckRegionStore(becomes.Value, rhsType, existing.RabbitDepth, becomes.Line,
+        CheckRegionStore(becomes.Value, rhsType, existing.RabbitDepth, becomes.Line, becomes.Column,
             $"reassign '{becomes.Name}' to a value from a shorter-lived rabbit region");
         // ESC.1 — annotate (never reject) so the compiler can copy an escaping value outward.
         becomes.EscapeToDepth = EscapeDepthFor(becomes.Value, rhsType, existing.RabbitDepth);
@@ -1131,50 +1143,50 @@ public sealed partial class TypeChecker
         if (_expectedReturnType == null) // void function (or _inFunction guard is parser-level)
         {
             if (ret.Value != null)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     "this function is declared void — it gives nothing back",
                     null,
-                    ret.Line,
+                    ret.Line, ret.Column,
                     "return a value from a void function",
-                    "Remove the value, or change the function's return type if you need to produce a result."));
+                    "Remove the value, or change the function's return type if you need to produce a result.");
             // bare return in void → ok
         }
         else // non-void function
         {
             if (ret.Value == null)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"this function is declared to give back a {FormatType(_expectedReturnType)}",
                     $"You declared the return type as {FormatType(_expectedReturnType)} on line {_functionDeclarationLine}",
-                    ret.Line,
+                    ret.Line, ret.Column,
                     "return without a value",
-                    $"Provide a {FormatType(_expectedReturnType)} value to return."));
+                    $"Provide a {FormatType(_expectedReturnType)} value to return.");
 
             var returnType = InferType(ret.Value);
             if (returnType is RabbitType)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     "rabbits cannot be returned — they flow downward only",
-                    null, ret.Line,
+                    null, ret.Line, ret.Column,
                     "return a rabbit from a function",
-                    "Pass the rabbit as an argument instead, or return a value that lives in it (a handle into the rabbit)."));
+                    "Pass the rabbit as an argument instead, or return a value that lives in it (a handle into the rabbit).");
             if (returnType != null && !IsAssignable(_expectedReturnType!, returnType))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"this function is declared to give back a {FormatType(_expectedReturnType!)}",
                     $"You declared the return type as {FormatType(_expectedReturnType!)} on line {_functionDeclarationLine}",
-                    ret.Line,
+                    ret.Line, ret.Column,
                     $"return a {FormatType(returnType)} value",
-                    $"Change the returned value to a {FormatType(_expectedReturnType!)}."));
+                    $"Change the returned value to a {FormatType(_expectedReturnType!)}.");
         }
     }
 
-    private static void CheckIndex(IExpression index, int line)
+    private static void CheckIndex(IExpression index, int line, int col)
     {
         if (index is NumberLiteral { Value: var v } && v % 1 != 0)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "item positions must be whole numbers",
                 null,
-                line,
+                line, col,
                 $"use {v} as a position",
-                "Positions are counted 1, 2, 3 and so on. Use a whole number."));
+                "Positions are counted 1, 2, 3 and so on. Use a whole number.");
     }
 
     // Public entry point: infers a type and resolves any ObjectType placeholder that survived
@@ -1264,11 +1276,11 @@ public sealed partial class TypeChecker
     {
         var nameType = InferType(env.Name);
         if (nameType != null && nameType != CufetType.Text)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "the environment variable name must be text",
-                null, env.Line,
+                null, env.Line, env.Column,
                 $"use a {FormatType(nameType)} as an environment variable name",
-                "The variable name must be a text expression (a string literal or a text variable)."));
+                "The variable name must be a text expression (a string literal or a text variable).");
         return new VoidableType(CufetType.Text);
     }
 
@@ -1276,11 +1288,11 @@ public sealed partial class TypeChecker
     {
         var sourceType = InferType(re.Source);
         if (sourceType != null && sourceType is not ReadableStreamType { ElementType: TextType })
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "read expects a readable stream of text",
-                null, re.Line,
+                null, re.Line, re.Column,
                 $"read from a {FormatType(sourceType)}",
-                "Use a readable stream of text as the source — 'the input' is always available, or use 'With the file ... open for reading as s:' for a file stream."));
+                "Use a readable stream of text as the source — 'the input' is always available, or use 'With the file ... open for reading as s:' for a file stream.");
 
         return re.Form switch
         {
@@ -1300,22 +1312,22 @@ public sealed partial class TypeChecker
         var amount = InferType(shift.Amount);
 
         if (target != null && target != CufetType.Bits)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "shifting works on bits",
-                null, shift.Line,
+                null, shift.Line, shift.Column,
                 $"shift a {FormatType(target)}",
                 target == CufetType.Number
                     ? "A number is a quantity, and has no bit positions to move. Write the " +
                       "value as a bit pattern (0xFF, 0b1010, 0o755) if that is what you meant."
-                    : "Only a bits value can be shifted."));
+                    : "Only a bits value can be shifted.");
 
         if (amount != null && amount != CufetType.Number)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "the shift amount counts positions, so it is a number",
-                null, shift.Line,
+                null, shift.Line, shift.Column,
                 $"shift by a {FormatType(amount)}",
                 "Write how many places to move as an ordinary number — 'flags shifted left by 3' " +
-                "— not as a bit pattern. It is a count, like the 3 in 'item 3 of s'."));
+                "— not as a bit pattern. It is a count, like the 3 in 'item 3 of s'.");
 
         return CufetType.Bits;
     }
@@ -1331,29 +1343,29 @@ public sealed partial class TypeChecker
             // The type is unsigned and has a width, which is exactly why that is the answer
             // rather than the -6 a signed reading would give.
             if (operand == CufetType.Bits) return CufetType.Bits;
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "'not' flips a fact or a bit pattern",
                 null,
-                unary.Line,
+                unary.Line, unary.Column,
                 $"negate a {FormatType(operand)} value",
                 operand == CufetType.Number
                     ? "A number is a quantity, and has no bits to flip. Write the value as a " +
                       "bit pattern (0xFF, 0b1010, 0o755) if that is what you meant, or use " +
                       "unary minus if you wanted to negate the quantity."
                     : "Make sure the value you're negating is a fact (a true or false value) " +
-                      "or a bits value. Write a comparison like 'x is 5' if you need one."));
+                      "or a bits value. Write a comparison like 'x is 5' if you need one.");
         }
         // unary minus
         if (operand == CufetType.Number) return CufetType.Number;
-        throw new TypeException(FormatTypeError(
+        throw TypeError(
             "unary minus works on numbers only",
             null,
-            unary.Line,
+            unary.Line, unary.Column,
             $"negate a {FormatType(operand)} value",
             operand == CufetType.Bits
                 ? "Bits are unsigned — a bit pattern has no negative. Did you mean 'not', " +
                   "which flips every bit within the value's width?"
-                : "Make sure the value you're negating is a number."));
+                : "Make sure the value you're negating is a number.");
     }
 
     private CufetType? InferBinary(BinaryExpression bin)
@@ -1376,11 +1388,11 @@ public sealed partial class TypeChecker
                 if (overloadReturn is FailureType ft)
                 {
                     if (!_inTryBlock && !_inFailureHandledContext)
-                        throw new TypeException(FormatTypeError(
+                        throw TypeError(
                             $"'{FormatOp(bin.Op)}' on '{lo.Name}' can fail — you must handle the failure",
-                            null, bin.Line,
+                            null, bin.Line, bin.Column,
                             $"use '{FormatOp(bin.Op)}' on '{lo.Name}' without handling the potential failure",
-                            "Wrap this in a 'Try to: / In case of failure:' block, or use 'but on failure <default>'."));
+                            "Wrap this in a 'Try to: / In case of failure:' block, or use 'but on failure <default>'.");
                     return _inTryBlock ? ft.Inner : (CufetType)ft;
                 }
                 return overloadReturn;
@@ -1394,11 +1406,11 @@ public sealed partial class TypeChecker
             {
                 var matReturn = new FailureType(MatrixType.Instance);
                 if (!_inTryBlock && !_inFailureHandledContext)
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         $"matrix '{FormatOp(bin.Op)}' can fail — you must handle the failure",
-                        null, bin.Line,
+                        null, bin.Line, bin.Column,
                         $"use '{FormatOp(bin.Op)}' on matrices without handling the potential failure",
-                        "Wrap this in a 'Try to: / In case of failure:' block, or use 'but on failure <default>'."));
+                        "Wrap this in a 'Try to: / In case of failure:' block, or use 'but on failure <default>'.");
                 return _inTryBlock ? MatrixType.Instance : (CufetType)matReturn;
             }
         }
@@ -1416,12 +1428,12 @@ public sealed partial class TypeChecker
                 when l == CufetType.Bits && r == CufetType.Bits
                 => CufetType.Bits,
             TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or TokenType.Percent
-                => throw new TypeException(FormatTypeError(
+                => throw TypeError(
                     "arithmetic requires numbers on both sides",
                     null,
-                    bin.Line,
+                    bin.Line, bin.Column,
                     $"use {FormatOp(bin.Op)} with {FormatType(l)} and {FormatType(r)}",
-                    "If you meant arithmetic, both sides need to be numbers.\nIf you meant to join text, use 'joined to': \"hello\" joined to \" world\".")),
+                    "If you meant arithmetic, both sides need to be numbers.\nIf you meant to join text, use 'joined to': \"hello\" joined to \" world\"."),
             // is void / is not void: voidable T compared to void
             TokenType.Equal or TokenType.NotEqual
                 when (l is VoidableType && r is VoidType) || (l is VoidType && r is VoidableType)
@@ -1441,24 +1453,24 @@ public sealed partial class TypeChecker
                 when l is UnionType || r is UnionType
                 => CufetType.Fact,
             TokenType.Equal or TokenType.NotEqual
-                => throw new TypeException(FormatTypeError(
+                => throw TypeError(
                     "equality comparison requires matching types",
                     null,
-                    bin.Line,
+                    bin.Line, bin.Column,
                     $"compare a {FormatType(l)} to a {FormatType(r)}",
-                    $"A {FormatType(l)} and a {FormatType(r)} can never be equal — this is likely a mistake. Check which side has the wrong type.")),
+                    $"A {FormatType(l)} and a {FormatType(r)} can never be equal — this is likely a mistake. Check which side has the wrong type."),
             TokenType.Lt or TokenType.Gt or TokenType.Lte or TokenType.Gte
                 when (l == CufetType.Number && r == CufetType.Number)
                   || (l == CufetType.Bits   && r == CufetType.Bits)   // unsigned, so well-ordered
                 => CufetType.Fact,
             TokenType.Lt or TokenType.Gt or TokenType.Lte or TokenType.Gte
-                => throw new TypeException(FormatTypeError(
+                => throw TypeError(
                     "ordering works on numbers and on bits",
                     null,
-                    bin.Line,
+                    bin.Line, bin.Column,
                     $"order a {FormatType(l)} and a {FormatType(r)}",
                     "Ordering comparisons (>, <, >=, <=) need both sides to be numbers, or " +
-                    "both to be bits.")),
+                    "both to be bits."),
             // The gates. A 32-bit AND *is* 32 AND gates side by side, so the same words work at
             // both widths: a fact is one bit, a bits value is N. They stay off `number`
             // deliberately — a quantity has no bits to combine, and that separation is what
@@ -1471,23 +1483,23 @@ public sealed partial class TypeChecker
                 => CufetType.Bits,
             TokenType.And or TokenType.Or or TokenType.Xor
                 when l == CufetType.Number || r == CufetType.Number
-                => throw new TypeException(FormatTypeError(
+                => throw TypeError(
                     $"'{FormatOp(bin.Op)}' is a gate, and a number has no bits to combine",
                     null,
-                    bin.Line,
+                    bin.Line, bin.Column,
                     $"use '{FormatOp(bin.Op)}' with {FormatType(l)} and {FormatType(r)}",
                     "Gates work on facts (one bit) and on bits (a pattern of them), not on " +
                     "numbers. A number is a quantity — 255 counts something, where 0xFF is a " +
                     "pattern of eight bits. Write the value as a bit pattern (0xFF, 0b1010, " +
-                    "0o755), or convert with 'converted to hex'.")),
+                    "0o755), or convert with 'converted to hex'."),
             TokenType.And or TokenType.Or or TokenType.Xor
-                => throw new TypeException(FormatTypeError(
+                => throw TypeError(
                     $"'{FormatOp(bin.Op)}' needs both sides to be the same kind of thing",
                     null,
-                    bin.Line,
+                    bin.Line, bin.Column,
                     $"use '{FormatOp(bin.Op)}' with {FormatType(l)} and {FormatType(r)}",
                     $"Both sides of '{FormatOp(bin.Op)}' must be facts, or both must be bits. " +
-                    "Did you mean to write a comparison like 'x is 0' rather than just 'x'?")),
+                    "Did you mean to write a comparison like 'x is 0' rather than just 'x'?"),
             _ => null
         };
     }
@@ -1527,21 +1539,21 @@ public sealed partial class TypeChecker
         {
             var inner = v.Inner;
             if (defaultType != null && !IsAssignable(inner, defaultType))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"the default value is a {FormatType(defaultType)}, but the voidable holds {FormatTypePlural(inner)}",
-                    null, bvd.Line,
+                    null, bvd.Line, bvd.Column,
                     $"use a {FormatType(defaultType)} as the default for a voidable {FormatType(inner)}",
-                    $"The default after 'but void is' must be a {FormatType(inner)}."));
+                    $"The default after 'but void is' must be a {FormatType(inner)}.");
             return inner;
         }
         if (leftType is VoidType)
             return defaultType; // always-void: result is always the default
         if (leftType != null)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{FormatType(leftType)}' can never be void",
-                null, bvd.Line,
+                null, bvd.Line, bvd.Column,
                 $"use 'but void is' on a {FormatType(leftType)} value",
-                "Only voidable values can be void. 'but void is' is only needed for voidable values."));
+                "Only voidable values can be void. 'but void is' is only needed for voidable values.");
         return null;
     }
 
@@ -1682,15 +1694,22 @@ public sealed partial class TypeChecker
         }
     }
 
-    private static string FormatTypeError(
+    // The one shape every type error takes: what the code says, what was already established,
+    // what this line tried to do, and what to write instead. The position travels on the
+    // exception rather than only in the prose, so an editor gets it without reading English.
+    private static TypeException TypeError(
         string context,
         string? established,
         int violationLine,
+        int violationColumn,
         string action,
         string fix)
     {
         var est = established != null ? $"\n{established}." : "";
-        return $"That doesn't work: {context}.{est}\nHere on line {violationLine}, you're trying to {action}.\n\n{fix}";
+        return new TypeException(
+            $"That doesn't work: {context}.{est}\nHere on line {violationLine}, you're trying to {action}.\n\n{fix}",
+            violationLine,
+            violationColumn);
     }
 
     private static string FormatType(CufetType type) => type switch

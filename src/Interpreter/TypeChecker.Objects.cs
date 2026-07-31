@@ -9,11 +9,11 @@ public sealed partial class TypeChecker
         var targetType = InferType(stmt.Target);
         if (targetType == null) return;
         if (targetType is not ObjectType ot)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"possessive assignment requires an object, but got a {FormatType(targetType)}",
-                null, stmt.Line,
+                null, stmt.Line, stmt.Column,
                 $"set '{stmt.Member}' on a {FormatType(targetType)}",
-                "Only objects support possessive field assignment (alice's field becomes X)."));
+                "Only objects support possessive field assignment (alice's field becomes X).");
 
         // Setter intercepts the write if one is defined; setter param type is the expected type.
         var setterSig = FindSetterInOtOrPromoted(ot, stmt.Member);
@@ -21,27 +21,27 @@ public sealed partial class TypeChecker
         {
             var valueType = InferType(stmt.Value);
             if (valueType != null && !IsAssignable(setterSig.Value.ParamType, valueType))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"setter for '{stmt.Member}' expects a {FormatType(setterSig.Value.ParamType)}, not a {FormatType(valueType)}",
-                    null, stmt.Line,
+                    null, stmt.Line, stmt.Column,
                     $"set '{stmt.Member}' to a {FormatType(valueType)}",
-                    $"The setter for '{stmt.Member}' accepts a {FormatType(setterSig.Value.ParamType)}."));
-            CheckRegionStore(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Target), stmt.Line,
+                    $"The setter for '{stmt.Member}' accepts a {FormatType(setterSig.Value.ParamType)}.");
+            CheckRegionStore(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Target), stmt.Line, stmt.Column,
                 $"set '{stmt.Member}' to a value from a shorter-lived rabbit region than the object");
             stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Target));
             return;
         }
 
         // No setter — normal field write check.
-        CheckObjectNamedSet(ot, stmt.Member, stmt.Value, stmt.Line);
+        CheckObjectNamedSet(ot, stmt.Member, stmt.Value, stmt.Line, stmt.Column);
         // Region invariant: the value being stored cannot outlive the object's rabbit region.
         var valType = InferType(stmt.Value);
-        CheckRegionStore(stmt.Value, valType, ContainerDepthOf(stmt.Target), stmt.Line,
+        CheckRegionStore(stmt.Value, valType, ContainerDepthOf(stmt.Target), stmt.Line, stmt.Column,
             $"set '{stmt.Member}' to a value from a shorter-lived rabbit region than the object");
         stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, valType, ContainerDepthOf(stmt.Target));
     }
 
-    private void CheckObjectNamedSet(ObjectType ot, string fieldName, IExpression value, int line)
+    private void CheckObjectNamedSet(ObjectType ot, string fieldName, IExpression value, int line, int col)
     {
         // Field lookup includes promoted fields from embedded types.
         var fieldType = FindFieldInOtOrPromoted(ot, fieldName);
@@ -51,26 +51,26 @@ public sealed partial class TypeChecker
             var hint = allFields.Count > 0
                 ? $"Available named fields: {string.Join(", ", allFields.Select(f => f.FieldName))}."
                 : $"Object '{ot.Name}' has no named fields.";
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"object '{ot.Name}' has no field named '{fieldName}'",
-                null, line,
+                null, line, col,
                 $"set field '{fieldName}'",
-                hint));
+                hint);
         }
         // Embed handles (ObjectType) can't be set via becomes; only scalar/value types are settable.
         if (fieldType is ObjectType)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{fieldName}' is an embedded object handle — you can't replace the whole embedded object",
-                null, line,
+                null, line, col,
                 $"set the embed handle '{fieldName}'",
-                $"Mutate individual fields of the embedded object instead."));
+                $"Mutate individual fields of the embedded object instead.");
         var valueType = InferType(value);
         if (valueType != null && !IsAssignable(fieldType, valueType))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"field '{fieldName}' holds a {FormatType(fieldType)}, not a {FormatType(valueType)}",
-                null, line,
+                null, line, col,
                 $"set field '{fieldName}' to a {FormatType(valueType)}",
-                $"Field '{fieldName}' has type {FormatType(fieldType)}."));
+                $"Field '{fieldName}' has type {FormatType(fieldType)}.");
     }
 
     // ── Embedding helpers (Slice 4) ───────────────────────────────────────────
@@ -218,11 +218,11 @@ public sealed partial class TypeChecker
         if (od.EmbeddedTypeName == null) return;
 
         if (!_objectDefs.TryGetValue(od.EmbeddedTypeName, out var embedType))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"object '{od.Name}' embeds '{od.EmbeddedTypeName}', but no such object type is defined",
-                null, od.Line,
+                null, od.Line, od.Column,
                 $"embed '{od.EmbeddedTypeName}' in '{od.Name}'",
-                $"Define object {od.EmbeddedTypeName} with (...). before defining {od.Name}."));
+                $"Define object {od.EmbeddedTypeName} with (...). before defining {od.Name}.");
 
         var promotedFields  = GetAllPromotedFieldNames(embedType);
         var promotedMethods = GetAllPromotedMethodNames(embedType);
@@ -232,50 +232,50 @@ public sealed partial class TypeChecker
         foreach (var f in objType.NamedFields)
         {
             if (promotedFields.Contains(f.FieldName))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{od.Name}' has its own field '{f.FieldName}' which collides with a promoted field from '{od.EmbeddedTypeName}'",
-                    null, od.Line,
+                    null, od.Line, od.Column,
                     $"define '{f.FieldName}' in '{od.Name}' while embedding '{od.EmbeddedTypeName}'",
-                    $"Rename one of the fields. To access the embedded field explicitly, use 'the {f.FieldName} of the {od.EmbeddedTypeName} of ...'."));
+                    $"Rename one of the fields. To access the embedded field explicitly, use 'the {f.FieldName} of the {od.EmbeddedTypeName} of ...'.");
         }
         foreach (var m in objType.Methods)
         {
             if (promotedMethods.Contains(m.MethodName))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{od.Name}' has its own method '{m.MethodName}' which collides with a promoted method from '{od.EmbeddedTypeName}'",
-                    null, od.Line,
+                    null, od.Line, od.Column,
                     $"define '{m.MethodName}' in '{od.Name}' while embedding '{od.EmbeddedTypeName}'",
-                    $"Rename one of the methods. To call the embedded method explicitly, use 'Cast {m.MethodName} on the {od.EmbeddedTypeName} of ...'."));
+                    $"Rename one of the methods. To call the embedded method explicitly, use 'Cast {m.MethodName} on the {od.EmbeddedTypeName} of ...'.");
         }
         foreach (var g in objType.Getters)
         {
             if (promotedGetters.Contains(g.GetterName))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{od.Name}' has its own getter '{g.GetterName}' which collides with a promoted getter from '{od.EmbeddedTypeName}'",
-                    null, od.Line,
+                    null, od.Line, od.Column,
                     $"define getter '{g.GetterName}' in '{od.Name}' while embedding '{od.EmbeddedTypeName}'",
-                    $"Rename one of the getters."));
+                    $"Rename one of the getters.");
             if (promotedMethods.Contains(g.GetterName))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{od.Name}' getter '{g.GetterName}' collides with a promoted method of the same name from '{od.EmbeddedTypeName}'",
-                    null, od.Line,
+                    null, od.Line, od.Column,
                     $"define getter '{g.GetterName}' while embedding a type with a method of the same name",
-                    $"Rename the getter or the method."));
+                    $"Rename the getter or the method.");
         }
         foreach (var s in objType.Setters)
         {
             if (promotedSetters.Contains(s.SetterName))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{od.Name}' has its own setter '{s.SetterName}' which collides with a promoted setter from '{od.EmbeddedTypeName}'",
-                    null, od.Line,
+                    null, od.Line, od.Column,
                     $"define setter '{s.SetterName}' in '{od.Name}' while embedding '{od.EmbeddedTypeName}'",
-                    $"Rename one of the setters."));
+                    $"Rename one of the setters.");
             if (promotedMethods.Contains(s.SetterName))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{od.Name}' setter '{s.SetterName}' collides with a promoted method of the same name from '{od.EmbeddedTypeName}'",
-                    null, od.Line,
+                    null, od.Line, od.Column,
                     $"define setter '{s.SetterName}' while embedding a type with a method of the same name",
-                    $"Rename the setter or the method."));
+                    $"Rename the setter or the method.");
         }
     }
 
@@ -286,29 +286,29 @@ public sealed partial class TypeChecker
         foreach (var ifaceName in od.ConformedInterfaces)
         {
             if (!_interfaceDefs.TryGetValue(ifaceName, out var iface))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{od.Name}' claims to satisfy '{ifaceName}', but no such interface is defined",
-                    null, od.Line,
+                    null, od.Line, od.Column,
                     $"conform to '{ifaceName}'",
-                    $"Define the interface first: Define {ifaceName} as an interface for {{...}}."));
+                    $"Define the interface first: Define {ifaceName} as an interface for {{...}}.");
 
             foreach (var (methodName, returnType, paramTypes) in iface.Methods)
             {
                 var sig = FindMethodInOtOrPromoted(objType, methodName);
                 if (sig == null)
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         $"'{od.Name}' claims to satisfy '{ifaceName}' but has no method '{methodName}'",
-                        null, od.Line,
+                        null, od.Line, od.Column,
                         $"conform to interface '{ifaceName}'",
-                        $"Add a method '{methodName}' to '{od.Name}' (or embed an object that provides it)."));
+                        $"Add a method '{methodName}' to '{od.Name}' (or embed an object that provides it).");
 
                 if (sig.ReturnType != returnType || !sig.ParameterTypes.SequenceEqual(paramTypes))
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         $"'{od.Name}'.'{methodName}' has the wrong signature for interface '{ifaceName}'",
-                        null, od.Line,
+                        null, od.Line, od.Column,
                         $"conform to '{ifaceName}' with a mismatched '{methodName}'",
                         $"Interface '{ifaceName}' requires '{methodName}' to have signature: " +
-                        $"{FormatFunctionType(new FunctionType(paramTypes, returnType))}."));
+                        $"{FormatFunctionType(new FunctionType(paramTypes, returnType))}.");
             }
         }
     }
@@ -337,33 +337,33 @@ public sealed partial class TypeChecker
         foreach (var g in objType.Getters)
         {
             if (!seenGetters.Add(g.GetterName))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{od.Name}' has two getters both named '{g.GetterName}'",
-                    null, od.Line,
+                    null, od.Line, od.Column,
                     $"define duplicate getter '{g.GetterName}'",
-                    "Each getter name must be unique. Rename one of them."));
+                    "Each getter name must be unique. Rename one of them.");
             if (objType.Methods.Any(m => m.MethodName == g.GetterName))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{od.Name}' getter '{g.GetterName}' clashes with a method of the same name",
-                    null, od.Line,
+                    null, od.Line, od.Column,
                     $"define getter '{g.GetterName}' when a method of the same name exists",
-                    $"Rename the getter or the method — getters and methods can't share a name."));
+                    $"Rename the getter or the method — getters and methods can't share a name.");
         }
         var seenSetters = new HashSet<string>();
         foreach (var s in objType.Setters)
         {
             if (!seenSetters.Add(s.SetterName))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{od.Name}' has two setters both named '{s.SetterName}'",
-                    null, od.Line,
+                    null, od.Line, od.Column,
                     $"define duplicate setter '{s.SetterName}'",
-                    "Each setter name must be unique. Rename one of them."));
+                    "Each setter name must be unique. Rename one of them.");
             if (objType.Methods.Any(m => m.MethodName == s.SetterName))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{od.Name}' setter '{s.SetterName}' clashes with a method of the same name",
-                    null, od.Line,
+                    null, od.Line, od.Column,
                     $"define setter '{s.SetterName}' when a method of the same name exists",
-                    $"Rename the setter or the method — setters and methods can't share a name."));
+                    $"Rename the setter or the method — setters and methods can't share a name.");
         }
     }
 
@@ -376,9 +376,9 @@ public sealed partial class TypeChecker
         // Method scope: functions visible, plus 'one' (self) + parameters.
         foreach (var scope in saved.V)
             foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
-        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine, IsParameter: true);
+        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), selfLine, IsParameter: true);
         foreach (var (type, name) in method.Parameters)
-            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), method.Line, IsParameter: true);
+            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), method.Line, IsParameter: true);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
@@ -404,11 +404,11 @@ public sealed partial class TypeChecker
             }
 
             if (method.ReturnType != null && !DefinitelyReturns(method.Body))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"method '{method.Name}' is declared to give back a {FormatType(method.ReturnType)}, but it can reach its end without returning one",
-                    null, method.Line,
+                    null, method.Line, method.Column,
                     "define a method that might not return a value",
-                    "Make sure every path through the method ends with a return statement."));
+                    "Make sure every path through the method ends with a return statement.");
         }
         finally
         {
@@ -436,7 +436,7 @@ public sealed partial class TypeChecker
 
         foreach (var scope in saved.V)
             foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
-        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine, IsParameter: true);
+        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), selfLine, IsParameter: true);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
@@ -460,11 +460,11 @@ public sealed partial class TypeChecker
             }
 
             if (!DefinitelyReturns(getter.Body))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"getter '{getter.Name}' is declared to give back a {FormatType(getter.ReturnType)}, but it can reach its end without returning one",
-                    null, getter.Line,
+                    null, getter.Line, getter.Column,
                     "define a getter that might not return a value",
-                    "Make sure every path through the getter ends with a return statement."));
+                    "Make sure every path through the getter ends with a return statement.");
         }
         finally
         {
@@ -483,8 +483,8 @@ public sealed partial class TypeChecker
 
         foreach (var scope in saved.V)
             foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
-        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), selfLine, IsParameter: true);
-        Scope[setter.ParamName] = new TypeInfo(setter.ParamType, new VariableReference(setter.ParamName, 0), setter.Line, IsParameter: true);
+        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), selfLine, IsParameter: true);
+        Scope[setter.ParamName] = new TypeInfo(setter.ParamType, new VariableReference(setter.ParamName, 0, 0), setter.Line, IsParameter: true);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
@@ -527,16 +527,16 @@ public sealed partial class TypeChecker
     private void CheckUnmake(UnmakerDeclaration ud)
     {
         if (!_objectDefs.TryGetValue(ud.UnmakesTypeName, out var objType))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{ud.UnmakesTypeName}' is not a defined object type",
-                null, ud.Line,
+                null, ud.Line, ud.Column,
                 $"declare a destructor for '{ud.UnmakesTypeName}'",
-                $"Define 'object {ud.UnmakesTypeName}' before declaring a destructor for it."));
+                $"Define 'object {ud.UnmakesTypeName}' before declaring a destructor for it.");
 
         var saved = SaveScopes();
         foreach (var scope in saved.V)
             foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
-        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0), ud.Line, IsParameter: true);
+        Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), ud.Line, IsParameter: true);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
@@ -562,30 +562,30 @@ public sealed partial class TypeChecker
     private ObjectType InferObjectLiteral(ObjectLiteral lit)
     {
         if (!_objectDefs.TryGetValue(lit.TypeName, out var objType))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{lit.TypeName}' is not a defined object type",
-                null, lit.Line,
+                null, lit.Line, lit.Column,
                 $"create a new {lit.TypeName} object",
-                $"Define the object type first: Define object {lit.TypeName} with (...)."));
+                $"Define the object type first: Define object {lit.TypeName} with (...).");
 
         // Flat construction: positionals = own + embedded (all levels), in order.
         var allPositionals = GetAllPositionalTypes(objType);
         if (lit.PositionalValues.Count != allPositionals.Count)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{lit.TypeName}' expects {allPositionals.Count} positional field(s) (including promoted), but you provided {lit.PositionalValues.Count}",
-                null, lit.Line,
+                null, lit.Line, lit.Column,
                 $"provide {lit.PositionalValues.Count} positional field(s)",
-                $"'{lit.TypeName}' requires exactly {allPositionals.Count} positional field(s)."));
+                $"'{lit.TypeName}' requires exactly {allPositionals.Count} positional field(s).");
 
         for (int i = 0; i < lit.PositionalValues.Count; i++)
         {
             var valType = InferType(lit.PositionalValues[i]);
             if (valType != null && !IsAssignable(allPositionals[i], valType))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"positional field {i + 1} of '{lit.TypeName}' must be a {FormatType(allPositionals[i])}",
-                    null, lit.Line,
+                    null, lit.Line, lit.Column,
                     $"provide a {FormatType(valType)} for positional field {i + 1}",
-                    $"Change the value to a {FormatType(allPositionals[i])}."));
+                    $"Change the value to a {FormatType(allPositionals[i])}.");
         }
 
         // Flat construction: named fields = own + embedded (all levels).
@@ -595,11 +595,11 @@ public sealed partial class TypeChecker
         foreach (var (requiredName, _) in allNamedFields)
         {
             if (!lit.NamedValues.Any(nv => nv.Name == requiredName))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"field '{requiredName}' of '{lit.TypeName}' is missing",
-                    null, lit.Line,
+                    null, lit.Line, lit.Column,
                     $"create a {lit.TypeName} without field '{requiredName}'",
-                    $"Add 'the {requiredName} <value>' to the object literal."));
+                    $"Add 'the {requiredName} <value>' to the object literal.");
         }
 
         // Check provided fields are valid (exist somewhere in the chain) and correctly typed.
@@ -607,20 +607,20 @@ public sealed partial class TypeChecker
         {
             var fieldType = FindFieldInOtOrPromoted(objType, name);
             if (fieldType == null)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{lit.TypeName}' has no field named '{name}'",
-                    null, lit.Line,
+                    null, lit.Line, lit.Column,
                     $"set unknown field '{name}'",
                     allNamedFields.Count > 0
                         ? $"Available named fields: {string.Join(", ", allNamedFields.Select(f => $"'{f.FieldName}'"))}."
-                        : $"'{lit.TypeName}' has no named fields."));
+                        : $"'{lit.TypeName}' has no named fields.");
             var valType = InferType(expr);
             if (valType != null && !IsAssignable(fieldType, valType))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"field '{name}' of '{lit.TypeName}' must be a {FormatType(fieldType)}",
-                    null, lit.Line,
+                    null, lit.Line, lit.Column,
                     $"provide a {FormatType(valType)} for field '{name}'",
-                    $"Change the value to a {FormatType(fieldType)}."));
+                    $"Change the value to a {FormatType(fieldType)}.");
         }
 
         return objType;
@@ -638,13 +638,13 @@ public sealed partial class TypeChecker
                 return null;
             var ifaceSig = ifaceDef.Methods.FirstOrDefault(m => m.MethodName == poss.Member);
             if (ifaceSig == default)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"interface '{ifaceT.Name}' has no method named '{poss.Member}'",
-                    null, poss.Line,
+                    null, poss.Line, poss.Column,
                     $"use 's to access '{poss.Member}' through interface '{ifaceT.Name}'",
                     ifaceDef.Methods.Count > 0
                         ? $"Available methods: {string.Join(", ", ifaceDef.Methods.Select(m => $"'{m.MethodName}'"))}."
-                        : $"Interface '{ifaceT.Name}' declares no methods."));
+                        : $"Interface '{ifaceT.Name}' declares no methods.");
             return new FunctionType(ifaceSig.ParamTypes, ifaceSig.ReturnType);
         }
 
@@ -652,11 +652,11 @@ public sealed partial class TypeChecker
             return InferBookPossessiveAccess(poss, bt);
 
         if (targetType is not ObjectType ot)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"possessive access ('s) requires an object, but got a {FormatType(targetType)}",
-                null, poss.Line,
+                null, poss.Line, poss.Column,
                 $"use 's on a {FormatType(targetType)}",
-                "Only objects and books support the possessive 's syntax."));
+                "Only objects and books support the possessive 's syntax.");
 
         // Methods first, then getters (field-syntax), then fields.
         var methodSig = FindMethodInOtOrPromoted(ot, poss.Member);
@@ -683,11 +683,11 @@ public sealed partial class TypeChecker
             allFields.Select(f => $"'{f.FieldName}'")
             .Concat(ot.Getters.Select(g => $"'{g.GetterName}' (getter)"))
             .Concat(ot.Methods.Select(m => $"'{m.MethodName}' (method)")));
-        throw new TypeException(FormatTypeError(
+        throw TypeError(
             $"'{ot.Name}' has no field, getter, or method named '{poss.Member}'",
-            null, poss.Line,
+            null, poss.Line, poss.Column,
             $"access '{poss.Member}' on a {ot.Name}",
-            available.Length > 0 ? $"Available: {available}." : $"'{ot.Name}' has no fields, getters, or methods."));
+            available.Length > 0 ? $"Available: {available}." : $"'{ot.Name}' has no fields, getters, or methods.");
     }
 
     // ── Operator overloads (Pass2) ─────────────────────────────────────────────
@@ -702,19 +702,19 @@ public sealed partial class TypeChecker
             if (stmt is not OperatorOverloadDeclaration oad) continue;
 
             if (!_objectDefs.TryGetValue(oad.OperandTypeName, out var objType))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{oad.OperandTypeName}' is not a defined object type — operator overload has no type to register on",
-                    null, oad.Line,
+                    null, oad.Line, oad.Column,
                     $"declare an overload for '{oad.OperandTypeName}'",
-                    $"Define 'object {oad.OperandTypeName}' before declaring operator overloads for it, or check the spelling."));
+                    $"Define 'object {oad.OperandTypeName}' before declaring operator overloads for it, or check the spelling.");
 
             var key = (oad.OperandTypeName, oad.Operator);
             if (!seen.Add(key))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{oad.OperandTypeName}' already has an overload for '{FormatOp(oad.Operator)}'",
-                    null, oad.Line,
+                    null, oad.Line, oad.Column,
                     $"declare a second '{FormatOp(oad.Operator)}' overload for '{oad.OperandTypeName}'",
-                    "Each operator can only be overloaded once per type. Remove the duplicate."));
+                    "Each operator can only be overloaded once per type. Remove the duplicate.");
 
             CheckOperatorOverload(oad, objType);
         }
@@ -727,8 +727,8 @@ public sealed partial class TypeChecker
         var saved = SaveScopes();
         foreach (var scope in saved.V)
             foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
-        Scope[oad.LeftName]  = new TypeInfo(objType, new VariableReference(oad.LeftName, 0), oad.Line);
-        Scope[oad.RightName] = new TypeInfo(objType, new VariableReference(oad.RightName, 0), oad.Line);
+        Scope[oad.LeftName]  = new TypeInfo(objType, new VariableReference(oad.LeftName, 0, 0), oad.Line);
+        Scope[oad.RightName] = new TypeInfo(objType, new VariableReference(oad.RightName, 0, 0), oad.Line);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
@@ -749,11 +749,11 @@ public sealed partial class TypeChecker
             CheckBlock(oad.Body);
 
             if (!DefinitelyReturns(oad.Body))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{FormatOp(oad.Operator)}' overload for '{oad.OperandTypeName}' can reach its end without returning a value",
-                    null, oad.Line,
+                    null, oad.Line, oad.Column,
                     "define an operator overload that might not return a value",
-                    "Make sure every path through the overload ends with a return statement."));
+                    "Make sure every path through the overload ends with a return statement.");
         }
         finally
         {

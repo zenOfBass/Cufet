@@ -69,7 +69,7 @@ static void EmitC(string sourcePath, string outPath)
 //   cufet check [--json] [--native] <file>
 //
 // Two output shapes. The default is one human line per diagnostic,
-// "<path>:<line>: <severity>: <first line>", with the rest of a multi-line message indented
+// "<path>:<line>:<column>: <severity>: <first line>", with the rest of a multi-line message indented
 // under it — the shape the $cufet problem matcher in editors/vscode/ parses. `--json` writes
 // one JSON object per line to stdout instead, which keeps the multi-line body of a type error
 // intact rather than flattening it into a matcher-shaped single line.
@@ -102,20 +102,20 @@ static void Check(string[] rest)
     }
     catch (Exception e) when (e is LexerException or ParseException or TypeException)
     {
-        Report(json, full, LineOf(e), "error", e.Message);
+        Report(json, full, PositionOf(e), "error", e.Message);
         Environment.Exit(1);
         return;
     }
 
     // Codegen refusals are compiler-only. The interpreter runs these programs happily, so they
-    // are a warning — "this won't build natively" — and not an error. Most carry no line, so
-    // they land on line 1; the message names what to change.
+    // are a warning — "this won't build natively" — and not an error. Most carry no position, so
+    // they land on line 1, column 1; the message names what to change.
     if (native)
     {
         try { new CodeGenerator().Generate(program); }
         catch (CompilerException e)
         {
-            Report(json, full, LineOf(e), "warning", e.Message);
+            Report(json, full, PositionOf(e), "warning", e.Message);
             Environment.Exit(1);
             return;
         }
@@ -125,17 +125,18 @@ static void Check(string[] rest)
     Environment.Exit(0);
 }
 
-// Where a diagnostic points. Lexer and parse errors carry the line structurally. Type errors
-// do not — TypeException holds only a message — but nearly all of them are built by
-// FormatTypeError, which always writes "Here on line N, you're trying to ...". That anchor is
-// tried first precisely because a message may mention several lines ("established on line 4")
-// and the violation is the one to underline. Anything else falls back to the first line
-// mentioned, then to line 1, so a diagnostic is never dropped for want of a location.
-static int LineOf(Exception e) => e switch
+// Where a diagnostic points. Lexer, parse and type errors all carry line and column
+// structurally. A codegen refusal carries neither, so it falls back to reading the message —
+// the "Here on line N" anchor first, precisely because a message may mention several lines
+// ("established on line 4") and the violation is the one to underline; then the first line
+// mentioned; then line 1, so a diagnostic is never dropped for want of a location. A position
+// that falls back this way has no column, and column 1 is the honest answer.
+static (int Line, int Column) PositionOf(Exception e) => e switch
 {
-    LexerException le => le.Line,
-    ParseException pe => pe.Line,
-    _                 => LineFromMessage(e.Message),
+    LexerException le             => (le.Line, le.Column),
+    ParseException pe             => (pe.Line, pe.Column),
+    TypeException { Line: > 0 } te => (te.Line, te.Column),
+    _                             => (LineFromMessage(e.Message), 1),
 };
 
 static int LineFromMessage(string message)
@@ -146,15 +147,16 @@ static int LineFromMessage(string message)
     return mentioned.Success ? int.Parse(mentioned.Groups[1].Value) : 1;
 }
 
-static void Report(bool json, string file, int line, string severity, string message)
+static void Report(bool json, string file, (int Line, int Column) at, string severity, string message)
 {
+    var (line, column) = at;
     if (json)
     {
-        Console.Out.WriteLine(JsonSerializer.Serialize(new { file, line, severity, message }));
+        Console.Out.WriteLine(JsonSerializer.Serialize(new { file, line, column, severity, message }));
         return;
     }
     var lines = message.Replace("\r\n", "\n").Split('\n');
-    Console.Error.WriteLine($"{file}:{line}: {severity}: {lines[0]}");
+    Console.Error.WriteLine($"{file}:{line}:{column}: {severity}: {lines[0]}");
     foreach (var l in lines.Skip(1))
         Console.Error.WriteLine("  " + l);
 }

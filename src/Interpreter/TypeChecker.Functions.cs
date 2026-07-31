@@ -188,18 +188,18 @@ public sealed partial class TypeChecker
     private void CheckConstructor(BindStatement ctor)
     {
         if (ctor.UntoType != null)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"a constructor can't also be an 'unto' method",
-                null, ctor.Line,
+                null, ctor.Line, ctor.Column,
                 $"declare 'Bind making a {ctor.ConstructsTypeName} to {ctor.Name} unto ...'",
-                "Constructors are free functions — they can't be attached to a type with 'unto'."));
+                "Constructors are free functions — they can't be attached to a type with 'unto'.");
 
         if (!_objectDefs.TryGetValue(ctor.ConstructsTypeName!, out var objType))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{ctor.ConstructsTypeName}' is not a defined object type",
-                null, ctor.Line,
+                null, ctor.Line, ctor.Column,
                 $"declare a constructor for '{ctor.ConstructsTypeName}'",
-                $"Define 'object {ctor.ConstructsTypeName}' before declaring constructors for it."));
+                $"Define 'object {ctor.ConstructsTypeName}' before declaring constructors for it.");
 
         // Resolve the shell ObjectType in the return type to the canonical instance before
         // type-checking the body — otherwise IsAssignable against returned object literals fails.
@@ -233,7 +233,7 @@ public sealed partial class TypeChecker
                 foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
         }
         foreach (var (type, name) in bind.Parameters)
-            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), bind.Line, IsParameter: true);
+            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), bind.Line, IsParameter: true);
 
         var prevInFunction        = _inFunction;
         var prevReturnType        = _expectedReturnType;
@@ -272,12 +272,12 @@ public sealed partial class TypeChecker
         }
 
         if (bind.ReturnType != null && !DefinitelyReturns(bind.Body))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{bind.Name}' is declared to give back a {FormatType(bind.ReturnType)}, but it can reach its end without returning one",
                 null,
-                bind.Line,
+                bind.Line, bind.Column,
                 "define a function that might not return a value",
-                "Make sure every path through the function ends with a return statement."));
+                "Make sure every path through the function ends with a return statement.");
     }
 
     // Infers and type-checks a lambda literal in one pass.
@@ -299,7 +299,7 @@ public sealed partial class TypeChecker
             foreach (var scope in saved.V)
                 foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
         foreach (var (type, name) in lambda.Parameters)
-            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0), lambda.Line, IsParameter: true);
+            Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), lambda.Line, IsParameter: true);
 
         var prevInFunction        = _inFunction;
         var prevReturnType        = _expectedReturnType;
@@ -332,12 +332,12 @@ public sealed partial class TypeChecker
         }
 
         if (inferredReturn != null && !DefinitelyReturns(lambda.Body))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"this lambda is inferred to give back a {FormatType(inferredReturn)}, but it can reach its end without returning one",
                 null,
-                lambda.Line,
+                lambda.Line, lambda.Column,
                 "write a lambda that might not return a value",
-                "Make sure every path through the lambda ends with a return statement."));
+                "Make sure every path through the lambda ends with a return statement.");
 
         var paramTypes = lambda.Parameters.Select(p => (CufetType)ResolveParamType(p.Type)).ToList();
         return new FunctionType(paramTypes, inferredReturn);
@@ -346,17 +346,17 @@ public sealed partial class TypeChecker
     // Validates arg count and types against a resolved FunctionType.
     private void ValidateCastArgs(
         FunctionType funcType, string displayName, int declLine,
-        IReadOnlyList<IExpression> args, int callLine)
+        IReadOnlyList<IExpression> args, int callLine, int callCol)
     {
         if (args.Count != funcType.ParameterTypes.Count)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"{displayName} expects {funcType.ParameterTypes.Count} argument(s), but you passed {args.Count}",
                 $"You declared it on line {declLine} with {funcType.ParameterTypes.Count} parameter(s)",
-                callLine,
+                callLine, callCol,
                 $"call it with {args.Count} argument(s)",
                 args.Count < funcType.ParameterTypes.Count
                     ? "Add the missing argument(s)."
-                    : "Remove the extra argument(s)."));
+                    : "Remove the extra argument(s).");
 
         for (int i = 0; i < args.Count; i++)
         {
@@ -376,23 +376,23 @@ public sealed partial class TypeChecker
                     var hint = argType is ObjectType nonConforming
                         ? $"'{nonConforming.Name}' does not declare conformance to '{ifaceT.Name}'. Add 'and {ifaceT.Name}' to its definition."
                         : $"Only objects that conform to '{ifaceT.Name}' can be passed here.";
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         $"argument {i + 1} of {displayName} must satisfy the '{ifaceT.Name}' interface, but you passed a {FormatType(argType)}",
                         $"You declared {displayName} on line {declLine} with a '{ifaceT.Name}' parameter",
-                        callLine,
+                        callLine, callCol,
                         $"pass a {FormatType(argType)} where a '{ifaceT.Name}' is required",
-                        hint));
+                        hint);
                 }
                 continue;
             }
 
             if (IsAssignable(formalType, argType)) continue;
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"argument {i + 1} of {displayName} must be a {FormatType(formalType)}, but you passed a {FormatType(argType)}",
                 $"You declared {displayName} on line {declLine}, so argument {i + 1} must be a {FormatType(formalType)}",
-                callLine,
+                callLine, callCol,
                 $"pass a {FormatType(argType)} as argument {i + 1}",
-                $"Change argument {i + 1} to a {FormatType(formalType)}."));
+                $"Change argument {i + 1} to a {FormatType(formalType)}.");
         }
     }
 
@@ -403,18 +403,18 @@ public sealed partial class TypeChecker
         if (IsCollectionsAggregateCast(cast))
             return InferCollectionsAggregateCast(cast);
 
-        var (funcType, displayName, declLine, argsToValidate) = ResolveForCast(cast.Function, cast.Args, cast.Line);
+        var (funcType, displayName, declLine, argsToValidate) = ResolveForCast(cast.Function, cast.Args, cast.Line, cast.Column);
         if (funcType == null) return null;
 
-        ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cast.Line);
+        ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cast.Line, cast.Column);
 
         if (funcType.ReturnType == null)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"{displayName} gives nothing back — it can't be used as a value",
                 $"You declared it as void on line {declLine}",
-                cast.Line,
+                cast.Line, cast.Column,
                 "use its result as a value",
-                "Cast it as a statement instead, or change its return type if you need a result."));
+                "Cast it as a statement instead, or change its return type if you need a result.");
 
         // Determine the receiver for depth tracking:
         //   TryMethodDispatch consumed the receiver from args → receiver is cast.Args[0].
@@ -435,11 +435,11 @@ public sealed partial class TypeChecker
         }
 
         if (funcType.ReturnType is FailureType && !_inFailureHandledContext)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"{displayName} can fail — you must handle the failure",
-                null, cast.Line,
+                null, cast.Line, cast.Column,
                 "use a fallible function's result without handling the failure",
-                "Wrap the call in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'."));
+                "Wrap the call in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'.");
 
         PopulateCastDepthCache(cast, funcType.ReturnType, funcType, argsToValidate, receiverExpr);
         return funcType.ReturnType;
@@ -488,20 +488,20 @@ public sealed partial class TypeChecker
     // Returns (null, ...) if the type is unknown at compile time — runtime catches it.
     // Throws TypeException for known-bad: non-function type, or method/free-function ambiguity.
     private (FunctionType? funcType, string displayName, int declLine, IReadOnlyList<IExpression> argsToValidate)
-        ResolveForCast(IExpression funcExpr, IReadOnlyList<IExpression> args, int callLine)
+        ResolveForCast(IExpression funcExpr, IReadOnlyList<IExpression> args, int callLine, int callCol)
     {
         if (funcExpr is VariableReference vr)
         {
-            var md    = TryMethodDispatch(vr.Name, args, callLine);
+            var md    = TryMethodDispatch(vr.Name, args, callLine, callCol);
             bool inEnv = TryLookup(vr.Name, out var info);
 
             if (md.HasValue && inEnv && info!.Type is FunctionType)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{vr.Name}' is both a method and a free function — this is ambiguous",
                     null,
-                    callLine,
+                    callLine, callCol,
                     $"call '{vr.Name}' ambiguously",
-                    $"Use the possessive form to call the method explicitly: Cast <object>'s {vr.Name} on (args)."));
+                    $"Use the possessive form to call the method explicitly: Cast <object>'s {vr.Name} on (args).");
 
             if (md.HasValue)
                 return (md.Value.funcType, md.Value.displayName, md.Value.declLine, args.Skip(1).ToList());
@@ -509,12 +509,12 @@ public sealed partial class TypeChecker
             if (inEnv)
             {
                 if (info!.Type is not FunctionType ft)
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         $"'{vr.Name}' holds a {FormatType(info.Type)}, not a function — you can only cast functions",
                         null,
-                        callLine,
+                        callLine, callCol,
                         "cast something that isn't a function",
-                        "Only functions can be cast. Make sure the name you're casting refers to a function."));
+                        "Only functions can be cast. Make sure the name you're casting refers to a function.");
                 return (ft, $"'{vr.Name}'", info.EstablishingLine, args);
             }
 
@@ -528,11 +528,11 @@ public sealed partial class TypeChecker
                     var avail = ot2.Methods.Count > 0
                         ? $"Available methods: {string.Join(", ", ot2.Methods.Select(m => $"'{m.MethodName}'"))}."
                         : $"'{ot2.Name}' has no methods.";
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         $"'{ot2.Name}' has no method named '{vr.Name}'",
-                        null, callLine,
+                        null, callLine, callCol,
                         $"call method '{vr.Name}' on a {ot2.Name}",
-                        avail));
+                        avail);
                 }
                 if (firstArgType is InterfaceType ifaceT2 &&
                     _interfaceDefs.TryGetValue(ifaceT2.Name, out var ifaceDef2))
@@ -540,11 +540,11 @@ public sealed partial class TypeChecker
                     var avail = ifaceDef2.Methods.Count > 0
                         ? $"Available methods: {string.Join(", ", ifaceDef2.Methods.Select(m => $"'{m.MethodName}'"))}."
                         : $"Interface '{ifaceT2.Name}' declares no methods.";
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         $"interface '{ifaceT2.Name}' has no method named '{vr.Name}'",
-                        null, callLine,
+                        null, callLine, callCol,
                         $"call method '{vr.Name}' through interface '{ifaceT2.Name}'",
-                        avail));
+                        avail);
                 }
             }
 
@@ -556,12 +556,12 @@ public sealed partial class TypeChecker
         var exprType = InferType(funcExpr);
         if (exprType == null) return (null, "this function", callLine, args);
         if (exprType is not FunctionType funcType)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"this expression holds a {FormatType(exprType)}, not a function — you can only cast functions",
                 null,
-                callLine,
+                callLine, callCol,
                 "cast something that isn't a function",
-                "Only functions can be cast."));
+                "Only functions can be cast.");
         return (funcType, "this function", callLine, args);
     }
 
@@ -569,7 +569,7 @@ public sealed partial class TypeChecker
     // first arg's type is an object or interface that declares a method with the given name.
     // Returns null if no such method is found.
     private (FunctionType funcType, string displayName, int declLine)? TryMethodDispatch(
-        string name, IReadOnlyList<IExpression> args, int callLine)
+        string name, IReadOnlyList<IExpression> args, int callLine, int callCol)
     {
         if (args.Count == 0) return null;
 

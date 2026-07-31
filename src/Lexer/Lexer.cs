@@ -5,12 +5,16 @@ public sealed class Lexer
     private readonly string _source;
     private int _pos;
     private int _line;
+    // Offset of the first character of the current line. Every '\n' that bumps _line moves this
+    // to just past that newline, so a column is a subtraction rather than a rescan.
+    private int _lineStart;
 
     public Lexer(string source)
     {
         _source = source;
         _pos = 0;
         _line = 1;
+        _lineStart = 0;
     }
 
     public IReadOnlyList<Token> Tokenize()
@@ -22,9 +26,12 @@ public sealed class Lexer
             if (AtEnd()) break;
             ReadOneToken(tokens);
         }
-        tokens.Add(new Token(TokenType.Eof, "", _line));
+        tokens.Add(new Token(TokenType.Eof, "", _line, ColumnAt(_pos)));
         return tokens;
     }
+
+    // 1-based column of the character at `offset`, which must sit on the current line.
+    private int ColumnAt(int offset) => offset - _lineStart + 1;
 
     // Reads exactly one logical token from the current position and appends it (or its
     // sequence, in the case of an interpolated string) to `tokens`.
@@ -47,11 +54,11 @@ public sealed class Lexer
         //   Both wait until escape sequences exist and need a contrast.
         else if (c == '.')
         {
-            tokens.Add(new Token(TokenType.Dot, ".", _line));
+            tokens.Add(new Token(TokenType.Dot, ".", _line, ColumnAt(_pos)));
             Advance();
         }
         else
-            throw new LexerException(_line, c);
+            throw new LexerException(_line, ColumnAt(_pos), c);
     }
 
     private Token ReadWord()
@@ -235,36 +242,38 @@ public sealed class Lexer
         // Identifiers must start with a lowercase letter — uppercase-initial is reserved
         // for keywords and produces a visible distinction between keywords and variables.
         if (type == TokenType.Identifier && !char.IsLower(lexeme[0]))
-            throw new LexerException(_line, $"identifier '{lexeme}' must start with a lowercase letter");
+            throw new LexerException(_line, ColumnAt(start), $"identifier '{lexeme}' must start with a lowercase letter");
 
-        return new Token(type, lexeme, _line);
+        return new Token(type, lexeme, _line, ColumnAt(start));
     }
 
     private Token ReadSymbol()
     {
-        char c = Peek();
+        int  start = _pos;
+        int  col   = ColumnAt(start);
+        char c     = Peek();
         Advance();
         switch (c)
         {
-            case '+': return new Token(TokenType.Plus,   "+", _line);
-            case '-': return new Token(TokenType.Minus,  "-", _line);
-            case '*': return new Token(TokenType.Star,    "*", _line);
-            case '/': return new Token(TokenType.Slash,  "/", _line);
-            case '%': return new Token(TokenType.Percent, "%", _line);
-            case '(': return new Token(TokenType.LParen, "(", _line);
-            case ')': return new Token(TokenType.RParen, ")", _line);
-            case '=': return new Token(TokenType.Equal, "=", _line);
-            case ':': return new Token(TokenType.Colon,  ":", _line);
-            case ',': return new Token(TokenType.Comma,  ",", _line);
-            case '{': return new Token(TokenType.LBrace, "{", _line);
-            case '}': return new Token(TokenType.RBrace, "}", _line);
-            case '|': return new Token(TokenType.Pipe,   "|", _line);
+            case '+': return new Token(TokenType.Plus,   "+", _line, col);
+            case '-': return new Token(TokenType.Minus,  "-", _line, col);
+            case '*': return new Token(TokenType.Star,    "*", _line, col);
+            case '/': return new Token(TokenType.Slash,  "/", _line, col);
+            case '%': return new Token(TokenType.Percent, "%", _line, col);
+            case '(': return new Token(TokenType.LParen, "(", _line, col);
+            case ')': return new Token(TokenType.RParen, ")", _line, col);
+            case '=': return new Token(TokenType.Equal, "=", _line, col);
+            case ':': return new Token(TokenType.Colon,  ":", _line, col);
+            case ',': return new Token(TokenType.Comma,  ",", _line, col);
+            case '{': return new Token(TokenType.LBrace, "{", _line, col);
+            case '}': return new Token(TokenType.RBrace, "}", _line, col);
+            case '|': return new Token(TokenType.Pipe,   "|", _line, col);
             case '<':
-                if (!AtEnd() && Peek() == '=') { Advance(); return new Token(TokenType.Lte, "<=", _line); }
-                return new Token(TokenType.Lt, "<", _line);
+                if (!AtEnd() && Peek() == '=') { Advance(); return new Token(TokenType.Lte, "<=", _line, col); }
+                return new Token(TokenType.Lt, "<", _line, col);
             case '>':
-                if (!AtEnd() && Peek() == '=') { Advance(); return new Token(TokenType.Gte, ">=", _line); }
-                return new Token(TokenType.Gt, ">", _line);
+                if (!AtEnd() && Peek() == '=') { Advance(); return new Token(TokenType.Gte, ">=", _line, col); }
+                return new Token(TokenType.Gt, ">", _line, col);
             default:
                 throw new InvalidOperationException($"ReadSymbol called on non-symbol '{c}'");
         }
@@ -272,13 +281,14 @@ public sealed class Lexer
 
     private Token ReadPossessive()
     {
+        int col = ColumnAt(_pos);
         Advance(); // consume '\''
         if (!AtEnd() && Peek() == 's')
         {
             Advance(); // consume 's'
-            return new Token(TokenType.Possessive, "'s", _line);
+            return new Token(TokenType.Possessive, "'s", _line, col);
         }
-        throw new LexerException(_line, '\'');
+        throw new LexerException(_line, col, '\'');
     }
 
     // Bit-pattern literals: 0x hex, 0b binary, 0o octal. There is deliberately no bare-0 octal
@@ -317,6 +327,7 @@ public sealed class Lexer
     private Token ReadBits()
     {
         int startLine = _line;
+        int startCol  = ColumnAt(_pos);
         Advance();                      // consume '0'
         char prefix = Peek();
         Advance();                      // consume the base prefix
@@ -331,7 +342,7 @@ public sealed class Lexer
                 // a typo, and silently accepting it would let 0xFF__ and 0xFF look different
                 // while meaning the same thing.
                 if (digits.Length == 0 || _pos + 1 >= _source.Length || !IsDigitOfBase(_source[_pos + 1], prefix))
-                    throw new LexerException(startLine,
+                    throw new LexerException(startLine, startCol,
                         $"'_' must sit between digits in a 0{prefix} literal");
                 Advance();
                 continue;
@@ -342,23 +353,23 @@ public sealed class Lexer
         }
 
         if (digits.Length == 0)
-            throw new LexerException(startLine,
+            throw new LexerException(startLine, startCol,
                 $"'0{prefix}' needs at least one {BaseName(prefix)} digit after it");
 
         // A letter or digit still sitting here is a digit of the wrong base — 0b12, 0xG1 — and
         // saying which base it was written in is far more use than "unexpected character".
         if (!AtEnd() && char.IsLetterOrDigit(Peek()))
-            throw new LexerException(startLine,
+            throw new LexerException(startLine, startCol,
                 $"'{Peek()}' is not a {BaseName(prefix)} digit");
 
         int width = digits.Length * BitsPerDigit(prefix);
         if (width > 64)
-            throw new LexerException(startLine,
+            throw new LexerException(startLine, startCol,
                 $"this literal is {width} bits wide, and bits values hold at most 64 — " +
                 $"64 bits covers every C flag set and address, so anything wider belongs in a " +
                 $"library reached through the foreign function interface");
 
-        return new Token(TokenType.Bits, $"0{char.ToLowerInvariant(prefix)}{digits}", startLine);
+        return new Token(TokenType.Bits, $"0{char.ToLowerInvariant(prefix)}{digits}", startLine, startCol);
     }
 
     private Token ReadNumber()
@@ -380,7 +391,7 @@ public sealed class Lexer
             while (!AtEnd() && char.IsDigit(Peek()))
                 Advance();
         }
-        return new Token(TokenType.Number, _source[start.._pos], _line);
+        return new Token(TokenType.Number, _source[start.._pos], _line, ColumnAt(start));
     }
 
     // Scans a string literal starting at the current '"'. For plain strings (no bare
@@ -389,7 +400,11 @@ public sealed class Lexer
     // InterpolClose — allowing the parser to build the join-chain.
     private void ReadString(List<Token> tokens)
     {
+        // A string literal may run across newlines, so its own position is captured at the
+        // opening quote. The tokens emitted mid-scan (pieces, hole braces) each report where the
+        // scan stands at the moment they are emitted, which is the position _line already names.
         int startLine = _line;
+        int startCol  = ColumnAt(_pos);
         Advance(); // consume opening '"'
         var sb      = new System.Text.StringBuilder();
         bool isInterp = false;
@@ -398,7 +413,7 @@ public sealed class Lexer
         while (true)
         {
             if (AtEnd())
-                throw new LexerException(_line, "unterminated string literal");
+                throw new LexerException(_line, ColumnAt(_pos), "unterminated string literal");
             char c = Peek();
 
             // ── Closing quote ───────────────────────────────────────────────
@@ -413,7 +428,7 @@ public sealed class Lexer
             {
                 Advance();
                 if (AtEnd())
-                    throw new LexerException(_line, "unterminated string literal");
+                    throw new LexerException(_line, ColumnAt(_pos), "unterminated string literal");
                 char esc = Peek();
                 Advance();
                 // \{ and \} produce a literal brace — they are NOT interpolation markers.
@@ -426,7 +441,7 @@ public sealed class Lexer
                     '"'  => '"',
                     '{'  => '{',
                     '}'  => '}',
-                    _    => throw new LexerException(_line, $"unrecognized escape sequence '\\{esc}'")
+                    _    => throw new LexerException(_line, ColumnAt(_pos - 1), $"unrecognized escape sequence '\\{esc}'")
                 });
                 continue;
             }
@@ -437,15 +452,15 @@ public sealed class Lexer
                 isInterp = true;
                 if (sb.Length > 0)
                 {
-                    pieces.Add(new Token(TokenType.StringPiece, sb.ToString(), _line));
+                    pieces.Add(new Token(TokenType.StringPiece, sb.ToString(), _line, ColumnAt(_pos)));
                     sb.Clear();
                 }
                 Advance(); // consume '{'
-                pieces.Add(new Token(TokenType.InterpolHoleOpen, "{", _line));
+                pieces.Add(new Token(TokenType.InterpolHoleOpen, "{", _line, ColumnAt(_pos - 1)));
 
                 SkipWhitespace();
                 if (AtEnd() || Peek() == '}')
-                    throw new LexerException(_line, "empty interpolation — write an expression between the braces");
+                    throw new LexerException(_line, ColumnAt(_pos), "empty interpolation — write an expression between the braces");
 
                 // Lex expression tokens with brace-depth tracking.
                 // Nested '{' (object literals etc.) increase depth; matching '}' decreases.
@@ -453,17 +468,17 @@ public sealed class Lexer
                 while (depth > 0)
                 {
                     if (AtEnd())
-                        throw new LexerException(_line, "unterminated interpolation");
+                        throw new LexerException(_line, ColumnAt(_pos), "unterminated interpolation");
                     SkipWhitespace();
                     if (AtEnd())
-                        throw new LexerException(_line, "unterminated interpolation");
+                        throw new LexerException(_line, ColumnAt(_pos), "unterminated interpolation");
                     char ec = Peek();
 
                     if (ec == '{')
                     {
                         depth++;
                         Advance();
-                        pieces.Add(new Token(TokenType.LBrace, "{", _line));
+                        pieces.Add(new Token(TokenType.LBrace, "{", _line, ColumnAt(_pos - 1)));
                     }
                     else if (ec == '}')
                     {
@@ -471,12 +486,12 @@ public sealed class Lexer
                         if (depth == 0)
                         {
                             Advance();
-                            pieces.Add(new Token(TokenType.InterpolHoleClose, "}", _line));
+                            pieces.Add(new Token(TokenType.InterpolHoleClose, "}", _line, ColumnAt(_pos - 1)));
                         }
                         else
                         {
                             Advance();
-                            pieces.Add(new Token(TokenType.RBrace, "}", _line));
+                            pieces.Add(new Token(TokenType.RBrace, "}", _line, ColumnAt(_pos - 1)));
                         }
                     }
                     else
@@ -490,22 +505,22 @@ public sealed class Lexer
             }
 
             // ── Ordinary character ───────────────────────────────────────────
-            if (c == '\n') _line++;
+            if (c == '\n') { _line++; _lineStart = _pos + 1; }
             Advance();
             sb.Append(c);
         }
 
         if (!isInterp)
         {
-            tokens.Add(new Token(TokenType.String, sb.ToString(), startLine));
+            tokens.Add(new Token(TokenType.String, sb.ToString(), startLine, startCol));
         }
         else
         {
             if (sb.Length > 0)
-                pieces.Add(new Token(TokenType.StringPiece, sb.ToString(), _line));
-            tokens.Add(new Token(TokenType.InterpolOpen, "", startLine));
+                pieces.Add(new Token(TokenType.StringPiece, sb.ToString(), _line, ColumnAt(_pos)));
+            tokens.Add(new Token(TokenType.InterpolOpen, "", startLine, startCol));
             tokens.AddRange(pieces);
-            tokens.Add(new Token(TokenType.InterpolClose, "", _line));
+            tokens.Add(new Token(TokenType.InterpolClose, "", _line, ColumnAt(_pos)));
         }
     }
 
@@ -514,7 +529,7 @@ public sealed class Lexer
         while (!AtEnd())
         {
             char c = Peek();
-            if (c == '\n') { _line++; Advance(); }
+            if (c == '\n') { _line++; _lineStart = _pos + 1; Advance(); }
             else if (char.IsWhiteSpace(c)) Advance();
             else if (c == '/' && Next() == '/') SkipLineComment();
             else if (c == '/' && Next() == '*') SkipBlockComment();
@@ -552,15 +567,16 @@ public sealed class Lexer
     private void SkipBlockComment()
     {
         int startLine = _line;
+        int startCol  = ColumnAt(_pos);
         int depth = 1;
         Advance(); // consume '/'
         Advance(); // consume '*'
         while (true)
         {
             if (AtEnd())
-                throw new LexerException(startLine, "unterminated comment — expected '*/' to close it");
+                throw new LexerException(startLine, startCol, "unterminated comment — expected '*/' to close it");
             char c = Peek();
-            if (c == '\n') { _line++; Advance(); }
+            if (c == '\n') { _line++; _lineStart = _pos + 1; Advance(); }
             else if (c == '/' && Next() == '*')
             {
                 depth++;

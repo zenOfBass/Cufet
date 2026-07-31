@@ -20,7 +20,7 @@ public sealed partial class TypeChecker
         if (prs.Name != null)
             Scope[prs.Name] = new TypeInfo(
                 RabbitType.Instance,
-                new VariableReference(prs.Name, prs.Line),
+                new VariableReference(prs.Name, prs.Line, prs.Column),
                 prs.Line,
                 RabbitDepth: _rabbitDepth);
         try { CheckBlock(prs.Body); }
@@ -41,11 +41,11 @@ public sealed partial class TypeChecker
     private void CheckLaunchTask(LaunchTaskStatement lts)
     {
         if (_rabbitDepth == 0)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "'Have rabbit start a task' requires an active rabbit",
-                null, lts.Line,
+                null, lts.Line, lts.Column,
                 "spawning a task outside any rabbit scope",
-                "Wrap the task spawn in 'Pull a rabbit. ... Done.'"));
+                "Wrap the task spawn in 'Pull a rabbit. ... Done.'");
 
         bool bodyIsFallible = HasDirectFailureReturn(lts.Body);
 
@@ -83,17 +83,17 @@ public sealed partial class TypeChecker
         // end without setting a result, and awaiting it would have no value to give back. Tasks
         // with no returns stay fire-and-forget (inferredResultType == null) and are exempt.
         if (inferredResultType != null && !DefinitelyReturns(lts.Body))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"this task is inferred to give back a {FormatType(inferredResultType)}, but it can reach its end without returning one",
                 null,
-                lts.Line,
+                lts.Line, lts.Column,
                 "start a task that might not return a value",
-                "Make sure every path through the task ends with a return statement — or remove the returns to make it fire-and-forget."));
+                "Make sure every path through the task ends with a return statement — or remove the returns to make it fire-and-forget.");
 
         if (lts.Name != null)
             Scope[lts.Name] = new TypeInfo(
                 new TaskHandleType(inferredResultType),
-                new VariableReference(lts.Name, lts.Line),
+                new VariableReference(lts.Name, lts.Line, lts.Column),
                 lts.Line);
     }
 
@@ -209,14 +209,14 @@ public sealed partial class TypeChecker
     // Core check: source depth > target depth means a shorter-lived value would be stored
     // in a longer-lived container — a future use-after-free in the native backend.
     // `action` fills the "you're trying to ..." slot in the error message.
-    private void CheckRegionStore(IExpression valueExpr, CufetType? valueType, int targetDepth, int line, string action)
+    private void CheckRegionStore(IExpression valueExpr, CufetType? valueType, int targetDepth, int line, int col, string action)
     {
         var valueDepth = ValueDepthOf(valueExpr, valueType);
         if (valueDepth <= targetDepth) return;
-        throw new TypeException(FormatTypeError(
+        throw TypeError(
             "this value lives in a shorter-lived rabbit region than its destination — it will be gone when the rabbit ends",
-            null, line,
+            null, line, col,
             action,
-            "Move the container inside the rabbit block, or restructure so this value does not outlive its rabbit."));
+            "Move the container inside the rabbit block, or restructure so this value does not outlive its rabbit.");
     }
 }

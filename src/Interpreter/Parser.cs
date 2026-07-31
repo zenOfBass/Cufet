@@ -94,10 +94,12 @@ public sealed class Parser
 
     private IStatement ParseDefineStatement()
     {
-        var line = Consume(TokenType.Define).Line;
+        var lineTok = Consume(TokenType.Define);
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise(); // skips leading article ('a', 'an', 'the')
         if (Peek().Type == TokenType.Object)
-            return ParseObjectDefinition(line);
+            return ParseObjectDefinition(line, col);
         // "Define a shadow <name> as ..." — deliberate shadowing opt-in.
         // SkipNoise() above already consumed the article 'a', so we check for Shadow directly.
         bool shadow = false;
@@ -112,7 +114,7 @@ public sealed class Parser
         Consume(TokenType.As);
         SkipNoise(); // skips article 'an' before 'interface'
         if (Peek().Type == TokenType.Interface)
-            return ParseInterfaceDefinitionBody(name, line);
+            return ParseInterfaceDefinitionBody(name, line, col);
         IExpression value = Peek().Type == TokenType.Series
             ? ParseSeriesLiteralExpr()
             : ParseExpression();
@@ -125,11 +127,11 @@ public sealed class Parser
             SkipNoise();
         }
         Consume(TokenType.Dot);
-        return new DefineStatement(name, value, permanent, shadow, line);
+        return new DefineStatement(name, value, permanent, shadow, line, col);
     }
 
     // Define object <name> with (<fields>) [: <bind-stmts> Done.].
-    private ObjectDefinition ParseObjectDefinition(int line)
+    private ObjectDefinition ParseObjectDefinition(int line, int col)
     {
         Consume(TokenType.Object);
         SkipNoise();
@@ -192,12 +194,12 @@ public sealed class Parser
             Consume(TokenType.Dot);
         }
 
-        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, getters, setters, embeddedTypeName, conformedInterfaces, line);
+        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, getters, setters, embeddedTypeName, conformedInterfaces, line, col);
     }
 
     // Define <name> as an interface for { <method-sigs> } / single method without {}
     // Called after consuming "Define <name> as an" and seeing the Interface token.
-    private InterfaceDefinition ParseInterfaceDefinitionBody(string name, int line)
+    private InterfaceDefinition ParseInterfaceDefinitionBody(string name, int line, int col)
     {
         Consume(TokenType.Interface); SkipNoise();
         Consume(TokenType.For);      SkipNoise();
@@ -226,7 +228,7 @@ public sealed class Parser
 
         SkipNoise();
         Consume(TokenType.Dot);
-        return new InterfaceDefinition(name, methods, line);
+        return new InterfaceDefinition(name, methods, line, col);
     }
 
     // Parses one interface method signature:
@@ -327,7 +329,7 @@ public sealed class Parser
             }
             Consume(TokenType.RParen);
         }
-        return new SeriesLiteral(elements, annotation, seriesTok.Line);
+        return new SeriesLiteral(elements, annotation, seriesTok.Line, seriesTok.Column);
     }
 
     // Parses the element-type annotation after "of":
@@ -546,25 +548,26 @@ public sealed class Parser
         var tok  = Consume(TokenType.Identifier);
         var name = tok.Lexeme;
         var line = tok.Line;
+        var col = tok.Column;
         SkipNoise();
         if (Peek().Type == TokenType.Possessive)
-            return ParsePossessiveSetStatement(new VariableReference(name, line));
+            return ParsePossessiveSetStatement(new VariableReference(name, line, col));
         if (Peek().Type == TokenType.Equal)
-            throw new ParseException(line,
+            throw new ParseException(line, col,
                 $"'=' is comparison, not assignment. Did you mean '{name} becomes ...' (update) or 'Define {name} as ...' (introduce)?");
         Consume(TokenType.Becomes);
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new BecomesStatement(name, value, line);
+        return new BecomesStatement(name, value, line, col);
     }
 
     private IStatement ParseOneStatement()
     {
         var tok = Consume(TokenType.One);
         SkipNoise();
-        return ParsePossessiveSetStatement(new VariableReference("one", tok.Line));
+        return ParsePossessiveSetStatement(new VariableReference("one", tok.Line, tok.Column));
     }
 
     private PossessiveSetStatement ParsePossessiveSetStatement(IExpression baseExpr)
@@ -573,13 +576,14 @@ public sealed class Parser
         SkipNoise();
         var memberTok = Advance(); // field name — any word token
         var line = possTok.Line;
+        var col = possTok.Column;
         SkipNoise();
         Consume(TokenType.Becomes);
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new PossessiveSetStatement(baseExpr, memberTok.Lexeme, value, line);
+        return new PossessiveSetStatement(baseExpr, memberTok.Lexeme, value, line, col);
     }
 
     private IfStatement ParseIfStatement()
@@ -756,7 +760,7 @@ public sealed class Parser
             var consumerBody = ParseLoopBody();
             _nestDepth--;
             _loopDepth--;
-            return new ForEachFromInputStatement(iterName ?? "it", consumerBody, forTok.Line);
+            return new ForEachFromInputStatement(iterName ?? "it", consumerBody, forTok.Line, forTok.Column);
         }
 
         Consume(TokenType.In);
@@ -773,7 +777,7 @@ public sealed class Parser
         var body = ParseLoopBody();
         _nestDepth--;
         _loopDepth--;
-        return new ForEachStatement(iterName, seriesExpr, body, forTok.Line);
+        return new ForEachStatement(iterName, seriesExpr, body, forTok.Line, forTok.Column);
     }
 
     // ── Pipe statement ────────────────────────────────────────────────────
@@ -784,15 +788,19 @@ public sealed class Parser
     // wrappers are intentionally excluded (they belong to the outer context).
     private IStatement ParsePipeStatement()
     {
-        int line = Peek().Line;
+        var lineTok = Peek();
+        int line = lineTok.Line;
+        int col = lineTok.Column;
         IExpression left = ParsePipeOperand();
         if (Peek().Type != TokenType.Pipe)
             throw new ParseException(Peek(), "'|' — 'run' at statement level must be piped ('run X | run Y.'); use a Try block or expression context for standalone process execution");
         while (Peek().Type == TokenType.Pipe)
         {
-            int pipeLine = Advance().Line; // consume '|'
+            var pipeLineTok = Advance(); // consume '|'
+            int pipeLine = pipeLineTok.Line;
+            int pipeCol = pipeLineTok.Column;
             SkipNoise();
-            left = new PipeExpression(left, ParsePipeOperand(), pipeLine);
+            left = new PipeExpression(left, ParsePipeOperand(), pipeLine, pipeCol);
         }
         SkipNoise();
         Consume(TokenType.Dot);
@@ -827,23 +835,25 @@ public sealed class Parser
     // 'output <value>.' — producer emits a value to its implicit output stream.
     private OutputStatement ParseOutputStatement()
     {
-        int line = Advance().Line; // consume 'output' identifier
+        var lineTok = Advance(); // consume 'output' identifier
+        int line = lineTok.Line;
+        int col = lineTok.Column;
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new OutputStatement(value, line);
+        return new OutputStatement(value, line, col);
     }
 
     // ── Series operations ─────────────────────────────────────────────────
 
     // Parses "ORDINAL 'of' SERIES-EXPR" or "'item' expr 'of' SERIES-EXPR".
-    // Returns (series, index, line) where index==null means "last element".
+    // Returns (series, index, line, col) where index==null means "last element".
     // ParseCorePrimary is used for the series target (not ParsePostfix) so that
     // 'item i of my-series converted to text' binds as TextConvert(SeriesAccess(...))
     // rather than SeriesAccess(TextConvert(my-series), ...). Possessive access
     // ('one's cards', 'alice's cards') is handled inside ParseCorePrimary.
-    private (IExpression series, IExpression? index, int line) ParseAccessTarget()
+    private (IExpression series, IExpression? index, int line, int col) ParseAccessTarget()
     {
         if (IsOrdinalIdentifier(Peek()))
         {
@@ -853,7 +863,7 @@ public sealed class Parser
             Consume(TokenType.Of);
             SkipNoise();
             var series = ParseCorePrimary();
-            return (series, index, ordTok.Line);
+            return (series, index, ordTok.Line, ordTok.Column);
         }
         else
         {
@@ -864,7 +874,7 @@ public sealed class Parser
             Consume(TokenType.Of);
             SkipNoise();
             var series = ParseCorePrimary();
-            return (series, idx, itemTok.Line);
+            return (series, idx, itemTok.Line, itemTok.Column);
         }
     }
 
@@ -915,6 +925,7 @@ public sealed class Parser
         Consume(TokenType.Article); // 'the'
         var fieldTok = Advance();   // field name immediately follows
         var line = fieldTok.Line;
+        var col = fieldTok.Column;
         SkipNoise();
         Consume(TokenType.Of);
         SkipNoise();
@@ -925,7 +936,7 @@ public sealed class Parser
         var value = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new RecordNamedSetStatement(fieldTok.Lexeme, record, value, line);
+        return new RecordNamedSetStatement(fieldTok.Lexeme, record, value, line, col);
     }
 
     // True when the statement starting here is 'current directory becomes ...'. Checked by lexeme
@@ -942,7 +953,9 @@ public sealed class Parser
     // the path may not exist, may not be a directory, or may not be reachable.
     private CurrentDirectorySetStatement ParseCurrentDirectorySetStatement()
     {
-        var line = Advance().Line;   // consume 'current'
+        var lineTok = Advance();   // consume 'current'
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();
         Consume(TokenType.DirectoryKw);
         SkipNoise();
@@ -951,25 +964,26 @@ public sealed class Parser
         var path = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new CurrentDirectorySetStatement(path, line);
+        return new CurrentDirectorySetStatement(path, line, col);
     }
 
     private SeriesSetStatement ParseSeriesSetStatement()
     {
-        var (series, idx, line) = ParseAccessTarget();
+        var (series, idx, line, col) = ParseAccessTarget();
         SkipNoise();
         Consume(TokenType.Becomes);
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new SeriesSetStatement(series, idx, value, line);
+        return new SeriesSetStatement(series, idx, value, line, col);
     }
 
     private SeriesAddStatement ParseSeriesAddStatement()
     {
         var addTok = Consume(TokenType.Add);
         int line = addTok.Line;
+        int col = addTok.Column;
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
@@ -987,14 +1001,14 @@ public sealed class Parser
                 var seriesExpr = ParseCorePrimary();
                 SkipNoise();
                 Consume(TokenType.Dot);
-                return new SeriesAddStatement(value, seriesExpr, null, true, line);
+                return new SeriesAddStatement(value, seriesExpr, null, true, line, col);
             }
             else
             {
                 var seriesExpr = ParseCorePrimary();
                 SkipNoise();
                 Consume(TokenType.Dot);
-                return new SeriesAddStatement(value, seriesExpr, null, false, line);
+                return new SeriesAddStatement(value, seriesExpr, null, false, line, col);
             }
         }
         else
@@ -1020,7 +1034,7 @@ public sealed class Parser
             var seriesExpr = ParseCorePrimary();
             SkipNoise();
             Consume(TokenType.Dot);
-            return new SeriesAddStatement(value, seriesExpr, afterIdx, false, line);
+            return new SeriesAddStatement(value, seriesExpr, afterIdx, false, line, col);
         }
     }
 
@@ -1028,6 +1042,7 @@ public sealed class Parser
     {
         var removeTok = Consume(TokenType.Remove);
         int line = removeTok.Line;
+        int col = removeTok.Column;
         SkipNoise();
 
         if (IsOrdinalIdentifier(Peek()))
@@ -1041,7 +1056,7 @@ public sealed class Parser
             var seriesExpr = ParseCorePrimary();
             SkipNoise();
             Consume(TokenType.Dot);
-            return new SeriesRemoveAtStatement(seriesExpr, idx, line);
+            return new SeriesRemoveAtStatement(seriesExpr, idx, line, col);
         }
         else if (Peek().Type == TokenType.Item)
         {
@@ -1054,7 +1069,7 @@ public sealed class Parser
             var seriesExpr = ParseCorePrimary();
             SkipNoise();
             Consume(TokenType.Dot);
-            return new SeriesRemoveAtStatement(seriesExpr, idx, line);
+            return new SeriesRemoveAtStatement(seriesExpr, idx, line, col);
         }
         else
         {
@@ -1065,7 +1080,7 @@ public sealed class Parser
             var seriesExpr = ParseCorePrimary();
             SkipNoise();
             Consume(TokenType.Dot);
-            return new SeriesRemoveValueStatement(seriesExpr, val, line);
+            return new SeriesRemoveValueStatement(seriesExpr, val, line, col);
         }
     }
 
@@ -1074,7 +1089,9 @@ public sealed class Parser
     // "in <map>, the entry for <key> becomes <value>."
     private IStatement ParseMapSetStatement()
     {
-        var line = Consume(TokenType.In).Line;
+        var lineTok = Consume(TokenType.In);
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();
         var mapExpr = ParsePostfix();
         SkipNoise();
@@ -1091,7 +1108,7 @@ public sealed class Parser
         var valueExpr = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new MapSetStatement(mapExpr, keyExpr, valueExpr, line);
+        return new MapSetStatement(mapExpr, keyExpr, valueExpr, line, col);
     }
 
     // write <text> to the file "<path>"   — overwrite (creates if absent)
@@ -1099,7 +1116,9 @@ public sealed class Parser
     // "write <value> to ..." — dispatches to file-write or stream-write based on what follows 'to'.
     private IStatement ParseWriteStatement()
     {
-        var line = Advance().Line; // consume 'write'
+        var lineTok = Advance(); // consume 'write'
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
@@ -1112,19 +1131,21 @@ public sealed class Parser
             var path = ParseExprOr();
             SkipNoise();
             Consume(TokenType.Dot);
-            return new FileWriteStatement(Append: false, value, path, line);
+            return new FileWriteStatement(Append: false, value, path, line, col);
         }
         // Stream write — 'to <stream-expr>'
         var streamExpr = ParseExprOr();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new WriteToStreamStatement(value, streamExpr, line);
+        return new WriteToStreamStatement(value, streamExpr, line, col);
     }
 
     // "append <value> to the file ..." — file-only (streams are always written with 'write').
     private FileWriteStatement ParseFileWriteStatement()
     {
-        var line = Advance().Line; // consume 'append'
+        var lineTok = Advance(); // consume 'append'
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
@@ -1138,14 +1159,16 @@ public sealed class Parser
         var path = ParseExprOr();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new FileWriteStatement(Append: true, value, path, line);
+        return new FileWriteStatement(Append: true, value, path, line, col);
     }
 
     // "With the file "<path>" open for reading/writing as <name>: ... Done."
     // Safe-by-construction lifecycle: stream is opened, bound, and automatically closed at block-exit.
     private WithOpenStatement ParseWithOpenStatement()
     {
-        var line = Advance().Line; // consume 'With'
+        var lineTok = Advance(); // consume 'With'
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();               // eats 'the'
         Consume(TokenType.File);
         SkipNoise();
@@ -1182,7 +1205,7 @@ public sealed class Parser
         _nestDepth++;
         var body = ParseLoopBody(); // consumes Done.
         _nestDepth--;
-        return new WithOpenStatement(mode, pathExpr, bindingName, body, line);
+        return new WithOpenStatement(mode, pathExpr, bindingName, body, line, col);
     }
 
     // Pull a rabbit [as <name>]. ... Done.
@@ -1191,7 +1214,9 @@ public sealed class Parser
     // All forms open a Done.-delimited scope; the pulled thing(s) are live until Done.
     private IStatement ParsePullStatement()
     {
-        var line = Consume(TokenType.Pull).Line; // consume 'Pull'
+        var lineTok = Consume(TokenType.Pull); // consume 'Pull'
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();                             // eats 'a' (singular forms); no-op for 'books'
 
         if (Peek().Type == TokenType.Rabbit)
@@ -1210,7 +1235,7 @@ public sealed class Parser
             _rabbitDepth++;
             var body = ParsePullBody(); // consumes Done.
             _rabbitDepth--;
-            return new PullRabbitStatement(name, body, line);
+            return new PullRabbitStatement(name, body, line, col);
         }
 
         if (Peek().Type == TokenType.Books)
@@ -1233,7 +1258,7 @@ public sealed class Parser
             }
             Consume(TokenType.Dot);
             var pluralBody = ParsePullBody();
-            return new PullStatement(books, pluralBody, line);
+            return new PullStatement(books, pluralBody, line, col);
         }
 
         // Singular: Pull a book on <name> [as <local>]. ... Done.
@@ -1244,7 +1269,7 @@ public sealed class Parser
         var entry = ParsePullBookEntry();
         Consume(TokenType.Dot);
         var bookBody = ParsePullBody(); // consumes Done.
-        return new PullStatement([entry], bookBody, line);
+        return new PullStatement([entry], bookBody, line, col);
     }
 
     // Parses one book entry in a Pull statement: <name> [as <local>]
@@ -1273,7 +1298,9 @@ public sealed class Parser
         if (_rabbitDepth == 0)
             throw new ParseException(tok,
                 "'Have rabbit start a task' requires an active rabbit — wrap it in 'Pull a rabbit. ... Done.'");
-        var line = Consume(TokenType.HaveKw).Line;
+        var lineTok = Consume(TokenType.HaveKw);
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         Consume(TokenType.Rabbit);
         Consume(TokenType.Start);
         SkipNoise();                // eats 'a'
@@ -1291,7 +1318,7 @@ public sealed class Parser
         _functionDepth++;
         var body = ParsePullBody(); // consumes Done.
         _functionDepth--;
-        return new LaunchTaskStatement(name, body, line);
+        return new LaunchTaskStatement(name, body, line, col);
     }
 
     // Body parser for Pull...Done. scopes. Allows zero statements (unlike ParseLoopBody).
@@ -1360,10 +1387,12 @@ public sealed class Parser
         var left = ParseLogicalXor();
         while (Peek().Type == TokenType.Or)
         {
-            var line = Advance().Line;
+            var lineTok = Advance();
+            var line = lineTok.Line;
+            var col = lineTok.Column;
             SkipNoise();
             var right = ParseLogicalXor();
-            left = new BinaryExpression(left, TokenType.Or, right, line);
+            left = new BinaryExpression(left, TokenType.Or, right, line, col);
         }
         return left;
     }
@@ -1375,10 +1404,12 @@ public sealed class Parser
         var left = ParseLogicalAnd();
         while (Peek().Type == TokenType.Xor)
         {
-            var line = Advance().Line;
+            var lineTok = Advance();
+            var line = lineTok.Line;
+            var col = lineTok.Column;
             SkipNoise();
             var right = ParseLogicalAnd();
-            left = new BinaryExpression(left, TokenType.Xor, right, line);
+            left = new BinaryExpression(left, TokenType.Xor, right, line, col);
         }
         return left;
     }
@@ -1388,10 +1419,12 @@ public sealed class Parser
         var left = ParseCondNot();
         while (Peek().Type == TokenType.And)
         {
-            var line = Advance().Line;
+            var lineTok = Advance();
+            var line = lineTok.Line;
+            var col = lineTok.Column;
             SkipNoise();
             var right = ParseCondNot();
-            left = new BinaryExpression(left, TokenType.And, right, line);
+            left = new BinaryExpression(left, TokenType.And, right, line, col);
         }
         return left;
     }
@@ -1400,9 +1433,11 @@ public sealed class Parser
     {
         if (Peek().Type == TokenType.Not)
         {
-            var line = Advance().Line;
+            var lineTok = Advance();
+            var line = lineTok.Line;
+            var col = lineTok.Column;
             SkipNoise();
-            return new UnaryExpression(TokenType.Not, ParseCondNot(), line);
+            return new UnaryExpression(TokenType.Not, ParseCondNot(), line, col);
         }
         return ParseSingleCondition();
     }
@@ -1419,34 +1454,38 @@ public sealed class Parser
         {
             var opTok = Advance();
             SkipNoise();
-            return new BinaryExpression(left, opTok.Type, ParseJoinedTo(), opTok.Line);
+            return new BinaryExpression(left, opTok.Type, ParseJoinedTo(), opTok.Line, opTok.Column);
         }
         if (Peek().Type != TokenType.Is) return left;
-        var isLine = Consume(TokenType.Is).Line;
+        var isLineTok = Consume(TokenType.Is);
+        var isLine = isLineTok.Line;
+        var isCol = isLineTok.Column;
         // BEFORE SkipNoise: detect type-test forms that use the Article as a discriminator.
         if (Peek().Type == TokenType.Article) // "is a/an <type>"
         {
             Advance(); SkipNoise(); // consume the article
-            return new IsTypeCheck(left, ParseTypeAnnotation(), false, isLine);
+            return new IsTypeCheck(left, ParseTypeAnnotation(), false, isLine, isCol);
         }
         if (Peek().Type == TokenType.Not &&
             _pos + 1 < _tokens.Count && _tokens[_pos + 1].Type == TokenType.Article) // "is not a/an <type>"
         {
             Advance(); // consume 'not'
             Advance(); SkipNoise(); // consume the article
-            return new IsTypeCheck(left, ParseTypeAnnotation(), true, isLine);
+            return new IsTypeCheck(left, ParseTypeAnnotation(), true, isLine, isCol);
         }
         SkipNoise();
-        return ParseWordComparison(left, isLine);
+        return ParseWordComparison(left, isLine, isCol);
     }
 
-    private IExpression ParseWordComparison(IExpression left, int isLine)
+    private IExpression ParseWordComparison(IExpression left, int isLine, int isCol)
     {
         switch (Peek().Type)
         {
             case TokenType.Not:
             {
-                var line = Advance().Line; // consume 'not'
+                var lineTok = Advance(); // consume 'not'
+                var line = lineTok.Line;
+                var col = lineTok.Column;
                 SkipNoise();
                 // 'is not greater than' → <=
                 if (Peek().Type == TokenType.Greater)
@@ -1454,7 +1493,7 @@ public sealed class Parser
                     Advance(); SkipNoise(); // consume 'greater'
                     Consume(TokenType.Than);
                     SkipNoise();
-                    return new BinaryExpression(left, TokenType.Lte, ParseJoinedTo(), line);
+                    return new BinaryExpression(left, TokenType.Lte, ParseJoinedTo(), line, col);
                 }
                 // 'is not less than' → >=
                 if (Peek().Type == TokenType.Less)
@@ -1462,7 +1501,7 @@ public sealed class Parser
                     Advance(); SkipNoise(); // consume 'less'
                     Consume(TokenType.Than);
                     SkipNoise();
-                    return new BinaryExpression(left, TokenType.Gte, ParseJoinedTo(), line);
+                    return new BinaryExpression(left, TokenType.Gte, ParseJoinedTo(), line, col);
                 }
                 // 'is not equal to' — 'equal' is contextual (not a keyword; lexes as Identifier)
                 if (Peek().Type == TokenType.Identifier &&
@@ -1472,30 +1511,35 @@ public sealed class Parser
                     Advance(); // consume 'equal'
                     Advance(); // consume 'to'
                     SkipNoise();
-                    return new BinaryExpression(left, TokenType.NotEqual, ParseJoinedTo(), line);
+                    return new BinaryExpression(left, TokenType.NotEqual, ParseJoinedTo(), line, col);
                 }
                 // 'is not <value>' → !=
-                return new BinaryExpression(left, TokenType.NotEqual, ParseJoinedTo(), line);
+                return new BinaryExpression(left, TokenType.NotEqual, ParseJoinedTo(), line, col);
             }
             case TokenType.Greater:
             {
-                var line = Advance().Line;
+                var lineTok = Advance();
+                var line = lineTok.Line;
+                var col = lineTok.Column;
                 SkipNoise();
                 Consume(TokenType.Than);
                 SkipNoise();
-                return new BinaryExpression(left, TokenType.Gt, ParseJoinedTo(), line);
+                return new BinaryExpression(left, TokenType.Gt, ParseJoinedTo(), line, col);
             }
             case TokenType.Less:
             {
-                var line = Advance().Line;
+                var lineTok = Advance();
+                var line = lineTok.Line;
+                var col = lineTok.Column;
                 SkipNoise();
                 Consume(TokenType.Than);
                 SkipNoise();
-                return new BinaryExpression(left, TokenType.Lt, ParseJoinedTo(), line);
+                return new BinaryExpression(left, TokenType.Lt, ParseJoinedTo(), line, col);
             }
             case TokenType.More:
             {
-                throw new ParseException(Advance().Line,
+                var moreTok = Advance();
+                throw new ParseException(moreTok.Line, moreTok.Column,
                     "'is more than' isn't a comparison Cufet recognises — did you mean 'is greater than'? " +
                     "For example: 'While count is greater than 0, repeat:'.");
             }
@@ -1514,12 +1558,12 @@ public sealed class Parser
                     if (Peek().Type == TokenType.More)
                     {
                         Advance();
-                        return new BinaryExpression(left, TokenType.Gte, right, isLine);
+                        return new BinaryExpression(left, TokenType.Gte, right, isLine, isCol);
                     }
                     Advance(); // Less
-                    return new BinaryExpression(left, TokenType.Lte, right, isLine);
+                    return new BinaryExpression(left, TokenType.Lte, right, isLine, isCol);
                 }
-                return new BinaryExpression(left, TokenType.Equal, right, isLine);
+                return new BinaryExpression(left, TokenType.Equal, right, isLine, isCol);
             }
         }
     }
@@ -1545,7 +1589,9 @@ public sealed class Parser
 
         if (Peek().Type == TokenType.But)
         {
-            var line = Advance().Line; // consume 'but'
+            var lineTok = Advance(); // consume 'but'
+            var line = lineTok.Line;
+            var col = lineTok.Column;
             SkipNoise();
             if (Peek().Type == TokenType.On)
             {
@@ -1553,25 +1599,27 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.Failure);
                 SkipNoise();
-                return new FailureFallback(left, ParseExprOr(), line);
+                return new FailureFallback(left, ParseExprOr(), line, col);
             }
             Consume(TokenType.Void);
             SkipNoise();
             Consume(TokenType.Is);
             SkipNoise();
-            return new ButVoidDefault(left, ParseExprOr(), line);
+            return new ButVoidDefault(left, ParseExprOr(), line, col);
         }
 
         if (Peek().Type == TokenType.Or && PeekAfterCurrent() == TokenType.Pass)
         {
-            var line = Advance().Line; // consume 'or'
+            var lineTok = Advance(); // consume 'or'
+            var line = lineTok.Line;
+            var col = lineTok.Column;
             SkipNoise();
             Consume(TokenType.Pass);
             SkipNoise();        // eats 'the'
             Consume(TokenType.Failure);
             SkipNoise();
             Consume(TokenType.Off);
-            return new FailurePropagate(left, line);
+            return new FailurePropagate(left, line, col);
         }
 
         return left;
@@ -1586,9 +1634,11 @@ public sealed class Parser
         SkipNoise();
         while (Peek().Type == TokenType.Pipe)
         {
-            var pipeLine = Advance().Line; // consume '|'
+            var pipeLineTok = Advance(); // consume '|'
+            var pipeLine = pipeLineTok.Line;
+            var pipeCol = pipeLineTok.Column;
             SkipNoise();
-            left = new PipeExpression(left, ParseExprOr(), pipeLine);
+            left = new PipeExpression(left, ParseExprOr(), pipeLine, pipeCol);
             SkipNoise();
         }
         return left;
@@ -1599,9 +1649,11 @@ public sealed class Parser
         var left = ParseExprXor();
         while (Peek().Type == TokenType.Or && PeekAfterCurrent() != TokenType.Pass)
         {
-            var line = Advance().Line;
+            var lineTok = Advance();
+            var line = lineTok.Line;
+            var col = lineTok.Column;
             SkipNoise();
-            left = new BinaryExpression(left, TokenType.Or, ParseExprXor(), line);
+            left = new BinaryExpression(left, TokenType.Or, ParseExprXor(), line, col);
         }
         return left;
     }
@@ -1613,9 +1665,11 @@ public sealed class Parser
         var left = ParseExprAnd();
         while (Peek().Type == TokenType.Xor)
         {
-            var line = Advance().Line;
+            var lineTok = Advance();
+            var line = lineTok.Line;
+            var col = lineTok.Column;
             SkipNoise();
-            left = new BinaryExpression(left, TokenType.Xor, ParseExprAnd(), line);
+            left = new BinaryExpression(left, TokenType.Xor, ParseExprAnd(), line, col);
         }
         return left;
     }
@@ -1625,9 +1679,11 @@ public sealed class Parser
         var left = ParseExprNot();
         while (Peek().Type == TokenType.And)
         {
-            var line = Advance().Line;
+            var lineTok = Advance();
+            var line = lineTok.Line;
+            var col = lineTok.Column;
             SkipNoise();
-            left = new BinaryExpression(left, TokenType.And, ParseExprNot(), line);
+            left = new BinaryExpression(left, TokenType.And, ParseExprNot(), line, col);
         }
         return left;
     }
@@ -1636,9 +1692,11 @@ public sealed class Parser
     {
         if (Peek().Type == TokenType.Not)
         {
-            var line = Advance().Line;
+            var lineTok = Advance();
+            var line = lineTok.Line;
+            var col = lineTok.Column;
             SkipNoise();
-            return new UnaryExpression(TokenType.Not, ParseExprNot(), line);
+            return new UnaryExpression(TokenType.Not, ParseExprNot(), line, col);
         }
         return ParseComparison();
     }
@@ -1653,7 +1711,7 @@ public sealed class Parser
         {
             var opTok = Advance();
             SkipNoise();
-            left = new BinaryExpression(left, opTok.Type, ParseJoinedTo(), opTok.Line);
+            left = new BinaryExpression(left, opTok.Type, ParseJoinedTo(), opTok.Line, opTok.Column);
         }
 
         // Word-form comparisons in expression position: "is" / "is not" / "is greater than" /
@@ -1661,20 +1719,22 @@ public sealed class Parser
         // Same operations as the condition-form equivalents — both produce a boolean.
         if (Peek().Type == TokenType.Is)
         {
-            var isLine = Consume(TokenType.Is).Line;
+            var isLineTok = Consume(TokenType.Is);
+            var isLine = isLineTok.Line;
+            var isCol = isLineTok.Column;
             if (Peek().Type == TokenType.Article) // "is a/an <type>"
             {
                 Advance(); SkipNoise();
-                return new IsTypeCheck(left, ParseTypeAnnotation(), false, isLine);
+                return new IsTypeCheck(left, ParseTypeAnnotation(), false, isLine, isCol);
             }
             if (Peek().Type == TokenType.Not &&
                 _pos + 1 < _tokens.Count && _tokens[_pos + 1].Type == TokenType.Article)
             {
                 Advance(); Advance(); SkipNoise(); // consume 'not', then the article
-                return new IsTypeCheck(left, ParseTypeAnnotation(), true, isLine);
+                return new IsTypeCheck(left, ParseTypeAnnotation(), true, isLine, isCol);
             }
             SkipNoise();
-            return ParseWordComparison(left, isLine);
+            return ParseWordComparison(left, isLine, isCol);
         }
 
         return left;
@@ -1688,7 +1748,9 @@ public sealed class Parser
         var left = ParseSplitBy();
         SkipNoise();
         if (Peek().Type != TokenType.Has) return left;
-        var line = Advance().Line; // consume 'has'
+        var lineTok = Advance(); // consume 'has'
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise(); // eats 'a' or 'an' article
         bool isEntry = Peek().Type == TokenType.Entry;
         bool isKey   = Peek().Type == TokenType.Key;
@@ -1700,8 +1762,8 @@ public sealed class Parser
         SkipNoise();
         var keyExpr = ParseAddition();
         return isEntry
-            ? (IExpression)new MapHasEntry(left, keyExpr, line)
-            : new MapHasKey(left, keyExpr, line);
+            ? (IExpression)new MapHasEntry(left, keyExpr, line, col)
+            : new MapHasKey(left, keyExpr, line, col);
     }
 
     // '<text> split by <delimiter>' — series of text. Sits between ParseHasCheck and
@@ -1712,12 +1774,14 @@ public sealed class Parser
         var left = ParseTextContains();
         SkipNoise();
         if (Peek().Type != TokenType.Split) return left;
-        var line = Advance().Line; // consume 'split'
+        var lineTok = Advance(); // consume 'split'
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();
         Consume(TokenType.By);
         SkipNoise();
         var delimiter = ParseAddition();
-        return new TextSplit(left, delimiter, line);
+        return new TextSplit(left, delimiter, line, col);
     }
 
     // '<text> contains <substring>' — fact. Sits just above ParseAddition.
@@ -1726,10 +1790,12 @@ public sealed class Parser
         var left = ParseAddition();
         SkipNoise();
         if (Peek().Type != TokenType.Contains) return left;
-        var line = Advance().Line; // consume 'contains'
+        var lineTok = Advance(); // consume 'contains'
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();
         var substring = ParseAddition();
-        return new TextContains(left, substring, line);
+        return new TextContains(left, substring, line, col);
     }
 
     // '<text> joined to <text>' — left-associative text concatenation.
@@ -1741,11 +1807,13 @@ public sealed class Parser
         SkipNoise();
         while (Peek().Type == TokenType.Joined)
         {
-            var line = Advance().Line; // consume 'joined'
+            var lineTok = Advance(); // consume 'joined'
+            var line = lineTok.Line;
+            var col = lineTok.Column;
             SkipNoise();
             Consume(TokenType.To);
             SkipNoise();
-            left = new TextJoin(left, ParseAddition(), line);
+            left = new TextJoin(left, ParseAddition(), line, col);
             SkipNoise();
         }
         return left;
@@ -1758,7 +1826,7 @@ public sealed class Parser
         {
             var opTok = Advance();
             SkipNoise();
-            left = new BinaryExpression(left, opTok.Type, ParseMultiplication(), opTok.Line);
+            left = new BinaryExpression(left, opTok.Type, ParseMultiplication(), opTok.Line, opTok.Column);
         }
         return left;
     }
@@ -1770,7 +1838,7 @@ public sealed class Parser
         {
             var opTok = Advance();
             SkipNoise();
-            left = new BinaryExpression(left, opTok.Type, ParseUnary(), opTok.Line);
+            left = new BinaryExpression(left, opTok.Type, ParseUnary(), opTok.Line, opTok.Column);
         }
         return left;
     }
@@ -1779,8 +1847,10 @@ public sealed class Parser
     {
         if (Peek().Type == TokenType.Minus)
         {
-            var line = Advance().Line;
-            return new UnaryExpression(TokenType.Minus, ParseUnary(), line);
+            var lineTok = Advance();
+            var line = lineTok.Line;
+            var col = lineTok.Column;
+            return new UnaryExpression(TokenType.Minus, ParseUnary(), line, col);
         }
         return ParsePostfix();
     }
@@ -1799,7 +1869,9 @@ public sealed class Parser
         // "95" converted to number.
         while (Peek().Type == TokenType.Converted)
         {
-            var line = Advance().Line; // consume 'converted'
+            var lineTok = Advance(); // consume 'converted'
+            var line = lineTok.Line;
+            var col = lineTok.Column;
             SkipNoise();
             Consume(TokenType.To);
             SkipNoise();
@@ -1807,13 +1879,13 @@ public sealed class Parser
             if (targetTok.Type == TokenType.NumberKw)
             {
                 Advance(); // consume 'number'
-                baseExpr = new NumberConvert(baseExpr, line);
+                baseExpr = new NumberConvert(baseExpr, line, col);
             }
             else if (targetTok.Type == TokenType.Identifier &&
                      targetTok.Lexeme.Equals("text", StringComparison.OrdinalIgnoreCase))
             {
                 Advance(); // consume 'text'
-                baseExpr = new TextConvert(baseExpr, line);
+                baseExpr = new TextConvert(baseExpr, line, col);
             }
             // 'converted to hex/binary/octal' crosses from a quantity to a bit pattern. The base
             // names are contextual, like 'text' — recognised here and ordinary identifiers
@@ -1822,7 +1894,7 @@ public sealed class Parser
                      && BitsBaseFor(targetTok.Lexeme) is { } toBase)
             {
                 Advance(); // consume 'hex' / 'binary' / 'octal'
-                baseExpr = new BitsConvert(baseExpr, toBase, line);
+                baseExpr = new BitsConvert(baseExpr, toBase, line, col);
             }
             else
             {
@@ -1850,7 +1922,9 @@ public sealed class Parser
         {
             if (Peek().Type == TokenType.Shifted)
             {
-                var line = Advance().Line;   // consume 'shifted'
+                var lineTok = Advance();   // consume 'shifted'
+                var line = lineTok.Line;
+                var col = lineTok.Column;
                 SkipNoise();
                 // 'left' and 'right' are ordinary identifiers everywhere else — matched here by
                 // lexeme so that 'the left of node' keeps working.
@@ -1860,7 +1934,7 @@ public sealed class Parser
                 bool right = dir.Type == TokenType.Identifier
                              && dir.Lexeme.Equals("right", StringComparison.OrdinalIgnoreCase);
                 if (!left && !right)
-                    throw new ParseException(dir.Line, "expected 'left' or 'right' after 'shifted'");
+                    throw new ParseException(dir.Line, dir.Column, "expected 'left' or 'right' after 'shifted'");
                 Advance();                   // consume the direction
                 SkipNoise();
                 Consume(TokenType.By);
@@ -1869,13 +1943,15 @@ public sealed class Parser
                 // '(x shifted left by 2) + 1', matching how the other trailing transforms bind,
                 // but 'by -1' reaches the amount check and gets told what is wrong with it
                 // instead of dying as "expected expression, got Minus".
-                baseExpr = new BitsShift(baseExpr, left, ParseUnary(), line);
+                baseExpr = new BitsShift(baseExpr, left, ParseUnary(), line, col);
                 SkipNoise();
                 continue;
             }
             if (Peek().Type == TokenType.Sorted)
             {
-                var line = Advance().Line; // consume 'sorted'
+                var lineTok = Advance(); // consume 'sorted'
+                var line = lineTok.Line;
+                var col = lineTok.Column;
                 SkipNoise();
                 string? byField = null;
                 if (Peek().Type == TokenType.By)
@@ -1894,20 +1970,24 @@ public sealed class Parser
                     reverse = true;
                     SkipNoise();
                 }
-                baseExpr = new SortExpression(baseExpr, byField, reverse, line);
+                baseExpr = new SortExpression(baseExpr, byField, reverse, line, col);
             }
             else if (Peek().Type == TokenType.Trimmed)
             {
-                var line = Advance().Line; // consume 'trimmed'
-                baseExpr = new TextTrim(baseExpr, line);
+                var lineTok = Advance(); // consume 'trimmed'
+                var line = lineTok.Line;
+                var col = lineTok.Column;
+                baseExpr = new TextTrim(baseExpr, line, col);
             }
             else
             {
-                var line = Advance().Line; // consume 'in'
+                var lineTok = Advance(); // consume 'in'
+                var line = lineTok.Line;
+                var col = lineTok.Column;
                 SkipNoise();
                 bool toUpper = Peek().Type == TokenType.Uppercase;
                 Advance(); // consume 'uppercase'/'lowercase'
-                baseExpr = new TextCase(baseExpr, toUpper, line);
+                baseExpr = new TextCase(baseExpr, toUpper, line, col);
             }
             SkipNoise();
         }
@@ -1922,8 +2002,10 @@ public sealed class Parser
     {
         if (Peek().Type == TokenType.Minus)
         {
-            var line = Advance().Line;
-            return new UnaryExpression(TokenType.Minus, ParseCorePrimary(), line);
+            var lineTok = Advance();
+            var line = lineTok.Line;
+            var col = lineTok.Column;
+            return new UnaryExpression(TokenType.Minus, ParseCorePrimary(), line, col);
         }
         return ParseCorePrimary();
     }
@@ -1945,7 +2027,7 @@ public sealed class Parser
             SkipNoise();
             Advance(); // consume 'of'
             SkipNoise();
-            return new RecordNamedAccess(identTok.Lexeme, ParseCorePrimary(), identTok.Line);
+            return new RecordNamedAccess(identTok.Lexeme, ParseCorePrimary(), identTok.Line, identTok.Column);
         }
 
         SkipNoise(); // articles are noise before any value
@@ -1988,7 +2070,7 @@ public sealed class Parser
                         SkipNoise();
                         var textTarget = ParseCorePrimary();
                         bool fromStart = idTok.Lexeme.Equals("first", StringComparison.OrdinalIgnoreCase);
-                        baseExpr = new TextSubstringEdge(textTarget, count, fromStart, idTok.Line);
+                        baseExpr = new TextSubstringEdge(textTarget, count, fromStart, idTok.Line, idTok.Column);
                         break;
                     }
                     if (Peek().Type == TokenType.Of)
@@ -1998,24 +2080,24 @@ public sealed class Parser
                         Consume(TokenType.Of);
                         SkipNoise();
                         var target = ParseCorePrimary();
-                        baseExpr = new SeriesAccess(target, index, idTok.Line);
+                        baseExpr = new SeriesAccess(target, index, idTok.Line, idTok.Column);
                         break;
                     }
                     // Ordinal word not in accessor shape → plain variable reference.
                 }
-                baseExpr = new VariableReference(idTok.Lexeme, idTok.Line);
+                baseExpr = new VariableReference(idTok.Lexeme, idTok.Line, idTok.Column);
                 break;
             }
             case TokenType.It:
             {
                 var t = Advance();
-                baseExpr = new VariableReference("it", t.Line);
+                baseExpr = new VariableReference("it", t.Line, t.Column);
                 break;
             }
             case TokenType.One:
             {
                 var t = Advance();
-                baseExpr = new VariableReference("one", t.Line);
+                baseExpr = new VariableReference("one", t.Line, t.Column);
                 break;
             }
             case TokenType.LParen:
@@ -2042,7 +2124,7 @@ public sealed class Parser
                     Consume(TokenType.RParen); SkipNoise();
                     Consume(TokenType.Of); SkipNoise();
                     var matTarget = ParseCorePrimary();
-                    baseExpr = new MatrixAccess(matTarget, row, col, itemTok.Line);
+                    baseExpr = new MatrixAccess(matTarget, row, col, itemTok.Line, itemTok.Column);
                 }
                 else if (LooksLikeIndexExprStart())
                 {
@@ -2053,19 +2135,21 @@ public sealed class Parser
                     Consume(TokenType.Of);
                     SkipNoise();
                     var target = ParseCorePrimary();
-                    baseExpr = new SeriesAccess(target, idx, itemTok.Line);
+                    baseExpr = new SeriesAccess(target, idx, itemTok.Line, itemTok.Column);
                 }
                 else
                 {
                     // Plain variable reference — 'item' used as an iterator name, e.g.
                     // 'for each item from the input:' or 'for each item in series:'.
-                    baseExpr = new VariableReference("item", itemTok.Line);
+                    baseExpr = new VariableReference("item", itemTok.Line, itemTok.Column);
                 }
                 break;
             }
             case TokenType.Matrix:
             {
-                var matrixLine = Advance().Line; // consume 'matrix'
+                var matrixLineTok = Advance(); // consume 'matrix'
+                var matrixLine = matrixLineTok.Line;
+                var matrixCol = matrixLineTok.Column;
                 SkipNoise();
                 Consume(TokenType.With);
                 SkipNoise();
@@ -2087,7 +2171,7 @@ public sealed class Parser
                         }
                     }
                     Consume(TokenType.RParen);
-                    baseExpr = new MatrixLiteral(rows, matrixLine);
+                    baseExpr = new MatrixLiteral(rows, matrixLine, matrixCol);
                 }
                 else
                 {
@@ -2107,7 +2191,7 @@ public sealed class Parser
                         SkipNoise();
                         fillExpr = ParseExpression();
                     }
-                    baseExpr = new MatrixSized(rowsExpr, colsExpr, fillExpr, matrixLine);
+                    baseExpr = new MatrixSized(rowsExpr, colsExpr, fillExpr, matrixLine, matrixCol);
                 }
                 break;
             }
@@ -2117,7 +2201,9 @@ public sealed class Parser
                 // 'a random item from <series>'          — voidable random element
                 // 'a random guess'                       — fact (coin flip)
                 // The leading article 'a' is already consumed by SkipNoise above.
-                var randomLine = Advance().Line; // consume 'random'
+                var randomLineTok = Advance(); // consume 'random'
+                var randomLine = randomLineTok.Line;
+                var randomCol = randomLineTok.Column;
                 SkipNoise();
                 if (Peek().Type == TokenType.NumberKw)
                 {
@@ -2130,7 +2216,7 @@ public sealed class Parser
                     Consume(TokenType.To);
                     SkipNoise();
                     var high = ParseAddition();
-                    baseExpr = new RandomNumber(low, high, randomLine);
+                    baseExpr = new RandomNumber(low, high, randomLine, randomCol);
                 }
                 else if (Peek().Type == TokenType.Item)
                 {
@@ -2140,12 +2226,12 @@ public sealed class Parser
                     SkipNoise();
                     // ParseCorePrimary so postfix ops like 'converted to text' bind to the
                     // outer RandomItem, not to the series target.
-                    baseExpr = new RandomItem(ParseCorePrimary(), randomLine);
+                    baseExpr = new RandomItem(ParseCorePrimary(), randomLine, randomCol);
                 }
                 else if (IsWord("guess"))
                 {
                     Advance(); // consume 'guess'
-                    baseExpr = new RandomGuess(randomLine);
+                    baseExpr = new RandomGuess(randomLine, randomCol);
                 }
                 else
                 {
@@ -2156,36 +2242,44 @@ public sealed class Parser
             case TokenType.Randomly:
             {
                 // 'randomly shuffled <series>' — non-mutating shuffle; returns new series of same type.
-                var randomlyLine = Advance().Line; // consume 'randomly'
+                var randomlyLineTok = Advance(); // consume 'randomly'
+                var randomlyLine = randomlyLineTok.Line;
+                var randomlyCol = randomlyLineTok.Column;
                 SkipNoise();
                 ConsumeWord("shuffled");
                 SkipNoise();
                 // ParseCorePrimary so postfix ops bind to the outer RandomlyShuffled.
-                baseExpr = new RandomlyShuffled(ParseCorePrimary(), randomlyLine);
+                baseExpr = new RandomlyShuffled(ParseCorePrimary(), randomlyLine, randomlyCol);
                 break;
             }
             case TokenType.NumberKw:
             {
-                var numLine = Advance().Line;
+                var numLineTok = Advance();
+                var numLine = numLineTok.Line;
+                var numCol = numLineTok.Column;
                 SkipNoise();
                 Consume(TokenType.Of);
                 SkipNoise();
-                baseExpr = new SeriesLength(ParseCorePrimary(), numLine);
+                baseExpr = new SeriesLength(ParseCorePrimary(), numLine, numCol);
                 break;
             }
             case TokenType.LengthKw:
             {
-                var line = Advance().Line;
+                var lineTok = Advance();
+                var line = lineTok.Line;
+                var col = lineTok.Column;
                 SkipNoise();
                 Consume(TokenType.Of);
                 SkipNoise();
-                baseExpr = new TextLength(ParseCorePrimary(), line);
+                baseExpr = new TextLength(ParseCorePrimary(), line, col);
                 break;
             }
             case TokenType.Position:
             {
                 // 'the position of <substring> in <text>' — mirrors 'the entry for <key> in <map>'.
-                var posLine = Advance().Line; // consume 'position'
+                var posLineTok = Advance(); // consume 'position'
+                var posLine = posLineTok.Line;
+                var posCol = posLineTok.Column;
                 SkipNoise();
                 Consume(TokenType.Of);
                 SkipNoise();
@@ -2193,13 +2287,15 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.In);
                 SkipNoise();
-                baseExpr = new TextFind(substringExpr, ParseCorePrimary(), posLine);
+                baseExpr = new TextFind(substringExpr, ParseCorePrimary(), posLine, posCol);
                 break;
             }
             case TokenType.Characters:
             {
                 // 'the characters from <from> to <to> of <text>' / '... to the end of <text>'.
-                var charsLine = Advance().Line; // consume 'characters'
+                var charsLineTok = Advance(); // consume 'characters'
+                var charsLine = charsLineTok.Line;
+                var charsCol = charsLineTok.Column;
                 SkipNoise();
                 Consume(TokenType.From);
                 SkipNoise();
@@ -2230,13 +2326,15 @@ public sealed class Parser
                 Consume(TokenType.Of);
                 SkipNoise();
                 var textTarget = ParseCorePrimary();
-                baseExpr = new TextSubstringRange(textTarget, fromExpr, toExpr, charsLine);
+                baseExpr = new TextSubstringRange(textTarget, fromExpr, toExpr, charsLine, charsCol);
                 break;
             }
             case TokenType.Replace:
             {
                 // 'replace <old> with <new> in <text>' — replaces all occurrences.
-                var replaceLine = Advance().Line; // consume 'replace'
+                var replaceLineTok = Advance(); // consume 'replace'
+                var replaceLine = replaceLineTok.Line;
+                var replaceCol = replaceLineTok.Column;
                 SkipNoise();
                 var oldExpr = ParseAddition();
                 SkipNoise();
@@ -2246,12 +2344,14 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.In);
                 SkipNoise();
-                baseExpr = new TextReplace(ParseCorePrimary(), oldExpr, newExpr, replaceLine);
+                baseExpr = new TextReplace(ParseCorePrimary(), oldExpr, newExpr, replaceLine, replaceCol);
                 break;
             }
             case TokenType.Range:
             {
-                var line = Advance().Line; // consume 'range'
+                var lineTok = Advance(); // consume 'range'
+                var line = lineTok.Line;
+                var col = lineTok.Column;
                 SkipNoise();
                 var start = ParseExpression();
                 SkipNoise();
@@ -2268,25 +2368,31 @@ public sealed class Parser
                     SkipNoise();
                     step = ParseExpression();
                 }
-                baseExpr = new RangeExpression(start, end, step, line);
+                baseExpr = new RangeExpression(start, end, step, line, col);
                 break;
             }
             case TokenType.Void:
             {
-                var line = Advance().Line;
-                baseExpr = new VoidLiteral(line);
+                var lineTok = Advance();
+                var line = lineTok.Line;
+                var col = lineTok.Column;
+                baseExpr = new VoidLiteral(line, col);
                 break;
             }
             case TokenType.TrueKw:
             {
-                var line = Advance().Line;
-                baseExpr = new BooleanLiteral(true, line);
+                var lineTok = Advance();
+                var line = lineTok.Line;
+                var col = lineTok.Column;
+                baseExpr = new BooleanLiteral(true, line, col);
                 break;
             }
             case TokenType.FalseKw:
             {
-                var line = Advance().Line;
-                baseExpr = new BooleanLiteral(false, line);
+                var lineTok = Advance();
+                var line = lineTok.Line;
+                var col = lineTok.Column;
+                baseExpr = new BooleanLiteral(false, line, col);
                 break;
             }
             case TokenType.Failure:
@@ -2309,11 +2415,11 @@ public sealed class Parser
                         SkipNoise();
                         category = ParseExpression();
                     }
-                    baseExpr = new FailureLiteral(message, category, failTok.Line);
+                    baseExpr = new FailureLiteral(message, category, failTok.Line, failTok.Column);
                 }
                 else
                 {
-                    baseExpr = new VariableReference("the failure", failTok.Line);
+                    baseExpr = new VariableReference("the failure", failTok.Line, failTok.Column);
                 }
                 break;
             }
@@ -2322,7 +2428,7 @@ public sealed class Parser
                 // 'the exception' — 'the' is already stripped by SkipNoise.
                 // Only meaningful inside an 'In case of exception' handler block.
                 var exTok = Advance(); // consume 'exception'
-                baseExpr = new VariableReference("the exception", exTok.Line);
+                baseExpr = new VariableReference("the exception", exTok.Line, exTok.Column);
                 break;
             }
             case TokenType.Cast:
@@ -2336,7 +2442,9 @@ public sealed class Parser
                 break;
             case TokenType.New:
             {
-                var newLine = Advance().Line; // consume 'new'
+                var newLineTok = Advance(); // consume 'new'
+                var newLine = newLineTok.Line;
+                var newCol = newLineTok.Column;
                 SkipNoise();
                 // "a new TypeName { fields }" — object literal
                 var typeName = Consume(TokenType.Identifier).Lexeme;
@@ -2357,13 +2465,15 @@ public sealed class Parser
                     }
                 }
                 Consume(TokenType.RBrace);
-                baseExpr = new ObjectLiteral(typeName, positionals2, namedFields2, newLine);
+                baseExpr = new ObjectLiteral(typeName, positionals2, namedFields2, newLine, newCol);
                 break;
             }
             case TokenType.CatalogueKw:
             {
                 // "a catalogue [of (A or B)] [with (...)]" — heterogeneous series
-                var catLine = Advance().Line; // consume 'catalogue'
+                var catLineTok = Advance(); // consume 'catalogue'
+                var catLine = catLineTok.Line;
+                var catCol = catLineTok.Column;
                 SkipNoise();
                 CufetType? catAnnotation = null;
                 if (Peek().Type == TokenType.Of)
@@ -2389,13 +2499,15 @@ public sealed class Parser
                     }
                     Consume(TokenType.RParen);
                 }
-                baseExpr = new SeriesLiteral(catElems, catAnnotation, catLine);
+                baseExpr = new SeriesLiteral(catElems, catAnnotation, catLine, catCol);
                 break;
             }
             case TokenType.AtlasKw:
             {
                 // "an atlas [from K to (A or B)] [with ("k" : v, ...)]" — heterogeneous map
-                var atlasLine = Advance().Line; // consume 'atlas'
+                var atlasLineTok = Advance(); // consume 'atlas'
+                var atlasLine = atlasLineTok.Line;
+                var atlasCol = atlasLineTok.Column;
                 SkipNoise();
                 CufetType atlasKeyType;
                 CufetType atlasValType;
@@ -2436,7 +2548,7 @@ public sealed class Parser
                     }
                     Consume(TokenType.RParen);
                 }
-                baseExpr = new MapLiteral(atlasKeyType, atlasValType, atlasPairs, atlasLine);
+                baseExpr = new MapLiteral(atlasKeyType, atlasValType, atlasPairs, atlasLine, atlasCol);
                 break;
             }
             case TokenType.Map:
@@ -2444,7 +2556,9 @@ public sealed class Parser
                 // "a map [from K to V] with ("k" : v, ...)" — map literal
                 // Optional 'from K to V' gives an explicit key/value type annotation,
                 // enabling empty typed maps and typed populated maps.
-                var mapLine = Advance().Line; // consume 'map'
+                var mapLineTok = Advance(); // consume 'map'
+                var mapLine = mapLineTok.Line;
+                var mapCol = mapLineTok.Column;
                 SkipNoise();
                 CufetType? mapKeyType = null;
                 CufetType? mapValType = null;
@@ -2487,30 +2601,36 @@ public sealed class Parser
                     }
                     Consume(TokenType.RParen);
                 }
-                baseExpr = new MapLiteral(mapKeyType, mapValType, pairs, mapLine);
+                baseExpr = new MapLiteral(mapKeyType, mapValType, pairs, mapLine, mapCol);
                 break;
             }
             case TokenType.Channel:
             {
-                var chanLine = Advance().Line; // consume 'channel'
+                var chanLineTok = Advance(); // consume 'channel'
+                var chanLine = chanLineTok.Line;
+                var chanCol = chanLineTok.Column;
                 SkipNoise();
                 Consume(TokenType.Of); SkipNoise();
                 var elemType = ParseTypeAnnotation();
-                baseExpr = new ChannelCreation(elemType, chanLine);
+                baseExpr = new ChannelCreation(elemType, chanLine, chanCol);
                 break;
             }
             case TokenType.Delivery:
             {
-                var delLine = Advance().Line; // consume 'delivery'
+                var delLineTok = Advance(); // consume 'delivery'
+                var delLine = delLineTok.Line;
+                var delCol = delLineTok.Column;
                 SkipNoise();
                 Consume(TokenType.From); SkipNoise();
                 var chanExpr = ParseExpression();
-                baseExpr = new DeliveryExpression(chanExpr, delLine);
+                baseExpr = new DeliveryExpression(chanExpr, delLine, delCol);
                 break;
             }
             case TokenType.Awaited:
             {
-                var awLine = Advance().Line; // consume 'awaited'
+                var awLineTok = Advance(); // consume 'awaited'
+                var awLine = awLineTok.Line;
+                var awCol = awLineTok.Column;
                 SkipNoise();
                 // 'result' is contextual — not a reserved keyword; skip by lexeme
                 if (Peek().Type == TokenType.Identifier &&
@@ -2521,13 +2641,15 @@ public sealed class Parser
                 // ParseExprOr (not ParseExpression) so that 'but on failure' is left for
                 // the outer ParseExpression to apply to the whole AwaitedResultExpression.
                 var taskExpr = ParseExprOr();
-                baseExpr = new AwaitedResultExpression(taskExpr, awLine);
+                baseExpr = new AwaitedResultExpression(taskExpr, awLine, awCol);
                 break;
             }
             case TokenType.Entry:
             {
                 // "the entry for <key> in <map>"
-                var entryLine = Advance().Line; // consume 'entry'
+                var entryLineTok = Advance(); // consume 'entry'
+                var entryLine = entryLineTok.Line;
+                var entryCol = entryLineTok.Column;
                 SkipNoise();
                 Consume(TokenType.For);
                 SkipNoise();
@@ -2535,17 +2657,19 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.In);
                 SkipNoise();
-                baseExpr = new MapLookup(ParseCorePrimary(), keyExpr, entryLine);
+                baseExpr = new MapLookup(ParseCorePrimary(), keyExpr, entryLine, entryCol);
                 break;
             }
             case TokenType.Size:
             {
                 // "the size of <map>"
-                var sizeLine = Advance().Line; // consume 'size'
+                var sizeLineTok = Advance(); // consume 'size'
+                var sizeLine = sizeLineTok.Line;
+                var sizeCol = sizeLineTok.Column;
                 SkipNoise();
                 Consume(TokenType.Of);
                 SkipNoise();
-                baseExpr = new MapSize(ParseCorePrimary(), sizeLine);
+                baseExpr = new MapSize(ParseCorePrimary(), sizeLine, sizeCol);
                 break;
             }
             // 'the rows of <matrix>' and 'the columns of <matrix>' have no case here on purpose.
@@ -2555,7 +2679,9 @@ public sealed class Parser
             {
                 // "a function given (<params>): <body>" — anonymous lambda literal.
                 // The leading article 'a'/'an' was already consumed by SkipNoise above.
-                var lambdaLine = Advance().Line; // consume 'function'
+                var lambdaLineTok = Advance(); // consume 'function'
+                var lambdaLine = lambdaLineTok.Line;
+                var lambdaCol = lambdaLineTok.Column;
                 SkipNoise();
                 var lambdaParams = new List<(CufetType Type, string Name)>();
                 if (Peek().Type == TokenType.Given)
@@ -2585,7 +2711,7 @@ public sealed class Parser
                 _nestDepth--;
                 _functionDepth--;
                 _inFreeFunction = savedInFreeFunctionL;
-                baseExpr = new LambdaLiteral(lambdaParams, lambdaBody, lambdaLine);
+                baseExpr = new LambdaLiteral(lambdaParams, lambdaBody, lambdaLine, lambdaCol);
                 break;
             }
             case TokenType.Run:
@@ -2594,7 +2720,9 @@ public sealed class Parser
                 // run <program> with arguments (<arg>, ...) → result or failure
                 // "arguments" is contextual (not a reserved keyword) — checked by lexeme.
                 // Arguments are passed directly to the OS; no shell is invoked.
-                var runLine = Advance().Line; // consume 'run'
+                var runLineTok = Advance(); // consume 'run'
+                var runLine = runLineTok.Line;
+                var runCol = runLineTok.Column;
                 SkipNoise();
                 // ParseExprOr not ParseExpression: 'but on failure'/'or pass the failure off'
                 // belong to the outer expression wrapping this RunExpression, not to the program name.
@@ -2626,7 +2754,7 @@ public sealed class Parser
                     }
                     Consume(TokenType.RParen);
                 }
-                baseExpr = new RunExpression(programExpr, runArgs, runLine);
+                baseExpr = new RunExpression(programExpr, runArgs, runLine, runCol);
                 break;
             }
             case TokenType.Read:
@@ -2638,7 +2766,9 @@ public sealed class Parser
                 // 'read all lines from the file "<path>"' → series of text or failure (file)
                 // 'line', 'lines', 'all', and 'input' are contextual words, not reserved
                 // keywords — they're parsed by lexeme in this position only.
-                var readLine = Advance().Line; // consume 'read'
+                var readLineTok = Advance(); // consume 'read'
+                var readLine = readLineTok.Line;
+                var readCol = readLineTok.Column;
                 SkipNoise(); // eats leading article (e.g. 'a' in 'read a line')
 
                 ReadForm stdinForm;
@@ -2682,14 +2812,14 @@ public sealed class Parser
                     // the failure off', which belong to the outer expression that wraps this read.
                     var pathExpr = ParseExprOr();
                     var fileForm = stdinForm == ReadForm.AllLines ? FileReadForm.AllLines : FileReadForm.All;
-                    baseExpr = new FileReadExpression(fileForm, pathExpr, readLine);
+                    baseExpr = new FileReadExpression(fileForm, pathExpr, readLine, readCol);
                 }
                 else
                 {
                     // General stream source — 'the input' is a pre-defined stream of text binding.
                     // SkipNoise() above already consumed 'the', so we parse the rest of the expression.
                     var sourceExpr = ParseExprOr();
-                    baseExpr = new ReadExpression(stdinForm, sourceExpr, readLine);
+                    baseExpr = new ReadExpression(stdinForm, sourceExpr, readLine, readCol);
                 }
 
                 break;
@@ -2697,14 +2827,16 @@ public sealed class Parser
             case TokenType.ContentsKw:
             {
                 // "the contents of the directory <path>"
-                var contentsLine = Advance().Line; // consume 'contents'
+                var contentsLineTok = Advance(); // consume 'contents'
+                var contentsLine = contentsLineTok.Line;
+                var contentsCol = contentsLineTok.Column;
                 SkipNoise();
                 Consume(TokenType.Of);
                 SkipNoise();
                 Consume(TokenType.DirectoryKw);
                 SkipNoise();
                 // ParseJoinedTo: leaves 'but on failure' / 'or pass' for the outer ParseExpression.
-                baseExpr = new DirectoryContentsExpression(ParseJoinedTo(), contentsLine);
+                baseExpr = new DirectoryContentsExpression(ParseJoinedTo(), contentsLine, contentsCol);
                 break;
             }
             case TokenType.PathKw:
@@ -2713,7 +2845,9 @@ public sealed class Parser
                 // "the path <path> is a directory"  →  PathCheckExpression(IsDirectory)
                 // "the path <path> is a file"       →  PathCheckExpression(IsFile)
                 // ParseJoinedTo for path: doesn't consume 'is' (needed for is-a-directory/file).
-                var pathLine = Advance().Line; // consume 'path'
+                var pathLineTok = Advance(); // consume 'path'
+                var pathLine = pathLineTok.Line;
+                var pathCol = pathLineTok.Column;
                 SkipNoise();
                 var pathExpr = ParseJoinedTo();
                 SkipNoise();
@@ -2721,7 +2855,7 @@ public sealed class Parser
                     Peek().Lexeme.Equals("exists", StringComparison.OrdinalIgnoreCase))
                 {
                     Advance(); // consume 'exists' (contextual)
-                    baseExpr = new PathCheckExpression(pathExpr, PathCheckKind.Exists, pathLine);
+                    baseExpr = new PathCheckExpression(pathExpr, PathCheckKind.Exists, pathLine, pathCol);
                 }
                 else
                 {
@@ -2730,12 +2864,12 @@ public sealed class Parser
                     if (Peek().Type == TokenType.DirectoryKw)
                     {
                         Advance(); // consume 'directory'
-                        baseExpr = new PathCheckExpression(pathExpr, PathCheckKind.IsDirectory, pathLine);
+                        baseExpr = new PathCheckExpression(pathExpr, PathCheckKind.IsDirectory, pathLine, pathCol);
                     }
                     else if (Peek().Type == TokenType.File)
                     {
                         Advance(); // consume 'file'
-                        baseExpr = new PathCheckExpression(pathExpr, PathCheckKind.IsFile, pathLine);
+                        baseExpr = new PathCheckExpression(pathExpr, PathCheckKind.IsFile, pathLine, pathCol);
                     }
                     else
                     {
@@ -2748,14 +2882,16 @@ public sealed class Parser
             {
                 // "the environment variable <text-name>"
                 // 'variable' is contextual — parsed by lexeme, not reserved.
-                var envLine = Advance().Line; // consume 'environment'
+                var envLineTok = Advance(); // consume 'environment'
+                var envLine = envLineTok.Line;
+                var envCol = envLineTok.Column;
                 if (Peek().Type != TokenType.Identifier ||
                     !Peek().Lexeme.Equals("variable", StringComparison.OrdinalIgnoreCase))
                     throw new ParseException(Peek(), "expected 'variable' after 'environment'");
                 Advance(); // consume 'variable'
                 SkipNoise();
                 // ParseExprOr so that 'but void is' (parsed one level above) stays outside the name.
-                baseExpr = new EnvironmentVariableExpression(ParseExprOr(), envLine);
+                baseExpr = new EnvironmentVariableExpression(ParseExprOr(), envLine, envCol);
                 break;
             }
             case TokenType.CurrentKw:
@@ -2763,23 +2899,27 @@ public sealed class Parser
                 // 'the current directory'. 'current' only reaches this case through EffectiveType,
                 // which promotes the identifier when 'directory' follows it — so `Define current
                 // as 0.` is untouched.
-                var cdLine = Advance().Line;   // consume 'current'
+                var cdLineTok = Advance();   // consume 'current'
+                var cdLine = cdLineTok.Line;
+                var cdCol = cdLineTok.Column;
                 SkipNoise();
                 Consume(TokenType.DirectoryKw);
-                baseExpr = new CurrentDirectoryExpression(cdLine);
+                baseExpr = new CurrentDirectoryExpression(cdLine, cdCol);
                 break;
             }
             case TokenType.InterruptKw:
             {
                 // "an interrupt is requested" — fixed-phrase fact; 'an' consumed by SkipNoise above.
                 // 'requested' is contextual (lexeme-checked), not reserved.
-                var intLine = Advance().Line; // consume 'interrupt'
+                var intLineTok = Advance(); // consume 'interrupt'
+                var intLine = intLineTok.Line;
+                var intCol = intLineTok.Column;
                 Consume(TokenType.Is);
                 if (Peek().Type != TokenType.Identifier ||
                     !Peek().Lexeme.Equals("requested", StringComparison.OrdinalIgnoreCase))
                     throw new ParseException(Peek(), "expected 'requested' after 'an interrupt is'");
                 Advance(); // consume 'requested'
-                baseExpr = new InterruptRequestedExpression(intLine);
+                baseExpr = new InterruptRequestedExpression(intLine, intCol);
                 break;
             }
             default:
@@ -2807,7 +2947,7 @@ public sealed class Parser
             {
                 parts.Add(Advance().Lexeme);
             }
-            baseExpr = new PossessiveAccess(baseExpr, string.Join(" ", parts), possTok.Line);
+            baseExpr = new PossessiveAccess(baseExpr, string.Join(" ", parts), possTok.Line, possTok.Column);
             SkipNoise();
         }
 
@@ -2818,7 +2958,9 @@ public sealed class Parser
         // Multi-arg: 'of (<e1>, <e2>, ...)' uses ParseExpression() per arg.
         while (baseExpr is PossessiveAccess && Peek().Type == TokenType.Of)
         {
-            var ofLine = Advance().Line; // consume 'of'
+            var ofLineTok = Advance(); // consume 'of'
+            var ofLine = ofLineTok.Line;
+            var ofCol = ofLineTok.Column;
             SkipNoise();
             List<IExpression> callArgs;
             if (Peek().Type == TokenType.LParen)
@@ -2845,7 +2987,7 @@ public sealed class Parser
                 // Arithmetic still binds outside: math's log of x / math's log of 10 → log(x)/log(10).
                 callArgs = [ParseNegation()];
             }
-            baseExpr = new CastExpression(baseExpr, callArgs, ofLine);
+            baseExpr = new CastExpression(baseExpr, callArgs, ofLine, ofCol);
             SkipNoise();
         }
 
@@ -2883,7 +3025,7 @@ public sealed class Parser
         }
 
         Consume(TokenType.RParen);
-        return new RecordLiteral(positionals, namedFields, recordTok.Line);
+        return new RecordLiteral(positionals, namedFields, recordTok.Line, recordTok.Column);
     }
 
     private void ParseOneRecordField(
@@ -3083,7 +3225,7 @@ public sealed class Parser
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
 
-        return new BindStatement(name, returnType, parameters, body, untoType, constructsTypeName, bindTok.Line);
+        return new BindStatement(name, returnType, parameters, body, untoType, constructsTypeName, bindTok.Line, bindTok.Column);
     }
 
     // null return → void (this function returns nothing)
@@ -3245,16 +3387,18 @@ public sealed class Parser
         var cast = (CastExpression)ParseCastExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new CastStatement(cast.Function, cast.Args, cast.Line);
+        return new CastStatement(cast.Function, cast.Args, cast.Line, cast.Column);
     }
 
     // Returns a CastExpression for both free-function calls and method dispatch.
-    // Cast greet on alice (no parens) → CastExpression(VarRef("greet"), [alice], line).
-    // Cast steer on (racer, 90)         → CastExpression(VarRef("steer"), [racer, 90], line).
-    // Cast racer's steer on (90)        → CastExpression(PossessiveAccess(racer, steer), [90], line).
+    // Cast greet on alice (no parens) → CastExpression(VarRef("greet"), [alice], line, col).
+    // Cast steer on (racer, 90)         → CastExpression(VarRef("steer"), [racer, 90], line, col).
+    // Cast racer's steer on (90)        → CastExpression(PossessiveAccess(racer, steer), [90], line, col).
     private IExpression ParseCastExpression()
     {
-        var line = Consume(TokenType.Cast).Line;
+        var lineTok = Consume(TokenType.Cast);
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         var funcExpr = ParsePostfix(); // handles leading articles and possessive postfix
         SkipNoise();
 
@@ -3267,10 +3411,10 @@ public sealed class Parser
             {
                 // No-paren form: Cast greet on alice — normalizes to CastExpression with one arg.
                 if (funcExpr is not VariableReference)
-                    throw new ParseException(line,
+                    throw new ParseException(line, col,
                         "identifier — method name must be a plain identifier in 'Cast method on receiver'");
                 var receiver = ParsePostfix();
-                return new CastExpression(funcExpr, new IExpression[] { receiver }, line);
+                return new CastExpression(funcExpr, new IExpression[] { receiver }, line, col);
             }
 
             // Function call: Cast func on (<args>)
@@ -3290,7 +3434,7 @@ public sealed class Parser
                 }
             }
             Consume(TokenType.RParen);
-            return new CastExpression(funcExpr, args, line);
+            return new CastExpression(funcExpr, args, line, col);
         }
 
         // 'cast collections's transpose of (m)' — the book-of loop inside ParsePostfix already
@@ -3298,12 +3442,14 @@ public sealed class Parser
         if (funcExpr is CastExpression bookCall)
             return bookCall;
 
-        return new CastExpression(funcExpr, [], line);
+        return new CastExpression(funcExpr, [], line, col);
     }
 
     private TryStatement ParseTryStatement()
     {
-        var line = Consume(TokenType.Try).Line;
+        var lineTok = Consume(TokenType.Try);
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();
         Consume(TokenType.To);
         SkipNoise();
@@ -3347,22 +3493,26 @@ public sealed class Parser
             _nestDepth--;
         }
 
-        return new TryStatement(body, failureHandler, exceptionHandler, line);
+        return new TryStatement(body, failureHandler, exceptionHandler, line, col);
     }
 
     private SuppressStatement ParseSuppressStatement()
     {
-        var line = Consume(TokenType.Suppress).Line;
+        var lineTok = Consume(TokenType.Suppress);
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise(); // skips 'the'
         Consume(TokenType.Exception);
         SkipNoise();
         Consume(TokenType.Dot);
-        return new SuppressStatement(line);
+        return new SuppressStatement(line, col);
     }
 
     private SendStatement ParseSendStatement()
     {
-        var line = Consume(TokenType.Send).Line;
+        var lineTok = Consume(TokenType.Send);
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
@@ -3371,41 +3521,49 @@ public sealed class Parser
         var channel = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new SendStatement(value, channel, line);
+        return new SendStatement(value, channel, line, col);
     }
 
     private CloseStatement ParseCloseStatement()
     {
-        var line = Consume(TokenType.Close).Line;
+        var lineTok = Consume(TokenType.Close);
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();
         var channel = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new CloseStatement(channel, line);
+        return new CloseStatement(channel, line, col);
     }
 
     private AcknowledgeInterruptStatement ParseAcknowledgeInterruptStatement()
     {
-        var line = Consume(TokenType.AcknowledgeKw).Line; // consume 'Acknowledge'
+        var lineTok = Consume(TokenType.AcknowledgeKw); // consume 'Acknowledge'
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();                                       // consumes 'the' (Article)
         Consume(TokenType.InterruptKw);                    // consume 'interrupt'
         SkipNoise();
         Consume(TokenType.Dot);
-        return new AcknowledgeInterruptStatement(line);
+        return new AcknowledgeInterruptStatement(line, col);
     }
 
     private YieldStatement ParseYieldStatement()
     {
-        var line = Consume(TokenType.YieldKw).Line; // consume 'Yield'
+        var lineTok = Consume(TokenType.YieldKw); // consume 'Yield'
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();
         Consume(TokenType.Dot);
-        return new YieldStatement(line);
+        return new YieldStatement(line, col);
     }
 
     // Seed the chance with <number>.
     private SeedChanceStatement ParseSeedChanceStatement()
     {
-        var line = Consume(TokenType.SeedKw).Line; // consume 'Seed'
+        var lineTok = Consume(TokenType.SeedKw); // consume 'Seed'
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();                               // eats 'the'
         var chanceTok = Peek();
         if (chanceTok.Type != TokenType.Identifier ||
@@ -3418,7 +3576,7 @@ public sealed class Parser
         var seed = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new SeedChanceStatement(seed, line);
+        return new SeedChanceStatement(seed, line, col);
     }
 
     // ── Getters & Setters ─────────────────────────────────────────────────
@@ -3433,7 +3591,9 @@ public sealed class Parser
         _inObjectDef    = false; // getter body must not allow nested declarations
         _inFreeFunction = false;
 
-        var line = Consume(TokenType.GetKw).Line;
+        var lineTok = Consume(TokenType.GetKw);
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();
         var name = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
@@ -3461,7 +3621,7 @@ public sealed class Parser
 
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
-        return new GetterDeclaration(name, returnType, body, untoType, line);
+        return new GetterDeclaration(name, returnType, body, untoType, line, col);
     }
 
     // Top-level entry-point: routes to the shared parser which allows the 'unto' clause.
@@ -3475,7 +3635,9 @@ public sealed class Parser
         _inObjectDef    = false;
         _inFreeFunction = false;
 
-        var line = Consume(TokenType.SetKw).Line;
+        var lineTok = Consume(TokenType.SetKw);
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         SkipNoise();
         var name = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
@@ -3505,7 +3667,7 @@ public sealed class Parser
 
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
-        return new SetterDeclaration(name, paramType, paramName, body, untoType, line);
+        return new SetterDeclaration(name, paramType, paramName, body, untoType, line, col);
     }
 
     // Top-level entry-point: routes to the shared parser which allows the 'unto' clause.
@@ -3524,7 +3686,9 @@ public sealed class Parser
         _inObjectDef    = false;
         _inFreeFunction = false;
 
-        var line = Consume(TokenType.Bind).Line;
+        var lineTok = Consume(TokenType.Bind);
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         Consume(TokenType.UnmakingKw);
         SkipNoise(); // eats 'a' article
         var typeName = Consume(TokenType.Identifier).Lexeme;
@@ -3548,7 +3712,7 @@ public sealed class Parser
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
 
-        return new UnmakerDeclaration(name, typeName, body, line);
+        return new UnmakerDeclaration(name, typeName, body, line, col);
     }
 
     // Bind overloading <op>, given (the <left> is a <type>, the <right> is a <type>): ... Done.
@@ -3565,7 +3729,9 @@ public sealed class Parser
         _inObjectDef    = false;
         _inFreeFunction = false;
 
-        var line = Consume(TokenType.Bind).Line;
+        var lineTok = Consume(TokenType.Bind);
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         Consume(TokenType.OverloadingKw);
         SkipNoise();
 
@@ -3622,7 +3788,7 @@ public sealed class Parser
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
 
-        return new OperatorOverloadDeclaration(op, leftName, rightName, typeName, body, line);
+        return new OperatorOverloadDeclaration(op, leftName, rightName, typeName, body, line, col);
     }
 
     // Returns the handler keyword (Failure or Exception) following 'In case of' at
@@ -3645,19 +3811,21 @@ public sealed class Parser
 
     private ReturnStatement ParseReturnStatement()
     {
-        var line = Consume(TokenType.Return).Line;
+        var lineTok = Consume(TokenType.Return);
+        var line = lineTok.Line;
+        var col = lineTok.Column;
         if (_functionDepth == 0)
             throw new ParseException(_tokens[_pos - 1], "'return' used outside a function");
         SkipNoise();
         if (Peek().Type == TokenType.Dot)
         {
             Consume(TokenType.Dot);
-            return new ReturnStatement(null, line); // bare return — void early exit
+            return new ReturnStatement(null, line, col); // bare return — void early exit
         }
         var value = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new ReturnStatement(value, line);
+        return new ReturnStatement(value, line, col);
     }
 
     // Lambda body: same as ParseFunctionBody but does NOT consume the trailing '.'
@@ -3754,12 +3922,14 @@ public sealed class Parser
             Convert.ToUInt64(digits, fromBase),
             displayBase,
             digits.Length * bitsPerDigit,
-            token.Line);
+            token.Line, token.Column);
     }
 
     private IExpression ParseInterpolatedString()
     {
-        int line = _tokens[_pos - 1].Line; // line of the InterpolOpen
+        var openTok = _tokens[_pos - 1]; // the InterpolOpen
+        int line = openTok.Line;
+        int col  = openTok.Column;
         IExpression? result = null;
 
         while (Peek().Type != TokenType.InterpolClose)
@@ -3773,19 +3943,21 @@ public sealed class Parser
             }
             else if (Peek().Type == TokenType.InterpolHoleOpen)
             {
-                int holeLine = Advance().Line; // consume InterpolHoleOpen
+                var holeLineTok = Advance(); // consume InterpolHoleOpen
+                int holeLine = holeLineTok.Line;
+                int holeCol = holeLineTok.Column;
                 if (Peek().Type == TokenType.InterpolHoleClose)
-                    throw new ParseException(holeLine, "empty interpolation '{}' — write an expression between the braces");
+                    throw new ParseException(holeLine, holeCol, "empty interpolation '{}' — write an expression between the braces");
                 var expr = ParseExpression();
                 Consume(TokenType.InterpolHoleClose);
-                piece = new TextConvert(expr, holeLine);
+                piece = new TextConvert(expr, holeLine, holeCol);
             }
             else
             {
                 throw new ParseException(Peek(), "string piece or interpolation expression");
             }
 
-            result = result == null ? piece : new TextJoin(result, piece, line);
+            result = result == null ? piece : new TextJoin(result, piece, line, col);
         }
 
         Consume(TokenType.InterpolClose);

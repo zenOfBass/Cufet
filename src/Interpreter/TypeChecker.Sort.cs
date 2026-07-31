@@ -10,21 +10,21 @@ public sealed partial class TypeChecker
         if (seriesType == null) return null;
 
         if (seriesType is not SeriesType st)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "'sorted' works on series only",
-                null, sort.Line,
+                null, sort.Line, sort.Column,
                 $"sort a {FormatType(seriesType)}",
-                "Only series can be sorted. Maps, records, and other types don't support 'sorted'."));
+                "Only series can be sorted. Maps, records, and other types don't support 'sorted'.");
 
         if (sort.ByField == null)
         {
             // Natural sort: element type must be number or text.
             if (st.ElementType != CufetType.Number && st.ElementType != CufetType.Text)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"a series of {FormatTypePlural(st.ElementType)} has no natural order",
-                    null, sort.Line,
+                    null, sort.Line, sort.Column,
                     $"sort a series of {FormatTypePlural(st.ElementType)} without specifying a field",
-                    $"Sort by a named field instead: '{FormatExpr(sort.Series)} sorted by the <field-name>'."));
+                    $"Sort by a named field instead: '{FormatExpr(sort.Series)} sorted by the <field-name>'.");
             return st;
         }
 
@@ -33,14 +33,14 @@ public sealed partial class TypeChecker
         {
             var field = rt.NamedFields.FirstOrDefault(f => f.Name == sort.ByField);
             if (field == default)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"this record has no field named '{sort.ByField}'",
-                    null, sort.Line,
+                    null, sort.Line, sort.Column,
                     $"sort by '{sort.ByField}'",
                     rt.NamedFields.Count > 0
                         ? $"Available named fields: {string.Join(", ", rt.NamedFields.Select(f => f.Name))}."
-                        : "This record has no named fields."));
-            CheckSortFieldType(field.Type, sort.ByField, sort.Line);
+                        : "This record has no named fields.");
+            CheckSortFieldType(field.Type, sort.ByField, sort.Line, sort.Column);
             return st;
         }
 
@@ -48,31 +48,31 @@ public sealed partial class TypeChecker
         {
             var fieldType = FindFieldInOtOrPromoted(ot, sort.ByField);
             if (fieldType == null)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{ot.Name}' has no field named '{sort.ByField}'",
-                    null, sort.Line,
+                    null, sort.Line, sort.Column,
                     $"sort by '{sort.ByField}'",
                     GetAllNamedFields(ot).Count > 0
                         ? $"Available named fields: {string.Join(", ", GetAllNamedFields(ot).Select(f => f.FieldName))}."
-                        : $"'{ot.Name}' has no named fields."));
-            CheckSortFieldType(fieldType, sort.ByField, sort.Line);
+                        : $"'{ot.Name}' has no named fields.");
+            CheckSortFieldType(fieldType, sort.ByField, sort.Line, sort.Column);
             return st;
         }
 
-        throw new TypeException(FormatTypeError(
+        throw TypeError(
             $"'sorted by' requires a series of records or objects",
-            null, sort.Line,
+            null, sort.Line, sort.Column,
             $"sort a series of {FormatTypePlural(st.ElementType)} by field '{sort.ByField}'",
-            "Use 'sorted by <field>' only with series of records or objects that have named fields."));
+            "Use 'sorted by <field>' only with series of records or objects that have named fields.");
     }
 
-    private void CheckSortFieldType(CufetType fieldType, string fieldName, int line)
+    private void CheckSortFieldType(CufetType fieldType, string fieldName, int line, int col)
     {
         if (fieldType != CufetType.Number && fieldType != CufetType.Text)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"field '{fieldName}' has type {FormatType(fieldType)}, which has no natural order",
-                null, line,
+                null, line, col,
                 $"sort by a {FormatType(fieldType)} field",
-                "Sort keys must be numbers (ascending) or text (alphabetical). Use a different field."));
+                "Sort keys must be numbers (ascending) or text (alphabetical). Use a different field.");
     }
 }

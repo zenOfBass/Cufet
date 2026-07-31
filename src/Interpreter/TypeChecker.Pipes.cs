@@ -55,12 +55,12 @@ public sealed partial class TypeChecker
             var t = InferType(stage);
             if (t == null) continue; // unknown type — runtime catches it
             if (t is not FunctionType)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     "a pipe stage must be a function",
                     null,
-                    GetExprLine(stage),
+                    GetExprLine(stage), GetExprColumn(stage),
                     $"use a {FormatType(t)} as a pipe stage",
-                    "Pipe stages must be Bind'd functions or lambdas. Did you mean to use '|' between function names?"));
+                    "Pipe stages must be Bind'd functions or lambdas. Did you mean to use '|' between function names?");
         }
 
         CheckStageElementTypes(stages);
@@ -88,11 +88,11 @@ public sealed partial class TypeChecker
             // Cufet error rather than a codegen refusal.
             if (flowing != null && _pipeStageElem.TryGetValue(vr.Name, out var settled)
                 && !settled.Equals(flowing))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{vr.Name}' already reads {FormatTypePlural(settled)} from its input",
-                    null, GetExprLine(stage),
+                    null, GetExprLine(stage), GetExprColumn(stage),
                     $"also use it on a pipe carrying {FormatTypePlural(flowing)}",
-                    "A pipe stage reads one kind of value. Write a separate function for the other pipe."));
+                    "A pipe stage reads one kind of value. Write a separate function for the other pipe.");
             if (flowing != null) _pipeStageElem[vr.Name] = flowing;
 
             flowing = CheckStageBody(bind, flowing);
@@ -149,11 +149,11 @@ public sealed partial class TypeChecker
         var stages = FlattenPipe(pipe);
 
         if (!stages.TrueForAll(s => s is RunExpression))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "only subprocess pipes can be used as values",
-                null, pipe.Line,
+                null, pipe.Line, pipe.Column,
                 "use a task-function pipe in expression position",
-                "Task pipes are statement-only. Only 'run A | run B' subprocess pipes produce a result record."));
+                "Task pipes are statement-only. Only 'run A | run B' subprocess pipes produce a result record.");
 
         // Validate program/argument types for each stage, suppressing the per-stage
         // must-handle error — the pipe itself carries the FailureType wrapper.
@@ -166,11 +166,11 @@ public sealed partial class TypeChecker
         if (_inTryBlock)
             return RunResultType;
         if (!_inFailureHandledContext)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "running a program can fail — you must handle the failure",
-                null, pipe.Line,
+                null, pipe.Line, pipe.Column,
                 "use a subprocess pipe without handling the launch failure",
-                "Wrap in 'Try to: / In case of failure:', use 'but on failure <default>', or use 'or pass the failure off'."));
+                "Wrap in 'Try to: / In case of failure:', use 'but on failure <default>', or use 'or pass the failure off'.");
         return new FailureType(RunResultType);
     }
 
@@ -194,6 +194,16 @@ public sealed partial class TypeChecker
         RunExpression     run    => run.Line,
         LambdaLiteral     lam    => lam.Line,
         PipeExpression    pipe   => pipe.Line,
+        _                        => 0,
+    };
+
+    // The column that pairs with GetExprLine — same shapes, same best-effort fallback.
+    private static int GetExprColumn(IExpression e) => e switch
+    {
+        VariableReference vr     => vr.Column,
+        RunExpression     run    => run.Column,
+        LambdaLiteral     lam    => lam.Column,
+        PipeExpression    pipe   => pipe.Column,
         _                        => 0,
     };
 }

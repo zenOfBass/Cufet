@@ -26,7 +26,7 @@ public sealed partial class Interpreter
 
         if (Evaluate(ma.Row) is not decimal rowD)
             throw new RuntimeException($"Matrix row index must be a number on line {ma.Line}.");
-        if (Evaluate(ma.Column) is not decimal colD)
+        if (Evaluate(ma.Col) is not decimal colD)
             throw new RuntimeException($"Matrix column index must be a number on line {ma.Line}.");
 
         var row = (int)rowD;

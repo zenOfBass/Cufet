@@ -3695,7 +3695,7 @@ static void* cufet_pipe_stage(void* argp) {
         _usesMatrix = true;
         string m = EmitExpr(ma.Matrix);
         string r = EmitExpr(ma.Row);
-        string c = EmitExpr(ma.Column);
+        string c = EmitExpr(ma.Col);
         return $"cufet_mat_get({m}, cufet_to_int({r}), cufet_to_int({c}), {ma.Line})";
     }
 
@@ -7088,7 +7088,9 @@ static void* cufet_pipe_stage(void* argp) {
             _preEmits.Add($"{envType}* {envVar} = {envAlloc};");
             foreach (var v in free)
             {
-                string capExpr = EmitExpr(new VariableReference(v, line));
+                // Synthetic reference to a captured name — only the name is read, so the
+                // column has nothing to point at.
+                string capExpr = EmitExpr(new VariableReference(v, line, 0));
                 if (Escapes(v)) capExpr = EmitEscapeCopy(capExpr, savedVT[v], escTo);   // ESC.4 deep-copy outward
                 _preEmits.Add($"{envVar}->{MangleName(v)} = {capExpr};");
             }

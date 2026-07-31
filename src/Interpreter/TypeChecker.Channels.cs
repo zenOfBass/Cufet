@@ -11,19 +11,19 @@ public sealed partial class TypeChecker
         if (chanType is not ChannelType ct)
         {
             if (chanType != null)
-                throw new TypeException(FormatTypeError(
-                    "'Send through' requires a channel", null, ss.Line,
+                throw TypeError(
+                    "'Send through' requires a channel", null, ss.Line, ss.Column,
                     $"send through a {FormatType(chanType)}",
-                    "Use 'Send <value> through <channel of T>.'. The expression after 'through' must be a channel."));
+                    "Use 'Send <value> through <channel of T>.'. The expression after 'through' must be a channel.");
             return;
         }
         var valType = InferType(ss.Value);
         if (valType != null && !IsAssignable(ct.ElementType, valType))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"this channel carries {FormatTypePlural(ct.ElementType)}, but you're sending a {FormatType(valType)}",
-                null, ss.Line,
+                null, ss.Line, ss.Column,
                 $"send a {FormatType(valType)} through a channel of {FormatType(ct.ElementType)}",
-                $"The sent value must be a {FormatType(ct.ElementType)} to match this channel's type."));
+                $"The sent value must be a {FormatType(ct.ElementType)} to match this channel's type.");
     }
 
     private CufetType InferDeliveryExpression(DeliveryExpression de)
@@ -32,10 +32,10 @@ public sealed partial class TypeChecker
         if (chanType is not ChannelType ct)
         {
             if (chanType != null)
-                throw new TypeException(FormatTypeError(
-                    "'the delivery from' requires a channel", null, de.Line,
+                throw TypeError(
+                    "'the delivery from' requires a channel", null, de.Line, de.Column,
                     $"take a delivery from a {FormatType(chanType)}",
-                    "Use 'the delivery from <channel of T>'. The expression after 'from' must be a channel."));
+                    "Use 'the delivery from <channel of T>'. The expression after 'from' must be a channel.");
             return new VoidableType(CufetType.Number);
         }
         return new VoidableType(ct.ElementType);
@@ -45,9 +45,9 @@ public sealed partial class TypeChecker
     {
         var chanType = InferType(cs.Channel);
         if (chanType is not ChannelType && chanType != null)
-            throw new TypeException(FormatTypeError(
-                "'Close' requires a channel", null, cs.Line,
+            throw TypeError(
+                "'Close' requires a channel", null, cs.Line, cs.Column,
                 $"close a {FormatType(chanType)}",
-                "Use 'Close <channel>.' The expression must be a channel."));
+                "Use 'Close <channel>.' The expression must be a channel.");
     }
 }

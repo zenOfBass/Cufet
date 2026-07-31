@@ -12,36 +12,36 @@ public sealed record NumberLiteral(decimal Value)                               
 // in the base it was written in. Width is how many bits the literal's digits spelled out, so
 // 0x0F is 8 bits where 0xF is 4; that is what lets `not 0xFF` be 0x00 with no signed reading
 // and no negative numbers anywhere.
-public sealed record BitsLiteral(ulong Value, char Base, int Width, int Line)             : IExpression;
+public sealed record BitsLiteral(ulong Value, char Base, int Width, int Line, int Column)             : IExpression;
 
 // <bits> shifted left|right by <number>. The Amount is a NUMBER, not bits: it counts positions,
 // which is a quantity, the way the 3 in "item 3 of s" is. Left shifts widen so nothing is lost;
 // right shifts discard the low bits, which is what a right shift IS rather than a failure of
 // representation.
-public sealed record BitsShift(IExpression Target, bool Left, IExpression Amount, int Line)  : IExpression;
+public sealed record BitsShift(IExpression Target, bool Left, IExpression Amount, int Line, int Column)  : IExpression;
 
 // <number> converted to hex|binary|octal. ToBase is 'x', 'b' or 'o'. The crossing from quantity
 // to pattern is explicit in both directions — there is no implicit conversion — and this is
 // also what gives back the expressiveness a display-only transform would have had: a COMPUTED
 // value can be shown in hex, not just a literal.
-public sealed record BitsConvert(IExpression Target, char ToBase, int Line)                  : IExpression;
+public sealed record BitsConvert(IExpression Target, char ToBase, int Line, int Column)                  : IExpression;
 
 public sealed record StringLiteral(string Value)                                         : IExpression;
-public sealed record BooleanLiteral(bool Value, int Line)                                : IExpression;
-public sealed record VariableReference(string Name, int Line)                            : IExpression;
-public sealed record UnaryExpression(TokenType Op, IExpression Operand, int Line)                  : IExpression;
-public sealed record BinaryExpression(IExpression Left, TokenType Op, IExpression Right, int Line) : IExpression;
+public sealed record BooleanLiteral(bool Value, int Line, int Column)                                : IExpression;
+public sealed record VariableReference(string Name, int Line, int Column)                            : IExpression;
+public sealed record UnaryExpression(TokenType Op, IExpression Operand, int Line, int Column)                  : IExpression;
+public sealed record BinaryExpression(IExpression Left, TokenType Op, IExpression Right, int Line, int Column) : IExpression;
 
 // Annotation == null → infer element type from elements; must have elements.
 // Annotation != null → element type declared; elements (if any) must agree.
-public sealed record SeriesLiteral(IReadOnlyList<IExpression> Elements, CufetType? Annotation, int Line) : IExpression;
+public sealed record SeriesLiteral(IReadOnlyList<IExpression> Elements, CufetType? Annotation, int Line, int Column) : IExpression;
 
 // Index == null → last element; Target is typically VariableReference but can be any expression
 // (e.g., nested ordinal access for chained 'the first of the first of s').
-public sealed record SeriesAccess(IExpression Target, IExpression? Index, int Line) : IExpression;
+public sealed record SeriesAccess(IExpression Target, IExpression? Index, int Line, int Column) : IExpression;
 
 // the number of <series-expr>
-public sealed record SeriesLength(IExpression Series, int Line) : IExpression;
+public sealed record SeriesLength(IExpression Series, int Line, int Column) : IExpression;
 
 // Add X to series (append: AfterIndex=null, ToStart=false)
 // Add X to the start (prepend: AfterIndex=null, ToStart=true)
@@ -51,7 +51,8 @@ public sealed record SeriesAddStatement(
     IExpression Series,
     IExpression? AfterIndex,
     bool ToStart,
-    int Line
+    int Line,
+    int Column
 ) : IStatement
 {
     // ESC.1 — set by the checker when the stored value's region depth is DEEPER than the
@@ -62,17 +63,18 @@ public sealed record SeriesAddStatement(
 }
 
 // Remove by position (Index == null → last)
-public sealed record SeriesRemoveAtStatement(IExpression Series, IExpression? Index, int Line) : IStatement;
+public sealed record SeriesRemoveAtStatement(IExpression Series, IExpression? Index, int Line, int Column) : IStatement;
 
 // Remove first occurrence by value
-public sealed record SeriesRemoveValueStatement(IExpression Series, IExpression Value, int Line) : IStatement;
+public sealed record SeriesRemoveValueStatement(IExpression Series, IExpression Value, int Line, int Column) : IStatement;
 
 // Element assignment (Index == null → last)
 public sealed record SeriesSetStatement(
     IExpression Series,
     IExpression? Index,
     IExpression Value,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // Record literal: a record with (positional, ..., the name value, ...)
@@ -80,18 +82,20 @@ public sealed record SeriesSetStatement(
 public sealed record RecordLiteral(
     IReadOnlyList<IExpression> PositionalFields,
     IReadOnlyList<(string Name, IExpression Value)> NamedFields,
-    int Line
+    int Line,
+    int Column
 ) : IExpression;
 
 // the <name> of <record-expr>  — named field access; chains: the city of the home of person
-public sealed record RecordNamedAccess(string FieldName, IExpression Record, int Line) : IExpression;
+public sealed record RecordNamedAccess(string FieldName, IExpression Record, int Line, int Column) : IExpression;
 
 // the <name> of <record-expr> becomes <value>  — named field assignment
 public sealed record RecordNamedSetStatement(
     string FieldName,
     IExpression Record,
     IExpression Value,
-    int Line
+    int Line,
+    int Column
 ) : IStatement
 {
     // ESC.1 — set by the checker when the stored value's region depth is DEEPER than the
@@ -106,8 +110,8 @@ public sealed record StateStatement(IExpression Value)                        : 
 // (not its contents) can never be reassigned with 'becomes'.
 // Shadow: true when declared with the leading 'a shadow' modifier — explicitly shadows an
 // outer binding of the same name. Without this flag, shadowing an outer name is a static error.
-public sealed record DefineStatement(string Name, IExpression Value, bool Permanent, bool Shadow, int Line) : IStatement;
-public sealed record BecomesStatement(string Name, IExpression Value, int Line) : IStatement
+public sealed record DefineStatement(string Name, IExpression Value, bool Permanent, bool Shadow, int Line, int Column) : IStatement;
+public sealed record BecomesStatement(string Name, IExpression Value, int Line, int Column) : IStatement
 {
     // ESC.1 — set by the checker when the stored value's region depth is DEEPER than the
     // destination's (the value would be freed by an inner rabbit's Done. while the destination
@@ -141,7 +145,8 @@ public sealed record ForEachStatement(
     string? IteratorName,
     IExpression Series,
     IReadOnlyList<IStatement> Body,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // Bind <ReturnType|void> to <Name>[, given (<Type Name>, ...)]:
@@ -161,7 +166,8 @@ public sealed record BindStatement(
     IReadOnlyList<IStatement> Body,
     string? UntoType,
     string? ConstructsTypeName,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // Bind overloading <Op>, given (the <LeftName> is a <OperandTypeName>, the <RightName> is a <OperandTypeName>): ... Done.
@@ -175,7 +181,8 @@ public sealed record OperatorOverloadDeclaration(
     string RightName,         // parameter name for the right operand
     string OperandTypeName,   // type name string (both operands; resolved in TypeChecker)
     IReadOnlyList<IStatement> Body,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // Bind unmaking a <UnmakesTypeName> to <Name>: ... Done.
@@ -186,7 +193,8 @@ public sealed record UnmakerDeclaration(
     string Name,
     string UnmakesTypeName,
     IReadOnlyList<IStatement> Body,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // Cast <expr> on (<args>) — function may be a name, a variable holding a function, etc.
@@ -194,19 +202,21 @@ public sealed record UnmakerDeclaration(
 public sealed record CastExpression(
     IExpression Function,
     IReadOnlyList<IExpression> Args,
-    int Line
+    int Line,
+    int Column
 ) : IExpression;
 
 // Cast as a statement (void call, or discarded return value).
 public sealed record CastStatement(
     IExpression Function,
     IReadOnlyList<IExpression> Args,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // return <value>.  or  return.  (bare, for void early exit)
 // Value == null means bare return.
-public sealed record ReturnStatement(IExpression? Value, int Line) : IStatement;
+public sealed record ReturnStatement(IExpression? Value, int Line, int Column) : IStatement;
 
 // ── Objects ───────────────────────────────────────────────────────────────────
 
@@ -215,7 +225,8 @@ public sealed record ReturnStatement(IExpression? Value, int Line) : IStatement;
 public sealed record InterfaceDefinition(
     string Name,
     IReadOnlyList<(string MethodName, CufetType? ReturnType, IReadOnlyList<CufetType> ParamTypes)> Methods,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // Get <name> as <type>: ... Done.  — computed property; body must Return the declared type.
@@ -225,7 +236,8 @@ public sealed record GetterDeclaration(
     CufetType ReturnType,
     IReadOnlyList<IStatement> Body,
     string? UntoType,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // Set <name> given (<param>): ... Done.  — intercepting write; body is void / infallible.
@@ -237,7 +249,8 @@ public sealed record SetterDeclaration(
     string ParamName,
     IReadOnlyList<IStatement> Body,
     string? UntoType,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // Define object <name> with (<fields>) [and as a <type>] [and <interface> ...] [: <members> Done.]
@@ -253,7 +266,8 @@ public sealed record ObjectDefinition(
     IReadOnlyList<SetterDeclaration> Setters,
     string? EmbeddedTypeName,
     IReadOnlyList<string> ConformedInterfaces,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // a new <TypeName> {<fields>}
@@ -261,57 +275,58 @@ public sealed record ObjectLiteral(
     string TypeName,
     IReadOnlyList<IExpression> PositionalValues,
     IReadOnlyList<(string Name, IExpression Value)> NamedValues,
-    int Line
+    int Line,
+    int Column
 ) : IExpression;
 
 // alice's greet  /  one's name  — possessive field or method reference
-public sealed record PossessiveAccess(IExpression Target, string Member, int Line) : IExpression;
+public sealed record PossessiveAccess(IExpression Target, string Member, int Line, int Column) : IExpression;
 
 // ── Text operations (Slice 1) ─────────────────────────────────────────────────
 
 // "hello" joined to " world" — text concatenation; both sides must be text
-public sealed record TextJoin(IExpression Left, IExpression Right, int Line) : IExpression;
+public sealed record TextJoin(IExpression Left, IExpression Right, int Line, int Column) : IExpression;
 
 // score converted to text — explicit value → text (number, fact, or text no-op)
-public sealed record TextConvert(IExpression Value, int Line) : IExpression;
+public sealed record TextConvert(IExpression Value, int Line, int Column) : IExpression;
 
 // "95" converted to number — text → voidable number; void if the text isn't a clean number literal
-public sealed record NumberConvert(IExpression Value, int Line) : IExpression;
+public sealed record NumberConvert(IExpression Value, int Line, int Column) : IExpression;
 
 // the length of greeting — character count of a text value; result is number
-public sealed record TextLength(IExpression Target, int Line) : IExpression;
+public sealed record TextLength(IExpression Target, int Line, int Column) : IExpression;
 
 // ── Text operations (Slice 2: split, contains, find, substring) ───────────────
 
 // <text> split by <delimiter> — series of text; empty delimiter is an error,
 // delimiter-not-found yields a single-element series, empty pieces are kept.
-public sealed record TextSplit(IExpression Text, IExpression Delimiter, int Line) : IExpression;
+public sealed record TextSplit(IExpression Text, IExpression Delimiter, int Line, int Column) : IExpression;
 
 // <text> contains <substring> — fact
-public sealed record TextContains(IExpression Text, IExpression Substring, int Line) : IExpression;
+public sealed record TextContains(IExpression Text, IExpression Substring, int Line, int Column) : IExpression;
 
 // the position of <substring> in <text> — voidable number; 1-based, first occurrence, void if absent
-public sealed record TextFind(IExpression Substring, IExpression Text, int Line) : IExpression;
+public sealed record TextFind(IExpression Substring, IExpression Text, int Line, int Column) : IExpression;
 
 // the characters from <From> to <To> of <text> — 1-based inclusive; To == null means "to the end".
 // Out-of-range-high clamps; To < From yields "". Always returns plain text (never voidable).
-public sealed record TextSubstringRange(IExpression Text, IExpression From, IExpression? To, int Line) : IExpression;
+public sealed record TextSubstringRange(IExpression Text, IExpression From, IExpression? To, int Line, int Column) : IExpression;
 
 // the first/last <Count> characters of <text> — 1-based count from either edge; clamps to the
 // text's length; Count <= 0 yields "".
-public sealed record TextSubstringEdge(IExpression Text, IExpression Count, bool FromStart, int Line) : IExpression;
+public sealed record TextSubstringEdge(IExpression Text, IExpression Count, bool FromStart, int Line, int Column) : IExpression;
 
 // ── Text operations (Slice 3: replace, case, trim) ─────────────────────────────
 
 // replace <Old> with <New> in <Text> — replaces all occurrences; empty Old is an error;
 // empty New is deletion; Old not found returns Text unchanged.
-public sealed record TextReplace(IExpression Text, IExpression Old, IExpression New, int Line) : IExpression;
+public sealed record TextReplace(IExpression Text, IExpression Old, IExpression New, int Line, int Column) : IExpression;
 
 // <text> in uppercase / <text> in lowercase — invariant (culture-independent) case conversion
-public sealed record TextCase(IExpression Text, bool Uppercase, int Line) : IExpression;
+public sealed record TextCase(IExpression Text, bool Uppercase, int Line, int Column) : IExpression;
 
 // <text> trimmed — strips standard whitespace from both ends
-public sealed record TextTrim(IExpression Text, int Line) : IExpression;
+public sealed record TextTrim(IExpression Text, int Line, int Column) : IExpression;
 
 // ── Sort ──────────────────────────────────────────────────────────────────────
 
@@ -324,7 +339,8 @@ public sealed record SortExpression(
     IExpression Series,
     string?     ByField,  // null = natural order; non-null = sort by this named field
     bool        Reverse,
-    int         Line
+    int         Line,
+    int         Column
 ) : IExpression;
 
 // ── Range (Slice 1 + Slice 2: stepping) ────────────────────────────────────────
@@ -332,20 +348,20 @@ public sealed record SortExpression(
 // range <start> to <end> [counting by <step>] — materializes an inclusive series of number;
 // descending when start > end; single-element when start == end. Step is a positive magnitude
 // (direction always comes from start-vs-end); null Step means step 1.
-public sealed record RangeExpression(IExpression Start, IExpression End, IExpression? Step, int Line) : IExpression;
+public sealed record RangeExpression(IExpression Start, IExpression End, IExpression? Step, int Line, int Column) : IExpression;
 
 // ── Void / Voidable ───────────────────────────────────────────────────────────
 
 // The literal value void — the absent case of any voidable T.
 // Used in: Define x as void. / x becomes void. / If x is not void: ...
-public sealed record VoidLiteral(int Line) : IExpression;
+public sealed record VoidLiteral(int Line, int Column) : IExpression;
 
 // <voidable-expr> but void is <default-expr>
 // Produces plain T: returns the value if present, otherwise the default.
-public sealed record ButVoidDefault(IExpression Voidable, IExpression Default, int Line) : IExpression;
+public sealed record ButVoidDefault(IExpression Voidable, IExpression Default, int Line, int Column) : IExpression;
 
 // alice's age becomes X  /  one's age becomes X  — possessive field mutation
-public sealed record PossessiveSetStatement(IExpression Target, string Member, IExpression Value, int Line) : IStatement
+public sealed record PossessiveSetStatement(IExpression Target, string Member, IExpression Value, int Line, int Column) : IStatement
 {
     // ESC.1 — set by the checker when the stored value's region depth is DEEPER than the
     // destination's (the value would be freed by an inner rabbit's Done. while the destination
@@ -357,16 +373,16 @@ public sealed record PossessiveSetStatement(IExpression Target, string Member, I
 // ── Failures (recoverable errors as values) ────────────────────────────────────
 
 // a failure "message" [of category "tag"] — a recoverable-problem value. Category null = no tag.
-public sealed record FailureLiteral(IExpression Message, IExpression? Category, int Line) : IExpression;
+public sealed record FailureLiteral(IExpression Message, IExpression? Category, int Line, int Column) : IExpression;
 
 // <fallible-expr> but on failure <default-expr>
 // Produces plain T: the value on success, the default on failure. Mirrors ButVoidDefault.
-public sealed record FailureFallback(IExpression Fallible, IExpression Default, int Line) : IExpression;
+public sealed record FailureFallback(IExpression Fallible, IExpression Default, int Line, int Column) : IExpression;
 
 // <fallible-expr> or pass the failure off
 // On failure, returns the failure from the enclosing function immediately (requires the
 // enclosing function to itself be fallible). On success, yields the plain value.
-public sealed record FailurePropagate(IExpression Fallible, int Line) : IExpression;
+public sealed record FailurePropagate(IExpression Fallible, int Line, int Column) : IExpression;
 
 // Try to: <Body> Done.
 //   [In case of failure: <FailureHandler> Done.]        — optional, null if absent
@@ -378,14 +394,15 @@ public sealed record TryStatement(
     IReadOnlyList<IStatement> Body,
     IReadOnlyList<IStatement>? FailureHandler,    // null = no failure handler
     IReadOnlyList<IStatement>? ExceptionHandler,  // null = no exception handler
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // Suppress the exception.
 // Valid only inside an 'In case of exception' handler block (static error elsewhere).
 // Causes the exception to be swallowed — execution continues after the Try statement
 // rather than re-raising the exception. Without this, exceptions re-raise by default.
-public sealed record SuppressStatement(int Line) : IStatement;
+public sealed record SuppressStatement(int Line, int Column) : IStatement;
 
 // ── Maps ──────────────────────────────────────────────────────────────────────
 
@@ -396,23 +413,24 @@ public sealed record MapLiteral(
     CufetType? KeyType,
     CufetType? ValueType,
     IReadOnlyList<(IExpression Key, IExpression Value)> Pairs,
-    int Line
+    int Line,
+    int Column
 ) : IExpression;
 
 // the entry for <key> in <map>  →  voidable V (void when key absent)
-public sealed record MapLookup(IExpression Map, IExpression Key, int Line) : IExpression;
+public sealed record MapLookup(IExpression Map, IExpression Key, int Line, int Column) : IExpression;
 
 // map has a key for <key>   →  fact (true when the key is present)
-public sealed record MapHasKey(IExpression Map, IExpression Key, int Line) : IExpression;
+public sealed record MapHasKey(IExpression Map, IExpression Key, int Line, int Column) : IExpression;
 
 // map has an entry for <key>  →  fact (alias for HasKey this slice)
-public sealed record MapHasEntry(IExpression Map, IExpression Key, int Line) : IExpression;
+public sealed record MapHasEntry(IExpression Map, IExpression Key, int Line, int Column) : IExpression;
 
 // the size of <map>  →  number (entry count)
-public sealed record MapSize(IExpression Map, int Line) : IExpression;
+public sealed record MapSize(IExpression Map, int Line, int Column) : IExpression;
 
 // in <map>, the entry for <key> becomes <value>.
-public sealed record MapSetStatement(IExpression Map, IExpression Key, IExpression Value, int Line) : IStatement
+public sealed record MapSetStatement(IExpression Map, IExpression Key, IExpression Value, int Line, int Column) : IStatement
 {
     // ESC.1 — set by the checker when the stored value's region depth is DEEPER than the
     // destination's (the value would be freed by an inner rabbit's Done. while the destination
@@ -430,7 +448,8 @@ public sealed record MapSetStatement(IExpression Map, IExpression Key, IExpressi
 public sealed record LambdaLiteral(
     IReadOnlyList<(CufetType Type, string Name)> Parameters,
     IReadOnlyList<IStatement> Body,
-    int Line
+    int Line,
+    int Column
 ) : IExpression;
 
 // ── I/O ───────────────────────────────────────────────────────────────────────
@@ -442,7 +461,7 @@ public enum ReadForm { Line, All, AllLines }
 // read all lines from <stream>    → series of text (drains and splits; empty → empty series)
 // Source is any expression of type readable stream of text.
 // 'the input' is a pre-defined always-open readable stream of text (stdin).
-public sealed record ReadExpression(ReadForm Form, IExpression Source, int Line) : IExpression;
+public sealed record ReadExpression(ReadForm Form, IExpression Source, int Line, int Column) : IExpression;
 
 public enum FileReadForm { All, AllLines }
 
@@ -450,52 +469,52 @@ public enum FileReadForm { All, AllLines }
 // read all lines from the file "<path>"  → series of text or failure
 // Path is a text expression (string literal or variable). Failure on not-found / permission / disk-error.
 // Whole-file reads return the full contents or a failure — no void (no EOF-absence to express here).
-public sealed record FileReadExpression(FileReadForm Form, IExpression Path, int Line) : IExpression;
+public sealed record FileReadExpression(FileReadForm Form, IExpression Path, int Line, int Column) : IExpression;
 
 // the environment variable <name>  →  voidable text (void when the variable is unset; name is a text expr)
-public sealed record EnvironmentVariableExpression(IExpression Name, int Line) : IExpression;
+public sealed record EnvironmentVariableExpression(IExpression Name, int Line, int Column) : IExpression;
 
 // the current directory  →  voidable text. Void only in the pathological case where the process
 // has no working directory to report — the directory was deleted out from under it. Voidable
 // rather than plain text to match `the environment variable`, which asks the OS the same way.
-public sealed record CurrentDirectoryExpression(int Line) : IExpression;
+public sealed record CurrentDirectoryExpression(int Line, int Column) : IExpression;
 
 // The current directory becomes <path>.  →  a FALLIBLE statement, like `write ... to ...`:
 // the path may not exist, may not be a directory, or may not be reachable.
-public sealed record CurrentDirectorySetStatement(IExpression Path, int Line) : IStatement;
+public sealed record CurrentDirectorySetStatement(IExpression Path, int Line, int Column) : IStatement;
 
 // ── Directory traversal ───────────────────────────────────────────────────────────────────────────
 
 // the contents of the directory <path>  →  series of text or failure
 // Returns full absolute paths of every entry (files + subdirs) directly inside the directory.
 // Fails on not-found, not-a-directory, or permission-denied.
-public sealed record DirectoryContentsExpression(IExpression Path, int Line) : IExpression;
+public sealed record DirectoryContentsExpression(IExpression Path, int Line, int Column) : IExpression;
 
 // the path <path> exists         →  boolean (infallible; uncertainty resolves to false)
 // the path <path> is a directory →  boolean (infallible)
 // the path <path> is a file      →  boolean (infallible)
 public enum PathCheckKind { Exists, IsDirectory, IsFile }
-public sealed record PathCheckExpression(IExpression Path, PathCheckKind Kind, int Line) : IExpression;
+public sealed record PathCheckExpression(IExpression Path, PathCheckKind Kind, int Line, int Column) : IExpression;
 
 // ── Signals ───────────────────────────────────────────────────────────────────────────────────────
 
 // an interrupt is requested  →  fact (boolean, infallible)
 // True when _interruptRequested is set; false otherwise.  Cooperative polling — no async.
-public sealed record InterruptRequestedExpression(int Line) : IExpression;
+public sealed record InterruptRequestedExpression(int Line, int Column) : IExpression;
 
 // Acknowledge the interrupt.  →  statement; clears _interruptRequested
 // Resets the interrupt flag after the program has noticed and handled it.
-public sealed record AcknowledgeInterruptStatement(int Line) : IStatement;
+public sealed record AcknowledgeInterruptStatement(int Line, int Column) : IStatement;
 
 // Yield.  →  statement; cooperative scheduler yield + interrupt checkpoint (slice 5)
 // Gives up the scheduler turn (lets one other ready task run), then throws InterruptUnwind
 // if the interrupt flag is set, or resumes execution here otherwise.
-public sealed record YieldStatement(int Line) : IStatement;
+public sealed record YieldStatement(int Line, int Column) : IStatement;
 
 // write <value> to the file "<path>"   — overwrite (creates if absent); Append = false
 // append <value> to the file "<path>"  — append   (creates if absent); Append = true
 // Statements: complete on success; throw FailureUnwind on IO failure (catchable by Try/In case of failure).
-public sealed record FileWriteStatement(bool Append, IExpression Value, IExpression Path, int Line) : IStatement;
+public sealed record FileWriteStatement(bool Append, IExpression Value, IExpression Path, int Line, int Column) : IStatement;
 
 public enum OpenMode { Reading, Writing }
 
@@ -509,19 +528,20 @@ public sealed record WithOpenStatement(
     IExpression Path,
     string BindingName,
     IReadOnlyList<IStatement> Body,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // write <value> to <stream> — writes text to a writable stream incrementally (no newline added).
 // Failures (disk full, etc.) propagate as Cufet failures.
-public sealed record WriteToStreamStatement(IExpression Value, IExpression Stream, int Line) : IStatement;
+public sealed record WriteToStreamStatement(IExpression Value, IExpression Stream, int Line, int Column) : IStatement;
 
 // run <program> [with arguments (<arg1>, <arg2>, ...)]
 // Blocks until the process exits (synchronous). Returns a record or failure.
 // Launch failure (executable not found, permission denied) → Cufet failure.
 // Process ran but exited nonzero → normal result (check exit-code field).
 // Args is empty when no 'with arguments' clause is present.
-public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpression> Args, int Line) : IExpression;
+public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpression> Args, int Line, int Column) : IExpression;
 
 // Pull a rabbit [as <name>]. ... Done.
 // Opens a Done.-delimited arena scope. Reference-typed values created in the scope live in
@@ -532,7 +552,8 @@ public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpressio
 public sealed record PullRabbitStatement(
     string? Name,
     IReadOnlyList<IStatement> Body,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // Have rabbit start a task [as <name>]: ... Done.
@@ -547,7 +568,8 @@ public sealed record PullRabbitStatement(
 public sealed record LaunchTaskStatement(
     string? Name,
     IReadOnlyList<IStatement> Body,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // a matrix with ((r1e1, r1e2, ...), (r2e1, r2e2, ...), ...)
@@ -555,22 +577,26 @@ public sealed record LaunchTaskStatement(
 // Constructable only where the 'collections' book has been pulled.
 public sealed record MatrixLiteral(
     IReadOnlyList<IReadOnlyList<IExpression>> Rows,
-    int Line
+    int Line,
+    int Column
 ) : IExpression;
 
 // the item at (row, column) of <matrix> — 1-based; number result.
 // Out-of-bounds mirrors series indexing (RuntimeException).
+// The indexed column is 'Col' — 'Column' is the source position every node carries, and it
+// pairs with MatrixSized's 'Cols' anyway.
 public sealed record MatrixAccess(
     IExpression Matrix,
     IExpression Row,
-    IExpression Column,
-    int Line
+    IExpression Col,
+    int Line,
+    int Column
 ) : IExpression;
 
 // a matrix with <Rows> by <Cols> [filled with <Fill>]
 // Sized constructor: Fill == null → all cells zero; requires 'collections' pulled.
 // Dimension expressions must evaluate to positive whole numbers.
-public sealed record MatrixSized(IExpression Rows, IExpression Cols, IExpression? Fill, int Line) : IExpression;
+public sealed record MatrixSized(IExpression Rows, IExpression Cols, IExpression? Fill, int Line, int Column) : IExpression;
 
 // Pull a book on <name> [as <local>]. ... Done.              — single book, Done.-delimited scope
 // Pull books on <n1> [as <l1>], <n2> [as <l2>], and <n3>. ... Done. — multiple books, shared scope
@@ -578,7 +604,8 @@ public sealed record MatrixSized(IExpression Rows, IExpression Cols, IExpression
 public sealed record PullStatement(
     IReadOnlyList<(string BookName, string LocalName)> Books,  // one entry per pulled book
     IReadOnlyList<IStatement> Body,                            // statements between Pull and Done.
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 // if x is a number — type test; yields fact (true when the runtime value matches the type).
@@ -588,7 +615,7 @@ public sealed record PullStatement(
 // value cannot answer precisely for an EMPTY container (a bare List carries no element type), but
 // the declared type always can. Null when the checker couldn't determine it → value-directed
 // fallback. Set during checking; both passes share this AST object, so no pipeline change.
-public sealed record IsTypeCheck(IExpression Target, CufetType Type, bool Negated, int Line) : IExpression
+public sealed record IsTypeCheck(IExpression Target, CufetType Type, bool Negated, int Line, int Column) : IExpression
 {
     public CufetType? StaticTargetType { get; set; }
 }
@@ -597,38 +624,38 @@ public sealed record IsTypeCheck(IExpression Target, CufetType Type, bool Negate
 
 // a random number from <Low> to <High> — inclusive whole-number range; requires chance pulled.
 // Low > High → RuntimeException (bug, not a recoverable failure).
-public sealed record RandomNumber(IExpression Low, IExpression High, int Line) : IExpression;
+public sealed record RandomNumber(IExpression Low, IExpression High, int Line, int Column) : IExpression;
 
 // a random item from <Series> — uniformly random element; voidable on empty series/catalogue.
 // Generic in element type (series of T → voidable T); works on catalogues.
-public sealed record RandomItem(IExpression Series, int Line) : IExpression;
+public sealed record RandomItem(IExpression Series, int Line, int Column) : IExpression;
 
 // randomly shuffled <Series> — returns a new series in random order; source unchanged.
 // Generic in element type (series of T → series of T); works on catalogues.
-public sealed record RandomlyShuffled(IExpression Series, int Line) : IExpression;
+public sealed record RandomlyShuffled(IExpression Series, int Line, int Column) : IExpression;
 
 // a random guess — fact (true or false, 50/50); requires chance pulled.
-public sealed record RandomGuess(int Line) : IExpression;
+public sealed record RandomGuess(int Line, int Column) : IExpression;
 
 // Seed the chance with <Seed>. — reseeds the per-interpreter RNG for reproducibility.
 // Default (no seed) = entropy-seeded (real randomness). Requires chance pulled.
-public sealed record SeedChanceStatement(IExpression Seed, int Line) : IStatement;
+public sealed record SeedChanceStatement(IExpression Seed, int Line, int Column) : IStatement;
 
 // ── Channels (concurrency slice 3) ────────────────────────────────────────────
 // a channel of T — creates a new channel; reference-typed.
-public sealed record ChannelCreation(CufetType ElementType, int Line) : IExpression;
+public sealed record ChannelCreation(CufetType ElementType, int Line, int Column) : IExpression;
 // Send <value> through <channel>. — queues value (non-blocking); deep-copies reference-types.
-public sealed record SendStatement(IExpression Value, IExpression Channel, int Line) : IStatement;
+public sealed record SendStatement(IExpression Value, IExpression Channel, int Line, int Column) : IStatement;
 // the delivery from <channel>  →  voidable T
 // Non-void if value present; yields if empty-and-open; void if empty-and-closed.
-public sealed record DeliveryExpression(IExpression Channel, int Line) : IExpression;
+public sealed record DeliveryExpression(IExpression Channel, int Line, int Column) : IExpression;
 // Close <channel>. — signals done; future deliveries drain remaining values then return void.
-public sealed record CloseStatement(IExpression Channel, int Line) : IStatement;
+public sealed record CloseStatement(IExpression Channel, int Line, int Column) : IStatement;
 
 // ── Task results (concurrency slice 4) ────────────────────────────────────────
 // "the awaited result of <task>" — yields until the named task completes, then
 // returns its result (T / voidable T / T or failure depending on the task body).
-public sealed record AwaitedResultExpression(IExpression Task, int Line) : IExpression;
+public sealed record AwaitedResultExpression(IExpression Task, int Line, int Column) : IExpression;
 
 // ── Pipes ──────────────────────────────────────────────────────────────────────
 // A | B — streaming pipe statement (and IExpression so it nests for multi-stage).
@@ -636,12 +663,12 @@ public sealed record AwaitedResultExpression(IExpression Task, int Line) : IExpr
 //   RunExpression operands → subprocess stdio wiring (C# Process)
 //   FunctionValue operands → channel+task wiring (Cufet stages)
 // Multi-stage: left-associative, (A|B)|C = PipeExpression(PipeExpression(A,B),C).
-public sealed record PipeExpression(IExpression Left, IExpression Right, int Line) : IExpression, IStatement;
+public sealed record PipeExpression(IExpression Left, IExpression Right, int Line, int Column) : IExpression, IStatement;
 
 // output <value>. — producer statement: emit a value to the implicit output stream.
 // Only meaningful inside a pipe-producer context (enforced at runtime).
 // 'output' is NOT a reserved keyword — contextually recognized by shape.
-public sealed record OutputStatement(IExpression Value, int Line) : IStatement;
+public sealed record OutputStatement(IExpression Value, int Line, int Column) : IStatement;
 
 // for each <name> from the input: <body> Done.
 // Consumer loop: iterates the implicit input stream until it closes.
@@ -649,7 +676,8 @@ public sealed record OutputStatement(IExpression Value, int Line) : IStatement;
 public sealed record ForEachFromInputStatement(
     string IteratorName,
     IReadOnlyList<IStatement> Body,
-    int Line
+    int Line,
+    int Column
 ) : IStatement;
 
 public sealed record Program(IReadOnlyList<IStatement> Statements);

@@ -15,30 +15,30 @@ public sealed partial class TypeChecker
             {
                 var setterValueType = InferType(stmt.Value);
                 if (setterValueType != null && !IsAssignable(setterSig.Value.ParamType, setterValueType))
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         $"setter for '{stmt.FieldName}' expects a {FormatType(setterSig.Value.ParamType)}, not a {FormatType(setterValueType)}",
-                        null, stmt.Line,
+                        null, stmt.Line, stmt.Column,
                         $"set '{stmt.FieldName}' to a {FormatType(setterValueType)}",
-                        $"The setter for '{stmt.FieldName}' accepts a {FormatType(setterSig.Value.ParamType)}."));
-                CheckRegionStore(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Record), stmt.Line,
+                        $"The setter for '{stmt.FieldName}' accepts a {FormatType(setterSig.Value.ParamType)}.");
+                CheckRegionStore(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Record), stmt.Line, stmt.Column,
                     $"set field '{stmt.FieldName}' to a value from a shorter-lived rabbit region");
                 stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Record));
                 return;
             }
-            CheckObjectNamedSet(ot, stmt.FieldName, stmt.Value, stmt.Line);
+            CheckObjectNamedSet(ot, stmt.FieldName, stmt.Value, stmt.Line, stmt.Column);
             var objValueType = InferType(stmt.Value);
-            CheckRegionStore(stmt.Value, objValueType, ContainerDepthOf(stmt.Record), stmt.Line,
+            CheckRegionStore(stmt.Value, objValueType, ContainerDepthOf(stmt.Record), stmt.Line, stmt.Column,
                 $"set field '{stmt.FieldName}' to a value from a shorter-lived rabbit region");
             stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, objValueType, ContainerDepthOf(stmt.Record));
             return;
         }
 
         if (recordType is not RecordType rt)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"you're trying to set field '{stmt.FieldName}' on something that isn't a record or object",
-                null, stmt.Line,
+                null, stmt.Line, stmt.Column,
                 $"set a named field on a {FormatType(recordType)}",
-                "Only records and objects have named fields."));
+                "Only records and objects have named fields.");
 
         var field = rt.NamedFields.FirstOrDefault(f => f.Name == stmt.FieldName);
         if (field == default)
@@ -46,23 +46,23 @@ public sealed partial class TypeChecker
             var hint = rt.NamedFields.Count > 0
                 ? $"Available named fields: {string.Join(", ", rt.NamedFields.Select(f => f.Name))}."
                 : "This record has no named fields.";
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"this record has no field named '{stmt.FieldName}'",
-                null, stmt.Line,
+                null, stmt.Line, stmt.Column,
                 $"set field '{stmt.FieldName}'",
-                hint));
+                hint);
         }
 
         var valueType = InferType(stmt.Value);
         if (valueType != null && !IsAssignable(field.Type, valueType))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"field '{stmt.FieldName}' holds a {FormatType(field.Type)}, not a {FormatType(valueType)}",
-                null, stmt.Line,
+                null, stmt.Line, stmt.Column,
                 $"set field '{stmt.FieldName}' to a {FormatType(valueType)}",
-                $"Field '{stmt.FieldName}' has type {FormatType(field.Type)}."));
+                $"Field '{stmt.FieldName}' has type {FormatType(field.Type)}.");
 
         // Region invariant: field value cannot outlive the record's rabbit region.
-        CheckRegionStore(stmt.Value, valueType, ContainerDepthOf(stmt.Record), stmt.Line,
+        CheckRegionStore(stmt.Value, valueType, ContainerDepthOf(stmt.Record), stmt.Line, stmt.Column,
             $"set field '{stmt.FieldName}' to a value from a shorter-lived rabbit region");
         stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, valueType, ContainerDepthOf(stmt.Record));
     }
@@ -74,11 +74,11 @@ public sealed partial class TypeChecker
         {
             var t = InferType(field);
             if (t == null)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     "the type of a positional record field can't be determined",
-                    null, lit.Line,
+                    null, lit.Line, lit.Column,
                     "use an expression whose type can't be inferred as a record field",
-                    "Start with a literal value or a defined variable so the field type is clear."));
+                    "Start with a literal value or a defined variable so the field type is clear.");
             positionalTypes.Add(t);
         }
 
@@ -86,18 +86,18 @@ public sealed partial class TypeChecker
         foreach (var (name, valueExpr) in lit.NamedFields)
         {
             if (namedFields.Any(f => f.Name == name))
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"the record has two fields both named '{name}'",
-                    null, lit.Line,
+                    null, lit.Line, lit.Column,
                     $"define a record with duplicate field name '{name}'",
-                    "Each named field must have a unique name."));
+                    "Each named field must have a unique name.");
             var t = InferType(valueExpr);
             if (t == null)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"the type of field '{name}' can't be determined",
-                    null, lit.Line,
+                    null, lit.Line, lit.Column,
                     "use an expression whose type can't be inferred as a record field",
-                    "Start with a literal value or a defined variable so the field type is clear."));
+                    "Start with a literal value or a defined variable so the field type is clear.");
             namedFields.Add((name, t));
         }
 
@@ -116,11 +116,11 @@ public sealed partial class TypeChecker
             {
                 "key"   => mt.KeyType,
                 "value" => mt.ValueType,
-                _ => throw new TypeException(FormatTypeError(
+                _ => throw TypeError(
                     $"a mapping only has 'key' and 'value' fields",
-                    null, rna.Line,
+                    null, rna.Line, rna.Column,
                     $"access field '{rna.FieldName}' on a mapping",
-                    "Use 'the key of mapping' or 'the value of mapping'."))
+                    "Use 'the key of mapping' or 'the value of mapping'.")
             };
         }
 
@@ -133,12 +133,12 @@ public sealed partial class TypeChecker
             return rna.FieldName switch
             {
                 "rows" or "columns" => CufetType.Number,
-                _ => throw new TypeException(FormatTypeError(
+                _ => throw TypeError(
                     "a matrix only has 'rows' and 'columns'",
-                    null, rna.Line,
+                    null, rna.Line, rna.Column,
                     $"access field '{rna.FieldName}' on a matrix",
                     "Use 'the rows of m' or 'the columns of m'. For an element, use " +
-                    "'the item at (row, column) of m'."))
+                    "'the item at (row, column) of m'.")
             };
         }
 
@@ -148,11 +148,11 @@ public sealed partial class TypeChecker
             return rna.FieldName switch
             {
                 "message" => CufetType.Text,
-                _ => throw new TypeException(FormatTypeError(
+                _ => throw TypeError(
                     "an exception only has a 'message' field",
-                    null, rna.Line,
+                    null, rna.Line, rna.Column,
                     $"access field '{rna.FieldName}' on an exception",
-                    "Use 'the message of the exception'."))
+                    "Use 'the message of the exception'.")
             };
         }
 
@@ -163,11 +163,11 @@ public sealed partial class TypeChecker
             {
                 "message"  => CufetType.Text,
                 "category" => new VoidableType(CufetType.Text),
-                _ => throw new TypeException(FormatTypeError(
+                _ => throw TypeError(
                     "a failure only has 'message' and 'category' fields",
-                    null, rna.Line,
+                    null, rna.Line, rna.Column,
                     $"access field '{rna.FieldName}' on a failure",
-                    "Use 'the message of the failure' or 'the category of the failure'."))
+                    "Use 'the message of the failure' or 'the category of the failure'.")
             };
         }
 
@@ -195,21 +195,21 @@ public sealed partial class TypeChecker
             var available = string.Join(", ",
                 allFields.Select(f => $"'{f.FieldName}'")
                 .Concat(ot.Getters.Select(g => $"'{g.GetterName}' (getter)")));
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{ot.Name}' has no field or getter named '{rna.FieldName}'",
-                null, rna.Line,
+                null, rna.Line, rna.Column,
                 $"access field '{rna.FieldName}'",
                 available.Length > 0
                     ? $"Available: {available}."
-                    : $"'{ot.Name}' has no named fields or getters."));
+                    : $"'{ot.Name}' has no named fields or getters.");
         }
 
         if (recordType is not RecordType rt)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"you're trying to access field '{rna.FieldName}' on something that isn't a record or object",
-                null, rna.Line,
+                null, rna.Line, rna.Column,
                 $"access a named field of a {FormatType(recordType)}",
-                "Only records and objects have named fields."));
+                "Only records and objects have named fields.");
 
         var field = rt.NamedFields.FirstOrDefault(f => f.Name == rna.FieldName);
         if (field == default)
@@ -226,11 +226,11 @@ public sealed partial class TypeChecker
             var fix = suggestion != null
                 ? $"Did you mean '{suggestion}'?{available}"
                 : available;
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"this record has no field named '{rna.FieldName}'",
-                null, rna.Line,
+                null, rna.Line, rna.Column,
                 $"access field '{rna.FieldName}'",
-                fix));
+                fix);
         }
 
         return field.Type;

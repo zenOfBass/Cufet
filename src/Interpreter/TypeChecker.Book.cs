@@ -60,80 +60,80 @@ public sealed partial class TypeChecker
         return false;
     }
 
-    private void RequireChancePulled(int line, string construct)
+    private void RequireChancePulled(int line, int col, string construct)
     {
         if (!IsChancePulled())
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"the chance book is not in scope",
-                null, line,
+                null, line, col,
                 $"use '{construct}' without pulling the chance book",
-                "Add 'Pull a book on chance.' before this line."));
+                "Add 'Pull a book on chance.' before this line.");
     }
 
     // ── Chance book — type inference ─────────────────────────────────────────────
 
     private CufetType InferRandomNumber(RandomNumber rn)
     {
-        RequireChancePulled(rn.Line, "a random number from ... to ...");
+        RequireChancePulled(rn.Line, rn.Column, "a random number from ... to ...");
         var lowType = InferType(rn.Low);
         if (lowType != null && lowType != CufetType.Number)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"the lower bound of a random number range must be a number, but found a {FormatType(lowType)}",
-                null, rn.Line,
+                null, rn.Line, rn.Column,
                 $"use a {FormatType(lowType)} as a range bound",
-                "Use numbers for both bounds (e.g. 'a random number from 1 to 6')."));
+                "Use numbers for both bounds (e.g. 'a random number from 1 to 6').");
         var highType = InferType(rn.High);
         if (highType != null && highType != CufetType.Number)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"the upper bound of a random number range must be a number, but found a {FormatType(highType)}",
-                null, rn.Line,
+                null, rn.Line, rn.Column,
                 $"use a {FormatType(highType)} as a range bound",
-                "Use numbers for both bounds (e.g. 'a random number from 1 to 6')."));
+                "Use numbers for both bounds (e.g. 'a random number from 1 to 6').");
         return CufetType.Number;
     }
 
     private CufetType InferRandomItem(RandomItem ri)
     {
-        RequireChancePulled(ri.Line, "a random item from ...");
+        RequireChancePulled(ri.Line, ri.Column, "a random item from ...");
         var seriesType = InferType(ri.Series);
         if (seriesType == null) return new VoidableType(CufetType.Number); // can't infer — fall back
         if (seriesType is SeriesType st) return new VoidableType(st.ElementType);
-        throw new TypeException(FormatTypeError(
+        throw TypeError(
             $"'a random item from' requires a series, but found a {FormatType(seriesType)}",
-            null, ri.Line,
+            null, ri.Line, ri.Column,
             $"pick a random item from a {FormatType(seriesType)}",
-            "'a random item from' works on any series or catalogue."));
+            "'a random item from' works on any series or catalogue.");
     }
 
     private CufetType InferRandomlyShuffled(RandomlyShuffled rs)
     {
-        RequireChancePulled(rs.Line, "randomly shuffled ...");
+        RequireChancePulled(rs.Line, rs.Column, "randomly shuffled ...");
         var seriesType = InferType(rs.Series);
         if (seriesType == null) return new SeriesType(CufetType.Number); // fallback
         if (seriesType is SeriesType) return seriesType; // same series type (element-type-preserving)
-        throw new TypeException(FormatTypeError(
+        throw TypeError(
             $"'randomly shuffled' requires a series, but found a {FormatType(seriesType)}",
-            null, rs.Line,
+            null, rs.Line, rs.Column,
             $"shuffle a {FormatType(seriesType)}",
-            "'randomly shuffled' works on any series or catalogue."));
+            "'randomly shuffled' works on any series or catalogue.");
     }
 
     private CufetType InferRandomGuess(RandomGuess rg)
     {
-        RequireChancePulled(rg.Line, "a random guess");
+        RequireChancePulled(rg.Line, rg.Column, "a random guess");
         return CufetType.Fact;
     }
 
     private void CheckSeedChanceStatement(SeedChanceStatement ss)
     {
-        RequireChancePulled(ss.Line, "Seed the chance with ...");
+        RequireChancePulled(ss.Line, ss.Column, "Seed the chance with ...");
         var seedType = InferType(ss.Seed);
         if (seedType != null && seedType != CufetType.Number)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"the seed must be a number, but found a {FormatType(seedType)}",
-                null, ss.Line,
+                null, ss.Line, ss.Column,
                 $"seed chance with a {FormatType(seedType)}",
-                "Use a whole number as the seed (e.g. 'Seed the chance with 42.')."));
+                "Use a whole number as the seed (e.g. 'Seed the chance with 42.').");
     }
 
     private void CheckPullStatement(PullStatement ps)
@@ -146,14 +146,14 @@ public sealed partial class TypeChecker
                 if (!BuiltinBooks.TryGetValue(bookName, out var bookType))
                 {
                     var available = string.Join(", ", BuiltinBooks.Keys.OrderBy(k => k).Select(k => $"'{k}'"));
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         $"there is no book named '{bookName}'",
-                        null, ps.Line,
+                        null, ps.Line, ps.Column,
                         $"pull a book named '{bookName}'",
-                        $"Available books: {available}."));
+                        $"Available books: {available}.");
                 }
 
-                Scope[localName] = new TypeInfo(bookType, new VariableReference(localName, ps.Line), ps.Line);
+                Scope[localName] = new TypeInfo(bookType, new VariableReference(localName, ps.Line, ps.Column), ps.Line);
 
                 // Register any types the book introduces into the Pull...Done scope.
                 foreach (var (typeName, typeObj) in bookType.IntroducedTypes)
@@ -183,40 +183,40 @@ public sealed partial class TypeChecker
         var member = poss.Member.ToLowerInvariant();
 
         if (cast.Args.Count != 1)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'{poss.Member}' takes one argument (a series), but {cast.Args.Count} were given",
-                null, cast.Line,
+                null, cast.Line, cast.Column,
                 $"call '{poss.Member}' with {cast.Args.Count} arguments",
-                $"Use: cast collections' {poss.Member} of (xs)."));
+                $"Use: cast collections' {poss.Member} of (xs).");
 
         var argType = InferType(cast.Args[0]);
 
         if (member != "unique")
         {
             if (argType is SeriesType { ElementType: var et } && et != CufetType.Number)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{poss.Member}' works on a series of numbers, but this series holds {FormatTypePlural(et)}",
-                    null, cast.Line,
+                    null, cast.Line, cast.Column,
                     $"apply '{poss.Member}' to a series of {FormatTypePlural(et)}",
-                    $"'{poss.Member}' requires a series of number."));
+                    $"'{poss.Member}' requires a series of number.");
 
             if (argType != null && argType is not SeriesType)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"'{poss.Member}' works on a series of numbers, but got a {FormatType(argType)}",
-                    null, cast.Line,
+                    null, cast.Line, cast.Column,
                     $"apply '{poss.Member}' to a {FormatType(argType)}",
-                    $"'{poss.Member}' requires a series of number."));
+                    $"'{poss.Member}' requires a series of number.");
 
             return new VoidableType(CufetType.Number);
         }
 
         // unique: series of T → series of T (element-type-preserving).
         if (argType != null && argType is not SeriesType)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'unique' works on a series, but got a {FormatType(argType)}",
-                null, cast.Line,
+                null, cast.Line, cast.Column,
                 $"apply 'unique' to a {FormatType(argType)}",
-                "'unique' requires a series of any element type."));
+                "'unique' requires a series of any element type.");
 
         return argType; // same SeriesType, or null if unresolvable (runtime catches it)
     }
@@ -227,11 +227,11 @@ public sealed partial class TypeChecker
         if (memberType != null) return memberType;
 
         var available = string.Join(", ", bt.Members.Select(m => $"'{m.MemberName}'"));
-        throw new TypeException(FormatTypeError(
+        throw TypeError(
             $"book '{bt.Name}' has no member '{poss.Member}'",
-            null, poss.Line,
+            null, poss.Line, poss.Column,
             $"access '{poss.Member}' from book '{bt.Name}'",
-            available.Length > 0 ? $"Available: {available}." : $"Book '{bt.Name}' has no members."));
+            available.Length > 0 ? $"Available: {available}." : $"Book '{bt.Name}' has no members.");
     }
 
     // ── Matrix type inference ─────────────────────────────────────────────────
@@ -239,36 +239,36 @@ public sealed partial class TypeChecker
     private CufetType InferMatrixLiteral(MatrixLiteral lit)
     {
         if (!TryLookupScopedType("matrix", out _))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "'matrix' is not available in this scope",
-                null, lit.Line,
+                null, lit.Line, lit.Column,
                 "construct a matrix without pulling the 'collections' book first",
-                "Add 'Pull a book on collections.' before this line."));
+                "Add 'Pull a book on collections.' before this line.");
 
         if (lit.Rows.Count == 0)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "a matrix must have at least one row",
-                null, lit.Line,
+                null, lit.Line, lit.Column,
                 "create a matrix with no rows",
-                "Provide at least one row: 'a matrix with ((1, 2), (3, 4))'."));
+                "Provide at least one row: 'a matrix with ((1, 2), (3, 4))'.");
 
         int cols = lit.Rows[0].Count;
         if (cols == 0)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "each matrix row must have at least one element",
-                null, lit.Line,
+                null, lit.Line, lit.Column,
                 "create a matrix row with no elements",
-                "Provide at least one number in each row."));
+                "Provide at least one number in each row.");
 
         for (int i = 1; i < lit.Rows.Count; i++)
         {
             if (lit.Rows[i].Count != cols)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"matrix rows must be equal length; row {i + 1} has {lit.Rows[i].Count} element(s), expected {cols}",
                     $"Row 1 has {cols} element(s)",
-                    lit.Line,
+                    lit.Line, lit.Column,
                     "create a matrix with unequal row lengths",
-                    "Make all rows the same length to form a rectangle."));
+                    "Make all rows the same length to form a rectangle.");
         }
 
         foreach (var row in lit.Rows)
@@ -277,11 +277,11 @@ public sealed partial class TypeChecker
             {
                 var t = InferType(elem);
                 if (t != null && t != CufetType.Number)
-                    throw new TypeException(FormatTypeError(
+                    throw TypeError(
                         $"matrix elements must be numbers, but found a {FormatType(t)}",
-                        null, lit.Line,
+                        null, lit.Line, lit.Column,
                         $"put a {FormatType(t)} inside a matrix",
-                        "All matrix elements must be numbers."));
+                        "All matrix elements must be numbers.");
             }
         }
 
@@ -299,53 +299,53 @@ public sealed partial class TypeChecker
     private CufetType InferMatrixSized(MatrixSized ms)
     {
         if (!TryLookupScopedType("matrix", out _))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 "'matrix' is not available in this scope",
-                null, ms.Line,
+                null, ms.Line, ms.Column,
                 "construct a matrix without pulling the 'collections' book first",
-                "Add 'Pull a book on collections.' before this line."));
+                "Add 'Pull a book on collections.' before this line.");
 
         var rowsType = InferType(ms.Rows);
         if (rowsType != null && rowsType != CufetType.Number)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"matrix row count must be a number, but found a {FormatType(rowsType)}",
-                null, ms.Line,
+                null, ms.Line, ms.Column,
                 $"use a {FormatType(rowsType)} as a matrix row count",
-                "Row and column counts must be numbers (e.g. 3, 4)."));
+                "Row and column counts must be numbers (e.g. 3, 4).");
 
         var rowLitVal = TryGetLiteralDecimal(ms.Rows);
         if (rowLitVal.HasValue && (rowLitVal.Value != Math.Truncate(rowLitVal.Value) || rowLitVal.Value < 1))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"matrix dimensions must be positive whole numbers; got {rowLitVal.Value} for rows",
-                null, ms.Line,
+                null, ms.Line, ms.Column,
                 $"use {rowLitVal.Value} as a matrix row count",
-                "Use a positive whole number like 1, 2, 3."));
+                "Use a positive whole number like 1, 2, 3.");
 
         var colsType = InferType(ms.Cols);
         if (colsType != null && colsType != CufetType.Number)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"matrix column count must be a number, but found a {FormatType(colsType)}",
-                null, ms.Line,
+                null, ms.Line, ms.Column,
                 $"use a {FormatType(colsType)} as a matrix column count",
-                "Row and column counts must be numbers (e.g. 3, 4)."));
+                "Row and column counts must be numbers (e.g. 3, 4).");
 
         var colLitVal = TryGetLiteralDecimal(ms.Cols);
         if (colLitVal.HasValue && (colLitVal.Value != Math.Truncate(colLitVal.Value) || colLitVal.Value < 1))
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"matrix dimensions must be positive whole numbers; got {colLitVal.Value} for columns",
-                null, ms.Line,
+                null, ms.Line, ms.Column,
                 $"use {colLitVal.Value} as a matrix column count",
-                "Use a positive whole number like 1, 2, 3."));
+                "Use a positive whole number like 1, 2, 3.");
 
         if (ms.Fill != null)
         {
             var fillType = InferType(ms.Fill);
             if (fillType != null && fillType != CufetType.Number)
-                throw new TypeException(FormatTypeError(
+                throw TypeError(
                     $"matrix fill value must be a number, but found a {FormatType(fillType)}",
-                    null, ms.Line,
+                    null, ms.Line, ms.Column,
                     $"use a {FormatType(fillType)} as a matrix fill value",
-                    "The fill value must be a number (e.g. 0, 1, -1.5)."));
+                    "The fill value must be a number (e.g. 0, 1, -1.5).");
         }
 
         return MatrixType.Instance;
@@ -355,27 +355,27 @@ public sealed partial class TypeChecker
     {
         var matType = InferType(ma.Matrix);
         if (matType != null && matType is not MatrixType)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"'the item at (row, column) of' requires a matrix, but found a {FormatType(matType)}",
-                null, ma.Line,
+                null, ma.Line, ma.Column,
                 $"index a {FormatType(matType)} with matrix indexing syntax",
-                "Use 'the item at (row, column) of' with a matrix value."));
+                "Use 'the item at (row, column) of' with a matrix value.");
 
         var rowType = InferType(ma.Row);
         if (rowType != null && rowType != CufetType.Number)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"matrix row index must be a number, but found a {FormatType(rowType)}",
-                null, ma.Line,
+                null, ma.Line, ma.Column,
                 $"use a {FormatType(rowType)} as a matrix row index",
-                "Row and column indices must be numbers (e.g. 1, 2, 3)."));
+                "Row and column indices must be numbers (e.g. 1, 2, 3).");
 
-        var colType = InferType(ma.Column);
+        var colType = InferType(ma.Col);
         if (colType != null && colType != CufetType.Number)
-            throw new TypeException(FormatTypeError(
+            throw TypeError(
                 $"matrix column index must be a number, but found a {FormatType(colType)}",
-                null, ma.Line,
+                null, ma.Line, ma.Column,
                 $"use a {FormatType(colType)} as a matrix column index",
-                "Row and column indices must be numbers (e.g. 1, 2, 3)."));
+                "Row and column indices must be numbers (e.g. 1, 2, 3).");
 
         return CufetType.Number;
     }
