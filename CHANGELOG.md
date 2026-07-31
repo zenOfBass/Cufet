@@ -10,6 +10,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+**Column-precise diagnostics**
+
+- Every token and AST node now carries a **column** alongside its line, and diagnostics report
+  `file:line:column:` instead of line alone. `check --json` gains a `column` field, and the VS Code
+  problem matcher reads it.
+
+- Type errors now carry their position **structurally** rather than having the line scraped back out
+  of the message text — the groundwork the column data sits on. The one exception is the known
+  `ResolveParamType` unknown-type-name error, which has no expression in scope and stays on the
+  line-only fallback.
+
 **The current directory**
 
 - **`the current directory`** reads it, as `voidable text` — void only when the process has none
