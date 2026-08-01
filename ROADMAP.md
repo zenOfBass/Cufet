@@ -74,11 +74,33 @@ Ordered by what unblocks what, not by size. Two framings set the order:
      Two front-end changes were made to widen where the rule can be satisfied at all: `Output` and
      `Seed` may be capitalised, which removed the only statements that were unable to comply.
    - Suggesting multiline formatting of large record and object shapes.
-2. **Formatter.**
+2. ★ **An exhaustive switch.** The most common control flow the language still lacks — and the
+   value is not brevity. An `Otherwise if` chain already says everything a switch says. What it
+   cannot say is **these are all the cases**: add a case to a closed union today and nothing
+   reports which chains are now incomplete.
+
+   **The condition is the whole item — if it ships without exhaustiveness checking, it should not
+   ship.** A switch that merely reads better is a second spelling of a construct that already
+   exists, which is the thing refused a few entries below for the Hadamard product.
+
+   Most of the machinery is already paid for. Closed unions and narrowing-by-elimination make the
+   checker track which cases remain across `Otherwise` arms — that is how `Otherwise` knows `x` is
+   `text`. Exhaustiveness is that same bookkeeping turned into an error.
+
+   **The surface is the hard part and is deliberately not decided here.** It has to read as English
+   and fit the `Done.`-terminated, colon-opens-a-block shape, and `case` is unavailable — `In case
+   of exception` has it. That is a design session, not a coding task.
+
+   **Against predicate dispatch (Tier 3):** they overlap without replacing each other. Dispatch is
+   multi-directional and openly extensible; this is single-subject and closed. The overlap is the
+   argument for doing it first — a compiler written in Cufet is mostly single-subject dispatch on
+   node type, so this buys a large share of the ergonomic blocker that item exists to remove, far
+   cheaper, and shows which of that pain it does *not* cover before that design starts.
+3. **Formatter.**
 
 ### Tier 2 — leverage
 
-3. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+4. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
 
 ### Tier 3 — the design mountains
@@ -86,7 +108,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 Both need a design session before they can be ordered against anything. Neither is blocked by a
 numbered item; they are here because they are large, not because they are waiting.
 
-4. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+5. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
@@ -95,7 +117,7 @@ numbered item; they are here because they are large, not because they are waitin
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-5. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+6. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -130,14 +152,14 @@ numbered item; they are here because they are large, not because they are waitin
 
 ### Tier 4 — modules, strictly in this order
 
-6. **The `module` interface.** A named interface defining the contract for any loadable thing.
+7. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-7. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+8. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-8. **A package manager for books.**
+9. **A package manager for books.**
 
 ### Tier 5 — Cufet in Cufet
 
@@ -147,7 +169,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-9. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+10. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -155,15 +177,15 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-10. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
+11. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
-    ⚠ **Blocked on item 8, the C FFI.** Job control needs process groups and signalling a child;
+    ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
     completion needs raw terminal mode. Neither is in the language and neither should become a
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-11. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+12. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
