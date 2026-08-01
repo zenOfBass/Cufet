@@ -59,8 +59,21 @@ Ordered by what unblocks what, not by size. Two framings set the order:
      doing it while its own tasks resolve relative paths is a genuine race and therefore
      undefined, so refusing would be over-strict — and would outlaw the safe ordering (change it
      *before* spawning) that the refusal message recommends. A warning is the right severity.
-   - The **"capitalise the start of a statement"** guidance the parser deliberately does not
-     enforce, and suggesting multiline formatting of large record and object shapes.
+   - ★ **Start a line with a capital letter whenever that is possible — even if an article has to
+     be added to make it so, and only where the article reads naturally.** Articles are noise to
+     the parser, so `The total becomes 5.` and `total becomes 5.` are one statement, and the first
+     one lets the line open like a sentence. The rule is written in that order deliberately: the
+     capital is the goal, the article is the means, and *reading naturally* is the limit on the
+     means. Where no article makes sense, the line stays as it is — a pipe statement is not
+     improved by `The emit | show.`, and a warning that pushes toward that is worse than silence.
+
+     This is a warning, never an error, precisely because the parser cannot tell an awkward article
+     from a natural one. The language deliberately does not enforce it, which is what leaves room
+     for the judgement the last clause asks for.
+
+     Two front-end changes were made to widen where the rule can be satisfied at all: `Output` and
+     `Seed` may be capitalised, which removed the only statements that were unable to comply.
+   - Suggesting multiline formatting of large record and object shapes.
 2. **Formatter.**
 
 ### Tier 2 — leverage
