@@ -280,9 +280,12 @@ Worth having: `current` is a far more tempting variable name than the alternativ
   `a random number/item/guess` and `randomly shuffled` each have a required next word.
   **`catalogue` and `atlas` have optional tails** — `a catalogue` alone is valid — so nothing
   separates them from a variable of that name. They stay reserved.
-- A **statement-initial** word must be conventionally lowercase, because statement keywords are
-  capitalised and identifiers must start lowercase. `output` qualifies; **`Seed` does not**, so
-  it stays reserved too.
+- A **statement-initial** word may be written with a capital even though it is not reserved.
+  `Output 7.` and `output 7.` are the same statement, so a contextual word does not force a
+  statement to break the capitalise-the-first-word convention. This costs nothing: an identifier
+  must start lowercase, so the capitalised spelling was never available as a name in the first
+  place, and the lowercase form stays usable (`Define output as 42.`). **`Seed` remains
+  reserved** — that is a decision about `seed`, not a consequence of how it is spelled.
 
 **Ordinals** (`first`, `second`, `third`, `fourth`, `fifth`, `sixth`, `seventh`,
 `eighth`, `ninth`, `tenth`, `last`) — contextual in the accessor shape:
@@ -1349,7 +1352,12 @@ Define output as 42.      ← variable declaration — works
 output becomes 99.        ← reassignment — works
 output | consumer.        ← left side of a pipe — 'output' is the variable, not a keyword
 output 7.                 ← PIPE OUTPUT STATEMENT (only valid inside a pipe stage)
+Output 7.                 ← the same statement, capitalised
 ```
+
+**`Output` may be capitalised**, so this statement is written like every other one. The capital
+is meaningful only in this position: `Output` is not a second spelling of a variable named
+`output`, because an uppercase-initial identifier is not legal anywhere.
 
 **`input`** in `for each <name> from the input:` is matched by lexeme (`"input"`) at the
 parse site, not by a reserved `TokenType`. Outside that exact syntactic position the word

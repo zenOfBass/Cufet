@@ -26,6 +26,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   one `becomes` and `return` already perform. A value that does not fit is an error at the
   declaration, naming both types.
 
+**`Output` may be capitalised**
+
+- `Output 7.` now lexes, and means exactly what `output 7.` means. `output` opens a statement but
+  is deliberately not reserved, so a program can still call a variable `output` — which left it as
+  the one statement in the language that could not begin with a capital, right as a style rule
+  asking for exactly that comes into view.
+
+  It costs nothing to allow, which is the point: an identifier must start lowercase, so `Output`
+  was never available as a name to take away. Reserving the lowercase form would have taken one
+  from every program. The capital is meaningful only in the statement position — `Output` is not a
+  second spelling of a variable named `output`.
+
 **Semantic tokens**
 
 - **`cufet tokens --json <file>`** reports what each *name* in a program is — variable, function,
