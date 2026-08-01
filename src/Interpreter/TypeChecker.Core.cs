@@ -391,6 +391,10 @@ public sealed class TypeException : Exception
 
 public sealed partial class TypeChecker
 {
+    // What the check found that is worth saying but is not a reason to stop. An error is still
+    // thrown; this is only ever added to. Read it after Check returns.
+    public DiagnosticBag Diagnostics { get; } = new();
+
     // Scope chain: [0] = global scope, [^1] = innermost current scope.
     // Every Done.-bounded block (if/while/for/try) pushes a scope on entry and pops on exit.
     // Function bodies replace the whole chain (see CheckBind/CheckMethodBody).

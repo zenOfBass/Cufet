@@ -32,14 +32,18 @@ static void Help()
 
           cufet <file.cufe>                    run it
           cufet                                run what is piped in on stdin
-          cufet check [--json] [--native] <f>  report errors without running it
+          cufet check [--json] [--native] [--strict] <f>
+                                               report problems without running it
           cufet tokens --json <file.cufe>      report what each name in the file IS
           cufet build <file.cufe>              compile to a native binary (needs gcc)
           cufet emit-c <file.cufe> [out.c]     write the generated C without compiling
 
-        check exits 0 when clean and 1 when it finds something. --native additionally
-        reports what the native compiler refuses; those programs still interpret, so
+        check exits 0 when the program will run and 1 when it will not. An ERROR means it
+        will not run; a WARNING means it will, and something about it is worth knowing, so
+        warnings alone still exit 0. --strict makes any warning exit 1, for a CI gate.
+        --native adds what the native compiler refuses; those programs still interpret, so
         they come back as warnings. --json writes one diagnostic per line, for editors.
+        Running and building print warnings to stderr and carry on.
 
         tokens writes the semantic kind — variable, function, type, parameter, property,
         namespace — of every name it can place, as one JSON object per line. A grammar
@@ -75,7 +79,7 @@ static void EmitC(string sourcePath, string outPath)
 // same errors, but finding them by running the program is not an option when the program
 // reads input, writes files, or takes a minute.
 //
-//   cufet check [--json] [--native] <file>
+//   cufet check [--json] [--native] [--strict] <file>
 //
 // Two output shapes. The default is one human line per diagnostic,
 // "<path>:<line>:<column>: <severity>: <first line>", with the rest of a multi-line message indented
@@ -83,16 +87,20 @@ static void EmitC(string sourcePath, string outPath)
 // one JSON object per line to stdout instead, which keeps the multi-line body of a type error
 // intact rather than flattening it into a matcher-shaped single line.
 //
-// Exit: 0 clean, 1 problems found (any severity), 2 the file could not be read.
+// Exit: 0 the program will run (clean, or warnings only), 1 an error — or, with --strict, any
+// warning — 2 the file could not be read. The split is the point of the severity: an error means
+// there is nothing to run, a warning means there is, and only the caller knows whether that is
+// good enough for what they are doing.
 static void Check(string[] rest)
 {
     bool json   = rest.Any(a => a.Equals("--json",   StringComparison.OrdinalIgnoreCase));
     bool native = rest.Any(a => a.Equals("--native", StringComparison.OrdinalIgnoreCase));
+    bool strict = rest.Any(a => a.Equals("--strict", StringComparison.OrdinalIgnoreCase));
     var  path   = rest.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
 
     if (path is null)
     {
-        Console.Error.WriteLine("check: expected a source file — 'cufet check [--json] [--native] <file>'.");
+        Console.Error.WriteLine("check: expected a source file — 'cufet check [--json] [--native] [--strict] <file>'.");
         Environment.Exit(2);
         return;
     }
@@ -102,12 +110,13 @@ static void Check(string[] rest)
     try { source = File.ReadAllText(full); }
     catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(2); return; }
 
+    var checker = new TypeChecker();
     Cufet.Interpreter.Program program;
     try
     {
         var tokens = new Lexer(source).Tokenize();
         program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        checker.Check(program);
     }
     catch (Exception e) when (e is LexerException or ParseException or TypeException)
     {
@@ -116,22 +125,31 @@ static void Check(string[] rest)
         return;
     }
 
+    var warnings = new List<Diagnostic>(checker.Diagnostics.Items);
+
     // Codegen refusals are compiler-only. The interpreter runs these programs happily, so they
     // are a warning — "this won't build natively" — and not an error. Most carry no position, so
     // they land on line 1, column 1; the message names what to change.
     if (native)
     {
-        try { new CodeGenerator().Generate(program); }
+        var generator = new CodeGenerator();
+        try { generator.Generate(program); }
         catch (CompilerException e)
         {
-            Report(json, full, PositionOf(e), "warning", e.Message);
-            Environment.Exit(1);
-            return;
+            var (line, column) = PositionOf(e);
+            warnings.Add(new Diagnostic(DiagnosticSeverity.Warning, e.Message, line, column));
         }
+        warnings.AddRange(generator.Diagnostics.Items);
     }
 
-    if (!json) Console.WriteLine($"No problems found in {path}.");
-    Environment.Exit(0);
+    foreach (var w in warnings)
+        Report(json, full, (w.Line, w.Column), w.SeverityName, w.Message);
+
+    if (warnings.Count == 0 && !json) Console.WriteLine($"No problems found in {path}.");
+
+    // A warning means the program runs, so the default is success. --strict is for the caller who
+    // wants the build to stop on one anyway — a CI gate, or a native-compatibility check.
+    Environment.Exit(strict && warnings.Count > 0 ? 1 : 0);
 }
 
 // Semantic tokens: what each NAME in the file is — a variable, a function, a type, a parameter,
@@ -216,6 +234,15 @@ static int LineFromMessage(string message)
     return mentioned.Success ? int.Parse(mentioned.Groups[1].Value) : 1;
 }
 
+// Warnings on the paths that are not `check` — running and building. They go to stderr, so a
+// program's own output stays exactly what it wrote, and they never change what happens next:
+// something worth saying about a program that runs is not a reason to refuse to run it.
+static void WriteWarnings(string file, DiagnosticBag bag)
+{
+    foreach (var w in bag.Items)
+        Report(false, Path.GetFullPath(file), (w.Line, w.Column), w.SeverityName, w.Message);
+}
+
 static void Report(bool json, string file, (int Line, int Column) at, string severity, string message)
 {
     var (line, column) = at;
@@ -236,20 +263,25 @@ static void Build(string sourcePath)
     try { source = File.ReadAllText(sourcePath); }
     catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
 
+    var checker = new TypeChecker();
     Cufet.Interpreter.Program program;
     try
     {
         var tokens = new Lexer(source).Tokenize();
         program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        checker.Check(program);
     }
     catch (LexerException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
     catch (ParseException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
     catch (TypeException e)  { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
 
+    WriteWarnings(sourcePath, checker.Diagnostics);
+
     try
     {
-        var cSource  = new CodeGenerator().Generate(program);
+        var generator = new CodeGenerator();
+        var cSource   = generator.Generate(program);
+        WriteWarnings(sourcePath, generator.Diagnostics);
         var baseName = Path.GetFileNameWithoutExtension(sourcePath);
         var dir      = Path.GetDirectoryName(Path.GetFullPath(sourcePath))!;
         var cPath    = Path.Combine(dir, baseName + ".c");
@@ -290,7 +322,11 @@ static void Interpret(string[] args)
     {
         var tokens  = new Lexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        var checker = new TypeChecker();
+        checker.Check(program);
+        // To stderr, and before the program starts, so a warning never lands in the middle of the
+        // output and never gets mistaken for something the program printed.
+        WriteWarnings(args.Length > 0 ? args[0] : "<stdin>", checker.Diagnostics);
         RunOnLargeStack(() => new Interpreter().Execute(program));
     }
     catch (LexerException e)   { Console.Error.WriteLine(e.Message); Environment.Exit(1); }

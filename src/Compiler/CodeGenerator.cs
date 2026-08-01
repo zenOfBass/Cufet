@@ -6,6 +6,10 @@ namespace Cufet.Compiler;
 
 public sealed class CodeGenerator
 {
+    // What codegen found that is worth saying but does not stop the build. A refusal is still
+    // thrown; this is only ever added to. Read it after Generate returns.
+    public DiagnosticBag Diagnostics { get; } = new();
+
     private int _forCounter;
     private int _freshId;
     // Side-channel for pre-emit statements (e.g. series literal construction).
