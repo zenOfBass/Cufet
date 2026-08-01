@@ -14,41 +14,28 @@ deliberate differences are marked where they arise and summarised under
 
 ## Contents
 
-- [Cufet Language Reference](#cufet-language-reference)
-  - [Contents](#contents)
+- [Part I. Basics](#part-i-basics)
   - [Statements](#statements)
     - [Explicit types](#explicit-types)
+  - [Identifiers](#identifiers)
   - [Comments](#comments)
   - [Constants](#constants)
   - [Arithmetic](#arithmetic)
   - [Facts (boolean literals)](#facts-boolean-literals)
   - [Comparisons](#comparisons)
   - [Logic](#logic)
+- [Part II. Control flow](#part-ii-control-flow)
   - [Conditionals](#conditionals)
   - [Loops](#loops)
     - [For-each loops](#for-each-loops)
   - [Scope](#scope)
-  - [Series (collections)](#series-collections)
+- [Part III. Data](#part-iii-data)
   - [Text](#text)
   - [Range](#range)
+  - [Series (collections)](#series-collections)
+  - [Maps](#maps)
   - [Records](#records)
-  - [Objects](#objects)
-    - [Embedding (composition)](#embedding-composition)
-    - [Interfaces (polymorphism)](#interfaces-polymorphism)
-    - [Methods defined outside the object body (`unto`)](#methods-defined-outside-the-object-body-unto)
-    - [Getters and setters](#getters-and-setters)
-    - [Named constructors](#named-constructors)
-    - [Destructors](#destructors)
-  - [Functions](#functions)
-    - [Closures](#closures)
-    - [Lambda literals (anonymous functions)](#lambda-literals-anonymous-functions)
-  - [Voidable values (`void` and `voidable T`)](#voidable-values-void-and-voidable-t)
-  - [Union types and narrowing](#union-types-and-narrowing)
-    - [`is a <type>` / `is not a <type>`](#is-a-type--is-not-a-type)
-    - [In-branch narrowing](#in-branch-narrowing)
-  - [Error handling (failures and exceptions)](#error-handling-failures-and-exceptions)
-    - [Failure values (`failure T`)](#failure-values-failure-t)
-    - [Block form: `Try to`](#block-form-try-to)
+  - [Catalogue and atlas (heterogeneous collections)](#catalogue-and-atlas-heterogeneous-collections)
   - [Bit patterns (`bits`)](#bit-patterns-bits)
     - [Writing one](#writing-one)
     - [Width comes from the digit count](#width-comes-from-the-digit-count)
@@ -58,8 +45,29 @@ deliberate differences are marked where they arise and summarised under
     - [Shifts](#shifts)
     - [Crossing over](#crossing-over)
     - [A free consequence worth knowing](#a-free-consequence-worth-knowing)
-  - [Maps](#maps)
-  - [Catalogue and atlas (heterogeneous collections)](#catalogue-and-atlas-heterogeneous-collections)
+- [Part IV. Objects and functions](#part-iv-objects-and-functions)
+  - [Objects](#objects)
+    - [Embedding (composition)](#embedding-composition)
+    - [Interfaces (polymorphism)](#interfaces-polymorphism)
+    - [Methods defined outside the object body (`unto`)](#methods-defined-outside-the-object-body-unto)
+    - [Getters and setters](#getters-and-setters)
+    - [Named constructors](#named-constructors)
+    - [Destructors](#destructors)
+  - [Operator overloading](#operator-overloading)
+  - [Functions](#functions)
+    - [Closures](#closures)
+    - [Lambda literals (anonymous functions)](#lambda-literals-anonymous-functions)
+  - [Sorting](#sorting)
+- [Part V. The type system](#part-v-the-type-system)
+  - [Type system](#type-system)
+  - [Voidable values (`void` and `voidable T`)](#voidable-values-void-and-voidable-t)
+  - [Union types and narrowing](#union-types-and-narrowing)
+    - [`is a <type>` / `is not a <type>`](#is-a-type--is-not-a-type)
+    - [In-branch narrowing](#in-branch-narrowing)
+  - [Error handling (failures and exceptions)](#error-handling-failures-and-exceptions)
+    - [Failure values (`failure T`)](#failure-values-failure-t)
+    - [Block form: `Try to`](#block-form-try-to)
+- [Part VI. Input and output](#part-vi-input-and-output)
   - [Input and output](#input-and-output)
     - [Reading from standard input](#reading-from-standard-input)
     - [File I/O](#file-io)
@@ -67,6 +75,7 @@ deliberate differences are marked where they arise and summarised under
     - [Environment variables](#environment-variables)
     - [The current directory](#the-current-directory)
     - [Directory traversal](#directory-traversal)
+- [Part VII. Systems programming](#part-vii-systems-programming)
   - [Regions (`Pull a rabbit`)](#regions-pull-a-rabbit)
     - [The outward-only rule](#the-outward-only-rule)
     - [Two backends, one rule](#two-backends-one-rule)
@@ -79,22 +88,22 @@ deliberate differences are marked where they arise and summarised under
   - [Streaming pipes](#streaming-pipes)
     - [Restrictions](#restrictions)
     - [How stage types are checked](#how-stage-types-are-checked)
+  - [Signal handling](#signal-handling)
+    - [How far an interrupt reaches](#how-far-an-interrupt-reaches)
+- [Part VIII. The standard library](#part-viii-the-standard-library)
   - [Books (the standard library)](#books-the-standard-library)
   - [Matrix](#matrix)
-  - [Sorting](#sorting)
-  - [Operator overloading](#operator-overloading)
+- [Part IX. Compiling](#part-ix-compiling)
   - [Compiling to a native binary](#compiling-to-a-native-binary)
     - [What you get](#what-you-get)
     - [Where the two differ](#where-the-two-differ)
     - [Platform notes](#platform-notes)
-  - [Signal handling](#signal-handling)
-    - [How far an interrupt reaches](#how-far-an-interrupt-reaches)
-  - [Type system](#type-system)
-  - [Identifiers](#identifiers)
 
 ---
 
-## Statements
+## Part I. Basics
+
+### Statements
 
 | Syntax | Meaning |
 |---|---|
@@ -106,7 +115,7 @@ deliberate differences are marked where they arise and summarised under
 Articles (`a`, `an`, `the`) are noise everywhere — `Define the total as 0.` and
 `Define total as 0.` are identical.
 
-### Explicit types
+#### Explicit types
 
 A type may be written between the article and the name — the same
 `the <type> <name>` shape used by parameters and object fields:
@@ -136,7 +145,20 @@ Identifiers are not (see [Identifiers](#identifiers)).
 
 ---
 
-## Comments
+### Identifiers
+
+- Must start with a lowercase letter (`total`, `my-var`, `x2`).
+- Internal dashes allowed: `receipt-total` is one identifier.
+- `Total` (uppercase-initial) is a lexer error — uppercase-initial is reserved
+  for keywords. (Keywords themselves are case-insensitive, but a non-keyword word
+  must start lowercase, so every uppercase-initial word in a program is provably
+  a keyword and every lowercase one is a name — roles are parseable by eye.)
+- Binary `-` requires surrounding whitespace: `a - b` is subtraction; `a-b` is
+  an identifier.
+- `a`, `an`, `the` are reserved as noise (articles) and cannot be used as
+  identifiers.
+
+### Comments
 
 Cufet has two comment forms, spelled the way C, Rust, Go and JavaScript spell them: `//` to the
 end of a line, and `/* ... */` for a block. Everything inside either — including newlines, `.`s,
@@ -191,7 +213,7 @@ the line the **outermost** comment opened on — the one you have to go find:
 
 ---
 
-## Constants
+### Constants
 
 `Define name as value permanently.` — the trailing adverb locks the binding:
 
@@ -212,7 +234,7 @@ constant rule. Only `becomes` on the name itself is locked.
 
 ---
 
-## Arithmetic
+### Arithmetic
 
 Standard `+ - * / %` with `()` and conventional precedence. Unary `-` supported.
 Uses `decimal` — no floating-point surprises.
@@ -226,7 +248,7 @@ way — `1.5 + 0.5` displays as `2`, not `2.0`.
 
 ---
 
-## Facts (boolean literals)
+### Facts (boolean literals)
 
 `true` and `false` are **keywords** that produce `fact` values — the boolean type.
 They work exactly like number or text literals: anywhere a `fact` is valid.
@@ -248,7 +270,7 @@ the literal forms of that same type.
 
 ---
 
-## Comparisons
+### Comparisons
 
 Both **symbol forms** and **word forms** work in both expression position and
 condition position — they are the same operation (compare, produce a `fact`).
@@ -280,7 +302,7 @@ Either works anywhere.
 
 ---
 
-## Logic
+### Logic
 
 `and`, `or`, and `not` combine conditions. These are always words (no `&&`/`||`/`!`).
 
@@ -296,7 +318,9 @@ left is false; `or` skips if the left is true).
 
 ---
 
-## Conditionals
+## Part II. Control flow
+
+### Conditionals
 
 **Inline — comma, one statement, works anywhere:**
 ```
@@ -329,7 +353,7 @@ Comma after the condition → inline single statement. Colon after the condition
 
 ---
 
-## Loops
+### Loops
 
 ```
 While x is less than 10, repeat:
@@ -344,7 +368,7 @@ until x is 10 or more.
 `Stop.` breaks the innermost loop. `Skip.` continues to the next iteration. Both
 are parse errors outside a loop.
 
-### For-each loops
+#### For-each loops
 
 ```
 For each score in scores, repeat:
@@ -369,7 +393,7 @@ if you need to change the series as you go.
 
 ---
 
-## Scope
+### Scope
 
 Every `Done.`-bounded block — an `If` arm, a `While` body, a `For each` body, a
 `Repeat...until` body, a function body — introduces a **lexical scope**. Names
@@ -429,67 +453,9 @@ to their respective handler bodies.
 
 ---
 
-## Series (collections)
+## Part III. Data
 
-Ordered, homogeneous collections.
-
-**Literals:**
-```
-Define scores as a series with (90, 85, 70).
-Define tags   as a series of text with ("sedan", "coupe").
-Define ops    as a series of number function given (the number) with (double, triple).
-```
-
-The element type is inferred from the elements, or declared explicitly after
-`of`. Empty series require an explicit annotation:
-```
-Define log    as a series of text.
-Define counts as a series of numbers.
-Define fleet  as a series of records like (the text make, the number year).
-```
-
-**Access:**
-```
-State the first of scores.
-State the third of scores.
-State the last of scores.
-State item 2 of scores.
-State item n of scores.        ← n is any expression
-```
-
-**Length:**
-```
-State the number of scores.
-```
-
-**Mutation:**
-```
-Add 100 to scores.                         ← append
-Add 100 to the start of scores.            ← prepend
-Add 100 after the second item of scores.   ← insert after position
-Add 100 after item n of scores.
-
-Remove the first item from scores.         ← by position
-Remove item n from scores.
-Remove 85 from scores.                     ← by value (first occurrence)
-```
-
-**Element assignment:**
-```
-The first of scores becomes 100.
-The item n of scores becomes 100.
-The last of scores becomes 100.
-```
-
-Out-of-bounds access or assignment produces a readable runtime error.
-
-Series are **reference-typed** — assigning a series to a new name shares it
-(in contrast to records and objects, which copy). See
-[Type system](#type-system).
-
----
-
-## Text
+### Text
 
 `text` values are joined, measured, and built from other values with explicit
 constructs. `+` is **not** overloaded for concatenation — joining has its own
@@ -626,7 +592,7 @@ with the rest of the text toolkit: `raw trimmed in uppercase`.
 
 ---
 
-## Range
+### Range
 
 `range <start> to <end>` produces a materialized `series of number` — sugar so
 you don't build a numeric span by hand:
@@ -668,910 +634,67 @@ Define halves as range 1 to 2 counting by 0.5.    → 1, 1.5, 2
 
 ---
 
-## Records
+### Series (collections)
 
-Anonymous, structural data — a bundle of named and/or positional fields.
+Ordered, homogeneous collections.
 
-**Construction:**
+**Literals:**
 ```
-Define car as a record with ("hatchback", the make "Honda", the year 2021).
+Define scores as a series with (90, 85, 70).
+Define tags   as a series of text with ("sedan", "coupe").
+Define ops    as a series of number function given (the number) with (double, triple).
 ```
 
-Positional fields come first; named fields (introduced with `the`) come after.
-Mixed order is a parse error.
+The element type is inferred from the elements, or declared explicitly after
+`of`. Empty series require an explicit annotation:
+```
+Define log    as a series of text.
+Define counts as a series of numbers.
+Define fleet  as a series of records like (the text make, the number year).
+```
 
 **Access:**
 ```
-State the first of car.             ← positional: "hatchback"
-State the make of car.              ← named: "Honda"
-State the make of the spare of car. ← chained / nested access
+State the first of scores.
+State the third of scores.
+State the last of scores.
+State item 2 of scores.
+State item n of scores.        ← n is any expression
+```
+
+**Length:**
+```
+State the number of scores.
 ```
 
 **Mutation:**
 ```
-The make of car becomes "Toyota".         ← named field
-The first of car becomes "coupe".         ← positional ordinal
-The item n of car becomes "coupe".        ← positional parametric
+Add 100 to scores.                         ← append
+Add 100 to the start of scores.            ← prepend
+Add 100 after the second item of scores.   ← insert after position
+Add 100 after item n of scores.
+
+Remove the first item from scores.         ← by position
+Remove item n from scores.
+Remove 85 from scores.                     ← by value (first occurrence)
 ```
 
-Assigning the wrong type to a field is a static type error.
-
-**Value semantics** — records copy on assignment; assigning a record to a new
-name gives an independent copy:
+**Element assignment:**
 ```
-Define truck as car.
-The make of truck becomes "Toyota".
-State the make of car.              → Honda    (unchanged)
+The first of scores becomes 100.
+The item n of scores becomes 100.
+The last of scores becomes 100.
 ```
 
-**Records in function annotations:**
-```
-Bind text to make-of, given (the record vehicle with (text, the text make)):
-    Return the make of vehicle.
-Done.
-```
+Out-of-bounds access or assignment produces a readable runtime error.
 
-**Series of records:**
-```
-Define fleet as a series with (
-    A record with (the make "Honda",  the year 2021),
-    A record with (the make "Toyota", the year 2019)).
-
-Define inventory as a series of records like (the text make, the number year).
-Add a record with (the make "Ford", the year 2022) to inventory.
-```
-
-A populated series infers its shape from the elements; an empty one declares it
-with `like (...)`. Either way, `add` enforces structural matching.
-
-**Equality:**
-```
-If rec1 is rec2, state "same".
-If rec1 is not rec2, state "different".
-```
-Two records are equal iff all fields are equal by value — named fields compared
-by name (order-insensitive), positional fields by position, recursively. Records
-of different shapes can't be compared: a compile-time type error. Series fields
-compare element-wise by value.
+Series are **reference-typed** — assigning a series to a new name shares it
+(in contrast to records and objects, which copy). See
+[Type system](#type-system).
 
 ---
 
-## Objects
-
-Named, nominal types that bundle data with behavior. Where records are *data*
-(interchangeable by shape), objects are *things* (identity by name).
-
-**Definition:**
-```
-Define object vehicle with (the text make, the number year).
-```
-
-With methods:
-```
-Define object vehicle with (the text make, the number year):
-    Bind void to describe:
-        State one's make.
-    Done.
-Done.
-```
-
-Inside a method body, `one` refers to the receiver object (`one's make`).
-
-**Instantiation** — `{}` literal:
-```
-Define car as a new vehicle { the make "Honda", the year 2021 }.
-```
-
-**Access:**
-```
-State car's make.               ← possessive: "Honda"
-State the make of car.          ← named: "Honda"
-State the first of car.         ← positional: "Honda"
-```
-
-**Method dispatch:**
-```
-Cast describe on car.                   ← verb-first, no extra args
-Cast car's describe.                    ← possessive
-Cast steer on (car, 90).                ← with arguments: object first, then params
-Cast car's steer on (90).               ← possessive form with arguments
-```
-
-A method call uses the same syntax as a function call — the object is the first
-argument in `on (...)`, with the method's declared parameters following.
-
-**Mutation** — value-on-assignment, mutable-in-place (the same "struct model" as
-records):
-```
-The year of car becomes 2022.           ← direct
-```
-Inside a mutating method, `one's year becomes ...` changes the actual instance
-the method was called on. Assigning a value to a copy leaves the original
-unchanged.
-
-**Nominal typing** — two objects with identical fields but different names are
-different types. Unlike records, shape alone is not identity; the type name is.
-
-**Value semantics** — objects copy on assignment, the same as records.
-
-**Equality:**
-```
-If car1 is car2, state "same car".
-If alice is not bob, state "different people".
-```
-Two objects are equal iff they are the same type and all fields are equal by
-value — including all promoted (embedded) fields, compared recursively through
-the embedding chain. Objects of different types can't be compared: a
-compile-time type error.
-
-### Embedding (composition)
-
-An object can embed another and promote its fields and methods — composition
-that gives the convenience of reuse without inheritance:
-
-```
-Define object customer with (the number balance) and as a person.
-```
-
-`customer` embeds a `person` and promotes its members. Access reaches through
-automatically (transitively, through any chain):
-```
-State the name of customer.             ← reaches the embedded person's name
-Cast greet on customer.                 ← reaches the embedded person's method
-```
-
-Construction is **flat** — the object's own fields and all promoted fields are
-supplied together in one `{...}`:
-```
-Define alice as a new customer {
-    The balance 100,
-    The name "Alice",
-    The age 30
-}.
-```
-
-A name collision between an object's own member and a promoted one is a
-compile-time error; disambiguate via the type-name handle
-(`the name of the person of customer`).
-
-Embedding **promotes members; it is not subtyping** — a `customer` is not
-accepted where a `person` is expected.
-
-### Interfaces (polymorphism)
-
-An interface is a contract — a set of method signatures an object must have.
-It provides polymorphism without a hierarchy.
-
-```
-Define driver as an interface for {
-    The void function steer, given (the number angle),
-    The void function brake,
-    The void function accelerate, given (the number amount)
-}.
-```
-
-A single-method interface may drop the braces:
-```
-Define greeter as an interface for the void function greet, given (the text name).
-```
-
-An object declares conformance explicitly, and it is statically enforced:
-```
-Define object street-racer with (the text name) and driver.
-```
-
-An interface name is usable as a type — a parameter typed by an interface
-accepts any conforming object:
-```
-Bind void to take-lap, given (the driver racer):
-    Cast steer on (racer, 90).
-    Cast accelerate on (racer, 100).
-Done.
-```
-
-Conformance **is a flat compile-time check, not subtyping** — no variance is
-introduced; objects do not become subtypes of one another.
-
-### Methods defined outside the object body (`unto`)
-
-A method can be declared *outside* its object's definition — attached with
-`unto <type>` — for code organization (grouping related methods elsewhere,
-splitting a large type across locations). It is **identical in every way**
-to a method nested in the definition; only the declaration location differs:
-
-```
-Define object person with (the text name, the number age).
-
-Bind void to greet unto person:
-    State "Hi, I'm " joined to one's name.
-Done.
-
-Bind number to birthday unto person:
-    One's age becomes one's age + 1.
-    Return one's age.
-Done.
-```
-
-- `unto <type>` goes right after the method name, before the optional
-  `, given (...)` parameter clause: `Bind void to steer unto racer, given
-  (the number angle): ... Done.`
-- Sees `one` (the receiver) and the object's fields exactly like a nested
-  method. Called identically too — `Cast greet on alice`, `Cast alice's
-  greet` — indistinguishable at the call site from a nested method.
-- **Hoisted, order-independent** — the `unto` method may appear before or
-  after `Define object <type>` in the file.
-- **Your own object types only.** `unto` on an undefined name, or on
-  something that isn't an object type (e.g. an interface), is a static
-  error. This is not foreign-type extension and not overloading.
-- **Method names are unique per type, regardless of where declared.** A name
-  clash between a nested method and an `unto` method (or between two `unto`
-  methods) on the *same* type is a static error. The same name `unto`
-  *different* types is fine — there's no shared namespace across types.
-- **Satisfies interface conformance** exactly as a nested method would — the
-  conformance check looks for "does the type have a matching method?", not
-  "where was it declared?"
-
-### Getters and setters
-
-A **getter** is a computed read-only property. Callers access it exactly like a
-stored field — no distinction at the call site (Dart-style uniform access):
-
-```
-Define object circle with (the number radius):
-    Get area as number:
-        Return one's radius * one's radius * 3.14159.
-    Done.
-Done.
-
-State circle's area.         ← calls the getter; indistinguishable from a field
-State the area of circle.    ← same
-```
-
-- `Get <name> as <type>:` declares a getter inside the object body.
-  `Get <name> unto <type> as <type>:` declares it outside (same semantics, pure organization).
-- The body must return a value. `Get ... as void:` is a parse error.
-- A getter name cannot collide with a stored field on the same type — a static error.
-- Getters are **infallible** — no `return a failure`.
-
-A **setter** intercepts assignments to a named property:
-
-```
-Define object temp-sensor with (the number celsius):
-    Set display given (the number v):
-        One's celsius becomes v.
-    Done.
-Done.
-
-The display of sensor becomes 100.    ← fires the setter
-```
-
-- `Set <name> given (the <type> <param>):` intercepts `obj's <name> becomes value` and
-  `the <name> of obj becomes value`. `Set <name> unto <type> given (...):` is the
-  outside-body form.
-- **Infallible and transform-only** — a setter may clamp, convert, or normalize,
-  but cannot reject. Validation-that-rejects belongs to the caller before the assignment.
-- Inside the setter body, `one's <this-name> becomes X` writes directly to the underlying
-  storage, bypassing the setter (no infinite recursion).
-
-### Named constructors
-
-A named constructor is a function that builds and returns an object. It is declared
-with `making a <type>` in the return-type slot:
-
-```
-Define object point with (the number x, the number y).
-
-Bind making a point to origin:
-    Return a new point { the x 0, the y 0 }.
-Done.
-
-Bind making a point or failure to from-pair, given (the text s):
-    Define parts as s split by ",".
-    If the number of parts is not 2, return a failure "expected x,y".
-    Define x as item 1 of parts converted to number.
-    Define y as item 2 of parts converted to number.
-    If x is void or y is void, return a failure "non-numeric coordinates".
-    Return a new point { the x x, the y y }.
-Done.
-
-Define origin-pt as cast origin.
-Define p as cast from-pair on ("3,4").
-```
-
-- `Bind making a <type> to <name>[, given (<params>)]:` — the implicit return type
-  is `<type>`.
-- Fallible form: `Bind making a <type> or failure to <name>:` — the body may
-  `return a failure ...`.
-- Called via the standard `Cast <name> on (args)` syntax — no new call syntax.
-- A type can have multiple named constructors; the `{...}` literal is still available.
-
-### Destructors
-
-A destructor runs automatically when an object goes out of scope — RAII at the
-`Done.` that closes its declaring block:
-
-```
-Bind unmaking a conn to disconnect:
-    State "closing " joined to one's host.
-    Cast close on one.
-Done.
-
-If 1 is 1:
-    Define db as cast open-conn on ("localhost").
-    Cast query on (db, "SELECT 1").
-Done.                              ← destructor fires here, before leaving the block
-```
-
-Rules:
-
-- `Bind unmaking a <type> to <name>: ... Done.` — top-level only, no parameters.
-- **One per type** — a second destructor for the same type is a static error.
-- **Infallible** — `return a failure` in the body is a static error. For cleanup
-  that *can* fail, expose a fallible method (`close`/`flush`/`commit`) and call it
-  *before* the scope ends. Relying on the destructor for fallible cleanup risks silent
-  data loss — the destructor swallows all outcomes.
-- **LIFO order** — when multiple objects in the same scope have destructors, they
-  fire in reverse definition order (last-defined, first-destroyed).
-- **`one` is the object being destroyed** — its fields and methods are accessible
-  via `one's <field>` and `Cast <method> on one`.
-- **Ownership rule** — destroy what you opened, not what you borrowed. A resource
-  passed in from outside is the caller's responsibility; closing it in the destructor
-  is a double-close bug.
-
----
-
-## Functions
-
-**Declaration:**
-```
-Bind number to add, given (the number a, the number b):
-    Return a + b.
-Done.
-
-Bind void to greet, given (the text name):
-    State name.
-Done.
-
-Bind number to get-ten:
-    Return 10.
-Done.
-```
-
-`Bind` declares a named function. The return type comes first (`number`, `void`,
-or a function type). Parameters follow `given`. Functions with no parameters omit
-`given` entirely. Functions are top-level and hoisted, so they may be defined in
-any order and may recurse.
-
-**Calling:**
-```
-State cast add on (3, 4).          ← in expression position
-Cast greet on ("hello").           ← as a statement (void or discarded result)
-```
-
-`Cast` works on any expression that evaluates to a function — a name, a variable,
-a series element, or a method.
-
-**Early exit:**
-```
-Return value.    ← return a value
-Return.          ← void early exit
-```
-
-A non-`void` function must return a value on every path; one that can fall off
-its end without returning is a compile-time error.
-
-**Functions are first-class values:**
-```
-Define op as add.
-State cast op on (3, 4).           → 7
-```
-
-A function assigned to a variable carries its full type. The type checker catches
-calling the wrong signature through any alias.
-
-**Function-typed parameters:**
-```
-Bind number to apply, given (the number x, the number function f given (the number)):
-    Return cast f on (x).
-Done.
-
-Bind number to double, given (the number x): return x * 2. Done.
-
-State cast apply on (5, double).   → 10
-```
-
-The parameter type `the number function f given (the number)` declares that `f`
-must be a function taking a number and returning a number. Passing the wrong
-signature is a static type error.
-
-**Functions as return values:**
-```
-Bind number function given (the number) to get-doubler:
-    Return double.
-Done.
-
-Define fn as cast get-doubler on ().
-State cast fn on (5).              → 10
-```
-
-The return type `number function given (the number)` declares that this function
-returns a function. Closures and lambda literals can be returned too — see
-[Closures](#closures) and
-[Lambda literals](#lambda-literals-anonymous-functions) below.
-
-**Series of functions:**
-```
-Define ops as a series of number function given (the number) with (double, triple).
-
-State cast the first of ops on (5).          → 10
-
-For each op in ops, repeat:
-    State cast op on (5).
-Done.
-```
-
-A series whose element type is a function type. All the usual series operations
-apply — access, add, remove, for-each — and any accessed element can be `Cast`
-directly.
-
-### Closures
-
-A function declared with `Bind` *inside* another function or method body
-captures the enclosing variables at the point of declaration:
-
-```
-Bind number function given (the number) to make-adder, given (the number n):
-    Bind number to adder, given (the number x):
-        Return x + n.
-    Done.
-    Return adder.
-Done.
-
-Define add-five as cast make-adder on (5).
-State cast add-five on (10).          → 15
-```
-
-Capture follows the same value/reference split used everywhere else in
-Cufet: value types (`number`, `text`, `fact`) are captured as a snapshot at
-declaration time, so later changes to the outer variable don't affect an
-already-created closure; reference types (series, maps, objects) capture the
-live instance, so mutations through the closure are visible in the outer
-scope and vice versa.
-
-### Lambda literals (anonymous functions)
-
-A function literal written inline, with no name — usable anywhere a function
-value goes: assigned, passed as an argument, returned, or stored in a series.
-
-```
-Define double as a function given (the number x): Return x * 2. Done.
-State cast double on (5).                                       → 10
-
-Cast apply on (10, a function given (the number x): Return x * 2. Done).
-```
-
-The body is always `Done`-terminated (there's no inline single-statement
-form). The return type is **inferred from the body** — there's no syntax to
-declare it. Lambdas capture enclosing variables under the same rule as
-[Closures](#closures) above, and always carry their captured environment.
-
----
-
-## Voidable values (`void` and `voidable T`)
-
-Cufet has no null. Absence is expressed with a first-class empty value, `void`,
-and a type that admits it, `voidable T`. This is how "a value, or nothing" is
-said — explicitly, and checked.
-
-**`void`** is a real, holdable value (it prints as `void`). A `void`-returning
-function produces it; a map lookup that misses produces it.
-
-**`voidable T`** is "a `T`, or `void`":
-```
-Define maybe-score as 95.        ← a number is a valid voidable number (present case)
-Define maybe-score as void.      ← the absent case
-```
-Usable in any annotation position — parameters, return types, series elements,
-record/object fields:
-```
-Bind voidable number to find-score, given (the text name):
-    ...
-Done.
-```
-
-**Type rules:**
-- A plain `T` widens to `voidable T` automatically (a `number` is accepted where
-  a `voidable number` is wanted) — one-way.
-- `void` is the empty case of any `voidable T`.
-- A `voidable T` does **not** collapse to `T`. Using one where a plain `T` is
-  required is a static type error — you must handle the void case first.
-
-**Testing and handling:**
-
-`is void` / `is not void` — a boolean test:
-```
-If maybe-score is not void:
-    State maybe-score.            ← narrowed to a plain number here, safe to use directly
-Done.
-Otherwise:
-    State "no score".
-Done.
-```
-Inside a branch that has checked a **variable** is not void, the checker narrows
-that variable to its plain `T`, so it can be used directly. Narrowing is keyed on
-the variable and is cleared if the variable is reassigned within the branch.
-
-**Guard narrowing** — an exiting guard narrows the *fall-through* path. When a
-one-line `If x is void, return …` (no `Otherwise`) whose body always returns is
-passed, the statements after it run only when `x` was **not** void, so `x` is
-narrowed to plain `T` from that point to the end of the block:
-```
-Bind number or failure to parse-age, given (the text raw):
-    Define n as raw converted to number.
-    If n is void, return a failure "not a number".
-    Return n.                        ← n is a plain number here, not voidable
-Done.
-```
-A disjunctive guard narrows every variable it names: after
-`If x is void or y is void, return …`, both `x` and `y` are non-void on the
-fall-through. The narrowing lives only in the block that contains the guard —
-a guard nested inside an `If`-arm says nothing about the path where that arm was
-skipped, so it never leaks past the arm.
-
-> To narrow a value produced by an expression (like a map lookup), name it first
-> — `Define s as the entry for "alice" in ages.` then check `s`. A bare literal
-> buried inside a lookup is a value worth naming anyway; narrowing follows the
-> named binding.
-
-`but void is <default>` — an inline fallback that always yields a plain `T`:
-```
-Define n as (the entry for "alice" in ages but void is 0).
-```
-
----
-
-## Union types and narrowing
-
-A **union type** is a value that can be one of several listed types. Declared
-with `or` in parentheses:
-
-```
-Define x as (number or text).
-Define y as (number or text or fact).
-```
-
-**Type-agnostic operations** — without narrowing, only operations that work on
-every case are allowed: assignment, `becomes`, passing to a union-typed parameter,
-storing into a catalogue or atlas, and equality comparison (`is`/`is not`) between
-two values of the same union type.
-
-**Type-specific operations** — arithmetic, `the length of`, and anything that
-only makes sense for one type — require narrowing first. Using them on an
-un-narrowed union is a static type error that names the expected narrowing form.
-
-### `is a <type>` / `is not a <type>`
-
-The runtime type-test, generalizing `is void`:
-
-```
-If x is a number, state x + 1.
-If x is not a text, state "not text".
-```
-
-Works with any type name: `is a number`, `is a text`, `is a fact`, object type
-names, etc. `is an <type>` is accepted wherever the article fits. Both forms
-are identical.
-
-### In-branch narrowing
-
-After a successful `is a <type>` check, the value is that type inside the
-branch — type-specific operations are legal there:
-
-```
-Define the (number or text) x as 42.
-
-If x is a number:
-    State x + 1.           ← x is a number here; arithmetic is legal
-Done.
-Otherwise:
-    State the length of x. ← x is a text here (narrowed by elimination)
-Done.
-```
-
-**Narrowing by elimination** — for a **closed** union, the `Otherwise` arm
-automatically narrows to the remaining case(s). After `if x is a number` on a
-`(number or text)` union, `Otherwise` knows `x` is `text`.
-
-For a three-case union, two tested arms leave the third for `Otherwise`:
-
-```
-Define the (number or text or fact) x as 42.
-
-If x is a number:
-    State x + 1.
-Done.
-Otherwise if x is a text:
-    State the length of x.
-Done.
-Otherwise:
-    State x converted to text.    ← x is a fact here
-Done.
-```
-
-**`is not a <type>`** narrows the true branch to the complement — for a
-`(number or text)` union, `if x is not a number` narrows `x` to `text` in the
-true branch.
-
-**Open unions** — `Otherwise` after an open union check is *not* narrowable;
-only agnostic operations are legal there. Open is sound (narrowing still
-required), never `any`.
-
-Narrowing is **variable-level** — the same rule as voidable narrowing. The
-narrowed type clears when the variable is reassigned. To narrow a value produced
-by an expression, name it first.
-
----
-
-## Error handling (failures and exceptions)
-
-Cufet distinguishes two kinds of bad outcome:
-
-- **Failures** — expected, recoverable outcomes that are part of a function's
-  contract. A file not being found is a failure. A config value being invalid is
-  a failure. These are things a caller should plan for.
-- **Exceptions** — unexpected outcomes the type system can't prevent at compile
-  time. Divide-by-zero is an exception. An out-of-bounds access with a runtime
-  index is an exception. These are things that should not happen in correct code.
-
-The two paths are handled separately and cannot be mixed up.
-
-### Failure values (`failure T`)
-
-`failure T` is "either a plain `T` or a failure." A failure carries a text
-message and an optional category tag. The parallel to `voidable T` is exact:
-same inline-fallback syntax, same propagation operator, same block form.
-
-**Failure literal:**
-```
-Define err as a failure "not found" of category "not-found".
-Define err as a failure "something went wrong".       ← category is optional
-```
-
-**Inline fallback — `but on failure <default>`** — collapses `failure T` to
-plain `T`, like `but void is` for voidable:
-```
-Define n as (cast parse-int on (raw) but on failure 0).
-```
-
-**Propagation — `or pass the failure off`** — re-raises the failure to the
-caller. The function must itself declare a failable return type:
-```
-Bind number or failure to to-positive, given (the number n):
-    If n is 0 or less, return a failure "must be positive" of category "range".
-    Return n.
-Done.
-
-Bind number or failure to double-positive, given (the number n):
-    Define p as cast to-positive on (n) or pass the failure off.
-    Return p * 2.
-Done.
-```
-
-**Unhandled failure is a static error** — dropping a failable value without
-a fallback, a propagation, or a `Try` block is caught by the type checker, not
-at runtime.
-
-### Block form: `Try to`
-
-For multiple statements that may produce failures, `Try to:` handles them as a
-group:
-
-```
-Try to:
-    Define contents as read all from the file "data.txt".
-    State contents.
-Done.
-In case of failure:
-    State "could not open file: " joined to the message of the failure.
-Done.
-```
-
-Inside `In case of failure:`, `the failure` is bound to the failure value.
-Access its fields with named access:
-```
-In case of failure:
-    State the message of the failure.
-    State the category of the failure.    ← text, or void if no category was given
-Done.
-```
-
-**`In case of exception`** — catches runtime exceptions (divide-by-zero,
-dynamic out-of-bounds, etc.) that the type system can't statically prevent:
-```
-Try to:
-    State 1 / 0.
-Done.
-In case of exception (the exception):
-    State "runtime error: " joined to the exception.    ← bound as text
-Done.
-```
-
-The name in parentheses (`the exception` in the example above) is the binding
-for the exception description — it is block-local to the handler.
-
-Exceptions **re-raise by default** after the handler runs. `Suppress.` (only
-valid inside `In case of exception`) swallows the exception and continues
-execution after the `Try`:
-```
-In case of exception (the exception):
-    State "ignoring: " joined to the exception.
-    Suppress.
-Done.
-```
-
-Both handlers can appear in the same `Try`:
-```
-Try to:
-    ...
-Done.
-In case of failure:
-    ...
-Done.
-In case of exception (the exception):
-    ...
-Done.
-```
-
-At least one handler is required. The two paths are independent — a failure
-goes only to `In case of failure`; an exception goes only to
-`In case of exception`.
-
----
-
-## Bit patterns (`bits`)
-
-A **bit pattern is not a quantity.** `0o755` is three permission triples, not "seven hundred and
-fifty-five"; `0xFF` is eight set bits, not a count of anything. So `bits` is its own type, and
-bitwise operations live here and are absent from `number`.
-
-That separation is what keeps the type well behaved. In a language where you flip the bits of a
-decimal, `not 5` comes out as `-6` — correct, and baffling. Here it cannot be written at all.
-
-### Writing one
-
-```
-Define mask as 0xFF.    // hex
-Define flag as 0b1010.  // binary
-Define mode as 0o755.   // octal
-```
-
-`_` groups digits and is dropped: `0xDE_AD_BE_EF`, `0b1010_1010`. It is allowed **only** in
-these bases — grouping here is structural (nibbles, bytes, permission triples), while in decimal
-it is cosmetic and in a fraction it marks nothing.
-
-There is **no bare-zero octal**: `0755` is seven hundred and fifty-five. Octal must say `0o`.
-
-A value **prints in the base it was written in**, and hex digits print uppercase.
-
-### Width comes from the digit count
-
-This is the one rule that is unlike other languages. In C, Java, Rust, Go and Python, `0x0F` and
-`0xF` are the same value and width belongs to the declared type. Here the digits *are* the
-width:
-
-```
-State 0xF.    // 0xF    — 4 bits
-State 0x0F.   // 0x0F   — 8 bits
-State 0x000F. // 0x000F — 16 bits
-```
-
-They compare **equal** — equality is on the value — but they display differently, and the width
-is what `not` flips within. Zero-padding hex to a byte boundary is already a habit; here it
-carries meaning.
-
-The ceiling is **64 bits**, which covers every C flag set, file mode and address there is.
-
-### Gates
-
-A 32-bit AND *is* 32 AND gates side by side, so the same words serve a `fact` (one bit) and a
-`bits` value (N of them):
-
-```
-State 0xFF and 0x0F.       // 0x0F  — mask
-State 0xF0 or 0x0F.        // 0xFF  — set
-State 0b1100 xor 0b1010.   // 0b0110
-State not 0xFF.            // 0x00
-```
-
-Clearing a bit is `and not`, which is the only clean way to unset one:
-
-```
-Define flags as 0b1111.
-State flags and not 0b0100. // 0b1011
-```
-
-`xor` works on facts too. Precedence is `and` > `xor` > `or`.
-
-**Gates refuse numbers.** `5 and 3` and `not 5` are type errors.
-
-### The left operand decides how the result looks
-
-In real bit code the left operand is the accumulator — `flags or MASK` — so its base and width
-are the ones that survive:
-
-```
-State 0xFF and 0b1010.   // 0x0A
-State 0b1010 and 0xFF.   // 0b1010
-```
-
-A result **widens** when the value needs more room and never truncates. It does not shrink back
-afterwards, so a value that has grown stays wide.
-
-### Arithmetic
-
-`+ - * / %` all work, with **`/` as integer division** — `0x07 / 0x02` is `0x03`, where `7 / 2`
-is `3.5`. Ordering comparisons work too. Unary minus is refused: bits are unsigned.
-
-A result with **no representation raises**, exactly as division by zero does — `0x00 - 0x1`
-would be negative, `0xFFFFFFFFFFFFFFFF + 0x1` does not fit. They are exceptions rather than
-value-level failures, because a failure would ride in the type as `bits or failure` and force an
-unwrap after every masking expression.
-
-### Shifts
-
-```
-State 0b0001 shifted left by 3.   // 0b1000
-State 0xFF shifted right by 4.    // 0x0F
-```
-
-The amount is a **number** — it counts positions, a quantity, like the `3` in `item 3 of s`. It
-must be whole and non-negative.
-
-Left shifts widen so nothing is lost; **right shifts discard the low bits**, which is what a
-right shift is rather than a failure. Being unsigned, there is no arithmetic-versus-logical
-right shift to choose between.
-
-`left` and `right` are **not reserved** — `the left of node` still works.
-
-### Crossing over
-
-No implicit conversion, in either direction:
-
-```
-State 255 converted to hex.      // 0xFF
-State 10 converted to binary.    // 0b1010
-State 0xFF converted to number.  // 255
-State 0xFF converted to text.    // "0xFF"
-```
-
-`bits converted to number` **can never fail** — 64 bits always fits a number's 96-bit mantissa —
-so it gives a plain number rather than a voidable. The other direction raises if the number is
-not whole, is negative, or is past 2⁶⁴.
-
-This is what lets a **computed** value be shown in hex:
-
-```
-Define total as 200 + 55.
-State total converted to hex.  // 0xFF
-```
-
-To restate a pattern in a different base, route through a number:
-`x converted to number converted to binary`.
-
-`hex`, `binary` and `octal` are not reserved words.
-
-### A free consequence worth knowing
-
-C's most famous precedence bug is `a & b == c`, which silently parses as `a & (b == c)`. Cufet
-has the same precedence, but the mis-parse produces `bits and fact` — **a type error**, caught
-at compile time rather than computing quietly wrong answers.
-
-See [`examples/permissions.cufe`](examples/permissions.cufe) for a worked Unix-permissions
-program using all of this.
-
----
-
-## Maps
+### Maps
 
 Typed key→value collections. Keys are one type, values are one type
 (homogeneous, like series).
@@ -1668,7 +791,75 @@ Done.
 
 ---
 
-## Catalogue and atlas (heterogeneous collections)
+### Records
+
+Anonymous, structural data — a bundle of named and/or positional fields.
+
+**Construction:**
+```
+Define car as a record with ("hatchback", the make "Honda", the year 2021).
+```
+
+Positional fields come first; named fields (introduced with `the`) come after.
+Mixed order is a parse error.
+
+**Access:**
+```
+State the first of car.             ← positional: "hatchback"
+State the make of car.              ← named: "Honda"
+State the make of the spare of car. ← chained / nested access
+```
+
+**Mutation:**
+```
+The make of car becomes "Toyota".         ← named field
+The first of car becomes "coupe".         ← positional ordinal
+The item n of car becomes "coupe".        ← positional parametric
+```
+
+Assigning the wrong type to a field is a static type error.
+
+**Value semantics** — records copy on assignment; assigning a record to a new
+name gives an independent copy:
+```
+Define truck as car.
+The make of truck becomes "Toyota".
+State the make of car.              → Honda    (unchanged)
+```
+
+**Records in function annotations:**
+```
+Bind text to make-of, given (the record vehicle with (text, the text make)):
+    Return the make of vehicle.
+Done.
+```
+
+**Series of records:**
+```
+Define fleet as a series with (
+    A record with (the make "Honda",  the year 2021),
+    A record with (the make "Toyota", the year 2019)).
+
+Define inventory as a series of records like (the text make, the number year).
+Add a record with (the make "Ford", the year 2022) to inventory.
+```
+
+A populated series infers its shape from the elements; an empty one declares it
+with `like (...)`. Either way, `add` enforces structural matching.
+
+**Equality:**
+```
+If rec1 is rec2, state "same".
+If rec1 is not rec2, state "different".
+```
+Two records are equal iff all fields are equal by value — named fields compared
+by name (order-insensitive), positional fields by position, recursively. Records
+of different shapes can't be compared: a compile-time type error. Series fields
+compare element-wise by value.
+
+---
+
+### Catalogue and atlas (heterogeneous collections)
 
 **Catalogue** — a series whose element type is a union: a heterogeneous ordered
 collection.
@@ -1736,676 +927,617 @@ Atlases are **reference-typed** (like maps and series).
 
 ---
 
-## Input and output
+### Bit patterns (`bits`)
 
-### Reading from standard input
+A **bit pattern is not a quantity.** `0o755` is three permission triples, not "seven hundred and
+fifty-five"; `0xFF` is eight set bits, not a count of anything. So `bits` is its own type, and
+bitwise operations live here and are absent from `number`.
 
-The pre-defined name `input` holds standard input as a `readable stream of
-text`. Three read forms cover common patterns:
+That separation is what keeps the type well behaved. In a language where you flip the bits of a
+decimal, `not 5` comes out as `-6` — correct, and baffling. Here it cannot be written at all.
 
-```
-Define line  as read a line from the input.      ← voidable text (void at EOF)
-Define all   as read all from the input.         ← text (empty string at EOF)
-Define lines as read all lines from the input.   ← series of text (empty at EOF)
-```
-
-`read a line from the input` strips the trailing newline and returns
-`voidable text` — `void` signals end-of-input. The typical read loop:
-```
-Repeat:
-    Define line as read a line from the input.
-    If line is void, stop.
-    State line.
-until false.
-```
-
-(`until false` is the standard idiom for a loop that exits only via `Stop.`)
-
-`read all from the input` drains all of stdin and returns it as one `text`
-value (empty input → `""`; never void). `read all lines from the input`
-splits on newlines and returns a `series of text` (empty input → empty series).
-
-### File I/O
-
-**Reading an entire file** — returns a failable value; must be handled:
-```
-Try to:
-    Define text as read all from the file "notes.txt".
-    State text.
-Done.
-In case of failure:
-    State "could not read: " joined to the message of the failure.
-Done.
-```
-
-`read all from the file <path>` returns `text or failure`.
-`read all lines from the file <path>` returns `series of text or failure`.
-The path is any text expression (literal, variable, or interpolated string).
-
-Failure categories: `"not-found"`, `"permission-denied"`, `"disk-error"`.
-
-**Writing to a file:**
-```
-write "hello\n" to the file "out.txt".      ← overwrite (create or truncate)
-append "more\n" to the file "out.txt".      ← append to end
-```
-
-Write and append complete silently on success; on failure they raise a Cufet
-failure caught by the enclosing `Try` handler.
-
-**Scoped file streams — `With the file ... open for reading/writing as`:**
-
-For reading line-by-line, or writing incrementally, open the file as a stream
-and let Cufet close it automatically:
+#### Writing one
 
 ```
-With the file "data.txt" open for reading as stream:
-    Define line as read a line from stream.
-    State line.
-Done.
+Define mask as 0xFF.    // hex
+Define flag as 0b1010.  // binary
+Define mode as 0o755.   // octal
 ```
 
-```
-With the file "out.txt" open for writing as log:
-    Write "Line 1\n" to log.
-    Write "Line 2\n" to log.
-Done.
-```
+`_` groups digits and is dropped: `0xDE_AD_BE_EF`, `0b1010_1010`. It is allowed **only** in
+these bases — grouping here is structural (nibbles, bytes, permission triples), while in decimal
+it is cosmetic and in a fraction it marks nothing.
 
-`With the file <path> open for reading as <name>: ... Done.` opens the file,
-binds it to `<name>` (a `readable stream of text`) for the duration of the
-block, and closes it on every exit path — including failures, exceptions, and
-`Stop.` inside the block. `for writing` binds a `writable stream of text`.
+There is **no bare-zero octal**: `0755` is seven hundred and fifty-five. Octal must say `0o`.
 
-Stream direction is **statically enforced**: reading from a writable stream, or
-writing to a readable stream, is a static type error.
+A value **prints in the base it was written in**, and hex digits print uppercase.
 
-An open failure (file not found, permission denied) propagates to the enclosing
-`Try` handler the same as any other file failure.
+#### Width comes from the digit count
 
-**Stream reads support all three read forms** — a `readable stream of text`
-works anywhere `the input` works:
-```
-With the file "lines.txt" open for reading as s:
-    Define lines as read all lines from s.
-    For each line in lines, repeat:
-        State line.
-    Done.
-Done.
-```
-
-**Passing a stream to a function:**
-```
-Bind void to process, given (the readable stream of text src):
-    Define line as read a line from src.
-    State line.
-Done.
-```
-
-### Process execution
-
-`run <program>` runs an external program synchronously and collects its output:
+This is the one rule that is unlike other languages. In C, Java, Rust, Go and Python, `0x0F` and
+`0xF` are the same value and width belongs to the declared type. Here the digits *are* the
+width:
 
 ```
-Try to:
-    Define result as run "git" with arguments ("log", "--oneline", "-5").
-    State result's output.
-    If result's exit-code is not 0:
-        State "stderr: " joined to result's errors.
-    Done.
-Done.
-In case of failure:
-    State "git not available".
-Done.
+State 0xF.    // 0xF    — 4 bits
+State 0x0F.   // 0x0F   — 8 bits
+State 0x000F. // 0x000F — 16 bits
 ```
 
-`run <program>` and `run <program> with arguments (<arg1>, <arg2>, ...)`
-return a result record with three fields:
+They compare **equal** — equality is on the value — but they display differently, and the width
+is what `not` flips within. Zero-padding hex to a byte boundary is already a habit; here it
+carries meaning.
 
-| Field | Type | Meaning |
-|---|---|---|
-| `output` | `text` | everything written to stdout |
-| `errors` | `text` | everything written to stderr |
-| `exit-code` | `number` | the process exit code |
+The ceiling is **64 bits**, which covers every C flag set, file mode and address there is.
 
-The return type is `result or failure`. A **launch failure** (program not found,
-permission denied) is a Cufet failure. A program that **runs and exits nonzero**
-is not a failure — it is a normal result; check `exit-code` or `errors` to
-decide what to do.
+#### Gates
 
-Failure categories: `"not-found"`, `"permission-denied"`, `"io-error"`.
-
-Arguments are passed as individual strings to the OS — no shell is invoked and
-shell injection is structurally impossible. The program name is any text
-expression.
-
-> **Note:** `result's exit-code converted to text` mis-parses (a parser quirk
-> with `converted to text` in possessive-access position). Workaround: extract
-> first — `Define code as result's exit-code. State code converted to text.`
-
-### Environment variables
-
-`the environment variable "NAME"` reads a process environment variable by name,
-returning `voidable text`:
+A 32-bit AND *is* 32 AND gates side by side, so the same words serve a `fact` (one bit) and a
+`bits` value (N of them):
 
 ```
-Define home as the environment variable "HOME".
-If home is not void:
-    State "home is " joined to home.
-Done.
-Otherwise:
-    State "HOME is not set".
-Done.
-
-Define path-val as the environment variable "PATH" but void is "".
+State 0xFF and 0x0F.       // 0x0F  — mask
+State 0xF0 or 0x0F.        // 0xFF  — set
+State 0b1100 xor 0b1010.   // 0b0110
+State not 0xFF.            // 0x00
 ```
 
-- Returns `voidable text` — `void` if the variable is not set.
-- The name is any text expression (literal, variable, or interpolated string).
-- Read-only — Cufet does not expose setting environment variables.
-
-### The current directory
-
-**Read it** — `the current directory` returns `voidable text`:
+Clearing a bit is `and not`, which is the only clean way to unset one:
 
 ```
-Define here as the current directory but void is "(unknown)".
-State here.
+Define flags as 0b1111.
+State flags and not 0b0100. // 0b1011
 ```
 
-It is voidable for the same reason the environment variable is: the answer comes from the
-operating system, and the operating system is allowed to have none. In practice `void` means the
-directory was removed out from under the running process. Every ordinary program gets a value.
+`xor` works on facts too. Precedence is `and` > `xor` > `or`.
 
-**Change it** — `The current directory becomes path.` is a statement, and a fallible one:
+**Gates refuse numbers.** `5 and 3` and `not 5` are type errors.
 
-```
-Try to:
-    The current directory becomes "/tmp".
-    Write "notes" to the file "scratch.txt".   /* relative to /tmp now */
-Done.
-In case of failure:
-    State "could not move there: " joined to the message of the failure.
-Done.
-```
+#### The left operand decides how the result looks
 
-Failure categories, and the message each produces:
-
-| Category | When | Message |
-| --- | --- | --- |
-| `not-found` | nothing is there | `the directory '<p>' was not found` |
-| `not-a-directory` | it exists, but is a file | `'<p>' is not a directory` |
-| `permission-denied` | it exists, but you may not enter | `permission denied entering directory '<p>'` |
-| `disk-error` | anything else | `changing to the directory '<p>' failed` |
-
-- **It affects relative paths** for everything afterwards — file reads and writes, directory
-  listings, and subprocesses launched with `run`, which inherit it.
-- **A failure is recoverable.** A bad path costs you a handled failure, not the program, which is
-  what lets [`examples/shell.cufe`](examples/shell.cufe) implement `cd` without a typo ending the
-  session.
-- **Not allowed inside a task.** A process has exactly one working directory, so changing it from
-  a task would race every other task resolving a relative path. The compiler refuses with an
-  explanation; change it in the rabbit body before starting tasks, or pass the directory in and
-  build full paths. (Reading it from a task is fine.)
-
-> **Windows paths need doubled backslashes.** `"C:\Windows"` is a *lexer* error, because `\W` is
-> not a recognised escape. Write `"C:\\Windows"` or — usually nicer — `"C:/Windows"`, which
-> Windows accepts everywhere Cufet passes a path through.
-
-### Directory traversal
-
-**List a directory** — `the contents of the directory path` returns the names of
-entries (files and subdirectories) inside the directory as a `series of text or
-failure`. Entry names are plain names, not full paths. Order is not guaranteed.
+In real bit code the left operand is the accumulator — `flags or MASK` — so its base and width
+are the ones that survive:
 
 ```
-Try to:
-    Define entries as the contents of the directory "/tmp".
-    For each name in entries, repeat:
-        State name.
-    Done.
-Done.
-In case of failure:
-    State "cannot read: " joined to the message of the failure.
-Done.
+State 0xFF and 0b1010.   // 0x0A
+State 0b1010 and 0xFF.   // 0b1010
 ```
 
-Failure categories: `"not-found"`, `"permission-denied"`.
+A result **widens** when the value needs more room and never truncates. It does not shrink back
+afterwards, so a value that has grown stays wide.
 
-**Path existence and kind tests** — three boolean predicates (all return `fact`,
-never fail, never void):
+#### Arithmetic
+
+`+ - * / %` all work, with **`/` as integer division** — `0x07 / 0x02` is `0x03`, where `7 / 2`
+is `3.5`. Ordering comparisons work too. Unary minus is refused: bits are unsigned.
+
+A result with **no representation raises**, exactly as division by zero does — `0x00 - 0x1`
+would be negative, `0xFFFFFFFFFFFFFFFF + 0x1` does not fit. They are exceptions rather than
+value-level failures, because a failure would ride in the type as `bits or failure` and force an
+unwrap after every masking expression.
+
+#### Shifts
 
 ```
-If the path "/tmp/myfile" exists:
-    If the path "/tmp/myfile" is a file:
-        State "regular file".
-    Done.
-    Otherwise if the path "/tmp/myfile" is a directory:
-        State "directory".
-    Done.
-Done.
+State 0b0001 shifted left by 3.   // 0b1000
+State 0xFF shifted right by 4.    // 0x0F
 ```
 
-| Test | Returns `true` when |
-|---|---|
-| `the path expr exists` | the path names any existing filesystem entry |
-| `the path expr is a file` | the path names an existing regular file |
-| `the path expr is a directory` | the path names an existing directory |
+The amount is a **number** — it counts positions, a quantity, like the `3` in `item 3 of s`. It
+must be whole and non-negative.
 
-The path expression is any `text`. A path that exists but is neither a regular file
-nor a directory (device node, dangling symlink, etc.) makes `exists` true but both
-`is a file` and `is a directory` false.
+Left shifts widen so nothing is lost; **right shifts discard the low bits**, which is what a
+right shift is rather than a failure. Being unsigned, there is no arithmetic-versus-logical
+right shift to choose between.
+
+`left` and `right` are **not reserved** — `the left of node` still works.
+
+#### Crossing over
+
+No implicit conversion, in either direction:
+
+```
+State 255 converted to hex.      // 0xFF
+State 10 converted to binary.    // 0b1010
+State 0xFF converted to number.  // 255
+State 0xFF converted to text.    // "0xFF"
+```
+
+`bits converted to number` **can never fail** — 64 bits always fits a number's 96-bit mantissa —
+so it gives a plain number rather than a voidable. The other direction raises if the number is
+not whole, is negative, or is past 2⁶⁴.
+
+This is what lets a **computed** value be shown in hex:
+
+```
+Define total as 200 + 55.
+State total converted to hex.  // 0xFF
+```
+
+To restate a pattern in a different base, route through a number:
+`x converted to number converted to binary`.
+
+`hex`, `binary` and `octal` are not reserved words.
+
+#### A free consequence worth knowing
+
+C's most famous precedence bug is `a & b == c`, which silently parses as `a & (b == c)`. Cufet
+has the same precedence, but the mis-parse produces `bits and fact` — **a type error**, caught
+at compile time rather than computing quietly wrong answers.
+
+See [`examples/permissions.cufe`](examples/permissions.cufe) for a worked Unix-permissions
+program using all of this.
 
 ---
 
-## Regions (`Pull a rabbit`)
+## Part IV. Objects and functions
 
-A **region** — a "rabbit" — is a block whose reference-typed values all live and die
-together. `Pull a rabbit.` opens one; `Done.` closes it and releases everything created
-inside.
+### Objects
 
+Named, nominal types that bundle data with behavior. Where records are *data*
+(interchangeable by shape), objects are *things* (identity by name).
+
+**Definition:**
 ```
-Define totals as a series of number with ().
+Define object vehicle with (the text make, the number year).
+```
 
-Pull a rabbit.
-    Define scratch as a series of number with (1, 2, 3, 4, 5).
-    Define sum as 0.
-    For each n in scratch, repeat:
-        The sum becomes sum + n.
+With methods:
+```
+Define object vehicle with (the text make, the number year):
+    Bind void to describe:
+        State one's make.
     Done.
-    Add sum to totals.
-Done.
-
-State totals.        ← (15)
-```
-
-`scratch` is gone after `Done.`; `totals` is not, and the value added to it survives.
-
-A rabbit may be named. The name is a handle you can pass to a function so the callee
-allocates in *your* region:
-
-```
-Pull a rabbit as workspace.
-    Define note as "built" joined to " inside".
-    State note.
 Done.
 ```
 
-### The outward-only rule
+Inside a method body, `one` refers to the receiver object (`one's make`).
 
-**A value may be stored somewhere longer-lived than itself, never somewhere
-shorter-lived.** That single rule is the whole safety story. The type checker enforces
-it from the static block structure — there is no garbage collector and no borrow
-checker.
-
-Storing outward is fine, and is what the example above does. Storing *inward* — parking
-a value in a container that will outlive the region the value came from, in a way that
-would leave the container pointing at released memory — is a compile-time error:
-
+**Instantiation** — `{}` literal:
 ```
-Bind series of number to smuggle, given (the series of number s):
-    Return s.
-Done.
-
-Define outer as a series of number with ().
-Pull a rabbit.
-    Define inner as a series of number with (1, 2, 3).
-    outer becomes Cast smuggle on (inner).    ← REJECTED
-Done.
+Define car as a new vehicle { the make "Honda", the year 2021 }.
 ```
 
-The error names the region mismatch, and it is caught even though the value was
-laundered through a function's return value.
+**Access:**
+```
+State car's make.               ← possessive: "Honda"
+State the make of car.          ← named: "Honda"
+State the first of car.         ← positional: "Honda"
+```
 
-Returning a value out of a region is allowed and does the safe thing: the value stays
-valid for the caller.
+**Method dispatch:**
+```
+Cast describe on car.                   ← verb-first, no extra args
+Cast car's describe.                    ← possessive
+Cast steer on (car, 90).                ← with arguments: object first, then params
+Cast car's steer on (90).               ← possessive form with arguments
+```
 
-### Two backends, one rule
+A method call uses the same syntax as a function call — the object is the first
+argument in `on (...)`, with the method's declared parameters following.
 
-Interpreted, "released at `Done.`" is modelled semantically — values simply become
-unreachable and .NET's collector reclaims them whenever it likes. Compiled, the region
-is a real bump-allocated arena, thread-local, freed in one shot. A region is released on
-**every** exit from it, not only the normal one: `Done.`, `return`, `Stop`, `Skip`,
-`Suppress`, a failure unwind, an exception, an interrupt.
+**Mutation** — value-on-assignment, mutable-in-place (the same "struct model" as
+records):
+```
+The year of car becomes 2022.           ← direct
+```
+Inside a mutating method, `one's year becomes ...` changes the actual instance
+the method was called on. Assigning a value to a copy leaves the original
+unchanged.
 
-The rule above is what makes the compiled version safe, which is why it is enforced even
-though the interpreter would forgive breaking it.
+**Nominal typing** — two objects with identical fields but different names are
+different types. Unlike records, shape alone is not identity; the type name is.
 
-### When to reach for one
+**Value semantics** — objects copy on assignment, the same as records.
 
-- **Long-running loops.** Put a rabbit *inside* the loop body and each iteration's
-  working memory is released at the end of that iteration. Without one, a compiled
-  program's allocations accumulate until the enclosing block ends.
-- **Concurrency.** A rabbit is also the structured-concurrency boundary — see below.
+**Equality:**
+```
+If car1 is car2, state "same car".
+If alice is not bob, state "different people".
+```
+Two objects are equal iff they are the same type and all fields are equal by
+value — including all promoted (embedded) fields, compared recursively through
+the embedding chain. Objects of different types can't be compared: a
+compile-time type error.
+
+#### Embedding (composition)
+
+An object can embed another and promote its fields and methods — composition
+that gives the convenience of reuse without inheritance:
+
+```
+Define object customer with (the number balance) and as a person.
+```
+
+`customer` embeds a `person` and promotes its members. Access reaches through
+automatically (transitively, through any chain):
+```
+State the name of customer.             ← reaches the embedded person's name
+Cast greet on customer.                 ← reaches the embedded person's method
+```
+
+Construction is **flat** — the object's own fields and all promoted fields are
+supplied together in one `{...}`:
+```
+Define alice as a new customer {
+    The balance 100,
+    The name "Alice",
+    The age 30
+}.
+```
+
+A name collision between an object's own member and a promoted one is a
+compile-time error; disambiguate via the type-name handle
+(`the name of the person of customer`).
+
+Embedding **promotes members; it is not subtyping** — a `customer` is not
+accepted where a `person` is expected.
+
+#### Interfaces (polymorphism)
+
+An interface is a contract — a set of method signatures an object must have.
+It provides polymorphism without a hierarchy.
+
+```
+Define driver as an interface for {
+    The void function steer, given (the number angle),
+    The void function brake,
+    The void function accelerate, given (the number amount)
+}.
+```
+
+A single-method interface may drop the braces:
+```
+Define greeter as an interface for the void function greet, given (the text name).
+```
+
+An object declares conformance explicitly, and it is statically enforced:
+```
+Define object street-racer with (the text name) and driver.
+```
+
+An interface name is usable as a type — a parameter typed by an interface
+accepts any conforming object:
+```
+Bind void to take-lap, given (the driver racer):
+    Cast steer on (racer, 90).
+    Cast accelerate on (racer, 100).
+Done.
+```
+
+Conformance **is a flat compile-time check, not subtyping** — no variance is
+introduced; objects do not become subtypes of one another.
+
+#### Methods defined outside the object body (`unto`)
+
+A method can be declared *outside* its object's definition — attached with
+`unto <type>` — for code organization (grouping related methods elsewhere,
+splitting a large type across locations). It is **identical in every way**
+to a method nested in the definition; only the declaration location differs:
+
+```
+Define object person with (the text name, the number age).
+
+Bind void to greet unto person:
+    State "Hi, I'm " joined to one's name.
+Done.
+
+Bind number to birthday unto person:
+    One's age becomes one's age + 1.
+    Return one's age.
+Done.
+```
+
+- `unto <type>` goes right after the method name, before the optional
+  `, given (...)` parameter clause: `Bind void to steer unto racer, given
+  (the number angle): ... Done.`
+- Sees `one` (the receiver) and the object's fields exactly like a nested
+  method. Called identically too — `Cast greet on alice`, `Cast alice's
+  greet` — indistinguishable at the call site from a nested method.
+- **Hoisted, order-independent** — the `unto` method may appear before or
+  after `Define object <type>` in the file.
+- **Your own object types only.** `unto` on an undefined name, or on
+  something that isn't an object type (e.g. an interface), is a static
+  error. This is not foreign-type extension and not overloading.
+- **Method names are unique per type, regardless of where declared.** A name
+  clash between a nested method and an `unto` method (or between two `unto`
+  methods) on the *same* type is a static error. The same name `unto`
+  *different* types is fine — there's no shared namespace across types.
+- **Satisfies interface conformance** exactly as a nested method would — the
+  conformance check looks for "does the type have a matching method?", not
+  "where was it declared?"
+
+#### Getters and setters
+
+A **getter** is a computed read-only property. Callers access it exactly like a
+stored field — no distinction at the call site (Dart-style uniform access):
+
+```
+Define object circle with (the number radius):
+    Get area as number:
+        Return one's radius * one's radius * 3.14159.
+    Done.
+Done.
+
+State circle's area.         ← calls the getter; indistinguishable from a field
+State the area of circle.    ← same
+```
+
+- `Get <name> as <type>:` declares a getter inside the object body.
+  `Get <name> unto <type> as <type>:` declares it outside (same semantics, pure organization).
+- The body must return a value. `Get ... as void:` is a parse error.
+- A getter name cannot collide with a stored field on the same type — a static error.
+- Getters are **infallible** — no `return a failure`.
+
+A **setter** intercepts assignments to a named property:
+
+```
+Define object temp-sensor with (the number celsius):
+    Set display given (the number v):
+        One's celsius becomes v.
+    Done.
+Done.
+
+The display of sensor becomes 100.    ← fires the setter
+```
+
+- `Set <name> given (the <type> <param>):` intercepts `obj's <name> becomes value` and
+  `the <name> of obj becomes value`. `Set <name> unto <type> given (...):` is the
+  outside-body form.
+- **Infallible and transform-only** — a setter may clamp, convert, or normalize,
+  but cannot reject. Validation-that-rejects belongs to the caller before the assignment.
+- Inside the setter body, `one's <this-name> becomes X` writes directly to the underlying
+  storage, bypassing the setter (no infinite recursion).
+
+#### Named constructors
+
+A named constructor is a function that builds and returns an object. It is declared
+with `making a <type>` in the return-type slot:
+
+```
+Define object point with (the number x, the number y).
+
+Bind making a point to origin:
+    Return a new point { the x 0, the y 0 }.
+Done.
+
+Bind making a point or failure to from-pair, given (the text s):
+    Define parts as s split by ",".
+    If the number of parts is not 2, return a failure "expected x,y".
+    Define x as item 1 of parts converted to number.
+    Define y as item 2 of parts converted to number.
+    If x is void or y is void, return a failure "non-numeric coordinates".
+    Return a new point { the x x, the y y }.
+Done.
+
+Define origin-pt as cast origin.
+Define p as cast from-pair on ("3,4").
+```
+
+- `Bind making a <type> to <name>[, given (<params>)]:` — the implicit return type
+  is `<type>`.
+- Fallible form: `Bind making a <type> or failure to <name>:` — the body may
+  `return a failure ...`.
+- Called via the standard `Cast <name> on (args)` syntax — no new call syntax.
+- A type can have multiple named constructors; the `{...}` literal is still available.
+
+#### Destructors
+
+A destructor runs automatically when an object goes out of scope — RAII at the
+`Done.` that closes its declaring block:
+
+```
+Bind unmaking a conn to disconnect:
+    State "closing " joined to one's host.
+    Cast close on one.
+Done.
+
+If 1 is 1:
+    Define db as cast open-conn on ("localhost").
+    Cast query on (db, "SELECT 1").
+Done.                              ← destructor fires here, before leaving the block
+```
+
+Rules:
+
+- `Bind unmaking a <type> to <name>: ... Done.` — top-level only, no parameters.
+- **One per type** — a second destructor for the same type is a static error.
+- **Infallible** — `return a failure` in the body is a static error. For cleanup
+  that *can* fail, expose a fallible method (`close`/`flush`/`commit`) and call it
+  *before* the scope ends. Relying on the destructor for fallible cleanup risks silent
+  data loss — the destructor swallows all outcomes.
+- **LIFO order** — when multiple objects in the same scope have destructors, they
+  fire in reverse definition order (last-defined, first-destroyed).
+- **`one` is the object being destroyed** — its fields and methods are accessible
+  via `one's <field>` and `Cast <method> on one`.
+- **Ownership rule** — destroy what you opened, not what you borrowed. A resource
+  passed in from outside is the caller's responsibility; closing it in the destructor
+  is a double-close bug.
 
 ---
 
-## Concurrency (tasks and channels)
+### Operator overloading
 
-### Tasks
-
-`Have rabbit start a task: … Done.` runs a block concurrently. It must appear inside a
-rabbit, and **the rabbit's `Done.` waits for every task it started**. A task therefore
-cannot outlive the region that launched it.
-
-Name a task with `as <name>` and it can `return` a value, which you collect with
-`the awaited result of <name>`:
+`+`, `-`, `*`, and `/` can be given a meaning for a user-defined object type:
 
 ```
-Pull a rabbit.
-    Have rabbit start a task as left:
-        Return 1 + 2 + 3.
-    Done.
-    Have rabbit start a task as right:
-        Return 4 + 5 + 6.
-    Done.
-    State (the awaited result of left) + (the awaited result of right).
+Define object vec2 with (the number x, the number y).
+
+Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):
+    Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.
 Done.
-```
-```
-21
-```
 
-An unnamed task is fire-and-forget: it still joins at `Done.`, but any value it returns
-is dropped. Awaiting the same task twice is fine — the body runs once either way.
-
-**A task can await another task**, so work can be staged rather than only fanned out:
-
-```
-Pull a rabbit.
-    Have rabbit start a task as fetch:
-        Return 21.
-    Done.
-    Have rabbit start a task as double-it:
-        Define v as the awaited result of fetch.
-        Return v * 2.
-    Done.
-    State the awaited result of double-it.
+Bind overloading *, given (the lhs is a vec2, the rhs is a vec2):
+    Return lhs's x * rhs's x + lhs's y * rhs's y.
 Done.
+
+Define u as a new vec2 { the x 1, the y 2 }.
+Define w as a new vec2 { the x 3, the y 4 }.
+State u + w.
+State u * w.
 ```
 ```
-42
+vec2(x: 4, y: 6)
+11
 ```
 
-Several tasks may await the same task; each gets its own copy of the result.
+The rules are deliberately narrow, which is what keeps the feature predictable:
 
-**A task can only await one declared before it**, because the name has to be in scope — which
-also means a cycle of tasks waiting on each other cannot be written, so this cannot deadlock.
-Awaiting a task declared later is a type error, not a hang.
+- **Only `+ - * /`.** Comparisons and `is` are not overloadable, so equality keeps one
+  meaning everywhere — including inside `unique`, map keys, and `sorted`.
+- **Both operands must be the same object type**, and it must be an object type. There
+  is no conversion or promotion, so there is never more than one candidate and never any
+  ambiguity about which one applies.
+- **One overload per type and operator**, enforced by the type checker.
+- **Built-ins cannot be shadowed** — `number + number` always means addition.
+- **The return type is whatever the body returns.** A dot product returning `number`, as
+  above, is fine.
+- **An overload may fail.** Returning `a failure` makes it fallible, and it then composes
+  with `Try to:`, `but on failure`, and `or pass the failure off` like any other fallible
+  call. This is exactly how matrix arithmetic is built.
 
-### Channels
-
-A channel is a typed queue for passing values between tasks. `Send <value> through
-<channel>.` puts one in; `the delivery from <channel>` takes one out, yielding
-`voidable T` — void once the channel is closed and empty, which is how a receiver knows
-to stop.
-
-```
-Pull a rabbit.
-    Define results as a channel of number.
-    Have rabbit start a task:
-        Send 10 through results.
-        Send 20 through results.
-        Close results.
-    Done.
-    Define total as 0.
-    Define got as the delivery from results.
-    While got is not void, repeat:
-        The total becomes total + (got but void is 0).
-        got becomes the delivery from results.
-    Done.
-    State total.
-Done.
-```
-```
-30
-```
-
-`Close` is idempotent; sending after a close is a runtime error. A blocked receive wakes
-when a value arrives, when the channel closes, or when the program is interrupted.
-
-### What crosses a boundary, and what a task may touch
-
-**Values are deep-copied when they cross between tasks** — both on a channel send and
-when a task captures a variable from outside itself. Each side ends up owning its own
-memory, which is what keeps one task's region from becoming entangled with another's.
-
-A task may freely **read** anything from the enclosing scope, of any type. A task may
-**not change** something it captured — and this holds for a plain number just as much as
-for a series:
-
-```
-Define data as a series of number with (1, 2, 3).
-Define tally as 0.
-Pull a rabbit.
-    Have rabbit start a task:
-        Add 99 to data.        ← REJECTED when compiled
-        The tally becomes tally + 1.   ← REJECTED too, for the same reason
-    Done.
-Done.
-```
-
-The compiler refuses this and points you at channels. The reason is worth knowing: the
-task holds its own copy, so the change could never be seen outside — and two tasks doing
-it at once is a straightforward data race. Send the result back through a channel, or
-`return` it from a named task and await it.
-
-This is about *writing* to a capture, not about captures being restricted. Reading one is
-free, and a counter the task defines itself is a local, not a capture:
-
-```
-Define step as 5.
-Pull a rabbit.
-    Have rabbit start a task as run-it:
-        Define total as 0.          ← the task's own; fine to change
-        Define i as 0.
-        While i is less than 4, repeat:
-            The total becomes total + step.   ← reads the capture; fine
-            The i becomes i + 1.
-        Done.
-        Return total.
-    Done.
-    State the awaited result of run-it.
-Done.
-```
-```
-20
-```
-
-> ⚠ The interpreter does **not** enforce this — it hands task bodies the live enclosing
-> binding, and runs one task at a time, so the mutation appears to work. Write to the
-> rule and both backends agree.
-
-### Interpreted versus compiled
-
-This is the one part of the language where the two backends deliberately differ.
-Interpreted, tasks are **cooperative**: one runs at a time, interleaving only at
-`Yield.` and at blocking channel operations. Compiled, each task is a **real OS thread**
-and they run genuinely in parallel.
-
-So **no particular interleaving is specified**. Write concurrent programs to depend on
-the aggregate result, not the order — the same discipline the compiler's own tests use,
-which assert order-independent invariants and run under ThreadSanitizer. See
-[GRAMMAR.md](GRAMMAR.md) for the cooperative scheduler's specific artefacts, including
-why fan-out work-queues do not distribute when interpreted.
+Declarations are free-standing and top-level, not members of the object.
 
 ---
 
-## Streaming pipes
+### Functions
 
-`producer | consumer.` connects functions into a pipeline. A stage emits with `output
-<value>.` and consumes with `for each <name> from the input:`.
-
+**Declaration:**
 ```
-Bind void to emit-numbers:
-    output 1.
-    output 2.
-    output 3.
-    output 4.
+Bind number to add, given (the number a, the number b):
+    Return a + b.
 Done.
 
-Bind void to keep-even:
-    for each n from the input:
-        If n % 2 is 0:
-            output n.
-        Done.
+Bind void to greet, given (the text name):
+    State name.
+Done.
+
+Bind number to get-ten:
+    Return 10.
+Done.
+```
+
+`Bind` declares a named function. The return type comes first (`number`, `void`,
+or a function type). Parameters follow `given`. Functions with no parameters omit
+`given` entirely. Functions are top-level and hoisted, so they may be defined in
+any order and may recurse.
+
+**Calling:**
+```
+State cast add on (3, 4).          ← in expression position
+Cast greet on ("hello").           ← as a statement (void or discarded result)
+```
+
+`Cast` works on any expression that evaluates to a function — a name, a variable,
+a series element, or a method.
+
+**Early exit:**
+```
+Return value.    ← return a value
+Return.          ← void early exit
+```
+
+A non-`void` function must return a value on every path; one that can fall off
+its end without returning is a compile-time error.
+
+**Functions are first-class values:**
+```
+Define op as add.
+State cast op on (3, 4).           → 7
+```
+
+A function assigned to a variable carries its full type. The type checker catches
+calling the wrong signature through any alias.
+
+**Function-typed parameters:**
+```
+Bind number to apply, given (the number x, the number function f given (the number)):
+    Return cast f on (x).
+Done.
+
+Bind number to double, given (the number x): return x * 2. Done.
+
+State cast apply on (5, double).   → 10
+```
+
+The parameter type `the number function f given (the number)` declares that `f`
+must be a function taking a number and returning a number. Passing the wrong
+signature is a static type error.
+
+**Functions as return values:**
+```
+Bind number function given (the number) to get-doubler:
+    Return double.
+Done.
+
+Define fn as cast get-doubler on ().
+State cast fn on (5).              → 10
+```
+
+The return type `number function given (the number)` declares that this function
+returns a function. Closures and lambda literals can be returned too — see
+[Closures](#closures) and
+[Lambda literals](#lambda-literals-anonymous-functions) below.
+
+**Series of functions:**
+```
+Define ops as a series of number function given (the number) with (double, triple).
+
+State cast the first of ops on (5).          → 10
+
+For each op in ops, repeat:
+    State cast op on (5).
+Done.
+```
+
+A series whose element type is a function type. All the usual series operations
+apply — access, add, remove, for-each — and any accessed element can be `Cast`
+directly.
+
+#### Closures
+
+A function declared with `Bind` *inside* another function or method body
+captures the enclosing variables at the point of declaration:
+
+```
+Bind number function given (the number) to make-adder, given (the number n):
+    Bind number to adder, given (the number x):
+        Return x + n.
     Done.
+    Return adder.
 Done.
 
-Bind void to show:
-    For each n from the input:
-        State "kept " joined to (n converted to text).
-    Done.
-Done.
-
-emit-numbers | keep-even | show.
-```
-```
-kept 2
-kept 4
+Define add-five as cast make-adder on (5).
+State cast add-five on (10).          → 15
 ```
 
-A stage ends its output stream by returning, which tells the next stage downstream that
-the values have run out. Stages need no enclosing rabbit — a pipe spawns its stages,
-joins them, and cleans up its channels on its own.
+Capture follows the same value/reference split used everywhere else in
+Cufet: value types (`number`, `text`, `fact`) are captured as a snapshot at
+declaration time, so later changes to the outer variable don't affect an
+already-created closure; reference types (series, maps, objects) capture the
+live instance, so mutations through the closure are visible in the outer
+scope and vice versa.
 
-Interpreted, a pipe is buffered: each stage runs to completion and the next drains the
-buffer. Compiled, every stage is its own thread and values stream through as produced.
-The observable output order is the same either way, because each channel is FIFO.
+#### Lambda literals (anonymous functions)
 
-### Restrictions
-
-- **A pipe is all function stages or all `run` stages** — the subprocess form
-  (`run "ls" | run "wc"`, covered under Process execution) cannot be mixed with function
-  stages. Doing so is rejected with a message naming the offending stage.
-- **A stage function may be used at one input element type** across the whole program.
-  Feeding the same function numbers in one pipe and text in another is a type error.
-
-### How stage types are checked
-
-`for each n from the input:` gives the iterator no type, so a stage's input type can only
-come from the stage before it. The type checker walks each pipe left to right, carrying
-every stage's output type into the next as its input, and checks that stage's body
-against it:
+A function literal written inline, with no name — usable anywhere a function
+value goes: assigned, passed as an argument, returned, or stored in a series.
 
 ```
-Bind void to emit-nums:
-    output 1.
-Done.
+Define double as a function given (the number x): Return x * 2. Done.
+State cast double on (5).                                       → 10
 
-Bind void to shout:
-    For each n from the input:
-        State the length of n.      ← type error: 'the length of' works on text only
-    Done.
-Done.
-
-emit-nums | shout.
+Cast apply on (10, a function given (the number x): Return x * 2. Done).
 ```
 
-The consequence to be aware of: **a consumer body is checked at the pipe, not where it is
-written.** A stage function never used in a pipe has an unchecked `from the input` body.
-And stages reached indirectly — a lambda, or a function held in a variable — stop the
-chain, leaving stages after them unchecked rather than wrongly reported.
+The body is always `Done`-terminated (there's no inline single-statement
+form). The return type is **inferred from the body** — there's no syntax to
+declare it. Lambdas capture enclosing variables under the same rule as
+[Closures](#closures) above, and always carry their captured environment.
 
 ---
 
-## Books (the standard library)
-
-Capability that most programs do not need lives in a **book**, brought into scope for a
-block with `Pull a book on <name>. … Done.` Members are reached with the possessive:
-`math's square root of (144)`.
-
-Books are resolved at compile time. There is no dynamic loading, and no external loader
-yet — the bundled books are `math`, `collections`, and `chance`.
-
-```
-Pull a book on math.
-    State math's square root of (144).
-    State math's absolute value of (0 - 7).
-    State math's pi.
-Done.
-```
-```
-12
-7
-3.14159265358979
-```
-
-`math` provides `square root`, `log`, `power`, `floor`, `ceiling`, `round`, `absolute
-value`, and the constants `pi` and `e`. Rounding, flooring and absolute value are exact
-decimal operations. The transcendentals are computed in double precision on both
-backends — which means `power` with a fractional exponent can differ in its last digit
-across platforms, because the underlying library *is* the platform's own.
-
-```
-Pull a book on collections.
-    Define scores as a series of number with (5, 3, 9, 3).
-    State collections's maximum of (scores).
-    State collections's average of (scores).
-    State collections's unique of (scores).
-Done.
-```
-```
-9
-5
-(5, 3, 9)
-```
-
-`collections` provides `minimum`, `maximum`, `average`, and `unique` (first occurrence
-wins, order preserved). Each yields void for an empty series. `average` is exact — it
-does not go through floating point. The `matrix` type also lives in this book; see below.
-
-`chance` provides random numbers, random selection, and shuffling, plus `Seed the chance
-with <n>.` Seeding makes a run reproducible **within one backend**; the interpreter and a
-compiled binary use different generators, so a seeded program is not expected to produce
-the same sequence in both.
-
----
-
-## Matrix
-
-`matrix` is a rectangular grid of numbers, available inside `Pull a book on collections.`
-Arithmetic is exact decimal, and is **fallible** — dimensions have to agree, so `+`, `-`
-and `*` on matrices must be handled with `Try to:`, `but on failure`, or `or pass the
-failure off`. Using one bare is a static type error.
-
-```
-Pull a book on collections.
-    Define m as a matrix with ((1, 2), (3, 4)).
-    Define n as a matrix with ((5, 6), (7, 8)).
-    State m.
-
-    Try to:
-        State m + n.
-        State m * n.
-    Done.
-    In case of failure:
-        State "failed: " joined to the message of the failure.
-    Done.
-
-    Define bad as a matrix with ((1, 2, 3)).
-    Try to:
-        State m + bad.
-    Done.
-    In case of failure:
-        State "failed: " joined to the message of the failure.
-    Done.
-Done.
-```
-```
-matrix((1, 2), (3, 4))
-matrix((6, 8), (10, 12))
-matrix((19, 22), (43, 50))
-failed: matrices must have equal dimensions for addition
-```
-
-`*` is matrix multiplication, not element-wise. `collections's transpose of (m)` flips
-rows and columns. There is no matrix division — it would require inversion, which is
-deliberately not provided.
-
----
-
-## Sorting
+### Sorting
 
 `sorted` is a postfix operator on a series. It returns a **new** series; the original is
 untouched.
@@ -2451,167 +1583,9 @@ The sort is **stable** — equal elements keep their original relative order —
 
 ---
 
-## Operator overloading
+## Part V. The type system
 
-`+`, `-`, `*`, and `/` can be given a meaning for a user-defined object type:
-
-```
-Define object vec2 with (the number x, the number y).
-
-Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):
-    Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.
-Done.
-
-Bind overloading *, given (the lhs is a vec2, the rhs is a vec2):
-    Return lhs's x * rhs's x + lhs's y * rhs's y.
-Done.
-
-Define u as a new vec2 { the x 1, the y 2 }.
-Define w as a new vec2 { the x 3, the y 4 }.
-State u + w.
-State u * w.
-```
-```
-vec2(x: 4, y: 6)
-11
-```
-
-The rules are deliberately narrow, which is what keeps the feature predictable:
-
-- **Only `+ - * /`.** Comparisons and `is` are not overloadable, so equality keeps one
-  meaning everywhere — including inside `unique`, map keys, and `sorted`.
-- **Both operands must be the same object type**, and it must be an object type. There
-  is no conversion or promotion, so there is never more than one candidate and never any
-  ambiguity about which one applies.
-- **One overload per type and operator**, enforced by the type checker.
-- **Built-ins cannot be shadowed** — `number + number` always means addition.
-- **The return type is whatever the body returns.** A dot product returning `number`, as
-  above, is fine.
-- **An overload may fail.** Returning `a failure` makes it fallible, and it then composes
-  with `Try to:`, `but on failure`, and `or pass the failure off` like any other fallible
-  call. This is exactly how matrix arithmetic is built.
-
-Declarations are free-standing and top-level, not members of the object.
-
----
-
-## Compiling to a native binary
-
-Cufet runs two ways. Interpreted, it executes directly. Compiled, it emits C, invokes
-`gcc`, and produces a native executable with no managed runtime — no .NET, no garbage
-collector, no interpreter loop.
-
-```
-cufet program.cufe                  run it (interpreted)
-cufet build program.cufe            compile to a native binary
-cufet emit-c program.cufe out.c     emit the C, without invoking gcc
-```
-
-`build` requires **`gcc` on your `PATH`**. Nothing else — the generated C is
-self-contained, with no external libraries and no flags beyond `-pthread` and `-lm`.
-`emit-c` is the escape hatch for cross-toolchain builds and for reading what was
-generated.
-
-The lexer, parser, and type checker are shared, so a program that type-checks does so
-identically either way, and every error message you have seen in this document is the
-same in both.
-
-### What you get
-
-A compiled program is an ordinary native executable. Its sections are real: functions
-you `Bind` become machine symbols, a text value bound `permanently` sits in read-only
-data, and each thread's region stack is thread-local storage.
-
-`number` compiles to an exact software decimal that is bit-for-bit identical to the
-interpreter's, so arithmetic does not quietly change meaning when you compile. Regions
-become real bump-allocated arenas. Tasks become real threads.
-
-### Where the two differ
-
-Compiled output is expected to equal interpreted output — that is enforced by the test
-suite, which compiles each program, runs the binary, and compares. Where they disagree,
-one of them is a bug rather than a documented difference.
-
-The exceptions are few and each is noted where it arises:
-
-- **Concurrency scheduling** — cooperative when interpreted, genuinely parallel when
-  compiled. No interleaving is specified.
-- **`power` with a fractional exponent** may differ in its last digit; the underlying
-  routine is the platform's own.
-- **Seeded randomness** is reproducible within a backend, not across them.
-- **Filesystem enumeration order** and **ASCII-versus-locale casing** are
-  platform-owned.
-
-### Platform notes
-
-Concurrency, subprocesses, and signal handling use POSIX facilities and need Linux,
-macOS, or WSL. On Windows with mingw, programs that avoid those features compile and run
-normally; programs that use them will not build.
-
----
-
-## Signal handling
-
-Cufet provides **cooperative (poll-based) interrupt handling**. When the process
-receives `SIGINT` (e.g. Ctrl+C), a flag is set; the program checks it at controlled
-points:
-
-```
-While 1 is 1, repeat:
-    If an interrupt is requested:
-        State "shutting down.".
-        Acknowledge the interrupt.
-        Stop.
-    Done.
-
-    Define line as read a line from the input.
-    If line is void, stop.
-    State line.
-Done.
-```
-
-- **`an interrupt is requested`** — `fact`; true when a `SIGINT` has arrived
-  since the last `Acknowledge the interrupt.` (or since program start). Stays true
-  until acknowledged.
-- **`Acknowledge the interrupt.`** — statement; clears the pending interrupt flag.
-  Subsequent checks return false until the next `SIGINT`.
-- **`Yield.`** — yields to the scheduler and acts as an interrupt checkpoint.
-  Blocked `the delivery from` and `the awaited result of` also wake on interrupt, so
-  a program that yields or blocks naturally is interruptible without polling
-  `an interrupt is requested`.
-
-### How far an interrupt reaches
-
-The polling constructs above behave identically on both backends. What differs is what
-happens when you *don't* poll.
-
-**Interpreted, interruption is checkpoint-only.** A tight loop containing no `Yield.`
-and no blocking call cannot be interrupted mid-loop — the scheduler never gets a turn.
-
-**Compiled, interruption is genuinely preemptive.** The runtime installs a real
-`sigaction` handler whose only job is to set a flag (so it is async-signal-safe), and
-each thread establishes a landing pad it unwinds to at its next checkpoint. In practice:
-
-| Situation | Interpreted | Compiled |
-|---|---|---|
-| Loop containing `Yield.` | interruptible | interruptible |
-| Tight loop, no checkpoint at all | not interruptible | not interruptible |
-| Blocked on `the delivery from` | interruptible | interruptible — a real blocked thread genuinely wakes |
-| Inside a running task | interruptible at its checkpoints | interruptible; the task unwinds, its destructors run, its files close, and the rabbit reaps it at the join |
-| Waiting at a rabbit's `Done.` for tasks | n/a | the wait ends as its tasks unwind, and the program then tears down |
-
-An interrupt that is never acknowledged tears the program down cleanly — open files are
-flushed and closed, channels freed, regions released — and exits with status 130, the
-conventional `128 + SIGINT`.
-
-Handling signals **other than `SIGINT`** is not a language feature on either backend.
-Note also that arithmetic faults never arrive as `SIGFPE`: `number` is a software
-decimal, so division by zero is a checked condition raised as an ordinary catchable
-Cufet exception. See the error-handling section.
-
----
-
-## Type system
+### Type system
 
 Cufet has a static type checker that runs before execution. It catches:
 
@@ -2692,16 +1666,1064 @@ Change the value to a number, or define a separate series that holds text.
 
 ---
 
-## Identifiers
+### Voidable values (`void` and `voidable T`)
 
-- Must start with a lowercase letter (`total`, `my-var`, `x2`).
-- Internal dashes allowed: `receipt-total` is one identifier.
-- `Total` (uppercase-initial) is a lexer error — uppercase-initial is reserved
-  for keywords. (Keywords themselves are case-insensitive, but a non-keyword word
-  must start lowercase, so every uppercase-initial word in a program is provably
-  a keyword and every lowercase one is a name — roles are parseable by eye.)
-- Binary `-` requires surrounding whitespace: `a - b` is subtraction; `a-b` is
-  an identifier.
-- `a`, `an`, `the` are reserved as noise (articles) and cannot be used as
-  identifiers.
-  
+Cufet has no null. Absence is expressed with a first-class empty value, `void`,
+and a type that admits it, `voidable T`. This is how "a value, or nothing" is
+said — explicitly, and checked.
+
+**`void`** is a real, holdable value (it prints as `void`). A `void`-returning
+function produces it; a map lookup that misses produces it.
+
+**`voidable T`** is "a `T`, or `void`":
+```
+Define maybe-score as 95.        ← a number is a valid voidable number (present case)
+Define maybe-score as void.      ← the absent case
+```
+Usable in any annotation position — parameters, return types, series elements,
+record/object fields:
+```
+Bind voidable number to find-score, given (the text name):
+    ...
+Done.
+```
+
+**Type rules:**
+- A plain `T` widens to `voidable T` automatically (a `number` is accepted where
+  a `voidable number` is wanted) — one-way.
+- `void` is the empty case of any `voidable T`.
+- A `voidable T` does **not** collapse to `T`. Using one where a plain `T` is
+  required is a static type error — you must handle the void case first.
+
+**Testing and handling:**
+
+`is void` / `is not void` — a boolean test:
+```
+If maybe-score is not void:
+    State maybe-score.            ← narrowed to a plain number here, safe to use directly
+Done.
+Otherwise:
+    State "no score".
+Done.
+```
+Inside a branch that has checked a **variable** is not void, the checker narrows
+that variable to its plain `T`, so it can be used directly. Narrowing is keyed on
+the variable and is cleared if the variable is reassigned within the branch.
+
+**Guard narrowing** — an exiting guard narrows the *fall-through* path. When a
+one-line `If x is void, return …` (no `Otherwise`) whose body always returns is
+passed, the statements after it run only when `x` was **not** void, so `x` is
+narrowed to plain `T` from that point to the end of the block:
+```
+Bind number or failure to parse-age, given (the text raw):
+    Define n as raw converted to number.
+    If n is void, return a failure "not a number".
+    Return n.                        ← n is a plain number here, not voidable
+Done.
+```
+A disjunctive guard narrows every variable it names: after
+`If x is void or y is void, return …`, both `x` and `y` are non-void on the
+fall-through. The narrowing lives only in the block that contains the guard —
+a guard nested inside an `If`-arm says nothing about the path where that arm was
+skipped, so it never leaks past the arm.
+
+> To narrow a value produced by an expression (like a map lookup), name it first
+> — `Define s as the entry for "alice" in ages.` then check `s`. A bare literal
+> buried inside a lookup is a value worth naming anyway; narrowing follows the
+> named binding.
+
+`but void is <default>` — an inline fallback that always yields a plain `T`:
+```
+Define n as (the entry for "alice" in ages but void is 0).
+```
+
+---
+
+### Union types and narrowing
+
+A **union type** is a value that can be one of several listed types. Declared
+with `or` in parentheses:
+
+```
+Define x as (number or text).
+Define y as (number or text or fact).
+```
+
+**Type-agnostic operations** — without narrowing, only operations that work on
+every case are allowed: assignment, `becomes`, passing to a union-typed parameter,
+storing into a catalogue or atlas, and equality comparison (`is`/`is not`) between
+two values of the same union type.
+
+**Type-specific operations** — arithmetic, `the length of`, and anything that
+only makes sense for one type — require narrowing first. Using them on an
+un-narrowed union is a static type error that names the expected narrowing form.
+
+#### `is a <type>` / `is not a <type>`
+
+The runtime type-test, generalizing `is void`:
+
+```
+If x is a number, state x + 1.
+If x is not a text, state "not text".
+```
+
+Works with any type name: `is a number`, `is a text`, `is a fact`, object type
+names, etc. `is an <type>` is accepted wherever the article fits. Both forms
+are identical.
+
+#### In-branch narrowing
+
+After a successful `is a <type>` check, the value is that type inside the
+branch — type-specific operations are legal there:
+
+```
+Define the (number or text) x as 42.
+
+If x is a number:
+    State x + 1.           ← x is a number here; arithmetic is legal
+Done.
+Otherwise:
+    State the length of x. ← x is a text here (narrowed by elimination)
+Done.
+```
+
+**Narrowing by elimination** — for a **closed** union, the `Otherwise` arm
+automatically narrows to the remaining case(s). After `if x is a number` on a
+`(number or text)` union, `Otherwise` knows `x` is `text`.
+
+For a three-case union, two tested arms leave the third for `Otherwise`:
+
+```
+Define the (number or text or fact) x as 42.
+
+If x is a number:
+    State x + 1.
+Done.
+Otherwise if x is a text:
+    State the length of x.
+Done.
+Otherwise:
+    State x converted to text.    ← x is a fact here
+Done.
+```
+
+**`is not a <type>`** narrows the true branch to the complement — for a
+`(number or text)` union, `if x is not a number` narrows `x` to `text` in the
+true branch.
+
+**Open unions** — `Otherwise` after an open union check is *not* narrowable;
+only agnostic operations are legal there. Open is sound (narrowing still
+required), never `any`.
+
+Narrowing is **variable-level** — the same rule as voidable narrowing. The
+narrowed type clears when the variable is reassigned. To narrow a value produced
+by an expression, name it first.
+
+---
+
+### Error handling (failures and exceptions)
+
+Cufet distinguishes two kinds of bad outcome:
+
+- **Failures** — expected, recoverable outcomes that are part of a function's
+  contract. A file not being found is a failure. A config value being invalid is
+  a failure. These are things a caller should plan for.
+- **Exceptions** — unexpected outcomes the type system can't prevent at compile
+  time. Divide-by-zero is an exception. An out-of-bounds access with a runtime
+  index is an exception. These are things that should not happen in correct code.
+
+The two paths are handled separately and cannot be mixed up.
+
+#### Failure values (`failure T`)
+
+`failure T` is "either a plain `T` or a failure." A failure carries a text
+message and an optional category tag. The parallel to `voidable T` is exact:
+same inline-fallback syntax, same propagation operator, same block form.
+
+**Failure literal:**
+```
+Define err as a failure "not found" of category "not-found".
+Define err as a failure "something went wrong".       ← category is optional
+```
+
+**Inline fallback — `but on failure <default>`** — collapses `failure T` to
+plain `T`, like `but void is` for voidable:
+```
+Define n as (cast parse-int on (raw) but on failure 0).
+```
+
+**Propagation — `or pass the failure off`** — re-raises the failure to the
+caller. The function must itself declare a failable return type:
+```
+Bind number or failure to to-positive, given (the number n):
+    If n is 0 or less, return a failure "must be positive" of category "range".
+    Return n.
+Done.
+
+Bind number or failure to double-positive, given (the number n):
+    Define p as cast to-positive on (n) or pass the failure off.
+    Return p * 2.
+Done.
+```
+
+**Unhandled failure is a static error** — dropping a failable value without
+a fallback, a propagation, or a `Try` block is caught by the type checker, not
+at runtime.
+
+#### Block form: `Try to`
+
+For multiple statements that may produce failures, `Try to:` handles them as a
+group:
+
+```
+Try to:
+    Define contents as read all from the file "data.txt".
+    State contents.
+Done.
+In case of failure:
+    State "could not open file: " joined to the message of the failure.
+Done.
+```
+
+Inside `In case of failure:`, `the failure` is bound to the failure value.
+Access its fields with named access:
+```
+In case of failure:
+    State the message of the failure.
+    State the category of the failure.    ← text, or void if no category was given
+Done.
+```
+
+**`In case of exception`** — catches runtime exceptions (divide-by-zero,
+dynamic out-of-bounds, etc.) that the type system can't statically prevent:
+```
+Try to:
+    State 1 / 0.
+Done.
+In case of exception (the exception):
+    State "runtime error: " joined to the exception.    ← bound as text
+Done.
+```
+
+The name in parentheses (`the exception` in the example above) is the binding
+for the exception description — it is block-local to the handler.
+
+Exceptions **re-raise by default** after the handler runs. `Suppress.` (only
+valid inside `In case of exception`) swallows the exception and continues
+execution after the `Try`:
+```
+In case of exception (the exception):
+    State "ignoring: " joined to the exception.
+    Suppress.
+Done.
+```
+
+Both handlers can appear in the same `Try`:
+```
+Try to:
+    ...
+Done.
+In case of failure:
+    ...
+Done.
+In case of exception (the exception):
+    ...
+Done.
+```
+
+At least one handler is required. The two paths are independent — a failure
+goes only to `In case of failure`; an exception goes only to
+`In case of exception`.
+
+---
+
+## Part VI. Input and output
+
+### Input and output
+
+#### Reading from standard input
+
+The pre-defined name `input` holds standard input as a `readable stream of
+text`. Three read forms cover common patterns:
+
+```
+Define line  as read a line from the input.      ← voidable text (void at EOF)
+Define all   as read all from the input.         ← text (empty string at EOF)
+Define lines as read all lines from the input.   ← series of text (empty at EOF)
+```
+
+`read a line from the input` strips the trailing newline and returns
+`voidable text` — `void` signals end-of-input. The typical read loop:
+```
+Repeat:
+    Define line as read a line from the input.
+    If line is void, stop.
+    State line.
+until false.
+```
+
+(`until false` is the standard idiom for a loop that exits only via `Stop.`)
+
+`read all from the input` drains all of stdin and returns it as one `text`
+value (empty input → `""`; never void). `read all lines from the input`
+splits on newlines and returns a `series of text` (empty input → empty series).
+
+#### File I/O
+
+**Reading an entire file** — returns a failable value; must be handled:
+```
+Try to:
+    Define text as read all from the file "notes.txt".
+    State text.
+Done.
+In case of failure:
+    State "could not read: " joined to the message of the failure.
+Done.
+```
+
+`read all from the file <path>` returns `text or failure`.
+`read all lines from the file <path>` returns `series of text or failure`.
+The path is any text expression (literal, variable, or interpolated string).
+
+Failure categories: `"not-found"`, `"permission-denied"`, `"disk-error"`.
+
+**Writing to a file:**
+```
+write "hello\n" to the file "out.txt".      ← overwrite (create or truncate)
+append "more\n" to the file "out.txt".      ← append to end
+```
+
+Write and append complete silently on success; on failure they raise a Cufet
+failure caught by the enclosing `Try` handler.
+
+**Scoped file streams — `With the file ... open for reading/writing as`:**
+
+For reading line-by-line, or writing incrementally, open the file as a stream
+and let Cufet close it automatically:
+
+```
+With the file "data.txt" open for reading as stream:
+    Define line as read a line from stream.
+    State line.
+Done.
+```
+
+```
+With the file "out.txt" open for writing as log:
+    Write "Line 1\n" to log.
+    Write "Line 2\n" to log.
+Done.
+```
+
+`With the file <path> open for reading as <name>: ... Done.` opens the file,
+binds it to `<name>` (a `readable stream of text`) for the duration of the
+block, and closes it on every exit path — including failures, exceptions, and
+`Stop.` inside the block. `for writing` binds a `writable stream of text`.
+
+Stream direction is **statically enforced**: reading from a writable stream, or
+writing to a readable stream, is a static type error.
+
+An open failure (file not found, permission denied) propagates to the enclosing
+`Try` handler the same as any other file failure.
+
+**Stream reads support all three read forms** — a `readable stream of text`
+works anywhere `the input` works:
+```
+With the file "lines.txt" open for reading as s:
+    Define lines as read all lines from s.
+    For each line in lines, repeat:
+        State line.
+    Done.
+Done.
+```
+
+**Passing a stream to a function:**
+```
+Bind void to process, given (the readable stream of text src):
+    Define line as read a line from src.
+    State line.
+Done.
+```
+
+#### Process execution
+
+`run <program>` runs an external program synchronously and collects its output:
+
+```
+Try to:
+    Define result as run "git" with arguments ("log", "--oneline", "-5").
+    State result's output.
+    If result's exit-code is not 0:
+        State "stderr: " joined to result's errors.
+    Done.
+Done.
+In case of failure:
+    State "git not available".
+Done.
+```
+
+`run <program>` and `run <program> with arguments (<arg1>, <arg2>, ...)`
+return a result record with three fields:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `output` | `text` | everything written to stdout |
+| `errors` | `text` | everything written to stderr |
+| `exit-code` | `number` | the process exit code |
+
+The return type is `result or failure`. A **launch failure** (program not found,
+permission denied) is a Cufet failure. A program that **runs and exits nonzero**
+is not a failure — it is a normal result; check `exit-code` or `errors` to
+decide what to do.
+
+Failure categories: `"not-found"`, `"permission-denied"`, `"io-error"`.
+
+Arguments are passed as individual strings to the OS — no shell is invoked and
+shell injection is structurally impossible. The program name is any text
+expression.
+
+> **Note:** `result's exit-code converted to text` mis-parses (a parser quirk
+> with `converted to text` in possessive-access position). Workaround: extract
+> first — `Define code as result's exit-code. State code converted to text.`
+
+#### Environment variables
+
+`the environment variable "NAME"` reads a process environment variable by name,
+returning `voidable text`:
+
+```
+Define home as the environment variable "HOME".
+If home is not void:
+    State "home is " joined to home.
+Done.
+Otherwise:
+    State "HOME is not set".
+Done.
+
+Define path-val as the environment variable "PATH" but void is "".
+```
+
+- Returns `voidable text` — `void` if the variable is not set.
+- The name is any text expression (literal, variable, or interpolated string).
+- Read-only — Cufet does not expose setting environment variables.
+
+#### The current directory
+
+**Read it** — `the current directory` returns `voidable text`:
+
+```
+Define here as the current directory but void is "(unknown)".
+State here.
+```
+
+It is voidable for the same reason the environment variable is: the answer comes from the
+operating system, and the operating system is allowed to have none. In practice `void` means the
+directory was removed out from under the running process. Every ordinary program gets a value.
+
+**Change it** — `The current directory becomes path.` is a statement, and a fallible one:
+
+```
+Try to:
+    The current directory becomes "/tmp".
+    Write "notes" to the file "scratch.txt".   /* relative to /tmp now */
+Done.
+In case of failure:
+    State "could not move there: " joined to the message of the failure.
+Done.
+```
+
+Failure categories, and the message each produces:
+
+| Category | When | Message |
+| --- | --- | --- |
+| `not-found` | nothing is there | `the directory '<p>' was not found` |
+| `not-a-directory` | it exists, but is a file | `'<p>' is not a directory` |
+| `permission-denied` | it exists, but you may not enter | `permission denied entering directory '<p>'` |
+| `disk-error` | anything else | `changing to the directory '<p>' failed` |
+
+- **It affects relative paths** for everything afterwards — file reads and writes, directory
+  listings, and subprocesses launched with `run`, which inherit it.
+- **A failure is recoverable.** A bad path costs you a handled failure, not the program, which is
+  what lets [`examples/shell.cufe`](examples/shell.cufe) implement `cd` without a typo ending the
+  session.
+- **Not allowed inside a task.** A process has exactly one working directory, so changing it from
+  a task would race every other task resolving a relative path. The compiler refuses with an
+  explanation; change it in the rabbit body before starting tasks, or pass the directory in and
+  build full paths. (Reading it from a task is fine.)
+
+> **Windows paths need doubled backslashes.** `"C:\Windows"` is a *lexer* error, because `\W` is
+> not a recognised escape. Write `"C:\\Windows"` or — usually nicer — `"C:/Windows"`, which
+> Windows accepts everywhere Cufet passes a path through.
+
+#### Directory traversal
+
+**List a directory** — `the contents of the directory path` returns the names of
+entries (files and subdirectories) inside the directory as a `series of text or
+failure`. Entry names are plain names, not full paths. Order is not guaranteed.
+
+```
+Try to:
+    Define entries as the contents of the directory "/tmp".
+    For each name in entries, repeat:
+        State name.
+    Done.
+Done.
+In case of failure:
+    State "cannot read: " joined to the message of the failure.
+Done.
+```
+
+Failure categories: `"not-found"`, `"permission-denied"`.
+
+**Path existence and kind tests** — three boolean predicates (all return `fact`,
+never fail, never void):
+
+```
+If the path "/tmp/myfile" exists:
+    If the path "/tmp/myfile" is a file:
+        State "regular file".
+    Done.
+    Otherwise if the path "/tmp/myfile" is a directory:
+        State "directory".
+    Done.
+Done.
+```
+
+| Test | Returns `true` when |
+|---|---|
+| `the path expr exists` | the path names any existing filesystem entry |
+| `the path expr is a file` | the path names an existing regular file |
+| `the path expr is a directory` | the path names an existing directory |
+
+The path expression is any `text`. A path that exists but is neither a regular file
+nor a directory (device node, dangling symlink, etc.) makes `exists` true but both
+`is a file` and `is a directory` false.
+
+---
+
+## Part VII. Systems programming
+
+### Regions (`Pull a rabbit`)
+
+A **region** — a "rabbit" — is a block whose reference-typed values all live and die
+together. `Pull a rabbit.` opens one; `Done.` closes it and releases everything created
+inside.
+
+```
+Define totals as a series of number with ().
+
+Pull a rabbit.
+    Define scratch as a series of number with (1, 2, 3, 4, 5).
+    Define sum as 0.
+    For each n in scratch, repeat:
+        The sum becomes sum + n.
+    Done.
+    Add sum to totals.
+Done.
+
+State totals.        ← (15)
+```
+
+`scratch` is gone after `Done.`; `totals` is not, and the value added to it survives.
+
+A rabbit may be named. The name is a handle you can pass to a function so the callee
+allocates in *your* region:
+
+```
+Pull a rabbit as workspace.
+    Define note as "built" joined to " inside".
+    State note.
+Done.
+```
+
+#### The outward-only rule
+
+**A value may be stored somewhere longer-lived than itself, never somewhere
+shorter-lived.** That single rule is the whole safety story. The type checker enforces
+it from the static block structure — there is no garbage collector and no borrow
+checker.
+
+Storing outward is fine, and is what the example above does. Storing *inward* — parking
+a value in a container that will outlive the region the value came from, in a way that
+would leave the container pointing at released memory — is a compile-time error:
+
+```
+Bind series of number to smuggle, given (the series of number s):
+    Return s.
+Done.
+
+Define outer as a series of number with ().
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    outer becomes Cast smuggle on (inner).    ← REJECTED
+Done.
+```
+
+The error names the region mismatch, and it is caught even though the value was
+laundered through a function's return value.
+
+Returning a value out of a region is allowed and does the safe thing: the value stays
+valid for the caller.
+
+#### Two backends, one rule
+
+Interpreted, "released at `Done.`" is modelled semantically — values simply become
+unreachable and .NET's collector reclaims them whenever it likes. Compiled, the region
+is a real bump-allocated arena, thread-local, freed in one shot. A region is released on
+**every** exit from it, not only the normal one: `Done.`, `return`, `Stop`, `Skip`,
+`Suppress`, a failure unwind, an exception, an interrupt.
+
+The rule above is what makes the compiled version safe, which is why it is enforced even
+though the interpreter would forgive breaking it.
+
+#### When to reach for one
+
+- **Long-running loops.** Put a rabbit *inside* the loop body and each iteration's
+  working memory is released at the end of that iteration. Without one, a compiled
+  program's allocations accumulate until the enclosing block ends.
+- **Concurrency.** A rabbit is also the structured-concurrency boundary — see below.
+
+---
+
+### Concurrency (tasks and channels)
+
+#### Tasks
+
+`Have rabbit start a task: … Done.` runs a block concurrently. It must appear inside a
+rabbit, and **the rabbit's `Done.` waits for every task it started**. A task therefore
+cannot outlive the region that launched it.
+
+Name a task with `as <name>` and it can `return` a value, which you collect with
+`the awaited result of <name>`:
+
+```
+Pull a rabbit.
+    Have rabbit start a task as left:
+        Return 1 + 2 + 3.
+    Done.
+    Have rabbit start a task as right:
+        Return 4 + 5 + 6.
+    Done.
+    State (the awaited result of left) + (the awaited result of right).
+Done.
+```
+```
+21
+```
+
+An unnamed task is fire-and-forget: it still joins at `Done.`, but any value it returns
+is dropped. Awaiting the same task twice is fine — the body runs once either way.
+
+**A task can await another task**, so work can be staged rather than only fanned out:
+
+```
+Pull a rabbit.
+    Have rabbit start a task as fetch:
+        Return 21.
+    Done.
+    Have rabbit start a task as double-it:
+        Define v as the awaited result of fetch.
+        Return v * 2.
+    Done.
+    State the awaited result of double-it.
+Done.
+```
+```
+42
+```
+
+Several tasks may await the same task; each gets its own copy of the result.
+
+**A task can only await one declared before it**, because the name has to be in scope — which
+also means a cycle of tasks waiting on each other cannot be written, so this cannot deadlock.
+Awaiting a task declared later is a type error, not a hang.
+
+#### Channels
+
+A channel is a typed queue for passing values between tasks. `Send <value> through
+<channel>.` puts one in; `the delivery from <channel>` takes one out, yielding
+`voidable T` — void once the channel is closed and empty, which is how a receiver knows
+to stop.
+
+```
+Pull a rabbit.
+    Define results as a channel of number.
+    Have rabbit start a task:
+        Send 10 through results.
+        Send 20 through results.
+        Close results.
+    Done.
+    Define total as 0.
+    Define got as the delivery from results.
+    While got is not void, repeat:
+        The total becomes total + (got but void is 0).
+        got becomes the delivery from results.
+    Done.
+    State total.
+Done.
+```
+```
+30
+```
+
+`Close` is idempotent; sending after a close is a runtime error. A blocked receive wakes
+when a value arrives, when the channel closes, or when the program is interrupted.
+
+#### What crosses a boundary, and what a task may touch
+
+**Values are deep-copied when they cross between tasks** — both on a channel send and
+when a task captures a variable from outside itself. Each side ends up owning its own
+memory, which is what keeps one task's region from becoming entangled with another's.
+
+A task may freely **read** anything from the enclosing scope, of any type. A task may
+**not change** something it captured — and this holds for a plain number just as much as
+for a series:
+
+```
+Define data as a series of number with (1, 2, 3).
+Define tally as 0.
+Pull a rabbit.
+    Have rabbit start a task:
+        Add 99 to data.        ← REJECTED when compiled
+        The tally becomes tally + 1.   ← REJECTED too, for the same reason
+    Done.
+Done.
+```
+
+The compiler refuses this and points you at channels. The reason is worth knowing: the
+task holds its own copy, so the change could never be seen outside — and two tasks doing
+it at once is a straightforward data race. Send the result back through a channel, or
+`return` it from a named task and await it.
+
+This is about *writing* to a capture, not about captures being restricted. Reading one is
+free, and a counter the task defines itself is a local, not a capture:
+
+```
+Define step as 5.
+Pull a rabbit.
+    Have rabbit start a task as run-it:
+        Define total as 0.          ← the task's own; fine to change
+        Define i as 0.
+        While i is less than 4, repeat:
+            The total becomes total + step.   ← reads the capture; fine
+            The i becomes i + 1.
+        Done.
+        Return total.
+    Done.
+    State the awaited result of run-it.
+Done.
+```
+```
+20
+```
+
+> ⚠ The interpreter does **not** enforce this — it hands task bodies the live enclosing
+> binding, and runs one task at a time, so the mutation appears to work. Write to the
+> rule and both backends agree.
+
+#### Interpreted versus compiled
+
+This is the one part of the language where the two backends deliberately differ.
+Interpreted, tasks are **cooperative**: one runs at a time, interleaving only at
+`Yield.` and at blocking channel operations. Compiled, each task is a **real OS thread**
+and they run genuinely in parallel.
+
+So **no particular interleaving is specified**. Write concurrent programs to depend on
+the aggregate result, not the order — the same discipline the compiler's own tests use,
+which assert order-independent invariants and run under ThreadSanitizer. See
+[GRAMMAR.md](GRAMMAR.md) for the cooperative scheduler's specific artefacts, including
+why fan-out work-queues do not distribute when interpreted.
+
+---
+
+### Streaming pipes
+
+`producer | consumer.` connects functions into a pipeline. A stage emits with `output
+<value>.` and consumes with `for each <name> from the input:`.
+
+```
+Bind void to emit-numbers:
+    output 1.
+    output 2.
+    output 3.
+    output 4.
+Done.
+
+Bind void to keep-even:
+    for each n from the input:
+        If n % 2 is 0:
+            output n.
+        Done.
+    Done.
+Done.
+
+Bind void to show:
+    For each n from the input:
+        State "kept " joined to (n converted to text).
+    Done.
+Done.
+
+emit-numbers | keep-even | show.
+```
+```
+kept 2
+kept 4
+```
+
+A stage ends its output stream by returning, which tells the next stage downstream that
+the values have run out. Stages need no enclosing rabbit — a pipe spawns its stages,
+joins them, and cleans up its channels on its own.
+
+Interpreted, a pipe is buffered: each stage runs to completion and the next drains the
+buffer. Compiled, every stage is its own thread and values stream through as produced.
+The observable output order is the same either way, because each channel is FIFO.
+
+#### Restrictions
+
+- **A pipe is all function stages or all `run` stages** — the subprocess form
+  (`run "ls" | run "wc"`, covered under Process execution) cannot be mixed with function
+  stages. Doing so is rejected with a message naming the offending stage.
+- **A stage function may be used at one input element type** across the whole program.
+  Feeding the same function numbers in one pipe and text in another is a type error.
+
+#### How stage types are checked
+
+`for each n from the input:` gives the iterator no type, so a stage's input type can only
+come from the stage before it. The type checker walks each pipe left to right, carrying
+every stage's output type into the next as its input, and checks that stage's body
+against it:
+
+```
+Bind void to emit-nums:
+    output 1.
+Done.
+
+Bind void to shout:
+    For each n from the input:
+        State the length of n.      ← type error: 'the length of' works on text only
+    Done.
+Done.
+
+emit-nums | shout.
+```
+
+The consequence to be aware of: **a consumer body is checked at the pipe, not where it is
+written.** A stage function never used in a pipe has an unchecked `from the input` body.
+And stages reached indirectly — a lambda, or a function held in a variable — stop the
+chain, leaving stages after them unchecked rather than wrongly reported.
+
+---
+
+### Signal handling
+
+Cufet provides **cooperative (poll-based) interrupt handling**. When the process
+receives `SIGINT` (e.g. Ctrl+C), a flag is set; the program checks it at controlled
+points:
+
+```
+While 1 is 1, repeat:
+    If an interrupt is requested:
+        State "shutting down.".
+        Acknowledge the interrupt.
+        Stop.
+    Done.
+
+    Define line as read a line from the input.
+    If line is void, stop.
+    State line.
+Done.
+```
+
+- **`an interrupt is requested`** — `fact`; true when a `SIGINT` has arrived
+  since the last `Acknowledge the interrupt.` (or since program start). Stays true
+  until acknowledged.
+- **`Acknowledge the interrupt.`** — statement; clears the pending interrupt flag.
+  Subsequent checks return false until the next `SIGINT`.
+- **`Yield.`** — yields to the scheduler and acts as an interrupt checkpoint.
+  Blocked `the delivery from` and `the awaited result of` also wake on interrupt, so
+  a program that yields or blocks naturally is interruptible without polling
+  `an interrupt is requested`.
+
+#### How far an interrupt reaches
+
+The polling constructs above behave identically on both backends. What differs is what
+happens when you *don't* poll.
+
+**Interpreted, interruption is checkpoint-only.** A tight loop containing no `Yield.`
+and no blocking call cannot be interrupted mid-loop — the scheduler never gets a turn.
+
+**Compiled, interruption is genuinely preemptive.** The runtime installs a real
+`sigaction` handler whose only job is to set a flag (so it is async-signal-safe), and
+each thread establishes a landing pad it unwinds to at its next checkpoint. In practice:
+
+| Situation | Interpreted | Compiled |
+|---|---|---|
+| Loop containing `Yield.` | interruptible | interruptible |
+| Tight loop, no checkpoint at all | not interruptible | not interruptible |
+| Blocked on `the delivery from` | interruptible | interruptible — a real blocked thread genuinely wakes |
+| Inside a running task | interruptible at its checkpoints | interruptible; the task unwinds, its destructors run, its files close, and the rabbit reaps it at the join |
+| Waiting at a rabbit's `Done.` for tasks | n/a | the wait ends as its tasks unwind, and the program then tears down |
+
+An interrupt that is never acknowledged tears the program down cleanly — open files are
+flushed and closed, channels freed, regions released — and exits with status 130, the
+conventional `128 + SIGINT`.
+
+Handling signals **other than `SIGINT`** is not a language feature on either backend.
+Note also that arithmetic faults never arrive as `SIGFPE`: `number` is a software
+decimal, so division by zero is a checked condition raised as an ordinary catchable
+Cufet exception. See the error-handling section.
+
+---
+
+## Part VIII. The standard library
+
+### Books (the standard library)
+
+Capability that most programs do not need lives in a **book**, brought into scope for a
+block with `Pull a book on <name>. … Done.` Members are reached with the possessive:
+`math's square root of (144)`.
+
+Books are resolved at compile time. There is no dynamic loading, and no external loader
+yet — the bundled books are `math`, `collections`, and `chance`.
+
+```
+Pull a book on math.
+    State math's square root of (144).
+    State math's absolute value of (0 - 7).
+    State math's pi.
+Done.
+```
+```
+12
+7
+3.14159265358979
+```
+
+`math` provides `square root`, `log`, `power`, `floor`, `ceiling`, `round`, `absolute
+value`, and the constants `pi` and `e`. Rounding, flooring and absolute value are exact
+decimal operations. The transcendentals are computed in double precision on both
+backends — which means `power` with a fractional exponent can differ in its last digit
+across platforms, because the underlying library *is* the platform's own.
+
+```
+Pull a book on collections.
+    Define scores as a series of number with (5, 3, 9, 3).
+    State collections's maximum of (scores).
+    State collections's average of (scores).
+    State collections's unique of (scores).
+Done.
+```
+```
+9
+5
+(5, 3, 9)
+```
+
+`collections` provides `minimum`, `maximum`, `average`, and `unique` (first occurrence
+wins, order preserved). Each yields void for an empty series. `average` is exact — it
+does not go through floating point. The `matrix` type also lives in this book; see below.
+
+`chance` provides random numbers, random selection, and shuffling, plus `Seed the chance
+with <n>.` Seeding makes a run reproducible **within one backend**; the interpreter and a
+compiled binary use different generators, so a seeded program is not expected to produce
+the same sequence in both.
+
+---
+
+### Matrix
+
+`matrix` is a rectangular grid of numbers, available inside `Pull a book on collections.`
+Arithmetic is exact decimal, and is **fallible** — dimensions have to agree, so `+`, `-`
+and `*` on matrices must be handled with `Try to:`, `but on failure`, or `or pass the
+failure off`. Using one bare is a static type error.
+
+```
+Pull a book on collections.
+    Define m as a matrix with ((1, 2), (3, 4)).
+    Define n as a matrix with ((5, 6), (7, 8)).
+    State m.
+
+    Try to:
+        State m + n.
+        State m * n.
+    Done.
+    In case of failure:
+        State "failed: " joined to the message of the failure.
+    Done.
+
+    Define bad as a matrix with ((1, 2, 3)).
+    Try to:
+        State m + bad.
+    Done.
+    In case of failure:
+        State "failed: " joined to the message of the failure.
+    Done.
+Done.
+```
+```
+matrix((1, 2), (3, 4))
+matrix((6, 8), (10, 12))
+matrix((19, 22), (43, 50))
+failed: matrices must have equal dimensions for addition
+```
+
+`*` is matrix multiplication, not element-wise. `collections's transpose of (m)` flips
+rows and columns. There is no matrix division — it would require inversion, which is
+deliberately not provided.
+
+---
+
+## Part IX. Compiling
+
+### Compiling to a native binary
+
+Cufet runs two ways. Interpreted, it executes directly. Compiled, it emits C, invokes
+`gcc`, and produces a native executable with no managed runtime — no .NET, no garbage
+collector, no interpreter loop.
+
+```
+cufet program.cufe                  run it (interpreted)
+cufet build program.cufe            compile to a native binary
+cufet emit-c program.cufe out.c     emit the C, without invoking gcc
+```
+
+`build` requires **`gcc` on your `PATH`**. Nothing else — the generated C is
+self-contained, with no external libraries and no flags beyond `-pthread` and `-lm`.
+`emit-c` is the escape hatch for cross-toolchain builds and for reading what was
+generated.
+
+The lexer, parser, and type checker are shared, so a program that type-checks does so
+identically either way, and every error message you have seen in this document is the
+same in both.
+
+#### What you get
+
+A compiled program is an ordinary native executable. Its sections are real: functions
+you `Bind` become machine symbols, a text value bound `permanently` sits in read-only
+data, and each thread's region stack is thread-local storage.
+
+`number` compiles to an exact software decimal that is bit-for-bit identical to the
+interpreter's, so arithmetic does not quietly change meaning when you compile. Regions
+become real bump-allocated arenas. Tasks become real threads.
+
+#### Where the two differ
+
+Compiled output is expected to equal interpreted output — that is enforced by the test
+suite, which compiles each program, runs the binary, and compares. Where they disagree,
+one of them is a bug rather than a documented difference.
+
+The exceptions are few and each is noted where it arises:
+
+- **Concurrency scheduling** — cooperative when interpreted, genuinely parallel when
+  compiled. No interleaving is specified.
+- **`power` with a fractional exponent** may differ in its last digit; the underlying
+  routine is the platform's own.
+- **Seeded randomness** is reproducible within a backend, not across them.
+- **Filesystem enumeration order** and **ASCII-versus-locale casing** are
+  platform-owned.
+
+#### Platform notes
+
+Concurrency, subprocesses, and signal handling use POSIX facilities and need Linux,
+macOS, or WSL. On Windows with mingw, programs that avoid those features compile and run
+normally; programs that use them will not build.
