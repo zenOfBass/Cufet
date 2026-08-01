@@ -10,6 +10,50 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+**Explicit typing**
+
+- **`Define the text name as "Nathan".`** — a type may be written between the article and the name,
+  the same `the <type> <name>` shape parameters and object fields have always used. One rule, in
+  one more place, rather than a second way to spell a declaration.
+
+- **A union is written the same way**, which is what the form is really for:
+  `Define the (number or text) x as 42.` The binding's type is the one declared, not the one the
+  first value happens to have, so `x becomes "hello"` is legal afterwards and both branches of
+  `is a` narrow. Without this a union-typed local could not be written at all — unions only
+  reached a variable through a parameter or a container element.
+
+- The value **widens into the declared type** using the language's one implicit coercion, the same
+  one `becomes` and `return` already perform. A value that does not fit is an error at the
+  declaration, naming both types.
+
+**Semantic tokens**
+
+- **`cufet tokens --json <file>`** reports what each *name* in a program is — variable, function,
+  type, parameter, property, or namespace — as one JSON object per line with a position and length.
+  This is the layer a TextMate grammar cannot reach: a regex over one line cannot tell a function
+  from a variable in a language whose surface is English, and in Cufet most of a line is bare words.
+
+- **Both editors consume it.** The VS Code extension and the playground register semantic-token
+  providers over the existing grammar, so keywords, strings and comments keep the colours they had
+  and names gain their own. The kinds come from the real front end, so the colouring agrees with
+  the type checker by construction rather than by resemblance.
+
+- Names inside an interpolated string are coloured too — `"{total} sold"` shows `total` as the
+  variable it is, which is precisely the case no grammar can see.
+
+**Warnings**
+
+- **A diagnostic can now be a warning** — true, worth saying, and not a reason to stop. Errors are
+  still exceptions, because a program that does not type-check cannot run; a warning is collected
+  instead and the pass carries on.
+
+- **`check` exits 0 when the program will run.** An error exits 1 as before; warnings alone no
+  longer do. **`--strict`** makes any warning exit 1, for a CI gate that wants the stricter reading.
+
+- **`check --native` reports compatibility as a real warning.** It always called these warnings —
+  the interpreter runs those programs happily — but exited 1 anyway. Now the severity and the exit
+  code agree. Running and building print warnings to stderr and carry on.
+
 **Column-precise diagnostics**
 
 - Every token and AST node now carries a **column** alongside its line, and diagnostics report

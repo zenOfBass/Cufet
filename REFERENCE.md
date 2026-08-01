@@ -17,6 +17,7 @@ deliberate differences are marked where they arise and summarised under
 - [Cufet Language Reference](#cufet-language-reference)
   - [Contents](#contents)
   - [Statements](#statements)
+    - [Explicit types](#explicit-types)
   - [Comments](#comments)
   - [Constants](#constants)
   - [Arithmetic](#arithmetic)
@@ -99,10 +100,36 @@ deliberate differences are marked where they arise and summarised under
 |---|---|
 | `State expr.` | Print a value |
 | `Define name as expr.` | Declare a variable (error if already defined) |
+| `Define the <type> name as expr.` | Declare it with an explicit type |
 | `name becomes expr.` | Reassign a variable (error if not declared) |
 
 Articles (`a`, `an`, `the`) are noise everywhere — `Define the total as 0.` and
 `Define total as 0.` are identical.
+
+### Explicit types
+
+A type may be written between the article and the name — the same
+`the <type> <name>` shape used by parameters and object fields:
+
+```
+Define the text name as "Nathan".
+Define the number attempts as 0.
+```
+
+Without one, a variable's type is whatever its first value was. With one, the
+type is what you declared and the value only has to **fit** it — the same single
+implicit widening `becomes` and `return` perform. That difference is the whole
+point, and it matters most for a union:
+
+```
+Define the (number or text) x as 42.
+x becomes "hello".                     ← legal: x holds either
+```
+
+`Define x as 42.` would make `x` a number, and the reassignment a type error.
+A union-typed variable can only be written this way.
+
+A value that does not fit is an error at the declaration, naming both types.
 
 Keywords are case-insensitive (`Cast`, `cast`, and `CAST` are the same).
 Identifiers are not (see [Identifiers](#identifiers)).

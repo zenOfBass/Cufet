@@ -1427,6 +1427,32 @@ producing a false positive.
 
 ## 8. Sharp edges
 
+### ★ A type may precede the name in `Define`, and a NAME is what tells the two forms apart
+
+Both of these are declarations, and the difference is whether a name follows the type:
+
+```
+Define the text greeting as "hello".      ← declares greeting as text
+Define copy as src.                       ← copies src's value; src is not a type
+```
+
+The parser reads what follows `as` as a type first. In the second line that attempt swallows
+`src` as if it were a type name, then finds `as` where a variable name should be, so the whole
+attempt is rolled back and the line means what it always meant. **The rule to remember: a type
+before the name only counts when a name comes after it.**
+
+**This is the only way to write a union-typed variable.** Without a declared type, a binding's
+type is whatever its first value was, and `42` is a number, not `(number or text)`:
+
+```
+Define the (number or text) x as 42.      ← x holds either; `x becomes "hi"` is legal
+Define x as 42.                           ← x holds numbers, and only numbers
+```
+
+The value **widens** into the declared type — the same single implicit coercion `becomes` and
+`return` perform — so the value only has to *fit*, not match exactly. A value that does not fit
+is an error at the declaration.
+
 ### ★ Transformations TRAIL, accessors LEAD
 
 The single most useful rule for guessing right the first time, because English will
