@@ -7477,6 +7477,90 @@ public class PipelineTests
         Assert.Contains("captured from outside the task", ex.Message);
     }
 
+    // ★ The same write, with the one thing that made it a divergence removed: nobody reads `tally`
+    // afterwards. Interpreted, the write lands on the enclosing binding; compiled, on the task's own
+    // copy — and with nothing ever looking at either, the two programs print the same thing. So it
+    // compiles, and says so rather than refusing. This is the whole point of the severity split: the
+    // refusal was never about the write, it was about somebody seeing it.
+    [Fact]
+    public void TaskCapture_DeadWrite_WarnsAndMatchesInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;   // needs pthreads
+        const string src = """
+            Define tally as 0.
+            Pull a rabbit.
+                Have rabbit start a task as bump:
+                    tally becomes tally + 5.
+                    return 1.
+                Done.
+                State the awaited result of bump.
+            Done.
+            State "done".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void TaskCapture_DeadWrite_IsReportedAsAWarning()
+    {
+        const string src = """
+            Define tally as 0.
+            Pull a rabbit.
+                Have rabbit start a task:
+                    tally becomes tally + 5.
+                Done.
+            Done.
+            State "done".
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+
+        var generator = new CodeGenerator();
+        generator.Generate(program);
+
+        var only = Assert.Single(generator.Diagnostics.Items);
+        Assert.Equal(DiagnosticSeverity.Warning, only.Severity);
+        Assert.Contains("is discarded", only.Message);
+    }
+
+    // The read that brings the refusal back, in each of the two places it can hide. Both are the
+    // over-approximation earning its keep: a sibling task and a statement after the rabbit are the
+    // shapes where the interpreted and compiled answers actually come apart.
+    [Fact]
+    public void TaskCapture_WriteReadByASiblingTask_IsStillRefused()
+    {
+        const string src = """
+            Define tally as 0.
+            Pull a rabbit.
+                Have rabbit start a task:
+                    tally becomes tally + 5.
+                Done.
+                Have rabbit start a task:
+                    State tally.
+                Done.
+            Done.
+            """;
+        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        Assert.Contains("captured from outside the task", ex.Message);
+    }
+
+    [Fact]
+    public void TaskCapture_WriteReadAfterTheRabbit_IsStillRefused()
+    {
+        const string src = """
+            Define tally as 0.
+            Pull a rabbit.
+                Have rabbit start a task:
+                    tally becomes tally + 5.
+                Done.
+            Done.
+            State tally.
+            """;
+        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        Assert.Contains("captured from outside the task", ex.Message);
+    }
+
     // The guard is about WRITING to a capture, not about captures being unusable: a task reads a
     // captured number freely, and a counter it defines ITSELF is a local, not a capture.
     [Fact]

@@ -10,6 +10,9 @@ public sealed class CodeGenerator
     // thrown; this is only ever added to. Read it after Generate returns.
     public DiagnosticBag Diagnostics { get; } = new();
 
+    // The program being generated, for the whole-program questions (see CaptureWriteIsObservable).
+    private Program? _program;
+
     private int _forCounter;
     private int _freshId;
     // Side-channel for pre-emit statements (e.g. series literal construction).
@@ -1824,6 +1827,9 @@ static void* cufet_pipe_stage(void* argp) {
 
     public string Generate(Program program)
     {
+        // Kept for the whole-program questions a single statement cannot answer on its own — chiefly
+        // whether anything outside a task ever looks at a binding that task writes to.
+        _program = program;
         var sb = new StringBuilder();
 
         // Concurrency is discovered up front (not during the body pass) because a rabbit's header
@@ -6020,11 +6026,24 @@ static void* cufet_pipe_stage(void* argp) {
 
         foreach (var c in caps)
             if (TaskBodyMayMutate(lts.Body, c))
-                throw new CompilerException(
-                    $"this task changes '{c}', which it captured from outside the task. A task gets its own copy of " +
-                    $"everything it captures — captures cross a thread boundary — so the change would not be visible " +
-                    $"outside the task, and two tasks changing it at once would race. Send the result back through a " +
-                    $"channel, or return it from a named task and await it.");
+            {
+                if (CaptureWriteIsObservable(lts.Body, c))
+                    throw new CompilerException(
+                        $"this task changes '{c}', which it captured from outside the task. A task gets its own copy of " +
+                        $"everything it captures — captures cross a thread boundary — so the change would not be visible " +
+                        $"outside the task, and two tasks changing it at once would race. Send the result back through a " +
+                        $"channel, or return it from a named task and await it.");
+
+                // Nothing outside the task ever looks at it, so the two backends cannot be told
+                // apart here: the write lands on the enclosing binding interpreted and on the
+                // task's own copy compiled, and either way nobody reads the result.
+                Diagnostics.Warn(
+                    $"this task changes '{c}', which it captured from outside the task, and nothing outside the task " +
+                    $"reads '{c}' afterwards — so the change is discarded. A task gets its own copy of everything it " +
+                    $"captures. If the new value was meant to be seen, send it back through a channel, or return it " +
+                    $"from a named task and await it.",
+                    lts.Line, lts.Column);
+            }
 
         // TCAP — a capture crosses a thread boundary, so it travels the same way a channel message
         // does: a POD (number/fact) rides in the arg struct directly, a CHANNEL is shared by pointer
@@ -6218,6 +6237,68 @@ static void* cufet_pipe_stage(void* argp) {
             Visit(prop.GetValue(node));
             if (found) return true;
         }
+        return found;
+    }
+
+    // ── TCAP — can anything OUTSIDE the task tell that the write happened? ─────────────────────
+    //
+    // A write to a capture is dead compiled (the task holds its own copy) and live interpreted (the
+    // task shares the enclosing binding). Those two answers differ only if something afterwards
+    // LOOKS at the binding. When nothing does, both backends print exactly the same thing and the
+    // write is simply discarded — safe to compile, and worth saying out loud rather than refusing.
+    //
+    // ★ The test is deliberately blunt: ANY mention of the name anywhere in the program outside this
+    // task's own body counts as an observation — a read, a write, a mention inside another rabbit,
+    // a mention on a branch that never runs. Over-approximating is the whole safety argument. Being
+    // wrong can only keep a refusal that was not strictly necessary; it can never let a divergence
+    // through, because a name this says nothing about is a name nothing else touches.
+    private bool CaptureWriteIsObservable(IReadOnlyList<IStatement> taskBody, string name)
+    {
+        bool found = false;
+
+        void Walk(object? node)
+        {
+            if (found || node is null) return;
+
+            switch (node)
+            {
+                // The task's own body is not "elsewhere" — skip the whole subtree it hangs from.
+                case LaunchTaskStatement lts when ReferenceEquals(lts.Body, taskBody):
+                    return;
+
+                // Reading it.
+                case VariableReference v:
+                    if (v.Name == name) found = true;
+                    return;
+
+                // Writing it. The target is a bare string, invisible to the reflection walk below,
+                // and a sibling that only WRITES the name can still tell the two backends apart.
+                case BecomesStatement b:
+                    if (b.Name == name) { found = true; return; }
+                    Walk(b.Value);
+                    return;
+
+                case string: return;
+
+                case System.Runtime.CompilerServices.ITuple tup:
+                    for (int i = 0; i < tup.Length && !found; i++) Walk(tup[i]);
+                    return;
+
+                case System.Collections.IEnumerable en:
+                    foreach (var item in en) { Walk(item); if (found) return; }
+                    return;
+            }
+
+            // Same reflection descend CollectRefsDefs uses, so a new AST node is traversed without
+            // needing an arm here.
+            foreach (var prop in node.GetType().GetProperties())
+            {
+                Walk(prop.GetValue(node));
+                if (found) return;
+            }
+        }
+
+        Walk(_program?.Statements);
         return found;
     }
 
