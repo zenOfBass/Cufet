@@ -54,6 +54,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the interpreter runs those programs happily — but exited 1 anyway. Now the severity and the exit
   code agree. Running and building print warnings to stderr and carry on.
 
+- **A task may write to a captured variable when nothing outside it ever looks.** Writing to a
+  capture used to be refused outright, and rightly: the interpreter hands a task the live enclosing
+  binding while the compiler hands it a copy, so the write is visible in one and discarded in the
+  other. But that only *differs* if something reads the binding afterwards. When nothing does, both
+  backends print the same thing, and the program now compiles with a warning saying the write is
+  discarded.
+
+  ★ The check is deliberately blunt: any mention of the name anywhere outside the task — a read, a
+  write, a mention on a branch that never runs — brings the refusal back. Over-approximating is the
+  safety argument. Being wrong can only keep a refusal that was not strictly necessary; it can never
+  let a divergence through.
+
 **Column-precise diagnostics**
 
 - Every token and AST node now carries a **column** alongside its line, and diagnostics report
