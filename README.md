@@ -1,4 +1,4 @@
-# Cufet `0.11.0`
+# Cufet `0.12.0`
 
 *From the Mvskoke (Muskogee) word for rabbit—the trickster who brings the gift of fire to humankind.*
 

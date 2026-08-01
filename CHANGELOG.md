@@ -8,6 +8,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-08-01
+
+0.11.0 made Cufet usable by someone who is not its author. **0.12.0 makes it explain itself.**
+
+Diagnostics now know where they point — every token and AST node carries a column, and a type error
+reports its position as data rather than by reading its own message back with a regex. An editor
+can ask what each *name* is, which is the one thing a grammar of regular expressions can never
+answer in a language whose surface is English. And a warning is finally something other than an
+error that changed its mind: `check` distinguishes "this will not run" from "this will run, and
+here is something worth knowing", which is what let a task's discarded write become a note instead
+of a refusal.
+
+Two words came back to programs that never asked for them — `seed` is no longer reserved, and
+`Output` may be capitalised, which removed the last statement unable to start with a capital.
+
+One new language feature: a type may be written in front of the name. `Define the (number or text) x
+as 42.` — and with it, a union-typed variable became expressible at all.
+
 ### Added
 
 **Explicit typing**
@@ -189,6 +207,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   clean** on every one.
 
 ### Fixed
+
+- **A voidable no longer nests, and the annotation that nested one no longer miscompiled.**
+  `voidable voidable T` is now simply `voidable T` — there is one absent value, so a second layer of
+  "or nothing" adds no state a program could observe.
+
+  ★ It was reachable, and it was the failure the no-divergence rule exists to forbid. Writing
+  `Define the voidable voidable number x as the entry for "k" in m.` type-checked, ran correctly
+  interpreted, and passed `check --native` — then died at gcc, handing the map's inner voidable
+  struct to a binding that wanted the outer one. Every layer behaved reasonably on its own: the
+  parser recursed on `voidable`, the checker admitted the value because it matched the target's
+  inner type, and the compiler passed an already-voidable value straight through because nothing
+  could ever need wrapping.
+
+  Fixed where the shape is made rather than where it broke: `VoidableType` now collapses nesting in
+  its constructor, so any depth flattens by induction and the invariant the compiler already relied
+  on is true by construction. The whole suite passed unchanged, which is its own evidence — every
+  consumer was already written as though a voidable could not nest.
 
 - **Concurrency and signals inside a `Pull a book on …` block were invisible to the compiler.**
   Both discovery pre-passes recursed into rabbits, loops, ifs, tries, with-blocks and binds — and
