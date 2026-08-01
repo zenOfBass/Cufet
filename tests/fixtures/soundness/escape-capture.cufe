@@ -1,9 +1,9 @@
-/* EXPECTED: REJECTED at type-check, identically by both backends.
-   Region escape via CLOSURE CAPTURE: a closure captures a rabbit-scoped series
-   and stores it into a longer-lived binding in the enclosing scope.
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    Region escape via CLOSURE CAPTURE: a closure captures a rabbit-scoped series
+    and stores it into a longer-lived binding in the enclosing scope.
 
-   The outward-only region-store invariant refuses it: the value lives in a
-   shorter-lived rabbit region than its destination, so it would dangle after
+    The outward-only region-store invariant refuses it: the value lives in a
+    shorter-lived rabbit region than its destination, so it would dangle after
    the rabbit's Done. pops that region. Nothing below ever executes. */
 
 Bind void to run-with, given (the series of number s):

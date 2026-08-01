@@ -1,8 +1,8 @@
-/* EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
 
-   Legal reference linking: series are region types and SHARE on binding, so reaching
-   the same series through two names observes one instance. Confirms the region model
-   permits aliasing WITHIN a region — only outward stores are refused. */
+    Legal reference linking: series are region types and SHARE on binding, so reaching
+    the same series through two names observes one instance. Confirms the region model
+    permits aliasing WITHIN a region — only outward stores are refused. */
 
 Pull a rabbit.
     Define n1 as a series of number with (10).

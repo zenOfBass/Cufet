@@ -1,16 +1,16 @@
-/* EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
 
-   Legal captures — none of these escape a region, so the outward-only invariant
-   has nothing to refuse. Each closure captures an enclosing binding and WRITES to it.
+    Legal captures — none of these escape a region, so the outward-only invariant
+    has nothing to refuse. Each closure captures an enclosing binding and WRITES to it.
 
-   ★ Captures are BY VALUE in both backends, so a write through a capture updates the
-   closure's OWN copy and the enclosing binding is unchanged. Every line below therefore
-   prints 0, not the written value. Write-back through a capture is not a language
-   feature, and this file pins that down.
+    ★ Captures are BY VALUE in both backends, so a write through a capture updates the
+    closure's OWN copy and the enclosing binding is unchanged. Every line below therefore
+    prints 0, not the written value. Write-back through a capture is not a language
+    feature, and this file pins that down.
 
-   This file is also the regression case for the capture-completeness bug: a body that
-   only WRITES a captured variable (never reads it) used to leave the variable
-   uncaptured, emitting an undeclared C variable. */
+    This file is also the regression case for the capture-completeness bug: a body that
+    only WRITES a captured variable (never reads it) used to leave the variable
+    uncaptured, emitting an undeclared C variable. */
 
 Bind number to run-size, given (the series of number s):
     Define count as 0.
