@@ -1241,8 +1241,7 @@ After a successful `is a <type>` check, the value is that type inside the
 branch — type-specific operations are legal there:
 
 ```
-Define x as (number or text).
-x becomes 42.
+Define the (number or text) x as 42.
 
 If x is a number:
     State x + 1.           ← x is a number here; arithmetic is legal
@@ -1259,8 +1258,7 @@ automatically narrows to the remaining case(s). After `if x is a number` on a
 For a three-case union, two tested arms leave the third for `Otherwise`:
 
 ```
-Define x as (number or text or fact).
-x becomes 42.
+Define the (number or text or fact) x as 42.
 
 If x is a number:
     State x + 1.
