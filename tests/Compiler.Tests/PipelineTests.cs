@@ -151,6 +151,34 @@ public class PipelineTests
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ★ A voidable does not nest, and this is the case that proved it has to not. The annotation
+    // type-checked, ran interpreted, and passed `check --native` — then gcc rejected the generated
+    // C, because the map's get returns a cvd_<inner> and the binding wanted a cvd_<outer>. Check
+    // passing and the build failing is the divergence class that never ships, so VoidableType now
+    // collapses nesting in its constructor and `voidable voidable number` simply IS
+    // `voidable number`.
+    [Fact]
+    public void NestedVoidableAnnotation_IsFlattened_MatchesInterpreter()
+    {
+        const string src =
+            "Define ages as a map from text to number with (\"a\" : 1).\n" +
+            "Define the voidable voidable number present as the entry for \"a\" in ages.\n" +
+            "Define the voidable voidable number absent as the entry for \"b\" in ages.\n" +
+            "State present.\n" +
+            "State absent.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void NestedVoidableAnnotation_TakesAPlainValue_MatchesInterpreter()
+    {
+        // Flattened, so it widens a bare number exactly as `voidable number` does.
+        const string src =
+            "Define the voidable voidable number x as 5.\n" +
+            "State x.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     [Fact]
     public void State_Multiplication_MatchesInterpreter()
     {

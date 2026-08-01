@@ -18,6 +18,25 @@ public class DiagnosticTests
         return checker;
     }
 
+    // ── A voidable never nests ────────────────────────────────────────────
+    //
+    // There is one absent value, so a second layer of "or nothing" adds no state a program could
+    // observe. Collapsing it in the type constructor is what makes that true everywhere at once —
+    // the compiler relies on it, and relied on it before it was guaranteed.
+
+    [Fact]
+    public void VoidableOfVoidable_CollapsesToOneLayer()
+    {
+        var once  = new VoidableType(CufetType.Number);
+        var twice = new VoidableType(new VoidableType(CufetType.Number));
+        var thrice = new VoidableType(new VoidableType(new VoidableType(CufetType.Number)));
+
+        Assert.Equal(CufetType.Number, twice.Inner);
+        Assert.Equal(CufetType.Number, thrice.Inner);   // any depth, by induction
+        Assert.Equal(once, twice);
+        Assert.Equal(once, thrice);
+    }
+
     [Fact]
     public void CleanProgram_ReportsNothing()
     {

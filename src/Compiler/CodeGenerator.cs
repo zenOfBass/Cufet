@@ -5493,6 +5493,12 @@ static void* cufet_pipe_stage(void* argp) {
         {
             string cvd = RegisterVoidableStruct(vt);
             if (expr is VoidLiteral)          return $"(({cvd}){{ .has = 0 }})";
+            // ★ LOAD-BEARING: passing an already-voidable value straight through is right only
+            // because a voidable cannot nest — there is no outer layer left to wrap it into. That
+            // is guaranteed at the type, by VoidableType's constructor, and not by this line; if
+            // that normalisation were ever removed this would hand back a cvd_<inner> where a
+            // cvd_<outer> is wanted, silently. It did exactly that once, and gcc caught it after
+            // `check --native` had already passed.
             if (TypeOf(expr) is VoidableType) return EmitExpr(expr);                     // already voidable
             return $"(({cvd}){{ .has = 1, .val = {EmitExpr(expr)} }})";                  // widen T → voidable
         }

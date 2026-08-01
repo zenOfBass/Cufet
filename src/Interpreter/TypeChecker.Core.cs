@@ -199,10 +199,22 @@ public sealed class VoidType : CufetType
 
 // a voidable T — holds T, or void. T widens to voidable T; void widens to voidable T.
 // voidable T does NOT collapse to T without a checked narrowing branch.
+//
+// ★ A VOIDABLE NEVER NESTS, and that is enforced here rather than remembered everywhere else.
+// `voidable voidable T` IS `voidable T`: there is one absent value, so a second layer of "or
+// nothing" adds no state a program could observe — which is why a lookup on a voidable-valued map
+// already returns a flat answer and asks you to use `has key` when the distinction matters.
+//
+// Normalising in the constructor collapses any depth by induction (each layer sees an already-flat
+// inner). It is done here because the invariant is load-bearing downstream: the compiler's
+// EmitAsType passes an already-voidable value straight through, which is correct only if no outer
+// layer exists to wrap it into. Before this, `Define the voidable voidable number x as <voidable>.`
+// type-checked, ran interpreted, passed `check --native`, and then failed at gcc with a cvd_inner
+// handed to a cvd_outer — the check-passes-then-gcc-dies class the no-divergence rule forbids.
 public sealed class VoidableType : CufetType
 {
     public CufetType Inner { get; }
-    public VoidableType(CufetType inner) => Inner = inner;
+    public VoidableType(CufetType inner) => Inner = inner is VoidableType v ? v.Inner : inner;
     public override bool Equals(object? obj) => obj is VoidableType v && Inner == v.Inner;
     public override int GetHashCode() => HashCode.Combine(typeof(VoidableType), Inner);
 }
