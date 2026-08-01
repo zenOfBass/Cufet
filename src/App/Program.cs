@@ -16,6 +16,8 @@ else if (args.Length >= 2 && args[0].Equals("emit-c", StringComparison.OrdinalIg
     EmitC(args[1], args.Length >= 3 ? args[2] : Path.ChangeExtension(args[1], ".c"));
 else if (args.Length >= 2 && args[0].Equals("check", StringComparison.OrdinalIgnoreCase))
     Check(args[1..]);
+else if (args.Length >= 2 && args[0].Equals("tokens", StringComparison.OrdinalIgnoreCase))
+    Tokens(args[1..]);
 else
     Interpret(args);
 
@@ -31,12 +33,19 @@ static void Help()
           cufet <file.cufe>                    run it
           cufet                                run what is piped in on stdin
           cufet check [--json] [--native] <f>  report errors without running it
+          cufet tokens --json <file.cufe>      report what each name in the file IS
           cufet build <file.cufe>              compile to a native binary (needs gcc)
           cufet emit-c <file.cufe> [out.c]     write the generated C without compiling
 
         check exits 0 when clean and 1 when it finds something. --native additionally
         reports what the native compiler refuses; those programs still interpret, so
         they come back as warnings. --json writes one diagnostic per line, for editors.
+
+        tokens writes the semantic kind — variable, function, type, parameter, property,
+        namespace — of every name it can place, as one JSON object per line. A grammar
+        cannot tell those apart in Cufet, so an editor layers this over its own colouring.
+        Exit: 0 when the file was classified, 1 when it does not lex, parse or type-check
+        (an unchecked file cannot be classified reliably), 2 when it cannot be read.
         """);
 }
 
@@ -122,6 +131,66 @@ static void Check(string[] rest)
     }
 
     if (!json) Console.WriteLine($"No problems found in {path}.");
+    Environment.Exit(0);
+}
+
+// Semantic tokens: what each NAME in the file is — a variable, a function, a type, a parameter,
+// a field, a book. A TextMate grammar already colours keywords, strings, numbers and comments,
+// and cannot do any of these, because nothing about the spelling of a Cufet name says which it
+// is. This command supplies the missing layer and nothing else.
+//
+//   cufet tokens [--json] <file>
+//
+// JSON is the only output shape — there is no human reading of a thousand positions — so --json
+// is accepted for symmetry with `check` and is also the default. One object per line, the same
+// shape `check --json` uses, so an editor parses both with one reader.
+//
+// A file that does not type-check is not classified: name resolution is exactly what the front
+// end was in the middle of when it gave up, and half-resolved kinds would colour words wrongly.
+// The error prints like `check`'s and the exit code says so.
+//
+// Exit: 0 classified (even with no names in the file), 1 the file has an error, 2 unreadable.
+static void Tokens(string[] rest)
+{
+    var path = rest.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
+    if (path is null)
+    {
+        Console.Error.WriteLine("tokens: expected a source file — 'cufet tokens [--json] <file>'.");
+        Environment.Exit(2);
+        return;
+    }
+
+    string full = Path.GetFullPath(path);
+    string source;
+    try { source = File.ReadAllText(full); }
+    catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(2); return; }
+
+    IReadOnlyList<SemanticToken> semantic;
+    try
+    {
+        var tokens  = new Lexer(source).Tokenize();
+        var program = new Parser(tokens).Parse();
+        var checker = new TypeChecker();
+        checker.Check(program);
+        semantic = SemanticTokenizer.Collect(program, tokens, checker);
+    }
+    catch (Exception e) when (e is LexerException or ParseException or TypeException)
+    {
+        Report(true, full, PositionOf(e), "error", e.Message);
+        Environment.Exit(1);
+        return;
+    }
+
+    foreach (var t in semantic)
+        Console.Out.WriteLine(JsonSerializer.Serialize(new
+        {
+            line      = t.Line,
+            column    = t.Column,
+            length    = t.Length,
+            kind      = SemanticTokenLegend.NameOf(t.Kind),
+            modifiers = SemanticTokenLegend.NamesOf(t.Modifiers),
+        }));
+
     Environment.Exit(0);
 }
 

@@ -402,6 +402,13 @@ public sealed partial class TypeChecker
     private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new();
     // Active narrowings: variable name → narrowed type (set inside checked branches).
     private readonly Dictionary<string, CufetType>           _narrowedVars  = new();
+
+    // Read-only views of the two nominal-name tables, for consumers that run AFTER Check and need
+    // to know which words in the program name a type — the semantic-token producer is the one that
+    // does. Both are filled by Pass1Hoist and never cleared, so they describe the whole program.
+    public IReadOnlyDictionary<string, ObjectType>          ObjectDefinitions    => _objectDefs;
+    public IReadOnlyDictionary<string, InterfaceDefinition> InterfaceDefinitions => _interfaceDefs;
+
     // Registered operator overload return types: (typeName, op) → return type (T or FailureType(T)).
     // Populated by Pass2CheckOverloads before any expression type-checking begins.
     private readonly Dictionary<(string TypeName, TokenType Op), CufetType> _overloadReturnTypes = new();

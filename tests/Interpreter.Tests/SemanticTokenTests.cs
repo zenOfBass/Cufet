@@ -1,0 +1,310 @@
+using Cufet.Interpreter;
+using Xunit;
+using CufetLexer = Cufet.Lexer.Lexer;
+
+namespace Cufet.Interpreter.Tests;
+
+// The semantic-token producer answers the one question a TextMate grammar cannot: what KIND of
+// thing is this word. These tests pin the answer for each kind, and pin the positions too — a
+// token whose kind is right and whose column is wrong paints the word next door.
+public class SemanticTokenTests
+{
+    private static IReadOnlyList<SemanticToken> Classify(string source)
+    {
+        var tokens  = new CufetLexer(source).Tokenize();
+        var program = new Parser(tokens).Parse();
+        var checker = new TypeChecker();
+        checker.Check(program);
+        return SemanticTokenizer.Collect(program, tokens, checker);
+    }
+
+    private static (int, int, int, string, bool) Shape(SemanticToken t) =>
+        (t.Line, t.Column, t.Length, SemanticTokenLegend.NameOf(t.Kind),
+         t.Modifiers.HasFlag(SemanticTokenModifier.Declaration));
+
+    [Fact]
+    public void Legend_IndexesMatchTheKindEnum()
+    {
+        // B2's editor providers register this array and then send indices into it, so the ORDER
+        // is the wire format — a reordering here silently recolours every file.
+        Assert.Equal(
+            ["namespace", "type", "parameter", "variable", "property", "function"],
+            SemanticTokenLegend.Kinds);
+
+        foreach (SemanticTokenKind kind in Enum.GetValues<SemanticTokenKind>())
+            Assert.Equal(SemanticTokenLegend.Kinds[(int)kind], SemanticTokenLegend.NameOf(kind));
+
+        Assert.Equal(["declaration"], SemanticTokenLegend.Modifiers);
+        Assert.Equal(["declaration"], SemanticTokenLegend.NamesOf(SemanticTokenModifier.Declaration));
+        Assert.Empty(SemanticTokenLegend.NamesOf(SemanticTokenModifier.None));
+    }
+
+    [Fact]
+    public void EveryKind_IsClassifiedAndPlaced()
+    {
+        //             1         2         3         4         5
+        //    1234567890123456789012345678901234567890123456789012345
+        var source = """
+            Define object point with (the number x, the number y).
+
+            Bind number to widen, given (the number span):
+                return span * 2.
+            Done.
+
+            Define here as a new point { the x 3, the y 4 }.
+            Define reach as Cast widen on (the x of here).
+            State reach.
+            State here's y.
+
+            Pull a book on math as m.
+                State m's square root of (144).
+            Done.
+            """;
+
+        Assert.Equal(
+            [
+                (1,  15, 5,  "type",      true),   // object point
+                (1,  38, 1,  "property",  true),   // field x
+                (1,  52, 1,  "property",  true),   // field y
+                (3,  16, 5,  "function",  true),   // Bind widen
+                (3,  41, 4,  "parameter", true),   // given (the number span)
+                (4,  12, 4,  "parameter", false),  // return span * 2
+                (7,   8, 4,  "variable",  true),   // Define here
+                (7,  22, 5,  "type",      false),  // a new point
+                (7,  34, 1,  "property",  false),  // the x 3
+                (7,  43, 1,  "property",  false),  // the y 4
+                (8,   8, 5,  "variable",  true),   // Define reach
+                (8,  22, 5,  "function",  false),  // Cast widen — the callee, not a value
+                (8,  36, 1,  "property",  false),  // the x of here
+                (8,  41, 4,  "variable",  false),  // ... of here
+                (9,   7, 5,  "variable",  false),  // State reach
+                (10,  7, 4,  "variable",  false),  // State here's y
+                (10, 14, 1,  "property",  false),  // here's y
+                (12, 16, 4,  "namespace", true),   // Pull a book on math
+                (12, 24, 1,  "namespace", true),   // ... as m
+                (13, 11, 1,  "namespace", false),  // m's square root
+                (13, 15, 11, "function",  false),  // the book member, spanning both its words
+            ],
+            Classify(source).Select(Shape));
+    }
+
+    [Fact]
+    public void MethodsAndFieldsOfAnObject_AreClassifiedThroughThePossessive()
+    {
+        var source = """
+            Define object dog with (the text name):
+                Bind void to speak:
+                    State one's name.
+                Done.
+            Done.
+
+            Define rex as a new dog { the name "Rex" }.
+            Cast rex's speak.
+            """;
+
+        Assert.Equal(
+            [
+                (1, 15, 3, "type",     true),   // object dog
+                (1, 34, 4, "property", true),   // field name
+                (2, 18, 5, "function", true),   // method speak
+                (3, 21, 4, "property", false),  // one's name — the field, through the receiver
+                (7,  8, 3, "variable", true),   // Define rex
+                (7, 21, 3, "type",     false),  // a new dog
+                (7, 31, 4, "property", false),  // the name "Rex"
+                (8,  6, 3, "variable", false),  // Cast rex's speak — the receiver is a value
+                (8, 12, 5, "function", false),  // ... and the member is the method being called
+            ],
+            Classify(source).Select(Shape));
+    }
+
+    [Fact]
+    public void FieldsThatReachTheAstOutOfOrder_StillLandOnTheirOwnWords()
+    {
+        // An object's named fields arrive from the parser sorted by name, not as written — 'suit'
+        // is spelled first and reaches the AST second. A placer that only ever swept forward would
+        // find 'rank', then run off the end of the header looking for 'suit'.
+        var source = """
+            Define object card with (the text suit, the text rank).
+            Define ace as a new card { the suit "spades", the rank "A" }.
+            State ace's rank.
+            """;
+
+        Assert.Equal(
+            [
+                (1, 15, 4, "type",     true),
+                (1, 35, 4, "property", true),   // suit, declared first
+                (1, 50, 4, "property", true),   // rank, declared second
+                (2,  8, 3, "variable", true),
+                (2, 21, 4, "type",     false),
+                (2, 32, 4, "property", false),
+                (2, 51, 4, "property", false),
+                (3,  7, 3, "variable", false),
+                (3, 13, 4, "property", false),
+            ],
+            Classify(source).Select(Shape));
+    }
+
+    [Fact]
+    public void InterpolatedNames_AreClassifiedInsideTheirString()
+    {
+        // A grammar sees one string literal here. The names inside the braces are ordinary
+        // references, and they are exactly the words a grammar cannot classify.
+        var source = """
+            Define who as "world".
+            State "hello {who}".
+            """;
+
+        Assert.Equal(
+            [
+                (1, 8,  3, "variable", true),
+                (2, 15, 3, "variable", false),
+            ],
+            Classify(source).Select(Shape));
+    }
+
+    [Fact]
+    public void TypeNamesInAnnotations_AreClassified()
+    {
+        // A type name in an annotation is the one place a word is a type without being spelled any
+        // differently from a variable — the gap semantic tokens exist to close. A CufetType carries
+        // no position (it is shared and cached), so each name is found in the annotation's own
+        // token span instead.
+        var source = """
+            Define object card with (the text rank).
+            Define object deck with (the series of card cards).
+
+            Bind card to top, given (the deck d):
+                Return item 1 of d's cards.
+            Done.
+
+            Define pile as a series of card.
+            Add a new card { the rank "A" } to pile.
+            Define box as a new deck { the cards pile }.
+            Define got as Cast top on (box).
+            State got's rank.
+
+            Define rows as a series of records like (the text word, the card owner).
+            """;
+
+        var tokens = Classify(source).Select(Shape).ToList();
+
+        // Field annotation: 'the series of card cards' — the element type, then the field name.
+        Assert.Contains((2, 40, 4, "type",     false), tokens);
+        Assert.Contains((2, 45, 5, "property", true),  tokens);
+        // Return type, then the function name, then the parameter's type and its name.
+        Assert.Contains((4,  6, 4, "type",      false), tokens);
+        Assert.Contains((4, 14, 3, "function",  true),  tokens);
+        Assert.Contains((4, 30, 4, "type",      false), tokens);
+        Assert.Contains((4, 35, 1, "parameter", true),  tokens);
+        // 'a series of card' in a value position.
+        Assert.Contains((8, 28, 4, "type", false), tokens);
+        // A record shape spells its field names between their types; all three are placed.
+        Assert.Contains((14, 51, 4, "property", false), tokens);
+        Assert.Contains((14, 61, 4, "type",     false), tokens);
+        Assert.Contains((14, 66, 5, "property", false), tokens);
+
+        // Built-in scalars stay the grammar's job: the 'text' on line 1 (column 30) and the one on
+        // line 14 (column 46) are keyword tokens a TextMate grammar already colours.
+        Assert.DoesNotContain(tokens, t => t.Item1 == 1  && t.Item2 == 30);
+        Assert.DoesNotContain(tokens, t => t.Item1 == 14 && t.Item2 == 46);
+    }
+
+    [Fact]
+    public void CompoundAnnotations_ClassifyEveryTypeTheySpell()
+    {
+        var source = """
+            Define object card with (the text rank).
+            Define object deck with (the series of card cards).
+            Define ace as a new card { the rank "A" }.
+
+            Define lookup as a map from text to card with ("a" : ace).
+            Define mixed as a catalogue of (card or deck) with (ace).
+            Define index as an atlas from text to card with ("a" : ace).
+            Define wire as a channel of card.
+
+            If ace is a card:
+                State "a card is a card".
+            Done.
+            """;
+
+        var types = Classify(source)
+            .Where(t => t.Kind == SemanticTokenKind.Type)
+            .Select(t => (t.Line, t.Column, t.Length))
+            .ToList();
+
+        Assert.Contains((5, 41, 4), types);   // map from text to card
+        Assert.Contains((6, 32, 4), types);   // catalogue of (card or deck)
+        Assert.Contains((6, 40, 4), types);   // ... the second case
+        Assert.Contains((7, 43, 4), types);   // atlas from text to card
+        Assert.Contains((8, 30, 4), types);   // a channel of card
+        Assert.Contains((10, 13, 4), types);  // ace is a card
+
+        // The string on line 11 says 'card' twice and is not an annotation.
+        Assert.DoesNotContain(types, t => t.Line == 11);
+    }
+
+    [Fact]
+    public void AVariableSharingATypesName_IsNotRecolouredAsAType()
+    {
+        // The annotation path only ever emits words the annotation itself names, so a value that
+        // happens to be spelled like a type keeps its own kind.
+        var source = """
+            Define object thing with (the text name).
+            Define thing as 5.
+            State thing.
+            Define pick as a function given (the thing t): Return t's name. Done.
+            """;
+
+        var tokens = Classify(source).Select(Shape).ToList();
+
+        Assert.Contains((1, 15, 5, "type",     true),  tokens);   // the declaration
+        Assert.Contains((2,  8, 5, "variable", true),  tokens);   // Define thing as 5
+        Assert.Contains((3,  7, 5, "variable", false), tokens);   // State thing
+        Assert.Contains((4, 37, 5, "type",     false), tokens);   // given (the thing t)
+        Assert.DoesNotContain(tokens, t => t.Item1 is 2 or 3 && t.Item4 == "type");
+    }
+
+    [Fact]
+    public void KeywordBoundNames_AreLeftToTheGrammar()
+    {
+        // 'one' and 'it' are spelled with keyword tokens, so a TextMate grammar already colours
+        // them. Emitting over them would only fight the theme.
+        var source = """
+            Define xs as a series of number with (1, 2, 3).
+            For each in xs, repeat:
+                State it.
+            Done.
+            """;
+
+        var kinds = Classify(source);
+        Assert.All(kinds, t => Assert.NotEqual(3, t.Line));   // nothing emitted for 'it'
+        Assert.Equal(
+            [
+                (1, 8,  2, "variable", true),   // Define xs
+                (2, 13, 2, "variable", false),  // For each in xs
+            ],
+            kinds.Select(Shape));
+    }
+
+    [Fact]
+    public void AParameterNamedLikeItsFunction_StaysOnItsOwnWord()
+    {
+        // The cursor that places a construct's names walks forward once per name. Without that,
+        // the parameter here would be reported at the function name's column.
+        var source = """
+            Bind number to span, given (the number span):
+                return span.
+            Done.
+            State Cast span on (2).
+            """;
+
+        Assert.Equal(
+            [
+                (1,  16, 4, "function",  true),
+                (1,  40, 4, "parameter", true),
+                (2,  12, 4, "parameter", false),
+                (4,  12, 4, "function",  false),
+            ],
+            Classify(source).Select(Shape));
+    }
+}
