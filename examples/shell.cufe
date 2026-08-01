@@ -1,22 +1,22 @@
-/* A simplified command shell, read-eval-loop over standard input.
+/*  A simplified command shell, read-eval-loop over standard input.
 
-   Six permitted commands (clear, pwd, time, date, ls, which), arguments passed
-   through, anything else refused. `Quit!!!` on a line by itself exits; so does
-   end of input.
+    Six permitted commands (clear, pwd, time, date, ls, which), arguments passed
+    through, anything else refused. `Quit!!!` on a line by itself exits; so does
+    end of input.
 
-   Two things worth noticing:
+    Two things worth noticing:
 
-   - There is no shell underneath this shell. `run` is fork + execvp directly —
-     the program name and each argument cross to the child as separate OS-level
-     arguments, so nothing is ever re-parsed by /bin/sh and quoting cannot bite.
+    - There is no shell underneath this shell. `run` is fork + execvp directly —
+        the program name and each argument cross to the child as separate OS-level
+        arguments, so nothing is ever re-parsed by /bin/sh and quoting cannot bite.
 
-   - `run` takes its arguments as a fixed list, so the dispatch below branches on
-     how many words were typed rather than building an array. That is the whole
-     shape of the program: split the line, look at what you got, choose a call.
+    - `run` takes its arguments as a fixed list, so the dispatch below branches on
+        how many words were typed rather than building an array. That is the whole
+        shape of the program: split the line, look at what you got, choose a call.
 
-   Run it interpreted, or compile it — `cufet build examples/shell.cufe` produces
-   a native binary with no managed runtime under it. The subprocess machinery is
-   POSIX, so a compiled shell needs Linux, macOS, or WSL. */
+    Run it interpreted, or compile it — `cufet build examples/shell.cufe` produces
+    a native binary with no managed runtime under it. The subprocess machinery is
+    POSIX, so a compiled shell needs Linux, macOS, or WSL. */
 
 Bind fact to permitted, given (the text name):
     If name is "clear", return true.
