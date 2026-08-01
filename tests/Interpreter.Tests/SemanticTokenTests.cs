@@ -232,11 +232,11 @@ public class SemanticTokenTests
             .Select(t => (t.Line, t.Column, t.Length))
             .ToList();
 
-        Assert.Contains((5, 41, 4), types);   // map from text to card
-        Assert.Contains((6, 32, 4), types);   // catalogue of (card or deck)
-        Assert.Contains((6, 40, 4), types);   // ... the second case
-        Assert.Contains((7, 43, 4), types);   // atlas from text to card
-        Assert.Contains((8, 30, 4), types);   // a channel of card
+        Assert.Contains((5, 37, 4), types);   // map from text to card
+        Assert.Contains((6, 33, 4), types);   // catalogue of (card or deck)
+        Assert.Contains((6, 41, 4), types);   // ... the second case
+        Assert.Contains((7, 39, 4), types);   // atlas from text to card
+        Assert.Contains((8, 29, 4), types);   // a channel of card
         Assert.Contains((10, 13, 4), types);  // ace is a card
 
         // The string on line 11 says 'card' twice and is not an annotation.
@@ -260,7 +260,7 @@ public class SemanticTokenTests
         Assert.Contains((1, 15, 5, "type",     true),  tokens);   // the declaration
         Assert.Contains((2,  8, 5, "variable", true),  tokens);   // Define thing as 5
         Assert.Contains((3,  7, 5, "variable", false), tokens);   // State thing
-        Assert.Contains((4, 37, 5, "type",     false), tokens);   // given (the thing t)
+        Assert.Contains((4, 38, 5, "type",     false), tokens);   // given (the thing t)
         Assert.DoesNotContain(tokens, t => t.Item1 is 2 or 3 && t.Item4 == "type");
     }
 
