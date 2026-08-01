@@ -2,29 +2,40 @@ using System.Collections.Concurrent;
 
 namespace Cufet.Interpreter;
 
-// Cooperative task scheduler for Cufet's concurrency model.
+// The cooperative scheduler behind `Have rabbit start a task:` and channels.
 //
-// Single-threaded: exactly one unit runs at a time; units interleave only at yield
-// points. Built on C# async/await with a custom SynchronizationContext: all awaited
-// continuations are routed back to this scheduler's queue (not the thread pool), so
-// the cooperative invariant holds by construction — no interpreter-internal data races.
+// Single-threaded: exactly one unit runs at a time, and units interleave only at yield
+// points. Built on C# async/await with a custom SynchronizationContext, so every awaited
+// continuation is routed back to this queue rather than to the thread pool — which is what
+// makes the cooperative invariant hold by construction, with no interpreter-internal races.
 //
-// Slice 1 (this file): standalone engine, no user-facing Cufet syntax.
-//   Run()    — wraps sequential program execution as a single synchronous unit.
-//   RunAll() — isolation validator: runs N async units, proves interleaving works.
-//   YieldAsync() — the fundamental yield point (Task.Yield() routed through this ctx).
+// ★ This is the interpreter's answer only. The compiler's tasks are pthreads, genuinely
+// parallel, and the two agree on results because the language forbids the shapes where
+// they would not — a task may not write to anything outside it that something else reads.
 //
-// Slice 2 seam (what comes next):
-//   Enqueue(Func<Task>) — adds a spawned task mid-run (called by LaunchTask dispatch).
-//   ExecuteStatementsAsync — async variant of statement execution for task bodies.
-//   Run() becomes the pump for the whole program; spawned tasks join before Done.
+// The entry points, and who calls them:
+//   Run(unit)         — the whole program, as one unit. ExecuteCore is synchronous, so the
+//                       pump has nothing to do until a task is spawned.
+//   Enqueue(unit)     — a task body, queued to start on the next turn (ExecuteLaunchTask).
+//   JoinTasks(tasks)  — the rabbit's `Done.`, which is where spawned tasks are joined.
+//   DrainUntil(cond)  — pump until something becomes true (a channel receive waiting on a
+//                       delivery, or on the interrupt flag).
+//   DrainOne()        — give other units exactly one turn (a yield, and pipe stages).
+//   YieldAsync()      — the yield point itself.
+//   RunAll(units)     — test support only; the interpreter never calls it.
 //
-// Slice 5 seam: SIGINT check goes inside the Drain loop at each dequeue, so every
-// yield point is also a potential interrupt point — no user-side polling needed.
+// ★ Interrupts are NOT handled in here, deliberately. The scheduler has no view of
+// interpreter state, so Ctrl-C is polled by the interpreter at the two places where a
+// program can be waiting: ExecuteYield checks the flag after giving up a turn, and a
+// channel receive folds it into its DrainUntil condition. Pumping the queue is this
+// class's whole job; deciding what a set flag means is not.
 internal sealed class CufetScheduler : SynchronizationContext
 {
-    // Continuations waiting to run. ConcurrentQueue because in slice 2+ async I/O
-    // completes on thread-pool threads and posts continuations cross-thread.
+    // Continuations waiting to run. Nothing posts to this from another thread today — the
+    // scheduler is single-threaded and Post is only ever reached from the unit that yielded —
+    // so the concurrent queue is insurance rather than a requirement. It stays because the
+    // thing that would need it is exactly what a SynchronizationContext is for: a genuinely
+    // asynchronous wait completing on a thread-pool thread and posting its continuation back.
     private readonly ConcurrentQueue<Action> _ready = new();
 
     // Route async continuations back to this scheduler's queue rather than the thread pool.
@@ -54,7 +65,7 @@ internal sealed class CufetScheduler : SynchronizationContext
         finally { SetSynchronizationContext(prev); }
     }
 
-    // Enqueue a new task mid-run (slice-2+ task spawn).
+    // Enqueue a task body mid-run — the spawn behind `Have rabbit start a task:`.
     // The unit is not started immediately — it is added to the ready queue and will
     // run on the next drain turn. Returns a Task that completes when the unit finishes.
     // Exceptions from the unit are stored on the returned Task and re-thrown by JoinTasks.
@@ -77,8 +88,9 @@ internal sealed class CufetScheduler : SynchronizationContext
             }
             else
             {
-                // Async inner task (slice 3+): chain completion back through the scheduler queue
-                // via GetAwaiter().OnCompleted, which uses the current SynchronizationContext.
+                // The unit yielded rather than finishing in one go: chain its completion back
+                // through the scheduler queue via GetAwaiter().OnCompleted, which posts through
+                // the current SynchronizationContext — this one.
                 inner.GetAwaiter().OnCompleted(() =>
                 {
                     if (inner.IsFaulted)
@@ -104,9 +116,13 @@ internal sealed class CufetScheduler : SynchronizationContext
             t.GetAwaiter().GetResult();
     }
 
-    // Run N async units concurrently to completion on the calling thread.
-    // Units interleave at yield points; all are started before the drain loop runs.
-    // Used for the slice-1 isolation validator and future multi-task test scenarios.
+    // Run N async units concurrently to completion on the calling thread. Units interleave at
+    // yield points; all are started before the drain loop runs.
+    //
+    // Test support: the interpreter spawns tasks through Enqueue and joins them through
+    // JoinTasks, and never calls this. It survives because it drives the interleaving directly,
+    // which is what SchedulerTests needs to assert the cooperative invariant without a Cufet
+    // program in the way.
     internal void RunAll(params Func<Task>[] units)
     {
         var prev = Current;
@@ -127,10 +143,13 @@ internal sealed class CufetScheduler : SynchronizationContext
         finally { SetSynchronizationContext(prev); }
     }
 
-    // Pump the ready queue until all tracked tasks are complete.
-    // Slice 5: SIGINT check goes here — each dequeue is a preemption point.
-    // Slice 2+ async I/O: replace the deadlock throw with a blocking wait
-    // (SemaphoreSlim / Monitor.Wait) so the thread sleeps until I/O posts a continuation.
+    // Pump the ready queue until every tracked task is complete.
+    //
+    // The throw is reachable only by a unit awaiting something that will never post a
+    // continuation, which in a purely cooperative, single-threaded pump means a real deadlock
+    // and not a wait worth sleeping through. Were an asynchronous wait ever added, this is the
+    // line that would change: a blocking wait (SemaphoreSlim / Monitor.Wait) rather than a
+    // throw, so the thread sleeps until the completion posts.
     private void Drain(Task[] tasks)
     {
         while (!AllDone(tasks))
@@ -145,8 +164,8 @@ internal sealed class CufetScheduler : SynchronizationContext
         }
     }
 
-    // Dequeue and run one unit of work if any is ready.
-    // Called by Yield to give other tasks one turn without blocking the current flow.
+    // Dequeue and run one unit of work if any is ready — one turn for somebody else, without
+    // blocking the current flow. Called by a yield, and by a pipe stage handing its output on.
     internal void DrainOne()
     {
         if (_ready.TryDequeue(out var work))
