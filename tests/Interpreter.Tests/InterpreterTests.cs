@@ -9754,6 +9754,63 @@ public class InterpreterTests
     // ── Layer 1: Union types ────────────────────────────────────────────────────
 
     [Fact]
+    public void DeclaredType_UnionNarrows()
+    {
+        Assert.Equal("43", Run(
+            "Define the (number or text) x as 42.\n" +
+            "If x is a number:\n" +
+            "    State x + 1.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State the length of x.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void DeclaredType_UnionHoldsEitherCase()
+    {
+        // The declared type is the binding's type, so a text is assignable later.
+        Assert.Equal("5", Run(
+            "Define the (number or text) x as 42.\n" +
+            "x becomes \"hello\".\n" +
+            "If x is a number:\n" +
+            "    State x + 1.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State the length of x.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void DeclaredType_ExplicitTextAndNumber()
+    {
+        Assert.Equal("Nathan\n5", Run(
+            "Define the text name as \"Nathan\".\n" +
+            "Define the number n as 5.\n" +
+            "State name.\n" +
+            "State n."));
+    }
+
+    [Fact]
+    public void DeclaredType_ValueMustFit()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define the number n as \"oops\".\n" +
+            "State n."));
+        Assert.Contains("is declared as", ex.Message);
+    }
+
+    [Fact]
+    public void Declare_ValueCopyStillParsesAsAValue()
+    {
+        // `Define <name> as <name>.` must keep meaning "copy that value", not "declare that type".
+        Assert.Equal("7", Run(
+            "Define src as 7.\n" +
+            "Define copy as src.\n" +
+            "State copy."));
+    }
+
+    [Fact]
     public void Union_IsANumber_True()
     {
         Assert.Equal("yes", Run(

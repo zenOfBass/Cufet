@@ -109,6 +109,9 @@ public sealed class Parser
             shadow = true;
             SkipNoise();
         }
+        // `Define the text name as "Nathan".` — an explicit type in front of the name, the same
+        // `the <type> <name>` shape that parameters and object fields already use.
+        CufetType? declaredType = TryParseTypeBeforeName();
         var name = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
         Consume(TokenType.As);
@@ -127,7 +130,7 @@ public sealed class Parser
             SkipNoise();
         }
         Consume(TokenType.Dot);
-        return new DefineStatement(name, value, permanent, shadow, line, col);
+        return new DefineStatement(name, value, permanent, shadow, line, col, declaredType);
     }
 
     // Define object <name> with (<fields>) [: <bind-stmts> Done.].
@@ -335,6 +338,24 @@ public sealed class Parser
     // Parses the element-type annotation after "of":
     //   type-annotation → "number" | "numbers" | "text" | "fact" | "facts"
     //                   | "series" "of" type-annotation
+    // An explicit type sitting between the article and the name, as in `Define the text name as …`.
+    // A NAME still follows, which is what tells this apart from the plain form: in `Define x as 5.`
+    // the annotation parse swallows `x` as a type name, then finds `as` instead of a name and the
+    // whole attempt is rolled back, so `Define copy as src.` keeps meaning "copy src's value".
+    private CufetType? TryParseTypeBeforeName()
+    {
+        int save = _pos;
+        try
+        {
+            var parsed = ParseTypeAnnotation();
+            SkipNoise();
+            if (Peek().Type == TokenType.Identifier) return parsed;
+        }
+        catch (ParseException) { }
+        _pos = save;
+        return null;
+    }
+
     private CufetType ParseTypeAnnotation()
     {
         var tok = Peek();

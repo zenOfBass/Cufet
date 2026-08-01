@@ -1089,7 +1089,17 @@ public sealed partial class TypeChecker
                 $"Remove 'a shadow' if you're just defining a new variable, or check the spelling.");
         }
 
-        Scope[define.Name] = new TypeInfo(type, define.Value, define.Line, define.Permanent, _rabbitDepth);
+        // An explicit annotation is the binding's type; the value only has to fit into it. That is
+        // what lets `Define the (number or text) x as 42.` hold a text later.
+        var declared = define.DeclaredType;
+        if (declared != null && !IsAssignable(declared, type))
+            throw TypeError(
+                $"'{define.Name}' is declared as {FormatType(declared)}, but the value is a {FormatType(type)}",
+                null, define.Line, define.Column,
+                $"start '{define.Name}' with a value that isn't a {FormatType(declared)}",
+                $"Give it a {FormatType(declared)}, or change the declared type to match the value.");
+
+        Scope[define.Name] = new TypeInfo(declared ?? type, define.Value, define.Line, define.Permanent, _rabbitDepth);
     }
 
     private void CheckBecomes(BecomesStatement becomes)

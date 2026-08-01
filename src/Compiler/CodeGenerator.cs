@@ -3945,9 +3945,11 @@ static void* cufet_pipe_stage(void* argp) {
 
             case DefineStatement d:
             {
-                string valExpr = EmitExpr(d.Value);
+                // An explicit annotation is the binding's type, so the value widens into it —
+                // the same coercion `becomes` and `return` already do.
+                var vt = d.DeclaredType ?? TypeOf(d.Value);
+                string valExpr = d.DeclaredType != null ? EmitAsType(d.Value, d.DeclaredType) : EmitExpr(d.Value);
                 FlushPreEmits(sb, indent);
-                var vt = TypeOf(d.Value);
                 _varTypes[d.Name] = vt;
                 _varRabbitDepth[d.Name] = _rabbitDepth;   // ESC.4 — declaring depth for capture-escape
                 // 'permanently' fixes the binding — const on the value's C type. Series/maps
@@ -6231,7 +6233,7 @@ static void* cufet_pipe_stage(void* argp) {
                 switch (s)
                 {
                     case DefineStatement d:
-                        var dt = TypeOf(d.Value); if (dt != null) _varTypes[d.Name] = dt; break;
+                        var dt = d.DeclaredType ?? TypeOf(d.Value); if (dt != null) _varTypes[d.Name] = dt; break;
                     case ReturnStatement { Value: null }: break;               // bare void early-exit
                     case ReturnStatement { Value: FailureLiteral }: hasFailure = true; break;
                     case ReturnStatement { Value: VoidLiteral }: hasVoid = true; break;

@@ -110,7 +110,11 @@ public sealed record StateStatement(IExpression Value)                        : 
 // (not its contents) can never be reassigned with 'becomes'.
 // Shadow: true when declared with the leading 'a shadow' modifier — explicitly shadows an
 // outer binding of the same name. Without this flag, shadowing an outer name is a static error.
-public sealed record DefineStatement(string Name, IExpression Value, bool Permanent, bool Shadow, int Line, int Column) : IStatement;
+// DeclaredType is set by the explicit form `Define the <type> <name> as <value>.` — the same
+// `the <type> <name>` shape parameters and object fields use. The value widens into it, so the
+// binding can hold a wider type than any one value spells (a union is the case that needs it).
+// Null ⇒ the plain form, where the type is whatever the value is.
+public sealed record DefineStatement(string Name, IExpression Value, bool Permanent, bool Shadow, int Line, int Column, CufetType? DeclaredType = null) : IStatement;
 public sealed record BecomesStatement(string Name, IExpression Value, int Line, int Column) : IStatement
 {
     // ESC.1 — set by the checker when the stored value's region depth is DEEPER than the

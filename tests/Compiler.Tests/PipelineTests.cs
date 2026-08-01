@@ -112,6 +112,46 @@ public class PipelineTests
     }
 
     [Fact]
+    public void DeclaredUnion_NarrowsToNumber_MatchesInterpreter()
+    {
+        const string src =
+            "Define the (number or text) x as 42.\n" +
+            "If x is a number:\n" +
+            "    State x + 1.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State the length of x.\n" +
+            "Done.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void DeclaredUnion_NarrowsToTextByElimination_MatchesInterpreter()
+    {
+        const string src =
+            "Define the (number or text) x as 42.\n" +
+            "x becomes \"hello\".\n" +
+            "If x is a number:\n" +
+            "    State x + 1.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State the length of x.\n" +
+            "Done.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void DeclaredType_PlainNumber_MatchesInterpreter()
+    {
+        const string src =
+            "Define the number n as 3.\n" +
+            "Define the text who as \"Nathan\".\n" +
+            "State n + 1.\n" +
+            "State who.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
     public void State_Multiplication_MatchesInterpreter()
     {
         const string src = "State 3 * 4.";
