@@ -93,6 +93,38 @@ public class LexerTests
         Assert.Equal("myvar", tokens[1].Lexeme);
     }
 
+    // ── Capitalised contextual statement words ────────────────────────────
+    //
+    // `output` opens a statement but is not reserved, so a program may still use the name. That
+    // left it as the one statement in the language that could not begin with a capital. Allowing
+    // the capitalised spelling costs nothing, because an uppercase-initial identifier was already
+    // illegal — so `Output` was never available to anyone as a name.
+
+    [Fact]
+    public void CapitalisedOutput_Lexes()
+    {
+        var tokens = LexTokens("Output");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Identifier, tokens[0].Type);
+        Assert.Equal("Output", tokens[0].Lexeme);   // kept as typed
+    }
+
+    [Fact]
+    public void LowercaseOutput_IsStillAnOrdinaryIdentifier()
+    {
+        var tokens = LexTokens("output");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Identifier, tokens[0].Type);
+    }
+
+    [Fact]
+    public void OtherCapitalisedIdentifiers_AreStillRejected()
+    {
+        // The exemption is one word, not a relaxation of the rule.
+        var ex = Assert.Throws<LexerException>(() => Lex("Total"));
+        Assert.Contains("must start with a lowercase letter", ex.Message);
+    }
+
     // ── Reserved keyword: it ──────────────────────────────────────────────
 
     [Fact]

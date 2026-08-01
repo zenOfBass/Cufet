@@ -33,6 +33,12 @@ public sealed class Lexer
     // 1-based column of the character at `offset`, which must sit on the current line.
     private int ColumnAt(int offset) => offset - _lineStart + 1;
 
+    // Words that OPEN a statement but are deliberately left unreserved, so a program can still
+    // use them as ordinary names. Only these may be written with a capital and still lex — see
+    // the note in ReadWord for why that is free rather than a concession.
+    private static readonly HashSet<string> CapitalisableStatementWords =
+        new(StringComparer.OrdinalIgnoreCase) { "output" };
+
     // Reads exactly one logical token from the current position and appends it (or its
     // sequence, in the case of an interpolated string) to `tokens`.
     private void ReadOneToken(List<Token> tokens)
@@ -177,11 +183,11 @@ public sealed class Lexer
             // word, which is what lets a variable of the same name still parse as a variable.
             // 'shuffled' and 'guess' are CONTEXTUAL — see Parser.IsWord. The standard library
             // does not get to take a name from every program that never pulls its book.
-            // 'seed' STAYS RESERVED, unlike the rest of the book vocabulary. 'Seed the chance
-            // with <n>.' is written capitalised like every other statement keyword, and an
-            // identifier must start lowercase — so it cannot be an identifier without changing
-            // how the statement is spelled. Statement-initial words can only go contextual when
-            // they are conventionally lowercase, which is why 'output' can and this cannot.
+            // 'seed' STAYS RESERVED, unlike the rest of the book vocabulary — a standing decision
+            // about the word, not a limit of the lexer. Capitalisation is no longer what settles
+            // it: a statement-initial contextual word may be written with a capital (see
+            // CapitalisableStatementWords), so 'Seed the chance with <n>.' could be spelled the
+            // same way whether or not the word were reserved.
             "seed"       => TokenType.SeedKw,
             "unto"       => TokenType.Unto,
             "get"        => TokenType.GetKw,
@@ -238,6 +244,20 @@ public sealed class Lexer
             "false"       => TokenType.FalseKw,
             _           => TokenType.Identifier,
         };
+
+        // A contextual statement word may also be written with a capital. Such a word is NOT
+        // reserved — a program can still call a variable `output` — and this costs nothing to
+        // allow, because the CAPITALISED spelling could never have been an identifier in the
+        // first place: the rule immediately below already forbids it. Reserving the lowercase
+        // form would take a name away from every program; permitting the capitalised one takes
+        // none, and it lets a statement begin with a capital like every other statement.
+        //
+        // The lexeme is kept as it was typed. These are matched case-insensitively by the parser
+        // where the statement's shape allows, so the capital is meaningful only in that position:
+        // `Output` is not another way to spell a variable named `output`.
+        if (type == TokenType.Identifier && !char.IsLower(lexeme[0])
+            && CapitalisableStatementWords.Contains(normalized))
+            return new Token(type, lexeme, _line, ColumnAt(start));
 
         // Identifiers must start with a lowercase letter — uppercase-initial is reserved
         // for keywords and produces a visible distinction between keywords and variables.
