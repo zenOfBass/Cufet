@@ -102,13 +102,31 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 4. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
+5. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
+   tree, linked structure or wrapper cannot be looped over at all:
+
+   ```
+   For each n in b, repeat:      ← b holds bag objects.
+                                   It evaluates to bag objects, not a series.
+   ```
+
+   The workaround is to flatten into a series first, which pays full materialisation for a walk
+   that may happen once. An interface contract — hand back the next one, or void when done — closes
+   it with machinery the language already has.
+
+   ★ **Deliberately EXTERNAL iteration, not generators.** A generator that yields and suspends is a
+   coroutine, and coroutines belong to *the rabbit as a control-flow primitive* below; building
+   them here would be a second suspend-and-resume mechanism competing with the one that item exists
+   to unify, and would inherit that item's unanswered "which restriction?" question. This is only
+   method dispatch: no suspension, so no arena question about where paused state lives, and nothing
+   the two backends could disagree about.
 
 ### Tier 3 — the design mountains
 
 Both need a design session before they can be ordered against anything. Neither is blocked by a
 numbered item; they are here because they are large, not because they are waiting.
 
-5. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+6. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
@@ -117,11 +135,16 @@ numbered item; they are here because they are large, not because they are waitin
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-6. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+7. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
    threads, coroutines, and the exception path. One primitive underneath all of them.
+
+   **Generator-style iteration is one of them, and is not listed separately.** A generator that
+   yields mid-body is a coroutine wearing a different name, so it arrives with this and not before
+   it. (`For each` over a user-defined type is in Tier 2, and is deliberately the *external* kind —
+   dispatch, not suspension — precisely so it does not pre-empt this design.)
 
    Not retrofitted reasoning. **Two restricted continuations already exist** — `In case of
    exception` compiles to `setjmp`/`longjmp` (a one-shot escaping continuation) and tasks are the
@@ -152,14 +175,14 @@ numbered item; they are here because they are large, not because they are waitin
 
 ### Tier 4 — modules, strictly in this order
 
-7. **The `module` interface.** A named interface defining the contract for any loadable thing.
+8. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-8. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+9. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-9. **A package manager for books.**
+10. **A package manager for books.**
 
 ### Tier 5 — Cufet in Cufet
 
@@ -169,7 +192,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-10. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+11. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -177,7 +200,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-11. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
+12. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
@@ -185,7 +208,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-12. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+13. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
