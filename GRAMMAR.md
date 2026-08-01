@@ -212,13 +212,9 @@ as identifiers, but that is fine — they read as natural articles.
 
 ### Chance and randomness
 
-| Word | Token | Notes |
-|---|---|---|
-| `random` | Random | `a random number from low to high` / `a random item from series` / `a random guess` |
-| `randomly` | Randomly | `randomly shuffled series` |
-| `shuffled` | Shuffled | companion to `randomly` |
-| `guess` | Guess | `a random guess` — yields a `fact` |
-| `seed` | SeedKw | `Seed the chance with N.` — statement keyword |
+**None of it is reserved.** `random`, `randomly`, `shuffled`, `guess` and `seed` are all
+contextual — see [Contextual words](#contextual-words--not-reserved) below, and the
+[Chance book](#chance-and-randomness-1) for what each one does.
 
 ### Boolean literals
 
@@ -260,9 +256,13 @@ of them; they are recognised by lexeme in type position, so `Define text as "hi"
 (`number` *is* reserved, because `the number of s` needs its own token.)
 
 **Book vocabulary** — `at`, `filled`, `guess`, `shuffled`, `rows`, `columns`, `matrix`,
-`random` and `randomly` are contextual. A reserved word is taken from *every* program in the
-language, whether or not it pulls the book that wanted it; these are recognised by shape
+`random`, `randomly` and `seed` are contextual. A reserved word is taken from *every* program in
+the language, whether or not it pulls the book that wanted it; these are recognised by shape
 instead, so `Define rows as 5.` works even though the collections book uses the word.
+
+`seed` was the last one held back, on the grounds that `Seed the chance with <n>.` is capitalised
+and an identifier must start lowercase. Capitalised contextual statement words removed that
+obstacle, and the word is one the code most likely to pull this book will want.
 
 `the rows of x` is resolved by the **type of `x`** — a matrix's row count, or a record's field
 — exactly as `the key of mapping` already is. The parser cannot tell, but a reader never has
@@ -284,8 +284,12 @@ Worth having: `current` is a far more tempting variable name than the alternativ
   `Output 7.` and `output 7.` are the same statement, so a contextual word does not force a
   statement to break the capitalise-the-first-word convention. This costs nothing: an identifier
   must start lowercase, so the capitalised spelling was never available as a name in the first
-  place, and the lowercase form stays usable (`Define output as 42.`). **`Seed` remains
-  reserved** — that is a decision about `seed`, not a consequence of how it is spelled.
+  place, and the lowercase form stays usable (`Define output as 42.`).
+
+  `seed` is contextual on the same terms, recognised by the **`chance` that must follow it**. That
+  is a *positive* test rather than a list of shapes to exclude, and it is exact: no statement form
+  is `<variable> <name>`, so a variable called `seed` can never be followed by `chance`.
+  `Define seed as 42.`, `seed becomes 43.` and `Seed the chance with seed.` all coexist.
 
 **Ordinals** (`first`, `second`, `third`, `fourth`, `fifth`, `sixth`, `seventh`,
 `eighth`, `ninth`, `tenth`, `last`) — contextual in the accessor shape:

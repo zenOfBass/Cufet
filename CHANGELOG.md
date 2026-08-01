@@ -26,6 +26,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   one `becomes` and `return` already perform. A value that does not fit is an error at the
   declaration, naming both types.
 
+**`seed` is no longer reserved**
+
+- `Define seed as 42.` works. `seed` was the last piece of chance-book vocabulary still taken from
+  every program in the language — `random`, `randomly`, `shuffled` and `guess` have long been
+  contextual, on the principle that a book does not get to claim a name from programs that never
+  pull it.
+
+- It was held back because `Seed the chance with <n>.` is capitalised and an identifier must start
+  lowercase. Capitalised contextual statement words removed that obstacle, so the word goes back —
+  and it is one the code most likely to pull this book will reach for.
+
+- The statement is recognised by the **`chance` that must follow it**, which is exact rather than
+  approximate: no statement form is `<variable> <name>`, so a variable called `seed` can never be
+  followed by `chance`. `Define seed as 42.`, `seed becomes 43.` and `Seed the chance with seed.`
+  all coexist in one program. Using the statement without pulling the book reports exactly what it
+  did before — that check lives in the type checker and was not touched.
+
 **`Output` may be capitalised**
 
 - `Output 7.` now lexes, and means exactly what `output 7.` means. `output` opens a statement but
