@@ -1621,7 +1621,7 @@ It must appear as **part of an expression** — it is not a statement:
 
 ```
 Define result as cast compute on (x) or pass the failure off.   ← OK
-cast compute on (x) or pass the failure off.                    ← PARSE ERROR
+Cast compute on (x) or pass the failure off.                    ← PARSE ERROR
 ```
 
 ### `but void is` fallback value must be the right type
@@ -1674,7 +1674,7 @@ infers how the return value's lifetime relates to the arguments and the receiver
 
 ```
 Bind series of number to smuggle, given (the series of number s):
-    return s.
+    Return s.
 Done.
 
 Define outer as a series of number with ().
@@ -1689,14 +1689,14 @@ Done.
 ```
 Define object bag with (the series of number items).
 Bind series of number to get-items unto bag:
-    return one's items.
+    Return one's items.
 Done.
 
 Define outer as a series of number with ().
 Pull a rabbit.
     Define inner as a series of number with (1, 2, 3).
     Define b as a new bag { the items inner }.
-    outer becomes Cast get-items on (b).   ← TYPE ERROR: b (and its fields) is shorter-lived
+    The outer becomes Cast get-items on (b).   ← TYPE ERROR: b (and its fields) is shorter-lived
 Done.
 ```
 
@@ -1713,7 +1713,7 @@ Define outer as a series of number with ().
 Pull a rabbit.
     Define inner as a series of number with (1, 2, 3).
     Define b as a new bag { the items inner }.
-    outer becomes b's payload.   ← TYPE ERROR: b is in a shorter-lived rabbit
+    The outer becomes b's payload.   ← TYPE ERROR: b is in a shorter-lived rabbit
 Done.
 ```
 
@@ -1746,7 +1746,7 @@ outward store is rejected:
 Bind void to run-with, given (the series of number s):
     Define sink as a series of number with ().
     Bind void to stash, given ():
-        sink becomes s.              ← TYPE ERROR: captured parameter 's' treated as
+        The sink becomes s.              ← TYPE ERROR: captured parameter 's' treated as
     Done.                               maximally deep — caller may pass a rabbit value
     Cast stash on ().
 Done.
