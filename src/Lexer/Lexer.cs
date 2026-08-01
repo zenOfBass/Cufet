@@ -37,7 +37,7 @@ public sealed class Lexer
     // use them as ordinary names. Only these may be written with a capital and still lex — see
     // the note in ReadWord for why that is free rather than a concession.
     private static readonly HashSet<string> CapitalisableStatementWords =
-        new(StringComparer.OrdinalIgnoreCase) { "output" };
+        new(StringComparer.OrdinalIgnoreCase) { "output", "seed" };
 
     // Reads exactly one logical token from the current position and appends it (or its
     // sequence, in the case of an interpolated string) to `tokens`.
@@ -183,12 +183,12 @@ public sealed class Lexer
             // word, which is what lets a variable of the same name still parse as a variable.
             // 'shuffled' and 'guess' are CONTEXTUAL — see Parser.IsWord. The standard library
             // does not get to take a name from every program that never pulls its book.
-            // 'seed' STAYS RESERVED, unlike the rest of the book vocabulary — a standing decision
-            // about the word, not a limit of the lexer. Capitalisation is no longer what settles
-            // it: a statement-initial contextual word may be written with a capital (see
-            // CapitalisableStatementWords), so 'Seed the chance with <n>.' could be spelled the
-            // same way whether or not the word were reserved.
-            "seed"       => TokenType.SeedKw,
+            // 'seed' is CONTEXTUAL too — see Parser.IsSeedStatement. It was the one piece of book
+            // vocabulary held back, on the reasoning that 'Seed the chance with <n>.' is written
+            // capitalised and an identifier must start lowercase. Capitalised contextual statement
+            // words settled that (see CapitalisableStatementWords), so the word goes back to the
+            // programs that never pull the book — `Define seed as 42.` is a natural thing to write
+            // in exactly the code that would.
             "unto"       => TokenType.Unto,
             "get"        => TokenType.GetKw,
             "set"        => TokenType.SetKw,

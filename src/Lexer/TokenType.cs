@@ -140,7 +140,8 @@ public enum TokenType
     // ── Chance book (randomness) ───────────────────────────────────────────────
     Random,   // "random"   — in "a random number/item/guess"
     Randomly, // "randomly" — in "randomly shuffled <series>"
-    SeedKw,   // "seed"     — in "Seed the chance with <number>."
+    // 'seed' has no token: it is contextual, recognised by Parser.IsSeedStatement, so a program
+    // that never pulls the chance book keeps the name.
 
     // ── Range ─────────────────────────────────────────────────────────────────
     Range,     // "range"     — in "range <start> to <end>"; To already exists

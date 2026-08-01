@@ -36,7 +36,8 @@ public sealed class Parser
             TokenType.Define     => ParseDefineStatement(),
             // 'output <value>.' — contextual producer statement; 'output' is NOT reserved
             TokenType.Identifier when IsOutputStatement() => ParseOutputStatement(),
-            TokenType.SeedKw     => ParseSeedChanceStatement(),
+            // 'Seed the chance with <n>.' — contextual, like the rest of the chance vocabulary.
+            TokenType.Identifier when IsSeedStatement() => ParseSeedChanceStatement(),
             // 'name | name.' — pipe statement starting with a variable reference
             TokenType.Identifier when PeekAfterCurrent() == TokenType.Pipe => ParsePipeStatement(),
             // 'The current directory becomes <path>.' — the leading article is consumed as noise
@@ -835,6 +836,16 @@ public sealed class Parser
         SkipNoise();
         return ParseExprOr();
     }
+
+    // True when 'seed' opens `Seed the chance with <n>.` rather than naming a variable.
+    //
+    // A POSITIVE test, unlike output's: the statement requires the word 'chance' next (the article
+    // between them is noise), and no statement form is `<variable> <name>`, so a variable called
+    // `seed` can never be followed by it. That makes the test exact rather than a list of shapes to
+    // rule out — `seed becomes 43.`, `seed's algorithm becomes …` and `seed | consumer.` all fall
+    // through to the variable reading without needing to be named here.
+    private bool IsSeedStatement() =>
+        Peek().Lexeme.Equals("seed", StringComparison.OrdinalIgnoreCase) && NextWordIs("chance");
 
     // True when 'output' identifier is followed by a value expression (not becomes/possessive/=/|).
     private bool IsOutputStatement() =>
@@ -3582,7 +3593,7 @@ public sealed class Parser
     // Seed the chance with <number>.
     private SeedChanceStatement ParseSeedChanceStatement()
     {
-        var lineTok = Consume(TokenType.SeedKw); // consume 'Seed'
+        var lineTok = Advance(); // consume 'Seed' — an identifier, matched by lexeme
         var line = lineTok.Line;
         var col = lineTok.Column;
         SkipNoise();                               // eats 'the'

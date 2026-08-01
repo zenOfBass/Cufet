@@ -129,17 +129,41 @@ public class BookWordTests
             "State g is true or g is false. Done."));
     }
 
-    // ── The ones that stay reserved, and why ─────────────────────────────
+    // ── 'seed' is contextual too ─────────────────────────────────────────
+    //
+    // It was the one piece of chance vocabulary held back, because `Seed the chance with <n>.` is
+    // written capitalised and an identifier must start lowercase. Once a contextual statement word
+    // could be capitalised, that reason went away — and `seed` is a name worth having back, since
+    // the code most likely to want it is exactly the code that pulls this book.
 
     [Fact]
-    public void Seed_StaysReservedBecauseStatementsAreCapitalised()
+    public void Seed_IsUsableAsAVariable()
     {
-        // 'Seed the chance with <n>.' is capitalised like every statement keyword, and an
-        // identifier must start lowercase — so making 'seed' contextual would change how the
-        // statement is spelled. Statement-initial words can only go contextual when they are
-        // conventionally lowercase, which is why 'output' can and this cannot.
-        var ex = Assert.Throws<ParseException>(() => Run("Define seed as 1."));
-        Assert.Contains("SeedKw", ex.Message);
+        Assert.Equal("43", Run("Define seed as 42. seed becomes 43. State seed."));
+    }
+
+    [Fact]
+    public void Seed_TheStatementAndAVariableOfThatNameCoexist()
+    {
+        // The statement is recognised by the word 'chance' following, so the two never collide.
+        Assert.Equal("7", Run(
+            "Pull a book on chance. Define seed as 7. Seed the chance with seed. State seed. Done."));
+    }
+
+    [Fact]
+    public void Seed_TheStatementMayBeLowercase()
+    {
+        Assert.Equal("ok", Run(
+            "Pull a book on chance. seed the chance with 42. State \"ok\". Done."));
+    }
+
+    [Fact]
+    public void Seed_WithoutPullingTheBook_StillSaysSo()
+    {
+        // Making the word contextual is a parser change; the book requirement is the checker's,
+        // and its message has to survive untouched.
+        var ex = Assert.Throws<TypeException>(() => Run("Seed the chance with 42."));
+        Assert.Contains("chance book is not in scope", ex.Message);
     }
 
     [Fact]
