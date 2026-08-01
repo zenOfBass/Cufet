@@ -49,6 +49,14 @@ deliberate differences are marked where they arise and summarised under
     - [Failure values (`failure T`)](#failure-values-failure-t)
     - [Block form: `Try to`](#block-form-try-to)
   - [Bit patterns (`bits`)](#bit-patterns-bits)
+    - [Writing one](#writing-one)
+    - [Width comes from the digit count](#width-comes-from-the-digit-count)
+    - [Gates](#gates)
+    - [The left operand decides how the result looks](#the-left-operand-decides-how-the-result-looks)
+    - [Arithmetic](#arithmetic-1)
+    - [Shifts](#shifts)
+    - [Crossing over](#crossing-over)
+    - [A free consequence worth knowing](#a-free-consequence-worth-knowing)
   - [Maps](#maps)
   - [Catalogue and atlas (heterogeneous collections)](#catalogue-and-atlas-heterogeneous-collections)
   - [Input and output](#input-and-output)
@@ -56,16 +64,30 @@ deliberate differences are marked where they arise and summarised under
     - [File I/O](#file-io)
     - [Process execution](#process-execution)
     - [Environment variables](#environment-variables)
+    - [The current directory](#the-current-directory)
     - [Directory traversal](#directory-traversal)
   - [Regions (`Pull a rabbit`)](#regions-pull-a-rabbit)
+    - [The outward-only rule](#the-outward-only-rule)
+    - [Two backends, one rule](#two-backends-one-rule)
+    - [When to reach for one](#when-to-reach-for-one)
   - [Concurrency (tasks and channels)](#concurrency-tasks-and-channels)
+    - [Tasks](#tasks)
+    - [Channels](#channels)
+    - [What crosses a boundary, and what a task may touch](#what-crosses-a-boundary-and-what-a-task-may-touch)
+    - [Interpreted versus compiled](#interpreted-versus-compiled)
   - [Streaming pipes](#streaming-pipes)
+    - [Restrictions](#restrictions)
+    - [How stage types are checked](#how-stage-types-are-checked)
   - [Books (the standard library)](#books-the-standard-library)
   - [Matrix](#matrix)
   - [Sorting](#sorting)
   - [Operator overloading](#operator-overloading)
   - [Compiling to a native binary](#compiling-to-a-native-binary)
+    - [What you get](#what-you-get)
+    - [Where the two differ](#where-the-two-differ)
+    - [Platform notes](#platform-notes)
   - [Signal handling](#signal-handling)
+    - [How far an interrupt reaches](#how-far-an-interrupt-reaches)
   - [Type system](#type-system)
   - [Identifiers](#identifiers)
 
@@ -115,7 +137,7 @@ is the usual reason to reach for a block comment at all:
 
 Bind number to helper, given (the number n):
     /* double it */
-    return n * 2.
+    Return n * 2.
 Done.
 
 */
@@ -185,8 +207,8 @@ They work exactly like number or text literals: anywhere a `fact` is valid.
 ```
 Define flag as true.
 Define done as false.
-return true.
-return false.
+Return true.
+Return false.
 If result is false, State "failed".
 While keep-going is true, repeat: ... Done.
 Send true through ch.             ← channel of fact
@@ -284,11 +306,11 @@ Comma after the condition → inline single statement. Colon after the condition
 
 ```
 While x is less than 10, repeat:
-    x becomes x + 1.
+    The x becomes x + 1.
 Done.
 
 Repeat:
-    x becomes x + 1.
+    The x becomes x + 1.
 until x is 10 or more.
 ```
 
@@ -838,7 +860,7 @@ Bind void to greet unto person:
 Done.
 
 Bind number to birthday unto person:
-    one's age becomes one's age + 1.
+    One's age becomes one's age + 1.
     Return one's age.
 Done.
 ```
@@ -889,7 +911,7 @@ A **setter** intercepts assignments to a named property:
 ```
 Define object temp-sensor with (the number celsius):
     Set display given (the number v):
-        one's celsius becomes v.
+        One's celsius becomes v.
     Done.
 Done.
 
@@ -1393,8 +1415,8 @@ decimal, `not 5` comes out as `-6` — correct, and baffling. Here it cannot be 
 ### Writing one
 
 ```
-Define mask as 0xFF.   // hex
-Define flag as 0b1010.   // binary
+Define mask as 0xFF.    // hex
+Define flag as 0b1010.  // binary
 Define mode as 0o755.   // octal
 ```
 
@@ -1413,9 +1435,9 @@ This is the one rule that is unlike other languages. In C, Java, Rust, Go and Py
 width:
 
 ```
-State 0xF.   // 0xF    — 4 bits
+State 0xF.    // 0xF    — 4 bits
 State 0x0F.   // 0x0F   — 8 bits
-State 0x000F.   // 0x000F — 16 bits
+State 0x000F. // 0x000F — 16 bits
 ```
 
 They compare **equal** — equality is on the value — but they display differently, and the width
@@ -1430,17 +1452,17 @@ A 32-bit AND *is* 32 AND gates side by side, so the same words serve a `fact` (o
 `bits` value (N of them):
 
 ```
-State 0xFF and 0x0F.   // 0x0F  — mask
-State 0xF0 or 0x0F.   // 0xFF  — set
+State 0xFF and 0x0F.       // 0x0F  — mask
+State 0xF0 or 0x0F.        // 0xFF  — set
 State 0b1100 xor 0b1010.   // 0b0110
-State not 0xFF.   // 0x00
+State not 0xFF.            // 0x00
 ```
 
 Clearing a bit is `and not`, which is the only clean way to unset one:
 
 ```
 Define flags as 0b1111.
-State flags and not 0b0100.   // 0b1011
+State flags and not 0b0100. // 0b1011
 ```
 
 `xor` works on facts too. Precedence is `and` > `xor` > `or`.
@@ -1474,7 +1496,7 @@ unwrap after every masking expression.
 
 ```
 State 0b0001 shifted left by 3.   // 0b1000
-State 0xFF shifted right by 4.   // 0x0F
+State 0xFF shifted right by 4.    // 0x0F
 ```
 
 The amount is a **number** — it counts positions, a quantity, like the `3` in `item 3 of s`. It
@@ -1491,10 +1513,10 @@ right shift to choose between.
 No implicit conversion, in either direction:
 
 ```
-State 255 converted to hex.   // 0xFF
-State 10 converted to binary.   // 0b1010
-State 0xFF converted to number.   // 255
-State 0xFF converted to text.   // "0xFF"
+State 255 converted to hex.      // 0xFF
+State 10 converted to binary.    // 0b1010
+State 0xFF converted to number.  // 255
+State 0xFF converted to text.    // "0xFF"
 ```
 
 `bits converted to number` **can never fail** — 64 bits always fits a number's 96-bit mantissa —
@@ -1505,7 +1527,7 @@ This is what lets a **computed** value be shown in hex:
 
 ```
 Define total as 200 + 55.
-State total converted to hex.   // 0xFF
+State total converted to hex.  // 0xFF
 ```
 
 To restate a pattern in a different base, route through a number:
@@ -1534,8 +1556,8 @@ Typed key→value collections. Keys are one type, values are one type
 
 **Construction:**
 ```
-Define ages as a map with ("alice" : 30, "bob" : 25).          ← populated, inferred types
-Define ages as a map from text to number with ("alice" : 30).  ← populated, typed
+Define ages as a map with ("alice" : 30, "bob" : 25).           ← populated, inferred types
+Define ages as a map from text to number with ("alice" : 30).   ← populated, typed
 Define ages as a map from text to number with ().               ← empty, typed
 Define ages as a map from text to number.                       ← empty, typed (same thing)
 ```
@@ -1635,7 +1657,7 @@ Define items as a catalogue of (number or text).    ← empty
 **Open** (any element type):
 ```
 Define items as a catalogue with (42, "hello", (1 = 1)).
-Define items as a catalogue.                         ← empty open catalogue
+Define items as a catalogue.   ← empty open catalogue
 ```
 
 Retrieval yields a union value — narrow before using type-specifically:
@@ -1673,7 +1695,7 @@ Define mp as an atlas.
 Retrieval yields a `voidable (union)` — the absent-key void composes with the
 union value type:
 ```
-Define v as the entry for "x" in mp.          ← voidable (number or text)
+Define v as the entry for "x" in mp.   ← voidable (number or text)
 If v is not void:
     If v is a number:
         State v + 1.
@@ -1760,8 +1782,8 @@ Done.
 
 ```
 With the file "out.txt" open for writing as log:
-    write "Line 1\n" to log.
-    write "Line 2\n" to log.
+    Write "Line 1\n" to log.
+    Write "Line 2\n" to log.
 Done.
 ```
 
@@ -1964,7 +1986,7 @@ Pull a rabbit.
     Define scratch as a series of number with (1, 2, 3, 4, 5).
     Define sum as 0.
     For each n in scratch, repeat:
-        sum becomes sum + n.
+        The sum becomes sum + n.
     Done.
     Add sum to totals.
 Done.
@@ -1997,7 +2019,7 @@ would leave the container pointing at released memory — is a compile-time erro
 
 ```
 Bind series of number to smuggle, given (the series of number s):
-    return s.
+    Return s.
 Done.
 
 Define outer as a series of number with ().
@@ -2047,10 +2069,10 @@ Name a task with `as <name>` and it can `return` a value, which you collect with
 ```
 Pull a rabbit.
     Have rabbit start a task as left:
-        return 1 + 2 + 3.
+        Return 1 + 2 + 3.
     Done.
     Have rabbit start a task as right:
-        return 4 + 5 + 6.
+        Return 4 + 5 + 6.
     Done.
     State (the awaited result of left) + (the awaited result of right).
 Done.
@@ -2067,11 +2089,11 @@ is dropped. Awaiting the same task twice is fine — the body runs once either w
 ```
 Pull a rabbit.
     Have rabbit start a task as fetch:
-        return 21.
+        Return 21.
     Done.
     Have rabbit start a task as double-it:
         Define v as the awaited result of fetch.
-        return v * 2.
+        Return v * 2.
     Done.
     State the awaited result of double-it.
 Done.
@@ -2104,7 +2126,7 @@ Pull a rabbit.
     Define total as 0.
     Define got as the delivery from results.
     While got is not void, repeat:
-        total becomes total + (got but void is 0).
+        The total becomes total + (got but void is 0).
         got becomes the delivery from results.
     Done.
     State total.
@@ -2133,7 +2155,7 @@ Define tally as 0.
 Pull a rabbit.
     Have rabbit start a task:
         Add 99 to data.        ← REJECTED when compiled
-        tally becomes tally + 1.   ← REJECTED too, for the same reason
+        The tally becomes tally + 1.   ← REJECTED too, for the same reason
     Done.
 Done.
 ```
@@ -2153,10 +2175,10 @@ Pull a rabbit.
         Define total as 0.          ← the task's own; fine to change
         Define i as 0.
         While i is less than 4, repeat:
-            total becomes total + step.   ← reads the capture; fine
-            i becomes i + 1.
+            The total becomes total + step.   ← reads the capture; fine
+            The i becomes i + 1.
         Done.
-        return total.
+        Return total.
     Done.
     State the awaited result of run-it.
 Done.
@@ -2206,7 +2228,7 @@ Bind void to keep-even:
 Done.
 
 Bind void to show:
-    for each n from the input:
+    For each n from the input:
         State "kept " joined to (n converted to text).
     Done.
 Done.
@@ -2247,7 +2269,7 @@ Bind void to emit-nums:
 Done.
 
 Bind void to shout:
-    for each n from the input:
+    For each n from the input:
         State the length of n.      ← type error: 'the length of' works on text only
     Done.
 Done.
@@ -2412,11 +2434,11 @@ The sort is **stable** — equal elements keep their original relative order —
 Define object vec2 with (the number x, the number y).
 
 Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):
-    return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.
+    Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.
 Done.
 
 Bind overloading *, given (the lhs is a vec2, the rhs is a vec2):
-    return lhs's x * rhs's x + lhs's y * rhs's y.
+    Return lhs's x * rhs's x + lhs's y * rhs's y.
 Done.
 
 Define u as a new vec2 { the x 1, the y 2 }.
