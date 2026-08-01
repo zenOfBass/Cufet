@@ -82,6 +82,24 @@ function reportMissingExecutable(attempted) {
 
 // ── Checking ──────────────────────────────────────────────────────────────
 
+// Unsaved edits have to reach the front end somehow, and it only reads files. Working from a
+// copy is safe precisely because neither `check` nor `tokens` runs the program: nothing in either
+// resolves a path relative to the source file, so the copy behaves identically to the original.
+// The prefix keeps two kinds of request from writing the same scratch file at the same moment.
+function materialize(document, prefix) {
+    if (!document.isDirty && !document.isUntitled)
+        return { target: document.uri.fsPath, cleanup: () => { } };
+
+    const scratch = path.join(os.tmpdir(),
+        `cufet-${prefix}-${process.pid}-${fingerprint(document.uri.toString())}.cufe`);
+    try {
+        fs.writeFileSync(scratch, document.getText(), 'utf8');
+        return { target: scratch, cleanup: () => { try { fs.unlinkSync(scratch); } catch { } } };
+    } catch {
+        return { target: document.uri.fsPath, cleanup: () => { } };   // fall back to what is on disk
+    }
+}
+
 function checkDocument(document) {
     if (document.languageId !== LANGUAGE) return;
 
@@ -90,26 +108,12 @@ function checkDocument(document) {
     const args     = ['check', '--json'];
     if (settings.get('checkNativeCompatibility', true)) args.push('--native');
 
-    // Unsaved edits have to reach the checker somehow, and it only reads files. Checking a
-    // copy is safe precisely because `check` never runs the program: nothing in it resolves a
-    // path relative to the source file, so the copy behaves identically to the original.
-    let target  = document.uri.fsPath;
-    let scratch = null;
-    if (document.isDirty || document.isUntitled) {
-        scratch = path.join(os.tmpdir(),
-            `cufet-check-${process.pid}-${fingerprint(document.uri.toString())}.cufe`);
-        try {
-            fs.writeFileSync(scratch, document.getText(), 'utf8');
-            target = scratch;
-        } catch {
-            scratch = null;   // fall back to whatever is on disk
-        }
-    }
+    const { target, cleanup } = materialize(document, 'check');
     args.push(target);
 
     cp.execFile(command, args, { timeout: CHECK_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 },
         (error, stdout, stderr) => {
-            if (scratch) { try { fs.unlinkSync(scratch); } catch { } }
+            cleanup();
 
             if (error && error.code === 'ENOENT') { reportMissingExecutable(command); return; }
 
@@ -174,6 +178,64 @@ function fingerprint(text) {
     return Math.abs(h).toString(36);
 }
 
+// ── Semantic tokens ───────────────────────────────────────────────────────
+//
+// What a TextMate grammar cannot know. A regex over one line has no way to tell whether a bare
+// word is a variable, a function, a type, a parameter or a field — and in a language whose surface
+// is English, most of a line IS bare words. `cufet tokens --json` answers that from the real front
+// end, so the colours agree with the type checker by construction rather than by resemblance.
+//
+// The names are the LSP standard ones, in the order src/Interpreter/SemanticTokens.cs declares.
+// That is what lets any colour theme handle them with no per-theme configuration here.
+const SEMANTIC_LEGEND = new vscode.SemanticTokensLegend(
+    ['namespace', 'type', 'parameter', 'variable', 'property', 'function'],
+    ['declaration']);
+
+const semanticTokensProvider = {
+    provideDocumentSemanticTokens(document) {
+        const command = resolveExecutable();
+        const { target, cleanup } = materialize(document, 'tokens');
+
+        return new Promise(resolve => {
+            cp.execFile(command, ['tokens', '--json', target],
+                { timeout: CHECK_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 },
+                (error, stdout) => {
+                    cleanup();
+
+                    // A file that does not type-check has no reliable kinds to report — `tokens`
+                    // exits non-zero and says nothing. The grammar keeps colouring it, and the
+                    // squiggles from `check` are what explain the problem.
+                    if (error && !stdout.trim()) { resolve(null); return; }
+
+                    const builder = new vscode.SemanticTokensBuilder(SEMANTIC_LEGEND);
+                    for (const rawLine of stdout.split(/\r?\n/)) {
+                        const text = rawLine.trim();
+                        if (!text.startsWith('{')) continue;
+
+                        let token;
+                        try { token = JSON.parse(text); } catch { continue; }
+                        if (!SEMANTIC_LEGEND.tokenTypes.includes(token.kind)) continue;
+
+                        // The producer counts lines and columns from 1; VS Code counts from 0.
+                        builder.push(token.line - 1, token.column - 1, token.length,
+                                     SEMANTIC_LEGEND.tokenTypes.indexOf(token.kind),
+                                     encodeModifiers(token.modifiers));
+                    }
+                    resolve(builder.build());
+                });
+        });
+    },
+};
+
+function encodeModifiers(names) {
+    let bits = 0;
+    for (const name of names || []) {
+        const index = SEMANTIC_LEGEND.tokenModifiers.indexOf(name);
+        if (index >= 0) bits |= 1 << index;
+    }
+    return bits;
+}
+
 // ── Commands ──────────────────────────────────────────────────────────────
 
 const quoteIfNeeded = value => /\s/.test(value) ? `"${value}"` : value;
@@ -221,7 +283,10 @@ function activate(context) {
             if (editor) checkDocument(editor.document);
         }),
         vscode.commands.registerCommand('cufet.run',   () => runInTerminal('Cufet run', [])),
-        vscode.commands.registerCommand('cufet.build', () => runInTerminal('Cufet build', ['build']))
+        vscode.commands.registerCommand('cufet.build', () => runInTerminal('Cufet build', ['build'])),
+
+        vscode.languages.registerDocumentSemanticTokensProvider(
+            { language: LANGUAGE }, semanticTokensProvider, SEMANTIC_LEGEND)
     );
 
     // Documents already open when the extension activates never fire onDidOpenTextDocument,

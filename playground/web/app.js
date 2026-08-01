@@ -112,8 +112,9 @@ async function startHighlighting() {
     if (!grammar) throw new Error('the Cufet grammar did not load');
 
     // The page's half of this theme is already applied — build.mjs emits it as theme-chrome.css,
-    // linked in the page head — so only the editor's half is set here.
-    monaco.editor.defineTheme('arctic-candy-darker', theme);
+    // linked in the page head — so only the editor's half is set here. semanticHighlighting is what
+    // lets the theme colour the layer below; without it Monaco ignores the provider entirely.
+    monaco.editor.defineTheme('arctic-candy-darker', { ...theme, semanticHighlighting: true });
     monaco.editor.setTheme('arctic-candy-darker');
 
     monaco.languages.setTokensProvider(LANGUAGE_ID, {
@@ -133,6 +134,76 @@ async function startHighlighting() {
             };
         },
     });
+
+    // The layer the grammar cannot reach. A regex cannot tell a variable from a function from a
+    // type in an English-like syntax, so this asks the real front end, in the worker, what each
+    // name IS. It sits on top of the TextMate pass rather than replacing it: keywords, strings and
+    // comments keep the colours they already had.
+    //
+    // The legend is spelled as SCOPES rather than as the LSP names the producer uses, because a
+    // standalone Monaco theme has no semantic-token defaults — it resolves a token by matching the
+    // type against its ordinary rules. Naming them this way means the theme already in hand colours
+    // every kind, with no second colour table to keep in step with the first.
+    monaco.languages.registerDocumentSemanticTokensProvider(LANGUAGE_ID, {
+        getLegend: () => SEMANTIC_LEGEND,
+        releaseDocumentSemanticTokens() { },
+        async provideDocumentSemanticTokens(model) {
+            // While a program is running the worker is inside a synchronous call and cannot answer,
+            // and after a Stop it no longer exists. Handing back the previous answer keeps the
+            // colours steady instead of dropping them for the length of a run.
+            const reply = await askRuntime('tokens', model.getValue());
+            if (reply === null) return lastSemanticTokens;
+            lastSemanticTokens = { data: encodeSemanticTokens(reply) };
+            return lastSemanticTokens;
+        },
+    });
+}
+
+// Order IS the wire format, and it mirrors SemanticTokenKind in src/Interpreter/SemanticTokens.cs.
+const SEMANTIC_LEGEND = {
+    tokenTypes: [
+        'entity.name.namespace',    // namespace — a book or its alias
+        'entity.name.type',         // type      — an object or interface name
+        'variable.parameter',       // parameter
+        'variable',                 // variable
+        'variable.other.property',  // property  — a field, getter or setter
+        'entity.name.function',     // function
+    ],
+    tokenModifiers: [],
+};
+
+const SEMANTIC_KIND_INDEX = {
+    namespace: 0, type: 1, parameter: 2, variable: 3, property: 4, function: 5,
+};
+
+let lastSemanticTokens = { data: new Uint32Array(0) };
+
+// Monaco wants one flat array of 5-tuples, each position stated as a delta from the one before it:
+// line relative to the previous token's line, and start column relative to the previous token's
+// column when they share a line. The producer already emits in position order, which is what makes
+// a single pass enough.
+function encodeSemanticTokens(jsonLines) {
+    const data = [];
+    let prevLine = 0, prevChar = 0;
+
+    for (const raw of jsonLines.split('\n')) {
+        const text = raw.trim();
+        if (!text.startsWith('{')) continue;
+
+        let token;
+        try { token = JSON.parse(text); } catch { continue; }
+
+        const index = SEMANTIC_KIND_INDEX[token.kind];
+        if (index === undefined) continue;
+
+        const line = token.line - 1, char = token.column - 1;   // the producer counts from 1
+        const deltaLine = line - prevLine;
+        data.push(deltaLine, deltaLine === 0 ? char - prevChar : char, token.length, index, 0);
+        prevLine = line;
+        prevChar = char;
+    }
+
+    return new Uint32Array(data);
 }
 
 const editor = monaco.editor.create(document.getElementById('editor'), {
@@ -194,7 +265,37 @@ function spawnWorker() {
     };
 }
 
+// Question-and-answer traffic that is not a program run — the semantic-token requests. Kept in its
+// own map so it never touches `running`, which the Run/Stop button depends on meaning exactly one
+// thing: a program is in flight.
+const asked = new Map();
+
+// Resolves null when the runtime cannot answer — not booted, busy inside a run, or killed by Stop.
+// Null means "no new answer", which the caller reads as "keep what you had".
+function askRuntime(kind, source) {
+    if (!booted || running !== null) return Promise.resolve(null);
+    return new Promise(resolve => {
+        const id = nextRunId++;
+        asked.set(id, resolve);
+        worker.postMessage({ id, kind, source });
+    });
+}
+
+// A terminated worker will never reply, so every question waiting on it has to be let go or the
+// caller waits forever.
+function abandonAsked() {
+    for (const resolve of asked.values()) resolve(null);
+    asked.clear();
+}
+
 function onWorkerMessage({ data }) {
+    const answer = asked.get(data.id);
+    if (answer) {
+        asked.delete(data.id);
+        answer(data.ok ? data.result : null);
+        return;
+    }
+
     if (data.ready) {
         booted = true;
         setBusy(false);
@@ -241,6 +342,7 @@ function stop() {
     // outside. The worker is then unusable, so a fresh one is started immediately and the next
     // Run waits for it — see the comment at the top of worker.js for why it has to be this way.
     worker.terminate();
+    abandonAsked();
     running = null;
     setOutput('Stopped.', 'empty');
     statusText.textContent = 'restarting the runtime…';

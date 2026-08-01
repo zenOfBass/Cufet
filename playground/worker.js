@@ -29,7 +29,9 @@ const runtime = exports.Cufet.Playground.Runtime;
 handle = ({ id, kind, source }) => {
     try {
         const started = performance.now();
-        const result = kind === 'check' ? runtime.Check(source) : runtime.Run(source);
+        const result = kind === 'check'  ? runtime.Check(source)
+                     : kind === 'tokens' ? runtime.Tokens(source)
+                     :                     runtime.Run(source);
         self.postMessage({ id, ok: true, result, elapsed: performance.now() - started });
     } catch (e) {
         // Run and Check both turn Cufet-level errors into ordinary return values, so anything

@@ -63,6 +63,35 @@ public static partial class Runtime
         }
     }
 
+    // The name-kind layer the TextMate grammar cannot produce — the same walk `cufet tokens` runs,
+    // so the page and the editor colour a name from one source of truth. One JSON object per line,
+    // matching the CLI's shape. A program that does not type-check has no reliable kinds to report,
+    // so it yields nothing rather than guesses: the squiggles from Check are the answer then.
+    [JSExport]
+    internal static string Tokens(string source)
+    {
+        try
+        {
+            var tokens  = new CufetLexer(source).Tokenize();
+            var program = new Parser(tokens).Parse();
+            var checker = new TypeChecker();
+            checker.Check(program);
+
+            var sb = new System.Text.StringBuilder();
+            foreach (var t in SemanticTokenizer.Collect(program, tokens, checker))
+                sb.Append("{\"line\":").Append(t.Line)
+                  .Append(",\"column\":").Append(t.Column)
+                  .Append(",\"length\":").Append(t.Length)
+                  .Append(",\"kind\":\"").Append(SemanticTokenLegend.NameOf(t.Kind))
+                  .Append("\"}\n");
+            return sb.ToString();
+        }
+        catch (Exception e) when (e is LexerException or ParseException or TypeException)
+        {
+            return "";
+        }
+    }
+
     private static string JsonString(string s)
     {
         var sb = new System.Text.StringBuilder(s.Length + 16).Append('"');
