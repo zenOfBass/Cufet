@@ -10,6 +10,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **A style linter, reporting through `check`.** Legal code that reads worse than it needs to. It
+  cannot produce an error — the checker answers "will this run", this answers "is this how you
+  would want to have written it", and the second question has no right to stop the first. Warnings
+  are non-fatal, so `check` still exits 0; `--strict` promotes them for a CI gate.
+
+- **First rule: start a line with a capital letter.** A statement reads as a sentence. Keywords are
+  case-insensitive, so `for each x in xs, repeat:` and `For each …` are the same program — which is
+  exactly why this belongs to a linter and not the parser.
+
+  ★ Only the half that needs no judgement ships. A line opening with a **keyword** can always be
+  capitalised and the fix is unambiguous. A line opening with a **variable's own name** is left
+  alone: capitalising it would rename it, so only an article could supply the capital, and whether
+  `The total becomes 5.` reads better than `total becomes 5.` is a judgement this pass cannot make.
+  That half is deliberately unimplemented rather than implemented badly.
+
+  The distinction is genuinely contextual, so the parser records it rather than the linter guessing:
+  `output 7.` opens with a keyword, while `output becomes 10.` opens with a variable that happens to
+  share the spelling. Suggesting a capital on the second would not improve it — it would break it.
+
 - **A REFERENCE chapter on recursive shapes** — how to write a node that holds nodes, why a field
   holding its own type by value cannot close, and why a container can. The refusal for the by-value
   form has existed since 0.11.0, but its error message was the only place the working alternative
@@ -20,6 +39,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   reports that as a warning and still exits 0, so it is caught before `build`.
 
 ### Changed
+
+- **The examples were brought in line with the capitalisation rule** — 17 lines across four files,
+  every one of them a keyword that was simply lowercase (`Return`, `Run`, `Item`, `For`, `Output`).
+  The linter found them and its own output drove the fix. Keywords are case-insensitive, so not one
+  program changed behaviour.
 
 - **`examples/arbtree.cufe` now builds an actual tree.** It encoded one as four parallel series
   with `-1` for "no child" — a real technique, but the workaround for a shape the language can

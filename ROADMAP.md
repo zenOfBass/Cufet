@@ -50,8 +50,15 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 1 — usable by someone other than the author
 
-1. **Style linter.** A layer separate from the parser, flagging legal-but-unclear code as
-   warnings and never errors. Intended rules so far:
+1. **Style linter — more rules.** The linter exists and reports through `check`; its first rule,
+   *start a line with a capital letter*, ships for every line that opens with a keyword. What
+   remains:
+   - ★ **The judgement half of that rule.** A line opening with a variable's own name can only
+     gain its capital from an article — `The total becomes 5.` — because capitalising the name
+     would rename it. Whether that article reads naturally is what the rule's last clause reserves,
+     and it is not something a pass over the source can decide. This needs either a way to judge it
+     or a decision that it stays advice for a human and is never flagged. Do not implement it by
+     guessing: a warning that suggests `The emit | show.` is worse than silence.
    - **Nested bare-`it` loops** — shadowing is legal and well defined (innermost wins), but a
      reader loses track.
    - **Changing the current directory in a rabbit that also spawns tasks.** The compiler refuses
@@ -59,21 +66,8 @@ Ordered by what unblocks what, not by size. Two framings set the order:
      doing it while its own tasks resolve relative paths is a genuine race and therefore
      undefined, so refusing would be over-strict — and would outlaw the safe ordering (change it
      *before* spawning) that the refusal message recommends. A warning is the right severity.
-   - ★ **Start a line with a capital letter whenever that is possible — even if an article has to
-     be added to make it so, and only where the article reads naturally.** Articles are noise to
-     the parser, so `The total becomes 5.` and `total becomes 5.` are one statement, and the first
-     one lets the line open like a sentence. The rule is written in that order deliberately: the
-     capital is the goal, the article is the means, and *reading naturally* is the limit on the
-     means. Where no article makes sense, the line stays as it is — a pipe statement is not
-     improved by `The emit | show.`, and a warning that pushes toward that is worse than silence.
-
-     This is a warning, never an error, precisely because the parser cannot tell an awkward article
-     from a natural one. The language deliberately does not enforce it, which is what leaves room
-     for the judgement the last clause asks for.
-
-     Two front-end changes were made to widen where the rule can be satisfied at all: `Output` and
-     `Seed` may be capitalised, which removed the only statements that were unable to comply.
-   - Suggesting multiline formatting of large record and object shapes.
+   - Suggesting multiline formatting of large record and object shapes. Needs a threshold for
+     "large", and that overlaps the formatter below — worth deciding which of the two owns it.
 2. ★ **An exhaustive switch.** The most common control flow the language still lacks — and the
    value is not brevity. An `Otherwise if` chain already says everything a switch says. What it
    cannot say is **these are all the cases**: add a case to a closed union today and nothing
