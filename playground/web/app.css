@@ -149,12 +149,20 @@ main {
     flex: 1;
     display: grid;
     grid-template-columns: 1fr 1fr;
+    /* Two rows — headers, then bodies — so both panes can hang their own head and body on the
+       same pair. Without this the panes size independently and the editor's head, which carries
+       the Run button, is taller than the output's, which carries only a label; the output would
+       then start a dozen pixels above the editor. */
+    grid-template-rows: auto 1fr;
     min-height: 0;   /* lets the panes scroll instead of stretching the page */
 }
 
 .pane {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    /* Adopt main's rows rather than inventing a pair, so the header row is the taller of the two
+       heads and both bodies begin on the same line. */
+    grid-row: span 2;
+    grid-template-rows: subgrid;
     min-width: 0;
     min-height: 0;
 }
@@ -280,6 +288,14 @@ button.is-stop {
     main {
         grid-template-columns: 1fr;
         grid-template-rows: 3fr 2fr;
+    }
+
+    /* Stacked, the two heads are never side by side, so there is nothing to line up — and one row
+       per pane leaves no pair to borrow. Back to a plain column. */
+    .pane {
+        display: flex;
+        flex-direction: column;
+        grid-row: auto;
     }
 
     #editor-pane {
