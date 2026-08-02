@@ -90,13 +90,32 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    argument for doing it first — a compiler written in Cufet is mostly single-subject dispatch on
    node type, so this buys a large share of the ergonomic blocker that item exists to remove, far
    cheaper, and shows which of that pain it does *not* cover before that design starts.
-3. **Formatter.**
+3. **Raw text — `<<…>>` and `exactly`.** Both were decided early and deferred, and are recorded as
+   a `DECIDED, DEFERRED` note in `src/Lexer/Lexer.cs`. The note says they wait until escape
+   sequences exist to contrast against; escapes are in use today, so the wait is over.
+
+   - **`<<…>>`** — a verbatim literal with distinct open and close delimiters, so a literal `"`
+     needs no escaping. Nestable by depth-counting `<<` and `>>`.
+   - **`exactly`** — a modifier (`exactly "…"`, `exactly <<…>>`) that suppresses interpretation.
+
+   ★ **Decide whether both earn their place before building either.** They overlap: if `<<…>>`
+   already suppresses everything then `exactly <<…>>` says nothing, and `exactly "…"` becomes a
+   second way to spell what `<<…>>` spells — the shape refused above for the Hadamard product and
+   made a condition of the switch. The real question is whether keeping `"` as the delimiter while
+   turning interpretation off is worth its own word, or whether one form should do the whole job.
+
+   **"Interpretation" here is wider than escapes.** Cufet interpolates, so `"{total} sold"` reads
+   `total` as a variable — a raw form has to suppress `{` as well as `\`, or it solves half the
+   problem. The cases that motivate the feature are full of both: a regex, a Windows path, embedded
+   JSON.
+
+4. **Formatter.**
 
 ### Tier 2 — leverage
 
-4. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+5. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
-5. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
+6. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
    tree, linked structure or wrapper cannot be looped over at all:
 
    ```
@@ -120,7 +139,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 Both need a design session before they can be ordered against anything. Neither is blocked by a
 numbered item; they are here because they are large, not because they are waiting.
 
-6. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+7. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
@@ -129,7 +148,7 @@ numbered item; they are here because they are large, not because they are waitin
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-7. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+8. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -169,14 +188,14 @@ numbered item; they are here because they are large, not because they are waitin
 
 ### Tier 4 — modules, strictly in this order
 
-8. **The `module` interface.** A named interface defining the contract for any loadable thing.
+9. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-9. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+10. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-10. **A package manager for books.**
+11. **A package manager for books.**
 
 ### Tier 5 — Cufet in Cufet
 
@@ -186,7 +205,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-11. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+12. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -194,7 +213,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-12. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
+13. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
@@ -202,7 +221,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-13. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+14. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
