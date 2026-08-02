@@ -2848,9 +2848,17 @@ public sealed class Parser
 
                 if (Peek().Type == TokenType.File)
                 {
+                    // Not a missing feature — a line read needs somewhere to keep its position, and
+                    // a path is not that. `read a line from the file "x"` would reopen and hand back
+                    // the first line every time. Opening it as a stream is the form that works, and
+                    // is what to name here: pointing at `read all` would send someone who is trying
+                    // NOT to load the whole file straight to the thing that loads the whole file.
                     if (stdinForm == ReadForm.Line)
-                        throw new ParseException(Peek(),
-                            "reading line-by-line from a file is not yet supported — use 'read all' or 'read all lines'");
+                        throw new ParseException(Peek().Line, Peek().Column,
+                            "a line has to be read from an open stream, not from a path — a path has nowhere to " +
+                            "remember how far you have read, so every read would hand back the first line. Open " +
+                            "it first: 'With the file \"x\" open for reading as src:', then 'read a line from src'. " +
+                            "('read all from the file \"x\"' needs no stream, because it keeps no position.)");
                     Advance(); // consume 'file'
                     SkipNoise();
                     // ParseExprOr not ParseExpression: stops before 'but on failure' / 'or pass
