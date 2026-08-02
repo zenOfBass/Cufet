@@ -2088,11 +2088,19 @@ For reading line-by-line, or writing incrementally, open the file as a stream
 and let Cufet close it automatically:
 
 ```
-With the file "data.txt" open for reading as stream:
-    Define line as read a line from stream.
-    State line.
+With the file "data.txt" open for reading as src:
+    Define first as read a line from src.
+    State first.
+    Define second as read a line from src.   ← the stream remembers where it got to
+    State second.
 Done.
 ```
+
+**A line can only be read from an open stream, never from a path.** A path has
+nowhere to remember how far you have read, so `read a line from the file "x"`
+would hand back the first line every time — it is refused, and the error names
+this form. Reading a whole file at once (`read all from the file "x"`) needs no
+stream, because there is no position to keep.
 
 ```
 With the file "out.txt" open for writing as log:

@@ -38,6 +38,19 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   interpreter never needs a fixed layout — and the native compiler refuses it. `check --native`
   reports that as a warning and still exits 0, so it is caught before `build`.
 
+### Fixed
+
+- **The REFERENCE example for reading a file line-by-line did not run.** It opened the stream `as
+  stream` — and `stream` is a reserved word, so the sample every reader would copy failed on its
+  first line with *"expected Identifier, got Stream"*. The feature was fine; only its example was
+  broken.
+
+- **The refusal for `read a line from the file "…"` said the wrong thing twice.** It claimed
+  line-by-line file reading was "not yet supported" — it has been all along, through
+  `With the file … open for reading as …` — and it pointed at `read all`, which loads the entire
+  file, the one thing someone asking for a single line is trying to avoid. It now explains that a
+  path has nowhere to remember how far you have read, and names the form that does.
+
 ### Changed
 
 - **The examples were brought in line with the capitalisation rule** — 17 lines across four files,
