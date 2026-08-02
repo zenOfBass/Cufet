@@ -125,7 +125,7 @@ With the file "log.txt" open for writing as log:
 
     Try to:
         Define the result as run "date".
-        Write the result's output to the log.
+        Write the output of result to the log.
     Done.
     In case of failure:
         Write "date command not found\n" to the log.
@@ -157,13 +157,13 @@ Done.
 **Pipe stages — producer feeds consumer directly:**
 ```
 Bind void to emit-numbers:
-    output 10.
-    output 20.
-    output 30.
+    Output 10.
+    Output 20.
+    Output 30.
 Done.
 
 Bind void to print-doubled:
-    For each n from the input, repeat:
+    For each n from the input:
         State n * 2.
     Done.
 Done.
@@ -173,8 +173,13 @@ emit-numbers | print-doubled.
 
 **Command substitution — compose shell commands:**
 ```
-Define result as run "git" with arguments ("log", "--oneline", "-5").
-State the result's output.
+Try to:
+    Define result as run "git" with arguments ("log", "--oneline", "-5").
+    State the output of result.
+Done.
+In case of failure:
+    State "git not available".
+Done.
 ```
 
 For the language in depth — every statement, the type system, records, objects,

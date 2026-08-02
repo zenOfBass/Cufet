@@ -38,7 +38,48 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   interpreter never needs a fixed layout — and the native compiler refuses it. `check --native`
   reports that as a warning and still exits 0, so it is caught before `build`.
 
+### Added
+
+- **`from <map>, the entry for <key>`** — the map-first way to read an entry, alongside the
+  existing `the entry for <key> in <map>`. `from the map ages, …` is accepted too.
+
+  This closes a real asymmetry rather than adding a synonym: **writing** an entry has only the
+  map-first order — `In ages, the entry for "alice" becomes 30` — and there is no trailing form for
+  it. So before this, reading and writing the same entry had to be said in opposite orders, with
+  neither operation offering the other's. It was in the original map spec as the "optional leading
+  form", and was documented in REFERENCE without ever being built.
+
+  Parser-only: it produces the same lookup node as the trailing form, so both backends got it with
+  no codegen change, and `check --native` and the compiled binary agree by construction.
+
 ### Fixed
+
+- **`tools/doc-sweep.py`** — extracts every fenced code block from README, GRAMMAR and REFERENCE
+  and runs `cufet check` on it, grouping failures by error shape. `--strict` exits 1 for CI. This
+  is the sweep below, kept rather than thrown away: doc rot accumulates silently, and reading does
+  not catch it.
+
+- **Every code block in README, GRAMMAR and REFERENCE was extracted and run.** 262 blocks; the ones
+  that are real programs now execute. Six were broken, and they fall into three kinds:
+
+  - **A form that was documented but never built.** `Define x as from ages, the entry for "k".` —
+    the "leading-from form" for map lookup. No parser support, no mention in GRAMMAR, and it does
+    not parse. Removed.
+  - **Samples naming things with reserved words**, which a reader copying them cannot run:
+    `Bind number to add …` (`add` opens a statement), `Define a as a matrix …` (`a` is an article),
+    and `Define contents as read all …` (`contents` is a keyword).
+  - **Possessive access on a record.** README and REFERENCE both showed `result's output` for a
+    subprocess result, but `run` returns a *record* and `'s` requires an object. The working form is
+    `the output of result`. REFERENCE now says so explicitly.
+
+  Also removed a note describing a `converted to text` parser quirk in possessive position: it does
+  not reproduce, and the expression it warned about is a type error for a separate reason.
+
+  ★ The lesson is the one the sweep exists for — every one of these had been read many times and
+  none had been run.
+
+- **The README pipe example mixed two loop forms.** A pipe consumer takes `For each n from the
+  input:`; the sample wrote `, repeat:`, which is the series form, so it did not parse.
 
 - **The REFERENCE example for reading a file line-by-line did not run.** It opened the stream `as
   stream` — and `stream` is a reserved word, so the sample every reader would copy failed on its

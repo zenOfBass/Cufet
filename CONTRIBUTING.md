@@ -168,6 +168,16 @@ until it listed shipped features as planned.
 | **A backend divergence found or closed** | **CHANGELOG.md, and the rule below** |
 | Released (minor version bump) | CHANGELOG.md, README.md line 1, REFERENCE.md header, **all four `.csproj` files**, `playground/package.json`, `editors/vscode/package.json` |
 
+**Run any code sample you write into a doc.** `python tools/doc-sweep.py` extracts every fenced
+block from README, GRAMMAR and REFERENCE and runs `cufet check` on it. It has found samples naming
+variables with reserved words, a form documented but never implemented, and possessive access used
+on a record — none of which reading had caught, over many readings. A sample that does not run is
+worse than no sample: a reader copies it, it fails, and they conclude the language is broken.
+
+Not every failure it reports is a bug. Fragments (a block opening without its `Done.`), GRAMMAR's
+deliberate counter-examples, and non-Cufet blocks are expected; the output groups failures by error
+shape so the real ones stand out. `--strict` exits 1 for CI, once those are driven out.
+
 **ROADMAP.md records only what is *not yet done*.** When an item ships, delete it from
 the roadmap — its record is the CHANGELOG entry, and its rationale is DESIGN.md. Leaving
 a shipped item behind is how the file becomes fiction.

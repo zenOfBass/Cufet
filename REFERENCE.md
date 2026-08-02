@@ -719,8 +719,13 @@ required without the types, since `a map.` has neither an annotation nor entries
 **Lookup** — returns `voidable <value-type>` (the key might be absent):
 ```
 Define alice-age as the entry for "alice" in ages.        ← a voidable number
-Define alice-age as from ages, the entry for "alice".     ← leading-from form
+Define alice-age as from ages, the entry for "alice".     ← the same, map first
+Define alice-age as from the map ages, the entry for "alice".   ← explicit form
 ```
+
+The map-first form exists because **writing** a map has only that order — `In ages, the entry
+for "alice" becomes 30` — so without it, reading and writing the same entry would have to be
+said in opposite orders.
 
 **Set** — reuses `becomes`:
 ```
@@ -1490,8 +1495,8 @@ Declarations are free-standing and top-level, not members of the object.
 
 **Declaration:**
 ```
-Bind number to add, given (the number a, the number b):
-    Return a + b.
+Bind number to plus, given (the number x, the number y):
+    Return x + y.
 Done.
 
 Bind void to greet, given (the text name):
@@ -1510,7 +1515,7 @@ any order and may recurse.
 
 **Calling:**
 ```
-State cast add on (3, 4).          ← in expression position
+State cast plus on (3, 4).         ← in expression position
 Cast greet on ("hello").           ← as a statement (void or discarded result)
 ```
 
@@ -1528,7 +1533,7 @@ its end without returning is a compile-time error.
 
 **Functions are first-class values:**
 ```
-Define op as add.
+Define op as plus.
 State cast op on (3, 4).           → 7
 ```
 
@@ -1963,8 +1968,8 @@ group:
 
 ```
 Try to:
-    Define contents as read all from the file "data.txt".
-    State contents.
+    Define body as read all from the file "data.txt".
+    State body.
 Done.
 In case of failure:
     State "could not open file: " joined to the message of the failure.
@@ -2146,15 +2151,18 @@ Done.
 ```
 Try to:
     Define result as run "git" with arguments ("log", "--oneline", "-5").
-    State result's output.
-    If result's exit-code is not 0:
-        State "stderr: " joined to result's errors.
+    State the output of result.
+    If the exit-code of result is not 0:
+        State "stderr: " joined to the errors of result.
     Done.
 Done.
 In case of failure:
     State "git not available".
 Done.
 ```
+
+The result is a **record**, so its fields are read with `the <field> of <record>`.
+Possessive `'s` is for objects and is a static error here.
 
 `run <program>` and `run <program> with arguments (<arg1>, <arg2>, ...)`
 return a result record with three fields:
@@ -2175,10 +2183,6 @@ Failure categories: `"not-found"`, `"permission-denied"`, `"io-error"`.
 Arguments are passed as individual strings to the OS — no shell is invoked and
 shell injection is structurally impossible. The program name is any text
 expression.
-
-> **Note:** `result's exit-code converted to text` mis-parses (a parser quirk
-> with `converted to text` in possessive-access position). Workaround: extract
-> first — `Define code as result's exit-code. State code converted to text.`
 
 #### Environment variables
 

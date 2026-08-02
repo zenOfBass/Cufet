@@ -667,10 +667,10 @@ Every Cufet type falls into one of two categories that determine what `Define` a
 
 ### The mental model
 
-> **Value type?** `Define b as a.` gives `b` a fresh, independent copy. Changes to `b`
-> leave `a` untouched.
+> **Value type?** `Define copy as original.` gives `copy` a fresh, independent one. Changes to
+> `copy` leave `original` untouched.
 >
-> **Reference type?** `Define b as a.` gives `b` another name for the same collection.
+> **Reference type?** `Define copy as original.` gives `copy` another name for the same collection.
 > Mutating through either name mutates both.
 
 ```
@@ -940,16 +940,16 @@ without `but on failure <default>` is a static type error:
 
 ```
 Pull a book on collections.
-    Define a as a matrix with ((1, 2), (3, 4)).
-    Define b as a matrix with ((5, 6), (7, 8)).
-    Define c as a + b.             ← TYPE ERROR: matrix '+' can fail — you must handle the failure
+    Define lhs as a matrix with ((1, 2), (3, 4)).
+    Define rhs as a matrix with ((5, 6), (7, 8)).
+    Define sum as lhs + rhs.       ← TYPE ERROR: matrix '+' can fail — you must handle the failure
     Try to:
-        Define c as a + b.         ← OK — inside Try block
+        Define sum as lhs + rhs.   ← OK — inside Try block
     Done.
     In case of failure:
         State "dimension mismatch".
     Done.
-    Define c as a + b but on failure (a matrix with 2 by 2).  ← OK — inline handler
+    Define sum as lhs + rhs but on failure (a matrix with 2 by 2).  ← OK — inline handler
 Done.
 ```
 
