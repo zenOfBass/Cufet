@@ -3,14 +3,14 @@ Bind fact to is-safe, given (the series of number board, the number column):
     Define counter as 1.
     While counter is less than row, repeat:
         Define other-column as item counter of board.
-        Define diff as row - counter.
+        Define difference as row - counter.
         If other-column is column:
             Return 1 = 0.
         Done.
-        If column - other-column is diff:
+        If column - other-column is difference:
             Return 1 = 0.
         Done.
-        If other-column - column is diff:
+        If other-column - column is difference:
             Return 1 = 0.
         Done.
         The counter becomes counter + 1.
