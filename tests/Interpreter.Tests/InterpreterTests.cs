@@ -5239,6 +5239,52 @@ public class InterpreterTests
     // `a catalogue of (…).` and `an atlas from … to (…).` all already worked.
 
     [Fact]
+    public void Map_LeadingFromLookup_MatchesTrailingForm()
+    {
+        // `from m, the entry for k` is the map-first way to read, mirroring `In m, … becomes v`,
+        // which is the only way to write. Without it the two operations read in opposite orders.
+        Assert.Equal("30", Run(
+            "Define ages as a map with (\"alice\" : 30).\n" +
+            "State from ages, the entry for \"alice\"."));
+    }
+
+    [Fact]
+    public void Map_LeadingFromLookup_AcceptsTheExplicitForm()
+    {
+        Assert.Equal("30", Run(
+            "Define ages as a map with (\"alice\" : 30).\n" +
+            "State from the map ages, the entry for \"alice\"."));
+    }
+
+    [Fact]
+    public void Map_LeadingFromLookup_IsVoidOnAMiss()
+    {
+        Assert.Equal("void", Run(
+            "Define ages as a map with (\"alice\" : 30).\n" +
+            "State from ages, the entry for \"nobody\"."));
+    }
+
+    [Fact]
+    public void Map_LeadingAndTrailingLookup_AgreeAfterAWrite()
+    {
+        Assert.Equal("40\n40", Run(
+            "Define ages as a map with (\"alice\" : 30).\n" +
+            "In ages, the entry for \"carol\" becomes 40.\n" +
+            "State from ages, the entry for \"carol\".\n" +
+            "State the entry for \"carol\" in ages."));
+    }
+
+    [Fact]
+    public void FromStillMeansWhatItDidEverywhereElse()
+    {
+        // `from` leads an expression only here; every other use has something in front of it.
+        Assert.Equal("2", Run(
+            "Define xs as a series of number with (1, 2, 3).\n" +
+            "Remove 1 from xs.\n" +
+            "State the number of xs."));
+    }
+
+    [Fact]
     public void Map_TypedWithoutWith_IsEmptyMap()
     {
         Assert.Equal("0", Run("Define m as a map from text to number. State the size of m."));

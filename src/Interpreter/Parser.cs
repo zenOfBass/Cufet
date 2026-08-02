@@ -1132,6 +1132,26 @@ public sealed class Parser
     // ── Maps ──────────────────────────────────────────────────────────────────
 
     // "in <map>, the entry for <key> becomes <value>."
+    // from <map>, the entry for <key>          — the map-first lookup.
+    // Deliberately shaped like ParseMapSetStatement below, which it mirrors: same `<map>, the entry
+    // for <key>` phrase, one reading it and one writing it.
+    private IExpression ParseLeadingMapLookup()
+    {
+        var fromTok = Consume(TokenType.From);
+        SkipNoise();                       // 'the' in `from the map ages, …` is noise like anywhere else
+        if (Peek().Type == TokenType.Map) { Advance(); SkipNoise(); }
+        var mapExpr = ParsePostfix();
+        SkipNoise();
+        Consume(TokenType.Comma);
+        SkipNoise();                       // eats the 'the' before 'entry'
+        Consume(TokenType.Entry);
+        SkipNoise();
+        Consume(TokenType.For);
+        SkipNoise();
+        var keyExpr = ParseExpression();
+        return new MapLookup(mapExpr, keyExpr, fromTok.Line, fromTok.Column);
+    }
+
     private IStatement ParseMapSetStatement()
     {
         var lineTok = Consume(TokenType.In);
@@ -2057,6 +2077,16 @@ public sealed class Parser
 
     private IExpression ParseCorePrimary()
     {
+        // 'from <map>, the entry for <key>' — the map-first way to say a lookup, and the mirror of
+        // `In <map>, the entry for <key> becomes <v>`, which is the only way to say a write. Without
+        // it the two operations read in opposite orders: the map comes last to read it and first to
+        // change it. Same node as the trailing form, so nothing downstream knows the difference.
+        //
+        // Expression-initial `from` means nothing else — every other use (`remove x from xs`,
+        // `read all from the file`, `for each x from the input`) has something in front of it.
+        if (Peek().Type == TokenType.From)
+            return ParseLeadingMapLookup();
+
         // 'the <name> of <expr>' → named record field access.
         // Checked BEFORE SkipNoise so we can still see the leading 'the'.
         // 'the first of s' is not named access: ordinal-word identifiers are excluded from
