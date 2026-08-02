@@ -25,7 +25,7 @@ Bind fact to permitted, given (the text name):
     If name is "date",  return true.
     If name is "ls",    return true.
     If name is "which", return true.
-    return false.
+    Return false.
 Done.
 
 /* A child's stderr is worth seeing before its stdout — an error explains an empty

@@ -17,8 +17,8 @@ Define the object deck with (the series of card cards):
             Define j as (current-seed % i) + 1.
             Define temp as item i of one's cards.
             Define card-j as item j of one's cards.
-            item i of one's cards becomes card-j.
-            item j of one's cards becomes temp.
+            Item i of one's cards becomes card-j.
+            Item j of one's cards becomes temp.
             i becomes i - 1.
         Done.
     Done.
