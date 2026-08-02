@@ -15,8 +15,12 @@
 <body>
   <header class="bar">
     <div class="brand">
-      <!-- U+1F407 RABBIT. Not U+1F998, which is a kangaroo, and which was here first. -->
-      <span class="mark" aria-hidden="true">&#128007;</span>
+      <!-- U+1F407 RABBIT. Not U+1F998, which is a kangaroo, and which was here first.
+           Noto's own artwork rather than the character, so the rabbit is the same rabbit on every
+           platform instead of whichever one the visitor's emoji font draws. Empty alt because it
+           is decoration beside the name, not information; width/height so the header does not
+           shift when it arrives. -->
+      <img class="mark" src="./rabbit.svg" alt="" width="20" height="20">
       <h1>Cufet</h1>
       <span class="tagline">a natural-language systems programming language</span>
     </div>
@@ -48,9 +52,10 @@
   <footer class="colophon">
     <span>Cufet runs entirely in your browser. Nothing is sent to a server.</span>
     <span>
-      Set in <a href="https://www.jetbrains.com/lp/mono/">JetBrains Mono</a> (OFL&#8209;1.1) and
+      Set in <a href="https://www.jetbrains.com/lp/mono/">JetBrains Mono</a> (OFL&#8209;1.1),
       coloured with <a href="https://github.com/KenanSalar">Kenan Salar</a>&#8217;s
-      <strong>Arctic Candy Darker</strong> (MIT).
+      <strong>Arctic Candy Darker</strong> (MIT), and led by a rabbit from
+      <a href="https://github.com/googlefonts/noto-emoji">Noto Emoji</a> (OFL&#8209;1.1).
     </span>
   </footer>
 

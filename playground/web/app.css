@@ -104,9 +104,12 @@ body {
     min-width: 0;
 }
 
+/* An image now, not a glyph, so it is sized rather than set. .brand aligns on the baseline, and a
+   replaced element's baseline is its bottom edge — which puts the rabbit on the same line the
+   wordmark sits on, where the emoji used to be. */
 .mark {
-    font-size: 20px;
-    line-height: 1;
+    width: 20px;
+    height: 20px;
 }
 
 .brand h1 {

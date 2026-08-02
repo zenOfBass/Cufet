@@ -19,6 +19,10 @@ const TYPES = {
     '.css':  'text/css; charset=utf-8',
     '.json': 'application/json; charset=utf-8',
     '.wasm': 'application/wasm',
+    // Without this the rabbit falls through to octet-stream, and a browser will not render an
+    // <img> it was handed as a binary blob. Pages gets this right on its own, so the omission
+    // would have shown up only here — working deployed, broken locally.
+    '.svg':  'image/svg+xml',
     '.dat':  'application/octet-stream',
     '.ttf':  'font/ttf',
     '.woff2':'font/woff2',

@@ -129,6 +129,12 @@ for (const file of FONT_FILES) {
 for (const file of ['index.html', 'app.css'])
     await cp(join(here, 'web', file), join(out, file));
 
+// The rabbit, as artwork rather than as the character U+1F407. A character is drawn by whatever
+// emoji font the visitor's OS ships, so the one mark on the page was a different animal on Windows,
+// Android and iOS. Shipping Noto's own SVG pins it. Copied from vendor/ rather than kept in web/ so
+// the asset has one home, next to the licence it arrived with.
+await cp(join(here, 'vendor', 'noto-emoji', 'emoji_u1f407.svg'), join(out, 'rabbit.svg'));
+
 // GitHub Pages runs everything through Jekyll unless told not to, and Jekyll drops files and
 // folders whose names begin with an underscore. The runtime lives in _framework/, so without
 // this the deployed site is a page that cannot find .NET.
