@@ -112,11 +112,16 @@ static void Check(string[] rest)
 
     var checker = new TypeChecker();
     Cufet.Interpreter.Program program;
+    IReadOnlyList<Diagnostic> style;
     try
     {
         var tokens = new Lexer(source).Tokenize();
-        program = new Parser(tokens).Parse();
+        var parser = new Parser(tokens);
+        program = parser.Parse();
         checker.Check(program);
+        // Style is judged on a program that parses and type-checks. Advising someone on how a line
+        // reads while it is still wrong would bury the thing they actually need to fix.
+        style = Linter.Lint(tokens, parser.StatementStarts);
     }
     catch (Exception e) when (e is LexerException or ParseException or TypeException)
     {
@@ -126,6 +131,7 @@ static void Check(string[] rest)
     }
 
     var warnings = new List<Diagnostic>(checker.Diagnostics.Items);
+    warnings.AddRange(style);
 
     // Codegen refusals are compiler-only. The interpreter runs these programs happily, so they
     // are a warning — "this won't build natively" — and not an error. Most carry no position, so

@@ -27,9 +27,22 @@ public sealed class Parser
         return new Program(stmts);
     }
 
+    // Where every statement began, in source order, and whether the word it began with is acting as
+    // a KEYWORD there rather than as a name. Recorded here because this is the only place that
+    // knows both. A statement's position cannot be recovered from the tree (ten node types carry no
+    // position at all), nor from the tokens alone — `the` and `with` open statements and also appear
+    // midway through them. And the keyword question is genuinely contextual: in `output 7.` the word
+    // opens a statement, while in `output becomes 10.` it is a variable of that name, so only the
+    // discrimination this method already performs can tell them apart.
+    private readonly List<(int Line, int Column, bool KeywordLed)> _statementStarts = [];
+    public IReadOnlyList<(int Line, int Column, bool KeywordLed)> StatementStarts => _statementStarts;
+
     private IStatement ParseStatement()
     {
         var tok = Peek();
+        bool keywordLed = tok.Type != TokenType.Identifier
+                          || IsOutputStatement() || IsSeedStatement() || IsCurrentDirectorySet();
+        _statementStarts.Add((tok.Line, tok.Column, keywordLed));
         return tok.Type switch
         {
             TokenType.State      => ParseStateStatement(),
