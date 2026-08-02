@@ -53,6 +53,7 @@ deliberate differences are marked where they arise and summarised under
     - [Getters and setters](#getters-and-setters)
     - [Named constructors](#named-constructors)
     - [Destructors](#destructors)
+    - [Recursive shapes](#recursive-shapes)
   - [Operator overloading](#operator-overloading)
   - [Functions](#functions)
     - [Closures](#closures)
@@ -1353,6 +1354,91 @@ Rules:
 - **Ownership rule** — destroy what you opened, not what you borrowed. A resource
   passed in from outside is the caller's responsibility; closing it in the destructor
   is a double-close bug.
+
+---
+
+#### Recursive shapes
+
+A tree needs a node that holds nodes. Written directly, that does not work:
+
+```
+Define object node with (the text label, the voidable node next).
+```
+
+An object is a **value** — its fields are stored inline, one after another. A node
+containing a node contains a node, and so on with no end, so the type has no finite
+size. Wrapping it in `voidable` changes nothing: `voidable node` still has to reserve
+room for a whole node. The same is true of a record containing one, or a catalogue
+case.
+
+**Hold the children in a container instead.** A series is a *reference* — the object
+stores a pointer to elements that live elsewhere — so the type closes:
+
+```
+Define object node with (the text label, the series of node children).
+```
+
+That is the whole rule. The indirection is what makes a recursive shape possible,
+and a container is how Cufet spells indirection.
+
+**A worked tree**, evaluating `2 + 3 * 4` — this is
+[`examples/arbtree.cufe`](examples/arbtree.cufe):
+
+```
+Define object expr with (the text kind, the number value, the series of expr kids).
+
+Bind number to eval, given (the expr e):
+    If the kind of e is "num", return the value of e.
+    Define lv as Cast eval on (item 1 of the kids of e).
+    Define rv as Cast eval on (item 2 of the kids of e).
+    If the kind of e is "add", return lv + rv.
+    If the kind of e is "mul", return lv * rv.
+    Return 0.
+Done.
+
+Define three as a new expr { the kind "num", the value 3, the kids a series of expr }.
+Define four  as a new expr { the kind "num", the value 4, the kids a series of expr }.
+Define product as a new expr { the kind "mul", the value 0,
+                               the kids a series of expr with (three, four) }.
+```
+
+Three things fall out of the shape:
+
+- **A leaf is a node with no children**, not a different type. `a series of expr`
+  with no `with (…)` is the empty one.
+- **Children can be attached later.** A node's `children` is an ordinary series, so
+  `Add kid to the children of parent.` works and the tree can be grown top-down.
+- ★ **But a child is stored by copy.** Objects are values, and a series holds what it
+  was given — not a link to it. So this prints `after` then `before`:
+
+  ```
+  Add kid to the children of parent.
+  kid's label becomes "after".
+  State kid's label.                                    ← after
+  State the label of item 1 of the children of parent.  ← before
+  ```
+
+  Finish a subtree before attaching it. Editing a node after it is in the tree edits
+  the one you are holding, not the one the tree has.
+
+**The `voidable` trap — the two backends differ here, and deliberately.** A
+self-referential field *runs interpreted*, because the interpreter holds values in a
+scope dictionary and never needs a fixed layout. The native compiler cannot, and
+refuses rather than emitting something that does not compile:
+
+```
+'node' contains itself directly, and a value of it would have no fixed size. …
+Hold the nested values in a container instead: `the series of node children` works,
+because a series is a reference. A recursive shape needs that indirection.
+```
+
+`cufet check --native` reports this as a **warning** and still exits 0 — the program
+does run, just not compiled. `cufet build` refuses outright. If a program is meant to
+compile, check it with `--native` and this is caught before you reach the compiler.
+
+**For a plain sequence, use a series.** The recursive shape earns its keep when a node
+branches — a tree, an expression, a nested document. A linked list of one-child nodes
+is a series written the hard way.
 
 ---
 

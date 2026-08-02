@@ -8,6 +8,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+- **A REFERENCE chapter on recursive shapes** — how to write a node that holds nodes, why a field
+  holding its own type by value cannot close, and why a container can. The refusal for the by-value
+  form has existed since 0.11.0, but its error message was the only place the working alternative
+  was written down.
+
+  It documents the backend split honestly: a self-referential field **runs interpreted** — the
+  interpreter never needs a fixed layout — and the native compiler refuses it. `check --native`
+  reports that as a warning and still exits 0, so it is caught before `build`.
+
+### Changed
+
+- **`examples/arbtree.cufe` now builds an actual tree.** It encoded one as four parallel series
+  with `-1` for "no child" — a real technique, but the workaround for a shape the language can
+  express directly. It now holds children in a `series of expr` and evaluates by walking itself.
+  Same program, same output; the examples no longer imply Cufet cannot express a tree.
+
 ## [0.12.0] — 2026-08-01
 
 0.11.0 made Cufet usable by someone who is not its author. **0.12.0 makes it explain itself.**

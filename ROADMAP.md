@@ -220,9 +220,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
 Approach B parser-hardening · a formal
 soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary · a performance number against C · design patterns as a book · an in-memory
-filesystem for the playground · a REFERENCE chapter on recursive shapes (a node holds its
-children in a `series of node`, which is a reference and so closes the type; holding one by
-value does not, and the compiler says so).
+filesystem for the playground
 
 **A logic-gates book** — circuit composition over `bits`: gates as components you wire together,
 rather than the operators `bits` already shipped.
