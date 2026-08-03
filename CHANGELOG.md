@@ -72,6 +72,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   interpreter never needs a fixed layout — and the native compiler refuses it. `check --native`
   reports that as a warning and still exits 0, so it is caught before `build`.
 
+### Fixed
+
+- **Highlighting split capitalised words down the middle.** The grammar's catch-all identifier rule
+  matched `[a-z][A-Za-z0-9-]*` with no leading boundary, so in `Output` the engine failed at `O`,
+  succeeded at `u`, and coloured `utput` as a variable — leaving the capital unscoped. It could not
+  bite before this release: every capitalised word was already claimed by a keyword rule, and making
+  `output` and `seed` capitalisable created the first ones that were not. Anchored with
+  `(?<![\w-])`, the same guard the neighbouring rules already used. Both editors read this one file,
+  so the fix reaches the extension and the playground together.
+
+- **`Output` and `seed` were coloured inconsistently, each wrong in the opposite direction.**
+  `output` was in no keyword rule, so the statement form went uncoloured; `seed` was in the
+  case-insensitive statement-verb list, so a variable named `seed` was painted as a keyword — the
+  precise thing that word was unreserved to allow.
+
+  Both now match **capitalised only, case-sensitively**. An identifier must start lowercase, so
+  `Output` can only ever be the statement and that half is decidable with no context. The lowercase
+  spelling is genuinely ambiguous, and it falls through to the identifier rule and reads as a name —
+  the safer of the two available wrongs, since repainting someone's variable as a keyword suggests a
+  word is reserved when the point of unreserving it was that it is not.
+
 ### Added
 
 - **`from <map>, the entry for <key>`** — the map-first way to read an entry, alongside the
