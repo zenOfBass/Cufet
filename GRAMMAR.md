@@ -1566,6 +1566,14 @@ you need a family of helpers sharing a common context.
 **Mutual recursion still works**: top-level functions can call each other freely,
 because they see other `Bind`-defined functions (though not `Define`d data).
 
+⚠ **Top level only, when compiling.** A `Bind` nested inside a rabbit or another function is a
+closure, and the native compiler emits it where it stands — so it cannot call a name declared
+further down the same block, and two nested functions that call each other cannot both come
+first. Interpreted the same program runs, because the interpreter looks the name up when the
+call happens; the compiler refuses with a message saying so. Self-recursion nested inside a
+block is fine, and so is mutual recursion at the top level. **Declare mutually recursive
+functions at the top level** and both backends agree.
+
 ### `Return a failure.` re-propagates; `Return a failure "msg".` originates
 
 The parser checks whether a **string literal** immediately follows `failure`:

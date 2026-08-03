@@ -74,6 +74,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **An unresolved call blamed a typo for what was a forward reference.** A `Bind` nested inside a
+  rabbit is a closure and the compiler emits it where it stands, so it cannot call a name declared
+  further down the same block — and two nested functions that call each other cannot both come
+  first. The refusal is legitimate; the message was not. It read *"'is-odd': unresolved call — not
+  a known function or method"* about a function declared six lines below, sending the reader to
+  hunt for a misspelling instead of moving the pair to the top level, where mutual recursion works
+  on both backends. Found by writing a program in Cufet rather than by inspection.
+
+  A name that genuinely is bound nowhere keeps the blunt message, so the fix does not trade one
+  misleading sentence for another. GRAMMAR now records the nested-versus-top-level distinction,
+  which it previously left to be discovered.
+
 - **Text positions disagreed between the backends on any non-ASCII string.** The interpreter
   counted UTF-16 code units and the native compiler counted bytes, so the same program gave
   different answers depending on which backend ran it — the exact thing the no-divergence rule
