@@ -135,7 +135,7 @@ point, and it matters most for a union:
 
 ```
 Define the (number or text) x as 42.
-x becomes "hello".                     ← legal: x holds either
+The x becomes "hello".                     ← legal: x holds either
 ```
 
 `Define x as 42.` would make `x` a number, and the reassignment a type error.
@@ -1466,7 +1466,7 @@ Three things fall out of the shape:
 
   ```
   Add kid to the children of parent.
-  kid's label becomes "after".
+  The kid's label becomes "after".
   State kid's label.                                    ← after
   State the label of item 1 of the children of parent.  ← before
   ```
@@ -2401,7 +2401,7 @@ Done.
 Define outer as a series of number with ().
 Pull a rabbit.
     Define inner as a series of number with (1, 2, 3).
-    outer becomes Cast smuggle on (inner).    ← REJECTED
+    The outer becomes Cast smuggle on (inner).    ← REJECTED
 Done.
 ```
 
