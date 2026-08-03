@@ -50,25 +50,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 1 — usable by someone other than the author
 
-1. **Style linter — more rules.** The linter exists and reports through `check`; its first rule,
-   *start a line with a capital letter*, ships for every line that opens with a keyword. What
-   remains:
-   - ★ **The judgement half of that rule.** A line opening with a variable's own name can only
-     gain its capital from an article — `The total becomes 5.` — because capitalising the name
-     would rename it. Whether that article reads naturally is what the rule's last clause reserves,
-     and it is not something a pass over the source can decide. This needs either a way to judge it
-     or a decision that it stays advice for a human and is never flagged. Do not implement it by
-     guessing: a warning that suggests `The emit | show.` is worse than silence.
-   - **Nested bare-`it` loops** — shadowing is legal and well defined (innermost wins), but a
-     reader loses track.
-   - **Changing the current directory in a rabbit that also spawns tasks.** The compiler refuses
-     this *inside a task*, where copy-versus-share has two well-defined answers. A rabbit body
-     doing it while its own tasks resolve relative paths is a genuine race and therefore
-     undefined, so refusing would be over-strict — and would outlaw the safe ordering (change it
-     *before* spawning) that the refusal message recommends. A warning is the right severity.
-   - Suggesting multiline formatting of large record and object shapes. Needs a threshold for
-     "large", and that overlaps the formatter below — worth deciding which of the two owns it.
-2. ★ **An exhaustive switch.** The most common control flow the language still lacks — and the
+1. ★ **An exhaustive switch.** The most common control flow the language still lacks — and the
    value is not brevity. An `Otherwise if` chain already says everything a switch says. What it
    cannot say is **these are all the cases**: add a case to a closed union today and nothing
    reports which chains are now incomplete.
@@ -90,7 +72,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    argument for doing it first — a compiler written in Cufet is mostly single-subject dispatch on
    node type, so this buys a large share of the ergonomic blocker that item exists to remove, far
    cheaper, and shows which of that pain it does *not* cover before that design starts.
-3. **Raw text — `<<…>>` and `exactly`.** Both were decided early and deferred, and are recorded as
+2. **Raw text — `<<…>>` and `exactly`.** Both were decided early and deferred, and are recorded as
    a `DECIDED, DEFERRED` note in `src/Lexer/Lexer.cs`. The note says they wait until escape
    sequences exist to contrast against; escapes are in use today, so the wait is over.
 
@@ -109,13 +91,18 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    problem. The cases that motivate the feature are full of both: a regex, a Windows path, embedded
    JSON.
 
-4. **Formatter.**
+3. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
+   briefly a linter rule and is not one. Both tools would need the same "how large is large"
+   threshold, and one number owned in two places is one number that drifts. The severity settles
+   it too: every other linter rule flags something a tool cannot fix for you — nesting you have to
+   rename your way out of, an ordering you have to rethink, a capital you have to type. Layout is
+   pure mechanism, so a warning about it is noise next to a tool that simply does it.
 
 ### Tier 2 — leverage
 
-5. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+4. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
-6. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
+5. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
    tree, linked structure or wrapper cannot be looped over at all:
 
    ```
@@ -139,7 +126,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 Both need a design session before they can be ordered against anything. Neither is blocked by a
 numbered item; they are here because they are large, not because they are waiting.
 
-7. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+6. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
@@ -148,7 +135,7 @@ numbered item; they are here because they are large, not because they are waitin
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-8. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+7. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -188,14 +175,14 @@ numbered item; they are here because they are large, not because they are waitin
 
 ### Tier 4 — modules, strictly in this order
 
-9. **The `module` interface.** A named interface defining the contract for any loadable thing.
+8. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-10. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+9. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-11. **A package manager for books.**
+10. **A package manager for books.**
 
 ### Tier 5 — Cufet in Cufet
 
@@ -205,7 +192,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-12. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+11. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -213,7 +200,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-13. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
+12. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
@@ -221,7 +208,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-14. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+13. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 

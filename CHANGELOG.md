@@ -29,6 +29,40 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `output 7.` opens with a keyword, while `output becomes 10.` opens with a variable that happens to
   share the spelling. Suggesting a capital on the second would not improve it — it would break it.
 
+  The judgement half is now **settled rather than pending**: it stays advice for a human and is
+  never flagged. Whether an article reads naturally depends on whether the name is a noun, and
+  `The got becomes 5.` is not English. The fix there is to rename the variable, which no pass over
+  the source is entitled to suggest.
+
+- **Second rule: nested bare-`it` loops.** `For each in xs, repeat:` binds the element to `it`, and
+  two of those nested is legal with no doubt about its meaning — the innermost binding wins, like
+  any other shadowing. But the reader has to hold which `it` is which, and the source stopped
+  saying. Reported at the **inner** loop, because naming that one leaves the outer loop reading
+  exactly as it did. A named loop in between does not break the chain; two loops side by side are
+  not nested and say nothing.
+
+- **Third rule: change the current directory before starting tasks.** Tasks resolve relative paths
+  against the process's current directory, and there is one of those for the whole process. A
+  rabbit that changes it while its own tasks are already running is a race — which directory a task
+  sees depends on when it happens to run.
+
+  ★ A warning rather than a refusal, and only for the ordering that is actually wrong. The compiler
+  already refuses this *inside* a task and its message recommends changing the directory **before**
+  spawning; flagging that recommended ordering would mean the two tools contradict each other. A
+  change made before the first task starts is silent — it is the fix, not the fault.
+
+### Changed
+
+- **The linter now reads the AST as well as the token stream.** Its first rule judges how a line
+  looks before it means anything, which tokens answer; the rules after it judge shape — one loop
+  inside another, a statement ordered after a statement — which they cannot. `Linter.Lint` takes the
+  parsed program alongside the tokens.
+
+  The shared walk descends into method, getter and setter bodies hanging off an object definition,
+  which no pass had reached before, and marks function-like bodies as new scopes so a rule tracking
+  "am I inside an X" forgets on the way in. That flag is defensive today — the parser refuses a
+  function declared inside a block — and is kept so the rules stay correct if local functions land.
+
 - **A REFERENCE chapter on recursive shapes** — how to write a node that holds nodes, why a field
   holding its own type by value cannot close, and why a container can. The refusal for the by-value
   form has existed since 0.11.0, but its error message was the only place the working alternative
