@@ -2590,16 +2590,16 @@ why fan-out work-queues do not distribute when interpreted.
 
 ```
 Bind void to emit-numbers:
-    output 1.
-    output 2.
-    output 3.
-    output 4.
+    Output 1.
+    Output 2.
+    Output 3.
+    Output 4.
 Done.
 
 Bind void to keep-even:
     for each n from the input:
         If n % 2 is 0:
-            output n.
+            Output n.
         Done.
     Done.
 Done.
