@@ -232,27 +232,8 @@ The two decision points are small. The work is threading that context through ev
 a type is parsed — parameters, field declarations, `Define … as a <type>`, `Bind <type> to`,
 element types — because missing one is exactly how a regression gets in. n-queens is the canary.
 
-★ **Insurance, not repair, which is why it has no slot.** Approach C closed every case anyone has
-actually hit; this closes the remaining theoretical fragility. Its precondition — a feature-complete
-parser syntax, so the hardening happens once against the final shape — **is met**, so it is
-unblocked rather than waiting on anything. It is written up as a contributor-sized task in
+★ **Insurance, not repair, which is why it has no slot.** The previous approach closed every case anyone has actually hit; this closes the remaining theoretical fragility. Its precondition — a feature-complete parser syntax, so the hardening happens once against the final shape — **is met**, so it is unblocked rather than waiting on anything. It is written up as a contributor-sized task in
 CONTRIBUTING's *known debts*.
-
-**A performance tripwire — Cufet against its own past self.** A fixed set of programs, timed on
-every change, so a lowering that got slower is caught by the suite rather than noticed a year
-later. That is the number that pays rent.
-
-⚠ **Deliberately not "a number against C".** `gcc` is the backend for both sides, so such a
-comparison cannot measure code quality — only what the lowering costs against hand-written C. And
-that is dominated by one decision: `number` lowers to a *software decimal*, not a hardware word.
-An aggregate figure would therefore report a semantic choice — the one that makes `0.1 + 0.2`
-exact — as though it were a compiler defect, and there would be nothing to act on.
-
-If a C comparison is ever wanted it has to be per-construct, and it has to exclude decimal
-arithmetic: control flow, field access, calls, series indexing — the places where the lowering
-*should* be near-free, so that an unexpected gap names a specific choice to go and revisit. The
-headline a systems language actually wants, "within X% of C", is blocked on a machine-number type
-rather than on benchmarking; it is in *Deferred* below.
 
 **A logic-gates book** — circuit composition over `bits`: gates as components you wire together,
 rather than the operators `bits` already shipped.
@@ -308,15 +289,6 @@ indistinguishable from having forgotten.
 - **Reference-semantics opt-in.** Objects and map values are value-typed. An explicit way to
   ask for shared semantics has no syntax. *Blocker:* its own design session; it interacts with
   the region model, which is what currently makes value semantics free.
-
-- **A machine-number type.** `number` is one type and it is a software decimal — exact, which is
-  why `0.1 + 0.2` behaves, and far slower than a hardware word for arithmetic. A fixed-width
-  integer or float alongside it is what any "within X% of C" claim rests on, and what numeric
-  inner loops would want. *Blocker:* a real language decision rather than a compiler one. A second
-  numeric type needs conversion rules, a story for overflow that **both backends agree on** — the
-  no-divergence rule gives no room to leave it platform-defined — and an answer to what plain
-  `number` then means to someone reading a line. No use case has demanded it yet, and exactness is
-  the better default to have picked first.
 
 - **Fallible setters.** A setter that can reject a value is deliberately not supported, because
   the current rule keeps `becomes` infallible *everywhere*. *Blocker:* an effect-tracking arc —
