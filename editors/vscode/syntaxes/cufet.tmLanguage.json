@@ -268,14 +268,9 @@
           "match": "(?<![\\w-])(?i:if|otherwise|done|while|repeat|until|stop|skip|return|try|case|pass|off|suppress|yield|but)(?![\\w-])"
         },
         {
-          "comment": "Statement verbs — the words that open a statement and say what it does.",
+          "comment": "Statement verbs — the words that open a statement and say what it does. ★ 'output' and 'seed' are deliberately NOT in this list and must not be added. They open a statement but lex as identifiers, so a program may also name a variable either one, and no regex can tell those apart. Both halves were tried: matching the word repainted someone's variable as a keyword, and matching only the capitalised spelling gave one statement two colours depending on whether its line had been capitalised yet. The semantic-token pass settles it instead, because it has the parse — see SemanticTokenKind.Keyword.",
           "name": "keyword.control.statement.cufet",
           "match": "(?<![\\w-])(?i:state|add|remove|replace|send|close|acknowledge|write|append|read|run|open|cast|pull|have|start)(?![\\w-])"
-        },
-        {
-          "comment": "Contextual statement words, matched ONLY capitalised, and case-sensitively on purpose. 'output' and 'seed' open statements but are deliberately unreserved, so a program may name a variable either one — which means the lowercase spelling is genuinely ambiguous and no regex can settle it. The CAPITALISED spelling is not: an identifier must start lowercase, so 'Output' can only ever be the statement. Matching just that half colours the form the linter asks for and can never repaint someone's variable as a keyword. Lowercase falls through to #identifier and reads as a name, which is the safer of the two available wrongs.",
-          "name": "keyword.control.statement.cufet",
-          "match": "(?<![\\w-])(?:Output|Seed)(?![\\w-])"
         },
         {
           "comment": "Words that introduce a definition.",

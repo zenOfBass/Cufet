@@ -187,8 +187,12 @@ function fingerprint(text) {
 //
 // The names are the LSP standard ones, in the order src/Interpreter/SemanticTokens.cs declares.
 // That is what lets any colour theme handle them with no per-theme configuration here.
+// Order is the wire format — it must match SemanticTokenLegend.Kinds in the producer exactly.
+// 'keyword' is last and covers the contextual statement words (`output`, `seed`) that lex as
+// identifiers, so the grammar cannot colour them without also colouring a variable of the same
+// name. The producer has the parse and settles it.
 const SEMANTIC_LEGEND = new vscode.SemanticTokensLegend(
-    ['namespace', 'type', 'parameter', 'variable', 'property', 'function'],
+    ['namespace', 'type', 'parameter', 'variable', 'property', 'function', 'keyword'],
     ['declaration']);
 
 const semanticTokensProvider = {

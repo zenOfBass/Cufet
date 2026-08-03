@@ -168,12 +168,16 @@ const SEMANTIC_LEGEND = {
         'variable',                 // variable
         'variable.other.property',  // property  — a field, getter or setter
         'entity.name.function',     // function
+        // keyword — `output` and `seed`, which open a statement but lex as identifiers. The
+        // grammar cannot tell those from a variable of the same name; the producer can, because
+        // it has the parse. Spelled as the scope the theme already colours every other keyword.
+        'keyword.control',
     ],
     tokenModifiers: [],
 };
 
 const SEMANTIC_KIND_INDEX = {
-    namespace: 0, type: 1, parameter: 2, variable: 3, property: 4, function: 5,
+    namespace: 0, type: 1, parameter: 2, variable: 3, property: 4, function: 5, keyword: 6,
 };
 
 let lastSemanticTokens = { data: new Uint32Array(0) };

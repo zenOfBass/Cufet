@@ -22,13 +22,54 @@ public class SemanticTokenTests
         (t.Line, t.Column, t.Length, SemanticTokenLegend.NameOf(t.Kind),
          t.Modifiers.HasFlag(SemanticTokenModifier.Declaration));
 
+    // ★ The whole reason a `keyword` kind exists. `output` and `seed` open statements but lex as
+    // identifiers, so a program may also name a variable either one. A TextMate grammar was tried
+    // twice and cannot win: colouring the word always paints a variable as a keyword, and
+    // colouring only the CAPITALISED spelling gives one statement two colours depending on whether
+    // its line has been capitalised yet. These pin the answer the parse makes available.
+    [Fact]
+    public void OutputStatement_IsAKeyword_WhicheverWayItIsCapitalised()
+    {
+        var lower = Classify("Bind void to emit:\n    output 1.\nDone.");
+        var upper = Classify("Bind void to emit:\n    Output 1.\nDone.");
+
+        Assert.Contains((2, 5, 6, "keyword", false), lower.Select(Shape));
+        Assert.Contains((2, 5, 6, "keyword", false), upper.Select(Shape));
+
+        // Not merely both present — identical, so capitalising a line cannot change a colour.
+        Assert.Equal(lower.Select(Shape), upper.Select(Shape));
+    }
+
+    [Fact]
+    public void AVariableNamedOutput_IsAVariableEverywhere()
+    {
+        // The other half. If this ever comes back "keyword", the producer has started doing what
+        // the grammar used to do wrong, and someone's variable is painted as language syntax.
+        var shapes = Classify("Define output as 9.\nThe output becomes 10.\nState output.")
+            .Select(Shape).ToList();
+
+        Assert.Equal(
+            [(1, 8, 6, "variable", true), (2, 5, 6, "variable", false), (3, 7, 6, "variable", false)],
+            shapes);
+    }
+
+    [Fact]
+    public void SeedStatement_IsAKeyword_WhicheverWayItIsCapitalised()
+    {
+        var lower = Classify("Pull a book on chance.\n    seed the chance with 42.\nDone.");
+        var upper = Classify("Pull a book on chance.\n    Seed the chance with 42.\nDone.");
+
+        Assert.Contains((2, 5, 4, "keyword", false), lower.Select(Shape));
+        Assert.Equal(lower.Select(Shape), upper.Select(Shape));
+    }
+
     [Fact]
     public void Legend_IndexesMatchTheKindEnum()
     {
         // B2's editor providers register this array and then send indices into it, so the ORDER
         // is the wire format — a reordering here silently recolours every file.
         Assert.Equal(
-            ["namespace", "type", "parameter", "variable", "property", "function"],
+            ["namespace", "type", "parameter", "variable", "property", "function", "keyword"],
             SemanticTokenLegend.Kinds);
 
         foreach (SemanticTokenKind kind in Enum.GetValues<SemanticTokenKind>())

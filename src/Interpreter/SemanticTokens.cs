@@ -23,6 +23,14 @@ public enum SemanticTokenKind
     Variable  = 3,   // a bound name used as a value
     Property  = 4,   // an object/record field, getter or setter name
     Function  = 5,   // a Bind-defined function or method name, and the target of a Cast
+
+    // ★ The one kind that is not a name. `output` and `seed` OPEN statements but are deliberately
+    // unreserved, so a program may also use either as a variable — which makes the spelling alone
+    // ambiguous and puts the answer out of a TextMate grammar's reach. It was tried there twice:
+    // colouring the word always made a variable named `output` look like a keyword, and colouring
+    // only the capitalised spelling made one statement two different colours depending on whether
+    // its line had been capitalised yet. This pass has the parse, so it simply knows, and says so.
+    Keyword   = 6,
 }
 
 // Only one modifier in this phase, and it is free: the producer already knows which occurrence of
@@ -37,7 +45,7 @@ public enum SemanticTokenModifier
 public static class SemanticTokenLegend
 {
     public static readonly string[] Kinds =
-        ["namespace", "type", "parameter", "variable", "property", "function"];
+        ["namespace", "type", "parameter", "variable", "property", "function", "keyword"];
 
     public static readonly string[] Modifiers = ["declaration"];
 
@@ -481,11 +489,18 @@ public sealed class SemanticTokenizer
                 Walk(close.Channel);
                 break;
 
+            // Both of these OPEN a statement while lexing as ordinary identifiers, so the grammar
+            // cannot colour them without also colouring a variable that happens to share the
+            // spelling. Here the node's own existence is the proof: reaching this arm means the
+            // parser decided this occurrence is the statement, whatever its capitalisation. The
+            // position is the keyword's own, recorded when the statement was parsed.
             case SeedChanceStatement seed:
+                Emit(seed.Line, seed.Column, "seed".Length, SemanticTokenKind.Keyword);
                 Walk(seed.Seed);
                 break;
 
             case OutputStatement outp:
+                Emit(outp.Line, outp.Column, "output".Length, SemanticTokenKind.Keyword);
                 Walk(outp.Value);
                 break;
 
