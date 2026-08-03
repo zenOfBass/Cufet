@@ -74,6 +74,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **The VS Code extension kept showing diagnostics for text that was already gone.** When a file
+  changes outside the editor — a git checkout, another tool, a formatter — VS Code reloads the
+  buffer and fires `onDidChangeTextDocument`, but the handler discarded it unless `checkOn` was
+  set to `type`, and the default is `save`. So the squiggle survived until the next save,
+  pointing at a line that had been fixed. A change that leaves the buffer **clean** cannot have
+  come from typing, so it now re-checks whatever the mode. A stale warning is worse than no
+  warning: it costs the reader a hunt for something that is not there.
+
 - **An unresolved call blamed a typo for what was a forward reference.** A `Bind` nested inside a
   rabbit is a closure and the compiler emits it where it stands, so it cannot call a name declared
   further down the same block — and two nested functions that call each other cannot both come
