@@ -1,31 +1,125 @@
-// Step 1: the value shape and a printer. Objects deliberately left out until the shape holds.
+// JSON, parsed and printed by walking itself.
+//
+// A value holds its children in a `series of jval` — a series is a reference, so the struct
+// closes and the type is finite. The same shape as an expression tree: `kind` says which of the
+// other fields carries the answer, and both walks dispatch on it.
+//
+// The parser functions live at the TOP LEVEL rather than inside the rabbit, because parse-value
+// and parse-array call each other. A Bind nested in a block is a closure the compiler emits
+// where it stands, so neither of a mutually recursive pair could come first; top-level functions
+// are hoisted and both backends agree.
 
 Define object jval with (the text kind, the number num, the text str, the series of jval items).
 
-Pull a rabbit.
-    Bind text to render, given (the jval v):
-        If the kind of v is "null", return "null".
-        If the kind of v is "true", return "true".
-        If the kind of v is "false", return "false".
-        If the kind of v is "num", return the num of v converted to text.
-        If the kind of v is "str", return "\"" joined to the str of v joined to "\"".
-        If the kind of v is "array":
-            Define out as "[".
-            Define leading as true.
-            For each kid in the items of v, repeat:
-                If leading is false, out becomes out joined to ",".
-                out becomes out joined to Cast render on (kid).
-                leading becomes false.
-            Done.
-            Return out joined to "]".
-        Done.
-        Return "?".
+// What a parse produced, and where it stopped. A function returns one thing, so the two travel
+// together — a caller needs the cursor to know where to carry on from.
+Define object parsed with (the jval value, the number cursor).
+
+Bind text to char-at, given (the text source, the number cursor):
+    If cursor is less than 1, return "".
+    If cursor is greater than the length of source, return "".
+    Return the characters from cursor to cursor of source.
+Done.
+
+Bind number to skip-spaces, given (the text source, the number cursor):
+    Define spot as cursor.
+    While Cast char-at on (source, spot) is " ", repeat:
+        The spot becomes spot + 1.
     Done.
+    Return spot.
+Done.
 
-    Define empty as a series of jval.
-    Define n1 as a new jval { the kind "num", the num 1, the str "", the items empty }.
-    Define s1 as a new jval { the kind "str", the num 0, the str "hi", the items empty }.
-    Define arr as a new jval { the kind "array", the num 0, the str "", the items a series of jval with (n1, s1) }.
+Bind fact to is-digit, given (the text letter):
+    If letter is "0" or letter is "1" or letter is "2" or letter is "3", return true.
+    If letter is "4" or letter is "5" or letter is "6" or letter is "7", return true.
+    If letter is "8" or letter is "9", return true.
+    Return false.
+Done.
 
-    State Cast render on (arr).
+Bind jval to make-leaf, given (the text kind, the number num, the text str):
+    Return a new jval { the kind kind, the num num, the str str, the items a series of jval }.
+Done.
+
+Bind parsed to parse-text, given (the text source, the number cursor):
+    Define spot as cursor + 1.                       // step over the opening quote
+    Define gathered as "".
+    While Cast char-at on (source, spot) is not "\"", repeat:
+        The gathered becomes gathered joined to Cast char-at on (source, spot).
+        The spot becomes spot + 1.
+    Done.
+    Return a new parsed { the value Cast make-leaf on ("str", 0, gathered), the cursor spot + 1 }.
+Done.
+
+Bind parsed to parse-number, given (the text source, the number cursor):
+    Define spot as cursor.
+    Define gathered as "".
+    If Cast char-at on (source, spot) is "-":
+        The gathered becomes "-".
+        The spot becomes spot + 1.
+    Done.
+    While Cast is-digit on (Cast char-at on (source, spot)), repeat:
+        The gathered becomes gathered joined to Cast char-at on (source, spot).
+        The spot becomes spot + 1.
+    Done.
+    Define amount as gathered converted to number but void is 0.
+    Return a new parsed { the value Cast make-leaf on ("num", amount, ""), the cursor spot }.
+Done.
+
+Bind parsed to parse-array, given (the text source, the number cursor):
+    Define spot as Cast skip-spaces on (source, cursor + 1).      // step over '['
+    Define gathered as a series of jval.
+    While Cast char-at on (source, spot) is not "]", repeat:
+        Define outcome as Cast parse-value on (source, spot).
+        Add the value of outcome to gathered.
+        The spot becomes Cast skip-spaces on (source, the cursor of outcome).
+        If Cast char-at on (source, spot) is ",", spot becomes Cast skip-spaces on (source, spot + 1).
+    Done.
+    Define holder as a new jval { the kind "array", the num 0, the str "", the items gathered }.
+    Return a new parsed { the value holder, the cursor spot + 1 }.
+Done.
+
+Bind parsed to parse-value, given (the text source, the number cursor):
+    Define spot as Cast skip-spaces on (source, cursor).
+    Define letter as Cast char-at on (source, spot).
+    If letter is "[", return Cast parse-array on (source, spot).
+    If letter is "\"", return Cast parse-text on (source, spot).
+    If letter is "t", return a new parsed { the value Cast make-leaf on ("true", 0, ""), the cursor spot + 4 }.
+    If letter is "f", return a new parsed { the value Cast make-leaf on ("false", 0, ""), the cursor spot + 5 }.
+    If letter is "n", return a new parsed { the value Cast make-leaf on ("null", 0, ""), the cursor spot + 4 }.
+    Return Cast parse-number on (source, spot).
+Done.
+
+Bind text to render, given (the jval value):
+    If the kind of value is "null", return "null".
+    If the kind of value is "true", return "true".
+    If the kind of value is "false", return "false".
+    If the kind of value is "num", return the num of value converted to text.
+    If the kind of value is "str", return "\"" joined to the str of value joined to "\"".
+    If the kind of value is "array":
+        Define out as "[".
+        Define leading as true.
+        For each kid in the items of value, repeat:
+            If leading is false, out becomes out joined to ",".
+            The out becomes out joined to Cast render on (kid).
+            The leading becomes false.
+        Done.
+        Return out joined to "]".
+    Done.
+    Return "?".
+Done.
+
+Pull a rabbit.
+    // Each of these is parsed into a tree and printed back out, so what you see is the round
+    // trip rather than the input echoed. Spacing disappears because the printer never adds any.
+    Define documents as a series of text with (
+        "[1, \"hi\", true, null, [2, -3], false]",
+        "[]",
+        "[[], [[1]]]",
+        "  [ 1 , 2 ]  ",
+        "[\"héllo 👍\"]").
+
+    For each document in documents, repeat:
+        Define outcome as Cast parse-value on (document, 1).
+        State Cast render on (the value of outcome).
+    Done.
 Done.
