@@ -2733,6 +2733,31 @@ block with `Pull a book on <name>. … Done.` Members are reached with the posse
 Books are resolved at compile time. There is no dynamic loading, and no external loader
 yet — the bundled books are `math`, `collections`, and `chance`.
 
+**Several at once** — `Pull books on …` (plural) takes a comma-separated list, with an
+optional `and` before the last. One `Done.` closes the block for all of them:
+
+```
+Pull books on math, collections, and chance.
+    State math's square root of (16).
+    State collections's maximum of (a series of number with (5, 3, 9)).
+Done.
+```
+```
+4
+9
+```
+
+Each entry may carry its own alias:
+
+```
+Pull books on math as m, and collections as c.
+    State m's square root of (25).
+Done.
+```
+```
+5
+```
+
 ```
 Pull a book on math.
     State math's square root of (144).
