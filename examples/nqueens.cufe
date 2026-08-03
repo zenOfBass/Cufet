@@ -4,15 +4,9 @@ Bind fact to is-safe, given (the series of number board, the number column):
     While counter is less than row, repeat:
         Define other-column as item counter of board.
         Define difference as row - counter.
-        If other-column is column:
-            Return 1 = 0.
-        Done.
-        If column - other-column is difference:
-            Return 1 = 0.
-        Done.
-        If other-column - column is difference:
-            Return 1 = 0.
-        Done.
+        If other-column is column, return 1 = 0.
+        If column - other-column is difference, return 1 = 0.
+        If other-column - column is difference, return 1 = 0.
         The counter becomes counter + 1.
     Done.
     Return 1 = 1.
