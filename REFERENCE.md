@@ -2642,7 +2642,7 @@ against it:
 
 ```
 Bind void to emit-nums:
-    output 1.
+    Output 1.
 Done.
 
 Bind void to shout:
