@@ -2451,6 +2451,71 @@ public class PipelineTests
     // ★ Top-level mutual recursion compiles and runs — that is the documented promise, and it
     // holds. What follows only pins the NESTED case, where a Bind is a closure emitted where it
     // stands and a forward reference genuinely cannot resolve.
+    // ★ Widening into a union at a CALL ARGUMENT. Every other slot — a variable, an object field,
+    // a series element — already coerced; this one emitted the raw value, so C received a
+    // `cd_box` where a union struct was declared. The checker passed it, `check --native` passed
+    // it, and only gcc objected: the shape of bug the oracle cannot catch, because there is no
+    // binary to compare against.
+    [Fact]
+    public void ObjectWidenedIntoAUnionParameter_MatchesInterpreter()
+    {
+        const string src = """
+            Define object box with (the number weight).
+
+            Bind text to describe, given (the (number or box) thing):
+                If thing is a number:
+                    Return "num".
+                Done.
+                Otherwise:
+                    Return "box".
+                Done.
+            Done.
+
+            Define parcel as a new box { the weight 1 }.
+            State cast describe on (parcel).
+            State cast describe on (7).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void ARecursiveUnionValue_MatchesInterpreter()
+    {
+        // A union cannot be named, so it cannot refer to itself — but an OBJECT type can, and an
+        // object type may appear in a union. That is the whole route to a recursive sum type in
+        // Cufet today, and it is what a JSON value needs.
+        const string src = """
+            Define object jarray with (the series of (number or text or fact or jarray) items).
+
+            Bind text to render, given (the (number or text or fact or jarray) value):
+                If value is a number:
+                    Return value converted to text.
+                Done.
+                Otherwise if value is a text:
+                    Return "\"" joined to value joined to "\"".
+                Done.
+                Otherwise if value is a fact:
+                    Return value converted to text.
+                Done.
+                Otherwise:
+                    Define out as "[".
+                    Define leading as true.
+                    For each kid in the items of value, repeat:
+                        If leading is false, the out becomes out joined to ",".
+                        The out becomes out joined to cast render on (kid).
+                        The leading becomes false.
+                    Done.
+                    Return out joined to "]".
+                Done.
+            Done.
+
+            Define inner as a new jarray { the items a series of (number or text or fact or jarray) with (2, 3) }.
+            Define outer as a new jarray { the items a series of (number or text or fact or jarray) with (1, "hi", true, inner) }.
+            State cast render on (outer).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     [Fact]
     public void MutualRecursion_AtTopLevel_MatchesInterpreter()
     {

@@ -6302,6 +6302,21 @@ static void* cufet_pipe_stage(void* argp) {
     // a mention on a branch that never runs. Over-approximating is the whole safety argument. Being
     // wrong can only keep a refusal that was not strictly necessary; it can never let a divergence
     // through, because a name this says nothing about is a name nothing else touches.
+    // Emits a call's arguments against the callee's declared parameter types, so a value narrower
+    // than its slot is widened on the way in — the same coercion a field set or a series element
+    // already gets. Falls back to a plain emit when the signature is unknown (a call through a
+    // variable, a method), which is the pre-existing behaviour and no worse than it was.
+    private IEnumerable<string> EmitArgsAsParams(string funcName, IReadOnlyList<IExpression> args)
+    {
+        _funcTypes.TryGetValue(funcName, out var signature);
+        var paramTypes = signature?.ParameterTypes;
+
+        for (int i = 0; i < args.Count; i++)
+            yield return paramTypes is not null && i < paramTypes.Count
+                ? EmitAsType(args[i], paramTypes[i])
+                : EmitExpr(args[i]);
+    }
+
     // Is `name` bound by a Bind ANYWHERE in the program? Used only to tell an unresolved call that
     // is a typo from one that is a forward reference, so each gets the message that fits it. The
     // question is deliberately coarse — it decides which sentence to print, never what to emit.
@@ -7009,7 +7024,15 @@ static void* cufet_pipe_stage(void* argp) {
                 // concrete conformer(s) passed here (registering it if this is the first such call).
                 if (_ifaceFuncs.TryGetValue(vr.Name, out var ifb))
                     return EmitSpecializedCall(ifb, null, args, null);
-                return $"{MangleName(vr.Name)}({string.Join(", ", args.Select(EmitExpr))})";
+
+                // ★ Each argument is emitted AS ITS PARAMETER'S TYPE, not as whatever it happens
+                // to be. This is the language's one implicit coercion — widening T into a voidable,
+                // a union or a failable — and an argument position is as much a slot as a field or
+                // a series element. Emitting the raw expression here produced C that assigned a
+                // `cd_box` straight into a `cun_0` parameter: the checker was happy, `check
+                // --native` was happy, and gcc refused it. Every other slot already went through
+                // EmitAsType; this one was missed.
+                return $"{MangleName(vr.Name)}({string.Join(", ", EmitArgsAsParams(vr.Name, args))})";
             }
 
             // A function-VALUED variable (Define f as …) → an indirect call through the {fn, env} value.
