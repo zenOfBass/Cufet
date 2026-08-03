@@ -949,18 +949,59 @@ static const char* cufet_str_substr(const char* s, int from0, int len) {
     memcpy(r, s + from0, (size_t)len); r[len] = '\0';
     return r;
 }
+/* ── Character positions ──────────────────────────────────────────────────────────────────
+   A Cufet character position is a UNICODE CODE POINT, on both backends. Text is stored here as
+   UTF-8, so a position is NOT a byte: "héllo" is five characters in six bytes. Counting bytes
+   made the compiled program disagree with the interpreted one on every non-ASCII string, which
+   the no-divergence rule forbids outright.
+
+   UTF-8 makes the arithmetic cheap. Exactly one byte of each character has a top bit pattern
+   other than 10xxxxxx, so counting characters is counting the bytes that are not continuations,
+   and no decoding table is needed. See TextPositions in the interpreter for the UTF-16 half of
+   the same agreement, and for why the unit is code points and not grapheme clusters. */
+static int cufet_u8_len(const char* s) {
+    int n = 0;
+    for (const unsigned char* p = (const unsigned char*)s; *p; p++)
+        if ((*p & 0xC0) != 0x80) n++;
+    return n;
+}
+/* Byte offset at which character number `index` begins, counting from zero. An index at or past
+   the end returns the byte length, so a caller can use it as an exclusive bound unguarded. */
+static int cufet_u8_offset(const char* s, int index) {
+    const unsigned char* p = (const unsigned char*)s;
+    int i = 0, n = 0;
+    while (p[i] && n < index) {
+        i++;
+        while ((p[i] & 0xC0) == 0x80) i++;   /* skip this character's continuation bytes */
+        n++;
+    }
+    return i;
+}
+/* The character index containing byte offset `off` — the inverse, for turning a byte-wise
+   search result back into a position someone can hand to `the characters from`. */
+static int cufet_u8_index(const char* s, int off) {
+    const unsigned char* p = (const unsigned char*)s;
+    int n = 0;
+    for (int i = 0; i < off && p[i]; i++)
+        if ((p[i] & 0xC0) != 0x80) n++;
+    return n;
+}
 static const char* cufet_str_range(const char* s, int from1, int to1, int line) {
     if (from1 <= 0) cufet_raise(cufet_msgf("a character position must be 1 or greater — positions start at 1 (line %d).", line));
-    int len = (int)strlen(s);
+    int len = cufet_u8_len(s);
     if (to1 < 0 || to1 > len) to1 = len;      /* to1 < 0 sentinel = to end; clamp high */
     int length = to1 - from1 + 1;              /* 1-based inclusive */
     if (length <= 0) return "";
-    return cufet_str_substr(s, from1 - 1, length);
+    int from_b = cufet_u8_offset(s, from1 - 1);
+    int to_b   = cufet_u8_offset(s, to1);
+    return cufet_str_substr(s, from_b, to_b - from_b);
 }
 static const char* cufet_str_edge(const char* s, int count, int from_start) {
-    int len = (int)strlen(s);
+    int len = cufet_u8_len(s);
     int c = count < 0 ? 0 : (count > len ? len : count);
-    return from_start ? cufet_str_substr(s, 0, c) : cufet_str_substr(s, len - c, c);
+    if (from_start) return cufet_str_substr(s, 0, cufet_u8_offset(s, c));
+    int from_b = cufet_u8_offset(s, len - c);
+    return cufet_str_substr(s, from_b, (int)strlen(s) - from_b);
 }
 static const char* cufet_str_upper(const char* s) {
     size_t n = strlen(s); char* r = (char*)cufet_arena_alloc(n + 1);
@@ -982,8 +1023,11 @@ static const char* cufet_str_trim(const char* s) {
     memcpy(r, start, n); r[n] = '\0'; return r;
 }
 static int cufet_str_find(const char* text, const char* sub) {
+    /* The SEARCH is byte-wise and that is correct — UTF-8 is self-synchronising, so one
+       character's bytes can never occur inside another and a byte match is a character match.
+       Only the POSITION it reports has to be converted, from bytes to characters. */
     const char* p = strstr(text, sub);
-    return p ? (int)(p - text) + 1 : 0;        /* 1-based; 0 = not found */
+    return p ? cufet_u8_index(text, (int)(p - text)) + 1 : 0;   /* 1-based; 0 = not found */
 }
 /* Splits s on each non-overlapping occurrence of delim, keeping empty parts (C# string.Split
    with StringSplitOptions.None): N hits -> N+1 arena-allocated substrings, written to *out.
@@ -5405,7 +5449,7 @@ static void* cufet_pipe_stage(void* argp) {
         TextJoin tj           => $"cufet_str_concat({EmitExpr(tj.Left)}, {EmitExpr(tj.Right)})",
         TextConvert tc        => EmitTextConvert(tc),
         NumberConvert nc      => EmitNumberConvert(nc),
-        TextLength tl         => $"cufet_dec_from_ll((long long)strlen({EmitExpr(tl.Target)}))",
+        TextLength tl         => $"cufet_dec_from_ll((long long)cufet_u8_len({EmitExpr(tl.Target)}))",
         TextContains tcn      => $"(strstr({EmitExpr(tcn.Text)}, {EmitExpr(tcn.Substring)}) != NULL)",
         TextFind tf           => EmitTextFind(tf),
         TextSubstringRange r  => $"cufet_str_range({EmitExpr(r.Text)}, cufet_to_int({EmitExpr(r.From)}), {(r.To != null ? $"cufet_to_int({EmitExpr(r.To)})" : "-1")}, {r.Line})",

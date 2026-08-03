@@ -4530,6 +4530,43 @@ public class InterpreterTests
         Assert.Equal("5", Run("State the length of \"hello\"."));
     }
 
+    // ★ These assert VALUES, not agreement between the backends. The compiler suite's oracle
+    // compares Interpret against Compile, which is the right test for almost everything — but it
+    // cannot catch both sides being wrong in the same direction, and character positions are
+    // exactly where that could happen, since neither backend's storage unit is a character. These
+    // pin the unit itself: a Cufet character is a Unicode code point.
+    [Fact]
+    public void TextLength_CountsCodePointsNotStorageUnits()
+    {
+        // Two bytes, one UTF-16 code unit.
+        Assert.Equal("5", Run("State the length of \"héllo\"."));
+        // Three bytes, one code unit.
+        Assert.Equal("2", Run("State the length of \"中文\"."));
+        // Four bytes and TWO UTF-16 code units — the case that was wrong on both backends: the
+        // interpreter said 2 and the compiler said 4.
+        Assert.Equal("1", Run("State the length of \"👍\"."));
+    }
+
+    [Fact]
+    public void TextLength_CountsCombiningMarksSeparately()
+    {
+        // `e` + U+0301 is one character to a reader and two code points. Graphemes would say 1;
+        // code points say 2, and the language says code points. Documented, not accidental.
+        Assert.Equal("2", Run("State the length of \"é\"."));
+    }
+
+    [Fact]
+    public void TextPositions_AreCodePoints()
+    {
+        Assert.Equal("hé",  Run("State the characters from 1 to 2 of \"héllo\"."));
+        Assert.Equal("é",   Run("State the characters from 2 to 2 of \"héllo\"."));
+        Assert.Equal("llo", Run("State the characters from 3 to 5 of \"héllo\"."));
+        Assert.Equal("👍",  Run("State the first 1 characters of \"👍👍\"."));
+        Assert.Equal("文",  Run("State the last 1 characters of \"中文\"."));
+        // A position is what `the characters from` will accept back — the round trip is the point.
+        Assert.Equal("3",   Run("State the position of \"llo\" in \"héllo\" but void is 0."));
+    }
+
     [Fact]
     public void TextLength_OfVariable()
     {

@@ -914,7 +914,9 @@ public sealed partial class Interpreter
         TextConvert tc => (object)Format(Evaluate(tc.Value)),
         NumberConvert nc => EvaluateNumberConvert(nc),
         BitsConvert bc   => EvaluateBitsConvert(bc),
-        TextLength  tl => (object)(decimal)((string)Evaluate(tl.Target)).Length,
+        // Code points, not .NET's UTF-16 code units — see TextPositions for why the language
+        // picks a unit rather than inheriting each backend's storage.
+        TextLength  tl => (object)(decimal)TextPositions.Length((string)Evaluate(tl.Target)),
         TextSplit        split => EvaluateTextSplit(split),
         TextContains     tc2   => EvaluateTextContains(tc2),
         TextFind         find  => EvaluateTextFind(find),
@@ -1188,8 +1190,10 @@ public sealed partial class Interpreter
     {
         var sub  = (string)Evaluate(find.Substring);
         var text = (string)Evaluate(find.Text);
+        // Ordinal search is correct as-is — UTF-8 and UTF-16 both find the same occurrence — but
+        // the OFFSET it reports is in UTF-16 code units, and a Cufet position is in code points.
         var idx  = text.IndexOf(sub, StringComparison.Ordinal);
-        return idx < 0 ? VoidValue.Instance : (object)(decimal)(idx + 1); // 1-based
+        return idx < 0 ? VoidValue.Instance : (object)(decimal)(TextPositions.IndexAt(text, idx) + 1); // 1-based
     }
 
     private object EvaluateTextSubstringRange(TextSubstringRange range)
@@ -1199,21 +1203,25 @@ public sealed partial class Interpreter
         if (fromIdx <= 0)
             throw new RuntimeException($"a character position must be 1 or greater — positions start at 1 (line {range.Line}).");
 
-        var toIdx  = range.To != null ? (int)(decimal)Evaluate(range.To) : text.Length;
+        // Every count here is in code points, so the arithmetic is unchanged and only the unit
+        // moved. TextPositions.Slice does the conversion to UTF-16 offsets at the last moment.
+        var chars  = TextPositions.Length(text);
+        var toIdx  = range.To != null ? (int)(decimal)Evaluate(range.To) : chars;
         var from0  = fromIdx - 1;
-        var to0    = Math.Min(toIdx, text.Length) - 1; // clamp high, 0-based inclusive
+        var to0    = Math.Min(toIdx, chars) - 1; // clamp high, 0-based inclusive
         var length = to0 - from0 + 1;
-        return (object)(length <= 0 ? "" : text.Substring(from0, length));
+        return (object)TextPositions.Slice(text, from0, length);
     }
 
     private object EvaluateTextSubstringEdge(TextSubstringEdge edge)
     {
         var text    = (string)Evaluate(edge.Text);
         var count   = (int)(decimal)Evaluate(edge.Count);
-        var clamped = Math.Clamp(count, 0, text.Length);
+        var chars   = TextPositions.Length(text);
+        var clamped = Math.Clamp(count, 0, chars);
         return (object)(edge.FromStart
-            ? text.Substring(0, clamped)
-            : text.Substring(text.Length - clamped, clamped));
+            ? TextPositions.Slice(text, 0, clamped)
+            : TextPositions.Slice(text, chars - clamped, clamped));
     }
 
     private object EvaluateTextReplace(TextReplace replace)

@@ -2088,6 +2088,48 @@ public class PipelineTests
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ★ The test data that was missing, not the method. Every text test above uses ASCII, where
+    // a byte, a UTF-16 code unit and a character are the same thing — so the oracle compared two
+    // backends that agreed only because nothing ever asked them to differ. They did not: the
+    // interpreter counted UTF-16 code units and the compiler counted bytes, so `the length of
+    // "👍"` was 2 interpreted and 4 compiled, and every slice of a non-ASCII string produced
+    // different text on each side. A character is now a code point on both.
+    //
+    // The four classes below are the ones that break different assumptions: two bytes and one
+    // code unit (é), three bytes and one code unit (中), four bytes and TWO code units (👍 —
+    // the case that proves the interpreter was wrong too, not merely the compiler), and two code
+    // points that a reader sees as one character (e + combining acute), which is where the
+    // code-points-not-graphemes decision shows through.
+    //
+    // Casing and trimming are deliberately absent. Casing is the already-documented
+    // ASCII-versus-locale exception; trimming disagrees on Unicode whitespace for a different
+    // reason entirely — what counts as whitespace, not where a character starts — and is its own
+    // undecided question rather than part of this fix.
+    [Fact]
+    public void Text_NonAscii_MatchesInterpreter()
+    {
+        const string src =
+            "State the length of \"héllo\".\n" +
+            "State the length of \"中文\".\n" +
+            "State the length of \"👍👍\".\n" +
+            "State the length of \"é\".\n" +
+            "State the characters from 1 to 2 of \"héllo\".\n" +
+            "State the characters from 2 to 2 of \"héllo\".\n" +
+            "State the characters from 3 to 5 of \"héllo\".\n" +
+            "State the characters from 2 to 9 of \"中文中文\".\n" +
+            "State the first 2 characters of \"héllo\".\n" +
+            "State the last 3 characters of \"héllo\".\n" +
+            "State the first 1 characters of \"👍👍\".\n" +
+            "State the last 1 characters of \"中文\".\n" +
+            "State the position of \"llo\" in \"héllo\" but void is 0.\n" +
+            "State the position of \"文\" in \"中文\" but void is 0.\n" +
+            "State the position of \"zz\" in \"héllo\" but void is 0.\n" +
+            "If \"héllo\" contains \"é\", state \"yes\". Otherwise, state \"no\".\n" +
+            "State replace \"é\" with \"e\" in \"héllo\".\n" +
+            "State \"héllo\" joined to \"中文\".\n";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     [Fact]
     public void Text_ConvertAndFind_MatchesInterpreter()
     {
