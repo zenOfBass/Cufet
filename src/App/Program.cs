@@ -121,7 +121,7 @@ static void Check(string[] rest)
         checker.Check(program);
         // Style is judged on a program that parses and type-checks. Advising someone on how a line
         // reads while it is still wrong would bury the thing they actually need to fix.
-        style = Linter.Lint(tokens, parser.StatementStarts);
+        style = Linter.Lint(tokens, parser.StatementStarts, program);
     }
     catch (Exception e) when (e is LexerException or ParseException or TypeException)
     {

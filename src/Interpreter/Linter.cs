@@ -11,13 +11,21 @@ namespace Cufet.Interpreter;
 //
 // Each rule owes an explanation of what to do instead, not just what is wrong — a warning that
 // only names a fault makes the reader do the work twice.
+//
+// Two kinds of rule live here. The first reads TOKENS, because what it judges is how a line looks
+// before it means anything. The rest read the AST, because what they judge is shape — one loop
+// inside another, a statement ordered after a statement. Both are handed in.
 public static class Linter
 {
     public static IReadOnlyList<Diagnostic> Lint(
-        IReadOnlyList<Token> tokens, IReadOnlyList<(int Line, int Column, bool KeywordLed)> statementStarts)
+        IReadOnlyList<Token> tokens,
+        IReadOnlyList<(int Line, int Column, bool KeywordLed)> statementStarts,
+        Program program)
     {
         var bag = new DiagnosticBag();
         CapitaliseTheStartOfALine(bag, tokens, statementStarts);
+        NestedBareItLoops(bag, program);
+        ChangeDirectoryBeforeStartingTasks(bag, program);
         return bag.Items;
     }
 
@@ -27,12 +35,14 @@ public static class Linter
     // case-insensitive, so `for each x in xs, repeat:` and `For each …` are the same program —
     // which is exactly why this is the linter's business and not the parser's.
     //
-    // ★ Only the half that needs no judgement. A line opening with a KEYWORD can always be
-    // capitalised, and the fix is to capitalise that word — nothing else changes and no reading is
-    // at stake. A line opening with a variable's own name is left alone: capitalising it would
-    // rename it, so the only way to satisfy the rule there is to insert an article, and whether
-    // `The total becomes 5.` reads better than `total becomes 5.` is a judgement this pass cannot
-    // make. That half of the rule is deliberately not implemented rather than implemented badly.
+    // ★ Only the half that needs no judgement, and that is now settled rather than pending. A line
+    // opening with a KEYWORD can always be capitalised, and the fix is to capitalise that word —
+    // nothing else changes and no reading is at stake. A line opening with a variable's own name is
+    // left alone forever: capitalising it would rename it, so the only way to satisfy the rule there
+    // is to insert an article, and whether `The total becomes 5.` reads better than `total becomes
+    // 5.` depends on whether the name is a noun. `The got becomes 5.` is not English, and the fix is
+    // to rename the variable — which no pass over the source is entitled to suggest. That half is
+    // advice for a human and is never flagged.
     private static void CapitaliseTheStartOfALine(
         DiagnosticBag bag, IReadOnlyList<Token> tokens,
         IReadOnlyList<(int Line, int Column, bool KeywordLed)> statementStarts)
@@ -71,6 +81,175 @@ public static class Linter
                 $"sentence, and a sentence starts with a capital. Keywords are case-insensitive, so " +
                 $"this changes nothing but how the line reads.",
                 line, column);
+        }
+    }
+
+    // ── Nested bare-`it` loops ────────────────────────────────────────────────
+    //
+    // `For each in xs, repeat:` binds the element to `it`. Two of them nested is legal and its
+    // meaning is not in doubt — the innermost binding wins, the same as any other shadowing — but
+    // the reader has to hold which `it` is which, and the source stopped saying it. Naming either
+    // loop puts the answer back in the text.
+    //
+    // Reported at the INNER loop, because that is the one to change: naming it leaves the outer
+    // loop's `it` reading exactly as it did.
+    private static void NestedBareItLoops(DiagnosticBag bag, Program program)
+        => WalkBareIt(bag, program.Statements, null);
+
+    private static void WalkBareIt(
+        DiagnosticBag bag, IReadOnlyList<IStatement> block, ForEachStatement? enclosingBareIt)
+    {
+        foreach (var statement in block)
+        {
+            // What encloses this statement's OWN children. A bare-`it` loop becomes the enclosing
+            // one for its body; anything else passes along whatever it inherited, so a bare loop
+            // buried inside an `If` inside a bare loop is still nested for this rule's purposes.
+            var enclosing = enclosingBareIt;
+
+            if (statement is ForEachStatement { IteratorName: null } bare)
+            {
+                if (enclosingBareIt is not null)
+                    bag.Warn(
+                        $"this loop and the one on line {enclosingBareIt.Line} both bind 'it', so this " +
+                        $"one shadows the outer. That is well defined — the innermost wins — but a " +
+                        $"reader has to track which 'it' is which. Name one of them: " +
+                        $"'For each <name> in …' binds the element to <name> instead.",
+                        bare.Line, bare.Column);
+                enclosing = bare;
+            }
+
+            foreach (var (child, opensNewScope) in ChildBlocks(statement))
+                WalkBareIt(bag, child, opensNewScope ? null : enclosing);
+        }
+    }
+
+    // ── Change the current directory before starting tasks ────────────────────
+    //
+    // Tasks resolve relative paths against the process's current directory, and there is one of
+    // those for the whole process. A rabbit that changes it while its own tasks are already running
+    // is a race: which directory a given task sees depends on when it happens to run.
+    //
+    // ★ A warning and not a refusal, and only for the ORDERING that is actually wrong. The compiler
+    // already refuses this *inside* a task, where copy-versus-share has two defensible answers, and
+    // the refusal message tells you to change the directory before spawning instead. Flagging that
+    // recommended ordering would contradict the advice the compiler just gave, so a change made
+    // before the first task starts is silent — it is the fix, not the fault.
+    private static void ChangeDirectoryBeforeStartingTasks(DiagnosticBag bag, Program program)
+    {
+        var reported = new HashSet<(int, int)>();
+        foreach (var rabbit in AllRabbits(program.Statements))
+        {
+            bool started = false;
+            ScanRabbitBody(bag, rabbit, rabbit.Body, ref started, reported);
+        }
+    }
+
+    private static IEnumerable<PullRabbitStatement> AllRabbits(IReadOnlyList<IStatement> block)
+    {
+        foreach (var statement in block)
+        {
+            if (statement is PullRabbitStatement rabbit) yield return rabbit;
+            foreach (var (child, _) in ChildBlocks(statement))
+                foreach (var nested in AllRabbits(child))
+                    yield return nested;
+        }
+    }
+
+    // Source order matters here and pre-order DFS gives it: a statement is visited before anything
+    // nested inside it, and siblings in the order written. So "have we passed a task launch yet"
+    // is just a flag carried along the walk.
+    private static void ScanRabbitBody(
+        DiagnosticBag bag, PullRabbitStatement rabbit, IReadOnlyList<IStatement> block,
+        ref bool started, HashSet<(int, int)> reported)
+    {
+        foreach (var statement in block)
+        {
+            switch (statement)
+            {
+                case LaunchTaskStatement:
+                    // The body is not walked. Changing the directory in there is already a hard
+                    // compiler error, and repeating it as advice would only add noise to a refusal.
+                    started = true;
+                    continue;
+
+                case CurrentDirectorySetStatement cd when started:
+                    if (reported.Add((cd.Line, cd.Column)))
+                        bag.Warn(
+                            $"this changes the current directory after the rabbit on line {rabbit.Line} " +
+                            $"has already started a task. Tasks resolve relative paths against it, and " +
+                            $"there is one for the whole process, so which directory a running task sees " +
+                            $"is a race. Change it before starting any task.",
+                            cd.Line, cd.Column);
+                    continue;
+            }
+
+            foreach (var (child, opensNewScope) in ChildBlocks(statement))
+            {
+                // A function declared inside the rabbit is not part of its ordering — its body runs
+                // wherever it is called from, which this pass cannot see.
+                if (opensNewScope) continue;
+                ScanRabbitBody(bag, rabbit, child, ref started, reported);
+            }
+        }
+    }
+
+    // ── The shared walk ───────────────────────────────────────────────────────
+    //
+    // The statement blocks nested directly inside a statement, each paired with whether entering it
+    // opens a NEW SCOPE — a function, a method, an accessor, an unmaker. Names visible outside do
+    // not reach inside those, so a rule tracking "am I inside an X" has to forget on the way in.
+    // Getting that backwards costs a false positive, and for advice a false positive is far more
+    // expensive than a miss: it teaches the reader to stop reading the warnings.
+    //
+    // That flag is defensive rather than load-bearing today, and worth keeping anyway. The parser
+    // refuses a function declared inside a block ("only at the top level or inside another
+    // function"), so a body cannot currently sit lexically inside a loop at all. If local functions
+    // ever land, the rules here stay correct instead of quietly inventing warnings.
+    //
+    // ★ Statements only. A lambda's body hangs off an EXPRESSION, so reaching it would mean walking
+    // every expression in the program to serve an edge case. A rule here that misses something
+    // inside a lambda gives no advice where it might have given some, which costs nothing.
+    //
+    // A new statement type that carries a body must be added here, or it becomes invisible to every
+    // rule at once.
+    private static IEnumerable<(IReadOnlyList<IStatement> Block, bool OpensNewScope)> ChildBlocks(
+        IStatement statement)
+    {
+        switch (statement)
+        {
+            case IfStatement s:
+                foreach (var arm in s.Arms) yield return (arm.Body, false);
+                if (s.ElseBody is not null) yield return (s.ElseBody, false);
+                break;
+
+            case TryStatement s:
+                yield return (s.Body, false);
+                if (s.FailureHandler is not null) yield return (s.FailureHandler, false);
+                if (s.ExceptionHandler is not null) yield return (s.ExceptionHandler, false);
+                break;
+
+            case WhileStatement s: yield return (s.Body, false); break;
+            case RepeatUntilStatement s: yield return (s.Body, false); break;
+            case ForEachStatement s: yield return (s.Body, false); break;
+            case ForEachFromInputStatement s: yield return (s.Body, false); break;
+            case WithOpenStatement s: yield return (s.Body, false); break;
+            case PullStatement s: yield return (s.Body, false); break;
+            case PullRabbitStatement s: yield return (s.Body, false); break;
+            case LaunchTaskStatement s: yield return (s.Body, false); break;
+
+            case BindStatement s: yield return (s.Body, true); break;
+            case OperatorOverloadDeclaration s: yield return (s.Body, true); break;
+            case UnmakerDeclaration s: yield return (s.Body, true); break;
+            case GetterDeclaration s: yield return (s.Body, true); break;
+            case SetterDeclaration s: yield return (s.Body, true); break;
+
+            // Methods and accessors hang off the type rather than standing as statements of their
+            // own, so without this branch every body inside an object is invisible to every rule.
+            case ObjectDefinition s:
+                foreach (var method in s.Methods) yield return (method.Body, true);
+                foreach (var getter in s.Getters) yield return (getter.Body, true);
+                foreach (var setter in s.Setters) yield return (setter.Body, true);
+                break;
         }
     }
 }
