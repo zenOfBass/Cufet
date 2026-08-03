@@ -1297,6 +1297,36 @@ The display of sensor becomes 100.    ← fires the setter
 - Inside the setter body, `one's <this-name> becomes X` writes directly to the underlying
   storage, bypassing the setter (no infinite recursion).
 
+**Give both the same name and you have a two-way property.** Nothing special is needed —
+a getter and a setter declared on one name simply meet, and the property becomes readable
+and writable. It need not correspond to any stored field:
+
+```
+Define object temp-sensor with (the number celsius):
+    Get fahrenheit as number:
+        Return one's celsius * 1.8 + 32.
+    Done.
+    Set fahrenheit given (the number f):
+        One's celsius becomes (f - 32) / 1.8.
+    Done.
+Done.
+
+Define sensor as a new temp-sensor { the celsius 100 }.
+State sensor's fahrenheit.             ← 212, computed by the getter
+
+The fahrenheit of sensor becomes 32.   ← fires the setter
+State sensor's celsius.                ← 0, written through
+State sensor's fahrenheit.             ← 32, read back
+```
+
+`fahrenheit` is stored nowhere. The object holds one number, `celsius`, and the pair
+presents a second view of it that reads and writes like an ordinary field. This is the
+whole of what other languages call a property, and it falls out of the two declarations
+rather than needing a third form.
+
+Either half may stand alone: a getter with no setter is read-only (`circle's area`
+above), and a setter with no getter is write-only.
+
 #### Named constructors
 
 A named constructor is a function that builds and returns an object. It is declared
