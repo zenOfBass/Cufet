@@ -74,6 +74,19 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **`output` and `seed` are coloured by the parse, not by their spelling.** Both open a statement
+  while lexing as ordinary identifiers, so a program may equally name a variable either one. That
+  question is not answerable by a regex, and two attempts to answer it in the TextMate grammar
+  each failed in a different direction: colouring the word repainted someone's variable as
+  language syntax, and colouring only the **capitalised** spelling gave one statement two
+  different colours depending on whether its line had been capitalised yet.
+
+  The semantic-token pass has the parse, so it simply knows which one an occurrence is. A
+  `keyword` kind joins the legend — the first that is not a name — and the statement is coloured
+  identically however it is written, while a variable called `output` stays a variable at every
+  use. The grammar now deliberately carries **no** rule for either word, with a comment saying
+  why, so the next person does not add one back.
+
 - **The VS Code extension kept showing diagnostics for text that was already gone.** When a file
   changes outside the editor — a git checkout, another tool, a formatter — VS Code reloads the
   buffer and fires `onDidChangeTextDocument`, but the handler discarded it unless `checkOn` was
