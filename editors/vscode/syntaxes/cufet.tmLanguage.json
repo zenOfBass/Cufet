@@ -180,7 +180,7 @@
             "3": { "patterns": [
               { "match": "(?<![\\w-])(?i:and)(?![\\w-])", "name": "keyword.operator.word.cufet" },
               { "match": "(?<![\\w-])(?i:as)(?![\\w-])" },
-              { "match": "[a-z][A-Za-z0-9-]*", "name": "entity.name.namespace.cufet" }
+              { "match": "(?<![\\w-])[a-z][A-Za-z0-9-]*", "name": "entity.name.namespace.cufet" }
             ] }
           }
         }
@@ -270,7 +270,12 @@
         {
           "comment": "Statement verbs — the words that open a statement and say what it does.",
           "name": "keyword.control.statement.cufet",
-          "match": "(?<![\\w-])(?i:state|add|remove|replace|send|close|seed|acknowledge|write|append|read|run|open|cast|pull|have|start)(?![\\w-])"
+          "match": "(?<![\\w-])(?i:state|add|remove|replace|send|close|acknowledge|write|append|read|run|open|cast|pull|have|start)(?![\\w-])"
+        },
+        {
+          "comment": "Contextual statement words, matched ONLY capitalised, and case-sensitively on purpose. 'output' and 'seed' open statements but are deliberately unreserved, so a program may name a variable either one — which means the lowercase spelling is genuinely ambiguous and no regex can settle it. The CAPITALISED spelling is not: an identifier must start lowercase, so 'Output' can only ever be the statement. Matching just that half colours the form the linter asks for and can never repaint someone's variable as a keyword. Lowercase falls through to #identifier and reads as a name, which is the safer of the two available wrongs.",
+          "name": "keyword.control.statement.cufet",
+          "match": "(?<![\\w-])(?:Output|Seed)(?![\\w-])"
         },
         {
           "comment": "Words that introduce a definition.",
@@ -335,7 +340,7 @@
     "identifier": {
       "comment": "Everything still standing is a name the author chose — locals, parameters, fields, arguments. Scoping them matters more in Cufet than in a symbol-heavy language: strip the articles and prepositions out of a line and most of what remains IS an identifier, so leaving them at default foreground is what makes a Cufet file read flatter than the C# next to it. Themes give variable.other its own colour.",
       "name": "variable.other.cufet",
-      "match": "[a-z][A-Za-z0-9-]*"
+      "match": "(?<![\\w-])[a-z][A-Za-z0-9-]*"
     },
 
     "punctuation": {
