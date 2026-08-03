@@ -153,6 +153,18 @@ as identifiers, but that is fine — they read as natural articles.
 | `lowercase` | Lowercase |
 | `trimmed` | Trimmed |
 
+**A character is a Unicode code point.** Every count and position — `the length of`, `the
+characters from N to M`, `the first`/`last N characters`, and what `the position of` returns — is
+measured in code points on **both** backends, regardless of how each one stores text (UTF-16
+interpreted, UTF-8 compiled). This is a language rule, not an implementation detail: counting
+storage units instead made the same program answer differently depending on the backend.
+
+⚠ A code point is not a grapheme. `e` followed by a combining accent is **2**, though a reader
+sees one character. Grapheme segmentation needs the Unicode tables and is not carried into the
+emitted C. Operations that neither count nor return a position — `contains`, `split`, `replace`,
+`joined to` — are unaffected, because UTF-8 is self-synchronising and a byte-wise match is
+therefore a character-wise match.
+
 ### Records and maps
 
 | Word | Token | Notes |

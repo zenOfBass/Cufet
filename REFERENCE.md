@@ -493,6 +493,22 @@ State the length of "hello".          → 5
 Define n as the length of greeting.
 ```
 
+> **What a character is.** Every position and count in this section — `the length of`,
+> `the characters from`, `the first`/`last N characters`, and the position `the position of`
+> returns — is measured in **Unicode code points**, identically on both backends.
+>
+> ```
+> State the length of "héllo".         → 5   (six bytes)
+> State the length of "👍".            → 1   (four bytes)
+> State the characters from 2 to 2 of "héllo".   → "é"
+> ```
+>
+> A code point is not always what a reader would call one character. `é` can be written as the
+> single code point U+00E9 or as `e` followed by a combining acute, and the second counts as
+> **2**. Counting what the eye sees means grapheme clusters, which need the Unicode segmentation
+> tables — a dependency Cufet will not carry into the C it emits. Code points are exact,
+> implementable the same way on both sides, and stated here rather than left to be discovered.
+
 **Converting text to number** — `converted to number`, the inverse of
 `converted to text`:
 ```

@@ -74,6 +74,38 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **Text positions disagreed between the backends on any non-ASCII string.** The interpreter
+  counted UTF-16 code units and the native compiler counted bytes, so the same program gave
+  different answers depending on which backend ran it — the exact thing the no-divergence rule
+  exists to forbid, and not one of the documented platform exceptions.
+
+  ```
+  the length of "héllo"     interpreted 5   compiled 6     → now 5
+  the length of "👍"        interpreted 2   compiled 4     → now 1
+  the characters from 3 to 5 of "héllo"     "llo" vs mojibake
+  the position of "llo" in "héllo"          3 vs 4
+  ```
+
+  **A character is now a Unicode code point, on both sides.** Note the `👍` row: the interpreter
+  was wrong too, so this was not a matter of making C agree with .NET — a UTF-16 code unit is no
+  more a character than a byte is. Both backends changed.
+
+  Four operations were affected: `the length of`, `the characters from`, `the first`/`last N
+  characters`, and `the position of`. The rest needed nothing, because UTF-8 is
+  self-synchronising — one character's bytes cannot occur inside another, so `contains`, `split`,
+  `replace` and `joined to` already gave identical results.
+
+  Code points rather than grapheme clusters: segmenting what a reader sees as one character
+  needs the Unicode tables, which the emitted C will not carry. `e` plus a combining accent
+  therefore counts as 2, and REFERENCE says so.
+
+  ★ **The oracle was never at fault — its test data was.** The compiler suite already asserts
+  compiled output equals interpreted output for every program, and it would have caught this on
+  day one had any test string held a character outside ASCII, where a byte, a code unit and a
+  character are all the same thing. Non-ASCII cases are now in the suite, plus interpreter tests
+  asserting the values outright, since an oracle alone cannot catch both sides being wrong the
+  same way.
+
 - **Highlighting split capitalised words down the middle.** The grammar's catch-all identifier rule
   matched `[a-z][A-Za-z0-9-]*` with no leading boundary, so in `Output` the engine failed at `O`,
   succeeded at `u`, and coloured `utput` as a variable — leaving the capital unscoped. It could not
