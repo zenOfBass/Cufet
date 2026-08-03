@@ -23,7 +23,7 @@ Done.
 
 Bind number to skip-spaces, given (the text source, the number cursor):
     Define spot as cursor.
-    While Cast char-at on (source, spot) is " ", repeat:
+    While cast char-at on (source, spot) is " ", repeat:
         The spot becomes spot + 1.
     Done.
     Return spot.
@@ -43,50 +43,50 @@ Done.
 Bind parsed to parse-text, given (the text source, the number cursor):
     Define spot as cursor + 1.                       // step over the opening quote
     Define gathered as "".
-    While Cast char-at on (source, spot) is not "\"", repeat:
-        The gathered becomes gathered joined to Cast char-at on (source, spot).
+    While cast char-at on (source, spot) is not "\"", repeat:
+        The gathered becomes gathered joined to cast char-at on (source, spot).
         The spot becomes spot + 1.
     Done.
-    Return a new parsed { the value Cast make-leaf on ("str", 0, gathered), the cursor spot + 1 }.
+    Return a new parsed { the value cast make-leaf on ("str", 0, gathered), the cursor spot + 1 }.
 Done.
 
 Bind parsed to parse-number, given (the text source, the number cursor):
     Define spot as cursor.
     Define gathered as "".
-    If Cast char-at on (source, spot) is "-":
+    If cast char-at on (source, spot) is "-":
         The gathered becomes "-".
         The spot becomes spot + 1.
     Done.
-    While Cast is-digit on (Cast char-at on (source, spot)), repeat:
-        The gathered becomes gathered joined to Cast char-at on (source, spot).
+    While cast is-digit on (cast char-at on (source, spot)), repeat:
+        The gathered becomes gathered joined to cast char-at on (source, spot).
         The spot becomes spot + 1.
     Done.
     Define amount as gathered converted to number but void is 0.
-    Return a new parsed { the value Cast make-leaf on ("num", amount, ""), the cursor spot }.
+    Return a new parsed { the value cast make-leaf on ("num", amount, ""), the cursor spot }.
 Done.
 
 Bind parsed to parse-array, given (the text source, the number cursor):
-    Define spot as Cast skip-spaces on (source, cursor + 1).      // step over '['
+    Define spot as cast skip-spaces on (source, cursor + 1).      // step over '['
     Define gathered as a series of jval.
-    While Cast char-at on (source, spot) is not "]", repeat:
-        Define outcome as Cast parse-value on (source, spot).
+    While cast char-at on (source, spot) is not "]", repeat:
+        Define outcome as cast parse-value on (source, spot).
         Add the value of outcome to gathered.
-        The spot becomes Cast skip-spaces on (source, the cursor of outcome).
-        If Cast char-at on (source, spot) is ",", spot becomes Cast skip-spaces on (source, spot + 1).
+        The spot becomes cast skip-spaces on (source, the cursor of outcome).
+        If cast char-at on (source, spot) is ",", spot becomes cast skip-spaces on (source, spot + 1).
     Done.
     Define holder as a new jval { the kind "array", the num 0, the str "", the items gathered }.
     Return a new parsed { the value holder, the cursor spot + 1 }.
 Done.
 
 Bind parsed to parse-value, given (the text source, the number cursor):
-    Define spot as Cast skip-spaces on (source, cursor).
-    Define letter as Cast char-at on (source, spot).
-    If letter is "[", return Cast parse-array on (source, spot).
-    If letter is "\"", return Cast parse-text on (source, spot).
-    If letter is "t", return a new parsed { the value Cast make-leaf on ("true", 0, ""), the cursor spot + 4 }.
-    If letter is "f", return a new parsed { the value Cast make-leaf on ("false", 0, ""), the cursor spot + 5 }.
-    If letter is "n", return a new parsed { the value Cast make-leaf on ("null", 0, ""), the cursor spot + 4 }.
-    Return Cast parse-number on (source, spot).
+    Define spot as cast skip-spaces on (source, cursor).
+    Define letter as cast char-at on (source, spot).
+    If letter is "[", return cast parse-array on (source, spot).
+    If letter is "\"", return cast parse-text on (source, spot).
+    If letter is "t", return a new parsed { the value cast make-leaf on ("true", 0, ""), the cursor spot + 4 }.
+    If letter is "f", return a new parsed { the value cast make-leaf on ("false", 0, ""), the cursor spot + 5 }.
+    If letter is "n", return a new parsed { the value cast make-leaf on ("null", 0, ""), the cursor spot + 4 }.
+    Return cast parse-number on (source, spot).
 Done.
 
 Bind text to render, given (the jval value):
@@ -100,7 +100,7 @@ Bind text to render, given (the jval value):
         Define leading as true.
         For each kid in the items of value, repeat:
             If leading is false, out becomes out joined to ",".
-            The out becomes out joined to Cast render on (kid).
+            The out becomes out joined to cast render on (kid).
             The leading becomes false.
         Done.
         Return out joined to "]".
@@ -119,7 +119,7 @@ Pull a rabbit.
         "[\"héllo 👍\"]").
 
     For each document in documents, repeat:
-        Define outcome as Cast parse-value on (document, 1).
-        State Cast render on (the value of outcome).
+        Define outcome as cast parse-value on (document, 1).
+        State cast render on (the value of outcome).
     Done.
 Done.
