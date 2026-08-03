@@ -2448,6 +2448,69 @@ public class PipelineTests
             """);
     }
 
+    // ★ Top-level mutual recursion compiles and runs — that is the documented promise, and it
+    // holds. What follows only pins the NESTED case, where a Bind is a closure emitted where it
+    // stands and a forward reference genuinely cannot resolve.
+    [Fact]
+    public void MutualRecursion_AtTopLevel_MatchesInterpreter()
+    {
+        const string src = """
+            Bind fact to is-even, given (the number n):
+                If n is 0, return true.
+                Return Cast is-odd on (n - 1).
+            Done.
+
+            Bind fact to is-odd, given (the number n):
+                If n is 0, return false.
+                Return Cast is-even on (n - 1).
+            Done.
+
+            State Cast is-even on (10).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void MutualRecursion_InsideARabbit_IsRefusedWithTheRealReason()
+    {
+        // The refusal is legitimate — a nested Bind compiles where it stands, so neither of two
+        // functions that call each other can come first. The MESSAGE was the bug: it said the
+        // name was "not a known function or method" about a function declared six lines below,
+        // which sends the reader looking for a typo instead of moving the pair to the top level.
+        var ex = Assert.Throws<CompilerException>(() => Compile("""
+            Pull a rabbit.
+                Bind fact to is-even, given (the number n):
+                    If n is 0, return true.
+                    Return Cast is-odd on (n - 1).
+                Done.
+
+                Bind fact to is-odd, given (the number n):
+                    If n is 0, return false.
+                    Return Cast is-even on (n - 1).
+                Done.
+
+                State Cast is-even on (10).
+            Done.
+            """));
+        Assert.Contains("declared further down this block", ex.Message);
+        Assert.Contains("TOP LEVEL", ex.Message);
+        Assert.DoesNotContain("not a known function", ex.Message);
+    }
+
+    [Fact]
+    public void UnknownFunction_StillSaysItIsUnknown()
+    {
+        // The other half of the same branch: a name that really is bound nowhere must keep the
+        // blunt message, or the fix would have traded one misleading sentence for another.
+        var ex = Assert.Throws<CompilerException>(() => Compile("""
+            Pull a rabbit.
+                State Cast no-such-function on (1).
+            Done.
+            """));
+        Assert.Contains("not a known function or method", ex.Message);
+        Assert.DoesNotContain("declared further down", ex.Message);
+    }
+
     [Fact]
     public void CurrentDirectory_ChangeInsideTask_IsRefusedCleanly()
     {

@@ -6302,6 +6302,43 @@ static void* cufet_pipe_stage(void* argp) {
     // a mention on a branch that never runs. Over-approximating is the whole safety argument. Being
     // wrong can only keep a refusal that was not strictly necessary; it can never let a divergence
     // through, because a name this says nothing about is a name nothing else touches.
+    // Is `name` bound by a Bind ANYWHERE in the program? Used only to tell an unresolved call that
+    // is a typo from one that is a forward reference, so each gets the message that fits it. The
+    // question is deliberately coarse — it decides which sentence to print, never what to emit.
+    private bool IsBoundSomewhere(string name)
+    {
+        bool found = false;
+
+        void Walk(object? node)
+        {
+            if (found || node is null) return;
+
+            switch (node)
+            {
+                case BindStatement b when b.Name == name: found = true; return;
+                case string: return;
+
+                case System.Runtime.CompilerServices.ITuple tup:
+                    for (int i = 0; i < tup.Length && !found; i++) Walk(tup[i]);
+                    return;
+
+                case System.Collections.IEnumerable en:
+                    foreach (var item in en) { Walk(item); if (found) return; }
+                    return;
+            }
+
+            // The same reflection descend the walks above use, so a new AST node needs no arm here.
+            foreach (var prop in node.GetType().GetProperties())
+            {
+                Walk(prop.GetValue(node));
+                if (found) return;
+            }
+        }
+
+        Walk(_program?.Statements);
+        return found;
+    }
+
     private bool CaptureWriteIsObservable(IReadOnlyList<IStatement> taskBody, string name)
     {
         bool found = false;
@@ -6989,6 +7026,21 @@ static void* cufet_pipe_stage(void* argp) {
                 var call = new[] { recv }.Concat(args.Skip(1).Select(EmitExpr));
                 return $"{MethodCName(owner, vr.Name)}({string.Join(", ", call)})";
             }
+            // ★ Two very different faults reached this line with one message, and the message
+            // named the wrong one. A nested Bind is a CLOSURE, emitted where it stands, so a call
+            // to a name declared further down the same block cannot resolve — while the same
+            // program interprets fine, because the interpreter resolves the name when the call
+            // actually happens. Saying "not a known function" of a function declared six lines
+            // below sends the reader hunting for a typo that is not there.
+            if (IsBoundSomewhere(vr.Name))
+                throw new CompilerException(
+                    $"'{vr.Name}' is declared further down this block, and a Bind nested inside a rabbit " +
+                    $"or another function is compiled where it stands — so it cannot be called before its " +
+                    $"declaration. Reordering does not help two functions that call each other, because " +
+                    $"neither can come first. Declare them at the TOP LEVEL, where mutual recursion works " +
+                    $"on both backends. (Interpreted, this program runs: the interpreter looks the name up " +
+                    $"at the moment of the call.)");
+
             throw new CompilerException($"'{vr.Name}': unresolved call — not a known function or method.");
         }
 
