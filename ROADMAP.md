@@ -220,7 +220,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary · design patterns as a book · an in-memory filesystem for the playground
 
-**Approach B parser-hardening.** `IsNamedAccessPattern()` decides whether `the <word> of <thing>`
+**Parser-hardening.** `IsNamedAccessPattern()` decides whether `the <word> of <thing>`
 is a named-field access by **looking ahead**, and that guess once mis-parsed `the series of number
 board` in n-queens. Approach C shipped and closed the observed bug class: no keyword can be a
 user-defined field name, so the whole reserved set is excluded at once, with three narrow
