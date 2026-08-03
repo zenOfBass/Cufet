@@ -74,6 +74,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A value passed to a union-typed parameter did not compile.** Widening a narrower value into a
+  voidable, union or failable is the language's one implicit coercion, and it was applied at every
+  slot except one: a call argument emitted the raw expression instead of coercing to the
+  parameter's declared type. So an object handed to a `(number or box)` parameter produced C that
+  assigned the object struct straight into the union struct.
+
+  The checker accepted it and `check --native` reported **"No problems found"** and exited 0 —
+  only `gcc` refused it. Arguments are now emitted **as their parameter's type**, with a fallback
+  to the previous behaviour where the signature is unknown.
+
+  ★ This class is invisible to the oracle. The compiler suite proves compiled output equals
+  interpreted output, and here there was no binary to compare — the build died first. Both bugs of
+  this shape so far (this and nested `voidable`) were found by writing a program in Cufet, not by
+  testing.
+
 - **`output` and `seed` are coloured by the parse, not by their spelling.** Both open a statement
   while lexing as ordinary identifiers, so a program may equally name a variable either one. That
   question is not answerable by a regex, and two attempts to answer it in the TextMate grammar
