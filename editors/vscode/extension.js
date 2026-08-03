@@ -272,6 +272,17 @@ function activate(context) {
             if (checkOn() !== 'never') checkDocument(document);
         }),
         vscode.workspace.onDidChangeTextDocument(event => {
+            // ★ A change that leaves the buffer CLEAN did not come from typing — typing makes a
+            // document dirty. It is VS Code reloading the file because something outside the
+            // editor wrote it: a git checkout, a formatter, another tool. The diagnostics on
+            // screen now describe text that is gone, so they are re-run whatever `checkOn` says.
+            // Without this the stale squiggle survives until the next save, and it is worse than
+            // no squiggle: it points at a line that has already been fixed.
+            if (!event.document.isDirty) {
+                clearTimeout(debounce);
+                checkDocument(event.document);
+                return;
+            }
             if (checkOn() !== 'type') return;
             clearTimeout(debounce);
             debounce = setTimeout(() => checkDocument(event.document), TYPE_DEBOUNCE_MS);
