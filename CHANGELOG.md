@@ -212,18 +212,6 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   file, the one thing someone asking for a single line is trying to avoid. It now explains that a
   path has nowhere to remember how far you have read, and names the form that does.
 
-### Changed
-
-- **The examples were brought in line with the capitalisation rule** — 17 lines across four files,
-  every one of them a keyword that was simply lowercase (`Return`, `Run`, `Item`, `For`, `Output`).
-  The linter found them and its own output drove the fix. Keywords are case-insensitive, so not one
-  program changed behaviour.
-
-- **`examples/arbtree.cufe` now builds an actual tree.** It encoded one as four parallel series
-  with `-1` for "no child" — a real technique, but the workaround for a shape the language can
-  express directly. It now holds children in a `series of expr` and evaluates by walking itself.
-  Same program, same output; the examples no longer imply Cufet cannot express a tree.
-
 ## [0.12.0] — 2026-08-01
 
 0.11.0 made Cufet usable by someone who is not its author. **0.12.0 makes it explain itself.**
