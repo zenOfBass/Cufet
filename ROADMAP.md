@@ -217,9 +217,26 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
 
 ### Ongoing, no fixed slot
 
-Approach B parser-hardening · a formal
-soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
+A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary · design patterns as a book · an in-memory filesystem for the playground
+
+**Approach B parser-hardening.** `IsNamedAccessPattern()` decides whether `the <word> of <thing>`
+is a named-field access by **looking ahead**, and that guess once mis-parsed `the series of number
+board` in n-queens. Approach C shipped and closed the observed bug class: no keyword can be a
+user-defined field name, so the whole reserved set is excluded at once, with three narrow
+exceptions kept valid (`key`, `category`, `characters`). **Approach B removes the guess instead of
+enumerating where it fails** — give the parser explicit type-annotation contexts so it knows *from
+position* whether it is reading a type or an expression.
+
+The two decision points are small. The work is threading that context through every position where
+a type is parsed — parameters, field declarations, `Define … as a <type>`, `Bind <type> to`,
+element types — because missing one is exactly how a regression gets in. n-queens is the canary.
+
+★ **Insurance, not repair, which is why it has no slot.** Approach C closed every case anyone has
+actually hit; this closes the remaining theoretical fragility. Its precondition — a feature-complete
+parser syntax, so the hardening happens once against the final shape — **is met**, so it is
+unblocked rather than waiting on anything. It is written up as a contributor-sized task in
+CONTRIBUTING's *known debts*.
 
 **A performance tripwire — Cufet against its own past self.** A fixed set of programs, timed on
 every change, so a lowering that got slower is caught by the suite rather than noticed a year

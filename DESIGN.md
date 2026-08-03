@@ -276,9 +276,11 @@ The two arcs where soundness was the whole problem.
     explicit parameter to the nested function instead of capturing it).
   - **This was adversarial-find-and-fix, not formal proof.** The invariant is sound
     with respect to the three holes found. A fresh-eyes red-team or a formal proof
-    remains a reasonable pre-native rung if a contributor wants to take it on.
+    remains open for a contributor to take on, and the native backend makes it worth
+    more rather than less: the interpreter's GC forgives a region error that compiled
+    code turns into a use-after-free.
 
-  *Status:* all three holes closed; no known remaining pre-native soundness gaps.
+  *Status:* all three holes closed; no known remaining soundness gaps.
 
 - **Concurrency arc — message-passing + structured concurrency, cooperative (v0.9.0).**
   The complete concurrency core (all five slices) is built, validated, and hardened

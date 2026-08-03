@@ -1295,10 +1295,11 @@ not see a repeat of the `the series of number board` n-queens mis-parse.
   of `from` after the keyword (which causes `IsNamedAccessPattern` to return false
   since it requires `of` immediately after the name)
 
-**Tracked debt (pre-native):** the heuristic itself remains lookahead-based. The
-proper architectural fix — Approach B, explicit type-annotation contexts — is
-deferred to the dedicated pre-native parser-hardening pass, when the parser's
-syntax is feature-complete and can be hardened once on its final shape.
+**Tracked debt:** the heuristic itself remains lookahead-based. The proper architectural fix —
+Approach B, explicit type-annotation contexts, so the parser knows *from position* whether it is
+reading a type or an expression — is still open. Its precondition was a feature-complete parser
+syntax, so the hardening happens once against the final shape rather than repeatedly; that
+condition is met, and the work is unblocked. See ROADMAP under *Ongoing, no fixed slot*.
 
 ---
 
