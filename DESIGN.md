@@ -30,6 +30,28 @@ The decision the rest of them answer to.
   explicitly — don't drift toward either pole without notice. This is the lens for
   every frequency/feature call.
 
+- **The language closes a circle, and that is the pedagogical model.** The facilities a
+  learner reaches for on day one are not privileged compiler magic — they are objects and
+  modules, of the same kind the learner will eventually build. `pull` a book to get at
+  capability; later learn to make an object, then an interface, then a module — and by then
+  you know how to write a **book** (an import) and a **rabbit** (an agent-helper) yourself.
+  What you used at the start is the thing you build at the end.
+
+  **This is a constraint, not a curriculum.** It is why a book is an object-like value with
+  possessive member access rather than a namespace — namespaces are rejected below, and this
+  is the deeper reason: a namespace is a compiler fiction nobody could ever author, while an
+  object is something a learner grows into writing. Any future facility should be checked
+  against it: *could a user eventually have written this?* A "no" is not fatal, but it is a
+  cost that has to be named.
+
+  ⚠ **The two halves are not equally close, and pretending otherwise would mislead.** A book
+  is a stateless capability bag — an object with members, and reachable. A **rabbit is a scope
+  with a lifetime**, with compiler-enforced region and escape rules, so a user-definable
+  rabbit means user-definable continuations. That lands on the unanswered "which restriction?"
+  question in the rabbit control-flow arc, and it is the ambitious end of this idea rather
+  than the near one. `book` is-a `module` is buildable now; `rabbit` is-a `module` is a
+  direction.
+
 ---
 
 ## Surface syntax
