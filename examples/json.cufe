@@ -1,0 +1,31 @@
+// Step 1: the value shape and a printer. Objects deliberately left out until the shape holds.
+
+Define object jval with (the text kind, the number num, the text str, the series of jval items).
+
+Pull a rabbit.
+    Bind text to render, given (the jval v):
+        If the kind of v is "null", return "null".
+        If the kind of v is "true", return "true".
+        If the kind of v is "false", return "false".
+        If the kind of v is "num", return the num of v converted to text.
+        If the kind of v is "str", return "\"" joined to the str of v joined to "\"".
+        If the kind of v is "array":
+            Define out as "[".
+            Define leading as true.
+            For each kid in the items of v, repeat:
+                If leading is false, out becomes out joined to ",".
+                out becomes out joined to Cast render on (kid).
+                leading becomes false.
+            Done.
+            Return out joined to "]".
+        Done.
+        Return "?".
+    Done.
+
+    Define empty as a series of jval.
+    Define n1 as a new jval { the kind "num", the num 1, the str "", the items empty }.
+    Define s1 as a new jval { the kind "str", the num 0, the str "hi", the items empty }.
+    Define arr as a new jval { the kind "array", the num 0, the str "", the items a series of jval with (n1, s1) }.
+
+    State Cast render on (arr).
+Done.
