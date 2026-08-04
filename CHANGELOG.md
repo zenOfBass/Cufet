@@ -6,7 +6,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
-## [0.13.0] — 2026-08-03
+## [Unreleased]
+
+### Fixed
+
+- **The playground's semantic-token layer never reached the screen.** Three separate things had to
+  be true and none of them was, which is why the registration side kept auditing clean:
+  - `registerDocumentSemanticTokensProvider` only fills a registry. What *reads* that registry is an
+    editor contribution, and `editor.api` — the entry chosen to avoid shipping ninety grammars —
+    imports exactly one contribution, and it is not this one. It is now imported explicitly.
+  - The feature then asks whether semantic colouring is enabled. The setting defaults to
+    `configuredByTheme`, and a standalone Monaco theme hard-codes that flag to `false` and never
+    reads it off the theme data — so `semanticHighlighting: true` on `defineTheme` was inert. The
+    setting is now set directly, and the page says so in the console if it fails to take.
+  - Monaco asks once per model revision, and the first ask lands seconds before the .NET runtime in
+    the worker can answer. That null was never invalidated. The provider now carries an
+    `onDidChange` that fires when the runtime becomes answerable.
+- **A possessive owner kept the grammar's colour on its `'s`.** The TextMate grammar scopes `rex's`
+  as one word on purpose; the semantic token stopped at `rex`, so the name visibly changed colour
+  halfway through. The producer now widens an owner's token to cover its marker.
+- **The playground's build now warns when its AppBundle is older than `src/`.** The bundle carries a
+  compiled interpreter, so an un-republished change shipped as though it had been applied — the page
+  loads, runs, and quietly answers with an older front end, which reads as a fix that did not work.
+- **`Judge`, `where` and `Descend` were not coloured** — the 0.13.0 keywords never reached the
+  TextMate grammar. A judgement's arm cases are now classified as types, too, which is the one
+  place a bare type name opens a statement.
 
 0.12.0 made Cufet explain itself. **0.13.0 makes it account for every case** — a
 judgement the compiler proves total, text positions the two backends finally agree on,
