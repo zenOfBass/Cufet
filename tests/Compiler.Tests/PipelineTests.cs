@@ -3365,8 +3365,9 @@ public class PipelineTests
     }
 
     // ── Arc 1D: matrix (the new-type capstone of the collections book) ──
-    // CufetMatrix = arena reference type (shared on assign, matching the interpreter — matrices are
-    // immutable after construction). All arithmetic is EXACT CufetDec. Dimension mismatch is a Cufet
+    // CufetMatrix = arena reference type (shared on assign, matching the interpreter — a write
+    // through one name is visible through all of them). All arithmetic is EXACT CufetDec. Dimension
+    // mismatch is a Cufet
     // FAILURE (category "dimension-mismatch") the typechecker requires handling for. Printing uses
     // the FormatMatrix format added to BOTH backends this slice: matrix((1, 2), (3, 4)).
 
@@ -3487,6 +3488,67 @@ public class PipelineTests
             Done.
             """;
         Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void MatrixSet_ElementWrites_OracleMatch()
+    {
+        // The write half of `the item at (row, column) of m`. Includes computed indices and an
+        // alias, so the two backends have to agree on reference semantics and not merely on values.
+        const string src = """
+            Pull a book on collections.
+                Define m as a matrix with 3 by 3 filled with 0.
+                The item at (1, 1) of m becomes 5.
+                The item at (3, 3) of m becomes 0 - 2.5.
+                Define r as 1.
+                The item at (r + 1, r + 1) of m becomes 7.
+                State m.
+                State the item at (2, 2) of m.
+                Define alias as m.
+                The item at (1, 3) of alias becomes 9.
+                State m.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void MatrixSet_ThroughAParameter_OracleMatch()
+    {
+        // A matrix parameter is the caller's matrix on both backends — the compiler passes the
+        // pointer, the interpreter shares the array. This is what makes an in-place board work.
+        const string src = """
+            Pull a book on collections.
+                Bind void to light, given (the matrix board, the number r, the number c):
+                    The item at (r, c) of board becomes 1.
+                Done.
+                Define b as a matrix with 2 by 2 filled with 0.
+                Cast light on (b, 2, 1).
+                Cast light on (b, 1, 2).
+                State b.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void MatrixSet_OutOfRange_FaultsOnBothBackends()
+    {
+        // Bounds messages are shared text on purpose — cufet_mat_set repeats cufet_mat_get's. An
+        // uncaught fault cannot be compared through stdout (the interpreter throws where the binary
+        // exits), so this pins the shape both sides agree on: everything before the write runs, and
+        // the write does not.
+        const string src = """
+            Pull a book on collections.
+                Define m as a matrix with 2 by 2 filled with 0.
+                State "before".
+                The item at (3, 1) of m becomes 1.
+                State "after".
+            Done.
+            """;
+        var ex = Assert.Throws<RuntimeException>(() => Interpret(src));
+        Assert.Contains("Row index 3 is out of range", ex.Message);
+        Assert.Equal("before", Compile(src));
     }
 
     [Fact]
