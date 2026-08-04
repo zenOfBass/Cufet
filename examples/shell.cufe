@@ -73,7 +73,7 @@ While running, repeat:
                     Done.
                 Done.
 
-                If Cast permitted on (cmd):
+                If cast permitted on (cmd):
                     /* Launching can fail — the program may not exist, or may not be
                        executable. That is a failure value, not a crash, so it is
                        handled here and the loop carries on. */
@@ -99,7 +99,7 @@ While running, repeat:
 
                 /* 'cd' is handled above and is not a program, so it must not fall through to the
                    refusal — it is not permitted to LAUNCH, which is a different thing. */
-                If Cast permitted on (cmd) is false and cmd is not "cd":
+                If cast permitted on (cmd) is false and cmd is not "cd":
                     State "cufetsh: {cmd}: command not permitted".
                 Done.
             Done.
