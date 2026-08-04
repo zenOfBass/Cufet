@@ -17,7 +17,7 @@
       // `dotnet run --project src/App/Cufet.App.csproj -- <args>` always reflects the tree, but it
       // rebuilds on every invocation and is far too slow to iterate with.
       "label": "cufet: reinstall the CLI",
-      "dependsOn": ["dotnet: pack the CLI", "dotnet: install the packed CLI"],
+      "dependsOn": ["dotnet: pack the CLI", "dotnet: uninstall the CLI", "dotnet: install the packed CLI"],
       // Sequential, not parallel: the install reads what the pack writes.
       "dependsOrder": "sequence",
       "problemMatcher": [],
@@ -32,12 +32,24 @@
       "presentation": { "reveal": "always", "clear": true }
     },
     {
+      // ★ `dotnet tool update` compares VERSION STRINGS and does nothing when they match. During
+      // development every rebuild carries the same <Version> from the csproj, so update reports
+      // "Tool 'cufet' is already installed" and silently leaves the old binary in place — the exact
+      // stale-artifact trap this task exists to prevent, hidden inside the fix for it. Uninstalling
+      // first is what makes a same-version reinstall actually happen.
+      //
+      // Allowed to fail: on a machine with nothing installed there is nothing to remove.
+      "label": "dotnet: uninstall the CLI",
+      "type": "shell",
+      "command": "dotnet tool uninstall --global Cufet; exit 0",
+      "problemMatcher": [],
+      "presentation": { "reveal": "silent" }
+    },
+    {
       "label": "dotnet: install the packed CLI",
       "type": "process",
       "command": "dotnet",
-      // `update` rather than `install`: it succeeds whether or not a version is already installed,
-      // so the same task works on a fresh machine and on the hundredth reinstall.
-      "args": ["tool", "update", "--global",
+      "args": ["tool", "install", "--global",
                "--add-source", "${workspaceFolder}/src/App/bin/Release", "Cufet"],
       "problemMatcher": [],
       "presentation": { "reveal": "always" }

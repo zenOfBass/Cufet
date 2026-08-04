@@ -868,9 +868,12 @@ public sealed partial class TypeChecker
 
                 if (judge.OtherwiseBody != null)
                 {
-                    // Narrowed by elimination to whatever the arms did not take.
+                    // Narrowed by elimination to whatever the arms did not take. When the arms
+                    // covered everything, `remaining` is null and there is nothing left to narrow
+                    // to — the subject's own type is the honest answer, and it is non-null here
+                    // because a subject whose type could not be inferred never reaches this far.
                     EnterScope();
-                    Scope["it"] = new TypeInfo(remaining ?? subjectType, judge.Subject, judge.Line);
+                    Scope["it"] = new TypeInfo(remaining ?? subjectType!, judge.Subject, judge.Line);
                     try { CheckBlock(judge.OtherwiseBody); } finally { ExitScope(); }
                 }
                 else if (remaining != null)

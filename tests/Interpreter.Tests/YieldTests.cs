@@ -22,10 +22,13 @@ public class YieldTests
         return output.ToString().Replace("\r\n", "\n").TrimEnd('\n');
     }
 
-    // Pre-set the interrupt flag before running; used to simulate Ctrl-C arriving
-    // before the program starts. Tests that hit a Yield or a blocked yield point
-    // with the flag set will throw InterruptUnwind and propagate out of RunOnLargeStack.
-    private static string RunInterrupted(string source)
+    // Pre-set the interrupt flag before running; used to simulate Ctrl-C arriving before the
+    // program starts. An interrupt that reaches a yield point unwinds the program — Execute
+    // absorbs the unwind and reports it as WasInterrupted, so termination is asserted on that
+    // rather than on an escaping exception. (It used to escape as an unhandled exception, which
+    // was not design: nothing caught it, and a .NET stack trace is not how a program should end
+    // when someone presses Ctrl-C.)
+    private static (string Output, bool Interrupted) RunInterrupted(string source)
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
@@ -34,7 +37,7 @@ public class YieldTests
         var interp  = new Interpreter(output);
         interp.SimulateInterrupt();
         RunOnLargeStack(() => interp.Execute(program));
-        return output.ToString().Replace("\r\n", "\n").TrimEnd('\n');
+        return (output.ToString().Replace("\r\n", "\n").TrimEnd('\n'), interp.WasInterrupted);
     }
 
     private static void RunOnLargeStack(Action action)
@@ -91,24 +94,27 @@ public class YieldTests
     [Fact]
     public void Yield_MakesTightLoopInterruptible()
     {
-        // Without Yield. a tight loop has no yield points, so an interrupt can never
-        // be observed. With Yield. the interrupt fires on the first iteration instead
-        // of the loop running forever. The test verifies termination via the exception.
-        Assert.ThrowsAny<Exception>(() => RunInterrupted("""
+        // With Yield. the interrupt fires on the first iteration instead of the loop running
+        // forever. Reaching the assertion at all IS the test: without it, this never returns.
+        var (_, interrupted) = RunInterrupted("""
             While 1 = 1, repeat:
                 Yield.
             Done.
-            """));
+            """);
+        Assert.True(interrupted);
     }
 
     [Fact]
     public void Yield_OutsideRabbit_ChecksInterrupt()
     {
-        // Yield. in a sequential program (no scheduler) still checks the interrupt flag.
-        Assert.ThrowsAny<Exception>(() => RunInterrupted("""
+        // Yield. in a sequential program (no scheduler) still checks the interrupt flag — and the
+        // statement after it never runs.
+        var (output, interrupted) = RunInterrupted("""
             Yield.
             State "after yield".
-            """));
+            """);
+        Assert.True(interrupted);
+        Assert.Equal("", output);
     }
 
     // ── Yield. — cooperative multitasking ────────────────────────────────────
@@ -171,21 +177,23 @@ public class YieldTests
         // Without interrupt, a delivery on an empty unclosed channel deadlocks
         // (no tasks will ever send). With interrupt set, DrainUntil exits via
         // InterruptUnwind instead of throwing the deadlock error.
-        var ex = Assert.ThrowsAny<Exception>(() => RunInterrupted("""
+        var (_, interrupted) = RunInterrupted("""
             Pull a rabbit.
                 Define ch as a channel of number.
                 Define val as the delivery from ch.
             Done.
-            """));
-        Assert.DoesNotContain("deadlock", ex.Message ?? "");
+            """);
+        // Unwound by the interrupt, NOT reported as a deadlock — a deadlock would have surfaced as
+        // a RuntimeException escaping this call rather than a clean interrupted run.
+        Assert.True(interrupted);
     }
 
     [Fact]
     public void AwaitedResult_InterruptedWhileWaiting_DoesNotHang()
     {
-        // Awaiting a running task when the interrupt is already set should unwind
-        // immediately rather than waiting for the task to complete.
-        Assert.ThrowsAny<Exception>(() => RunInterrupted("""
+        // Awaiting a running task when the interrupt is already set should unwind immediately
+        // rather than waiting for the task to complete — so the State after it never runs.
+        var (output, interrupted) = RunInterrupted("""
             Pull a rabbit.
                 Have rabbit start a task as t:
                     return 42.
@@ -193,6 +201,8 @@ public class YieldTests
                 Define r as the awaited result of t.
                 State r.
             Done.
-            """));
+            """);
+        Assert.True(interrupted);
+        Assert.Equal("", output);
     }
 }

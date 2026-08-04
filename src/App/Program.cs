@@ -333,7 +333,10 @@ static void Interpret(string[] args)
         // To stderr, and before the program starts, so a warning never lands in the middle of the
         // output and never gets mistaken for something the program printed.
         WriteWarnings(args.Length > 0 ? args[0] : "<stdin>", checker.Diagnostics);
-        RunOnLargeStack(() => new Interpreter().Execute(program));
+        var interpreter = new Interpreter();
+        RunOnLargeStack(() => interpreter.Execute(program));
+        // 128 + SIGINT, the convention every shell already understands.
+        if (interpreter.WasInterrupted) Environment.Exit(130);
     }
     catch (LexerException e)   { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
     catch (ParseException e)   { Console.Error.WriteLine(e.Message); Environment.Exit(1); }

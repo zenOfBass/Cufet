@@ -47,6 +47,19 @@ public sealed partial class Interpreter
     // Allow tests to set the interrupt flag directly without synthesizing a real Ctrl-C.
     internal void SimulateInterrupt() => _interruptRequested = true;
 
+    // Whether the program said anything about interrupts — `an interrupt is requested` or
+    // `Acknowledge the interrupt.` anywhere in it. Set once from the AST before execution, and read
+    // by the checkpoint in Execute to decide whether Ctrl-C unwinds or is left for the program to
+    // notice. A whole-program property on purpose: a rule that changed with position would be
+    // impossible to reason about from the terminal, where all you know is that you pressed Ctrl-C.
+    private bool _programHandlesInterrupts;
+
+    // The compiler asks the same question with the same walk (ProgramUsesSignals), which is what
+    // keeps the two backends' answers identical.
+    private static bool MentionsInterrupts(object? node) =>
+        AstSearch.Contains(node,
+            n => n is InterruptRequestedExpression or AcknowledgeInterruptStatement);
+
     private void ExecuteYield()
     {
         // Give other ready tasks one turn, then check the interrupt flag before resuming.
@@ -355,12 +368,24 @@ public sealed partial class Interpreter
         // e.Cancel = true: convert Ctrl-C from "terminate process" into "set our flag."
         // The handler runs on the signal-dispatch thread; volatile bool handles the cross-thread write.
         //
+        // ★ The SECOND Ctrl-C is left alone, so the OS terminates. Taking the kill away is only
+        // defensible while something can still act on the flag; if a first Ctrl-C has already been
+        // recorded and the program has not acknowledged it, nothing is listening and cancelling
+        // again would make the process unkillable from its own terminal. `Acknowledge the
+        // interrupt.` clears the flag, so a program that genuinely handles interrupts gets the
+        // polite behaviour every time and never reaches this path.
+        //
         // Skipped in the browser, where Console.CancelKeyPress throws PlatformNotSupported —
         // there is no Ctrl-C to intercept. Being in the CONSTRUCTOR, it otherwise made every
         // program fail under WebAssembly while the front end worked perfectly, which is a
         // confusing shape of bug: type errors reported fine, nothing would run.
         if (!OperatingSystem.IsBrowser())
-            Console.CancelKeyPress += (_, e) => { e.Cancel = true; _interruptRequested = true; };
+            Console.CancelKeyPress += (_, e) =>
+            {
+                if (_interruptRequested) return;   // second press — let it through, and die
+                e.Cancel = true;
+                _interruptRequested = true;
+            };
     }
 
     // Flattens statements through Pull...Done scope bodies so that hoisting passes see
@@ -377,11 +402,28 @@ public sealed partial class Interpreter
         }
     }
 
+    // True when the program stopped because of a Ctrl-C rather than by reaching its end. The CLI
+    // turns this into exit code 130 (128 + SIGINT), so a script wrapping cufet can tell an
+    // interrupted run from a completed one.
+    public bool WasInterrupted { get; private set; }
+
     public void Execute(Program program)
     {
+        _programHandlesInterrupts = MentionsInterrupts(program.Statements);
         _scheduler = new CufetScheduler();
-        _scheduler.Run(() => { ExecuteCore(program); return Task.CompletedTask; });
-        _scheduler = null;
+        try
+        {
+            _scheduler.Run(() => { ExecuteCore(program); return Task.CompletedTask; });
+        }
+        catch (InterruptUnwind)
+        {
+            // Ctrl-C on a program that never mentions interrupts. The unwind IS the handling: stop
+            // here, run nothing further, and say so in the exit code. Nothing caught this before,
+            // so it escaped as an unhandled exception and printed a .NET stack trace — survivable
+            // only because it could not be reached without a `Yield.` or a blocking call.
+            WasInterrupted = true;
+        }
+        finally { _scheduler = null; }
     }
 
     private void ExecuteCore(Program program)
@@ -454,6 +496,19 @@ public sealed partial class Interpreter
 
     private void Execute(IStatement stmt)
     {
+        // ★ The interrupt checkpoint. Without one, a loop of ordinary statements — no `Yield.`, no
+        // channel, no task, no subprocess — could never see the flag, so Ctrl-C did nothing at all
+        // and the only way out of a running program was to kill the terminal.
+        //
+        // WHO WINS, when a program handles interrupts itself: it does. Unwinding here unconditionally
+        // would break the documented `If an interrupt is requested:` pattern by tearing the program
+        // down before it could ever poll. So this only fires for programs that never mention
+        // interrupts at all — decided once, from the AST, before anything runs. The rule states in
+        // one line: handle interrupts and you are in charge of them; ignore them and Ctrl-C behaves
+        // the way it does everywhere else.
+        if (_interruptRequested && !_programHandlesInterrupts)
+            throw new InterruptUnwind();
+
         switch (stmt)
         {
             case StateStatement s:

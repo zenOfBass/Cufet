@@ -730,3 +730,48 @@ public sealed record ForEachFromInputStatement(
 ) : IStatement;
 
 public sealed record Program(IReadOnlyList<IStatement> Statements);
+
+// Whole-tree search, shared by both backends.
+//
+// ★ WHY REFLECTION rather than a switch with an arm per node: a hand-written walk over ~95 node
+// types is a list that goes stale silently, and the failure is invisible — the search returns
+// false, the caller concludes the program does not do the thing, and everything still compiles.
+// `Judge` proved it: the compiler's hand-written interrupt search was written before Judge existed
+// and never grew an arm for it, so a poll inside a judgement was simply not seen.
+//
+// Both backends ask the same question of the same code here, which is what keeps their answers
+// from drifting apart — a divergence the no-divergence rule would otherwise have to catch after
+// the fact, at runtime, on a user's program.
+public static class AstSearch
+{
+    public static bool Contains(object? node, Func<object, bool> predicate)
+    {
+        switch (node)
+        {
+            // CufetType is a type graph, not program text — nothing is spelled inside one, and it
+            // is the one shape in this namespace that can be deep and heavily shared.
+            case null or string or CufetType: return false;
+
+            case System.Runtime.CompilerServices.ITuple tup:
+                for (int i = 0; i < tup.Length; i++)
+                    if (Contains(tup[i], predicate)) return true;
+                return false;
+
+            case System.Collections.IEnumerable en:
+                foreach (var item in en)
+                    if (Contains(item, predicate)) return true;
+                return false;
+
+            default:
+                if (predicate(node)) return true;
+                // Keyed on the namespace, not on IExpression/IStatement: not every AST record
+                // implements either. ConditionArm and JudgeArm are plain records that HOLD
+                // statements, so matching the interfaces walks straight past the body of every
+                // `If` and every judgement.
+                if (node.GetType().Namespace != typeof(Program).Namespace) return false;
+                foreach (var prop in node.GetType().GetProperties())
+                    if (Contains(prop.GetValue(node), predicate)) return true;
+                return false;
+        }
+    }
+}

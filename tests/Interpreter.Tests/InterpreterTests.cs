@@ -8516,6 +8516,107 @@ public class InterpreterTests
         return output.ToString().Replace("\r\n", "\n").TrimEnd('\n');
     }
 
+    // ★ The checkpoint, and the rule that decides who owns an interrupt.
+    //
+    // Before it existed, Ctrl-C on a program of ordinary statements did NOTHING: the key handler
+    // takes the OS kill away (e.Cancel = true) and the flag was only read at `Yield.`, a channel, a
+    // task, a subprocess, or an explicit poll. A loop that printed and did arithmetic reached none
+    // of them, so the program could not be stopped from its own terminal at all.
+
+    [Fact]
+    public void Signal_ProgramThatIgnoresInterrupts_IsUnwoundAtTheNextStatement()
+    {
+        var tokens  = new CufetLexer("State \"one\".\nState \"two\".\nState \"three\".").Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        var output  = new StringWriter();
+        var interp  = new Interpreter(output);
+        interp.SimulateInterrupt();
+        RunOnLargeStack(() => interp.Execute(program));
+
+        Assert.Equal("", output.ToString().Replace("\r\n", "\n").TrimEnd('\n'));
+        Assert.True(interp.WasInterrupted);
+    }
+
+    [Fact]
+    public void Signal_AnInfiniteLoop_TerminatesInsteadOfHanging()
+    {
+        // The case that motivated all of this. Without the checkpoint this never returns.
+        var tokens  = new CufetLexer("While 1 is 1, repeat:\n    State \"tick\".\nDone.").Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        var output  = new StringWriter();
+        var interp  = new Interpreter(output);
+        interp.SimulateInterrupt();
+        RunOnLargeStack(() => interp.Execute(program));
+
+        Assert.True(interp.WasInterrupted);
+    }
+
+    [Fact]
+    public void Signal_ProgramThatHandlesInterrupts_KeepsControl()
+    {
+        // ★ The other half of the rule. This program mentions interrupts, so it is trusted to
+        // handle its own — the checkpoint must NOT unwind it before it can poll. If it ever does,
+        // the documented `If an interrupt is requested:` pattern stops working entirely.
+        Assert.Equal("caught\ndone", RunInterrupted(
+            "If an interrupt is requested:\n" +
+            "    State \"caught\".\n" +
+            "    Acknowledge the interrupt.\n" +
+            "Done.\n" +
+            "State \"done\"."));
+    }
+
+    [Fact]
+    public void Signal_HandlingCountsEvenWhenTheMentionIsElsewhere()
+    {
+        // The property is whole-program, not per-statement: a poll inside a function still puts the
+        // program in charge of its own interrupts at the top level.
+        Assert.Equal("still here", RunInterrupted(
+            "Bind fact to should-stop:\n" +
+            "    Return an interrupt is requested.\n" +
+            "Done.\n" +
+            "State \"still here\"."));
+    }
+
+    [Fact]
+    public void Signal_APollInsideAJudge_CountsAsHandling()
+    {
+        // ★ Regression for a whole CLASS of bug. Both backends decide "does this program handle its
+        // own interrupts" by searching the AST, and the compiler's search used to be a switch with
+        // an arm per statement type — written before `Judge` existed and never given an arm for it.
+        // A poll inside a judgement was therefore invisible to it. Both now use one reflection walk,
+        // so a new node type is searched without anyone remembering to add it.
+        Assert.Equal("interrupted", RunInterrupted(
+            "Define the (number or text) thing as 42.\n" +
+            "Judge thing, where it is:\n" +
+            "    A number:\n" +
+            "        If an interrupt is requested, state \"interrupted\".\n" +
+            "        Otherwise, state \"fine\".\n" +
+            "    Done.\n" +
+            "    A text, state \"text\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void Signal_AcknowledgeAloneCountsAsHandling()
+    {
+        Assert.Equal("ok", RunInterrupted(
+            "Acknowledge the interrupt.\n" +
+            "State \"ok\"."));
+    }
+
+    [Fact]
+    public void Signal_ACompletedRun_IsNotMarkedInterrupted()
+    {
+        var tokens  = new CufetLexer("State \"fine\".").Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+        var interp  = new Interpreter(new StringWriter());
+        RunOnLargeStack(() => interp.Execute(program));
+        Assert.False(interp.WasInterrupted);
+    }
+
     [Fact]
     public void Signal_InterruptRequested_DefaultsFalse()
     {

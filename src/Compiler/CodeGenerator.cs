@@ -6039,41 +6039,16 @@ static void* cufet_pipe_stage(void* argp) {
     // landing pad and the substrate is emitted. Discovered up front (like concurrency) because main's
     // top is emitted before its body is walked. Concurrency programs also get the substrate (their
     // blocked channel-waits are made interruptible), gated separately at emission.
-    private bool ProgramUsesSignals(IEnumerable<IStatement> stmts)
-    {
-        foreach (var s in stmts)
-            switch (s)
-            {
-                case YieldStatement or AcknowledgeInterruptStatement: return true;
-                case DefineStatement d when ExprUsesInterrupt(d.Value): return true;
-                case BecomesStatement bc when ExprUsesInterrupt(bc.Value): return true;
-                case StateStatement st when ExprUsesInterrupt(st.Value): return true;
-                case ReturnStatement r when r.Value != null && ExprUsesInterrupt(r.Value): return true;
-                case IfStatement iff when iff.Arms.Any(a => ExprUsesInterrupt(a.Condition) || ProgramUsesSignals(a.Body)) || (iff.ElseBody != null && ProgramUsesSignals(iff.ElseBody)): return true;
-                case WhileStatement w when ExprUsesInterrupt(w.Condition) || ProgramUsesSignals(w.Body): return true;
-                case RepeatUntilStatement r when ExprUsesInterrupt(r.Condition) || ProgramUsesSignals(r.Body): return true;
-                case ForEachStatement fe when ProgramUsesSignals(fe.Body): return true;
-                case ForEachFromInputStatement fi when ProgramUsesSignals(fi.Body): return true;
-                case PullRabbitStatement p when ProgramUsesSignals(p.Body): return true;
-                // Same gap as in ProgramUsesConcurrency: a book pull is a compile-time scope, but
-                // its body is program text and may hold Yield / Acknowledge / an interrupt poll.
-                case PullStatement pb when ProgramUsesSignals(pb.Body): return true;
-                case TryStatement t when ProgramUsesSignals(t.Body) || (t.FailureHandler != null && ProgramUsesSignals(t.FailureHandler)): return true;
-                case WithOpenStatement wo when ProgramUsesSignals(wo.Body): return true;
-                case BindStatement b when ProgramUsesSignals(b.Body): return true;
-                case LaunchTaskStatement lt when ProgramUsesSignals(lt.Body): return true;
-            }
-        return false;
-    }
-
-    private static bool ExprUsesInterrupt(IExpression? e) => e switch
-    {
-        InterruptRequestedExpression => true,
-        BinaryExpression b => ExprUsesInterrupt(b.Left) || ExprUsesInterrupt(b.Right),
-        UnaryExpression u  => ExprUsesInterrupt(u.Operand),
-        ButVoidDefault bvd => ExprUsesInterrupt(bvd.Voidable) || ExprUsesInterrupt(bvd.Default),
-        _ => false,
-    };
+    //
+    // ★ This was a hand-written switch with an arm per statement type, and it had gone stale: no arm
+    // for JudgeStatement, so a poll inside a judgement compiled with NO signal substrate while the
+    // interpreter handled it cooperatively — a silent divergence. The interpreter decides the same
+    // question with the same walk (Interpreter.MentionsInterrupts), so the two cannot drift again.
+    // `YieldStatement` is here and not there on purpose: Yield needs the substrate to have a
+    // checkpoint to unwind from, but writing `Yield.` is not a claim to handle your own interrupts.
+    private bool ProgramUsesSignals(IEnumerable<IStatement> stmts) =>
+        AstSearch.Contains(stmts,
+            n => n is InterruptRequestedExpression or AcknowledgeInterruptStatement or YieldStatement);
 
     private static bool ExprUsesChannel(IExpression e) => e switch
     {
