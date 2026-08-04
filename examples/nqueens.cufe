@@ -16,9 +16,9 @@ Bind void to solve, given (the series of number board, the number n):
     If the number of board is n:
         Define out as "".
         For each queen in board, repeat:
-            The out becomes out joined to (queen converted to text) joined to " ".
+            The out becomes "{out} {queen converted to text} ".
         Done.
-        State "Solution: " joined to out.
+        State "Solution: {out}".
         Return.
     Done.
     Define column as 1.
