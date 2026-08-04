@@ -698,7 +698,7 @@ Every Cufet type falls into one of two categories that determine what `Define` a
 |---|---|
 | `series of T` | all add/remove/set ops mutate the shared list |
 | `map from K to V` | all entry-set/remove ops mutate the shared map |
-| `matrix` | element mutations are reflected everywhere |
+| `matrix` | `the item at (r, c) of m becomes v` is reflected everywhere |
 
 ### The mental model
 

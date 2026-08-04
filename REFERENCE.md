@@ -2927,6 +2927,56 @@ failed: matrices must have equal dimensions for addition
 rows and columns. There is no matrix division — it would require inversion, which is
 deliberately not provided.
 
+**Reading and writing a cell.** `the item at (row, column) of m` is the accessor, and both
+indices are **1-based**, like every other position in Cufet. The same phrase on the left of
+`becomes` writes the cell. `the rows of m` and `the columns of m` are the dimensions.
+
+```
+Pull a book on collections.
+    Define grid as a matrix with 2 by 3 filled with 0.
+    The item at (1, 2) of grid becomes 7.
+    The item at (2, 3) of grid becomes 9.
+    State grid.
+    State the item at (1, 2) of grid.
+    State the rows of grid.
+    State the columns of grid.
+Done.
+```
+```
+matrix((0, 7, 0), (0, 0, 9))
+7
+2
+3
+```
+
+A cell holds a number and nothing else — that is what keeps matrix arithmetic exact.
+
+**A matrix is a reference type**, so a write is visible through every name for it, and a
+matrix handed to a function is the caller's matrix rather than a copy. That is what lets a
+function update a board in place:
+
+```
+Pull a book on collections.
+    Bind void to light, given (the matrix board, the number r, the number c):
+        The item at (r, c) of board becomes 1.
+    Done.
+
+    Define board as a matrix with 2 by 2 filled with 0.
+    Cast light on (board, 2, 1).
+    State board.
+Done.
+```
+```
+matrix((0, 0), (1, 0))
+```
+
+An index outside the matrix is a runtime failure naming the bound it crossed, the same on a
+read and on a write:
+
+```
+Row index 3 is out of range — this matrix has 2 row(s) (line 3).
+```
+
 ---
 
 ## Part IX. Compiling

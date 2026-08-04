@@ -8,7 +8,40 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+- **A matrix cell can be written.** `The item at (row, column) of m becomes 7.` — the write half of
+  an accessor that until now could only read:
+
+  ```
+  Pull a book on collections.
+      Bind void to light, given (the matrix board, the number r, the number c):
+          The item at (r, c) of board becomes 1.
+      Done.
+      Define board as a matrix with 2 by 2 filled with 0.
+      Cast light on (board, 2, 1).
+      State board.
+  Done.
+  ```
+
+  A matrix has always been listed among the **reference types**, whose entry reads "element
+  mutations are reflected everywhere" — a promise with no syntax behind it. A matrix you cannot
+  write to is a series of series with worse ergonomics, which is the opposite of why the type
+  exists. A write is visible through every name for that matrix, and a matrix passed to a function
+  is the caller's matrix, so a board can be updated in place.
+
+  Cells hold numbers and nothing else. Out-of-range indices fault with the same message the read
+  gives, on both backends.
+
+- **`examples/gameoflife.cufe`** — Conway's Game of Life on a matrix, with wrapping edges.
+
 ### Fixed
+
+- **A book's types were invisible inside a function body.** Function isolation cleared the type
+  scopes along with the value scopes, so `a matrix with 3 by 3` was a static error inside a function
+  written within `Pull a book on collections.` — while `given (the matrix m)` in the same signature
+  was accepted, because an annotation resolves `matrix` in the parser and never consults scope. A
+  book's scope is lexical; only value bindings are isolated now.
 
 - **The playground's semantic-token layer never reached the screen.** Three separate things had to
   be true and none of them was, which is why the registration side kept auditing clean:
