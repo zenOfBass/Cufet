@@ -568,10 +568,8 @@ Works on numbers and facts (both total — every number and fact has a text form
 It binds tighter than `joined to`, so `"x: " joined to n converted to text`
 reads as `"x: " joined to (n converted to text)`.
 
-> **Note (precedence quirk):** in a named-access position, `the value of person
-> converted to text` parses as `the value of (person converted to text)`. If you
-> need the conversion to apply to the *result* of the access, extract it first:
-> `Define v as the value of person. State v converted to text.`
+`converted to` binds to the **result** of a named access, not to its target — `the
+value of person converted to text` converts the value, as you would expect.
 
 **Length** — `the length of`, the character count:
 ```
