@@ -84,6 +84,4 @@ State "A = " joined to (da converted to text) joined to " (expect 0) " joined to
     "C = " joined to (dc converted to text) joined to " (expect 2) " joined to
     "D = " joined to (dd converted to text) joined to " (expect 9) " joined to
     "E = " joined to (de converted to text) joined to " (expect 11)".
-If da is 0 and db is 4 and dc is 2 and dd is 9 and de is 11:
-    State "PASS".
-Done.
+If da is 0 and db is 4 and dc is 2 and dd is 9 and de is 11, state "PASS".
