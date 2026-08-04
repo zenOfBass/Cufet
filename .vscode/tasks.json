@@ -9,6 +9,40 @@
   "version": "2.0.0",
   "tasks": [
     {
+      // ★ The global `cufet` is a PACKAGED tool. It does not track this working tree, so every
+      // change to the compiler is invisible to it until it is re-packed — silently, with the old
+      // binary answering as though nothing had changed. Run this after touching src/. About five
+      // seconds warm.
+      //
+      // `dotnet run --project src/App/Cufet.App.csproj -- <args>` always reflects the tree, but it
+      // rebuilds on every invocation and is far too slow to iterate with.
+      "label": "cufet: reinstall the CLI",
+      "dependsOn": ["dotnet: pack the CLI", "dotnet: install the packed CLI"],
+      // Sequential, not parallel: the install reads what the pack writes.
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "clear": true }
+    },
+    {
+      "label": "dotnet: pack the CLI",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["pack", "${workspaceFolder}/src/App/Cufet.App.csproj", "-c", "Release", "--nologo"],
+      "problemMatcher": "$msCompile",
+      "presentation": { "reveal": "always", "clear": true }
+    },
+    {
+      "label": "dotnet: install the packed CLI",
+      "type": "process",
+      "command": "dotnet",
+      // `update` rather than `install`: it succeeds whether or not a version is already installed,
+      // so the same task works on a fresh machine and on the hundredth reinstall.
+      "args": ["tool", "update", "--global",
+               "--add-source", "${workspaceFolder}/src/App/bin/Release", "Cufet"],
+      "problemMatcher": [],
+      "presentation": { "reveal": "always" }
+    },
+    {
       // What the launch configurations build before they start. Deliberately NOT the default build
       // task — Ctrl+Shift+B stays "check file", which is what you actually want while writing
       // Cufet. This one is for when you are writing C#.
