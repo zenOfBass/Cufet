@@ -99,10 +99,18 @@ public sealed class SemanticTokenizer
     private readonly List<Dictionary<string, SemanticTokenKind>> _scopes =
         [new(StringComparer.Ordinal)];
 
+    // Where every possessive marker starts. A name whose span ends exactly here owns that marker —
+    // `'s` binds to the word immediately before it and nothing else can be in between.
+    private readonly HashSet<(int Line, int Column)> _possessiveStarts;
+
     private SemanticTokenizer(IReadOnlyList<Token> tokens, TypeChecker checker)
     {
         _tokens  = tokens;
         _checker = checker;
+        _possessiveStarts = tokens
+            .Where(t => t.Type == TokenType.Possessive)
+            .Select(t => (t.Line, t.Column))
+            .ToHashSet();
     }
 
     // The one entry point. `checker` must be the instance that already checked `program` — its
@@ -120,10 +128,15 @@ public sealed class SemanticTokenizer
 
     // ── Emitting ──────────────────────────────────────────────────────────
 
+    // An owner's token is widened to swallow its `'s`. The TextMate grammar deliberately scopes
+    // `math's` as one word — see the `possessive` rule's comment — so a semantic token that stopped
+    // at `math` would repaint the name and leave the marker behind in the grammar's colour, which
+    // is exactly the half-coloured word that rule exists to prevent.
     private void Emit(int line, int column, int length, SemanticTokenKind kind,
                       SemanticTokenModifier modifiers = SemanticTokenModifier.None)
     {
         if (line <= 0 || column <= 0 || length <= 0) return;
+        if (_possessiveStarts.Contains((line, column + length))) length += 2;
         _out.Add(new SemanticToken(line, column, length, kind, modifiers));
     }
 
@@ -499,7 +512,15 @@ public sealed class SemanticTokenizer
             // author chose.
             case JudgeStatement judge:
                 Walk(judge.Subject);
-                foreach (var arm in judge.Arms) WalkBlock(arm.Body);
+                foreach (var arm in judge.Arms)
+                {
+                    // An arm's cases are spelled in its own header — `A circle:`, or
+                    // `A square or a rectangle:` — so one cursor anchored at the arm places them
+                    // all, and stops at the ':' that opens the body.
+                    var arms = Cursor.At(_tokens, arm.Line, arm.Column);
+                    foreach (var oneCase in arm.Cases) EmitAnnotationNames(arms, oneCase);
+                    WalkNested(arm.Body);
+                }
                 WalkNested(judge.OtherwiseBody);
                 break;
 

@@ -5,11 +5,16 @@
 //   2. web/*          — index.html and the page's own stylesheet, copied
 //   3. the AppBundle  — the .NET runtime and the interpreter, produced by `dotnet publish`
 //
-// The publish step is NOT run from here, and that is deliberate: on the machine this was written
-// on it cannot be. Publishing a browser-wasm project always relinks the native runtime through
-// emscripten, and that relink fails on a space in the path — this repository lives under
-// "…\My Stuff\…". So publish from a space-free copy and point this script at the result with
-// --bundle=<path>. A CI checkout has no spaces, so there it is an ordinary one-liner.
+// The publish step is NOT run from here. Publishing a browser-wasm project relinks the native
+// runtime through emscripten, and that relink fails on a space anywhere in the path — so the
+// AppBundle has to be produced separately, and --bundle=<path> points this script at one built
+// somewhere else if the checkout cannot host it.
+//
+//   dotnet publish playground/Cufet.Playground.csproj -c Release
+//
+// ★ Which means a stale AppBundle is possible, and it is a nasty one: the page loads, runs, and
+// quietly answers with an OLD interpreter — so a fix to the front end appears not to have worked
+// when in fact it was never shipped. The staleness check below is there because that cost a round.
 
 import * as esbuild from 'esbuild';
 import { convertTheme, chromeStylesheet } from './build-theme.mjs';
@@ -149,6 +154,17 @@ if (!existsSync(appBundle)) {
     process.exit(1);
 }
 
+// The same silent-staleness trap as worker.js below, one level up: the bundle carries a COMPILED
+// interpreter, so a source change that has not been republished ships as if it had been. Comparing
+// the built assembly against the newest source file catches it. A warning rather than a failure —
+// a bundle built elsewhere legitimately has whatever timestamps the copy gave it.
+const builtAt = (await stat(join(appBundle, '_framework', 'Cufet.Interpreter.wasm'))).mtimeMs;
+const newestSource = await newestFileTime(join(here, '..', 'src'));
+if (newestSource > builtAt)
+    console.warn(
+        '\n  ⚠ the AppBundle is OLDER than src/ — the page will run a stale interpreter.\n' +
+        '    dotnet publish playground/Cufet.Playground.csproj -c Release\n');
+
 // _framework/ is the runtime itself and can only come from the publish.
 await cp(join(appBundle, '_framework'), join(out, '_framework'), { recursive: true });
 
@@ -167,6 +183,19 @@ async function totalBytes(dir) {
         sum += entry.isDirectory() ? await totalBytes(path) : (await stat(path)).size;
     }
     return sum;
+}
+
+// bin/ and obj/ are skipped: they hold build OUTPUT, which is newer than the bundle by definition
+// and would report every build as stale.
+async function newestFileTime(dir) {
+    let newest = 0;
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+        if (entry.name === 'bin' || entry.name === 'obj') continue;
+        const path = join(dir, entry.name);
+        const when = entry.isDirectory() ? await newestFileTime(path) : (await stat(path)).mtimeMs;
+        if (when > newest) newest = when;
+    }
+    return newest;
 }
 
 const mb = n => `${(n / 1024 / 1024).toFixed(2)} MB`;

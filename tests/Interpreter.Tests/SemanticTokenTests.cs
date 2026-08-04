@@ -119,11 +119,11 @@ public class SemanticTokenTests
                 (8,  36, 1,  "property",  false),  // the x of here
                 (8,  41, 4,  "variable",  false),  // ... of here
                 (9,   7, 5,  "variable",  false),  // State reach
-                (10,  7, 4,  "variable",  false),  // State here's y
+                (10,  7, 6,  "variable",  false),  // State here's y — the owner spans its 's
                 (10, 14, 1,  "property",  false),  // here's y
-                (12, 16, 4,  "namespace", true),   // Pull a book on math
+                (12, 16, 4,  "namespace", true),   // Pull a book on math — no marker, no widening
                 (12, 24, 1,  "namespace", true),   // ... as m
-                (13, 11, 1,  "namespace", false),  // m's square root
+                (13, 11, 3,  "namespace", false),  // m's square root — owner + marker
                 (13, 15, 11, "function",  false),  // the book member, spanning both its words
             ],
             Classify(source).Select(Shape));
@@ -152,10 +152,42 @@ public class SemanticTokenTests
                 (7,  8, 3, "variable", true),   // Define rex
                 (7, 21, 3, "type",     false),  // a new dog
                 (7, 31, 4, "property", false),  // the name "Rex"
-                (8,  6, 3, "variable", false),  // Cast rex's speak — the receiver is a value
+                (8,  6, 5, "variable", false),  // Cast rex's speak — the receiver is a value
                 (8, 12, 5, "function", false),  // ... and the member is the method being called
             ],
             Classify(source).Select(Shape));
+    }
+
+    // ★ The grammar scopes `rex's` as ONE word on purpose — see the `possessive` rule's comment in
+    // cufet.tmLanguage.json. A semantic token that stopped at `rex` would repaint the name and
+    // leave the marker in the grammar's colour, so the word would visibly change colour halfway
+    // through. The producer is what has to match the grammar's span, so it widens the owner.
+    [Fact]
+    public void APossessiveOwner_IsWidenedToCoverItsMarker()
+    {
+        var source = """
+            Define object dog with (the text name).
+            Define rex as a new dog { the name "Rex" }.
+            State rex's name.
+            State rex.
+            """;
+
+        var shapes = Classify(source).Select(Shape).ToList();
+
+        Assert.Contains((3, 7, 5, "variable", false), shapes);   // rex's — 3 letters plus the marker
+        Assert.Contains((4, 7, 3, "variable", false), shapes);   // the same name, bare, stays 3
+
+        // Chained: every owner in the chain owns a marker, and each is widened in turn.
+        var chained = Classify("""
+            Define object engine with (the number power).
+            Define object car with (the engine motor).
+            Define mine as a new car { the motor a new engine { the power 300 } }.
+            State mine's motor's power.
+            """).Select(Shape).ToList();
+
+        Assert.Contains((4, 7, 6, "variable", false), chained);   // mine's
+        Assert.Contains((4, 14, 7, "property", false), chained);  // motor's
+        Assert.Contains((4, 22, 5, "property", false), chained);  // power — nothing follows it
     }
 
     [Fact]
@@ -179,7 +211,7 @@ public class SemanticTokenTests
                 (2, 21, 4, "type",     false),
                 (2, 32, 4, "property", false),
                 (2, 51, 4, "property", false),
-                (3,  7, 3, "variable", false),
+                (3,  7, 5, "variable", false),  // ace's — the marker rides with its owner
                 (3, 13, 4, "property", false),
             ],
             Classify(source).Select(Shape));
@@ -248,6 +280,41 @@ public class SemanticTokenTests
         // line 14 (column 46) are keyword tokens a TextMate grammar already colours.
         Assert.DoesNotContain(tokens, t => t.Item1 == 1  && t.Item2 == 30);
         Assert.DoesNotContain(tokens, t => t.Item1 == 14 && t.Item2 == 46);
+    }
+
+    [Fact]
+    public void JudgeArmCases_AreClassifiedAsTypes()
+    {
+        // A judgement's arms are the one place a bare type name opens a statement, so the grammar
+        // reads them as ordinary references. Each arm's cases are spelled in its own header, and a
+        // grouped arm spells two.
+        var source = """
+            Define object circle with (the number radius).
+            Define object square with (the number side).
+            Define the (circle or square) shape as a new circle { the radius 2 }.
+            Judge shape, where it is:
+                A circle, state "round".
+                A square, state "cornered".
+            Done.
+            """;
+
+        var tokens = Classify(source).Select(Shape).ToList();
+
+        Assert.Contains((5,  7, 6, "type", false), tokens);   // A circle,
+        Assert.Contains((6,  7, 6, "type", false), tokens);   // A square,
+
+        // A grouped arm, and bodies that are their own scopes rather than the judgement's.
+        var grouped = Classify("""
+            Define object circle with (the number radius).
+            Define object square with (the number side).
+            Define the (circle or square) shape as a new circle { the radius 2 }.
+            Judge shape, where it is:
+                A circle or a square, state "a shape".
+            Done.
+            """).Select(Shape).ToList();
+
+        Assert.Contains((5,  7, 6, "type", false), grouped);  // A circle ...
+        Assert.Contains((5, 19, 6, "type", false), grouped);  // ... or a square
     }
 
     [Fact]

@@ -14,6 +14,31 @@ import * as monaco from 'monaco-editor/editor/editor.api';
 import { loadWASM, OnigScanner, OnigString } from 'vscode-oniguruma';
 import { Registry, INITIAL, parseRawGrammar } from 'vscode-textmate';
 
+// ★ Semantic tokens do not work in standalone Monaco without these next three lines, and NOTHING
+// reports that they are missing. The two facts behind them, both read out of monaco-editor 0.56.0:
+//
+//  1. `registerDocumentSemanticTokensProvider` only puts a provider in a registry. The thing that
+//     READS that registry is an editor CONTRIBUTION — `registerEditorFeature(...)` at the bottom of
+//     contrib/semanticTokens/browser/documentSemanticTokens.js — and editor.api.js imports exactly
+//     one contribution (format). So the provider registers, and nothing ever calls it.
+//  2. Even loaded, the feature asks `isSemanticColoringEnabled`, which reads the setting
+//     `editor.semanticHighlighting.enabled` — default `'configuredByTheme'`, not a boolean, so it
+//     defers to `theme.semanticHighlighting`. And StandaloneTheme sets that field to `false` in its
+//     constructor and never reads it back off the theme data. Passing `semanticHighlighting: true`
+//     to `defineTheme` is therefore INERT — a plausible-looking line that does nothing, which is
+//     what sent four attempts at this bug looking in the wrong place. The setting is the only lever.
+//
+// This is the price of editor.api over editor.main: features come à la carte. Adding just this one
+// is still far cheaper than the ninety grammars editor.main brings with it.
+import 'monaco-editor/editor/contrib/semanticTokens/browser/documentSemanticTokens';
+import { StandaloneServices } from 'monaco-editor/editor/standalone/browser/standaloneServices';
+import { IConfigurationService } from 'monaco-editor/platform/configuration/common/configuration';
+
+const configuration = StandaloneServices.get(IConfigurationService);
+configuration.updateValue('editor.semanticHighlighting.enabled', true);
+if (configuration.getValue('editor.semanticHighlighting')?.enabled !== true)
+    console.error('semantic highlighting could not be switched on — names will keep the grammar\'s colours');
+
 const LANGUAGE_ID = 'cufet';
 
 // A first program that shows the language rather than describing it. Taken verbatim from the
@@ -112,9 +137,10 @@ async function startHighlighting() {
     if (!grammar) throw new Error('the Cufet grammar did not load');
 
     // The page's half of this theme is already applied — build.mjs emits it as theme-chrome.css,
-    // linked in the page head — so only the editor's half is set here. semanticHighlighting is what
-    // lets the theme colour the layer below; without it Monaco ignores the provider entirely.
-    monaco.editor.defineTheme('arctic-candy-darker', { ...theme, semanticHighlighting: true });
+    // linked in the page head — so only the editor's half is set here. Semantic highlighting is
+    // switched on at the top of this file, NOT here: a standalone theme drops the flag on the
+    // floor. See the note there.
+    monaco.editor.defineTheme('arctic-candy-darker', theme);
     monaco.editor.setTheme('arctic-candy-darker');
 
     monaco.languages.setTokensProvider(LANGUAGE_ID, {
@@ -144,7 +170,16 @@ async function startHighlighting() {
     // standalone Monaco theme has no semantic-token defaults — it resolves a token by matching the
     // type against its ordinary rules. Naming them this way means the theme already in hand colours
     // every kind, with no second colour table to keep in step with the first.
+    // ★ onDidChange is not optional here, whatever the interface says. Monaco asks for semantic
+    // tokens ONCE per model revision, and the first ask lands the instant this provider is
+    // registered — which is the moment three small fetches finish, seconds before the .NET runtime
+    // in the worker has booted. askRuntime answers null to everything until then, so that first ask
+    // resolves to nothing and, with no revision to invalidate it, Monaco never asks again. The page
+    // then sits on raw TextMate colours forever, and looks for all the world like a provider that
+    // was never registered. Firing this when the runtime becomes able to answer is what makes the
+    // whole semantic layer arrive.
     monaco.languages.registerDocumentSemanticTokensProvider(LANGUAGE_ID, {
+        onDidChange: semanticsChanged.event,
         getLegend: () => SEMANTIC_LEGEND,
         releaseDocumentSemanticTokens() { },
         async provideDocumentSemanticTokens(model) {
@@ -181,6 +216,11 @@ const SEMANTIC_KIND_INDEX = {
 };
 
 let lastSemanticTokens = { data: new Uint32Array(0) };
+
+// Fired whenever the runtime goes from "cannot answer" to "can" — the worker finishing its boot,
+// or a run releasing it. Monaco responds by asking the provider again for every visible model,
+// which is the only way an answer that was unavailable the first time ever reaches the screen.
+const semanticsChanged = new monaco.Emitter();
 
 // Monaco wants one flat array of 5-tuples, each position stated as a delta from the one before it:
 // line relative to the previous token's line, and start column relative to the previous token's
@@ -304,6 +344,7 @@ function onWorkerMessage({ data }) {
         booted = true;
         setBusy(false);
         statusText.textContent = 'ready';
+        semanticsChanged.fire();
         if (pendingAutoRun) { pendingAutoRun = false; run(); }
         return;
     }
@@ -313,6 +354,9 @@ function onWorkerMessage({ data }) {
     if (data.id !== running) return;
     running = null;
     setBusy(false);
+    // The worker is answerable again. It refused every token request for the length of the run —
+    // and the auto-run on first boot means that refusal covers the page's whole arrival.
+    semanticsChanged.fire();
 
     if (data.ok) {
         const text = data.result;
