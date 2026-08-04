@@ -2516,6 +2516,104 @@ public class PipelineTests
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ── Judge ─────────────────────────────────────────────────────────────
+    //
+    // Lowers to a tag dispatch on the union, with the subject evaluated once into a C local named
+    // `cv_it` inside a fresh block — so a nested Judge shadows an outer one through C's own
+    // scoping rather than through generated names.
+
+    [Fact]
+    public void Judge_ExhaustiveUnion_MatchesInterpreter()
+    {
+        const string src = """
+            Define the (number or text or fact) thing as 42.
+
+            Judge thing, where it is:
+                A number, state "a number".
+                A text, state "some text".
+                A fact, state "a fact".
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Judge_OtherwiseAndGrouping_MatchesInterpreter()
+    {
+        const string src = """
+            Define the (number or text or fact) thing as "hi".
+
+            Judge thing, where it is:
+                A number or a fact, state "not text".
+                Otherwise, state "text".
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Judge_NarrowsItInsideEachArm_MatchesInterpreter()
+    {
+        // `the length of` is text-only, so this compiles at all only because the arm narrowed —
+        // and the C side has to emit `.val.c<k>` for the same reason.
+        const string src = """
+            Define the (number or text) thing as "hello".
+
+            Judge thing, where it is:
+                A text, state the length of it.
+                Otherwise, state "not text".
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Judge_OverAnObjectUnionTree_MatchesInterpreter()
+    {
+        // The self-hosting shape: an AST as a closed union of object types, walked recursively,
+        // every arm returning. Exercises narrowing, coverage and return-path analysis at once.
+        const string src = """
+            Define object num-node with (the number value).
+            Define object add-node with (the series of (num-node or add-node) kids).
+
+            Bind number to eval, given (the (num-node or add-node) node):
+                Judge node, where it is:
+                    A num-node, return the value of it.
+                    An add-node:
+                        Define total as 0.
+                        For each kid in the kids of it, repeat:
+                            The total becomes total + cast eval on (kid).
+                        Done.
+                        Return total.
+                    Done.
+                Done.
+            Done.
+
+            Define two as a new num-node { the value 2 }.
+            Define three as a new num-node { the value 3 }.
+            Define sum as a new add-node { the kids a series of (num-node or add-node) with (two, three) }.
+            State cast eval on (sum).
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void Judge_OverANonUnion_IsRefusedCleanly()
+    {
+        // Value arms are not built yet. The checker accepts this with an Otherwise, so the
+        // compiler must refuse it rather than emit something that does not dispatch — a clean
+        // refusal is the sanctioned escape, silently wrong output is not.
+        var ex = Assert.Throws<CompilerException>(() => Compile("""
+            Define thing as 42.
+
+            Judge thing, where it is:
+                A number, state "a number".
+                Otherwise, state "other".
+            Done.
+            """));
+        Assert.Contains("not a closed union", ex.Message);
+    }
+
     [Fact]
     public void MutualRecursion_AtTopLevel_MatchesInterpreter()
     {

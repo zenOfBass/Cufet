@@ -63,6 +63,7 @@ public sealed class Parser
             TokenType.One        => ParseOneStatement(),
             TokenType.Article    => ParseRecordNamedSetStatement(),
             TokenType.If         => ParseIfStatement(),
+            TokenType.Judge      => ParseJudgeStatement(),
             TokenType.While      => ParseWhileStatement(),
             TokenType.Repeat     => ParseRepeatUntilStatement(),
             TokenType.Stop       => ParseStopStatement(tok),
@@ -673,6 +674,78 @@ public sealed class Parser
         var result = ParseLoopBody();
         _nestDepth--;
         return result;
+    }
+
+    // Judge <subject>, where it is:
+    //     A num-node, state "leaf".
+    //     An add-node or a mul-node: ... Done.
+    //     Otherwise, state "something else".
+    // Done.
+    //
+    // The header states subject and verb once so each arm completes the sentence, which is why
+    // the arms are bare cases rather than repeating `It is`. Arm bodies reuse ParseIfBody, so the
+    // comma-versus-colon rule is the same one `If` already follows and there is nothing new to
+    // learn about where a `Done.` belongs.
+    private JudgeStatement ParseJudgeStatement()
+    {
+        var tok = Consume(TokenType.Judge);
+        SkipNoise();
+        var subject = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Comma);
+        SkipNoise();
+        Consume(TokenType.Where);
+        SkipNoise();
+        Consume(TokenType.It);
+        SkipNoise();
+        Consume(TokenType.Is);
+        SkipNoise();
+        Consume(TokenType.Colon);
+
+        var arms = new List<JudgeArm>();
+        IReadOnlyList<IStatement>? otherwise = null;
+
+        while (true)
+        {
+            SkipNoise();
+
+            if (Peek().Type is TokenType.Done or TokenType.Eof) break;
+
+            // `Otherwise` closes the arm list — nothing may follow it, because an arm after the
+            // default could never be reached.
+            if (Peek().Type == TokenType.Otherwise)
+            {
+                Advance();
+                otherwise = ParseIfBody();
+                SkipNoise();
+                break;
+            }
+
+            var armTok = Peek();
+            var cases  = new List<CufetType>();
+            SkipNoise();
+            cases.Add(ParseTypeAnnotation());
+            SkipNoise();
+            // `A num-node or a mul-node` — grouping, which is what C-style fall-through is
+            // overwhelmingly used for and the reason `Descend.` is not needed for it.
+            while (Peek().Type == TokenType.Or)
+            {
+                Advance();
+                SkipNoise();
+                cases.Add(ParseTypeAnnotation());
+                SkipNoise();
+            }
+
+            arms.Add(new JudgeArm(cases, ParseIfBody(), armTok.Line, armTok.Column));
+        }
+
+        Consume(TokenType.Done);
+        Consume(TokenType.Dot);
+
+        if (arms.Count == 0)
+            throw new ParseException(tok, "at least one case in a Judge");
+
+        return new JudgeStatement(subject, arms, otherwise, tok.Line, tok.Column);
     }
 
     private WhileStatement ParseWhileStatement()

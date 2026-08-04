@@ -222,6 +222,11 @@ public static class Linter
                 if (s.ElseBody is not null) yield return (s.ElseBody, false);
                 break;
 
+            case JudgeStatement s:
+                foreach (var arm in s.Arms) yield return (arm.Body, false);
+                if (s.OtherwiseBody is not null) yield return (s.OtherwiseBody, false);
+                break;
+
             case TryStatement s:
                 yield return (s.Body, false);
                 if (s.FailureHandler is not null) yield return (s.FailureHandler, false);

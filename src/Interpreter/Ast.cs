@@ -130,6 +130,38 @@ public sealed record IfStatement(
     IReadOnlyList<IStatement>? ElseBody
 ) : IStatement;
 
+// One arm of a Judge. `Cases` holds every type the arm matches — `An add-node or a mul-node`
+// gives two — because grouping is how the common use of C-style fall-through is served.
+public sealed record JudgeArm(
+    IReadOnlyList<CufetType> Cases,
+    IReadOnlyList<IStatement> Body,
+    int Line,
+    int Column
+);
+
+// Judge <subject>, where it is:
+//     A num-node, ...
+//     An add-node or a mul-node: ... Done.
+//     Otherwise, ...
+// Done.
+//
+// The subject is bound to `it` for the whole block and NARROWED inside each arm to that arm's
+// case. Binding to a name is what lets the subject be an arbitrary expression: narrowing is
+// variable-level, so `Judge the entry for "alice" in ages, where it is:` narrows where a bare
+// `If` on the same expression could not.
+//
+// OtherwiseBody == null means no Otherwise arm was written. That is legal only when the subject
+// is a CLOSED UNION and the arms cover every case — coverage is then proved rather than
+// defaulted. For any other subject the checker requires an Otherwise, so control can never fall
+// off the end of a Judge.
+public sealed record JudgeStatement(
+    IExpression Subject,
+    IReadOnlyList<JudgeArm> Arms,
+    IReadOnlyList<IStatement>? OtherwiseBody,
+    int Line,
+    int Column
+) : IStatement;
+
 public sealed record WhileStatement(
     IExpression Condition,
     IReadOnlyList<IStatement> Body

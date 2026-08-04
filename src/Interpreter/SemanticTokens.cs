@@ -494,6 +494,15 @@ public sealed class SemanticTokenizer
             // spelling. Here the node's own existence is the proof: reaching this arm means the
             // parser decided this occurrence is the statement, whatever its capitalisation. The
             // position is the keyword's own, recorded when the statement was parsed.
+            // The subject is an ordinary expression; the arm CASES are type names, which get the
+            // same kind an annotation would. `it` is not emitted — it is a keyword, not a name the
+            // author chose.
+            case JudgeStatement judge:
+                Walk(judge.Subject);
+                foreach (var arm in judge.Arms) WalkBlock(arm.Body);
+                WalkNested(judge.OtherwiseBody);
+                break;
+
             case SeedChanceStatement seed:
                 Emit(seed.Line, seed.Column, "seed".Length, SemanticTokenKind.Keyword);
                 Walk(seed.Seed);

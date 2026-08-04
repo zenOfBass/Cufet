@@ -478,6 +478,40 @@ public sealed partial class Interpreter
                 break;
             }
 
+            case JudgeStatement judge:
+            {
+                // The subject is evaluated ONCE, however many arms are tested against it — the
+                // whole point of naming it `it` rather than repeating the expression per arm.
+                var subject = Evaluate(judge.Subject);
+
+                foreach (var arm in judge.Arms)
+                {
+                    if (!arm.Cases.Any(c => RuntimeIsType(subject, c))) continue;
+                    EnterScope();
+                    try
+                    {
+                        Scope["it"] = subject!;
+                        foreach (var s in arm.Body) Execute(s);
+                    }
+                    finally { ExitScope(); }
+                    return;
+                }
+
+                // The checker guarantees one of these two happens: either the arms covered a
+                // closed union exhaustively, or an Otherwise is present. Reaching the end with
+                // neither would be a checker bug, not a program error.
+                if (judge.OtherwiseBody != null)
+                {
+                    EnterScope();
+                    try
+                    {
+                        Scope["it"] = subject!;
+                        foreach (var s in judge.OtherwiseBody) Execute(s);
+                    }
+                    finally { ExitScope(); }
+                }
+                return;
+            }
             case IfStatement ifStmt:
             {
                 bool executed = false;

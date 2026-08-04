@@ -4426,6 +4426,10 @@ static void* cufet_pipe_stage(void* argp) {
                 EmitIf(sb, ifStmt, indent);
                 break;
 
+            case JudgeStatement judge:
+                EmitJudge(sb, judge, indent);
+                break;
+
             case WhileStatement ws:
             {
                 // Conditions may PREEMIT (env var, map lookup, delivery, …). A while-head can't hold
@@ -4500,6 +4504,77 @@ static void* cufet_pipe_stage(void* argp) {
                 throw new CompilerException(
                     $"'{NodeName(stmt)}' is not yet supported by the compiler.");
         }
+    }
+
+    // Judge lowers to a tag dispatch over the subject's union, evaluated ONCE into a C local.
+    //
+    // ★ That local is literally `cv_it`. Declaring it inside a fresh C block means a nested Judge
+    // shadows an outer one exactly the way Cufet's `it` does, with no name generation and no
+    // bookkeeping — C's own scoping carries the semantics.
+    private void EmitJudge(StringBuilder sb, JudgeStatement judge, string indent)
+    {
+        var subjType = TypeOf(judge.Subject);
+        if (subjType is not UnionType subjUnion || subjUnion.Cases == null)
+            throw new CompilerException(
+                "a Judge over something that is not a closed union cannot be compiled yet — its " +
+                "arms would have to compare values rather than dispatch on a tag. Judge a union, " +
+                "or use an 'Otherwise if' chain here.");
+
+        var allCases = UnionCases(subjUnion);
+        string subjExpr = EmitExpr(judge.Subject);
+        FlushPreEmits(sb, indent);
+
+        string inner = indent + "    ";
+        string body  = inner + "    ";
+        string itName = MangleName("it");
+
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{inner}{EmitCType(subjType)} {itName} = {subjExpr};");
+
+        bool hadIt = _varTypes.TryGetValue("it", out var prevIt);
+        _varTypes["it"] = subjType;
+
+        var covered = new HashSet<int>();
+        string keyword = "if";
+
+        foreach (var arm in judge.Arms)
+        {
+            var indices = arm.Cases
+                .Select(c => MatchCaseInList(allCases, c))
+                .Where(k => k >= 0)
+                .ToList();
+            foreach (int k in indices) covered.Add(k);
+
+            string test = indices.Count == 0
+                ? "0"
+                : string.Join(" || ", indices.Select(k => $"(({itName}).tag == {k})"));
+
+            sb.AppendLine($"{inner}{keyword} ({test}) {{");
+
+            // One case ⇒ `it` reads at that case's concrete type. Grouped cases stay the union,
+            // matching the checker: an arm covering two cases cannot know which one arrived.
+            (string, CufetType, string)? narrow = indices.Count == 1
+                ? ("it", allCases[indices[0]], $".val.c{indices[0]}")
+                : null;
+            EmitNarrowedBlock(sb, narrow, arm.Body, body);
+            keyword = "} else if";
+        }
+
+        if (judge.OtherwiseBody != null)
+        {
+            sb.AppendLine($"{inner}}} else {{");
+            // Same rule the If's else-arm follows: exactly one case left ⇒ read at that case.
+            var left = Enumerable.Range(0, allCases.Count).Where(i => !covered.Contains(i)).ToList();
+            (string, CufetType, string)? narrow = left.Count == 1
+                ? ("it", allCases[left[0]], $".val.c{left[0]}")
+                : null;
+            EmitNarrowedBlock(sb, narrow, judge.OtherwiseBody, body);
+        }
+
+        sb.AppendLine($"{inner}}}");
+        sb.AppendLine($"{indent}}}");
+
+        if (hadIt) _varTypes["it"] = prevIt!; else _varTypes.Remove("it");
     }
 
     private void EmitIf(StringBuilder sb, IfStatement ifStmt, string indent)

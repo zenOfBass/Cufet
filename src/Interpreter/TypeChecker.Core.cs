@@ -825,6 +825,59 @@ public sealed partial class TypeChecker
             case StateStatement state:
                 _ = InferType(state.Value);
                 break;
+            case JudgeStatement judge:
+            {
+                var subjectType = InferType(judge.Subject);
+
+                // What is still unaccounted for. Each arm removes its cases; RemoveFromUnion
+                // returns null once nothing is left. For a subject that is NOT a union it
+                // returns the type unchanged, which is exactly what makes `Otherwise` mandatory
+                // there — coverage can never be proved for a type with no enumerable cases.
+                CufetType? remaining = subjectType;
+
+                foreach (var arm in judge.Arms)
+                {
+                    foreach (var oneCase in arm.Cases)
+                    {
+                        // RemoveFromUnion collapses a two-case union to the bare survivor, and
+                        // then declines to remove anything from it because it is no longer a
+                        // UnionType. The last case therefore has to be retired here, or a
+                        // fully-covered judgement reports its final case as unhandled.
+                        if (remaining is not null && remaining.Equals(oneCase)) remaining = null;
+                        else remaining = RemoveFromUnion(remaining, oneCase);
+                    }
+
+                    // `it` IS the narrowing. Binding the subject to a name is what lets the
+                    // subject be an arbitrary expression — narrowing is variable-level, so a
+                    // bare `If` on the same expression could not do this.
+                    var armType = arm.Cases.Count == 1
+                        ? arm.Cases[0]
+                        : new UnionType(arm.Cases.ToList());
+
+                    EnterScope();
+                    Scope["it"] = new TypeInfo(armType, judge.Subject, arm.Line);
+                    try { CheckBlock(arm.Body); } finally { ExitScope(); }
+                }
+
+                if (judge.OtherwiseBody != null)
+                {
+                    // Narrowed by elimination to whatever the arms did not take.
+                    EnterScope();
+                    Scope["it"] = new TypeInfo(remaining ?? subjectType, judge.Subject, judge.Line);
+                    try { CheckBlock(judge.OtherwiseBody); } finally { ExitScope(); }
+                }
+                else if (remaining != null)
+                {
+                    throw TypeError(
+                        $"this judgement does not cover {FormatType(remaining)}",
+                        $"Every case has to be handled, and {FormatType(remaining)} is left over",
+                        judge.Line, judge.Column,
+                        "leave a case unhandled",
+                        "Add an arm for it, or end with 'Otherwise, ...' to say what happens to " +
+                        "everything else.");
+                }
+                break;
+            }
             case IfStatement ifStmt:
             {
                 // Track union exhaustion across arms: if every arm type-checks the same variable
@@ -1617,7 +1670,10 @@ public sealed partial class TypeChecker
     private static CufetType? RemoveFromUnion(CufetType? unionType, CufetType removedType)
     {
         if (unionType is not UnionType { Cases: { } cases }) return unionType;
-        var remaining = cases.Where(c => c != removedType).ToList();
+        // Equals, not `!=`. CufetType subclasses override Equals but not the operator, so `!=`
+        // is reference equality — which happened to work for the cached primitive instances and
+        // silently failed for any type constructed fresh by the parser.
+        var remaining = cases.Where(c => !c.Equals(removedType)).ToList();
         if (remaining.Count == 0) return null;
         if (remaining.Count == 1) return remaining[0];
         // (T or void) normalizes to VoidableType(T)
@@ -1656,6 +1712,13 @@ public sealed partial class TypeChecker
                 if (allArmsReturn && DefinitelyReturns(ifStmt.ElseBody)) return true;
             }
             // Pull...Done scopes are transparent: if the Pull body definitely returns, so does the Pull.
+            // A Judge that reaches the checker has already been proved total — either it covers a
+            // closed union exhaustively or it carries an Otherwise. So if every arm returns, the
+            // whole judgement returns, and there is no fall-off-the-end path to worry about.
+            if (stmt is JudgeStatement judge
+                && judge.Arms.All(a => DefinitelyReturns(a.Body))
+                && (judge.OtherwiseBody == null || DefinitelyReturns(judge.OtherwiseBody)))
+                return true;
             if (stmt is PullStatement ps && DefinitelyReturns(ps.Body)) return true;
             if (stmt is PullRabbitStatement prs && DefinitelyReturns(prs.Body)) return true;
             // Loops are not counted: while/for-each may execute zero times,
