@@ -68,9 +68,7 @@ Pull a rabbit.
         State "collector: received " joined to ((the number of received) converted to text) joined to " results".
         State "expected sum: " joined to (expected-sum converted to text).
         State "actual sum:   " joined to (actual-sum converted to text).
-        If actual-sum is expected-sum:
-            State "correctness: PASS (all 30 items processed exactly once)".
-        Done.
+        If actual-sum is expected-sum, state "correctness: PASS (all 30 items processed exactly once)".
         If actual-sum is not expected-sum, state "correctness: FAIL".
     Done.
 Done.
