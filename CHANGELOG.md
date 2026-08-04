@@ -37,6 +37,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★ Ctrl-C did nothing to an interpreted program that did not poll for it.** The key handler set
+  `e.Cancel = true` on every program, taking the OS kill away — and the flag was then read only at
+  `Yield.`, a channel receive, a task await, a subprocess wait, or an explicit poll. A loop of
+  ordinary statements reached none of them, so a running program could not be stopped from its own
+  terminal at all. Two changes, and a rule:
+  - **Every statement is now an interrupt checkpoint** — but only for a program that never mentions
+    interrupts. Handle them and you are in charge of them; ignore them and Ctrl-C behaves the way it
+    does everywhere else. The rule is decided once, from the whole program, because a rule that
+    changed with position could not be reasoned about from a terminal.
+  - **A second Ctrl-C always terminates.** Cancelling the kill is only defensible while something
+    can still act on the flag.
+  - An interrupted run now unwinds cleanly and exits **130**, as the reference already specified,
+    instead of escaping as an unhandled exception and printing a .NET stack trace.
+- **A poll inside a `Judge` was invisible to the compiler.** Both backends decide whether a program
+  handles its own interrupts by searching the AST; the compiler's search was a switch with an arm
+  per statement type, written before `Judge` existed. A judgement's arms were never searched, so
+  such a program compiled with no signal substrate while the interpreter handled it cooperatively.
+  Both now use one reflection walk (`AstSearch.Contains`), which searches new node types without
+  anyone having to remember them.
 - **A book's types were invisible inside a function body.** Function isolation cleared the type
   scopes along with the value scopes, so `a matrix with 3 by 3` was a static error inside a function
   written within `Pull a book on collections.` — while `given (the matrix m)` in the same signature

@@ -2777,11 +2777,21 @@ Done.
 
 #### How far an interrupt reaches
 
-The polling constructs above behave identically on both backends. What differs is what
-happens when you *don't* poll.
+The polling constructs above behave identically on both backends.
 
-**Interpreted, interruption is checkpoint-only.** A tight loop containing no `Yield.`
-and no blocking call cannot be interrupted mid-loop — the scheduler never gets a turn.
+**A program that never mentions interrupts is interrupted for you.** If neither
+`an interrupt is requested` nor `Acknowledge the interrupt.` appears anywhere in it,
+Ctrl-C stops it: interpreted, every statement is a checkpoint; compiled, the default
+signal disposition applies. Either way the program ends and exits 130.
+
+**A program that does mention them is in charge of its own.** Ctrl-C then only sets the
+flag, and nothing unwinds until the program polls — which is the entire point of
+cooperative handling, and the reason the rule is decided from the whole program rather
+than statement by statement. A poll anywhere puts you in charge everywhere.
+
+The practical consequence, if you handle interrupts: a tight loop that contains no
+`Yield.`, no blocking call and no poll cannot be interrupted mid-loop. **A second Ctrl-C
+always terminates**, so a program in that state is never unkillable from its terminal.
 
 **Compiled, interruption is genuinely preemptive.** The runtime installs a real
 `sigaction` handler whose only job is to set a flag (so it is async-signal-safe), and
@@ -2790,7 +2800,8 @@ each thread establishes a landing pad it unwinds to at its next checkpoint. In p
 | Situation | Interpreted | Compiled |
 |---|---|---|
 | Loop containing `Yield.` | interruptible | interruptible |
-| Tight loop, no checkpoint at all | not interruptible | not interruptible |
+| Tight loop in a program that never mentions interrupts | interruptible — every statement is a checkpoint | interruptible — the default signal disposition applies |
+| Tight loop in a program that handles its own interrupts | not interruptible until it polls; a second Ctrl-C terminates | not interruptible until it polls; a second Ctrl-C terminates |
 | Blocked on `the delivery from` | interruptible | interruptible — a real blocked thread genuinely wakes |
 | Inside a running task | interruptible at its checkpoints | interruptible; the task unwinds, its destructors run, its files close, and the rabbit reaps it at the join |
 | Waiting at a rabbit's `Done.` for tasks | n/a | the wait ends as its tasks unwind, and the program then tears down |
