@@ -385,3 +385,58 @@ The two arcs where soundness was the whole problem.
   unsound, because arenas are per-thread and a mutation that grows a shared series
   would reallocate into the task's own arena; and the pattern is a genuine data
   race that only the cooperative scheduler was hiding.
+
+---
+
+## Two backends, one language
+
+Why the interpreter and the compiler must agree, and what that agreement is standing in for.
+
+- **The interpreter is the oracle, and every disagreement is a bug — settled.** A program's
+  compiled output must equal its interpreted output, and a divergence never ships as a
+  documented caveat. [CONTRIBUTING.md](CONTRIBUTING.md) states the rule as practice; this
+  is the reasoning under it.
+
+  *Why agreement rather than conformance.* Two implementations of a language are normally
+  only obliged to satisfy its specification, and are free to differ wherever the
+  specification is silent — which is why GCC, Clang and MSVC are all correct C++ compilers
+  that produce different programs. That freedom is not available here, for a plain reason:
+  **Cufet has no written formal semantics.** The interpreter is the definition. Agreement
+  is not a stylistic preference between two peers; it is how a second implementation is
+  checked against the only definition that exists.
+
+  *Why there is nowhere for them to legitimately differ.* The C++ answer works because C++
+  has a category called undefined behaviour — a place the specification deliberately
+  declines to look, where implementations may diverge and remain conforming. Cufet has no
+  such category, and that is itself a teaching decision. "This is undefined; consult your
+  implementation" teaches a learner a rule that holds until it silently doesn't, which is
+  the single worst thing a teaching language can do. Having refused the category, the
+  project cannot also claim the latitude that comes with it. The narrow exception is
+  behaviour that is genuinely platform-owned — last-ULP `pow`, filesystem enumeration
+  order — where there is no single right answer to converge on.
+
+  *What the rule buys.* Every disagreement has a known location and a forced resolution:
+  make it precise on both sides, or make the compiler **refuse**. A `CompilerException` is
+  an honest admission that one backend cannot yet do what the other does; silence is a
+  program that means two things.
+
+  *The cost, stated plainly.* Making the interpreter the definition makes an interpreter
+  bug correct by construction. Nothing in the discipline can catch "both backends agree,
+  and both are wrong" — that needs a reader with an opinion about what the program *should*
+  do, and the rule offers no help in forming one.
+
+  *What agreement does not prove.* Output-equality over a finite suite samples
+  observational equivalence over exactly one observable, on exactly the programs someone
+  thought to write. Task interleaving, timing, memory use, stack-depth limits and
+  non-terminating programs all escape it, and two backends can agree on every printed line
+  while differing on all of them. `chance` already forced the edge into the open: random
+  output cannot be compared for equality at all, so those tests assert invariants the
+  program checks about itself. That is what every one of these tests is really doing —
+  the rest just have the luxury of an invariant that reads as "the same bytes".
+
+  *The path from "tested to agree" to "both conform", for whoever wants it.* Widen the
+  observables (exit status, stderr, filesystem effects — partly done). Widen the inputs,
+  by generating programs rather than writing them. And eventually write the semantics
+  down, so both implementations are checked against a definition instead of against each
+  other. [REFERENCE.md](REFERENCE.md) is the closest thing that exists today, and the gap
+  is exact: it describes what each construct does, rather than defining it.
