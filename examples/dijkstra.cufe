@@ -48,13 +48,11 @@ Bind map from text to number to dijkstra, given (the map from text to series of 
             Define stored as the entry for neighbor in dist.
             If alt is less than (stored but void is alt + 1):
                 In dist, the entry for neighbor becomes alt.
-                If not (visited has a key for neighbor):
-                    Add a new pq-entry { the pq-name neighbor, the pq-dist alt } to pq.
-                Done.
+                If not (visited has a key for neighbor), 
+                add a new pq-entry { the pq-name neighbor, the pq-dist alt } to pq.
             Done.
         Done.
     Done.
-
     Return dist.
 Done.
 
@@ -70,7 +68,7 @@ Cast add-edge on (adj, "D", "E", 2).
 State "Shortest distances from A (directed graph):".
 Define distances as cast dijkstra on (adj, "A").
 For each pair in distances, repeat:
-    State (the key of pair) joined to ": " joined to (the value of pair) converted to text.
+    State "{the key of pair} {the value of pair}".
 Done.
 
 State "".
@@ -79,9 +77,5 @@ Define db as (the entry for "B" in distances) but void is -1.
 Define dc as (the entry for "C" in distances) but void is -1.
 Define dd as (the entry for "D" in distances) but void is -1.
 Define de as (the entry for "E" in distances) but void is -1.
-State "A = " joined to (da converted to text) joined to " (expect 0) " joined to
-    "B = " joined to (db converted to text) joined to " (expect 4) " joined to
-    "C = " joined to (dc converted to text) joined to " (expect 2) " joined to
-    "D = " joined to (dd converted to text) joined to " (expect 9) " joined to
-    "E = " joined to (de converted to text) joined to " (expect 11)".
+State "A = {da converted to text} (expect 0) B = {db converted to text} (expect 4) C = {dc converted to text} (expect 2) D = {dd converted to text} (expect 9) E = {de converted to text} (expect 11)".
 If da is 0 and db is 4 and dc is 2 and dd is 9 and de is 11, state "PASS".
