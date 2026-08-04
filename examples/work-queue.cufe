@@ -71,9 +71,7 @@ Pull a rabbit.
         If actual-sum is expected-sum:
             State "correctness: PASS (all 30 items processed exactly once)".
         Done.
-        If actual-sum is not expected-sum:
-            State "correctness: FAIL".
-        Done.
+        If actual-sum is not expected-sum, state "correctness: FAIL".
     Done.
 Done.
 
