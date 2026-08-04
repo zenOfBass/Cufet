@@ -59,7 +59,32 @@ public static class Linter
         }
 
         var byPosition = new Dictionary<(int, int), Token>();
-        foreach (var t in tokens) byPosition[(t.Line, t.Column)] = t;
+        var indexByPosition = new Dictionary<(int, int), int>();
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            byPosition[(tokens[i].Line, tokens[i].Column)] = tokens[i];
+            indexByPosition[(tokens[i].Line, tokens[i].Column)] = i;
+        }
+
+        // ★ Leftmost-on-its-line is not the same as first-in-its-sentence. A one-line `If` whose
+        // body is wrapped onto the next line puts that body at the left margin of a line nobody
+        // else opened — but it is still the tail of a sentence that began with `If`:
+        //
+        //     If name is "world",
+        //         cast greet on (name).
+        //
+        // Capitalising `cast` there would put a capital in the middle of a sentence, which is the
+        // opposite of what the rule is for. What actually starts a sentence is the token BEFORE it:
+        // a '.' ended the previous statement, a ':' opened a block, or there is nothing before it
+        // at all. A ',' means the sentence is already under way.
+        bool StartsASentence(int line, int column)
+        {
+            if (!indexByPosition.TryGetValue((line, column), out int index)) return false;
+            int previous = index - 1;
+            while (previous >= 0 && tokens[previous].IsNoise) previous--;
+            if (previous < 0) return true;
+            return tokens[previous].Type is TokenType.Dot or TokenType.Colon;
+        }
 
         var reported = new HashSet<(int, int)>();
         foreach (var (line, column, keywordLed) in statementStarts)
@@ -71,6 +96,7 @@ public static class Linter
             // Suggesting a capital on the second would not improve it, it would break it.
             if (!keywordLed) continue;
             if (!lineOpener.TryGetValue(line, out int opener) || opener != column) continue;
+            if (!StartsASentence(line, column)) continue;
             if (!byPosition.TryGetValue((line, column), out var tok)) continue;
             if (!reported.Add((line, column))) continue;
             if (tok.Lexeme.Length == 0 || !char.IsLower(tok.Lexeme[0])) continue;

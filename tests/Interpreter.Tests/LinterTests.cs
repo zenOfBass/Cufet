@@ -49,6 +49,51 @@ public class LinterTests
     // ── What it must NOT flag ─────────────────────────────────────────────
 
     [Fact]
+    public void AWrappedOneLineIfBody_IsMidSentence()
+    {
+        // ★ Leftmost-on-its-line is not the same as first-in-its-sentence. A one-line `If` whose
+        // body wraps puts that body at the left margin of a line nobody else opened — but the
+        // sentence began with `If`, and a capital there would land in the middle of it. The rule
+        // now asks what came BEFORE: a ',' means the sentence is already under way.
+        Assert.Empty(Lint(
+            "Bind void to greet, given (the text who):\n" +
+            "    State who.\n" +
+            "Done.\n" +
+            "Define name as \"world\".\n" +
+            "If name is \"world\",\n" +
+            "    cast greet on (name)."));
+    }
+
+    [Fact]
+    public void AWrappedOtherwiseBody_IsMidSentence()
+    {
+        Assert.Empty(Lint(
+            "Define x as 1.\n" +
+            "If x is 1, State \"one\".\n" +
+            "Otherwise,\n" +
+            "    state \"other\"."));
+    }
+
+    [Fact]
+    public void ABodyOpenedByAColon_IsStillFlagged()
+    {
+        // The other side of the same coin, and the reason the fix is not simply "never flag an
+        // indented line". A ':' opens a block, so the statement under it really does start a
+        // sentence — indented or not.
+        Assert.Equal(["state"], Words("Define x as 1.\nIf x is 1:\n    state \"one\".\nDone."));
+        Assert.Equal(["state"], Words(
+            "Define xs as a series of number with (1, 2).\n" +
+            "For each n in xs, repeat:\n    state n.\nDone."));
+    }
+
+    [Fact]
+    public void AStatementAfterAFullStop_IsStillFlagged()
+    {
+        // And the third case: a '.' ended the previous sentence, so a new one begins here.
+        Assert.Equal(["define", "state"], Words("define x as 1.\nstate x."));
+    }
+
+    [Fact]
     public void ALineOpeningWithAVariablesOwnName_IsLeftAlone()
     {
         // Capitalising this would rename the variable. Only an article could supply the capital,
