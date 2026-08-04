@@ -16,7 +16,7 @@ Try to:
     Run "nonexistent-xyz-cmd" | run "cat".
 Done.
 In case of failure:
-    State "caught: " joined to (the message of the failure) joined to " [" joined to (the category of the failure but void is "unknown") joined to "]".
+    State "caught: {the message of the failure} [{the category of the failure but void is "unknown"}]".
 Done.
 
 State "-- 6. stderr isolation + non-zero exit: cat nonexistent-file | wc -l --".
