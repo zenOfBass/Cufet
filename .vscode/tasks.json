@@ -9,6 +9,17 @@
   "version": "2.0.0",
   "tasks": [
     {
+      // What the launch configurations build before they start. Deliberately NOT the default build
+      // task — Ctrl+Shift+B stays "check file", which is what you actually want while writing
+      // Cufet. This one is for when you are writing C#.
+      "label": "dotnet: build the CLI",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/src/App/Cufet.App.csproj", "--nologo", "-v", "q"],
+      "problemMatcher": "$msCompile",
+      "presentation": { "reveal": "silent", "clear": true }
+    },
+    {
       "label": "cufet: check file",
       "type": "shell",
       "command": "${workspaceFolder}/src/App/bin/Debug/net10.0/Cufet.App",

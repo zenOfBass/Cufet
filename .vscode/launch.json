@@ -1,0 +1,49 @@
+{
+  // Debugging Cufet means debugging the CLI against a Cufet program, so every configuration here
+  // launches src/App with ${file} — the .cufe file in the active editor — rather than a fixed
+  // path. Set a breakpoint in the parser or the checker, open a .cufe file, press F5.
+  //
+  // These mirror the three tasks in tasks.json one for one. The difference is only the debugger:
+  // the tasks run the last binary built, these rebuild first and stop on breakpoints.
+  //
+  // ★ This file existing is also what stops the C# extension asking to generate assets on every
+  // window. It checks for launch.json, finds tasks.json alone, and offers to make the pair.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "cufet: run the open file",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "dotnet: build the CLI",
+      "program": "${workspaceFolder}/src/App/bin/Debug/net10.0/Cufet.App.dll",
+      "args": ["${file}"],
+      "cwd": "${workspaceFolder}",
+      // integratedTerminal, not internalConsole: a Cufet program can READ, and the internal
+      // console has no stdin to give it.
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    },
+    {
+      "name": "cufet: check the open file",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "dotnet: build the CLI",
+      "program": "${workspaceFolder}/src/App/bin/Debug/net10.0/Cufet.App.dll",
+      "args": ["check", "--native", "${file}"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    },
+    {
+      "name": "cufet: build the open file to a binary",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "dotnet: build the CLI",
+      "program": "${workspaceFolder}/src/App/bin/Debug/net10.0/Cufet.App.dll",
+      "args": ["build", "${file}"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    }
+  ]
+}
