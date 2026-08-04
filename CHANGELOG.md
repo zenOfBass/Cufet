@@ -10,6 +10,40 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`Judge` — an exhaustive case construct.** Dispatch on what a value *is*, with coverage the
+  compiler can prove:
+
+  ```
+  Judge node, where it is:
+      A num-node, return the value of it.
+      An add-node or a mul-node, return cast fold on (it).
+      Otherwise, return 0.
+  Done.
+  ```
+
+  The subject and verb are stated once in the header so each arm completes the sentence. It is
+  evaluated **once**, bound to `it`, and `it` is **narrowed** inside each arm — so
+  `the length of it` is legal in an `A text` arm and nowhere else. A grouped arm does not narrow,
+  because an arm covering two cases cannot know which one arrived.
+
+  ★ **Coverage is total, by proof or by default.** Over a **closed union** whose arms cover every
+  case, `Otherwise` is optional and a missing case is a static error. For any other subject,
+  `Otherwise` is required. Control can never fall off the end of a `Judge` — the same discipline
+  `voidable` applies to absence, and stricter than C#, where a non-exhaustive switch expression is
+  a warning that throws at runtime.
+
+  **The subject may be an expression.** Narrowing is variable-level, so `If` cannot narrow a value
+  produced by an expression — you have to name it first. `Judge` names it, as `it`.
+
+  `or` groups cases, which is what C-style fall-through is overwhelmingly used for; no
+  fall-through machinery is needed for it. Arms take the comma form for one statement or a colon
+  and `Done.` for a block, exactly as `If` does. A judgement whose arms all return counts as
+  returning, so it works as a function's whole body.
+
+  ⚠ **The native backend takes closed unions only.** A `Judge` over any other subject interprets
+  and is **refused cleanly** by the compiler; value arms would compare values rather than dispatch
+  on a tag. `Descend.` — explicit fall-through — is reserved and not yet accepted.
+
 - **A style linter, reporting through `check`.** Legal code that reads worse than it needs to. It
   cannot produce an error — the checker answers "will this run", this answers "is this how you
   would want to have written it", and the second question has no right to stop the first. Warnings

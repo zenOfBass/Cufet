@@ -86,6 +86,29 @@ as identifiers, but that is fine — they read as natural articles.
 | `try` | Try |
 | `case` | Case |
 | `suppress` | Suppress |
+| `judge` | Judge |
+| `where` | Where |
+| `descend` | Descend |
+
+**`Judge <subject>, where it is:` — coverage is total, by proof or by default.** Arms are bare
+cases (`A num-node`, `A number or a text`), taking the comma form for one statement or a colon and
+`Done.` for a block. The subject is evaluated **once** and bound to `it`, which is **narrowed**
+inside each arm.
+
+- **Closed-union subject** → exhaustiveness is *proved*; `Otherwise` is optional and a missing
+  case is a static error.
+- **Any other subject** → `Otherwise` is **required**. Control can never fall off the end.
+- **A grouped arm does not narrow** — an arm covering two cases cannot know which arrived, so `it`
+  stays the union there.
+- **The subject may be an expression.** Narrowing is variable-level, so `If` cannot narrow one;
+  binding to `it` is what makes it possible here.
+- **Nothing may follow `Otherwise`** — a later arm could never run.
+- A judgement whose arms all return counts as returning for the every-path-returns rule.
+
+⚠ **Native backend: closed unions only.** A `Judge` over a non-union subject type-checks and
+interprets, and the compiler **refuses it cleanly** — value arms would compare values rather than
+dispatch on a tag, and that is not built. `Descend.` (explicit fall-through) is reserved and not
+yet accepted.
 
 ### Functions and objects
 

@@ -50,28 +50,25 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 1 — usable by someone other than the author
 
-1. ★ **An exhaustive switch.** The most common control flow the language still lacks — and the
-   value is not brevity. An `Otherwise if` chain already says everything a switch says. What it
-   cannot say is **these are all the cases**: add a case to a closed union today and nothing
-   reports which chains are now incomplete.
+1. **`Judge` — value arms and `Descend.`** The construct ships: closed-union subjects, arms with
+   `or` grouping, `it` narrowed per arm, `Otherwise`, and coverage proved or defaulted so control
+   can never fall off the end. See REFERENCE and GRAMMAR. Two pieces of the decided design are
+   still missing.
 
-   **The condition is the whole item — if it ships without exhaustiveness checking, it should not
-   ship.** A switch that merely reads better is a second spelling of a construct that already
-   exists, which is the thing refused a few entries below for the Hadamard product.
+   - **Value arms** — `It is 1`, `It is "red"`. The checker already permits a non-union subject
+     when an `Otherwise` is present, and the **native backend refuses it**: value arms compare
+     values rather than dispatch on a tag, which is not built. So a program using one interprets
+     and will not compile. Closing this is what makes the refusal go away.
+   - **`Descend.`** — explicit fall-through. The keyword is reserved and not yet accepted. The
+     typing rule is decided: **a fall-through target is checked under the union of every path that
+     can reach it**, so an arm reachable both by its own test and from above sees `it` as the union
+     of both and must narrow again. The cost is local — only actual targets pay it, and value arms
+     pay nothing, which is where fall-through is genuinely used.
 
-   Most of the machinery is already paid for. Closed unions and narrowing-by-elimination make the
-   checker track which cases remain across `Otherwise` arms — that is how `Otherwise` knows `x` is
-   `text`. Exhaustiveness is that same bookkeeping turned into an error.
+   ★ **A deliberate opt-out has no spelling.** An `Otherwise` arm meaning "ignore the rest" must
+   still say something real, because Cufet has **no no-op statement** — `pass` exists only in
+   `or pass the failure off`. Either that stands as the answer, or a no-op is its own small item.
 
-   **The surface is the hard part and is deliberately not decided here.** It has to read as English
-   and fit the `Done.`-terminated, colon-opens-a-block shape, and `case` is unavailable — `In case
-   of exception` has it. That is a design session, not a coding task.
-
-   **Against predicate dispatch (Tier 3):** they overlap without replacing each other. Dispatch is
-   multi-directional and openly extensible; this is single-subject and closed. The overlap is the
-   argument for doing it first — a compiler written in Cufet is mostly single-subject dispatch on
-   node type, so this buys a large share of the ergonomic blocker that item exists to remove, far
-   cheaper, and shows which of that pain it does *not* cover before that design starts.
 2. **Raw text — `<<…>>` and `exactly`.** Both were decided early and deferred, and are recorded as
    a `DECIDED, DEFERRED` note in `src/Lexer/Lexer.cs`. The note says they wait until escape
    sequences exist to contrast against; escapes are in use today, so the wait is over.
@@ -83,7 +80,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    ★ **Decide whether both earn their place before building either.** They overlap: if `<<…>>`
    already suppresses everything then `exactly <<…>>` says nothing, and `exactly "…"` becomes a
    second way to spell what `<<…>>` spells — the shape refused above for the Hadamard product and
-   made a condition of the switch. The real question is whether keeping `"` as the delimiter while
+   made a condition of `Judge`. The real question is whether keeping `"` as the delimiter while
    turning interpretation off is worth its own word, or whether one form should do the whole job.
 
    **"Interpretation" here is wider than escapes.** Cufet interpolates, so `"{total} sold"` reads
@@ -114,7 +111,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    **The objection, and the answer to it.** A one-line block already exists — `Bind number to
    double, given (the number amount): return amount * 2. Done.` — so this earns its place solely
    by dropping `return` and `Done.`, which is the "second spelling of an existing construct"
-   charge the switch is held to. The counter is the inline `If`: that construct exists for exactly
+   charge `Judge` is held to. The counter is the inline `If`: that construct exists for exactly
    this reason, was argued for deliberately, and nobody has regretted it. Precedent beats purity
    here.
 

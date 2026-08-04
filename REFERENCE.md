@@ -28,6 +28,7 @@ deliberate differences are marked where they arise and summarised under
     - [Logic](#logic)
   - [Part II. Control flow](#part-ii-control-flow)
     - [Conditionals](#conditionals)
+    - [`Judge` — handling every case](#judge--handling-every-case)
     - [Loops](#loops)
       - [For-each loops](#for-each-loops)
     - [Scope](#scope)
@@ -353,6 +354,91 @@ Done.
 
 Comma after the condition → inline single statement. Colon after the condition →
 `Done.`-terminated block.
+
+---
+
+### `Judge` — handling every case
+
+`Judge` dispatches on what a value **is**. The subject and verb are stated once in
+the header, and each arm completes the sentence:
+
+```
+Define the (number or text or fact) thing as 42.
+
+Judge thing, where it is:
+    A number, state "a number".
+    A text, state "some text".
+    A fact, state "a fact".
+Done.
+```
+```
+a number
+```
+
+**Coverage is total — by proof or by default.** A judgement over a **closed union**
+whose arms cover every case needs no `Otherwise`; the checker has proved nothing is
+left. Miss one and it refuses:
+
+```
+Judge thing, where it is:
+    A number, state "a number".
+    A text, state "some text".
+Done.
+```
+```
+That doesn't work: this judgement does not cover fact.
+```
+
+For anything else, `Otherwise` is required. Either way, control can never fall off
+the end of a `Judge`. It is the same discipline `voidable` applies to absence:
+handle it, or say what happens instead.
+
+```
+Judge thing, where it is:
+    A number, state "a number".
+    Otherwise, state "not a number".
+Done.
+```
+
+**Arms** take the comma form for one statement, or a colon and `Done.` for a block —
+the same rule `If` follows. `or` groups cases:
+
+```
+Judge thing, where it is:
+    A number or a fact, state "not text".
+    Otherwise, state "text".
+Done.
+```
+
+**`it` is the subject, narrowed.** Inside an arm, `it` is that arm's type, so
+type-specific operations are legal there:
+
+```
+Judge thing, where it is:
+    A text, state the length of it.        ← it is text here
+    Otherwise, state "not text".
+Done.
+```
+
+A **grouped** arm does not narrow — an arm covering two cases cannot know which one
+arrived, so `it` stays the union and must be tested again before type-specific use.
+
+> **The subject may be an expression.** Narrowing is variable-level, so `If` cannot
+> narrow a value produced by an expression — you have to name it first. `Judge` names
+> it for you, as `it`:
+>
+> ```
+> Judge item 1 of words, where it is:
+>     A text, state the length of it.
+>     Otherwise, state "not text".
+> Done.
+> ```
+
+- Nothing may follow the `Otherwise` arm; an arm after the default could never run.
+- A judgement whose arms all return counts as returning, so it satisfies the
+  every-path-returns rule on its own.
+- There is no no-op statement, so an arm that means "ignore this case" still has to
+  say something.
 
 ---
 
