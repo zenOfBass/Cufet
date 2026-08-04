@@ -44,7 +44,7 @@ Bind parsed to parse-text, given (the text source, the number cursor):
     Define spot as cursor + 1.                       // step over the opening quote
     Define gathered as "".
     While cast char-at on (source, spot) is not "\"", repeat:
-        The gathered becomes gathered joined to cast char-at on (source, spot).
+        The gathered becomes "{gathered}{cast char-at on (source, spot)}".
         The spot becomes spot + 1.
     Done.
     Return a new parsed { the value cast make-leaf on ("str", 0, gathered), the cursor spot + 1 }.
@@ -58,7 +58,7 @@ Bind parsed to parse-number, given (the text source, the number cursor):
         The spot becomes spot + 1.
     Done.
     While cast is-digit on (cast char-at on (source, spot)), repeat:
-        The gathered becomes gathered joined to cast char-at on (source, spot).
+        The gathered becomes "{gathered}{cast char-at on (source, spot)}".
         The spot becomes spot + 1.
     Done.
     Define amount as gathered converted to number but void is 0.
@@ -94,16 +94,16 @@ Bind text to render, given (the jval value):
     If the kind of value is "true", return "true".
     If the kind of value is "false", return "false".
     If the kind of value is "num", return the num of value converted to text.
-    If the kind of value is "str", return "\"" joined to the str of value joined to "\"".
+    If the kind of value is "str", return "\"{the str of value}\"".
     If the kind of value is "array":
         Define out as "[".
         Define leading as true.
         For each kid in the items of value, repeat:
-            If leading is false, out becomes out joined to ",".
-            The out becomes out joined to cast render on (kid).
+            If leading is false, out becomes "{out},".
+            The out becomes "{out}{cast render on (kid)}".
             The leading becomes false.
         Done.
-        Return out joined to "]".
+        Return "{out}]".
     Done.
     Return "?".
 Done.
