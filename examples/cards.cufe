@@ -1,6 +1,6 @@
 Define the object card with (the text suit, the text rank):
     Get label as text:
-        Return one's rank joined to " of " joined to one's suit.
+        Return "{one's rank} of {one's suit}".
     Done.
 Done.
 
@@ -46,7 +46,7 @@ Done.
 Define d as cast new-deck.
 Define dummy as a new card { the suit "?", the rank "?" }.
 
-State "Fresh deck count:" joined to (the count of d converted to text).
+State "Fresh deck count: {the count of d converted to text}".
 Cast shuffle on (d, 42).
 State "Shuffled. Dealing 5 cards:".
 
@@ -54,8 +54,8 @@ Define i as 1.
 While i is less than 6, repeat:
     Define drawn as cast deal on d.
     Define got as drawn but void is dummy.
-    State "  " joined to got's label.
+    State "  {got's label}".
     The i becomes i + 1.
 Done.
 
-State "Cards remaining: " joined to (the count of d converted to text).
+State "Cards remaining: {the count of d converted to text}".
