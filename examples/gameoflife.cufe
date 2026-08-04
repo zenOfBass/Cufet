@@ -1,8 +1,11 @@
-// Conway's Game of Life — toroidal board, two gliders and a pulsar.
+// Conway's Game of Life — matrix edition.
 //
-// The board is a series of series of number: 0 is dead, 1 is alive.
-// Every generation is a fresh board built from the neighbour counts of
-// the previous one. Edges wrap.
+// Everything lives inside the collections book's scope: the board is a
+// matrix (rectangular by construction), dimensions come from the rows /
+// columns of it, and cells are read and written with item at (r, c).
+// Edges wrap.
+
+Pull a book on collections.
 
 Bind number to wrap-index, given (the number i, the number extent):
     If i is less than 1, return i + extent.
@@ -10,31 +13,21 @@ Bind number to wrap-index, given (the number i, the number extent):
     Return i.
 Done.
 
-Bind series of series of number to make-board, given (the number height, the number width):
-    Define board as a series of series of number with ().
-    For each r in range 1 to height, repeat:
-        Define row as a series of number with ().
-        For each c in range 1 to width, repeat:
-            Add 0 to row.
-        Done.
-        Add row to board.
-    Done.
-    Return board.
+Bind matrix to make-board, given (the number height, the number width):
+    Return a matrix with height by width filled with 0.
 Done.
 
-Bind void to set-cell, given (the series of series of number board,
-                              the number r, the number c,
-                              the number height, the number width):
+Bind void to set-cell, given (the matrix board, the number r, the number c):
+    Define height as the rows of board.
+    Define width as the columns of board.
     Define rr as cast wrap-index on (r, height).
     Define cc as cast wrap-index on (c, width).
-    Define row as item rr of board.
-    The item cc of row becomes 1.
+    The item at (rr, cc) of board becomes 1.
 Done.
 
 // Stamp a text pattern ("#" = alive) with its top-left corner at (top, left).
-Bind void to stamp, given (the series of series of number board, the series of text pattern,
-                           the number top, the number left,
-                           the number height, the number width):
+Bind void to stamp, given (the matrix board, the series of text pattern,
+                           the number top, the number left):
     Define pr as 0.
     For each line in pattern, repeat:
         Define line-len as the length of line.
@@ -42,7 +35,7 @@ Bind void to stamp, given (the series of series of number board, the series of t
         While pc is less than line-len + 1, repeat:
             Define ch as the characters from pc to pc of line.
             If ch is "#":
-                Cast set-cell on (board, top + pr, left + pc - 1, height, width).
+                Cast set-cell on (board, top + pr, left + pc - 1).
             Done.
             The pc becomes pc + 1.
         Done.
@@ -50,40 +43,38 @@ Bind void to stamp, given (the series of series of number board, the series of t
     Done.
 Done.
 
-Bind number to count-neighbors, given (the series of series of number board,
-                                       the number r, the number c,
-                                       the number height, the number width):
+Bind number to count-neighbors, given (the matrix board, the number r, the number c):
+    Define height as the rows of board.
+    Define width as the columns of board.
     Define total as 0.
     For each dr in range 0 - 1 to 1, repeat:
         For each dc in range 0 - 1 to 1, repeat:
             If dr is 0 and dc is 0, skip.
             Define rr as cast wrap-index on (r + dr, height).
             Define cc as cast wrap-index on (c + dc, width).
-            Define nrow as item rr of board.
-            Define v as item cc of nrow.
+            Define v as item at (rr, cc) of board.
             The total becomes total + v.
         Done.
     Done.
     Return total.
 Done.
 
-Bind series of series of number to next-board, given (the series of series of number board,
-                                                      the number height, the number width):
+Bind matrix to next-board, given (the matrix board):
+    Define height as the rows of board.
+    Define width as the columns of board.
     Define next as cast make-board on (height, width).
     For each r in range 1 to height, repeat:
-        Define row as item r of board.
-        Define next-row as item r of next.
         For each c in range 1 to width, repeat:
-            Define alive as item c of row.
-            Define n as cast count-neighbors on (board, r, c, height, width).
+            Define alive as item at (r, c) of board.
+            Define n as cast count-neighbors on (board, r, c).
             If alive is 1:
                 If n is 2 or n is 3:
-                    The item c of next-row becomes 1.
+                    The item at (r, c) of next becomes 1.
                 Done.
             Done.
             Otherwise:
                 If n is 3:
-                    The item c of next-row becomes 1.
+                    The item at (r, c) of next becomes 1.
                 Done.
             Done.
         Done.
@@ -91,13 +82,13 @@ Bind series of series of number to next-board, given (the series of series of nu
     Return next.
 Done.
 
-Bind void to render, given (the series of series of number board,
-                            the number height, the number width):
+Bind void to render, given (the matrix board):
+    Define height as the rows of board.
+    Define width as the columns of board.
     For each r in range 1 to height, repeat:
-        Define row as item r of board.
         Define line as "".
         For each c in range 1 to width, repeat:
-            Define cell as item c of row.
+            Define cell as item at (r, c) of board.
             If cell is 1:
                 The line becomes line joined to "#".
             Done.
@@ -110,9 +101,7 @@ Bind void to render, given (the series of series of number board,
 Done.
 
 Bind void to play:
-    Define height as 16.
-    Define width as 32.
-    Define board as cast make-board on (height, width).
+    Define board as cast make-board on (16, 32).
 
     Define glider as a series of text with (
         ".#.",
@@ -134,19 +123,21 @@ Bind void to play:
         ".............",
         "..###...###..").
 
-    Cast stamp on (board, pulsar, 2, 2, height, width).
-    Cast stamp on (board, glider, 2, 20, height, width).
-    Cast stamp on (board, glider, 12, 28, height, width).
+    Cast stamp on (board, pulsar, 2, 2).
+    Cast stamp on (board, glider, 2, 20).
+    Cast stamp on (board, glider, 12, 28).
 
     Define gens as 24.
     Define g as 0.
     While g is less than gens, repeat:
         State "Generation " joined to g converted to text.
-        Cast render on (board, height, width).
+        Cast render on (board).
         State "".
-        The board becomes cast next-board on (board, height, width).
+        The board becomes cast next-board on (board).
         The g becomes g + 1.
     Done.
 Done.
 
 Cast play.
+
+Done.
