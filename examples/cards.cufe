@@ -24,9 +24,7 @@ Define the object deck with (the series of card cards):
     Done.
 
     Bind voidable card to deal:
-        If the number of one's cards is 0:
-            Return void.
-        Done.
+        If the number of one's cards is 0, return void.
         Define top as the first of one's cards.
         Remove first item from one's cards.
         Return top.
