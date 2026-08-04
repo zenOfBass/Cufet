@@ -18,83 +18,55 @@ Bind matrix to make-board, given (the number height, the number width):
 Done.
 
 Bind void to set-cell, given (the matrix board, the number r, the number c):
-    Define height as the rows of board.
-    Define width as the columns of board.
-    Define rr as cast wrap-index on (r, height).
-    Define cc as cast wrap-index on (c, width).
+    Define rr as cast wrap-index on (r, the rows of board).
+    Define cc as cast wrap-index on (c, the columns of board).
     The item at (rr, cc) of board becomes 1.
 Done.
 
 // Stamp a text pattern ("#" = alive) with its top-left corner at (top, left).
 Bind void to stamp, given (the matrix board, the series of text pattern,
                            the number top, the number left):
-    Define pr as 0.
-    For each line in pattern, repeat:
-        Define line-len as the length of line.
-        Define pc as 1.
-        While pc is less than line-len + 1, repeat:
+    For each pr in range 1 to the number of pattern, repeat:
+        Define line as item pr of pattern.
+        For each pc in range 1 to the length of line, repeat:
             Define ch as the characters from pc to pc of line.
-            If ch is "#":
-                Cast set-cell on (board, top + pr, left + pc - 1).
-            Done.
-            The pc becomes pc + 1.
+            If ch is "#", cast set-cell on (board, top + pr - 1, left + pc - 1).
         Done.
-        The pr becomes pr + 1.
     Done.
 Done.
 
 Bind number to count-neighbors, given (the matrix board, the number r, the number c):
-    Define height as the rows of board.
-    Define width as the columns of board.
     Define total as 0.
-    For each dr in range 0 - 1 to 1, repeat:
-        For each dc in range 0 - 1 to 1, repeat:
+    For each dr in range -1 to 1, repeat:
+        For each dc in range -1 to 1, repeat:
             If dr is 0 and dc is 0, skip.
-            Define rr as cast wrap-index on (r + dr, height).
-            Define cc as cast wrap-index on (c + dc, width).
-            Define v as item at (rr, cc) of board.
-            The total becomes total + v.
+            Define rr as cast wrap-index on (r + dr, the rows of board).
+            Define cc as cast wrap-index on (c + dc, the columns of board).
+            The total becomes total + item at (rr, cc) of board.
         Done.
     Done.
     Return total.
 Done.
 
 Bind matrix to next-board, given (the matrix board):
-    Define height as the rows of board.
-    Define width as the columns of board.
-    Define next as cast make-board on (height, width).
-    For each r in range 1 to height, repeat:
-        For each c in range 1 to width, repeat:
+    Define next as cast make-board on (the rows of board, the columns of board).
+    For each r in range 1 to the rows of board, repeat:
+        For each c in range 1 to the columns of board, repeat:
             Define alive as item at (r, c) of board.
             Define n as cast count-neighbors on (board, r, c).
-            If alive is 1:
-                If n is 2 or n is 3:
-                    The item at (r, c) of next becomes 1.
-                Done.
-            Done.
-            Otherwise:
-                If n is 3:
-                    The item at (r, c) of next becomes 1.
-                Done.
-            Done.
+            // Three neighbours makes a cell live; two only sustains one already living.
+            If n is 3 or (alive is 1 and n is 2), the item at (r, c) of next becomes 1.
         Done.
     Done.
     Return next.
 Done.
 
 Bind void to render, given (the matrix board):
-    Define height as the rows of board.
-    Define width as the columns of board.
-    For each r in range 1 to height, repeat:
+    For each r in range 1 to the rows of board, repeat:
         Define line as "".
-        For each c in range 1 to width, repeat:
-            Define cell as item at (r, c) of board.
-            If cell is 1:
-                The line becomes line joined to "#".
-            Done.
-            Otherwise:
-                The line becomes line joined to ".".
-            Done.
+        For each c in range 1 to the columns of board, repeat:
+            If item at (r, c) of board is 1, the line becomes line joined to "#".
+            Otherwise, the line becomes line joined to ".".
         Done.
         State line.
     Done.
