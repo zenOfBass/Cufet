@@ -65,10 +65,10 @@ Bind void to render, given (the matrix board):
     For each r in range 1 to the rows of board, repeat:
         Define line as "".
         For each c in range 1 to the columns of board, repeat:
-            If item at (r, c) of board is 1, the line becomes line joined to "#".
-            Otherwise, the line becomes line joined to ".".
+            If item at (r, c) of board is 1, the line becomes "{line}#".
+            Otherwise, the line becomes "{line}.".
         Done.
-        State line.
+        State "{line}".
     Done.
 Done.
 
@@ -102,7 +102,7 @@ Bind void to play:
     Define gens as 24.
     Define g as 0.
     While g is less than gens, repeat:
-        State "Generation " joined to g converted to text.
+        State "Generation {g converted to text}".
         Cast render on (board).
         State "".
         The board becomes cast next-board on (board).
