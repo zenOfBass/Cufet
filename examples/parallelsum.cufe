@@ -22,7 +22,7 @@ Define grand-total as 0.
 For each s in batch-results, repeat:
     The grand-total becomes grand-total + s.
 Done.
-State "Grand total (1..15): " joined to grand-total converted to text.
+State "Grand total (1..15): {grand-total converted to text}".
 
 Bind void to run-report, given (the series of number sums):
     Bind void to emit-sums:
@@ -39,7 +39,7 @@ Bind void to run-report, given (the series of number sums):
 
     Bind void to print-labelled:
         For each s from the input:
-            State "Large batch sum: " joined to s converted to text.
+            State "Large batch sum: {s converted to text}".
         Done.
     Done.
 
