@@ -50,6 +50,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
     can still act on the flag.
   - An interrupted run now unwinds cleanly and exits **130**, as the reference already specified,
     instead of escaping as an unhandled exception and printing a .NET stack trace.
+- **The linter told you to capitalise the middle of a sentence.** A one-line `If` whose body wraps
+  puts that body at the left margin of a line nobody else opened, and the capitalisation rule read
+  leftmost-on-its-line as first-in-its-sentence:
+
+  ```
+  If name is "world",
+      cast greet on (name).      ← "this line opens with 'cast' — write 'Cast'"
+  ```
+
+  The rule now asks what came before: a `.` ended the previous statement and a `:` opened a block,
+  so a sentence really does begin — but a `,` means one is already under way.
 - **A poll inside a `Judge` was invisible to the compiler.** Both backends decide whether a program
   handles its own interrupts by searching the AST; the compiler's search was a switch with an arm
   per statement type, written before `Judge` existed. A judgement's arms were never searched, so
