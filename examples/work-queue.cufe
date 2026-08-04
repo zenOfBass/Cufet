@@ -12,8 +12,8 @@ Pull a rabbit.
         While job is not void, repeat:
             Define v as (job but void is 0).
             Send (v * 2) through results.
-            count-1 becomes count-1 + 1.
-            job becomes the delivery from work.
+            The count-1 becomes count-1 + 1.
+            The job becomes the delivery from work.
         Done.
         State "worker-1: processed " joined to (count-1 converted to text) joined to " items".
     Done.
@@ -24,8 +24,8 @@ Pull a rabbit.
         While job is not void, repeat:
             Define v as (job but void is 0).
             Send (v * 2) through results.
-            count-2 becomes count-2 + 1.
-            job becomes the delivery from work.
+            The count-2 becomes count-2 + 1.
+            The job becomes the delivery from work.
         Done.
         State "worker-2: processed " joined to (count-2 converted to text) joined to " items".
     Done.
@@ -36,8 +36,8 @@ Pull a rabbit.
         While job is not void, repeat:
             Define v as (job but void is 0).
             Send (v * 2) through results.
-            count-3 becomes count-3 + 1.
-            job becomes the delivery from work.
+            The count-3 becomes count-3 + 1.
+            The job becomes the delivery from work.
         Done.
         State "worker-3: processed " joined to (count-3 converted to text) joined to " items".
     Done.
@@ -46,7 +46,7 @@ Pull a rabbit.
         Define i as 1.
         While i is n or less, repeat:
             Send i through work.
-            i becomes i + 1.
+            The i becomes the i + 1.
         Done.
         Close work.
         State "producer: sent " joined to (n converted to text) joined to " items, closed work channel".
@@ -58,11 +58,11 @@ Pull a rabbit.
         While got is not void, repeat:
             Add (got but void is 0) to received.
             If (the number of received) is n, Stop.
-            got becomes the delivery from results.
+            The got becomes the delivery from results.
         Done.
         Define actual-sum as 0.
         For each r in received, repeat:
-            actual-sum becomes actual-sum + r.
+            The actual-sum becomes actual-sum + r.
         Done.
         Define expected-sum as n * (n + 1).
         State "collector: received " joined to ((the number of received) converted to text) joined to " results".
