@@ -463,16 +463,23 @@ public sealed partial class TypeChecker
         _typeScopes.RemoveAt(_typeScopes.Count - 1);
     }
 
-    // Save both scope chains and replace them with fresh single scopes (for function isolation).
-    // V = value scopes, T = type scopes. Call sites iterate V to re-import outer bindings.
+    // Save both scope chains and replace the VALUE chain with a fresh single scope (for function
+    // isolation). V = value scopes, T = type scopes. Call sites iterate V to re-import outer
+    // bindings.
+    //
+    // ★ The TYPE chain deliberately survives. Isolating values is what stops a function closing
+    // over a local it was never handed; a book-introduced type name is not a value and there is no
+    // equivalent hazard — `matrix` inside `Pull a book on collections.` is lexically in scope for
+    // everything written in that block, functions included. Clearing it produced a language that
+    // accepted `given (the matrix m)` in a signature and then refused `a matrix with 3 by 3` in the
+    // body of the same function, because annotations resolve `matrix` in the parser and never
+    // consult scope at all.
     private (List<Dictionary<string, TypeInfo>> V, List<Dictionary<string, CufetType>> T) SaveScopes()
     {
         var savedV = _scopes.ToList();
         var savedT = _typeScopes.ToList();
         _scopes.Clear();
-        _typeScopes.Clear();
         _scopes.Add(new Dictionary<string, TypeInfo> { ["input"] = BuiltinInput });
-        _typeScopes.Add(new Dictionary<string, CufetType>());
         return (savedV, savedT);
     }
 
@@ -993,6 +1000,9 @@ public sealed partial class TypeChecker
                 break;
             case SeriesSetStatement seriesSet:
                 CheckSeriesSet(seriesSet);
+                break;
+            case MatrixSetStatement matrixSet:
+                CheckMatrixSet(matrixSet);
                 break;
             case RecordNamedSetStatement recordSet:
                 CheckRecordNamedSet(recordSet);

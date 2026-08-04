@@ -379,4 +379,23 @@ public sealed partial class TypeChecker
 
         return CufetType.Number;
     }
+
+    // The item at (row, column) of <matrix> becomes <value>.
+    //
+    // The target and index rules are the read form's, reached through it so the two can never
+    // disagree about what a matrix index is. Only the stored value is new — a matrix holds numbers
+    // and nothing else, so there is no element type to consult.
+    private void CheckMatrixSet(MatrixSetStatement ms)
+    {
+        InferMatrixAccess(new MatrixAccess(ms.Matrix, ms.Row, ms.Col, ms.Line, ms.Column));
+
+        var valueType = InferType(ms.Value);
+        if (valueType != null && valueType != CufetType.Number)
+            throw TypeError(
+                $"a matrix holds numbers, but found a {FormatType(valueType)}",
+                "Every cell of a matrix is a number — that is what makes its arithmetic exact",
+                ms.Line, ms.Column,
+                $"store a {FormatType(valueType)} in a matrix cell",
+                "Change the new value to a number.");
+    }
 }

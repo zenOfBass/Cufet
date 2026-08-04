@@ -19,27 +19,46 @@ public sealed partial class Interpreter
 
     private object EvaluateMatrixAccess(MatrixAccess ma)
     {
-        var target = Evaluate(ma.Matrix);
-        if (target is not MatrixValue mv)
-            throw new RuntimeException(
-                $"'the item at (row, column) of' expects a matrix on line {ma.Line}.");
+        var (mv, row, col) = ResolveMatrixCell(ma.Matrix, ma.Row, ma.Col, ma.Line);
+        return (object)mv.GetItem(row, col);
+    }
 
-        if (Evaluate(ma.Row) is not decimal rowD)
-            throw new RuntimeException($"Matrix row index must be a number on line {ma.Line}.");
-        if (Evaluate(ma.Col) is not decimal colD)
-            throw new RuntimeException($"Matrix column index must be a number on line {ma.Line}.");
+    // The item at (row, column) of <matrix> becomes <value>.
+    private void ExecuteMatrixSet(MatrixSetStatement ms)
+    {
+        var (mv, row, col) = ResolveMatrixCell(ms.Matrix, ms.Row, ms.Col, ms.Line);
+
+        if (Evaluate(ms.Value) is not decimal value)
+            throw new RuntimeException($"A matrix cell must be set to a number on line {ms.Line}.");
+
+        mv.SetItem(row, col, value);
+    }
+
+    // Shared by the read and the write so the two can never disagree about which cells exist or
+    // what they are called when they don't. Evaluates the matrix, then the indices, in that order.
+    private (MatrixValue Matrix, int Row, int Col) ResolveMatrixCell(
+        IExpression matrixExpr, IExpression rowExpr, IExpression colExpr, int line)
+    {
+        if (Evaluate(matrixExpr) is not MatrixValue mv)
+            throw new RuntimeException(
+                $"'the item at (row, column) of' expects a matrix on line {line}.");
+
+        if (Evaluate(rowExpr) is not decimal rowD)
+            throw new RuntimeException($"Matrix row index must be a number on line {line}.");
+        if (Evaluate(colExpr) is not decimal colD)
+            throw new RuntimeException($"Matrix column index must be a number on line {line}.");
 
         var row = (int)rowD;
         var col = (int)colD;
 
         if (row < 1 || row > mv.Rows)
             throw new RuntimeException(
-                $"Row index {row} is out of range — this matrix has {mv.Rows} row(s) (line {ma.Line}).");
+                $"Row index {row} is out of range — this matrix has {mv.Rows} row(s) (line {line}).");
         if (col < 1 || col > mv.Cols)
             throw new RuntimeException(
-                $"Column index {col} is out of range — this matrix has {mv.Cols} column(s) (line {ma.Line}).");
+                $"Column index {col} is out of range — this matrix has {mv.Cols} column(s) (line {line}).");
 
-        return (object)mv.GetItem(row, col);
+        return (mv, row, col);
     }
 
     private object EvaluateMatrixSized(MatrixSized ms)

@@ -629,6 +629,19 @@ public sealed record MatrixAccess(
     int Column
 ) : IExpression;
 
+// The item at (row, column) of <matrix> becomes <number>.
+// The write half of MatrixAccess, and the only thing that mutates a matrix in place. A matrix is a
+// reference type, so the write is visible through every name for that matrix — which is what the
+// reference-types table in GRAMMAR.md has always said it was.
+public sealed record MatrixSetStatement(
+    IExpression Matrix,
+    IExpression Row,
+    IExpression Col,
+    IExpression Value,
+    int Line,
+    int Column
+) : IStatement;
+
 // a matrix with <Rows> by <Cols> [filled with <Fill>]
 // Sized constructor: Fill == null → all cells zero; requires 'collections' pulled.
 // Dimension expressions must evaluate to positive whole numbers.

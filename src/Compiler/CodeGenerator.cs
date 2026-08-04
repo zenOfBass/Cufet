@@ -1558,6 +1558,13 @@ static CufetDec cufet_mat_get(CufetMatrix* m, long long r, long long c, int line
     if (c < 1 || c > m->cols) cufet_raise(cufet_msgf("Column index %lld is out of range — this matrix has %d column(s) (line %d).", c, m->cols, line));
     return m->data[(r - 1) * m->cols + (c - 1)];
 }
+/* The write half. Same bounds, same messages — a matrix is a pointer, so this mutates every
+   binding that names it, exactly as the interpreter's shared decimal[] does. */
+static void cufet_mat_set(CufetMatrix* m, long long r, long long c, CufetDec v, int line) {
+    if (r < 1 || r > m->rows) cufet_raise(cufet_msgf("Row index %lld is out of range — this matrix has %d row(s) (line %d).", r, m->rows, line));
+    if (c < 1 || c > m->cols) cufet_raise(cufet_msgf("Column index %lld is out of range — this matrix has %d column(s) (line %d).", c, m->cols, line));
+    m->data[(r - 1) * m->cols + (c - 1)] = v;
+}
 /* `a matrix of R by C [filled with F]` — runtime validation for non-literal dimensions
    (literals are rejected statically by the typechecker), matching the interpreter's messages. */
 static CufetMatrix* cufet_mat_sized(CufetDec rd, CufetDec cd, CufetDec fill, int line) {
@@ -4356,6 +4363,21 @@ static void* cufet_pipe_stage(void* argp) {
                 break;
             }
 
+            case MatrixSetStatement ms:
+            {
+                _usesMatrix = true;
+                // Matrix, then row, then column, then value — the interpreter's evaluation order,
+                // so a program whose indices have side effects sequences the same on both.
+                string matExpr = EmitExpr(ms.Matrix);
+                string rowExpr = EmitExpr(ms.Row);
+                string colExpr = EmitExpr(ms.Col);
+                string valExpr = EmitExpr(ms.Value);
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}cufet_mat_set({matExpr}, cufet_to_int({rowExpr}), " +
+                              $"cufet_to_int({colExpr}), {valExpr}, {ms.Line});");
+                break;
+            }
+
             case SeriesSetStatement ss when TypeOf(ss.Series) is RecordType or ObjectType:
             {
                 // Positional field assignment on a record/object: the Nth of x becomes v.
@@ -6328,6 +6350,7 @@ static void* cufet_pipe_stage(void* argp) {
             case SeriesRemoveAtStatement s     when Touches(s.Series):  return true;
             case SeriesRemoveValueStatement s  when Touches(s.Series):  return true;
             case SeriesSetStatement s          when Touches(s.Series):  return true;
+            case MatrixSetStatement s          when Touches(s.Matrix):  return true;
             case RecordNamedSetStatement s     when Touches(s.Record):  return true;
             case PossessiveSetStatement s      when Touches(s.Target):  return true;
             case MapSetStatement s             when Touches(s.Map):     return true;

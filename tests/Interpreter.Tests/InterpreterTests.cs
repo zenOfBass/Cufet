@@ -9834,6 +9834,149 @@ public class InterpreterTests
             "Done."));
     }
 
+    // ── Books / Collections — Matrix element assignment ─────────────────────────
+    //
+    // The write half of `the item at (row, column) of m`. GRAMMAR.md has always listed `matrix`
+    // among the REFERENCE types, saying "element mutations are reflected everywhere" — for a long
+    // while that was a promise with no syntax behind it, and a matrix you cannot write to is just a
+    // series of series with worse ergonomics.
+
+    [Fact]
+    public void MatrixSet_WritesTheCell()
+    {
+        Assert.Equal("7", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with 2 by 3 filled with 0.\n" +
+            "The item at (1, 2) of m becomes 7.\n" +
+            "State the item at (1, 2) of m converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void MatrixSet_LeavesEveryOtherCellAlone()
+    {
+        Assert.Equal("matrix((0, 7, 0), (0, 0, 9))", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with 2 by 3 filled with 0.\n" +
+            "The item at (1, 2) of m becomes 7.\n" +
+            "The item at (2, 3) of m becomes 9.\n" +
+            "State m.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void MatrixSet_IsVisibleThroughEveryName()
+    {
+        // ★ The reference-semantics claim, made good. Two names, one matrix.
+        Assert.Equal("5", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with 2 by 2 filled with 0.\n" +
+            "Define alias as m.\n" +
+            "The item at (1, 1) of alias becomes 5.\n" +
+            "State the item at (1, 1) of m converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void MatrixSet_TakesComputedIndices()
+    {
+        Assert.Equal("4", Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with 3 by 3 filled with 0.\n" +
+            "Define r as 1.\n" +
+            "Define c as 2.\n" +
+            "The item at (r + 1, c + 1) of m becomes 4.\n" +
+            "State the item at (2, 3) of m converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void MatrixSet_MutatesThroughAParameter()
+    {
+        // A matrix handed to a function is the caller's matrix, not a copy — the property the
+        // Game of Life example depends on.
+        Assert.Equal("1", Run(
+            "Pull a book on collections.\n" +
+            "Bind void to light, given (the matrix board, the number r, the number c):\n" +
+            "    The item at (r, c) of board becomes 1.\n" +
+            "Done.\n" +
+            "Define b as a matrix with 2 by 2 filled with 0.\n" +
+            "Cast light on (b, 2, 1).\n" +
+            "State the item at (2, 1) of b converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void MatrixSet_NonNumberValue_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with 2 by 2 filled with 0.\n" +
+            "The item at (1, 1) of m becomes \"hello\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void MatrixSet_OutOfRange_RuntimeException()
+    {
+        var ex = Assert.Throws<RuntimeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define m as a matrix with 2 by 2 filled with 0.\n" +
+            "The item at (3, 1) of m becomes 1.\n" +
+            "Done."));
+        Assert.Contains("Row index 3 is out of range", ex.Message);
+    }
+
+    [Fact]
+    public void MatrixSet_OnANonMatrix_TypeError()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Define s as a series of number with (1, 2).\n" +
+            "The item at (1, 1) of s becomes 1.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void MatrixSet_DoesNotDisturbSeriesElementAssignment()
+    {
+        // The two statements open with the same three words; only what follows `item` tells them
+        // apart. This is the series form still parsing as itself.
+        Assert.Equal("9", Run(
+            "Define s as a series of number with (1, 2, 3).\n" +
+            "The item 2 of s becomes 9.\n" +
+            "State the item 2 of s converted to text."));
+    }
+
+    // ── Books — a book's types reach inside a function body ─────────────────────
+
+    [Fact]
+    public void BookType_IsAvailableInsideAFunctionBody()
+    {
+        // ★ Function isolation clears the VALUE scopes so a body cannot close over a local it was
+        // never handed. It used to clear the TYPE scopes with them, which made this a static error
+        // — while `given (the matrix m)` in the very same signature was accepted, because an
+        // annotation resolves `matrix` in the parser and never consults scope at all.
+        Assert.Equal("3", Run(
+            "Pull a book on collections.\n" +
+            "Bind matrix to make-board, given (the number h, the number w):\n" +
+            "    Return a matrix with h by w filled with 0.\n" +
+            "Done.\n" +
+            "Define b as cast make-board on (3, 3).\n" +
+            "State the rows of b converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void BookType_IsStillUnavailableOutsideTheBooksScope()
+    {
+        // The other half: the scope is lexical, and closing it takes the type away again.
+        Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n" +
+            "Done.\n" +
+            "Define m as a matrix with 2 by 2 filled with 0."));
+    }
+
     // ── Layer 1: Union types ────────────────────────────────────────────────────
 
     [Fact]

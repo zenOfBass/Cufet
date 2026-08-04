@@ -235,6 +235,11 @@ public sealed partial class Interpreter
         }
 
         public decimal GetItem(int row, int col) => _data[(row - 1) * Cols + (col - 1)];
+
+        // In place, on the shared array — a matrix is a reference type, so the write is visible
+        // through every name bound to this matrix.
+        public void SetItem(int row, int col, decimal value) =>
+            _data[(row - 1) * Cols + (col - 1)] = value;
     }
 
     // A bit pattern. Unsigned and at most 64 bits, which is every C flag set, file mode and
@@ -628,6 +633,10 @@ public sealed partial class Interpreter
                 list.RemoveAt(removeAt);
                 break;
             }
+
+            case MatrixSetStatement mss:
+                ExecuteMatrixSet(mss);
+                break;
 
             case SeriesSetStatement ss:
             {

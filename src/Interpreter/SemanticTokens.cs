@@ -417,6 +417,10 @@ public sealed class SemanticTokenizer
                 Walk(ss.Series); Walk(ss.Index); Walk(ss.Value);
                 break;
 
+            case MatrixSetStatement mss:
+                Walk(mss.Matrix); Walk(mss.Row); Walk(mss.Col); Walk(mss.Value);
+                break;
+
             case RecordNamedSetStatement rns:
                 EmitAt(rns.FieldName, rns.Line, rns.Column, SemanticTokenKind.Property);
                 Walk(rns.Record); Walk(rns.Value);

@@ -1085,8 +1085,15 @@ public sealed class Parser
         return new CurrentDirectorySetStatement(path, line, col);
     }
 
-    private SeriesSetStatement ParseSeriesSetStatement()
+    // `The item at (r, c) of m becomes 1.` and `The item 3 of s becomes 1.` open identically, and
+    // the word after 'item' is what tells them apart — exactly as it does in the read forms inside
+    // ParseCorePrimary. Checked here rather than inside ParseAccessTarget so the series path keeps
+    // returning its own shape and neither statement has to carry the other's fields.
+    private IStatement ParseSeriesSetStatement()
     {
+        if (Peek().Type == TokenType.Item && PeekAfterCurrentIsWord("at"))
+            return ParseMatrixSetStatement();
+
         var (series, idx, line, col) = ParseAccessTarget();
         SkipNoise();
         Consume(TokenType.Becomes);
@@ -1095,6 +1102,30 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Dot);
         return new SeriesSetStatement(series, idx, value, line, col);
+    }
+
+    // The item at (<row>, <column>) of <matrix> becomes <number>.
+    private MatrixSetStatement ParseMatrixSetStatement()
+    {
+        var itemTok = Consume(TokenType.Item);
+        SkipNoise();
+        Advance();                                   // consume 'at'
+        SkipNoise();
+        Consume(TokenType.LParen); SkipNoise();
+        var row = ParseExpression(); SkipNoise();
+        Consume(TokenType.Comma);   SkipNoise();
+        var col = ParseExpression(); SkipNoise();
+        Consume(TokenType.RParen);  SkipNoise();
+        Consume(TokenType.Of);      SkipNoise();
+        // ParseCorePrimary, not ParsePostfix — the same reason ParseAccessTarget gives.
+        var matrix = ParseCorePrimary();
+        SkipNoise();
+        Consume(TokenType.Becomes);
+        SkipNoise();
+        var value = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new MatrixSetStatement(matrix, row, col, value, itemTok.Line, itemTok.Column);
     }
 
     private SeriesAddStatement ParseSeriesAddStatement()
@@ -4135,6 +4166,16 @@ public sealed class Parser
         int i = _pos + 1;
         while (i < _tokens.Count && _tokens[i].IsNoise) i++;
         return i < _tokens.Count ? _tokens[i].Type : TokenType.Eof;
+    }
+
+    // Whether the first non-noise token after the current position is spelled `word`. The type-only
+    // PeekAfterCurrent cannot answer this: 'at' is book vocabulary, not a token type.
+    private bool PeekAfterCurrentIsWord(string word)
+    {
+        int i = _pos + 1;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count &&
+               _tokens[i].Lexeme.Equals(word, StringComparison.OrdinalIgnoreCase);
     }
 
     // True when the first non-noise token after the current one has this lexeme.
