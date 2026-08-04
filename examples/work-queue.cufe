@@ -15,7 +15,7 @@ Pull a rabbit.
             The count-1 becomes count-1 + 1.
             The job becomes the delivery from work.
         Done.
-        State "worker-1: processed " joined to (count-1 converted to text) joined to " items".
+        State "worker-1: processed {count-1} items".
     Done.
 
     Have rabbit start a task as worker-2:
@@ -27,7 +27,7 @@ Pull a rabbit.
             The count-2 becomes count-2 + 1.
             The job becomes the delivery from work.
         Done.
-        State "worker-2: processed " joined to (count-2 converted to text) joined to " items".
+        State "worker-2: processed {count-2} items".
     Done.
 
     Have rabbit start a task as worker-3:
@@ -39,7 +39,7 @@ Pull a rabbit.
             The count-3 becomes count-3 + 1.
             The job becomes the delivery from work.
         Done.
-        State "worker-3: processed " joined to (count-3 converted to text) joined to " items".
+        State "worker-3: processed {count-3} items".
     Done.
 
     Have rabbit start a task as producer:
@@ -49,7 +49,7 @@ Pull a rabbit.
             The i becomes the i + 1.
         Done.
         Close work.
-        State "producer: sent " joined to (n converted to text) joined to " items, closed work channel".
+        State "producer: sent {n} items, closed work channel".
     Done.
 
     Have rabbit start a task as collector:
@@ -65,9 +65,9 @@ Pull a rabbit.
             The actual-sum becomes actual-sum + r.
         Done.
         Define expected-sum as n * (n + 1).
-        State "collector: received " joined to ((the number of received) converted to text) joined to " results".
-        State "expected sum: " joined to (expected-sum converted to text).
-        State "actual sum:   " joined to (actual-sum converted to text).
+        State "collector: received {the number of received} results".
+        State "expected sum: {expected-sum}".
+        State "actual sum:   {actual-sum}".
         If actual-sum is expected-sum, state "correctness: PASS (all 30 items processed exactly once)".
         If actual-sum is not expected-sum, state "correctness: FAIL".
     Done.
