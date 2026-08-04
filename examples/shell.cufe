@@ -45,7 +45,7 @@ While running, repeat:
 
     /* Void means end of input — the user closed the stream instead of saying Quit!!! */
     If raw is void:
-        running becomes false.
+        The running becomes false.
     Done.
 
     If raw is not void:
