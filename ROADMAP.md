@@ -50,26 +50,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 1 — usable by someone other than the author
 
-1. **`Judge` — value arms and `Descend.`** The construct ships: closed-union subjects, arms with
-   `or` grouping, `it` narrowed per arm, `Otherwise`, and coverage proved or defaulted so control
-   can never fall off the end. See REFERENCE and GRAMMAR. Two pieces of the decided design are
-   still missing.
-
-   - **Value arms** — `It is 1`, `It is "red"`. The checker already permits a non-union subject
-     when an `Otherwise` is present, and the **native backend refuses it**: value arms compare
-     values rather than dispatch on a tag, which is not built. So a program using one interprets
-     and will not compile. Closing this is what makes the refusal go away.
-   - **`Descend.`** — explicit fall-through. The keyword is reserved and not yet accepted. The
-     typing rule is decided: **a fall-through target is checked under the union of every path that
-     can reach it**, so an arm reachable both by its own test and from above sees `it` as the union
-     of both and must narrow again. The cost is local — only actual targets pay it, and value arms
-     pay nothing, which is where fall-through is genuinely used.
-
-   ★ **A deliberate opt-out has no spelling.** An `Otherwise` arm meaning "ignore the rest" must
-   still say something real, because Cufet has **no no-op statement** — `pass` exists only in
-   `or pass the failure off`. Either that stands as the answer, or a no-op is its own small item.
-
-2. **Raw text — `<<…>>` and `exactly`.** Both were decided early and deferred, and are recorded as
+1. **Raw text — `<<…>>` and `exactly`.** Both were decided early and deferred, and are recorded as
    a `DECIDED, DEFERRED` note in `src/Lexer/Lexer.cs`. The note says they wait until escape
    sequences exist to contrast against; escapes are in use today, so the wait is over.
 
@@ -88,14 +69,14 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    problem. The cases that motivate the feature are full of both: a regex, a Windows path, embedded
    JSON.
 
-3. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
+2. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
    briefly a linter rule and is not one. Both tools would need the same "how large is large"
    threshold, and one number owned in two places is one number that drifts. The severity settles
    it too: every other linter rule flags something a tool cannot fix for you — nesting you have to
    rename your way out of, an ordering you have to rethink, a capital you have to type. Layout is
    pure mechanism, so a warning about it is noise next to a tool that simply does it.
 
-4. **Expression-bodied members.** A getter or function whose body is a single expression, written
+3. **Expression-bodied members.** A getter or function whose body is a single expression, written
    with no `return` and no `Done.`:
 
    ```
@@ -115,7 +96,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    this reason, was argued for deliberately, and nobody has regretted it. Precedent beats purity
    here.
 
-5. **A conditional expression.** There is no way to branch in expression position, so a value that
+4. **A conditional expression.** There is no way to branch in expression position, so a value that
    depends on a condition must be declared and then mutated:
 
    ```
@@ -140,7 +121,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    **Settle before building:** whether the two arms must be the same type or may form a union, and
    confirming only the taken arm evaluates.
 
-6. **Read-only fields — `permanently` on a field.** There is no way to say *set at construction,
+5. **Read-only fields — `permanently` on a field.** There is no way to say *set at construction,
    never changed after*:
 
    ```
@@ -159,7 +140,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    `private` only mean something across a boundary — and that boundary arrives with the module
    arc in Tier 4. Within one file they are a comment with ceremony attached.
 
-7. **Shared constants — top-level `permanently` visible inside functions.** A top-level function
+6. **Shared constants — top-level `permanently` visible inside functions.** A top-level function
    cannot see top-level data, so a constant has to be passed as a parameter or wrapped in a
    function to reach one:
 
@@ -187,9 +168,9 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 2 — leverage
 
-8. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+7. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
-9. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
+8. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
    tree, linked structure or wrapper cannot be looped over at all:
 
    ```
@@ -213,7 +194,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 Both need a design session before they can be ordered against anything. Neither is blocked by a
 numbered item; they are here because they are large, not because they are waiting.
 
-10. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+9. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
@@ -222,7 +203,7 @@ numbered item; they are here because they are large, not because they are waitin
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-11. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+10. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -262,14 +243,14 @@ numbered item; they are here because they are large, not because they are waitin
 
 ### Tier 4 — modules, strictly in this order
 
-12. **The `module` interface.** A named interface defining the contract for any loadable thing.
+11. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-13. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+12. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-14. **What a book exports.** Every member of a book is public API, permanently, because there is
+13. **What a book exports.** Every member of a book is public API, permanently, because there is
     no way to mark one internal. It does not bite yet — the bundled three are built in and you
     cannot write a book — but the moment the loader below lands, a book author has no way to say
     *this is my helper, do not call it*.
@@ -283,7 +264,7 @@ numbered item; they are here because they are large, not because they are waitin
     the book, so the boundary is *what a book hands out* — the object question is a different and
     much weaker one, since within a file a visibility marker is a comment with ceremony attached.
 
-15. **A package manager for books.**
+14. **A package manager for books.**
 
 ### Tier 5 — Cufet in Cufet
 
@@ -293,7 +274,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-16. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+15. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -301,7 +282,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-17. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
+16. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
@@ -309,7 +290,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-18. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+17. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
@@ -364,6 +345,21 @@ indistinguishable from having forgotten.
 **Promote an item the moment its blocker becomes a numbered item.**
 
 ### Language
+
+- **`Judge` value arms and `Descend.`** The construct ships — closed-union subjects, `or`
+  grouping, `it` narrowed per arm, `Otherwise`, and coverage proved or defaulted so control can
+  never fall off the end. Two pieces of the decided design are unbuilt: **value arms** (`It is 1`,
+  `It is "red"`), which the native backend refuses cleanly because they compare values rather than
+  dispatch on a tag; and **`Descend.`**, explicit fall-through, whose keyword is reserved and whose
+  typing rule is already settled — *a fall-through target is checked under the union of every path
+  that can reach it*. *Blocker:* no use case has demanded either. Grouping with `or` covers what
+  C-style fall-through is overwhelmingly used for, and nothing has yet wanted to judge a value.
+
+- **A no-op statement.** An `Otherwise` arm meaning "ignore the rest" has to say something real,
+  because Cufet has none — `pass` exists only in `or pass the failure off`. *Blocker:* it may not
+  want fixing. Requiring the arm to say something is what makes coverage mean *you thought about*
+  the remaining cases; a no-op is the `catch {}` of case dispatch. Revisit if writing real
+  statements in ignore-this arms becomes a genuine irritation rather than a hypothetical one.
 
 - **Ordering by an explicit basis.** Ordering works on numbers and bits. Extending it to text
   and beyond should use a stated basis rather than new operators or a silent default:
