@@ -31,12 +31,8 @@ Done.
 /* A child's stderr is worth seeing before its stdout — an error explains an empty
    result. Both arrive already captured, so this is the only place either is shown. */
 Bind void to show, given (the text out, the text err):
-    If the length of err is greater than 0:
-        State err trimmed.
-    Done.
-    If the length of out is greater than 0:
-        State out trimmed.
-    Done.
+    If the length of err is greater than 0, state err trimmed.
+    If the length of out is greater than 0, state out trimmed.
 Done.
 
 Define running as true.
@@ -44,17 +40,11 @@ While running, repeat:
     Define raw as read a line from the input.
 
     /* Void means end of input — the user closed the stream instead of saying Quit!!! */
-    If raw is void:
-        The running becomes false.
-    Done.
-
+    If raw is void, the running becomes false.
     If raw is not void:
         Define line as raw trimmed.
 
-        If line is "Quit!!!":
-            running becomes false.
-        Done.
-
+        If line is "Quit!!!", running becomes false.
         If line is not "Quit!!!":
             /* A blank line is not an error; it is just nothing to do. */
             If the length of line is greater than 0:
@@ -75,12 +65,8 @@ While running, repeat:
                             Done.
                             The current directory becomes home.
                         Done.
-                        If n is 2:
-                            The current directory becomes item 2 of parts.
-                        Done.
-                        If n is greater than 2:
-                            State "cufetsh: cd: too many arguments".
-                        Done.
+                        If n is 2, the current directory becomes item 2 of parts.
+                        If n is greater than 2, state "cufetsh: cd: too many arguments".
                     Done.
                     In case of failure:
                         State "cufetsh: cd: " joined to the message of the failure.
@@ -104,9 +90,7 @@ While running, repeat:
                             Define r3 as run cmd with arguments (item 2 of parts, item 3 of parts).
                             Cast show on (the output of r3, the errors of r3).
                         Done.
-                        If n is greater than 3:
-                            State "cufetsh: too many arguments".
-                        Done.
+                        If n is greater than 3, state "cufetsh: too many arguments".
                     Done.
                     In case of failure:
                         State "cufetsh: " joined to the message of the failure.
