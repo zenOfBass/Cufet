@@ -1834,6 +1834,28 @@ public class PipelineTests
     }
 
     [Fact]
+    public void ObjectDeclaredInsideABookPull_Compiles()
+    {
+        // ★ Regression. `CollectObjectDefs` was a hand-written switch over block-bearing statements
+        // with no arm for PullStatement, so an object declared inside `Pull a book on ... Done.`
+        // was never registered — and building one crashed the compiler with a raw
+        // KeyNotFoundException out of _objectDefs rather than any Cufet-level error. `check
+        // --native` passed it, because nothing in the check path looks the definition up.
+        const string src = """
+            Pull a book on collections.
+                Define object flagset with (the text name, the bits mask).
+                Define modes as a series of flagset with (
+                    a new flagset { the name "read", the mask 0b100 },
+                    a new flagset { the name "write", the mask 0b010 }).
+                For each mode in modes, repeat:
+                    State "{mode's name} = {mode's mask}".
+                Done.
+            Done.
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
     public void BookPull_MatrixOverChannel_ReachesCodegen()
     {
         // The shape that surfaced the bug: a matrix channel necessarily sits inside a book pull,

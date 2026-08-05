@@ -744,6 +744,12 @@ public sealed record Program(IReadOnlyList<IStatement> Statements);
 // the fact, at runtime, on a user's program.
 public static class AstSearch
 {
+    // Runs `action` on every node in the tree. The collecting form of Contains — same walk, same
+    // reason for it: a hand-written collector that forgets a node type does not fail, it silently
+    // collects less, and whatever needed the missing entry crashes somewhere else entirely.
+    public static void Visit(object? node, Action<object> action) =>
+        Contains(node, n => { action(n); return false; });
+
     public static bool Contains(object? node, Func<object, bool> predicate)
     {
         switch (node)

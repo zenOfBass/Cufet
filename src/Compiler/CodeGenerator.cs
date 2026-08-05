@@ -2543,25 +2543,15 @@ static void* cufet_pipe_stage(void* argp) {
         _excOpen            = savedExcOpen;
     }
 
-    // Walks all statements (including nested block bodies) collecting ObjectDefinitions.
-    private void CollectObjectDefs(IEnumerable<IStatement> stmts)
-    {
-        foreach (var stmt in stmts)
-        {
-            switch (stmt)
-            {
-                case ObjectDefinition od: _objectDefs[od.Name] = od; break;
-                case PullRabbitStatement p: CollectObjectDefs(p.Body); break;
-                case IfStatement iff:
-                    foreach (var arm in iff.Arms) CollectObjectDefs(arm.Body);
-                    if (iff.ElseBody != null) CollectObjectDefs(iff.ElseBody);
-                    break;
-                case WhileStatement w:      CollectObjectDefs(w.Body); break;
-                case RepeatUntilStatement r: CollectObjectDefs(r.Body); break;
-                case ForEachStatement fe:   CollectObjectDefs(fe.Body); break;
-            }
-        }
-    }
+    // Every ObjectDefinition anywhere in the tree.
+    //
+    // ★ This was a hand-written switch with an arm per block-bearing statement, and it had no arm
+    // for PullStatement — so `Define object` inside `Pull a book on ... Done.` was never collected,
+    // and building one crashed the compiler with a raw KeyNotFoundException from _objectDefs. It
+    // was also missing Try, With-open, Bind bodies and Judge arms. The generic walk has no list to
+    // fall behind.
+    private void CollectObjectDefs(IEnumerable<IStatement> stmts) =>
+        AstSearch.Visit(stmts, n => { if (n is ObjectDefinition od) _objectDefs[od.Name] = od; });
 
     // Objects this slice: plain data + methods with direct dispatch. Everything fancier
     // (embedding, interface conformance/dispatch, getters/setters, named constructors,
