@@ -564,12 +564,70 @@ error — convert it first.
 State "Player: " joined to score converted to text.     → "Player: 95"
 Define label as score converted to text.                → "95"
 ```
-Works on numbers and facts (both total — every number and fact has a text form).
+Works on numbers, facts and bits (all total — every one of them has a text form).
 It binds tighter than `joined to`, so `"x: " joined to n converted to text`
 reads as `"x: " joined to (n converted to text)`.
 
 `converted to` binds to the **result** of a named access, not to its target — `the
 value of person converted to text` converts the value, as you would expect.
+
+**Interpolation** — `{...}` inside a text literal, which is usually what you want instead of a
+chain of `joined to`:
+
+```
+Define who as "world".
+Define count as 3.
+State "hello {who}, {count} times".
+```
+```
+hello world, 3 times
+```
+
+A hole holds **any expression**, and its value is converted to text for you — so
+`{count}` needs no `converted to text`:
+
+```
+Define pat as 0x0F.
+Define parts as a series of text with ("a", "b").
+State "arithmetic: {count * 2 + 1}".
+State "a call: {the length of who}".
+State "an element: {item 2 of parts}".
+State "a pattern: {pat}".
+State "even a nested string: {"inner {who}"}".
+```
+```
+arithmetic: 7
+a call: 5
+an element: b
+a pattern: 0x0F
+even a nested string: inner world
+```
+
+★ **A hole takes what `converted to text` takes** — text, number, fact, bits — and nothing else.
+That is narrower than `State`, which prints anything:
+
+```
+State parts.                    ← fine: (a, b)
+State "the parts: {parts}".     ← TYPE ERROR: 'converted to text' doesn't work on series of text
+```
+
+Write `\{` and `\}` for a literal brace. An empty hole is a parse error rather than an empty
+string, because it is always a mistake:
+
+```
+State "literal braces: \{not a hole\}".     → literal braces: {not a hole}
+State "nothing here: {}".                   ← PARSE ERROR: empty interpolation
+```
+
+Interpolation is part of the text literal, so it works **anywhere a text expression does** — not
+just in `State`:
+
+```
+Define greeting as "hello {who}".
+With the file "logs/{who}.txt" open for writing as log:
+    Write greeting to log.
+Done.
+```
 
 **Length** — `the length of`, the character count:
 ```
@@ -1193,6 +1251,38 @@ To restate a pattern in a different base, route through a number:
 C's most famous precedence bug is `a & b == c`, which silently parses as `a & (b == c)`. Cufet
 has the same precedence, but the mis-parse produces `bits and fact` — **a type error**, caught
 at compile time rather than computing quietly wrong answers.
+
+#### Storing one
+
+A `bits` goes anywhere a value goes — an object field, a series element, a map value, a
+`voidable`, a union case, a channel. Carrying a pattern alongside something else is the usual
+shape, because a pattern on its own rarely says what it is *for*:
+
+```
+Pull a book on collections.
+    Define object flagset with (the text name, the bits mask).
+
+    Define modes as a series of flagset with (
+        a new flagset { the name "read", the mask 0b100 },
+        a new flagset { the name "write", the mask 0b010 }).
+
+    Define by-name as a map from text to bits with ("exec" : 0b001).
+
+    For each mode in modes, repeat:
+        State "{mode's name} = {mode's mask}".
+    Done.
+    State the entry for "exec" in by-name but void is 0b0.
+Done.
+```
+```
+read = 0b100
+write = 0b010
+0b001
+```
+
+★ **A width is display, not data.** A stored pattern keeps the width it was built with, but no
+program can read that width back as a number — so a format whose field widths vary must carry
+them itself, in a second field. That is a known gap, and both halves of it are on the roadmap.
 
 See [`examples/permissions.cufe`](examples/permissions.cufe) for a worked Unix-permissions
 program using all of this.

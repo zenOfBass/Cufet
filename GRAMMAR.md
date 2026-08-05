@@ -245,6 +245,17 @@ therefore a character-wise match.
 | `columns` | ColumnsKw |
 | `filled` | FilledKw |
 
+### Bits
+
+| Word | Token | Notes |
+|---|---|---|
+| `shifted` | Shifted | `<bits> shifted left by <n>` / `shifted right by <n>` |
+| `xor` | Xor | Exclusive-or — see [Comparison and logic](#comparison-and-logic) |
+
+`left`, `right`, `hex`, `binary` and `octal` are **not** reserved: `the left of node` and
+`Define binary as "…"` both work. The `0x` / `0b` / `0o` literal forms lex as a single `Bits`
+token, digit count included — see [Leading zeros are significant](#-leading-zeros-are-significant--the-width-comes-from-the-digit-count).
+
 ### Chance and randomness
 
 **None of it is reserved.** `random`, `randomly`, `shuffled`, `guess` and `seed` are all
@@ -276,6 +287,11 @@ These are reserved and meaningful in both condition position (`If`, `While`,
 | `than` | Than |
 | `more` | More |
 | `and` | And |
+| `xor` | Xor |
+
+`or` is reserved too, and is listed under [Failures](#failures) because it carries
+`or pass the failure off` as well. `and`, `or` and `xor` are **gates**: each works on `fact`
+(one bit) and on `bits` (N bits), with precedence `and` > `xor` > `or`.
 
 ### Contextual words — NOT reserved
 
@@ -299,9 +315,10 @@ instead, so `Define rows as 5.` works even though the collections book uses the 
 and an identifier must start lowercase. Capitalised contextual statement words removed that
 obstacle, and the word is one the code most likely to pull this book will want.
 
-`the rows of x` is resolved by the **type of `x`** — a matrix's row count, or a record's field
-— exactly as `the key of mapping` already is. The parser cannot tell, but a reader never has
-the ambiguity.
+`the rows of x` and `the columns of x` are resolved by the **type of `x`** — a matrix's row or
+column count, or a record's field of that name — exactly as `the key of mapping` already is. The
+parser cannot tell, but a reader never has the ambiguity. On a matrix they are the only two
+members: an element is reached with `the item at (r, c) of m`, never `the item 3 of m`.
 
 **`current`** is contextual, promoted only when `directory` immediately follows it — so
 `the current directory` is the working directory while `Define current as 0.`,
@@ -965,6 +982,26 @@ Add 1 to (x + y).   ← TYPE ERROR: (x + y) is not a series
 | `the size of expr` | read |
 | `For each pair in expr, repeat:` | read |
 
+### Collections book — matrix operations
+
+Every form below needs `Pull a book on collections.` in scope, because that is what puts the
+`matrix` type there. Indices are **1-based**, and a matrix holds numbers and nothing else.
+
+| Syntax | Read or mutate? |
+|---|---|
+| `a matrix with ((1, 2), (3, 4))` | construct — rows given literally, rectangularity enforced |
+| `a matrix with R by C` | construct — sized, every cell zero |
+| `a matrix with R by C filled with V` | construct — sized, every cell `V` |
+| `the item at (r, c) of m` | read |
+| `The item at (r, c) of m becomes V.` | mutate |
+| `the rows of m` / `the columns of m` | read |
+| `cast collections's transpose of (m)` | read — returns a new matrix |
+
+`R`, `C` and the indices are any number expressions; `R` and `C` must be positive whole numbers,
+checked at compile time when literal and at runtime when computed. A matrix is a **reference
+type**, so a write is seen through every name for it — see
+[Value vs. reference semantics](#3-value-vs-reference-semantics).
+
 ### Collections book — matrix arithmetic
 
 Matrix arithmetic operators (`+`, `-`, `*`) are available inside `Pull a book on collections.`
@@ -1509,6 +1546,24 @@ Define x as 42.                           ← x holds numbers, and only numbers
 The value **widens** into the declared type — the same single implicit coercion `becomes` and
 `return` perform — so the value only has to *fit*, not match exactly. A value that does not fit
 is an error at the declaration.
+
+### String interpolation — `{...}` inside a text literal
+
+Part of the text literal itself, so it is legal **anywhere a text expression is** — a `Define`,
+an argument, a file path — not only in `State`.
+
+| Rule | |
+|---|---|
+| A hole holds any **expression** | `"{count * 2}"`, `"{the length of s}"`, `"{item 2 of parts}"`, `"{here's x}"` |
+| Nesting is allowed | `"outer {"inner {who}"}"` |
+| The value is **converted to text** for you | `"{count}"` needs no `converted to text` |
+| ★ So a hole takes only what `converted to text` takes | text, number, fact, bits — **not** a series, record, object or map |
+| A literal brace is escaped | `\{` and `\}` |
+| An empty hole is a **parse error** | `"{}"` — always a mistake, never an empty string |
+
+★ **The hole is narrower than `State`.** `State parts.` prints a series as `(a, b)`, but
+`State "the parts: {parts}".` is a static type error — the conversion a hole performs has no
+answer for a container. Print it on its own line, or build the text explicitly.
 
 ### ★ Transformations TRAIL, accessors LEAD
 

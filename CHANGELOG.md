@@ -37,6 +37,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★ An object declared inside a book pull crashed the compiler.** `CollectObjectDefs` was a
+  hand-written switch over block-bearing statements with no arm for `PullStatement`, so this was
+  never registered — and `build` died with a raw `KeyNotFoundException` rather than any
+  Cufet-level error. `check --native` passed it, because nothing on the check path looks the
+  definition up:
+
+  ```
+  Pull a book on collections.
+      Define object flagset with (the text name, the bits mask).
+      Define modes as a series of flagset with (…).
+  Done.
+  ```
+
+  Now collected with the shared reflection walk (`AstSearch.Visit`), which has no list to fall
+  behind — the third instance in two days of a hand-written per-node switch quietly returning
+  less than the truth.
 - **★ `bits` worked as a scalar and broke inside every container.** `State`, interpolation, `is`,
   ordering and function parameters were all fine; putting a `bits` in a series, record, object,
   map, voidable, union or channel was not. Declaring an object with a `bits` field was enough on
