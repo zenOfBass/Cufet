@@ -1,0 +1,207 @@
+/* Huffman coding — the fire-bringer's compression.
+
+   Counts character frequencies, merges the two cheapest nodes until one
+   tree remains, walks it assigning bit codes (left = 0, right = 1), packs
+   the whole message into a single bits value, and decodes it back to prove
+   the round trip.
+
+   Codes are stored as (pattern, width) pairs: a bits value carries its own
+   width for display, but nothing in the language will tell you that width
+   as a number, and the packer needs it. */
+
+Define object hnode with (the text symbol, the number freq, the series of hnode children).
+Define object hcode with (the bits pattern, the number width).
+
+Bind map from text to number to frequencies, given (the text source):
+    Define counts as a map from text to number with ().
+    Define total as the length of source.
+    Define i as 1.
+    While i is not greater than total, repeat:
+        Define ch as the characters from i to i of source.
+        If counts has a key for ch:
+            Define old as the entry for ch in counts but void is 0.
+            In counts, the entry for ch becomes old + 1.
+        Done.
+        Otherwise:
+            In counts, the entry for ch becomes 1.
+        Done.
+        The i becomes i + 1.
+    Done.
+    Return counts.
+Done.
+
+Bind series of hnode to leaves-from, given (the map from text to number counts):
+    Define leaves as a series of hnode with ().
+    For each pair in counts, repeat:
+        Define sym as the key of pair.
+        Define n as the value of pair.
+        Add a new hnode { the symbol sym, the freq n, the children a series of hnode with () } to leaves.
+    Done.
+    Return leaves.
+Done.
+
+Bind hnode to build-tree, given (the series of hnode leaves):
+    Define queue as leaves sorted by the freq.
+    Define count as the number of queue.
+    While count is greater than 1, repeat:
+        Define least as the first of queue.
+        Define next-least as item 2 of queue.
+        Remove the first item from queue.
+        Remove the first item from queue.
+        Define merged as a new hnode { the symbol "", the freq least's freq + next-least's freq,
+                                   the children a series of hnode with (least, next-least) }.
+        Add merged to queue.
+        The queue becomes queue sorted by the freq.
+        The count becomes the number of queue.
+    Done.
+    Return the first of queue.
+Done.
+
+/* Left appends a 0 bit, right appends a 1. At the root (w is 0) the codes
+   are simply 0b0 and 0b1, so depth-one codes are exactly one digit. */
+Bind void to assign-codes, given (the hnode node, the bits pat, the number w,
+                                  the map from text to hcode codes):
+    If the number of node's children is 0:
+        In codes, the entry for node's symbol becomes a new hcode { the pattern pat, the width w }.
+        Return.
+    Done.
+    Define left-kid as the first of node's children.
+    Define right-kid as item 2 of node's children.
+    Define left-pat as 0b0.
+    Define right-pat as 0b1.
+    Define next-w as 1.
+    If w is greater than 0:
+        The left-pat becomes pat shifted left by 1.
+        The right-pat becomes (pat shifted left by 1) or 0b1.
+        The next-w becomes w + 1.
+    Done.
+    Cast assign-codes on (left-kid, left-pat, next-w, codes).
+    Cast assign-codes on (right-kid, right-pat, next-w, codes).
+Done.
+
+/* Pack codes into a series of bits-values, never letting one value pass
+   the 64-bit ceiling. A code that would straddle a boundary closes the
+   current chunk and starts the next, so every chunk's printed digits are
+   exactly its bits and decode is a plain walk over chunks. */
+Bind series of hcode to encode, given (the text source, the map from text to hcode codes):
+    Define chunks as a series of hcode with ().
+    Define acc as 0b0.
+    Define fill as 0.
+    Define started as false.
+    Define total as the length of source.
+    Define i as 1.
+    While i is not greater than total, repeat:
+        Define ch as the characters from i to i of source.
+        Define code as the entry for ch in codes.
+        If code is not void:
+            Define w as code's width.
+            Define pat as code's pattern.
+            If started is false:
+                The acc becomes pat.
+                The fill becomes w.
+                The started becomes true.
+            Done.
+            Otherwise:
+                Define need as fill + w.
+                If need is greater than 64:
+                    Add a new hcode { the pattern acc, the width fill } to chunks.
+                    The acc becomes pat.
+                    The fill becomes w.
+                Done.
+                Otherwise:
+                    The acc becomes (acc shifted left by w) or pat.
+                    The fill becomes fill + w.
+                Done.
+            Done.
+        Done.
+        The i becomes i + 1.
+    Done.
+    If started is true:
+        Add a new hcode { the pattern acc, the width fill } to chunks.
+    Done.
+    Return chunks.
+Done.
+
+/* Walk each chunk from its top bit; a leaf emits its symbol. Chunks are
+   self-describing via their stored width, so no position arithmetic. */
+Bind text to decode, given (the series of hcode chunks, the hnode root):
+    Define out as "".
+    Define node as root.
+    For each chunk in chunks, repeat:
+        Define pattern as chunk's pattern.
+        Define width as chunk's width.
+        Define pos as 1.
+        While pos is not greater than width, repeat:
+            Define drop as width - pos.
+            Define aligned as pattern shifted right by drop.
+            Define bit as (aligned and 0b1) converted to number.
+            Define kids as node's children.
+            If bit is 0:
+                The node becomes the first of kids.
+            Done.
+            Otherwise:
+                The node becomes item 2 of kids.
+            Done.
+            If the number of node's children is 0:
+                The out becomes out joined to node's symbol.
+                The node becomes root.
+            Done.
+            The pos becomes pos + 1.
+        Done.
+    Done.
+    Return out.
+Done.
+
+Bind void to play:
+    Define message as "the rabbit brings fire to the people".
+
+    Define counts as cast frequencies on (message).
+    Define leaves as cast leaves-from on (counts).
+    Define root as cast build-tree on (leaves).
+    Define codes as a map from text to hcode with ().
+    If the number of root's children is 0:
+        In codes, the entry for root's symbol becomes a new hcode { the pattern 0b1, the width 1 }.
+    Done.
+    Otherwise:
+        Cast assign-codes on (root, 0b0, 0, codes).
+    Done.
+
+    State "message: {message}".
+    State "".
+    State "code table:".
+    For each pair in codes, repeat:
+        Define sym as the key of pair.
+        Define code as the value of pair.
+        Define pat-text as code's pattern converted to text.
+        Define w-text as code's width converted to text.
+        State "  {sym} -> {pat-text} ({w-text} bits)".
+    Done.
+
+    Define packed as cast encode on (message, codes).
+    Define chunk-count as the number of packed.
+    Define total-bits as 0.
+    State "".
+    State "encoded in {chunk-count converted to text} chunks:".
+    For each chunk in packed, repeat:
+        Define pat-text as chunk's pattern converted to text.
+        Define w-text as chunk's width converted to text.
+        Define w as chunk's width.
+        The total-bits becomes total-bits + w.
+        State "  {pat-text} ({w-text} bits)".
+    Done.
+    Define chars as the length of message.
+    Define raw-bits as chars * 8.
+    State "packed to {total-bits converted to text} bits, versus {raw-bits converted to text} at a byte per character".
+
+    Define round-trip as cast decode on (packed, root).
+    State "".
+    If round-trip is message:
+        State "decoded: {round-trip}".
+        State "round trip holds".
+    Done.
+    Otherwise:
+        State "MISMATCH: {round-trip}".
+    Done.
+Done.
+
+Cast play.
