@@ -35,6 +35,36 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 - **`examples/gameoflife.cufe`** — Conway's Game of Life on a matrix, with wrapping edges.
 
+### Added
+
+- **Exhaustiveness tests, against the bug class that produced three of the fixes below.** Every one
+  was a hand-written switch over types or AST nodes, missing an arm, whose default returned a
+  plausible wrong answer rather than failing. Four tests, each verified by reintroducing the bug it
+  is meant to catch:
+  - `EveryCufetType_HasAName` — no `CufetType` may fall through to `FormatTypeName`'s `"value"`.
+    That fallback *is* what "printing a 'value' is not yet supported" was.
+  - `EveryCufetType_HasAFactory` — a new type has no test instance, so it fails until someone adds
+    one and checks the per-type switches.
+  - `EveryBodyBearingNode_HasBeenConsidered` — a new AST node with a statement body cannot appear
+    without failing, and the failure names the hand-written descents to revisit. Removing `Judge`
+    from its list reproduces the exact miss that shipped.
+  - `EveryCufetType_IsNamedByTheFrontEndToo` — the same totality for the checker's `FormatType`.
+
+  Deliberately **not** an audit of every walk against every node: several omissions are correct —
+  `InferBodyReturnType` stops at a nested `BindStatement` on purpose. The tests close the door new
+  constructs came through rather than judging the existing ~60 walk-by-node cells, which is a
+  separate job needing a reason per cell.
+
+### Changed
+
+- **Four more hand-written walks converted to the shared `AstSearch`.** `ProgramUsesConcurrency`
+  (whose own comment already recorded losing concurrency inside a book pull),
+  `CollectInterfaceDefs`, `CollectObjectDefs` and `MergeUntoMethods` — the last of which was
+  silently dropping `unto` methods declared inside a book pull. A generic walk has no list to fall
+  behind, which beats a test that reports the list went stale.
+- **`FormatTypeName` can now name every type.** Seven — mapping, both stream types, rabbit,
+  failure, exception and book — used to be reported as `'value'`.
+
 ### Fixed
 
 - **★ An object declared inside a book pull crashed the compiler.** `CollectObjectDefs` was a
