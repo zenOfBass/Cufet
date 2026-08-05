@@ -166,11 +166,36 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    `f` reads `x` is circular, so either the initialiser is restricted to constant-foldable
    expressions, or an order is defined and cycles are refused.
 
+7. **A bits value's width, as data.** A `bits` carries a width and shows it — `0x0F` prints with
+   its leading zero — but a program cannot **read** that width or **ask for** one:
+
+   ```
+   State the width of 0x0F.            ← no such thing today
+   Define blank as 3 zero bits.        ← nor this
+   ```
+
+   ★ **The use case has arrived, which is why this is numbered rather than deferred.**
+   `examples/huffmancoding.cufe` assigns each symbol a code of a different length, and a code is
+   useless without knowing how many bits it is. Since the width cannot be read back, the example
+   carries it in a second field and keeps the two in step by hand — its own header comment says so.
+   Any bit-packer, wire format, or fixed-width protocol hits the same wall.
+
+   **The display gap is the same gap.** A width is only ever carried by a pattern, and it is raised
+   to fit the value and no further — so leading zeros that no operand ever held cannot be produced.
+   `0b0 shifted left by 2` is `0b0`, not `0b000`, and a Huffman code of three zero bits prints as
+   one digit. Reading a width does not fix that on its own; **constructing** a value of a stated
+   width does, which is why both halves belong to one item.
+
+   **Settle before building:** whether the width is a property (`the width of p`) or a book member,
+   and whether a stated width is a literal form (`0b000` already works — the gap is only for a
+   *computed* width) or a conversion (`p at 8 bits`). Also whether asking for a width narrower than
+   the value is an error or an `and`-style truncation.
+
 ### Tier 2 — leverage
 
-7. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+8. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
-8. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
+9. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
    tree, linked structure or wrapper cannot be looped over at all:
 
    ```
@@ -194,7 +219,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 Both need a design session before they can be ordered against anything. Neither is blocked by a
 numbered item; they are here because they are large, not because they are waiting.
 
-9. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+10. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
@@ -203,7 +228,7 @@ numbered item; they are here because they are large, not because they are waitin
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-10. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+11. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -243,14 +268,14 @@ numbered item; they are here because they are large, not because they are waitin
 
 ### Tier 4 — modules, strictly in this order
 
-11. **The `module` interface.** A named interface defining the contract for any loadable thing.
+12. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-12. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+13. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-13. **What a book exports.** Every member of a book is public API, permanently, because there is
+14. **What a book exports.** Every member of a book is public API, permanently, because there is
     no way to mark one internal. It does not bite yet — the bundled three are built in and you
     cannot write a book — but the moment the loader below lands, a book author has no way to say
     *this is my helper, do not call it*.
@@ -264,7 +289,7 @@ numbered item; they are here because they are large, not because they are waitin
     the book, so the boundary is *what a book hands out* — the object question is a different and
     much weaker one, since within a file a visibility marker is a comment with ceremony attached.
 
-14. **A package manager for books.**
+15. **A package manager for books.**
 
 ### Tier 5 — Cufet in Cufet
 
@@ -274,7 +299,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-15. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+16. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -282,7 +307,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-16. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
+17. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
@@ -290,7 +315,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-17. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+18. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 

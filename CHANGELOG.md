@@ -37,6 +37,26 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★ `bits` worked as a scalar and broke inside every container.** `State`, interpolation, `is`,
+  ordering and function parameters were all fine; putting a `bits` in a series, record, object,
+  map, voidable, union or channel was not. Declaring an object with a `bits` field was enough on
+  its own, and the error blamed printing:
+
+  ```
+  Define object holder with (the bits pattern, the number width).
+  State "nothing to do with it".      ← "printing a 'value' is not yet supported"
+  ```
+
+  `bits` was missing an arm in **seven** per-type switches across both backends — `TypeSig`,
+  `WriteCall`, `EqCall`, `IsChanPod`, the channel element list, `StaticKindMatches`,
+  `RuntimeIsType`, `StaticMatch` and `IsRegionBearing`. Two were worse than a refusal:
+  **`is a bits` silently answered `false`**, because `RuntimeIsType` fell through to its default
+  arm; and **`channel of bits` was a live divergence**, running interpreted and refused by the
+  compiler. `FormatTypeName` could not name the type either, which is why the message said
+  `'value'`.
+
+  This is the second instance in two days of a hand-written per-type switch quietly returning a
+  plausible wrong answer — see the `Judge` entry below.
 - **★ Ctrl-C did nothing to an interpreted program that did not poll for it.** The key handler set
   `e.Cancel = true` on every program, taking the OS kill away — and the flag was then read only at
   `Yield.`, a channel receive, a task await, a subprocess wait, or an explicit poll. A loop of

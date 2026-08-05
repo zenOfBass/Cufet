@@ -514,6 +514,15 @@ need to.
 value has widened it stays wide: `(0b1 * 0x100) - 0x1` prints `0b011111111`, nine digits, not
 eight. Narrow deliberately with an `and` if you want the shorter form.
 
+**★ And width is never raised past what the value occupies — including by a shift.** The same
+rule governs `shifted left by`, so it widens only when the value grows into the new positions:
+`0b00001111 shifted left by 2` is `0b00111100` (width 8, inherited) but `0b0 shifted left by 2`
+is `0b0`, not `0b000`. A pattern is the only thing that carries a width, so an all-zero result
+has no width to carry and leading zeros that no operand ever held cannot be produced. A program
+for which the width is data rather than decoration — a Huffman table, a bit-packer — must track
+it in a second field, because **a bits value's width cannot be read as a number**. Both halves
+are on the roadmap.
+
 ### ★ `and`/`or` short-circuit on facts, and cannot on bits
 
 ```

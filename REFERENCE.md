@@ -1140,6 +1140,27 @@ right shift to choose between.
 
 `left` and `right` are **not reserved** — `the left of node` still works.
 
+> **★ A shift does not add width the value does not occupy.** A result's width is the same rule
+> everything else follows — the left operand's width, raised to fit the value — so a shift widens
+> only when the value grows into the new positions. Leading zeros survive when there is a width to
+> inherit them from, and cannot appear when there is not:
+>
+> ```
+> State 0b00001111 shifted left by 2.   // 0b00111100 — width 8 inherited, zeros kept
+> State 0b1 shifted left by 2.          // 0b100
+> State 0b0 shifted left by 2.          // 0b0        — NOT 0b000
+> ```
+>
+> The last one is the edge. `0b0` is one digit wide, the value stays zero however far it is
+> shifted, and a width is only ever carried by the pattern — so there is nothing to widen. Build up
+> from a literal of the width you want (`0b000`) when the leading zeros are the point, or track the
+> width separately.
+>
+> This bites hardest when a program computes codes of varying length — a Huffman table, a
+> bit-packer — where the width is data rather than decoration. **A bits value's width cannot be
+> read as a number**, so such a program must carry it in a second field. Both halves of that are
+> on the roadmap.
+
 #### Crossing over
 
 No implicit conversion, in either direction:
