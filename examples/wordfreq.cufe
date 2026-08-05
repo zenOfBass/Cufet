@@ -1,4 +1,4 @@
-Define sample-text as "examples/sample.txt".
+Define sample-text as "examples/assets/sample.txt".
 
 Pull a rabbit.
     Define counts as a map from text to number.
