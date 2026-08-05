@@ -2271,23 +2271,12 @@ static void* cufet_pipe_stage(void* argp) {
     // ── Interfaces: monomorphization (Arc 3, DD.1) ────────────────────────────
 
     // Collects interface declarations (same reach as CollectObjectDefs).
-    private void CollectInterfaceDefs(IEnumerable<IStatement> stmts)
-    {
-        foreach (var stmt in stmts)
-            switch (stmt)
-            {
-                case InterfaceDefinition ifd:  _interfaceDefs[ifd.Name] = ifd; break;
-                case PullStatement ps:         CollectInterfaceDefs(ps.Body); break;
-                case PullRabbitStatement pr:   CollectInterfaceDefs(pr.Body); break;
-                case IfStatement iff:
-                    foreach (var arm in iff.Arms) CollectInterfaceDefs(arm.Body);
-                    if (iff.ElseBody != null) CollectInterfaceDefs(iff.ElseBody);
-                    break;
-                case WhileStatement w:         CollectInterfaceDefs(w.Body); break;
-                case RepeatUntilStatement r:   CollectInterfaceDefs(r.Body); break;
-                case ForEachStatement fe:      CollectInterfaceDefs(fe.Body); break;
-            }
-    }
+    // Every InterfaceDefinition anywhere in the tree. Generic walk for the same reason its twin
+    // CollectObjectDefs uses one: the two were near-identical hand-written switches that had
+    // DRIFTED — this one grew a PullStatement arm and the other never did, which is how
+    // `Define object` inside a book pull came to crash the compiler.
+    private void CollectInterfaceDefs(IEnumerable<IStatement> stmts) =>
+        AstSearch.Visit(stmts, n => { if (n is InterfaceDefinition ifd) _interfaceDefs[ifd.Name] = ifd; });
 
     // Is this parameter type an INTERFACE? The parser emits a bare shell ObjectType for any user
     // type name; the front-end's ResolveParamType turns a shell whose name is a declared interface
@@ -3543,8 +3532,21 @@ static void* cufet_pipe_stage(void* argp) {
         TaskHandleType  => "task",
         FunctionType    => "function",
         InterfaceType i => i.Name,
+        // ★ The tail below is not decoration. Every one of these used to fall to the `"value"`
+        // catch-all, so a refusal naming a type the compiler could not represent said "a 'value'"
+        // — which is how a missing `bits` arm produced "printing a 'value' is not yet supported"
+        // and cost an afternoon. Names match TypeChecker.FormatType so the two agree.
+        MappingType     => "mapping",
+        ReadableStreamType r => $"readable stream of {FormatTypeName(r.ElementType)}",
+        WritableStreamType w => $"writable stream of {FormatTypeName(w.ElementType)}",
+        RabbitType      => "rabbit",
+        FailureMarkerType   => "failure",
+        ExceptionMarkerType => "exception",
+        BookType b      => $"book '{b.Name}'",
         UnionType u     => u.Cases == null ? "catalogue value"
                              : string.Join(" or ", u.Cases.Select(FormatTypeName)),
+        // Unreachable while every CufetType above has an arm — pinned by
+        // EveryCufetType_HasAName in the compiler tests, which fails the moment a new one does not.
         _               => "value",
     };
 
@@ -5238,33 +5240,27 @@ static void* cufet_pipe_stage(void* argp) {
     // Folds 'Bind <ret> to <name> unto <type> ...' methods into their target object's
     // method list — an unto method is identical to a nested one, only its declaration
     // site differs, so once merged the normal method emission + dispatch handle it.
-    private void MergeUntoMethods(IEnumerable<IStatement> stmts)
-    {
-        foreach (var stmt in stmts)
+    // Every `unto` declaration anywhere, merged into its target object.
+    //
+    // Generic walk: the hand-written version had no PullStatement arm, so a method declared with
+    // `unto` inside `Pull a book on ... Done.` was silently dropped — the object compiled without
+    // it and the call site failed to resolve. Same omission as its two sibling collectors.
+    private void MergeUntoMethods(IEnumerable<IStatement> stmts) =>
+        AstSearch.Visit(stmts, n =>
         {
-            switch (stmt)
+            switch (n)
             {
-                case BindStatement { UntoType: { } target } b:
-                    _objectDefs[target] = UntoTargetDef(target, "methods") with { Methods = UntoTargetDef(target, "methods").Methods.Append(b).ToList() };
+                case BindStatement { UntoType: { } t } b:
+                    _objectDefs[t] = UntoTargetDef(t, "methods") with { Methods = UntoTargetDef(t, "methods").Methods.Append(b).ToList() };
                     break;
-                case GetterDeclaration { UntoType: { } target } g:
-                    _objectDefs[target] = UntoTargetDef(target, "getters") with { Getters = UntoTargetDef(target, "getters").Getters.Append(g).ToList() };
+                case GetterDeclaration { UntoType: { } t } g:
+                    _objectDefs[t] = UntoTargetDef(t, "getters") with { Getters = UntoTargetDef(t, "getters").Getters.Append(g).ToList() };
                     break;
-                case SetterDeclaration { UntoType: { } target } s:
-                    _objectDefs[target] = UntoTargetDef(target, "setters") with { Setters = UntoTargetDef(target, "setters").Setters.Append(s).ToList() };
+                case SetterDeclaration { UntoType: { } t } s:
+                    _objectDefs[t] = UntoTargetDef(t, "setters") with { Setters = UntoTargetDef(t, "setters").Setters.Append(s).ToList() };
                     break;
-                case PullRabbitStatement p: MergeUntoMethods(p.Body); break;
-                case IfStatement iff:
-                    foreach (var arm in iff.Arms) MergeUntoMethods(arm.Body);
-                    if (iff.ElseBody != null) MergeUntoMethods(iff.ElseBody);
-                    break;
-                case WhileStatement w:       MergeUntoMethods(w.Body); break;
-                case RepeatUntilStatement r: MergeUntoMethods(r.Body); break;
-                case ForEachStatement fe:    MergeUntoMethods(fe.Body); break;
             }
-        }
-    }
-
+        });
     private ObjectDefinition UntoTargetDef(string target, string kind) =>
         _objectDefs.TryGetValue(target, out var def) ? def
             : throw new CompilerException($"'unto {target}': {kind} on '{target}' are not yet supported by the compiler (not a plain object type).");
@@ -6005,35 +6001,25 @@ static void* cufet_pipe_stage(void* argp) {
 
     // ── Concurrency (CONC.A+B) ────────────────────────────────────────────────
 
-    private bool ProgramUsesConcurrency(IEnumerable<IStatement> stmts)
-    {
-        foreach (var s in stmts)
-            switch (s)
-            {
-                case LaunchTaskStatement or SendStatement or CloseStatement: return true;
-                // Task pipes + their stage constructs need the pipe/channel substrate emitted.
-                case OutputStatement or ForEachFromInputStatement: return true;
-                case PipeExpression pe when !FlattenPipeAll(pe).TrueForAll(x => x is RunExpression): return true;
-                case PullRabbitStatement p when ProgramUsesConcurrency(p.Body): return true;
-                // `Pull a book on <name>.` — a compile-time scope, but its body is still program
-                // text and may hold a rabbit. Missing this arm made concurrency INSIDE a book pull
-                // invisible to the pre-scan, so the substrate was never emitted, the rabbit never
-                // established its context, and a channel declared inside it was refused for not
-                // being in a rabbit — while sitting in one. Interpreted fine; compiled, refused.
-                case PullStatement pb when ProgramUsesConcurrency(pb.Body): return true;
-                case IfStatement iff when iff.Arms.Any(a => ProgramUsesConcurrency(a.Body)) || (iff.ElseBody != null && ProgramUsesConcurrency(iff.ElseBody)): return true;
-                case WhileStatement w when ProgramUsesConcurrency(w.Body): return true;
-                case RepeatUntilStatement r when ProgramUsesConcurrency(r.Body): return true;
-                case ForEachStatement fe when ProgramUsesConcurrency(fe.Body): return true;
-                case TryStatement t when ProgramUsesConcurrency(t.Body) || (t.FailureHandler != null && ProgramUsesConcurrency(t.FailureHandler)): return true;
-                case WithOpenStatement wo when ProgramUsesConcurrency(wo.Body): return true;
-                case BindStatement b when ProgramUsesConcurrency(b.Body): return true;
-                case DefineStatement d when ExprUsesChannel(d.Value): return true;
-                case BecomesStatement bc when ExprUsesChannel(bc.Value): return true;
-                case StateStatement st when ExprUsesChannel(st.Value): return true;
-            }
-        return false;
-    }
+    // Whether the program needs the concurrency substrate emitted.
+    //
+    // Presence of any of these nodes ANYWHERE in the tree — the generic walk supplies the descent,
+    // so there is no list of block-bearing statements to fall behind. That list is what previously
+    // went stale: it had no arm for PullStatement, and concurrency inside a book pull was invisible
+    // to this scan, so the substrate was never emitted and a channel declared inside a rabbit was
+    // refused for not being in one. Interpreted fine; compiled, refused.
+    //
+    // The walk is broader than the old arms in one way — a channel created inside, say, a call
+    // argument now counts, where before only Define/becomes/State values were inspected. That
+    // direction is safe: over-detection emits substrate nothing uses, under-detection miscompiles.
+    private bool ProgramUsesConcurrency(IEnumerable<IStatement> stmts) =>
+        AstSearch.Contains(stmts, n =>
+            n is LaunchTaskStatement or SendStatement or CloseStatement
+              or OutputStatement or ForEachFromInputStatement
+              or ChannelCreation or DeliveryExpression
+            // A pipe needs the substrate unless every stage is a subprocess run — those lower to
+            // plain sequential calls with no channel between them.
+            || (n is PipeExpression pe && !FlattenPipeAll(pe).TrueForAll(x => x is RunExpression)));
 
     // Whether the program uses interrupt constructs (CONC.E) — so main installs the SIGINT handler +
     // landing pad and the substrate is emitted. Discovered up front (like concurrency) because main's
