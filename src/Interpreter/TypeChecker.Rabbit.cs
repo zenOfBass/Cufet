@@ -128,7 +128,10 @@ public sealed partial class TypeChecker
     private static bool IsRegionBearing(CufetType? t, HashSet<string> seen) => t switch
     {
         null                     => false,
-        NumberType or FactType   => false,
+        // bits is a flat value (pattern + base + width) with no pointer in it, so it carries no
+        // region. Explicit rather than left to the default arm below, whose comment enumerates
+        // what falls through and would otherwise have to be read as covering scalars too.
+        NumberType or BitsType or FactType => false,
         VoidType                 => false,
         TextType                 => true,   // ★ arena-allocated in the compiler; the reported UAF
         SeriesType or MapType    => true,

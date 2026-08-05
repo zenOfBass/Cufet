@@ -1911,6 +1911,7 @@ public sealed partial class Interpreter
     private static bool StaticMatch(CufetType s, CufetType t) => t switch
     {
         NumberType    => s is NumberType,
+        BitsType      => s is BitsType,
         TextType      => s is TextType,
         FactType      => s is FactType,
         SeriesType ts => s is SeriesType ss && StaticMatch(ss.ElementType, ts.ElementType),
@@ -1938,6 +1939,7 @@ public sealed partial class Interpreter
     private static bool RuntimeIsType(object? value, CufetType type) => type switch
     {
         NumberType      => value is decimal,
+        BitsType        => value is BitsValue,
         TextType        => value is string,
         FactType        => value is bool,
         VoidType        => value is VoidValue,

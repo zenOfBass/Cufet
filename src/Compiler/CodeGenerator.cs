@@ -2587,6 +2587,7 @@ static void* cufet_pipe_stage(void* argp) {
     private string TypeSig(CufetType t) => t switch
     {
         NumberType => "N",
+        BitsType   => "B",
         FactType   => "F",
         TextType   => "T",
         SeriesType s => "S(" + TypeSig(s.ElementType) + ")",
@@ -3176,7 +3177,9 @@ static void* cufet_pipe_stage(void* argp) {
     // Is `t` transitively free of arena pointers (so a plain C struct copy is already a deep copy)?
     private bool IsChanPod(CufetType t) => t switch
     {
-        NumberType or FactType => true,
+        // `bits` belongs here for the same reason number and fact do: CufetBits is a flat value
+        // struct (value + base + width) with no pointer in it, so a struct copy IS a deep copy.
+        NumberType or BitsType or FactType => true,
         VoidableType v => IsChanPod(v.Inner),
         // A failable result (`T or failure`) is POD iff its inner T is: the message/category are
         // const char* to STATIC string literals (task failure messages must be static — CONC.C), so
@@ -3228,10 +3231,10 @@ static void* cufet_pipe_stage(void* argp) {
                 if (ut.Cases != null) RegisterUnionStruct(ut); else MarkOpenUnion();
                 foreach (var c in UnionCases(ut)) if (!IsChanPod(c)) RegisterChanElem(c, false);
                 break;
-            case NumberType or FactType or TextType: break;
+            case NumberType or BitsType or FactType or TextType: break;
             default:
                 throw new CompilerException(
-                    $"a channel of '{FormatTypeName(t)}' is not supported (channel elements are number/fact/text/series/map/record/object/union/voidable/matrix).");
+                    $"a channel of '{FormatTypeName(t)}' is not supported (channel elements are number/bits/fact/text/series/map/record/object/union/voidable/matrix).");
         }
         return idx;
     }
@@ -3540,7 +3543,7 @@ static void* cufet_pipe_stage(void* argp) {
     // about a 'TaskHandleType', which is not a phrase that appears anywhere in Cufet.
     private static string FormatTypeName(CufetType t) => t switch
     {
-        NumberType => "number", TextType => "text", FactType => "fact",
+        NumberType => "number", TextType => "text", FactType => "fact", BitsType => "bits",
         SeriesType => "series", MapType => "map", RecordType => "record", MatrixType => "matrix",
         ObjectType o    => o.Name,
         VoidType        => "void",
@@ -3583,6 +3586,7 @@ static void* cufet_pipe_stage(void* argp) {
     private static bool StaticKindMatches(CufetType t, CufetType tested) => tested switch
     {
         NumberType => t is NumberType,
+        BitsType   => t is BitsType,
         TextType   => t is TextType,
         FactType   => t is FactType,
         SeriesType st => t is SeriesType ts && StaticKindMatches(ts.ElementType, st.ElementType),
@@ -3781,6 +3785,11 @@ static void* cufet_pipe_stage(void* argp) {
     private string EqCall(string a, string b, CufetType t) => t switch
     {
         NumberType => $"cufet_cmp({a}, {b}) == 0",
+        // Value alone, ignoring base and width — 0xFF, 0x00FF and 0b11111111 are one pattern
+        // written three ways. This must stay identical to the `is` operator's own lowering
+        // (EmitBinary's BitsType arm); a container that compared the struct field by field would
+        // call those three different and disagree with `a is b` on the very same values.
+        BitsType   => $"(({a}).value == ({b}).value)",
         FactType   => $"({a} == {b})",
         TextType   => $"strcmp({a}, {b}) == 0",
         SeriesType st => $"{RegisterSeriesStruct(st)}_eq({a}, {b})",
@@ -3800,6 +3809,7 @@ static void* cufet_pipe_stage(void* argp) {
     private string WriteCall(string valExpr, CufetType t) => t switch
     {
         NumberType => $"cufet_write_number({valExpr})",
+        BitsType   => $"cufet_write_bits({valExpr})",
         FactType   => $"cufet_write_fact({valExpr})",
         TextType   => $"cufet_write_text({valExpr})",
         SeriesType st => $"{RegisterSeriesStruct(st)}_write({valExpr})",
