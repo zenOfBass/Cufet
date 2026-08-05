@@ -19,7 +19,7 @@ Define the object deck with (the series of card cards):
             Define card-j as item j of one's cards.
             Item i of one's cards becomes card-j.
             Item j of one's cards becomes temp.
-            i becomes i - 1.
+            The i becomes i - 1.
         Done.
     Done.
 
