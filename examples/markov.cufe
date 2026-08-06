@@ -13,7 +13,7 @@
 Pull a book on chance.
 
 Bind map from text to series of text to transitions-of, given (the series of text words):
-    Define transitions as a map from text to series of text with ().
+    Define transitions as a map from text to series of text.
     Define count as the number of words.
     Define limit as count - 1.
     Define index as 1.
@@ -24,7 +24,7 @@ Bind map from text to series of text to transitions-of, given (the series of tex
         Define third-index as index + 2.
         Define follower as item third-index of words.
         Define bigram as "{word} {second-word}".
-        Define fresh as a series of text with ().
+        Define fresh as a series of text.
         Define bucket as the entry for bigram in transitions but void is fresh.
         Add follower to bucket.
         In transitions, the entry for bigram becomes bucket.
@@ -41,7 +41,7 @@ Bind text to babble, given (the map from text to series of text transitions,
     Define steps as 1.
     While steps is not greater than how-many, repeat:
         Define bigram as "{prev} {curr}".
-        Define fresh as a series of text with ().
+        Define fresh as a series of text.
         Define nexts as the entry for bigram in transitions but void is fresh.
         If the number of nexts is 0, stop.
         Define pick as a random item from nexts but void is "".
@@ -54,8 +54,6 @@ Bind text to babble, given (the map from text to series of text transitions,
 Done.
 
 Bind void to play:
-    Seed the chance with 42.
-
     Define corpus as "in the beginning there was no fire and the earth was cold 
     then the Thunderbirds sent their lightning to a sycamore tree on an island where the Weasels lived 
     the Weasels were the only ones who had fire and they would not give any of it away
@@ -90,11 +88,14 @@ Bind void to play:
     Rabbit however had built a fire in a hollow tree and when the rain stopped and the sun shone he came out and gave fire to all the people
     after that whenever it rained they kept fires in their shelters and that is how Rabbit brought fire to the people".
 
-    Define words as corpus split by " ".
+    Define words as a series of text.
+    For each token in corpus split by " ", repeat:
+        Define word as token trimmed.
+        If the length of word is greater than 0, add word to words.
+    Done.
     Define transitions as cast transitions-of on (words).
     Define opening as a series of text with ("in", "the").
 
-    State "seed 42, order-2 babble:".
     State cast babble on (transitions, opening, 40).
 Done.
 
