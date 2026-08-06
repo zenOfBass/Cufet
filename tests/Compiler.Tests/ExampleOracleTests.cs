@@ -100,7 +100,25 @@ public class ExampleOracleTests
         var program = new Parser(tokens).Parse();
         new TypeChecker().Check(program);
 
-        Assert.Equal(Interpret(program), CompileAndRun(program));
+        string compiled;
+        try
+        {
+            compiled = CompileAndRun(program);
+        }
+        catch (Exception e) when (e is not Xunit.Sdk.XunitException)
+        {
+            // The one case that needs a human decision, so the failure has to name it. A new
+            // concurrency or subprocess example cannot be built under mingw, and a raw gcc error
+            // says nothing about what to do next.
+            throw new Xunit.Sdk.XunitException(
+                $"{file} failed to build.\n" +
+                $"If it uses tasks, channels or subprocesses, it needs POSIX and cannot compile on " +
+                $"Windows — add it to WindowsOnlySkips with a reason, and SkippedExample_StillTypeChecks " +
+                $"will keep holding it to the front end.\n" +
+                $"Otherwise this is a real compiler regression.\n\n{e.Message}");
+        }
+
+        Assert.Equal(Interpret(program), compiled);
     }
 
     /// <summary>
