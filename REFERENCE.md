@@ -646,10 +646,10 @@ Define n as the length of greeting.
 `converted to text`:
 ```
 Define n as "42" converted to number.
-If n is not void, state n.                          → 42
+If n is not void, state n.                                 → 42
 Otherwise, state "not a number".
 
-Define m as ("abc" converted to number but void is 0).      → 0
+Define m as ("abc" converted to number but void is 0).     → 0
 ```
 Parsing can fail (`"hello"` isn't a number), so the result is **always a
 `voidable number`** — even for an obviously valid literal — and must be
@@ -691,7 +691,7 @@ plain `text` (never voidable — out-of-range inputs clamp rather than fail):
 ```
 State the characters from 2 to 4 of "hello".         → "ell"
 State the first 3 characters of "hello".             → "hel"
-State the last 3 characters of "hello".               → "llo"
+State the last 3 characters of "hello".              → "llo"
 State the characters from 3 to the end of "hello".   → "llo"
 ```
 - An out-of-range-high end **clamps** to what's there: `the characters from 2
@@ -2172,7 +2172,7 @@ Try to:
     State body.
 Done.
 In case of failure:
-    State "could not open file: " joined to the message of the failure.
+    State "could not open file: {message of the failure}".
 Done.
 ```
 
@@ -2192,7 +2192,7 @@ Try to:
     State 1 / 0.
 Done.
 In case of exception (the exception):
-    State "runtime error: " joined to the exception.    ← bound as text
+    State "runtime error: {exception}".    ← bound as text
 Done.
 ```
 
@@ -2204,7 +2204,7 @@ valid inside `In case of exception`) swallows the exception and continues
 execution after the `Try`:
 ```
 In case of exception (the exception):
-    State "ignoring: " joined to the exception.
+    State "ignoring: {exception}".
     Suppress.
 Done.
 ```
@@ -2268,7 +2268,7 @@ Try to:
     State text.
 Done.
 In case of failure:
-    State "could not read: " joined to the message of the failure.
+    State "could not read: {message of the failure}".
 Done.
 ```
 
@@ -2389,7 +2389,7 @@ returning `voidable text`:
 
 ```
 Define home as the environment variable "HOME".
-If home is not void, state "home is " joined to home.
+If home is not void, state "home is {home}".
 Otherwise, state "HOME is not set".
 
 Define path-val as the environment variable "PATH" but void is "".
@@ -2420,7 +2420,7 @@ Try to:
     Write "notes" to the file "scratch.txt".   /* relative to /tmp now */
 Done.
 In case of failure:
-    State "could not move there: " joined to the message of the failure.
+    State "could not move there: {message of the failure}".
 Done.
 ```
 
@@ -2461,7 +2461,7 @@ Try to:
     Done.
 Done.
 In case of failure:
-    State "cannot read: " joined to the message of the failure.
+    State "cannot read: {message of the failure}".
 Done.
 ```
 
@@ -2746,7 +2746,7 @@ Done.
 
 Bind void to show:
     For each n from the input:
-        State "kept " joined to (n converted to text).
+        State "kept {n converted to text}".
     Done.
 Done.
 
@@ -2971,7 +2971,7 @@ Pull a book on collections.
         State m * n.
     Done.
     In case of failure:
-        State "failed: " joined to the message of the failure.
+        State "failed: {message of the failure}".
     Done.
 
     Define bad as a matrix with ((1, 2, 3)).
@@ -2979,7 +2979,7 @@ Pull a book on collections.
         State m + bad.
     Done.
     In case of failure:
-        State "failed: " joined to the message of the failure.
+        State "failed: {message of the failure}".
     Done.
 Done.
 ```
