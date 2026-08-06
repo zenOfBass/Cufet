@@ -23,9 +23,7 @@ Bind series of text to tokenize, given (the text src):
     Define i as 1.
     While i is not greater than total, repeat:
         Define ch as the characters from i to i of src.
-        If ch is " ":
-            The i becomes i + 1.
-        Done.
+        If ch is " ", i becomes i + 1.
         Otherwise if ch is "+" or ch is "*" or ch is "(" or ch is ")":
             Add ch to tokens.
             The i becomes i + 1.
@@ -34,12 +32,8 @@ Bind series of text to tokenize, given (the text src):
             Define num-start as i.
             While i is not greater than total, repeat:
                 Define d as the characters from i to i of src.
-                If "0123456789" contains d:
-                    The i becomes i + 1.
-                Done.
-                Otherwise:
-                    Stop.
-                Done.
+                If "0123456789" contains d, i becomes i + 1.
+                Otherwise, stop.
             Done.
             Define num-text as the characters from num-start to i - 1 of src.
             Add num-text to tokens.
