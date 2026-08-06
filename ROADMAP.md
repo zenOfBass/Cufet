@@ -430,6 +430,26 @@ indistinguishable from having forgotten.
 
 ### Tooling
 
+- **Self-verifying docs — tagged fences, checked output, checked refusals.** Every code block in
+  REFERENCE and GRAMMAR would be run, its **output block asserted to match**, and its
+  counter-examples asserted to be *still refused*. A block marked REFUSED that starts passing means
+  the language moved under the doc, and nothing catches that today.
+
+  `DocBlockTests` already runs the ~238 runnable blocks and pins the 157 that pass, so a sample
+  the language breaks is caught now. What it cannot do is judge the other 81: most of those
+  failures are correct — GRAMMAR is a constraints reference full of deliberate counter-examples,
+  and many blocks are fragments teaching a shape rather than programs.
+
+  *Blocker:* the docs cannot say which is which. **All 534 fences are untagged**, so nothing can
+  distinguish a runnable program from expected output from a fragment from a counter-example. The
+  work is a fence convention (` ```cufet `, ` ```output `, ` ```cufet-fragment `,
+  ` ```cufet-refused `) applied across both files — mechanical but large, and `tools/doc-sweep.py`
+  already knows enough from pass/fail and adjacency to propose a first pass to review as a diff.
+
+  The payoff is the output assertion. Executing a sample proves it runs; comparing its printed
+  result to the block underneath is what catches a doc that is merely *wrong* — the failure mode
+  that has actually recurred.
+
 - **An LSP.** The front end emits one diagnostic per run, with a line and a long prose
   explanation, so LSP's incremental machinery has nothing to earn back on diagnostics alone.
   *Blocker:* wanting go-to-definition, completion or rename — the features that genuinely need a

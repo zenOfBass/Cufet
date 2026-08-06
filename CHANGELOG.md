@@ -55,6 +55,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `fork`). They are skipped **with a reason each**, and still held to the shared front end by a
   second theory — a platform gap never becomes a blind spot in the language.
 
+- **Documented samples are held to the front end.** `DocBlockTests` extracts every fenced block from
+  README, GRAMMAR and REFERENCE, runs the ~238 that look like programs, and records the 157 that
+  check clean. A recorded sample that stops checking fails the build, naming its file and line.
+
+  A change detector rather than a gate: the other 81 failures are mostly correct — GRAMMAR is a
+  constraints reference full of deliberate counter-examples, and many blocks are fragments. Judging
+  those needs a fence convention the docs do not have; see ROADMAP.
+
+  **Two checks, because one has a blind spot.** Hashing block text catches an unchanged sample the
+  language broke underneath, and can say which. It cannot see an *edit* — a rewritten block gets a
+  new hash and simply drops out of the baseline, so breaking a sample by rewriting it looked
+  exactly like rewriting it legitimately, and the first version of this test passed while a sample
+  was broken. A count check closes that. Both were verified by reintroducing the failure each is
+  meant to catch.
+
 - **Exhaustiveness tests, against the bug class that produced three of the fixes below.** Every one
   was a hand-written switch over types or AST nodes, missing an arm, whose default returned a
   plausible wrong answer rather than failing. Four tests, each verified by reintroducing the bug it
