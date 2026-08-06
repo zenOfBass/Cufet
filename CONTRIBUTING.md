@@ -241,8 +241,16 @@ one sharp edge worth stating plainly:
 
 The narrow exception is behavior that is *genuinely* undefined or platform-owned, where
 there is no single right answer to converge on: last-ULP differences in `pow`
-(`Math.Pow` *is* the platform libm), filesystem enumeration order, ASCII-vs-locale
-casing. Two well-defined behaviors differing is never in that category.
+(`Math.Pow` *is* the platform libm), and filesystem enumeration order. Two well-defined
+behaviors differing is never in that category.
+
+> **Casing used to be on that list and should not have been.** `"héllo" in uppercase` is
+> `HÉLLO` interpreted and `HéLLO` compiled, because the emitted C carries no case table —
+> but Unicode says exactly what uppercasing `é` is, so the clause above excludes it by its
+> own last sentence. It was an exception covering a missing implementation. It is now a
+> numbered roadmap item, and the limit is documented in REFERENCE until it closes. Worth
+> remembering when adding to this list: "the backends differ" is not evidence that a
+> behaviour is undefined.
 
 Two consequences for contributors:
 

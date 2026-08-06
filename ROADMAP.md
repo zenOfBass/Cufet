@@ -214,12 +214,32 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    method dispatch: no suspension, so no arena question about where paused state lives, and nothing
    the two backends could disagree about.
 
+10. **Unicode casing in the compiled backend.** `"héllo" in uppercase` is `HÉLLO` interpreted and
+    `HéLLO` compiled. The emitted C has no case table, so anything outside `A–Z` / `a–z` passes
+    through unchanged, and the two backends knowingly disagree.
+
+    ★ **This is a divergence, not an exception, and it was filed as one for a while.**
+    CONTRIBUTING listed "ASCII-vs-locale casing" beside `pow`'s last ULP and filesystem
+    enumeration order — genuinely platform-owned things where no single right answer exists. But
+    that same clause ends *"two well-defined behaviours differing is never in that category,"* and
+    uppercasing `é` is well defined: Unicode says exactly what it is. The exception was covering a
+    missing implementation rather than a genuine ambiguity. Found by pinning
+    `examples/json.expected`, which put a non-ASCII round trip under test for the first time.
+
+    **Settle before building:** how much of the table to carry. Full Unicode case mapping is large
+    and has locale-sensitive corners (Turkish dotless ı, German ß → SS, and the one-to-many
+    mappings generally). Latin-1 plus the common European ranges may be the right first cut — but
+    it must be a stated boundary with a documented edge, not a second silent gap.
+
+    Until it lands, the limit is documented for readers in REFERENCE's text chapter, where a user
+    who expects `é → É` on both backends will actually meet it.
+
 ### Tier 3 — the design mountains
 
 Both need a design session before they can be ordered against anything. Neither is blocked by a
 numbered item; they are here because they are large, not because they are waiting.
 
-10. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+11. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
@@ -228,7 +248,7 @@ numbered item; they are here because they are large, not because they are waitin
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-11. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+12. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -268,14 +288,14 @@ numbered item; they are here because they are large, not because they are waitin
 
 ### Tier 4 — modules, strictly in this order
 
-12. **The `module` interface.** A named interface defining the contract for any loadable thing.
+13. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-13. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+14. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-14. **What a book exports.** Every member of a book is public API, permanently, because there is
+15. **What a book exports.** Every member of a book is public API, permanently, because there is
     no way to mark one internal. It does not bite yet — the bundled three are built in and you
     cannot write a book — but the moment the loader below lands, a book author has no way to say
     *this is my helper, do not call it*.
@@ -289,7 +309,7 @@ numbered item; they are here because they are large, not because they are waitin
     the book, so the boundary is *what a book hands out* — the object question is a different and
     much weaker one, since within a file a visibility marker is a comment with ceremony attached.
 
-15. **A package manager for books.**
+16. **A package manager for books.**
 
 ### Tier 5 — Cufet in Cufet
 
@@ -299,7 +319,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-16. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+17. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -307,7 +327,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-17. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
+18. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
@@ -315,7 +335,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-18. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+19. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
