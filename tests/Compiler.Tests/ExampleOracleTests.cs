@@ -52,8 +52,21 @@ public class ExampleOracleTests
         ["work-queue.cufe"]       = "tasks + channels — pthreads",
     };
 
+    /// <summary>
+    /// Examples whose output is legitimately not reproducible, with the reason. Seeding makes each
+    /// backend self-consistent but NOT equal to the other — the interpreter's RNG is .NET's
+    /// xoshiro256** and the compiler emits its own xorshift64*, a documented fork rather than a
+    /// divergence. Equality is the wrong bar for these, so they get the weaker one that still
+    /// means something: both backends must build and run cleanly.
+    /// </summary>
+    private static readonly Dictionary<string, string> NonDeterministicSkips = new()
+    {
+        // (chance-using examples go here — see NonDeterministicExample_RunsOnBothBackends)
+    };
+
     private static bool IsSkipped(string file) =>
-        RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && WindowsOnlySkips.ContainsKey(file);
+        (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && WindowsOnlySkips.ContainsKey(file))
+        || NonDeterministicSkips.ContainsKey(file);
 
     private static IEnumerable<object[]> AllExamples() =>
         Directory.Exists(ExampleDir)
@@ -66,6 +79,21 @@ public class ExampleOracleTests
 
     public static IEnumerable<object[]> SkippedExamples() =>
         AllExamples().Where(a => IsSkipped((string)a[0]));
+
+    // The sentinel row exists because xUnit FAILS a [Theory] whose MemberData is empty, and this
+    // list is empty until the first chance-using example arrives. Without it the suite would go red
+    // for having nothing to do.
+    private const string NoSuchExample = "";
+
+    public static IEnumerable<object[]> NonDeterministicExamples()
+    {
+        var found = AllExamples()
+            .Where(a => NonDeterministicSkips.ContainsKey((string)a[0])
+                     && !(RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                          && WindowsOnlySkips.ContainsKey((string)a[0])))
+            .ToList();
+        return found.Count > 0 ? found : [[NoSuchExample]];
+    }
 
     /// <summary>
     /// The failure mode of any directory-driven suite: stop finding the corpus and every [Theory]
@@ -80,7 +108,7 @@ public class ExampleOracleTests
             $"only {AllExamples().Count()} examples found — the corpus has shrunk or the enumeration broke.");
 
         // A skip entry for a file that no longer exists is a stale excuse; say so.
-        var stale = WindowsOnlySkips.Keys
+        var stale = WindowsOnlySkips.Keys.Concat(NonDeterministicSkips.Keys)
             .Where(f => !File.Exists(Path.Combine(ExampleDir, f)))
             .ToList();
         Assert.True(stale.Count == 0, $"skip list names missing example(s): {string.Join(", ", stale)}");
@@ -132,6 +160,30 @@ public class ExampleOracleTests
         var source = File.ReadAllText(Path.Combine(ExampleDir, file));
         var program = new Parser(new CufetLexer(source).Tokenize()).Parse();
         new TypeChecker().Check(program);   // throws on failure — that IS the assertion
+    }
+
+    /// <summary>
+    /// The weaker bar for a program whose output cannot be reproduced: it must still BUILD and RUN
+    /// on both backends and produce something. That is not equality, but it is most of what goes
+    /// wrong — a refusal, a crash, an empty run — and it is the honest maximum for a program whose
+    /// whole point is to be different every time.
+    ///
+    /// For stronger coverage, write the program to check its own invariants and print deterministic
+    /// PASS lines, which is what the compiler's own chance tests do. Then it belongs in the oracle
+    /// theory above instead of here.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(NonDeterministicExamples))]
+    public void NonDeterministicExample_RunsOnBothBackends(string file)
+    {
+        if (file == NoSuchExample) return;   // nothing registered yet — see NonDeterministicExamples
+
+        var source  = File.ReadAllText(Path.Combine(ExampleDir, file));
+        var program = new Parser(new CufetLexer(source).Tokenize()).Parse();
+        new TypeChecker().Check(program);
+
+        Assert.NotEmpty(Interpret(program));
+        Assert.NotEmpty(CompileAndRun(program));
     }
 
     // ── Running ───────────────────────────────────────────────────────────
