@@ -345,12 +345,8 @@ If x is 1:
     State "also one".
 Done.
 
-If x is 1:
-    State "one".
-Done.
-Otherwise:
-    State "other".
-Done.
+If x is 1, state "one".
+Otherwise, state "other".
 ```
 
 Comma after the condition → inline single statement. Colon after the condition →
@@ -492,27 +488,21 @@ declared inside a block do not exist outside it.
 **Inner blocks can freely read and modify outer variables:**
 ```
 Define x as 10.
-If x is greater than 5:
-    x becomes 20.         ← modifies the outer x
-Done.
-State x.                  → 20
+If x is greater than 5, x becomes 20.         ← modifies the outer x
+State x.                                      → 20
 ```
 
 **Inner declarations are local — they do not leak out:**
 ```
 Define x as 10.
-If x is greater than 5:
-    Define y as 99.       ← y lives only inside this block
-Done.
-State y.                  ← error: y isn't defined here
+If x is greater than 5, define y as 99.       ← y lives only inside this block
+State y.                                      ← error: y isn't defined here
 ```
 
 **Shadowing an outer name via `Define` is a static error by default:**
 ```
 Define x as 10.
-If x is greater than 5:
-    Define x as 99.       ← TypeException: x already exists in an enclosing scope
-Done.
+If x is greater than 5, define x as 99.       ← TypeException: x already exists in an enclosing scope
 ```
 
 **Deliberate shadowing requires the `shadow` keyword:**
@@ -656,12 +646,8 @@ Define n as the length of greeting.
 `converted to text`:
 ```
 Define n as "42" converted to number.
-If n is not void:
-    State n.                          → 42
-Done.
-Otherwise:
-    State "not a number".
-Done.
+If n is not void, state n.                          → 42
+Otherwise, state "not a number".
 
 Define m as ("abc" converted to number but void is 0).      → 0
 ```
@@ -2264,7 +2250,7 @@ Repeat:
     Define line as read a line from the input.
     If line is void, stop.
     State line.
-until false.
+Until false.
 ```
 
 (`until false` is the standard idiom for a loop that exits only via `Stop.`)
@@ -2294,8 +2280,8 @@ Failure categories: `"not-found"`, `"permission-denied"`, `"disk-error"`.
 
 **Writing to a file:**
 ```
-write "hello\n" to the file "out.txt".      ← overwrite (create or truncate)
-append "more\n" to the file "out.txt".      ← append to end
+Write "hello\n" to the file "out.txt".      ← overwrite (create or truncate)
+Append "more\n" to the file "out.txt".      ← append to end
 ```
 
 Write and append complete silently on success; on failure they raise a Cufet
@@ -2366,9 +2352,7 @@ Done.
 Try to:
     Define result as run "git" with arguments ("log", "--oneline", "-5").
     State the output of result.
-    If the exit-code of result is not 0:
-        State "stderr: " joined to the errors of result.
-    Done.
+    If the exit-code of result is not 0, state "stderr: {errors of result}".
 Done.
 In case of failure:
     State "git not available".
@@ -2405,12 +2389,8 @@ returning `voidable text`:
 
 ```
 Define home as the environment variable "HOME".
-If home is not void:
-    State "home is " joined to home.
-Done.
-Otherwise:
-    State "HOME is not set".
-Done.
+If home is not void, state "home is " joined to home.
+Otherwise, state "HOME is not set".
 
 Define path-val as the environment variable "PATH" but void is "".
 ```
@@ -2492,12 +2472,8 @@ never fail, never void):
 
 ```
 If the path "/tmp/myfile" exists:
-    If the path "/tmp/myfile" is a file:
-        State "regular file".
-    Done.
-    Otherwise if the path "/tmp/myfile" is a directory:
-        State "directory".
-    Done.
+    If the path "/tmp/myfile" is a file, state "regular file".
+    Otherwise if the path "/tmp/myfile" is a directorys, tate "directory".
 Done.
 ```
 
@@ -2763,7 +2739,7 @@ Bind void to emit-numbers:
 Done.
 
 Bind void to keep-even:
-    for each n from the input:
+    For each n from the input:
         If n % 2 is 0, output n.
     Done.
 Done.
