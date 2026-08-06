@@ -1,0 +1,146 @@
+/* expr — a tiny recursive-descent parser and evaluator.
+
+   Grammar:  expr   := term { "+" term }
+             term   := factor { "*" factor }
+             factor := number | "(" expr ")"
+
+   Nodes are a closed union of three object types; eval dispatches with
+   Judge and needs no Otherwise, because the checker can see the union is
+   covered. The parser is an object whose methods recurse through each
+   other: parse-expr -> parse-term -> parse-factor -> parse-expr.
+
+   Kids live in a catalogue — a series whose element type is the union —
+   because a recursive shape needs a container's indirection to close, and
+   the container's element type must admit every node kind. */
+
+Define object num-node with (the number value).
+Define object add-node with (the catalogue of (num-node or add-node or mul-node) kids).
+Define object mul-node with (the catalogue of (num-node or add-node or mul-node) kids).
+
+Bind series of text to tokenize, given (the text src):
+    Define tokens as a series of text.
+    Define total as the length of src.
+    Define i as 1.
+    While i is not greater than total, repeat:
+        Define ch as the characters from i to i of src.
+        If ch is " ":
+            The i becomes i + 1.
+        Done.
+        Otherwise if ch is "+" or ch is "*" or ch is "(" or ch is ")":
+            Add ch to tokens.
+            The i becomes i + 1.
+        Done.
+        Otherwise:
+            Define num-start as i.
+            While i is not greater than total, repeat:
+                Define d as the characters from i to i of src.
+                If "0123456789" contains d:
+                    The i becomes i + 1.
+                Done.
+                Otherwise:
+                    Stop.
+                Done.
+            Done.
+            Define num-text as the characters from num-start to i - 1 of src.
+            Add num-text to tokens.
+        Done.
+    Done.
+    Return tokens.
+Done.
+
+Define object parser with (the series of text tokens, the number pos):
+    Bind text to peek:
+        If one's pos is greater than the number of one's tokens, return "<end>".
+        Return item one's pos of one's tokens.
+    Done.
+
+    Bind void to advance:
+        One's pos becomes one's pos + 1.
+    Done.
+
+    Bind (num-node or add-node or mul-node) or failure to parse-expr:
+        Define node as cast one's parse-term or pass the failure off.
+        While (cast one's peek) is "+", repeat:
+            Cast one's advance.
+            Define right as cast one's parse-term or pass the failure off.
+            The node becomes a new add-node {
+                the kids a catalogue of (num-node or add-node or mul-node) with (node, right) }.
+        Done.
+        Return node.
+    Done.
+
+    Bind (num-node or add-node or mul-node) or failure to parse-term:
+        Define node as cast one's parse-factor or pass the failure off.
+        While (cast one's peek) is "*", repeat:
+            Cast one's advance.
+            Define right as cast one's parse-factor or pass the failure off.
+            The node becomes a new mul-node {
+                the kids a catalogue of (num-node or add-node or mul-node) with (node, right) }.
+        Done.
+        Return node.
+    Done.
+
+    Bind (num-node or add-node or mul-node) or failure to parse-factor:
+        Define head as cast one's peek.
+        If head is "(":
+            Cast one's advance.
+            Define inner as cast one's parse-expr or pass the failure off.
+            Define closer as cast one's peek.
+            If closer is not ")", return a failure "expected )".
+            Cast one's advance.
+            Return inner.
+        Done.
+        Define num-value as head converted to number.
+        If num-value is void, return a failure "expected a number".
+        Cast one's advance.
+        Return a new num-node { the value num-value }.
+    Done.
+
+    Bind (num-node or add-node or mul-node) or failure to parse-all:
+        Define node as cast one's parse-expr or pass the failure off.
+        Define tail as cast one's peek.
+        If tail is not "<end>", return a failure "unexpected token after expression".
+        Return node.
+    Done.
+Done.
+
+Bind number to eval, given (the (num-node or add-node or mul-node) node):
+    Judge node, where it is:
+        A num-node, return the value of it.
+        An add-node:
+            Define kids as the kids of it.
+            Define left-kid as the first of kids.
+            Define right-kid as item 2 of kids.
+            Return cast eval on (left-kid) + cast eval on (right-kid).
+        Done.
+        A mul-node:
+            Define kids as the kids of it.
+            Define left-kid as the first of kids.
+            Define right-kid as item 2 of kids.
+            Return cast eval on (left-kid) * cast eval on (right-kid).
+        Done.
+    Done.
+Done.
+
+Bind void to demo, given (the text src):
+    Define tokens as cast tokenize on (src).
+    Define p as a new parser { the tokens tokens, the pos 1 }.
+    Try to:
+        Define tree as cast p's parse-all.
+        Define answer as cast eval on (tree).
+        State "{src} = {answer converted to text}".
+    Done.
+    In case of failure:
+        State "{src} -> {the message of the failure}".
+    Done.
+Done.
+
+Bind void to play:
+    Cast demo on ("2 + 3 * 4").
+    Cast demo on ("(2 + 3) * 4").
+    Cast demo on ("2 * (3 + 4) + 1").
+    Cast demo on ("2 + ").
+    Cast demo on ("2 ) 3").
+Done.
+
+Cast play.
