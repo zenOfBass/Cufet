@@ -151,6 +151,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   such a program compiled with no signal substrate while the interpreter handled it cooperatively.
   Both now use one reflection walk (`AstSearch.Contains`), which searches new node types without
   anyone having to remember them.
+- **★ Widening stopped dead at a wrapper.** A case type widens into its union — but not when the
+  union sat inside `or failure` or `voidable`, which is the most natural return type a
+  recursive-descent parser has: every branch yields one node kind, and any branch can fail.
+
+  ```
+  Bind (num-node or add-node or mul-node) or failure to parse-factor:
+      Return a new num-node { the value 1 }.      ← refused
+  Done.
+  ```
+
+  `IsAssignable`'s wrapper arms compared against the inner type instead of recursing into it. They
+  recurse now — and **three** places had the same shape. The moment the checker stopped refusing,
+  the compiler emitted the bare object where the union struct belongs (`incompatible types when
+  initializing`), and `but on failure` emitted an unwidened default, so the two arms of its ternary
+  disagreed (`type mismatch in conditional expression`). Both compiler halves now widen through the
+  wrapper the way `but void is` already did. `check --native` passed all three; only a build caught
+  them.
+
 - **★ No book was usable inside a function.** Every book — `math`, `collections`, `chance` — was
   dropped by function isolation, so a function written inside the pull that opened it could not
   reach it:
