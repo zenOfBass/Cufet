@@ -151,6 +151,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   such a program compiled with no signal substrate while the interpreter handled it cooperatively.
   Both now use one reflection walk (`AstSearch.Contains`), which searches new node types without
   anyone having to remember them.
+- **★ No book was usable inside a function.** Every book — `math`, `collections`, `chance` — was
+  dropped by function isolation, so a function written inside the pull that opened it could not
+  reach it:
+
+  ```
+  Pull a book on math.
+      Bind number to root-of, given (the number n):
+          Return math's square root of (n) but void is 0.   ← "'math' isn't defined"
+      Done.
+  Done.
+  ```
+
+  A pulled book is a lexical capability, not a local you might close over by accident, so it
+  survives isolation now — the same reasoning that kept a book's *types* visible, one entry below.
+  The two halves had to move together: fixing only the checker turned `chance`'s static refusal
+  into `math` failing at **runtime**, which reads like the pull never happened. That left books
+  good for little but top-level code, which is not what a standard library is for.
+
 - **A book's types were invisible inside a function body.** Function isolation cleared the type
   scopes along with the value scopes, so `a matrix with 3 by 3` was a static error inside a function
   written within `Pull a book on collections.` — while `given (the matrix m)` in the same signature
