@@ -1,0 +1,114 @@
+/* config — a tiny configuration file parser.
+
+   Reads a simple key=value format where values can be text (quoted),
+   numbers, or booleans (true/false). Stores them in an atlas (a map
+   whose values are a union type) and uses Judge to dispatch on the
+   value type when printing.
+
+   Exercises:
+   - atlas (heterogeneous map)
+   - Judge over a closed union (no Otherwise needed)
+   - In-branch narrowing via If and Judge
+   - Fallible parsing with Try to auto-unwrapping
+*/
+
+Bind (text or number or fact) or failure to parse-value, given (the text raw):
+    Define clean as raw trimmed.
+    If clean is "true", return true.
+    If clean is "false", return false.
+    
+    Define num as clean converted to number.
+    If num is not void, return num.
+    
+    Define len as the length of clean.
+    If len is 2 or more:
+        Define first as the characters from 1 to 1 of clean.
+        Define last as the characters from len to len of clean.
+        If first is "\"" and last is "\"", return the characters from 2 to len - 1 of clean.
+    Done.
+    
+    Return a failure "unrecognized value format".
+Done.
+
+Bind atlas from text to (text or number or fact) to parse-config, given (the text source):
+    Define config as an atlas from text to (text or number or fact).
+    Define lines as source split by "\n".
+    For each line in lines, repeat:
+        Define clean as line trimmed.
+        If the length of clean is 0, skip.
+        
+        Define eq-pos as the position of "=" in clean.
+        If eq-pos is not void:
+            Define setting as (the characters from 1 to eq-pos - 1 of clean) trimmed.
+            Define val-raw as the characters from eq-pos + 1 to the end of clean.
+            
+            Try to:
+                Define val as cast parse-value on (val-raw).
+                In config, the entry for setting becomes val.
+            Done.
+            In case of failure:
+                State "warning: skipping invalid line: {clean}".
+            Done.
+        Done.
+    Done.
+    Return config.
+Done.
+
+Bind void to print-config, given (the atlas from text to (text or number or fact) config):
+    State "loaded configuration:".
+    For each pair in config, repeat:
+        Define setting as the key of pair.
+        Define val as the value of pair.
+        Judge val, where it is:
+            A text, state "  {setting} = \"{it}\" (text)".
+            A number, state "  {setting} = {it converted to text} (number)".
+            A fact, state "  {setting} = {it converted to text} (fact)".
+        Done.
+    Done.
+Done.
+
+Bind void to use-config, given (the atlas from text to (text or number or fact) config):
+    State "".
+    State "using configuration:".
+    
+    Define host as the entry for "host" in config.
+    If host is not void:
+        If host is a text, state "  connecting to {host}...".
+    Done.
+    
+    Define port as the entry for "port" in config.
+    If port is not void:
+        If port is a number, state "  on port {port converted to text}.".
+    Done.
+    
+    Define debug as the entry for "debug" in config.
+    If debug is not void:
+        If debug is a fact:
+            If debug is true, state "  debug mode is ON.".
+            Otherwise, state "  debug mode is OFF.".
+        Done.
+    Done.
+Done.
+
+Bind void to play:
+    Define source as "
+# Server settings
+host = \"localhost\"
+port = 8080
+debug = true
+
+# Timeouts
+timeout = 30
+retries = 3
+name = \"fire-bringer\"
+
+# This line has an invalid value
+bad_value = unquoted_string
+".
+
+    Define config as cast parse-config on (source).
+    Cast print-config on (config).
+    Cast use-config on (config).
+Done.
+
+Cast play.
