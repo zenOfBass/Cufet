@@ -917,16 +917,10 @@ first, then look up:
 ```
 If ages has a key for "bob":
     Define v as the entry for "bob" in ages.      ← void here means the VALUE is void
-    If v is not void:
-        State v.
-    Done.
-    Otherwise:
-        State "present, but void".
-    Done.
+    If v is not void, state v.
+    Otherwise, state "present, but void".
 Done.
-Otherwise:
-    State "no such key".
-Done.
+Otherwise, state "no such key".
 ```
 
 **Remove and size:**
@@ -948,12 +942,8 @@ Maps are **reference-typed** (like series).
 **The canonical lookup pattern** — name the lookup, check it, use it:
 ```
 Define alice-age as the entry for "alice" in ages.
-If alice-age is not void:
-    State alice-age.
-Done.
-Otherwise:
-    State "Sorry, no entry.".
-Done.
+If alice-age is not void, state alice-age.
+Otherwise, state "Sorry, no entry.".
 ```
 
 ---
@@ -1046,12 +1036,8 @@ Define items as a catalogue.   ← empty open catalogue
 Retrieval yields a union value — narrow before using type-specifically:
 ```
 Define first as the first of items.
-If first is a number:
-    State first + 1.
-Done.
-Otherwise:
-    State the length of first.
-Done.
+If first is a number, state first + 1.
+Otherwise, state the length of first.
 ```
 
 All series operations apply: ordinal and parametric access, `the number of`,
@@ -1080,9 +1066,7 @@ union value type:
 ```
 Define v as the entry for "x" in mp.   ← voidable (number or text)
 If v is not void:
-    If v is a number:
-        State v + 1.
-    Done.
+    If v is a number, state v + 1.
 Done.
 ```
 
@@ -2034,12 +2018,8 @@ Done.
 
 `is void` / `is not void` — a boolean test:
 ```
-If maybe-score is not void:
-    State maybe-score.            ← narrowed to a plain number here, safe to use directly
-Done.
-Otherwise:
-    State "no score".
-Done.
+If maybe-score is not void, state maybe-score.  ← narrowed to a plain number here, safe to use directly
+Otherwise, state "no score".
 ```
 Inside a branch that has checked a **variable** is not void, the checker narrows
 that variable to its plain `T`, so it can be used directly. Narrowing is keyed on
@@ -2114,12 +2094,8 @@ branch — type-specific operations are legal there:
 ```
 Define the (number or text) x as 42.
 
-If x is a number:
-    State x + 1.           ← x is a number here; arithmetic is legal
-Done.
-Otherwise:
-    State the length of x. ← x is a text here (narrowed by elimination)
-Done.
+If x is a number, state x + 1.      ← x is a number here; arithmetic is legal
+Otherwise, state the length of x.   ← x is a text here (narrowed by elimination)
 ```
 
 **Narrowing by elimination** — for a **closed** union, the `Otherwise` arm
@@ -2131,15 +2107,9 @@ For a three-case union, two tested arms leave the third for `Otherwise`:
 ```
 Define the (number or text or fact) x as 42.
 
-If x is a number:
-    State x + 1.
-Done.
-Otherwise if x is a text:
-    State the length of x.
-Done.
-Otherwise:
-    State x converted to text.    ← x is a fact here
-Done.
+If x is a number, state x + 1.
+Otherwise if x is a text, state the length of x.
+Otherwise, state x converted to text.    ← x is a fact here
 ```
 
 **`is not a <type>`** narrows the true branch to the complement — for a
@@ -2794,9 +2764,7 @@ Done.
 
 Bind void to keep-even:
     for each n from the input:
-        If n % 2 is 0:
-            Output n.
-        Done.
+        If n % 2 is 0, output n.
     Done.
 Done.
 
