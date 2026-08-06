@@ -1619,15 +1619,21 @@ public sealed partial class TypeChecker
 
     // T is assignable to target when:
     //   target == source (same type)
-    //   target is voidable T and source == T (widening)
+    //   target is voidable T and source is assignable to T (widening)
     //   target is voidable T and source is void (void is the absent case of any voidable T)
+    //   target is T or failure and source is assignable to T, or is a failure
+    //
+    // ★ The wrappers RECURSE. They used to compare `source == v.Inner` outright, which meant
+    // widening stopped dead at a wrapper: `(A or B)` accepted an `A`, but `(A or B) or failure`
+    // and `voidable (A or B)` both refused one — the single most natural return type for a
+    // recursive-descent parser, where every branch yields one node kind and any branch can fail.
     private static bool IsAssignable(CufetType target, CufetType source)
     {
         if (target == source) return true;
         if (target is VoidableType v)
-            return source == v.Inner || source is VoidType;
+            return IsAssignable(v.Inner, source) || source is VoidType;
         if (target is FailureType f)
-            return source == f.Inner || source is FailureMarkerType;
+            return IsAssignable(f.Inner, source) || source is FailureMarkerType;
         if (target is UnionType ut)
         {
             if (ut.Cases == null) return true; // open union accepts anything

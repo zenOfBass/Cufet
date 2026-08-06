@@ -5637,7 +5637,11 @@ static void* cufet_pipe_stage(void* argp) {
             // cvd_<outer> is wanted, silently. It did exactly that once, and gcc caught it after
             // `check --native` had already passed.
             if (TypeOf(expr) is VoidableType) return EmitExpr(expr);                     // already voidable
-            return $"(({cvd}){{ .has = 1, .val = {EmitExpr(expr)} }})";                  // widen T → voidable
+            // Recursively, because the inner type may itself need widening: `voidable (A or B)`
+            // holding an `A` has to become the UNION struct before it goes in .val, not the bare
+            // object. Emitting the bare one type-checked and then failed in gcc with
+            // "incompatible types when initializing".
+            return $"(({cvd}){{ .has = 1, .val = {EmitAsType(expr, vt.Inner)} }})";      // widen T → voidable
         }
         if (target is FailureType ft)
         {
@@ -5655,7 +5659,10 @@ static void* cufet_pipe_stage(void* argp) {
                 string f = EmitExpr(expr);
                 return $"(({cfl}){{ .is_failure = 1, .message = ({f}).message, .category = ({f}).category }})";
             }
-            return $"(({cfl}){{ .is_failure = 0, .val = {EmitExpr(expr)} }})";           // widen T → success
+            // Recursive for the same reason as the voidable arm above: `(A or B) or failure`
+            // returning an `A` must tag it into the union first. This is the shape every
+            // recursive-descent parser has, and it is what examples/recursive-descent.cufe hit.
+            return $"(({cfl}){{ .is_failure = 0, .val = {EmitAsType(expr, ft.Inner)} }})";  // widen T → success
         }
         return EmitExpr(expr);
     }
@@ -5680,7 +5687,10 @@ static void* cufet_pipe_stage(void* argp) {
         var (cflName, rawExpr) = EmitFallibleRaw(ff.Fallible, TypeOf(ff));
         string tmp = $"cf_ff{_freshId++}";
         _preEmits.Add($"{cflName} {tmp} = {rawExpr};");
-        return $"({tmp}.is_failure ? {EmitExpr(ff.Default)} : {tmp}.val)";
+        // The default is coerced to the SUCCESS type so both ternary arms agree — the same rule
+        // EmitButVoidDefault follows, and for the same reason: when the success type is a union,
+        // a bare case value as the default gives gcc "type mismatch in conditional expression".
+        return $"({tmp}.is_failure ? {EmitAsType(ff.Default, TypeOf(ff))} : {tmp}.val)";
     }
 
     // Flattens `run A | run B | run C` into its stages (all must be `run` — the interpreter only

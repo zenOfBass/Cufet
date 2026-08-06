@@ -10104,6 +10104,84 @@ public class InterpreterTests
             "Done."));
     }
 
+    // ── Widening through a wrapper ─────────────────────────────────────────
+    //
+    // ★ A case type widens into its union. It used to stop dead at a wrapper: `(A or B)` accepted
+    // an `A`, but `(A or B) or failure` and `voidable (A or B)` both refused one. That is the most
+    // natural return type a recursive-descent parser has — every branch yields one node kind, and
+    // any branch can fail — so the shape was unreachable without naming the union at every return.
+
+    private const string TwoNodes =
+        "Define object leaf with (the number amount).\n" +
+        "Define object branch with (the number width).\n";
+
+    [Fact]
+    public void ACaseType_WidensIntoAPlainUnionReturn()
+    {
+        Assert.Equal("1", Run(TwoNodes +
+            "Bind (leaf or branch) to make-leaf:\n" +
+            "    Return a new leaf { the amount 1 }.\n" +
+            "Done.\n" +
+            "Define got as cast make-leaf.\n" +
+            "If got is a leaf, State got's amount converted to text.\n" +
+            "Otherwise, State \"branch\"."));
+    }
+
+    [Fact]
+    public void ACaseType_WidensThroughOrFailure()
+    {
+        Assert.Equal("1", Run(TwoNodes +
+            "Bind (leaf or branch) or failure to make-leaf:\n" +
+            "    Return a new leaf { the amount 1 }.\n" +
+            "Done.\n" +
+            "Define got as cast make-leaf but on failure (a new leaf { the amount 0 }).\n" +
+            "If got is a leaf, State got's amount converted to text.\n" +
+            "Otherwise, State \"branch\"."));
+    }
+
+    [Fact]
+    public void ACaseType_WidensThroughVoidable()
+    {
+        Assert.Equal("1", Run(TwoNodes +
+            "Bind voidable (leaf or branch) to maybe-leaf:\n" +
+            "    Return a new leaf { the amount 1 }.\n" +
+            "Done.\n" +
+            "Define got as cast maybe-leaf but void is (a new leaf { the amount 0 }).\n" +
+            "If got is a leaf, State got's amount converted to text.\n" +
+            "Otherwise, State \"branch\"."));
+    }
+
+    [Fact]
+    public void AFailure_IsStillReturnableThroughTheWrapper()
+    {
+        // The other half of `or failure`: widening the success side must not stop a failure being
+        // returned as itself.
+        Assert.Equal("caught", Run(TwoNodes +
+            "Bind (leaf or branch) or failure to always-fails:\n" +
+            "    Return a failure \"nope\".\n" +
+            "Done.\n" +
+            "Try to:\n" +
+            "    Define got as cast always-fails.\n" +
+            "    State \"unreachable\".\n" +
+            "Done.\n" +
+            "In case of failure:\n" +
+            "    State \"caught\".\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void AnUnrelatedType_IsStillRefusedThroughTheWrapper()
+    {
+        // ★ Widening must not have become "anything goes". A type that is in no case of the union
+        // is still a static error, wrapper or not.
+        Assert.Throws<TypeException>(() => Run(TwoNodes +
+            "Define object twig with (the number length-of).\n" +
+            "Bind (leaf or branch) or failure to make-twig:\n" +
+            "    Return a new twig { the length-of 1 }.\n" +
+            "Done.\n" +
+            "State \"unreachable\"."));
+    }
+
     [Fact]
     public void ABookAlias_ReachesInsideAFunctionToo()
     {

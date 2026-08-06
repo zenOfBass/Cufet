@@ -1834,6 +1834,37 @@ public class PipelineTests
     }
 
     [Fact]
+    public void CaseTypeWidensThroughAWrapper_OracleMatch()
+    {
+        // ★ A case type widening into a union nested in `or failure` / `voidable`. The checker
+        // refused this outright until the wrapper arms of IsAssignable learned to recurse — and the
+        // moment it stopped refusing, the COMPILER emitted the bare object into `.val` where the
+        // union struct belongs, which `check --native` passed and gcc rejected with "incompatible
+        // types when initializing". Both halves had to move; this is the half only a build catches.
+        const string src = """
+            Define object leaf with (the number amount).
+            Define object branch with (the number width).
+
+            Bind (leaf or branch) or failure to make-leaf:
+                Return a new leaf { the amount 1 }.
+            Done.
+
+            Bind voidable (leaf or branch) to maybe-branch:
+                Return a new branch { the width 7 }.
+            Done.
+
+            Define got as cast make-leaf but on failure (a new leaf { the amount 0 }).
+            If got is a leaf, State got's amount.
+            Otherwise, State "branch".
+
+            Define other as cast maybe-branch but void is (a new leaf { the amount 0 }).
+            If other is a branch, State other's width.
+            Otherwise, State "leaf".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
     public void ObjectDeclaredInsideABookPull_Compiles()
     {
         // ★ Regression. `CollectObjectDefs` was a hand-written switch over block-bearing statements
