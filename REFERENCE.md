@@ -48,6 +48,7 @@ deliberate differences are marked where they arise and summarised under
       - [Shifts](#shifts)
       - [Crossing over](#crossing-over)
       - [A free consequence worth knowing](#a-free-consequence-worth-knowing)
+      - [Storing one](#storing-one)
   - [Part IV. Objects and functions](#part-iv-objects-and-functions)
     - [Objects](#objects)
       - [Embedding (composition)](#embedding-composition)
@@ -904,7 +905,7 @@ voidable-valued map (below): a key can be present with its value explicitly
 
 **Voidable values** — a map's value type can itself be `voidable V`:
 ```
-Define ages as a map from text to voidable number with ().
+Define ages as a map from text to voidable number.
 In ages, the entry for "alice" becomes 30.
 In ages, the entry for "bob" becomes void.        ← present key, void value
 ```
@@ -1896,7 +1897,7 @@ sort by a field with `sorted by the <field>`:
 ```
 Define object person with (the text name, the number age).
 
-Define folks as a series of person with ().
+Define folks as a series of person.
 Add a new person { the name "Ada", the age 36 } to folks.
 Add a new person { the name "Bo", the age 24 } to folks.
 
@@ -2551,7 +2552,7 @@ together. `Pull a rabbit.` opens one; `Done.` closes it and releases everything 
 inside.
 
 ```
-Define totals as a series of number with ().
+Define totals as a series of number.
 
 Pull a rabbit.
     Define scratch as a series of number with (1, 2, 3, 4, 5).
@@ -2593,7 +2594,7 @@ Bind series of number to smuggle, given (the series of number s):
     Return s.
 Done.
 
-Define outer as a series of number with ().
+Define outer as a series of number.
 Pull a rabbit.
     Define inner as a series of number with (1, 2, 3).
     The outer becomes Cast smuggle on (inner).    ← REJECTED

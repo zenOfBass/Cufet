@@ -1228,8 +1228,8 @@ Use a `Bind making a` constructor to hide that:
 
 ```
 Bind making a graph to new-graph:
-    Define empty-nodes as a series of node with ().
-    Define empty-adj   as a map from node to series of edge with ().
+    Define empty-nodes as a series of node.
+    Define empty-adj   as a map from node to series of edge.
     Return a new graph { the nodes empty-nodes, the adjacency empty-adj }.
 Done.
 ```
@@ -1291,11 +1291,11 @@ A series literal (empty or pre-populated) can appear anywhere an expression is
 expected:
 
 ```
-Define xs as a series of number with ().
+Define xs as a series of number.
 Define suits as a series of text with ("Spades", "Hearts", "Diamonds", "Clubs").
 Define primes as a series of number with (2, 3, 5, 7, 11).
-Return a series of text with ().
-In adjacency, the entry for n becomes a series of edge with ().   ← in a map-set
+Return a series of text.
+In adjacency, the entry for n becomes a series of edge.   ← in a map-set
 ```
 
 Note: in `In map, the entry for K becomes <expr>.`, the value is an IExpression
@@ -1306,7 +1306,7 @@ in certain positions (it parses ambiguously as a type rather than a value litera
 in some contexts). Use a local variable:
 
 ```
-Define empty as a series of edge with ().
+Define empty as a series of edge.
 Define edges as the entry for src in adjacency but void is empty.
 ```
 
@@ -1316,7 +1316,7 @@ Define edges as the entry for src in adjacency but void is empty.
 `from K to V` annotation controls whether types are explicit or inferred:
 
 ```
-Define m as a map from text to number with ().         ← empty, typed
+Define m as a map from text to number.                 ← empty, typed
 Define m as a map from text to number with ("k": 1).   ← typed + populated
 Define m as a map with ("k": 1).                       ← inferred types
 ```
@@ -1823,7 +1823,7 @@ Bind series of number to smuggle, given (the series of number s):
     Return s.
 Done.
 
-Define outer as a series of number with ().
+Define outer as a series of number.
 Pull a rabbit.
     Define inner as a series of number with (1, 2, 3).
     outer becomes Cast smuggle on (inner).   ← TYPE ERROR: inner is shorter-lived
@@ -1838,7 +1838,7 @@ Bind series of number to get-items unto bag:
     Return one's items.
 Done.
 
-Define outer as a series of number with ().
+Define outer as a series of number.
 Pull a rabbit.
     Define inner as a series of number with (1, 2, 3).
     Define b as a new bag { the items inner }.
@@ -1855,7 +1855,7 @@ Define object bag with (the series of number items):
     Done.
 Done.
 
-Define outer as a series of number with ().
+Define outer as a series of number.
 Pull a rabbit.
     Define inner as a series of number with (1, 2, 3).
     Define b as a new bag { the items inner }.
@@ -1890,7 +1890,7 @@ outward store is rejected:
 
 ```
 Bind void to run-with, given (the series of number s):
-    Define sink as a series of number with ().
+    Define sink as a series of number.
     Bind void to stash, given ():
         The sink becomes s.              ← TYPE ERROR: captured parameter 's' treated as
     Done.                               maximally deep — caller may pass a rabbit value
@@ -1945,8 +1945,8 @@ possessive-set (`one's field becomes X`) or in-place map operations.
 ### Empty collection idioms
 
 ```
-Define xs as a series of number with ().             ← empty series
-Define m  as a map from text to number with ().      ← empty map
+Define xs as a series of number.             ← empty series
+Define m  as a map from text to number.      ← empty map
 ```
 
 Both create empty, typed, mutable collections. Use `Bind making a` constructors
