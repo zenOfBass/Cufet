@@ -474,12 +474,26 @@ public sealed partial class TypeChecker
     // accepted `given (the matrix m)` in a signature and then refused `a matrix with 3 by 3` in the
     // body of the same function, because annotations resolve `matrix` in the parser and never
     // consult scope at all.
+    //
+    // ★ And the BOOK BINDINGS survive with them, for the same reason and a second one. A pulled
+    // book is a lexical capability, not a local — `Pull a book on math.` is in scope for everything
+    // written in that block. Clearing it made every book unusable inside any function declared in
+    // the pull: `math's square root` reported "'math' isn't defined", and `a random number` reported
+    // "the chance book is not in scope" while sitting inside the pull that opened it. That left
+    // books good for little but top-level code, which is not what a standard library is for.
     private (List<Dictionary<string, TypeInfo>> V, List<Dictionary<string, CufetType>> T) SaveScopes()
     {
         var savedV = _scopes.ToList();
         var savedT = _typeScopes.ToList();
+
+        var fresh = new Dictionary<string, TypeInfo> { ["input"] = BuiltinInput };
+        // Innermost-last so a nearer pull wins, matching ordinary lookup.
+        foreach (var scope in savedV)
+            foreach (var (name, info) in scope)
+                if (info.Type is BookType) fresh[name] = info;
+
         _scopes.Clear();
-        _scopes.Add(new Dictionary<string, TypeInfo> { ["input"] = BuiltinInput });
+        _scopes.Add(fresh);
         return (savedV, savedT);
     }
 

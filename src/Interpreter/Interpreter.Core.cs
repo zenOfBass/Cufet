@@ -155,11 +155,24 @@ public sealed partial class Interpreter
         _scopeDefOrder.RemoveAt(_scopeDefOrder.Count - 1);
     }
 
+    // ★ Book bindings survive function isolation, matching TypeChecker.SaveScopes — see the note
+    // there. A pulled book is a lexical capability, not a local: `Pull a book on math.` is in scope
+    // for everything written in that block, functions included. Dropping it here type-checked fine
+    // and then failed at RUNTIME with "'math' isn't defined", which reads like the pull never
+    // happened. Both halves had to move together; fixing only the checker turned a static error
+    // into a runtime one.
     private (List<Dictionary<string, object>> Scopes, List<List<string>> DefOrders) SaveScopes()
     {
         var saved = (_scopes.ToList(), _scopeDefOrder.ToList());
+
+        var fresh = new Dictionary<string, object> { ["input"] = new ReadableStreamValue(_in) };
+        // Outermost-first so a nearer pull's alias wins, matching ordinary lookup.
+        foreach (var scope in saved.Item1)
+            foreach (var (name, value) in scope)
+                if (value is BookValue) fresh[name] = value;
+
         _scopes.Clear();
-        _scopes.Add(new Dictionary<string, object> { ["input"] = new ReadableStreamValue(_in) });
+        _scopes.Add(fresh);
         _scopeDefOrder.Clear();
         _scopeDefOrder.Add([]);
         return saved;

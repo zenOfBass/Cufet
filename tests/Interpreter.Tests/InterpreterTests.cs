@@ -10069,6 +10069,54 @@ public class InterpreterTests
     }
 
     [Fact]
+    public void ABook_IsUsableInsideAFunctionDeclaredInItsScope()
+    {
+        // ★ A pulled book is a lexical capability, not a local. Function isolation used to drop the
+        // binding, which made every book unusable inside any function written in the pull — the
+        // thing a standard library is mostly for. All three books, because the first fix only
+        // covered the checker and `math` then failed at RUNTIME instead, which reads like the pull
+        // never happened.
+        Assert.Equal("4", Run(
+            "Pull a book on math.\n" +
+            "    Bind number to root-of, given (the number n):\n" +
+            "        Return math's square root of (n) but void is 0.\n" +
+            "    Done.\n" +
+            "    State cast root-of on (16) converted to text.\n" +
+            "Done."));
+
+        Assert.Equal("matrix((1, 3), (2, 4))", Run(
+            "Pull a book on collections.\n" +
+            "    Bind matrix to flip, given (the matrix m):\n" +
+            "        Return cast collections's transpose of (m).\n" +
+            "    Done.\n" +
+            "    Define grid as a matrix with ((1, 2), (3, 4)).\n" +
+            "    State cast flip on (grid).\n" +
+            "Done."));
+
+        // chance is checked differently — IsChancePulled scans the scope chain rather than looking
+        // a name up — so it needs its own case. Only that the roll happens, not what it rolls.
+        Assert.NotEmpty(Run(
+            "Pull a book on chance.\n" +
+            "    Bind number to roll:\n" +
+            "        Return a random number from 1 to 6.\n" +
+            "    Done.\n" +
+            "    State cast roll on () converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void ABookAlias_ReachesInsideAFunctionToo()
+    {
+        Assert.Equal("4", Run(
+            "Pull a book on math as m.\n" +
+            "    Bind number to root-of, given (the number n):\n" +
+            "        Return m's square root of (n) but void is 0.\n" +
+            "    Done.\n" +
+            "    State cast root-of on (16) converted to text.\n" +
+            "Done."));
+    }
+
+    [Fact]
     public void BookType_IsStillUnavailableOutsideTheBooksScope()
     {
         // The other half: the scope is lexical, and closing it takes the type away again.

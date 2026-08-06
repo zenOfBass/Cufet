@@ -61,7 +61,7 @@ public class ExampleOracleTests
     /// </summary>
     private static readonly Dictionary<string, string> NonDeterministicSkips = new()
     {
-        // (chance-using examples go here — see NonDeterministicExample_RunsOnBothBackends)
+        ["markov.cufe"] = "chance — the backends' generators differ, so the babble does too",
     };
 
     private static bool IsSkipped(string file) =>
