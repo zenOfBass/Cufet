@@ -94,12 +94,8 @@ If car1 is car2, state "same car".
 Define ages as a map with ("alice" : 30, "bob" : 25).
 
 Define alice-age as the entry for "alice" in ages.
-If alice-age is not void:
-    State alice-age.
-Done.
-Otherwise:
-    State "no entry for alice".
-Done.
+If alice-age is not void, state alice-age.
+Otherwise, state "no entry for alice".
 ```
 
 **Failures are values — carry them, handle them, propagate them:**
