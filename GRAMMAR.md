@@ -1391,13 +1391,13 @@ in expression position — a `PipeExpression` in expression context is a static 
 
 ```
 Bind void to producer:
-  output 1.
-  output 2.
-  output 3.
+  Output 1.
+  Output 2.
+  Output 3.
 Done.
 
 Bind void to consumer:
-  for each item from the input:
+  For each item from the input:
     State item.
   Done.
 Done.
@@ -1435,9 +1435,9 @@ token is NOT `becomes`, `'s`, `=`, or `|`. This means:
 
 ```
 Define output as 42.      ← variable declaration — works
-output becomes 99.        ← reassignment — works
-output | consumer.        ← left side of a pipe — 'output' is the variable, not a keyword
-output 7.                 ← PIPE OUTPUT STATEMENT (only valid inside a pipe stage)
+Output becomes 99.        ← reassignment — works
+Output | consumer.        ← left side of a pipe — 'output' is the variable, not a keyword
+Output 7.                 ← PIPE OUTPUT STATEMENT (only valid inside a pipe stage)
 Output 7.                 ← the same statement, capitalised
 ```
 
@@ -1460,7 +1460,7 @@ form. Inside a loop body, bare `item` (not followed by a number or `at`) is
 treated as a variable reference to the iterator binding.
 
 ```
-for each item from the input:
+For each item from the input:
   State item.          ← 'item' is the bound iterator, not 'item N of ...'
 Done.
 ```
