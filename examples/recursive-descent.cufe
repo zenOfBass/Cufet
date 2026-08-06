@@ -51,7 +51,8 @@ Done.
 Define object parser with (the series of text tokens, the number pos):
     Bind text to peek:
         If one's pos is greater than the number of one's tokens, return "<end>".
-        Return item one's pos of one's tokens.
+        Define here as one's pos.
+        Return item here of one's tokens.
     Done.
 
     Bind void to advance:
