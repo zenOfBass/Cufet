@@ -1,0 +1,103 @@
+/* Markov chain babble — order-2 word chain over a small corpus.
+
+   Builds a map from "word word" pairs to the series of words that followed
+   them in the corpus, then walks the chain picking random successors.
+   Seeded, so a run is reproducible within one backend — but the interpreter
+   and a compiled binary use different generators, so they will not agree
+   with each other. That is documented, and it is why this example needs
+   special handling in the test harness.
+
+   The corpus is written circularly (the tail feeds back into the head) so
+   the chain has no dead ends. */
+
+Pull a book on chance.
+
+Bind map from text to series of text to transitions-of, given (the series of text words):
+    Define transitions as a map from text to series of text with ().
+    Define count as the number of words.
+    Define limit as count - 1.
+    Define index as 1.
+    While index is less than limit, repeat:
+        Define word as item index of words.
+        Define second-index as index + 1.
+        Define second-word as item second-index of words.
+        Define third-index as index + 2.
+        Define follower as item third-index of words.
+        Define bigram as "{word} {second-word}".
+        Define fresh as a series of text with ().
+        Define bucket as the entry for bigram in transitions but void is fresh.
+        Add follower to bucket.
+        In transitions, the entry for bigram becomes bucket.
+        The index becomes index + 1.
+    Done.
+    Return transitions.
+Done.
+
+Bind text to babble, given (the map from text to series of text transitions,
+                            the series of text opening-pair, the number how-many):
+    Define prev as the first of opening-pair.
+    Define curr as item 2 of opening-pair.
+    Define out as "{prev} {curr}".
+    Define steps as 1.
+    While steps is not greater than how-many, repeat:
+        Define bigram as "{prev} {curr}".
+        Define fresh as a series of text with ().
+        Define nexts as the entry for bigram in transitions but void is fresh.
+        If the number of nexts is 0, stop.
+        Define pick as a random item from nexts but void is "".
+        The out becomes "{out} {pick}".
+        The prev becomes curr.
+        The curr becomes pick.
+        The steps becomes steps + 1.
+    Done.
+    Return out.
+Done.
+
+Bind void to play:
+    Seed the chance with 42.
+
+    Define corpus as "in the beginning there was no fire and the earth was cold 
+    then the Thunderbirds sent their lightning to a sycamore tree on an island where the Weasels lived 
+    the Weasels were the only ones who had fire and they would not give any of it away
+    the people knew that there was fire on the island because they could see smoke coming from the sycamore but the water was too deep for anyone to cross
+    when winter came the people suffered so much from the cold that they called a council to find some way of obtaining fire from the Weasels
+    they invited all the animals who could swim
+    how shall we obtain fire the people asked
+    most of the animals were afraid of the Weasels because they were bloodthirsty and ate mice and moles and fish and birds
+    Rabbit was the only one who was brave enough to try to steal fire from them
+    I can run and swim faster than the Weasels he said
+    I am also a good dancer 
+    every night the Weasels build a big fire and dance around it
+    tonight I will swim across and join in the dancing 
+    I will run away with some fire
+    he considered the matter for a while and then decided how he would do it
+    before the sun set he rubbed his head with pine tar so as to make his hair stand up
+    then, as darkness was falling he swam across to the island
+    the Weasels received Rabbit gladly because they had heard of his fame as a dancer 
+    soon they had a big fire blazing and all began dancing around it
+    as the Weasels danced they approached nearer and nearer the fire in the centre of the circle
+    they would bow to the fire and then dance backwards away from it
+    when Rabbit entered the dancing circle the Weasels shouted to him lead us Rabbit
+    he danced ahead of them coming closer and closer to the fire
+    he bowed to the fire, bringing his head lower and lower as if he were going to take hold of it
+    while the Weasels were dancing faster and faster trying to keep up with him Rabbit suddenly bowed very low so that the pine tar in his hair caught fire in a flash of flame
+    he ran off with his head ablaze and the angry Weasels pursued him crying 
+    catch him catch him He has stolen our sacred fire catch him, and throw him down
+    but Rabbit outran them and plunged into the water leaving the Weasels on the shore
+    he swam across the water with the flames still blazing from his hair
+    the Weasels now called on the Thunderbirds to make it rain so as to extinguish the fire stolen by Rabbit
+    for three days rain poured down upon the earth, and the Weasels were sure that no fire was left burning except in their sycamore tree
+    Rabbit however had built a fire in a hollow tree and when the rain stopped and the sun shone he came out and gave fire to all the people
+    after that whenever it rained they kept fires in their shelters and that is how Rabbit brought fire to the people".
+
+    Define words as corpus split by " ".
+    Define transitions as cast transitions-of on (words).
+    Define opening as a series of text with ("in", "the").
+
+    State "seed 42, order-2 babble:".
+    State cast babble on (transitions, opening, 40).
+Done.
+
+Cast play.
+
+Done.
