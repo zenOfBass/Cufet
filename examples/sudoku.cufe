@@ -1,0 +1,124 @@
+/* Sudoku — brute-force backtracking over a matrix.
+
+   The board is a matrix of numbers, 0 = empty. solve walks to the first
+   empty cell, tries 1..9 as far as placeable accepts, recurses, and undoes
+   the placement when the recursion fails. No empty cell left means solved.
+
+   Box arithmetic uses If-chains rather than (r - 1) / 3 because number
+   division is exact decimal: 4 / 3 is 1.333..., not 1. */
+
+Pull a book on collections.
+
+Bind fact to placeable, given (the matrix board, the number r, the number c, the number v):
+    Define i as 1.
+    While i is not greater than 9, repeat:
+        If item at (r, i) of board is v, return false.
+        If item at (i, c) of board is v, return false.
+        The i becomes i + 1.
+    Done.
+    Define box-top as 1.
+    If r is greater than 3, the box-top becomes 4.
+    If r is greater than 6, the box-top becomes 7.
+    Define box-left as 1.
+    If c is greater than 3, the box-left becomes 4.
+    If c is greater than 6, the box-left becomes 7.
+    Define dr as 0.
+    While dr is less than 3, repeat:
+        Define dc as 0.
+        While dc is less than 3, repeat:
+            If item at (box-top + dr, box-left + dc) of board is v, return false.
+            The dc becomes dc + 1.
+        Done.
+        The dr becomes dr + 1.
+    Done.
+    Return true.
+Done.
+
+Bind fact to solve, given (the matrix board):
+    Define r as 1.
+    While r is not greater than 9, repeat:
+        Define c as 1.
+        While c is not greater than 9, repeat:
+            If item at (r, c) of board is 0:
+                Define v as 1.
+                While v is not greater than 9, repeat:
+                    If cast placeable on (board, r, c, v):
+                        The item at (r, c) of board becomes v.
+                        If cast solve on (board), return true.
+                        The item at (r, c) of board becomes 0.
+                    Done.
+                    The v becomes v + 1.
+                Done.
+                Return false.
+            Done.
+            The c becomes c + 1.
+        Done.
+        The r becomes r + 1.
+    Done.
+    Return true.
+Done.
+
+Bind matrix to board-from, given (the series of text rows):
+    Define board as a matrix with 9 by 9 filled with 0.
+    Define r as 1.
+    For each line in rows, repeat:
+        Define c as 1.
+        While c is not greater than 9, repeat:
+            Define ch as the characters from c to c of line.
+            If ch is not ".":
+                Define v as ch converted to number but void is 0.
+                The item at (r, c) of board becomes v.
+            Done.
+            The c becomes c + 1.
+        Done.
+        The r becomes r + 1.
+    Done.
+    Return board.
+Done.
+
+Bind void to print-board, given (the matrix board):
+    Define r as 1.
+    While r is not greater than 9, repeat:
+        If r is 4 or r is 7, state "---+---+---".
+        Define line as "".
+        Define c as 1.
+        While c is not greater than 9, repeat:
+            If c is 4 or c is 7:
+                The line becomes line joined to "|".
+            Done.
+            Define v as item at (r, c) of board.
+            The line becomes line joined to v converted to text.
+            The c becomes c + 1.
+        Done.
+        State line.
+        The r becomes r + 1.
+    Done.
+Done.
+
+Bind void to play:
+    Define puzzle as a series of text with (
+        "53..7....",
+        "6..195...",
+        ".98....6.",
+        "8...6...3",
+        "4..8.3..1",
+        "7...2...6",
+        ".6....28.",
+        "...419..5",
+        "....8..79").
+    Define board as cast board-from on (puzzle).
+    State "puzzle:".
+    Cast print-board on (board).
+    State "".
+    If cast solve on (board):
+        State "solved:".
+        Cast print-board on (board).
+    Done.
+    Otherwise:
+        State "no solution".
+    Done.
+Done.
+
+Cast play.
+
+Done.
