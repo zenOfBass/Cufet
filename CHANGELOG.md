@@ -37,6 +37,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **★ Every example is now an oracle test.** All 20 programs in `examples/` run on both backends
+  under `dotnet test`, and the compiled output must equal the interpreted output exactly. Until now
+  they were checked by hand, once, and trusted thereafter — nothing in the suite ran them.
+
+  They have been the project's most productive bug-finders: two days of ordinary programs turned up
+  a compiler crash, a live divergence, and a type the compiler could not name. Each one is now a
+  permanent regression test on both backends, so writing the next example is also writing the next
+  test — verified by dropping a new file in and watching the count rise with no wiring.
+
+  Directory-enumerated, following the soundness-fixture pattern, and guarded the same way: a corpus
+  check fails if the enumeration ever breaks, since a directory-driven suite that finds nothing
+  still goes green. Examples run with the working directory at the **repository root**, because
+  that is where a reader runs them and `wordfreq.cufe` opens its sample by a root-relative path.
+
+  Five concurrency and subprocess programs cannot be built under mingw (pthreads, `sigaction`,
+  `fork`). They are skipped **with a reason each**, and still held to the shared front end by a
+  second theory — a platform gap never becomes a blind spot in the language.
+
 - **Exhaustiveness tests, against the bug class that produced three of the fixes below.** Every one
   was a hand-written switch over types or AST nodes, missing an arm, whose default returned a
   plausible wrong answer rather than failing. Four tests, each verified by reintroducing the bug it

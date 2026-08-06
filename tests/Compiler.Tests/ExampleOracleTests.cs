@@ -1,0 +1,172 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using Cufet.Compiler;
+using Cufet.Interpreter;
+using Xunit;
+using CufetInterpreter = Cufet.Interpreter.Interpreter;
+using CufetLexer = Cufet.Lexer.Lexer;
+
+namespace Cufet.Compiler.Tests;
+
+/// <summary>
+/// Every program in <c>examples/</c>, run on BOTH backends, output compared.
+///
+/// ★ These were the most productive bug-finders the project has — ordinary programs, written to do
+/// a thing, that turned up a compiler crash, a live divergence and a type the compiler could not
+/// name. Until now none of them was run by <c>dotnet test</c>: they were checked by hand, once,
+/// and then trusted forever. This makes each one a permanent regression test on both backends, so
+/// writing the next example is also writing the next test.
+///
+/// Examples run with the working directory set to the REPOSITORY ROOT, because that is where a
+/// reader runs them from — <c>wordfreq.cufe</c> opens <c>examples/assets/sample.txt</c> by a
+/// root-relative path, and testing it from anywhere else would be testing a different program.
+/// </summary>
+public class ExampleOracleTests
+{
+    // Walk up for the solution file rather than copying the corpus into the output directory: the
+    // examples must be run in place, next to the assets they name.
+    private static readonly string RepoRoot = FindRepoRoot();
+
+    private static string FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Cufet.sln")))
+            dir = dir.Parent;
+        return dir?.FullName ?? "";
+    }
+
+    private static string ExampleDir => Path.Combine(RepoRoot, "examples");
+
+    /// <summary>
+    /// Examples the COMPILER cannot build on this platform, with the reason. Concurrency and
+    /// subprocess programs need pthreads, sigaction and fork — POSIX, guarded in the emitted C, and
+    /// unavailable under mingw. They are not skipped silently: SkippedExamples_StillTypeCheck holds
+    /// them to the front end, so a skip hides the backend and nothing else.
+    /// </summary>
+    private static readonly Dictionary<string, string> WindowsOnlySkips = new()
+    {
+        ["channel-deepcopy.cufe"] = "channels — pthreads",
+        ["parallelsum.cufe"]      = "tasks + channels — pthreads",
+        ["shell.cufe"]            = "subprocess — fork/exec",
+        ["subprocess-pipes.cufe"] = "subprocess pipes — fork/exec",
+        ["work-queue.cufe"]       = "tasks + channels — pthreads",
+    };
+
+    private static bool IsSkipped(string file) =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && WindowsOnlySkips.ContainsKey(file);
+
+    private static IEnumerable<object[]> AllExamples() =>
+        Directory.Exists(ExampleDir)
+            ? Directory.GetFiles(ExampleDir, "*.cufe").OrderBy(p => p)
+                       .Select(p => new object[] { Path.GetFileName(p) })
+            : [];
+
+    public static IEnumerable<object[]> OracleExamples() =>
+        AllExamples().Where(a => !IsSkipped((string)a[0]));
+
+    public static IEnumerable<object[]> SkippedExamples() =>
+        AllExamples().Where(a => IsSkipped((string)a[0]));
+
+    /// <summary>
+    /// The failure mode of any directory-driven suite: stop finding the corpus and every [Theory]
+    /// below becomes a silent no-op while the run stays green. A count that only ever grows is the
+    /// cheapest guard — it fails if the enumeration breaks, and never nags when an example is added.
+    /// </summary>
+    [Fact]
+    public void ExampleCorpus_IsPresent()
+    {
+        Assert.True(Directory.Exists(ExampleDir), $"examples/ not found from {AppContext.BaseDirectory}");
+        Assert.True(AllExamples().Count() >= 20,
+            $"only {AllExamples().Count()} examples found — the corpus has shrunk or the enumeration broke.");
+
+        // A skip entry for a file that no longer exists is a stale excuse; say so.
+        var stale = WindowsOnlySkips.Keys
+            .Where(f => !File.Exists(Path.Combine(ExampleDir, f)))
+            .ToList();
+        Assert.True(stale.Count == 0, $"skip list names missing example(s): {string.Join(", ", stale)}");
+    }
+
+    /// <summary>
+    /// ★ The bar: the compiled binary's output must equal the interpreter's, exactly.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(OracleExamples))]
+    public void Example_CompilesAndAgreesWithTheInterpreter(string file)
+    {
+        var path   = Path.Combine(ExampleDir, file);
+        var source = File.ReadAllText(path);
+
+        var tokens  = new CufetLexer(source).Tokenize();
+        var program = new Parser(tokens).Parse();
+        new TypeChecker().Check(program);
+
+        Assert.Equal(Interpret(program), CompileAndRun(program));
+    }
+
+    /// <summary>
+    /// The other half of a skip. A program the compiler cannot build on this platform must still
+    /// pass the shared front end, so a platform gap never becomes a blind spot in the language.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(SkippedExamples))]
+    public void SkippedExample_StillTypeChecks(string file)
+    {
+        var source = File.ReadAllText(Path.Combine(ExampleDir, file));
+        var program = new Parser(new CufetLexer(source).Tokenize()).Parse();
+        new TypeChecker().Check(program);   // throws on failure — that IS the assertion
+    }
+
+    // ── Running ───────────────────────────────────────────────────────────
+
+    // The interpreter reads files through the PROCESS working directory, so it has to be moved to
+    // the repo root and put back. Serialised on a lock because xUnit runs classes in parallel and
+    // the working directory is global: two tests changing it at once would each see the other's.
+    private static readonly object CurrentDirectoryLock = new();
+
+    private static string Interpret(Program program)
+    {
+        var sb = new StringWriter();
+        lock (CurrentDirectoryLock)
+        {
+            var saved = Directory.GetCurrentDirectory();
+            Directory.SetCurrentDirectory(RepoRoot);
+            try { new CufetInterpreter(sb).Execute(program); }
+            finally { Directory.SetCurrentDirectory(saved); }
+        }
+        return sb.ToString().Replace("\r\n", "\n").TrimEnd('\n');
+    }
+
+    // The binary gets its working directory set directly, so no global state is touched.
+    private static string CompileAndRun(Program program)
+    {
+        var cSource = new CodeGenerator().Generate(program);
+
+        var tmp = Path.GetTempFileName();
+        File.Delete(tmp);
+        var cPath   = tmp + ".c";
+        var binPath = tmp + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "");
+
+        try
+        {
+            File.WriteAllText(cPath, cSource);
+            new GccInvoker().Compile(cPath, binPath);
+        }
+        finally { try { File.Delete(cPath); } catch { } }
+
+        try
+        {
+            var psi = new ProcessStartInfo(binPath)
+            {
+                RedirectStandardOutput = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8,
+                WorkingDirectory = RepoRoot,
+                UseShellExecute = false,
+            };
+            using var proc = Process.Start(psi)!;
+            var output = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit();
+            return output.Replace("\r\n", "\n").TrimEnd('\n');
+        }
+        finally { try { File.Delete(binPath); } catch { } }
+    }
+}
