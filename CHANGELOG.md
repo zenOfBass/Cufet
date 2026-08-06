@@ -55,6 +55,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `fork`). They are skipped **with a reason each**, and still held to the shared front end by a
   second theory — a platform gap never becomes a blind spot in the language.
 
+- **An example can pin its output, not just its agreement.** A `.expected` file beside an example
+  makes the harness assert the output matches it exactly. Opt-in — no file, no assertion — and
+  written for `config`, `huffmancoding`, `sudoku` and `recursivedescent`.
+
+  ★ **Because agreement is not correctness.** The oracle proves the two backends say the same
+  thing; it cannot tell whether that thing is right. `config.cufe` carries a deliberately malformed
+  line so its error path runs, and if that warning ever stopped appearing both backends would agree
+  on the new output and the test would still pass. Verified by deleting the malformed line: the
+  build now fails and shows the missing warning. A second check refuses a `.expected` beside an
+  example that never runs — a missing one, or a non-deterministic one like `markov` — so the file
+  cannot become an assertion nobody evaluates.
+
 - **Documented samples are held to the front end.** `DocBlockTests` extracts every fenced block from
   README, GRAMMAR and REFERENCE, runs the ~238 that look like programs, and records the 157 that
   check clean. A recorded sample that stops checking fails the build, naming its file and line.
