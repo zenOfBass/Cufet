@@ -1,0 +1,5 @@
+2 + 3 * 4 = 14
+(2 + 3) * 4 = 20
+2 * (3 + 4) + 1 = 15
+2 +  -> expected a number
+2 ) 3 -> unexpected token after expression

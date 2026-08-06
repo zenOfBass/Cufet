@@ -147,7 +147,55 @@ public class ExampleOracleTests
                 $"Otherwise this is a real compiler regression.\n\n{e.Message}");
         }
 
-        Assert.Equal(Interpret(program), compiled);
+        var interpreted = Interpret(program);
+        Assert.Equal(interpreted, compiled);
+
+        // ★ Agreement is not correctness. The comparison above proves the two backends say the same
+        // thing; it cannot tell whether that thing is right. config.cufe carries a deliberately
+        // malformed line so its error path runs — and if that line ever stopped producing a warning,
+        // both backends would agree on the new output and this test would still pass. A canary
+        // nothing checks cannot fail.
+        //
+        // So an example may sit next to a `.expected` file, and where one exists the output must
+        // match it exactly. Opt-in: no file, no assertion.
+        var expectedPath = Path.Combine(ExampleDir, Path.GetFileNameWithoutExtension(file) + ".expected");
+        if (!File.Exists(expectedPath)) return;
+
+        if (Environment.GetEnvironmentVariable("CUFET_EXAMPLE_EXPECTED") == "1")
+        {
+            File.WriteAllText(expectedPath, interpreted + "\n");
+            return;
+        }
+
+        var expected = File.ReadAllText(expectedPath).Replace("\r\n", "\n").TrimEnd('\n');
+        Assert.True(expected == interpreted,
+            $"{file} no longer produces its recorded output.\n" +
+            "Both backends agree, so this is not a divergence — the program's behaviour changed.\n" +
+            "If the new output is correct:\n" +
+            "  CUFET_EXAMPLE_EXPECTED=1 dotnet test --filter ExampleOracleTests\n\n" +
+            $"--- expected ---\n{expected}\n--- actual ---\n{interpreted}");
+    }
+
+    /// <summary>
+    /// A `.expected` beside an example that never runs here is a file nobody checks. Skipped
+    /// examples cannot be built on this platform and non-deterministic ones have no fixed output,
+    /// so either is a mistake worth naming rather than a quietly dead assertion.
+    /// </summary>
+    [Fact]
+    public void ExpectedOutputFiles_BelongToExamplesThatAreActuallyCompared()
+    {
+        if (!Directory.Exists(ExampleDir)) return;
+
+        var stranded = Directory.GetFiles(ExampleDir, "*.expected")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(name => !File.Exists(Path.Combine(ExampleDir, name + ".cufe"))
+                        || NonDeterministicSkips.ContainsKey(name + ".cufe"))
+            .OrderBy(n => n)
+            .ToList();
+
+        Assert.True(stranded.Count == 0,
+            "these .expected files are never compared — the example is missing or its output is " +
+            $"not reproducible: {string.Join(", ", stranded)}");
     }
 
     /// <summary>

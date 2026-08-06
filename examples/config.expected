@@ -1,0 +1,13 @@
+warning: skipping invalid line: bad_value = unquoted_string
+loaded configuration:
+  host = "localhost" (text)
+  port = 8080 (number)
+  debug = true (fact)
+  timeout = 30 (number)
+  retries = 3 (number)
+  name = "fire-bringer" (text)
+
+using configuration:
+  connecting to localhost...
+  on port 8080.
+  debug mode is ON.

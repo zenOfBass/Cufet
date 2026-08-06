@@ -1,0 +1,27 @@
+message: the rabbit brings fire to the people
+
+code table:
+  i -> 0b0 (3 bits)
+  t -> 0b1 (3 bits)
+  h -> 0b100 (4 bits)
+  o -> 0b101 (4 bits)
+  p -> 0b110 (4 bits)
+  a -> 0b1110 (5 bits)
+  n -> 0b1111 (5 bits)
+  g -> 0b10000 (5 bits)
+  s -> 0b10001 (5 bits)
+  f -> 0b10010 (5 bits)
+  l -> 0b10011 (5 bits)
+  e -> 0b101 (3 bits)
+    -> 0b110 (3 bits)
+  r -> 0b1110 (4 bits)
+  b -> 0b1111 (4 bits)
+
+encoded in 3 chunks:
+  0b1010010111011100111011111111000001110111111100000111110000 (60 bits)
+  0b1000111010010000111010111000101011100010100101110011010101010110 (64 bits)
+  0b10011101 (8 bits)
+packed to 132 bits, versus 288 at a byte per character
+
+decoded: the rabbit brings fire to the people
+round trip holds
