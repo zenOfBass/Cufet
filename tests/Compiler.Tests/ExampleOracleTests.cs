@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Cufet.Compiler;
 using Cufet.Interpreter;
 using Xunit;
@@ -193,6 +194,12 @@ public class ExampleOracleTests
     // the working directory is global: two tests changing it at once would each see the other's.
     private static readonly object CurrentDirectoryLock = new();
 
+    // ★ On a 16 MB stack, mirroring the CLI's RunOnLargeStack. A recursive Cufet program — a
+    // backtracking sudoku solver, say — overflows xUnit's default 1 MB thread, and a stack overflow
+    // cannot be caught: it takes the whole test host down with "Test Run Aborted", so the run
+    // reports the tests that finished as passing and exits non-zero with no failure to point at.
+    // The example ran fine under `cufet`, which has always had the big stack; only the harness did
+    // not.
     private static string Interpret(Program program)
     {
         var sb = new StringWriter();
@@ -200,7 +207,17 @@ public class ExampleOracleTests
         {
             var saved = Directory.GetCurrentDirectory();
             Directory.SetCurrentDirectory(RepoRoot);
-            try { new CufetInterpreter(sb).Execute(program); }
+            try
+            {
+                Exception? caught = null;
+                var thread = new Thread(
+                    () => { try { new CufetInterpreter(sb).Execute(program); } catch (Exception e) { caught = e; } },
+                    16 * 1024 * 1024);
+                thread.Start();
+                thread.Join();
+                if (caught is not null)
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(caught).Throw();
+            }
             finally { Directory.SetCurrentDirectory(saved); }
         }
         return sb.ToString().Replace("\r\n", "\n").TrimEnd('\n');
