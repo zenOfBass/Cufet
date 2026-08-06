@@ -91,24 +91,18 @@ Bind void to use-config, given (the atlas from text to (text or number or fact) 
 Done.
 
 Bind void to play:
-    Define source as "
-# Server settings
-host = \"localhost\"
-port = 8080
-debug = true
-
-# Timeouts
-timeout = 30
-retries = 3
-name = \"fire-bringer\"
-
-# This line has an invalid value
-bad_value = unquoted_string
-".
-
-    Define config as cast parse-config on (source).
-    Cast print-config on (config).
-    Cast use-config on (config).
+    Define source as "examples/config.txt".
+    Try to:
+        Define content as read all from the file source.
+        Define normalized as replace "\r" with "" in content.   // CRLF insurance on Windows
+        Define config as cast parse-config on (normalized).
+        Cast print-config on (config).
+        Cast use-config on (config).
+    Done.
+    In case of failure:
+        Define msg as the message of the failure.
+        State "could not read {source}: {msg}".
+    Done.
 Done.
 
 Cast play.
