@@ -91,7 +91,7 @@ Bind void to use-config, given (the atlas from text to (text or number or fact) 
 Done.
 
 Bind void to play:
-    Define source as "examples/config.txt".
+    Define source as "examples/assets/config.txt".
     Try to:
         Define content as read all from the file source.
         Define normalized as replace "\r" with "" in content.   // CRLF insurance on Windows

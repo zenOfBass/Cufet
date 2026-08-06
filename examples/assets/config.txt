@@ -1,12 +1,7 @@
-# Server settings
-host = \"localhost\"
+host = "localhost"
 port = 8080
 debug = true
-
-# Timeouts
 timeout = 30
 retries = 3
-name = \"fire-bringer\"
-
-# This line has an invalid value
+name = "fire-bringer"
 bad_value = unquoted_string
