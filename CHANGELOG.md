@@ -35,8 +35,6 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 - **`examples/gameoflife.cufe`** — Conway's Game of Life on a matrix, with wrapping edges.
 
-### Added
-
 - **★ Every example is now an oracle test.** All 20 programs in `examples/` run on both backends
   under `dotnet test`, and the compiled output must equal the interpreted output exactly. Until now
   they were checked by hand, once, and trusted thereafter — nothing in the suite ran them.
@@ -339,6 +337,19 @@ cannot.
   spawning; flagging that recommended ordering would mean the two tools contradict each other. A
   change made before the first task starts is silent — it is the fix, not the fault.
 
+
+- **`from <map>, the entry for <key>`** — the map-first way to read an entry, alongside the
+  existing `the entry for <key> in <map>`. `from the map ages, …` is accepted too.
+
+  This closes a real asymmetry rather than adding a synonym: **writing** an entry has only the
+  map-first order — `In ages, the entry for "alice" becomes 30` — and there is no trailing form for
+  it. So before this, reading and writing the same entry had to be said in opposite orders, with
+  neither operation offering the other's. It was in the original map spec as the "optional leading
+  form", and was documented in REFERENCE without ever being built.
+
+  Parser-only: it produces the same lookup node as the trailing form, so both backends got it with
+  no codegen change, and `check --native` and the compiled binary agree by construction.
+
 ### Changed
 
 - **The linter now reads the AST as well as the token stream.** Its first rule judges how a line
@@ -461,21 +472,6 @@ cannot.
   the safer of the two available wrongs, since repainting someone's variable as a keyword suggests a
   word is reserved when the point of unreserving it was that it is not.
 
-### Added
-
-- **`from <map>, the entry for <key>`** — the map-first way to read an entry, alongside the
-  existing `the entry for <key> in <map>`. `from the map ages, …` is accepted too.
-
-  This closes a real asymmetry rather than adding a synonym: **writing** an entry has only the
-  map-first order — `In ages, the entry for "alice" becomes 30` — and there is no trailing form for
-  it. So before this, reading and writing the same entry had to be said in opposite orders, with
-  neither operation offering the other's. It was in the original map spec as the "optional leading
-  form", and was documented in REFERENCE without ever being built.
-
-  Parser-only: it produces the same lookup node as the trailing form, so both backends got it with
-  no codegen change, and `check --native` and the compiled binary agree by construction.
-
-### Fixed
 
 - **`tools/doc-sweep.py`** — extracts every fenced code block from README, GRAMMAR and REFERENCE
   and runs `cufet check` on it, grouping failures by error shape. `--strict` exits 1 for CI. This
