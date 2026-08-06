@@ -112,6 +112,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★ The CLI mangled every non-ASCII character it printed.** `State "héllo 👍".` came out as
+  `h?llo ??` interpreted and correctly compiled — a real divergence, because the CLI wrote through
+  the console's default encoding, a legacy code page on Windows, while a compiled binary writes
+  UTF-8 bytes directly. Now set explicitly, and a redirected stdout gets it too.
+
+  ★ **The test suite could not have caught this**, which is worth recording. Its interpreter side
+  writes to an in-memory `StringWriter` and its compiled side reads the binary with
+  `StandardOutputEncoding` already UTF-8, so both are lossless in-process and only the console ever
+  lost anything. Found by pinning `examples/json.expected` — the round-trip of `["héllo 👍"]` — and
+  reading the bytes rather than the terminal. `json.expected` now holds that assertion permanently.
+
 - **★ An object declared inside a book pull crashed the compiler.** `CollectObjectDefs` was a
   hand-written switch over block-bearing statements with no arm for `PullStatement`, so this was
   never registered — and `build` died with a raw `KeyNotFoundException` rather than any

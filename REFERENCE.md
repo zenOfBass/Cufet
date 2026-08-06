@@ -724,6 +724,11 @@ State "Hello" in lowercase.        → "hello"
 Uses default (invariant, culture-independent) case rules — not locale-sensitive.
 Only upper/lower this slice; title-case and capitalize-first are deferred.
 
+> ⚠ **Compiled, casing is ASCII-only.** `"héllo" in uppercase` is `HÉLLO` interpreted and
+> `HéLLO` compiled — the emitted C has no Unicode case table. Characters outside A–Z / a–z
+> pass through unchanged. This is one of the few places the two backends knowingly differ;
+> everything else about the text is identical, including code-point counts and positions.
+
 > **Note:** `in` is also used to lead the map-set statement (`In ages, the
 > entry for "x" becomes ...`) and inside `the entry for K in M` / `the
 > position of S in T`. These don't collide: `in uppercase`/`in lowercase` is
