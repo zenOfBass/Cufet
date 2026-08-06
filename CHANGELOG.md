@@ -253,6 +253,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   TextMate grammar. A judgement's arm cases are now classified as types, too, which is the one
   place a bare type name opens a statement.
 
+---
+
+## [0.13.0] — 2026-08-03
+
 0.12.0 made Cufet explain itself. **0.13.0 makes it account for every case** — a
 judgement the compiler proves total, text positions the two backends finally agree on,
 and a linter that names what a pass over the source can decide and stays quiet where it
