@@ -3,8 +3,22 @@ using Cufet.Interpreter;
 using Cufet.Lexer;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+
+// ★ UTF-8 out, or the interpreter and the compiled binary disagree on every non-ASCII character.
+// A compiled program writes UTF-8 bytes directly; the CLI wrote through the console's default
+// encoding, which on Windows is a legacy code page — so `State "héllo 👍".` came out as `h?llo ??`
+// interpreted and correctly compiled. A real divergence, and one the test suite cannot see: its
+// interpreter side writes to an in-memory StringWriter and its compiled side reads the binary with
+// StandardOutputEncoding already set to UTF-8, so both are lossless there and only the console lost
+// anything. Wrapped because a redirected stdout needs it as much as a terminal does.
+try
+{
+    Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+}
+catch (IOException) { /* no console attached (piped into a closed handle) — nothing to set */ }
 
 if (args.Length >= 1 && args[0] is "--help" or "-h" or "help" or "-?" or "/?")
     Help();

@@ -1834,6 +1834,34 @@ public class PipelineTests
     }
 
     [Fact]
+    public void NonAsciiText_SurvivesBothBackends()
+    {
+        // ★ Weaker than it should be, and worth saying so: this test could not have caught the bug
+        // it commemorates. The CLI wrote through the console's default encoding — a legacy code
+        // page on Windows — so `State "héllo 👍".` printed `h?llo ??` interpreted and correctly
+        // compiled. A real divergence, invisible from here, because Interpret writes to an
+        // in-memory StringWriter and Compile reads the binary with StandardOutputEncoding already
+        // UTF-8. Both sides are lossless in this harness; only the console lost anything.
+        //
+        // What this DOES pin is that the two agree on the characters themselves — code points
+        // through the lexer, the string table and the emitted C. The console encoding is asserted
+        // by examples/json.expected, which is written and compared as UTF-8 bytes.
+        const string src = """
+            State "héllo 👍".
+            State the length of "héllo 👍".
+            State "hello" in uppercase.
+            State the position of "👍" in "héllo 👍".
+            """;
+        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Contains("👍", Compile(src));
+
+        // Casing is deliberately NOT asserted on non-ASCII: `"héllo" in uppercase` is `HÉLLO`
+        // interpreted and `HéLLO` compiled, which CONTRIBUTING lists among the narrow
+        // platform-owned exceptions to the no-divergence rule. Pinning it here would either
+        // enshrine the gap or fail for a reason this test is not about.
+    }
+
+    [Fact]
     public void CaseTypeWidensThroughAWrapper_OracleMatch()
     {
         // ★ A case type widening into a union nested in `or failure` / `voidable`. The checker
