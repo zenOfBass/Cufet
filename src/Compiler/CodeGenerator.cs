@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Cufet.Interpreter;
 using Cufet.Lexer;
 
@@ -457,6 +457,36 @@ public sealed class CodeGenerator
 #include <sys/stat.h>
 #include <setjmp.h>
 #include <stdarg.h>
+#if defined(_WIN32)
+#include <io.h>
+#include <fcntl.h>
+#endif
+
+/* ───────── Line endings on stdout ─────────
+   Windows opens stdout in TEXT mode, where the C runtime rewrites every '\n' on its way out as
+   "\r\n". That is fine for a line terminator and wrong for everything else: a '\n' the program
+   put INSIDE a text value is data, and rewriting it makes the compiled backend print something
+   the interpreter does not. `State "a\nb".` gave 61 0a 62 interpreted and 61 0d 0a 62 compiled.
+
+   So stdout is switched to BINARY at startup — nothing is rewritten, and what a program prints is
+   what it wrote — and the line terminator becomes explicit. CUFET_NL is what `State` appends, and
+   it is "\r\n" on Windows because that is what the interpreter's WriteLine emits there; the two
+   backends have to agree on the terminator as well as on the data.
+
+   ★ Every newline written to stdout is one or the other, and the distinction is the whole point:
+   a TERMINATOR calls cufet_nl(), and DATA is passed through untouched. Emitting a bare newline
+   through printf is neither, which is why GeneratedC_UsesTheNewlineMacro refuses one — this is
+   the per-site pattern that has been reintroduced by hand three times in this codebase, so it is
+   held by a test rather than by remembering. stderr is deliberately left in text mode:
+   diagnostics are terminator-only, and both backends already agree there. */
+#if defined(_WIN32)
+#define CUFET_NL "\r\n"
+#define CUFET_STDOUT_BINARY() (void)_setmode(_fileno(stdout), _O_BINARY)
+#else
+#define CUFET_NL "\n"
+#define CUFET_STDOUT_BINARY() ((void)0)
+#endif
+#define cufet_nl() fputs(CUFET_NL, stdout)
 
 /* ───────── Exceptions (E-prime): setjmp/longjmp over SOFTWARE faults ─────────
    Cufet numbers are software decimals, so divide/modulo-by-zero, series/matrix OOB, etc. are
@@ -776,10 +806,10 @@ static void cufet_format_bits(char* buf, size_t bufsz, CufetBits x) {
     snprintf(buf, bufsz, "%s", out);
 }
 static void cufet_write_bits(CufetBits x) { char b[80]; cufet_format_bits(b, sizeof(b), x); printf("%s", b); }
-static void cufet_print_number(CufetDec d) { cufet_write_number(d); printf("\n"); }
-static void cufet_print_fact(int b) { cufet_write_fact(b); printf("\n"); }
-static void cufet_print_text(const char* s) { cufet_write_text(s); printf("\n"); }
-static void cufet_print_bits(CufetBits x) { cufet_write_bits(x); printf("\n"); }
+static void cufet_print_number(CufetDec d) { cufet_write_number(d); cufet_nl(); }
+static void cufet_print_fact(int b) { cufet_write_fact(b); cufet_nl(); }
+static void cufet_print_text(const char* s) { cufet_write_text(s); cufet_nl(); }
+static void cufet_print_bits(CufetBits x) { cufet_write_bits(x); cufet_nl(); }
 
 /* The gates. A result carries the LEFT operand's base and width, widened when the value needs
    more room — left because in real bit code the left operand is the accumulator
@@ -2111,6 +2141,9 @@ static void* cufet_pipe_stage(void* argp) {
             // A global arena is pushed so series created at top level (outside an
             // explicit Pull) are safely tracked and freed at program exit.
             body.AppendLine("int main(void) {");
+            // Before anything is printed. Threads inherit the process's stdout mode, so tasks are
+            // covered by this one call. See CUFET_NL for why it is needed at all.
+            body.AppendLine("    CUFET_STDOUT_BINARY();");
             // SIGINT landing pad (CONC.E): install the handler + establish main's interrupt pad. On an
             // unhandled interrupt a checkpoint siglongjmps here; we tear down (pop all arenas — nested
             // included — free any live channels, flush) and exit 130 (128+SIGINT). Guarded so a non-signal
@@ -3990,16 +4023,16 @@ static void* cufet_pipe_stage(void* argp) {
                     BitsType      => $"cufet_print_bits({valExpr})",
                     FactType      => $"cufet_print_fact({valExpr})",
                     TextType      => $"cufet_print_text({valExpr})",
-                    SeriesType st => $"{RegisterSeriesStruct(st)}_write({valExpr}); printf(\"\\n\")",
-                    RecordType rt   => $"{RegisterRecordStruct(rt)}_write({valExpr}); printf(\"\\n\")",
-                    ObjectType ot   => $"{ObjStructName(ot.Name)}_write({valExpr}); printf(\"\\n\")",
-                    VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr}); printf(\"\\n\")",
-                    MapType mt      => $"{RegisterMapStruct(mt)}_write({valExpr}); printf(\"\\n\")",
-                    MatrixType      => $"cufet_mat_write({valExpr}); printf(\"\\n\")",
+                    SeriesType st => $"{RegisterSeriesStruct(st)}_write({valExpr}); cufet_nl()",
+                    RecordType rt   => $"{RegisterRecordStruct(rt)}_write({valExpr}); cufet_nl()",
+                    ObjectType ot   => $"{ObjStructName(ot.Name)}_write({valExpr}); cufet_nl()",
+                    VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr}); cufet_nl()",
+                    MapType mt      => $"{RegisterMapStruct(mt)}_write({valExpr}); cufet_nl()",
+                    MatrixType      => $"cufet_mat_write({valExpr}); cufet_nl()",
                     // A union prints as its underlying value (tag dispatch) — the same _write the
                     // synthesized container helpers call, so a bare `State <union>` matches an
                     // element printed inside a catalogue.
-                    UnionType       => $"{WriteCall(valExpr, t)}; printf(\"\\n\")",
+                    UnionType       => $"{WriteCall(valExpr, t)}; cufet_nl()",
                     _ => throw new CompilerException($"State of a '{FormatTypeName(t)}' is not yet supported by the compiler.")
                 };
                 sb.AppendLine($"{indent}{printStmt};");

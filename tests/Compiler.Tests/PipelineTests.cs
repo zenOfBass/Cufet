@@ -12,8 +12,25 @@ namespace Cufet.Compiler.Tests;
 
 public class PipelineTests
 {
+    // ★ Raw vs normalised, and which one the ORACLE uses.
+    //
+    // The oracle assertion — interpreted output equals compiled output — must compare the bytes
+    // exactly, because the two backends are supposed to agree on every byte. It used to compare
+    // through Norm, and that hid a whole axis: with "\r\n" collapsed to "\n" on both sides, a
+    // compiled backend that turned every '\n' in the DATA into "\r\n" compared equal to an
+    // interpreter that left it alone. The bug was invisible for as long as the harness existed
+    // and only surfaced when a literal happened to contain a "\r\n" PAIR, which normalisation
+    // could not flatten. A test that cannot see a difference is not testing for it.
+    //
+    // So: CompileRaw/InterpretRaw for backend-vs-backend, and Compile/Interpret — which normalise
+    // — only where the expected value is a C# literal written with '\n' and no view on line
+    // endings. Norm also drops trailing newlines, which is the second thing it was hiding.
+    private static string Norm(string s) => s.Replace("\r\n", "\n").TrimEnd('\n');
+    private static string Compile(string source, string? stdin = null) => Norm(CompileRaw(source, stdin));
+    private static string Interpret(string source, string? stdin = null) => Norm(InterpretRaw(source, stdin));
+
     // Compiles source to a temp native binary, runs it (optionally feeding stdin), returns stdout.
-    private static string Compile(string source, string? stdin = null)
+    private static string CompileRaw(string source, string? stdin = null)
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
@@ -50,7 +67,7 @@ public class PipelineTests
             if (stdin != null) { proc.StandardInput.Write(stdin); proc.StandardInput.Close(); }
             var output = proc.StandardOutput.ReadToEnd();
             proc.WaitForExit();
-            return output.Replace("\r\n", "\n").TrimEnd('\n');
+            return output;
         }
         finally
         {
@@ -68,8 +85,8 @@ public class PipelineTests
         return new CodeGenerator().Generate(program);
     }
 
-    // Interprets source and returns stdout trimmed — the oracle. Optionally feeds stdin.
-    private static string Interpret(string source, string? stdin = null)
+    // Interprets source and returns stdout verbatim — the oracle. Optionally feeds stdin.
+    private static string InterpretRaw(string source, string? stdin = null)
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
@@ -77,7 +94,7 @@ public class PipelineTests
         var sb = new StringWriter();
         var reader = stdin != null ? new StringReader(stdin) : null;
         new CufetInterpreter(sb, reader).Execute(program);
-        return sb.ToString().Replace("\r\n", "\n").TrimEnd('\n');
+        return sb.ToString();
     }
 
     // ── Acceptance bar: State 1 + 1. → binary runs → prints 2 ──────────
@@ -92,7 +109,7 @@ public class PipelineTests
     public void State_Addition_MatchesInterpreter()
     {
         const string src = "State 1 + 1.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Oracle: compiled output == interpreter output ────────────────────
@@ -101,14 +118,14 @@ public class PipelineTests
     public void State_Literal_MatchesInterpreter()
     {
         const string src = "State 5.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void State_Subtraction_MatchesInterpreter()
     {
         const string src = "State 10 - 3.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -122,7 +139,7 @@ public class PipelineTests
             "Otherwise:\n" +
             "    State the length of x.\n" +
             "Done.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -137,7 +154,7 @@ public class PipelineTests
             "Otherwise:\n" +
             "    State the length of x.\n" +
             "Done.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -148,7 +165,7 @@ public class PipelineTests
             "Define the text who as \"Nathan\".\n" +
             "State n + 1.\n" +
             "State who.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ★ A voidable does not nest, and this is the case that proved it has to not. The annotation
@@ -166,7 +183,7 @@ public class PipelineTests
             "Define the voidable voidable number absent as the entry for \"b\" in ages.\n" +
             "State present.\n" +
             "State absent.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -176,49 +193,49 @@ public class PipelineTests
         const string src =
             "Define the voidable voidable number x as 5.\n" +
             "State x.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void State_Multiplication_MatchesInterpreter()
     {
         const string src = "State 3 * 4.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void State_Division_MatchesInterpreter()
     {
         const string src = "State 10 / 2.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void State_Parenthesized_MatchesInterpreter()
     {
         const string src = "State 2 * (3 + 4).";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void State_UnaryNegation_MatchesInterpreter()
     {
         const string src = "State -5.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void State_MultipleStatements_MatchesInterpreter()
     {
         const string src = "State 1 + 1. State 3 * 3.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void State_Zero_MatchesInterpreter()
     {
         const string src = "State 0.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 2: variables ───────────────────────────────────────────────
@@ -227,42 +244,42 @@ public class PipelineTests
     public void Variable_DefineAndUse_MatchesInterpreter()
     {
         const string src = "Define x as 5. State x.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void Variable_DefineAndReassign_MatchesInterpreter()
     {
         const string src = "Define x as 3. x becomes 7. State x.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void Variable_ChainedDefines_MatchesInterpreter()
     {
         const string src = "Define x as 3. Define y as x + 5. State y.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void Variable_SelfReferenceReassignment_MatchesInterpreter()
     {
         const string src = "Define x as 1. x becomes x + 1. State x.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void Variable_HyphenatedName_MatchesInterpreter()
     {
         const string src = "Define grand-total as 100. State grand-total.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void Variable_MultipleVarsInteracting_MatchesInterpreter()
     {
         const string src = "Define x as 3. Define y as 4. State x + y.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -270,21 +287,21 @@ public class PipelineTests
     {
         // Define x as 5. Define y as x + 3. y becomes y * 2. State y. → 16
         const string src = "Define x as 5. Define y as x + 3. y becomes y * 2. State y.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void Variable_Permanent_MatchesInterpreter()
     {
         const string src = "Define x as 10 permanently. State x.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void Variable_VariableInArithmetic_MatchesInterpreter()
     {
         const string src = "Define width as 6. Define height as 7. State width * height.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -292,7 +309,7 @@ public class PipelineTests
     {
         // Slice 1 arithmetic alongside slice 2 variables
         const string src = "State 1 + 1. Define x as 10. x becomes x - 3. State x.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 3: control flow ────────────────────────────────────────────
@@ -301,35 +318,35 @@ public class PipelineTests
     public void If_TrueBranch_MatchesInterpreter()
     {
         const string src = "Define x as 5. If x is 5, state x. Otherwise, state 0.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void If_FalseBranch_MatchesInterpreter()
     {
         const string src = "Define x as 3. If x is 5, state x. Otherwise, state 0.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void If_OtherwiseIf_MatchesInterpreter()
     {
         const string src = "Define x as 3. If x is 5, state 5. Otherwise if x is 3, state 3. Otherwise, state 0.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void If_NoElse_MatchesInterpreter()
     {
         const string src = "Define x as 5. If x is 5, state x.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void While_Counting_MatchesInterpreter()
     {
         const string src = "Define n as 1. While n <= 3, repeat: State n. n becomes n + 1. Done.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -337,21 +354,21 @@ public class PipelineTests
     {
         // 1 + 2 + ... + 10 = 55
         const string src = "Define n as 1. Define total as 0. While n <= 10, repeat: total becomes total + n. n becomes n + 1. Done. State total.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void ForEach_Range_Ascending_MatchesInterpreter()
     {
         const string src = "For each n in the range 1 to 5, repeat: State n. Done.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void ForEach_Range_Descending_MatchesInterpreter()
     {
         const string src = "For each n in the range 5 to 1, repeat: State n. Done.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -359,14 +376,14 @@ public class PipelineTests
     {
         // 1, 3, 5, 7, 9
         const string src = "For each n in the range 1 to 10 counting by 2, repeat: State n. Done.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void ForEach_Squares_MatchesInterpreter()
     {
         const string src = "For each n in the range 1 to 5, repeat: State n * n. Done.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -374,7 +391,7 @@ public class PipelineTests
     {
         // Prints 1, 2, 3 — breaks before printing 4
         const string src = "Define n as 1. While n <= 10, repeat: If n is 4, stop. State n. n becomes n + 1. Done.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -382,7 +399,7 @@ public class PipelineTests
     {
         // Prints 1, 3, 5 — skips even values
         const string src = "For each n in the range 1 to 5, repeat: If n % 2 is 0, skip. State n. Done.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -390,7 +407,7 @@ public class PipelineTests
     {
         // Prints 1, 2, 3
         const string src = "Define x as 0. Repeat: x becomes x + 1. State x. Until x is 3.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -405,7 +422,7 @@ public class PipelineTests
                 Otherwise, state the counter.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -419,7 +436,7 @@ public class PipelineTests
             Done.
             State total.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -427,7 +444,7 @@ public class PipelineTests
     {
         // True only when both conditions hold
         const string src = "Define x as 5. If x > 3 and x < 10, state 1. Otherwise, state 0.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 4: scalar functions ────────────────────────────────────────────
@@ -441,7 +458,7 @@ public class PipelineTests
             Done.
             State cast double-it on (5).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -453,7 +470,7 @@ public class PipelineTests
             Done.
             State cast triple on (4).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -466,7 +483,7 @@ public class PipelineTests
             Done.
             State cast sum-up on (3, 4).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -482,7 +499,7 @@ public class PipelineTests
             Done.
             State cast double-it on (cast triple on (5)).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -496,7 +513,7 @@ public class PipelineTests
             Done.
             State cast factorial on (10).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -511,7 +528,7 @@ public class PipelineTests
                 State cast square on (n).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -524,7 +541,7 @@ public class PipelineTests
             Done.
             Cast print-double on (7).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -538,7 +555,7 @@ public class PipelineTests
             If cast is-positive on (5), state 1. Otherwise, state 0.
             If cast is-positive on (-3), state 1. Otherwise, state 0.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -554,7 +571,7 @@ public class PipelineTests
             Done.
             State cast add-one-then-double on (4).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -573,7 +590,7 @@ public class PipelineTests
             If cast is-even on (4), state 1. Otherwise, state 0.
             If cast is-even on (7), state 1. Otherwise, state 0.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -590,7 +607,7 @@ public class PipelineTests
             Done.
             State cast sum-to on (10).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -607,7 +624,7 @@ public class PipelineTests
                 State cast count-items on (xs).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 5A: arena + series ─────────────────────────────────────────
@@ -623,7 +640,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -638,7 +655,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -650,7 +667,7 @@ public class PipelineTests
                 State the number of xs.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -663,7 +680,7 @@ public class PipelineTests
                 State the last of xs.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -676,7 +693,7 @@ public class PipelineTests
                 State xs.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -697,7 +714,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -716,7 +733,7 @@ public class PipelineTests
                 State the last of xs.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -731,7 +748,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -746,7 +763,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -759,7 +776,7 @@ public class PipelineTests
                 State the first of xs + the last of xs.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -776,7 +793,7 @@ public class PipelineTests
             Done.
             State total.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -791,7 +808,7 @@ public class PipelineTests
             Done.
             State cast factorial on (10).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 5.5: software decimal (bit-identical to interpreter's System.Decimal) ──
@@ -805,7 +822,7 @@ public class PipelineTests
         // %.15g rounding, but comparisons diverged (see the equality test below).
         const string src = "State 0.1 + 0.2.";
         Assert.Equal("0.3", Compile(src));
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -815,14 +832,14 @@ public class PipelineTests
         // double — so this branch would have gone the wrong way under the old lowering.
         const string src = "If 4.35 * 100 is 435, state \"exact\". Otherwise, state \"wrong\".";
         Assert.Equal("exact", Compile(src));
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void Decimal_PointOneTimesThree_MatchesInterpreter()
     {
         const string src = "State 0.1 * 3.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -830,7 +847,7 @@ public class PipelineTests
     {
         // 1.10 + 2.20 == 3.3 exact (double: 3.3000000000000003)
         const string src = "Define price as 1.10. Define shipping as 2.20. State price + shipping.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -838,7 +855,7 @@ public class PipelineTests
     {
         // 0.3 - 0.1 == 0.2 exact (double: 0.19999999999999998)
         const string src = "State 0.3 - 0.1.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -846,7 +863,7 @@ public class PipelineTests
     {
         // 1.0 + 1.0 keeps scale (2.0) internally; format strips it to "2"
         const string src = "State 1.0 + 1.0. State 1.50 + 0.00. State 3.140.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -854,14 +871,14 @@ public class PipelineTests
     {
         // Non-terminating quotients must round to 28-29 digits half-to-even, like .NET.
         const string src = "State 1 / 3. State 2 / 3. State 10 / 3. State 1 / 7. State 1 / 6.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void Decimal_DivisionExact_MatchesInterpreter()
     {
         const string src = "State 1 / 4. State 7 / 2. State 10 / 2. State 1 / 8.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -871,7 +888,7 @@ public class PipelineTests
         // rounding-and-overflow that only holds if / and * are both faithful.
         const string src = "State 100 / 3 * 3.";
         Assert.Equal("100", Compile(src));
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -884,14 +901,14 @@ public class PipelineTests
             State 2.5 * 0.0000000000000000000000000001.
             State 3.5 * 0.0000000000000000000000000001.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void Decimal_NegativeFractions_MatchesInterpreter()
     {
         const string src = "State -0.5 - 0.25. State 0 - 0.3. State -1 / 3.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -899,7 +916,7 @@ public class PipelineTests
     {
         // Decimal remainder, sign of dividend.
         const string src = "State 5.5 % 2. State -7 % 3. State 7 % -3.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -907,7 +924,7 @@ public class PipelineTests
     {
         // Beyond double's 2^53 exact-integer range; decimal keeps every digit.
         const string src = "State 12345678901234567890 * 1000000.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -924,7 +941,7 @@ public class PipelineTests
             Done.
             State total.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -938,7 +955,7 @@ public class PipelineTests
                 State the first of xs + the last of xs.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -946,7 +963,7 @@ public class PipelineTests
     {
         // Range counting by a fractional step — the loop counter is now decimal.
         const string src = "For each n in the range 0 to 1 counting by 0.25, repeat: State n. Done.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -959,7 +976,7 @@ public class PipelineTests
             Done.
             State cast average on (0.1, 0.2).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 5B: records (value structs) + text-as-stored-data ──────────
@@ -975,14 +992,14 @@ public class PipelineTests
             State the name of alice.
             State the age of alice.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void Record_PositionalAccess_MatchesInterpreter()
     {
         const string src = "Define point as a record with (3, 4). State the first of point. State the second of point.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -990,7 +1007,7 @@ public class PipelineTests
     {
         // Fields written in non-sorted order still print sorted (canonical), matching the interpreter.
         const string src = "State a record with (the name \"Zed\", the age 9, the city \"Tulsa\").";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1001,14 +1018,14 @@ public class PipelineTests
             the age of alice becomes 31.
             State alice.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void Record_PositionalFieldSet_MatchesInterpreter()
     {
         const string src = "Define point as a record with (3, 4). the first of point becomes 10. State point.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1023,7 +1040,7 @@ public class PipelineTests
             State alice.
             State bob.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1037,7 +1054,7 @@ public class PipelineTests
             State the name of the person of row.
             State the score of row.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1053,7 +1070,7 @@ public class PipelineTests
                 State team.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1064,7 +1081,7 @@ public class PipelineTests
             Define alice as a record with (the name "Alice", the age 30).
             If the name of alice is "Alice", state "match". Otherwise, state "no".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1079,7 +1096,7 @@ public class PipelineTests
             State p.
             State the age of p.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1093,7 +1110,7 @@ public class PipelineTests
             Define alice as a record with (the name "Alice", the age 42).
             State cast get-age on (alice).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1115,7 +1132,7 @@ public class PipelineTests
             Define pb as a series with (a record with (the x 1)).
             If pa is pb, state "eq". Otherwise, state "neq".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1130,7 +1147,7 @@ public class PipelineTests
             State s.
             State r.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1149,7 +1166,7 @@ public class PipelineTests
             State alice.
             State older.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1167,7 +1184,7 @@ public class PipelineTests
                 State xs.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 5B: objects (nominal value structs + methods, direct dispatch) ──
@@ -1182,7 +1199,7 @@ public class PipelineTests
             State alice's name.
             State the age of alice.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1199,7 +1216,7 @@ public class PipelineTests
             Cast birthday on alice.
             State the age of alice.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1214,7 +1231,7 @@ public class PipelineTests
             Define alice as a new person { the name "Alice", the age 21 }.
             State cast alice's doubled-age.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1231,7 +1248,7 @@ public class PipelineTests
             State cast age-in on (alice, 5).
             State cast alice's age-in on (10).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1252,7 +1269,7 @@ public class PipelineTests
             State alice.
             State bob.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1273,7 +1290,7 @@ public class PipelineTests
             Cast age-it on (alice).
             State the age of alice.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1287,7 +1304,7 @@ public class PipelineTests
             Define alice as cast make-alice.
             State alice.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1301,7 +1318,7 @@ public class PipelineTests
             State row.
             State the age of the who of row.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1326,7 +1343,7 @@ public class PipelineTests
             the name of rex becomes "Max".
             State rex.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 5B object core: equality, unto, constructors, getters/setters ──
@@ -1342,7 +1359,7 @@ public class PipelineTests
             If alice is alice2, state "eq". Otherwise, state "ne".
             If alice is not bob, state "ne2". Otherwise, state "eq2".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1356,7 +1373,7 @@ public class PipelineTests
             If p1 is p2, state "eq". Otherwise, state "ne".
             If p1 is p3, state "eq2". Otherwise, state "ne2".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1369,7 +1386,7 @@ public class PipelineTests
             If t1 is t2, state "eq". Otherwise, state "ne".
             If t1 is t3, state "eq2". Otherwise, state "ne2".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1388,7 +1405,7 @@ public class PipelineTests
             State the age of alice.
             State cast age-plus on (alice, 100).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1402,7 +1419,7 @@ public class PipelineTests
             Define alice as cast teen on ("Alice").
             State alice.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1428,7 +1445,7 @@ public class PipelineTests
             c's radius becomes -3.
             State c's radius.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1464,7 +1481,7 @@ public class PipelineTests
             Define e2 as a new employee { the salary 100, the name "Alice", the city "Norman" }.
             If e is e2, state "eq". Otherwise, state "ne".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1483,7 +1500,7 @@ public class PipelineTests
             Define r as a new robot { the id "R2" }.
             Cast r's greet on ().
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 5C: voidable (uniform tagged struct cvd_N { int has; T val; }) ──
@@ -1507,7 +1524,7 @@ public class PipelineTests
             State x but void is 0.
             State y but void is 99.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1525,7 +1542,7 @@ public class PipelineTests
             State w.
             State z + w.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1545,7 +1562,7 @@ public class PipelineTests
                 State s but void is a series of number with (0).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1566,7 +1583,7 @@ public class PipelineTests
             If x is w, state "x-eq-w". Otherwise, state "x-ne-w".
             If w is w, state "w-eq-w". Otherwise, state "w-ne-w".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1585,7 +1602,7 @@ public class PipelineTests
             Define v as cast maybe on (0).
             If v is not void, State v + 100. Otherwise, State "v-absent".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Voidable object FIELDS: the widening a field slot used to be denied ─────
@@ -1604,7 +1621,7 @@ public class PipelineTests
             State the maybe of b.
             State b.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1616,7 +1633,7 @@ public class PipelineTests
             State the maybe of b.
             State b.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1632,7 +1649,7 @@ public class PipelineTests
             State s.
             State t.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1647,7 +1664,7 @@ public class PipelineTests
             the maybe of b becomes 9.
             State the maybe of b.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1660,7 +1677,7 @@ public class PipelineTests
             State the maybe of b.
             If b's maybe is void, State "absent". Otherwise, State "present".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1675,7 +1692,7 @@ public class PipelineTests
             State the plain of b.
             State b.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1696,7 +1713,7 @@ public class PipelineTests
             the display of s becomes 9.
             State the celsius of s.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1713,7 +1730,7 @@ public class PipelineTests
             s's display becomes void.
             State the celsius of s.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1734,7 +1751,7 @@ public class PipelineTests
             State the score of r.
             State r.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 5D: maps (arena association list; lookup → voidable; on 5A/5B/5C) ──
@@ -1794,7 +1811,7 @@ public class PipelineTests
             Done.
             State Cast total on (root).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1852,7 +1869,7 @@ public class PipelineTests
             State "hello" in uppercase.
             State the position of "👍" in "héllo 👍".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Contains("👍", Compile(src));
 
         // Casing is deliberately NOT asserted on non-ASCII: `"héllo" in uppercase` is `HÉLLO`
@@ -1889,7 +1906,7 @@ public class PipelineTests
             If other is a branch, State other's width.
             Otherwise, State "leaf".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1911,7 +1928,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1947,7 +1964,7 @@ public class PipelineTests
             State the size of m.
             State the entry for "alice" in m but void is 0.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1973,7 +1990,7 @@ public class PipelineTests
                 State the key of pair.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -1985,7 +2002,7 @@ public class PipelineTests
             State prices.
             State (the entry for "coffee" in prices but void is 0) + (the entry for "tea" in prices but void is 0).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2003,7 +2020,7 @@ public class PipelineTests
             Define prices as a map from text to number with ("a": 3.50, "b": 2.25, "c": 4.75).
             State cast total-of on (prices).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2018,7 +2035,7 @@ public class PipelineTests
                 State the age of (the entry for "alice" in people but void is a new person { the name "none", the age 0 }).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2031,7 +2048,7 @@ public class PipelineTests
                 State groups.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2045,7 +2062,7 @@ public class PipelineTests
                 State the entry for "timeout" in the settings of config but void is 0.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 6: fallibility (value-level error model; T or failure) ──
@@ -2073,7 +2090,7 @@ public class PipelineTests
             State cast safe-div on (20, 4) but on failure 0.
             State cast safe-div on (20, 0) but on failure 0.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2101,7 +2118,7 @@ public class PipelineTests
             State cast compute on (0) but on failure 0.
             State cast compute on (5) but on failure 0.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2124,7 +2141,7 @@ public class PipelineTests
                 State the message of the failure.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2143,7 +2160,7 @@ public class PipelineTests
             Done.
             State "after".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 7: text-as-full-type (immutable const char*, results arena-allocated) ──
@@ -2166,7 +2183,7 @@ public class PipelineTests
             State "Hello World" in lowercase.
             State "  spaces  " trimmed.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ★ The test data that was missing, not the method. Every text test above uses ASCII, where
@@ -2208,7 +2225,7 @@ public class PipelineTests
             "If \"héllo\" contains \"é\", state \"yes\". Otherwise, state \"no\".\n" +
             "State replace \"é\" with \"e\" in \"héllo\".\n" +
             "State \"héllo\" joined to \"中文\".\n";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2222,7 +2239,7 @@ public class PipelineTests
             State the position of "world" in "hello world" but void is 0.
             State the position of "xyz" in "hello world" but void is 0.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2252,7 +2269,7 @@ public class PipelineTests
                 State "bad input: " joined to the message of the failure.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2277,7 +2294,7 @@ public class PipelineTests
                 State "failed: " joined to the message of the failure.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2298,7 +2315,7 @@ public class PipelineTests
             State cast classify on (0, "bad").
             State cast classify on (0, "9").
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2317,7 +2334,7 @@ public class PipelineTests
                 If the name of r is "Ms Alice", state "match". Otherwise, state "no-match".
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2339,7 +2356,7 @@ public class PipelineTests
             Done.
             State total.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 8: series-of-T generalization (per-element-type cser_N; split by rides on it) ──
@@ -2362,7 +2379,7 @@ public class PipelineTests
             Define w2 as a series with ("acai", "banana", "cherry", "date").
             If words is w2, state "eq". Otherwise, state "neq".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2382,7 +2399,7 @@ public class PipelineTests
             Define pb as a series with (a new point { the x 1, the y 2 }).
             If pa is pb, state "eq". Otherwise, state "neq".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2402,7 +2419,7 @@ public class PipelineTests
             Define gb as a series with (a series with (1, 2)).
             If ga is gb, state "eq". Otherwise, state "neq".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2418,7 +2435,7 @@ public class PipelineTests
             Done.
             State the entry for "a" in item 1 of ms but void is 0.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Slice 9A: file I/O (whole-file read/write + path checks; OS-error → Cufet failure) ──
@@ -2438,7 +2455,7 @@ public class PipelineTests
         var src = template;
         foreach (var token in new[] { "{PATH}", "{PATH2}", "{PATH3}" })
             if (src.Contains(token)) { var p = WritableTempPath(); paths.Add(p); src = src.Replace(token, p); }
-        try { Assert.Equal(Interpret(src, stdin), Compile(src, stdin)); }
+        try { Assert.Equal(InterpretRaw(src, stdin), CompileRaw(src, stdin)); }
         finally { foreach (var p in paths) try { File.Delete(p.Replace('/', Path.DirectorySeparatorChar)); } catch { } }
     }
 
@@ -2474,8 +2491,8 @@ public class PipelineTests
     [Fact]
     public void CurrentDirectory_Read_IsPresentOnBothBackends()
     {
-        Assert.Equal(Interpret("State the current directory is not void."),
-                     Compile("State the current directory is not void."));
+        Assert.Equal(InterpretRaw("State the current directory is not void."),
+                     CompileRaw("State the current directory is not void."));
     }
 
     // The headline test, and it deliberately does NOT compare the printed path. Two runtimes can
@@ -2556,7 +2573,7 @@ public class PipelineTests
             State cast describe on (parcel).
             State cast describe on (7).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2594,7 +2611,7 @@ public class PipelineTests
             Define outer as a new jarray { the items a series of (number or text or fact or jarray) with (1, "hi", true, inner) }.
             State cast render on (outer).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Judge ─────────────────────────────────────────────────────────────
@@ -2615,7 +2632,7 @@ public class PipelineTests
                 A fact, state "a fact".
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2629,7 +2646,7 @@ public class PipelineTests
                 Otherwise, state "text".
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2645,7 +2662,7 @@ public class PipelineTests
                 Otherwise, state "not text".
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2675,7 +2692,7 @@ public class PipelineTests
             Define sum as a new add-node { the kids a series of (num-node or add-node) with (two, three) }.
             State cast eval on (sum).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2711,7 +2728,7 @@ public class PipelineTests
 
             State Cast is-even on (10).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -2973,7 +2990,7 @@ public class PipelineTests
                 State "got: " joined to ln.
             Done.
             """;
-        Assert.Equal(Interpret(src, "hello\nworld\nthree\n"), Compile(src, "hello\nworld\nthree\n"));
+        Assert.Equal(InterpretRaw(src, "hello\nworld\nthree\n"), CompileRaw(src, "hello\nworld\nthree\n"));
     }
 
     // ── Slice 9C: subprocess (run) + pipes ──
@@ -3014,7 +3031,7 @@ public class PipelineTests
                 State "msg: " joined to the message of the failure.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3044,7 +3061,7 @@ public class PipelineTests
                 State "pipe-launch-failed: " joined to the message of the failure.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3057,7 +3074,7 @@ public class PipelineTests
             run "echo" with arguments ("streamed to stdout") | run "cat".
             State "after".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── CONC.A+B: threads + structured join + thread-local arena + channels ──
@@ -3216,7 +3233,7 @@ public class PipelineTests
                 State math's absolute value of -7.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3230,7 +3247,7 @@ public class PipelineTests
                 State math's e.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3243,7 +3260,7 @@ public class PipelineTests
                 State m's pi.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3254,7 +3271,7 @@ public class PipelineTests
             State nums sorted.
             State nums sorted in reverse.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3265,7 +3282,7 @@ public class PipelineTests
             State words sorted.
             State words sorted in reverse.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3281,7 +3298,7 @@ public class PipelineTests
             State party sorted by age.
             State party sorted by name in reverse.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Arc 1B: math transcendentals — the decimal↔double bridge ──
@@ -3308,7 +3325,7 @@ public class PipelineTests
                 State (math's square root of 2) but void is -1.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3322,7 +3339,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3340,7 +3357,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3362,7 +3379,7 @@ public class PipelineTests
                 If r is not void, State "sixteen has a root".
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Arc 1C: collections aggregates (mechanical — reductions on the compiled series model) ──
@@ -3388,7 +3405,7 @@ public class PipelineTests
                 State (cast collections's average of (rep)) but void is -1.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3404,7 +3421,7 @@ public class PipelineTests
                 If r is void, State "empty average is void".
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3426,7 +3443,7 @@ public class PipelineTests
                 State cast collections's unique of (party).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3471,7 +3488,7 @@ public class PipelineTests
                 State fr.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3499,7 +3516,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3528,7 +3545,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3548,7 +3565,7 @@ public class PipelineTests
                 State the item at (2, 2) of m2.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3568,7 +3585,7 @@ public class PipelineTests
                 State the item at (2, 2) of doubled.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3590,7 +3607,7 @@ public class PipelineTests
                 State m.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3609,7 +3626,7 @@ public class PipelineTests
                 State b.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3764,7 +3781,7 @@ public class PipelineTests
             If unset is void, State "unset is void". Otherwise, State "FAIL".
             State the environment variable "PATH" but void is "none".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3787,7 +3804,7 @@ public class PipelineTests
             Define w as "abc" converted to number.
             If w is a number, State "FAIL5". Otherwise, State "unparsed not a number".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3808,7 +3825,7 @@ public class PipelineTests
             State (the entry for "explicit-void" in m) but void is -7.
             State the size of m.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3844,7 +3861,7 @@ public class PipelineTests
                     State the category of the failure but void is "none".
                 Done.
                 """;
-            Assert.Equal(Interpret(src), Compile(src));
+            Assert.Equal(InterpretRaw(src), CompileRaw(src));
         }
         finally { try { Directory.Delete(dir, recursive: true); } catch { } }
     }
@@ -3918,7 +3935,7 @@ public class PipelineTests
             Done.
             State "done".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3944,7 +3961,7 @@ public class PipelineTests
             Done.
             State "after nesting".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -3982,7 +3999,7 @@ public class PipelineTests
             Done.
             State "end".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4014,7 +4031,7 @@ public class PipelineTests
                     State "read failed".
                 Done.
                 """;
-            Assert.Equal(Interpret(src), Compile(src));
+            Assert.Equal(InterpretRaw(src), CompileRaw(src));
         }
         finally { try { File.Delete(path); } catch { } }
     }
@@ -4053,7 +4070,7 @@ public class PipelineTests
             Done.
             State "done".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4128,7 +4145,7 @@ public class PipelineTests
                 State (the awaited result of left-task) + (the awaited result of right-task).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4152,7 +4169,7 @@ public class PipelineTests
                 State the awaited result of three-task.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4178,7 +4195,7 @@ public class PipelineTests
                 State the awaited result of reader.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4198,7 +4215,7 @@ public class PipelineTests
                 State the awaited result of user.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4219,7 +4236,7 @@ public class PipelineTests
                 State the awaited result of handler.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4241,7 +4258,7 @@ public class PipelineTests
                 State the awaited result of loud.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4261,7 +4278,7 @@ public class PipelineTests
                 State answer.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4284,7 +4301,7 @@ public class PipelineTests
                 State r2.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4307,7 +4324,7 @@ public class PipelineTests
                 State r1 + r2.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4328,7 +4345,7 @@ public class PipelineTests
                 State r.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4371,7 +4388,7 @@ public class PipelineTests
                 State got.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4392,7 +4409,7 @@ public class PipelineTests
                 State "len=" joined to ((the number of got) converted to text) joined to " first=" joined to ((the first of got) converted to text).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4414,7 +4431,7 @@ public class PipelineTests
                 State (the label of got) joined to " nums-len=" joined to ((the number of (the nums of got)) converted to text).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4432,7 +4449,7 @@ public class PipelineTests
                 State "size=" joined to ((the size of got) converted to text) joined to " a=" joined to ((the entry for "a" in got but void is 0) converted to text).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4454,7 +4471,7 @@ public class PipelineTests
                 State (the second of r2).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4474,7 +4491,7 @@ public class PipelineTests
                 State got.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4523,7 +4540,7 @@ public class PipelineTests
             Done.
             producer | consumer.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4549,7 +4566,7 @@ public class PipelineTests
             Done.
             producer | consumer.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4577,7 +4594,7 @@ public class PipelineTests
             Done.
             producer | doubler | consumer.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4608,7 +4625,7 @@ public class PipelineTests
             Done.
             producer | add-ten | doubler | consumer.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4629,7 +4646,7 @@ public class PipelineTests
             Done.
             producer | consumer.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4655,7 +4672,7 @@ public class PipelineTests
             Done.
             producer | consumer.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4677,7 +4694,7 @@ public class PipelineTests
             Done.
             producer | consumer.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4735,7 +4752,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4762,7 +4779,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4791,7 +4808,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4823,7 +4840,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4850,7 +4867,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4878,7 +4895,7 @@ public class PipelineTests
             Done.
             producer | shout | consumer.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4955,7 +4972,7 @@ public class PipelineTests
             Define r as an interrupt is requested.
             If r, State "interrupted". Otherwise, State "ok".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4972,7 +4989,7 @@ public class PipelineTests
                 State "normal".
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -4987,7 +5004,7 @@ public class PipelineTests
             Done.
             State count.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5445,7 +5462,7 @@ public class PipelineTests
             Define op as grade.
             State cast op on (5).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5461,7 +5478,7 @@ public class PipelineTests
             Done.
             State cast twice on (inc, 10).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5478,7 +5495,7 @@ public class PipelineTests
             Define f as cast pick.
             State cast f on (21).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5493,7 +5510,7 @@ public class PipelineTests
             Define f as shout.
             State cast f on ("hi").
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── CL.2: closure captures — lambdas + nested Bind (the env-record IS the capture policy) ──
@@ -5515,7 +5532,7 @@ public class PipelineTests
             Done.
             Cast test.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5532,7 +5549,7 @@ public class PipelineTests
             Done.
             Cast test.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5548,7 +5565,7 @@ public class PipelineTests
             Done.
             State cast outer on (100).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5564,7 +5581,7 @@ public class PipelineTests
             Define add10 as cast make-adder on (10).
             State cast add10 on (5).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5587,7 +5604,7 @@ public class PipelineTests
             Done.
             producer | (a function: for each x from the input: output x * 10. Done. Done) | consumer.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5612,7 +5629,7 @@ public class PipelineTests
             Done.
             Cast run-pipe on (100).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── CL.3: closures breadth + escape interim (closes the arc) ──
@@ -5632,7 +5649,7 @@ public class PipelineTests
             State cast (the first of ops) on (10).
             State cast (the second of ops) on (10).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5648,7 +5665,7 @@ public class PipelineTests
             Define add5 as cast maker on (5).
             State cast add5 on (10).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5666,7 +5683,7 @@ public class PipelineTests
             Done.
             State cast compute on (100).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5684,7 +5701,7 @@ public class PipelineTests
             Done.
             State cast compute on (10).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5706,7 +5723,7 @@ public class PipelineTests
             Done.
             producer | (a function: for each w from the input: output (w joined to "!"). Done. Done) | consumer.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5724,7 +5741,7 @@ public class PipelineTests
             Done.
             State cast f on (10).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Small edges: implicit-value capture + recursion ordering (closes the audit's small lines) ──
@@ -5747,7 +5764,7 @@ public class PipelineTests
             Define b as a new box { the n 21 }.
             State cast twice-n on (b).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5766,7 +5783,7 @@ public class PipelineTests
             Define b as a new box { the n 7 }.
             State cast probe on (b).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5790,7 +5807,7 @@ public class PipelineTests
             Done.
             Cast handle.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5805,7 +5822,7 @@ public class PipelineTests
             Done.
             Cast go.
             """;
-        Assert.Equal(Interpret(src, "hello\n"), Compile(src, "hello\n"));
+        Assert.Equal(InterpretRaw(src, "hello\n"), CompileRaw(src, "hello\n"));
     }
 
     // ── CAT.1: closed unions (catalogue) — the N-case generalization of voidable ──
@@ -5825,7 +5842,7 @@ public class PipelineTests
                 Otherwise, State "txt:" joined to item.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5841,7 +5858,7 @@ public class PipelineTests
             Done.
             State total.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5857,7 +5874,7 @@ public class PipelineTests
                 Otherwise, State "cat:" joined to (the name of p).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5871,7 +5888,7 @@ public class PipelineTests
                 Otherwise, State "dog=" joined to (the name of t).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5889,7 +5906,7 @@ public class PipelineTests
             Remove the first item from stuff.
             State the number of stuff.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5902,7 +5919,7 @@ public class PipelineTests
             If v is a number, State "num:" joined to (v converted to text).
             Otherwise, State "other".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5923,7 +5940,7 @@ public class PipelineTests
                 Otherwise, State "texts " joined to (the number of g converted to text).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ★ The case the refusal existed for: EMPTY containers, where there is no element to inspect
@@ -5946,7 +5963,7 @@ public class PipelineTests
             """;
         // Each empty container matches exactly ONE case — previously it matched both interpreted.
         Assert.Equal("matched: series of text\nmatched: series of number", Interpret(src));
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // Completeness guard for the carrier. An empty series can be produced several ways, and a
@@ -5971,7 +5988,7 @@ public class PipelineTests
             Done.
             """;
         Assert.Equal(expected, Interpret(src));
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -5985,18 +6002,18 @@ public class PipelineTests
             Define words as a series of text with ("a", "b").
             If words is a series of number, State "matched number". Otherwise, State "not number".
             """;
-        Assert.Equal(Interpret(series), Compile(series));
+        Assert.Equal(InterpretRaw(series), CompileRaw(series));
         const string map = """
             Define wordmap as a map from text to text with ("k" : "v").
             If wordmap is a map from text to number, State "matched". Otherwise, State "not matched".
             """;
-        Assert.Equal(Interpret(map), Compile(map));
+        Assert.Equal(InterpretRaw(map), CompileRaw(map));
         const string nested = """
             Define inner as a series of text with ("a").
             Define outer as a series with (inner).
             If outer is a series of series of number, State "matched". Otherwise, State "not matched".
             """;
-        Assert.Equal(Interpret(nested), Compile(nested));
+        Assert.Equal(InterpretRaw(nested), CompileRaw(nested));
     }
 
     // ── ESC.1/ESC.2 — arena escape: structural region test + copy-at-store ───
@@ -6020,7 +6037,7 @@ public class PipelineTests
             Done.
             State keeper.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6036,7 +6053,7 @@ public class PipelineTests
             Done.
             State the label of keeper.
             """;
-        Assert.Equal(Interpret(recordOfText), Compile(recordOfText));
+        Assert.Equal(InterpretRaw(recordOfText), CompileRaw(recordOfText));
         const string recordOfSeries = """
             Define keeper as a record with (the items (a series of number with (0))).
             Pull a rabbit.
@@ -6044,7 +6061,7 @@ public class PipelineTests
             Done.
             State the items of keeper.
             """;
-        Assert.Equal(Interpret(recordOfSeries), Compile(recordOfSeries));
+        Assert.Equal(InterpretRaw(recordOfSeries), CompileRaw(recordOfSeries));
         const string voidableText = """
             Bind voidable text to make-it, given (the text s):
                 Return s.
@@ -6055,7 +6072,7 @@ public class PipelineTests
             Done.
             State keeper.
             """;
-        Assert.Equal(Interpret(voidableText), Compile(voidableText));
+        Assert.Equal(InterpretRaw(voidableText), CompileRaw(voidableText));
     }
 
     [Fact]
@@ -6069,7 +6086,7 @@ public class PipelineTests
             Done.
             State bag.
             """;                       // also covers the CONTAINER's own growth realloc
-        Assert.Equal(Interpret(intoSeries), Compile(intoSeries));
+        Assert.Equal(InterpretRaw(intoSeries), CompileRaw(intoSeries));
         const string intoObjectField = """
             Define object box with (the text tag).
             Define keeper as a new box { the tag "outer" }.
@@ -6078,7 +6095,7 @@ public class PipelineTests
             Done.
             State keeper's tag.
             """;
-        Assert.Equal(Interpret(intoObjectField), Compile(intoObjectField));
+        Assert.Equal(InterpretRaw(intoObjectField), CompileRaw(intoObjectField));
         const string intoCatalogue = """
             Define keeper as a catalogue of (number or text) with (0).
             Pull a rabbit.
@@ -6088,7 +6105,7 @@ public class PipelineTests
                 State k.
             Done.
             """;
-        Assert.Equal(Interpret(intoCatalogue), Compile(intoCatalogue));
+        Assert.Equal(InterpretRaw(intoCatalogue), CompileRaw(intoCatalogue));
     }
 
     [Fact]
@@ -6107,7 +6124,7 @@ public class PipelineTests
             State the tag of keeper.
             State the lines of keeper.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6124,7 +6141,7 @@ public class PipelineTests
             Done.
             State cast build-it.
             """;
-        Assert.Equal(Interpret(returnOut), Compile(returnOut));
+        Assert.Equal(InterpretRaw(returnOut), CompileRaw(returnOut));
     }
 
     [Fact]
@@ -6140,7 +6157,7 @@ public class PipelineTests
             Done.
             """;
         Assert.DoesNotContain("escapecopy(", GenerateC(sameDepth));
-        Assert.Equal(Interpret(sameDepth), Compile(sameDepth));
+        Assert.Equal(InterpretRaw(sameDepth), CompileRaw(sameDepth));
         const string scalars = """
             Define n as 0.
             Pull a rabbit.
@@ -6149,7 +6166,7 @@ public class PipelineTests
             State n.
             """;
         Assert.DoesNotContain("escapecopy(", GenerateC(scalars));
-        Assert.Equal(Interpret(scalars), Compile(scalars));
+        Assert.Equal(InterpretRaw(scalars), CompileRaw(scalars));
     }
 
     [Fact]
@@ -6202,7 +6219,7 @@ public class PipelineTests
             Done.
             State cast outer-fn.
             """;
-        Assert.Equal(Interpret(text), Compile(text));
+        Assert.Equal(InterpretRaw(text), CompileRaw(text));
         const string recordOfText = """
             Bind text to outer-fn:
                 Define f as a function: Return "start". Done.
@@ -6214,7 +6231,7 @@ public class PipelineTests
             Done.
             State cast outer-fn.
             """;
-        Assert.Equal(Interpret(recordOfText), Compile(recordOfText));
+        Assert.Equal(InterpretRaw(recordOfText), CompileRaw(recordOfText));
         const string series = """
             Bind number to outer-fn:
                 Define f as a function: Return 0. Done.
@@ -6226,7 +6243,7 @@ public class PipelineTests
             Done.
             State cast outer-fn.
             """;
-        Assert.Equal(Interpret(series), Compile(series));
+        Assert.Equal(InterpretRaw(series), CompileRaw(series));
     }
 
     [Fact]
@@ -6244,7 +6261,7 @@ public class PipelineTests
             Done.
             State cast make.
             """;
-        Assert.Equal(Interpret(snapshot), Compile(snapshot));   // 15, not 105
+        Assert.Equal(InterpretRaw(snapshot), CompileRaw(snapshot));   // 15, not 105
         const string share = """
             Bind number to make:
                 Define nums as a series of number with (1, 2, 3).
@@ -6254,7 +6271,7 @@ public class PipelineTests
             Done.
             State cast make.
             """;
-        Assert.Equal(Interpret(share), Compile(share));         // 4 — sees the post-capture Add
+        Assert.Equal(InterpretRaw(share), CompileRaw(share));         // 4 — sees the post-capture Add
     }
 
     [Fact]
@@ -6269,7 +6286,7 @@ public class PipelineTests
                 State cast f on ().
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.DoesNotContain("escapecopy(", GenerateC(src));
         // make-adder: a value capture returned out of a function (safe by don't-pop) — no copy.
         const string adder = """
@@ -6279,7 +6296,7 @@ public class PipelineTests
             Define add10 as cast make-adder on (5).
             State cast add10 on ().
             """;
-        Assert.Equal(Interpret(adder), Compile(adder));
+        Assert.Equal(InterpretRaw(adder), CompileRaw(adder));
         Assert.DoesNotContain("escapecopy(", GenerateC(adder));
     }
 
@@ -6332,7 +6349,7 @@ public class PipelineTests
             Done.
             State cast outer-fn.
             """;
-        Assert.Equal(Interpret(valueType), Compile(valueType));   // 7 — the closure wrote its own copy
+        Assert.Equal(InterpretRaw(valueType), CompileRaw(valueType));   // 7 — the closure wrote its own copy
         const string regionType = """
             Bind number to outer-fn:
                 Define store as a series of number with ().
@@ -6343,7 +6360,7 @@ public class PipelineTests
             Done.
             State cast outer-fn.
             """;
-        Assert.Equal(Interpret(regionType), Compile(regionType)); // 0 — likewise
+        Assert.Equal(InterpretRaw(regionType), CompileRaw(regionType)); // 0 — likewise
     }
 
     [Fact]
@@ -6364,7 +6381,7 @@ public class PipelineTests
             Done.
             State cast outer-fn.
             """;
-        Assert.Equal(Interpret(src), Compile(src));   // 13 = outer 7 + (3 * 2)
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));   // 13 = outer 7 + (3 * 2)
     }
 
     [Fact]
@@ -6384,7 +6401,7 @@ public class PipelineTests
             Done.
             State "done".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── E-prime exception-message arena lifetime ─────────────────────────────
@@ -6412,7 +6429,7 @@ public class PipelineTests
             Done.
             State "after".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6437,7 +6454,7 @@ public class PipelineTests
             Done.
             State "after".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6466,7 +6483,7 @@ public class PipelineTests
             Done.
             State "after".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6488,7 +6505,7 @@ public class PipelineTests
             Done.
             State "after".
             """;
-        Assert.Equal(Interpret(caught), Compile(caught));
+        Assert.Equal(InterpretRaw(caught), CompileRaw(caught));
         const string propagated = """
             Bind text or failure to grab:
                 Pull a rabbit.
@@ -6504,7 +6521,7 @@ public class PipelineTests
                 State "propagated: " joined to the message of the failure.
             Done.
             """;
-        Assert.Equal(Interpret(propagated), Compile(propagated));
+        Assert.Equal(InterpretRaw(propagated), CompileRaw(propagated));
     }
 
     [Fact]
@@ -6519,12 +6536,12 @@ public class PipelineTests
             Define empties as a series of text with ().
             If empties is a series of number, State "matched number". Otherwise, State "not number".
             """;
-        Assert.Equal(Interpret(emptySeries), Compile(emptySeries));
+        Assert.Equal(InterpretRaw(emptySeries), CompileRaw(emptySeries));
         const string emptyMap = """
             Define em as a map from text to text with ().
             If em is a map from text to number, State "matched". Otherwise, State "not matched".
             """;
-        Assert.Equal(Interpret(emptyMap), Compile(emptyMap));
+        Assert.Equal(InterpretRaw(emptyMap), CompileRaw(emptyMap));
         const string voidableEmpty = """
             Bind voidable series of text to maybe:
                 Return a series of text with ().
@@ -6532,7 +6549,7 @@ public class PipelineTests
             Define mv as cast maybe.
             If mv is a voidable series of number, State "matched". Otherwise, State "not matched".
             """;
-        Assert.Equal(Interpret(voidableEmpty), Compile(voidableEmpty));
+        Assert.Equal(InterpretRaw(voidableEmpty), CompileRaw(voidableEmpty));
     }
 
     [Fact]
@@ -6552,7 +6569,7 @@ public class PipelineTests
             If absent is a voidable number, State "void IS voidable-number". Otherwise, State "void NOT".
             If present is a voidable number, State "present IS voidable-number". Otherwise, State "present NOT".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6568,7 +6585,7 @@ public class PipelineTests
             If (cast pick on (true)) is a number, State "present is number". Otherwise, State "present not".
             If (cast pick on (false)) is a number, State "absent is number". Otherwise, State "absent not".
             """;
-        Assert.Equal(Interpret(voidable), Compile(voidable));
+        Assert.Equal(InterpretRaw(voidable), CompileRaw(voidable));
         const string iface = """
             Define speaker as an interface for the text function speak.
             Define object dog with (the text name) and speaker:
@@ -6588,7 +6605,7 @@ public class PipelineTests
             State cast describe on (a new dog { the name "R" }).
             State cast describe on (a new cat { the name "T" }).
             """;
-        Assert.Equal(Interpret(iface), Compile(iface));
+        Assert.Equal(InterpretRaw(iface), CompileRaw(iface));
     }
 
     [Fact]
@@ -6604,7 +6621,7 @@ public class PipelineTests
             Define n as 5.
             If n is a text, State "num is text". Otherwise, State "num not text".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── CAT.2: open unions (bounded — the whole-program discovery pass) ──
@@ -6624,7 +6641,7 @@ public class PipelineTests
                 Otherwise, State "f".
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6641,7 +6658,7 @@ public class PipelineTests
                 Otherwise, State "?".
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6657,7 +6674,7 @@ public class PipelineTests
                 Otherwise, State "t".
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6677,7 +6694,7 @@ public class PipelineTests
             a2 becomes a1.
             State the number of a2.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6689,7 +6706,7 @@ public class PipelineTests
             Define items as a catalogue.
             State the number of items.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6711,7 +6728,7 @@ public class PipelineTests
             Add true to items.
             Cast show on (items).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6726,7 +6743,7 @@ public class PipelineTests
                 Otherwise, State "other".
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6745,7 +6762,7 @@ public class PipelineTests
             Done.
             State cast compute.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── CAT.3: union BREADTH — unions in record/object fields, unions across channels/tasks ──
@@ -6770,7 +6787,7 @@ public class PipelineTests
             Define v as first's value.
             If v is a number, State v + 1.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6802,7 +6819,7 @@ public class PipelineTests
             Done.
             State r2.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6834,7 +6851,7 @@ public class PipelineTests
             Done.
             State cast show on ().
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6854,7 +6871,7 @@ public class PipelineTests
             State two-v.
             If one-v is a number, State one-v + 1.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6869,7 +6886,7 @@ public class PipelineTests
                 State e.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6916,7 +6933,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6957,7 +6974,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -6997,7 +7014,7 @@ public class PipelineTests
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7030,7 +7047,7 @@ public class PipelineTests
                 State cast kind on (1).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Arc 3: OPERATOR OVERLOADING ──────────────────────────────────────────
@@ -7063,7 +7080,7 @@ public class PipelineTests
             State (p * q) + 5.
             State 3 + 4.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7095,7 +7112,7 @@ public class PipelineTests
             Define fallback as (big / zero) but on failure (a new money { the cents -1 }).
             State fallback.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7134,7 +7151,7 @@ public class PipelineTests
             State fromFn's label.
             State the number of fromFn's items.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7170,7 +7187,7 @@ public class PipelineTests
                 State doubled's y.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7194,7 +7211,7 @@ public class PipelineTests
                 If d is not void, state d.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Arc 3: INTERFACES (DD.1 — monomorphization) ──────────────────────────
@@ -7235,7 +7252,7 @@ public class PipelineTests
             Cast announce on (c).
             State cast loudness on (d, 26).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7289,7 +7306,7 @@ public class PipelineTests
             State cast repeat-vol on (d, 3).
             State cast repeat-vol on (c, 2).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7328,7 +7345,7 @@ public class PipelineTests
             State cast viaClosure on (d).
             State cast viaClosure on (c).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7369,7 +7386,7 @@ public class PipelineTests
                 State r2.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Arc 3: DESTRUCTORS (`unmaking`) — UNMK.1 + UNMK.2 (MATCH-EXACTLY) ─────
@@ -7399,7 +7416,7 @@ public class PipelineTests
             Done.
             State "after block".
             """;
-        Assert.Equal(Interpret(block), Compile(block));
+        Assert.Equal(InterpretRaw(block), CompileRaw(block));
     }
 
     [Fact]
@@ -7415,7 +7432,7 @@ public class PipelineTests
             Cast work.
             State "after fn".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7431,7 +7448,7 @@ public class PipelineTests
             Done.
             State "after loop".
             """;
-        Assert.Equal(Interpret(fe), Compile(fe));
+        Assert.Equal(InterpretRaw(fe), CompileRaw(fe));
     }
 
     [Fact]
@@ -7447,7 +7464,7 @@ public class PipelineTests
             Done.
             State "after".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7464,13 +7481,13 @@ public class PipelineTests
             Done.
             State "after".
             """;
-        Assert.Equal(Interpret(container), Compile(container));
+        Assert.Equal(InterpretRaw(container), CompileRaw(container));
         const string temp = UnmakerHdr + """
             Pull a rabbit.
                 State "id is " joined to (a new handle { the id "TEMP" })'s id.
             Done.
             """;
-        Assert.Equal(Interpret(temp), Compile(temp));
+        Assert.Equal(InterpretRaw(temp), CompileRaw(temp));
         const string field = UnmakerHdr + """
             Define object wrapper with (the handle inner, the text tag).
             Bind unmaking a wrapper to dispose:
@@ -7481,7 +7498,7 @@ public class PipelineTests
                 State "made wrapper".
             Done.
             """;
-        Assert.Equal(Interpret(field), Compile(field));
+        Assert.Equal(InterpretRaw(field), CompileRaw(field));
     }
 
     [Fact]
@@ -7497,7 +7514,7 @@ public class PipelineTests
             Done.
             State "after".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7515,7 +7532,7 @@ public class PipelineTests
             Done.
             State "result " joined to ((cast work) converted to text).
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7538,7 +7555,7 @@ public class PipelineTests
             Done.
             State "done".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7578,7 +7595,7 @@ public class PipelineTests
             Done.
             State "after try".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7605,7 +7622,7 @@ public class PipelineTests
             Done.
             State "after".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7627,7 +7644,7 @@ public class PipelineTests
                 State "result " joined to (r converted to text).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── Refusal messages are user-facing ──────────────────────────────────────────────────────
@@ -7656,7 +7673,7 @@ public class PipelineTests
                 State the awaited result of outer.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7687,7 +7704,7 @@ public class PipelineTests
             Define downs as range 5 to 1 counting by 2.
             State downs.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // Materializing a range and iterating one must agree — the value form reuses the for-each
@@ -7703,7 +7720,7 @@ public class PipelineTests
             State collected.
             State range 5 to 1 counting by 2.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // A LITERAL zero step is rejected by the shared type checker, but a computed one can only be
@@ -7727,7 +7744,7 @@ public class PipelineTests
             State "after".
             """;
         Assert.Contains(fragment, Interpret(src));
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // The same guard on the for-each form, which had it neither.
@@ -7747,7 +7764,7 @@ public class PipelineTests
             Done.
             State "after".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── TCAP — a task may capture any type, not just number/fact/channel ───────────────────────
@@ -7774,7 +7791,7 @@ public class PipelineTests
                 State the awaited result of sum.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7791,7 +7808,7 @@ public class PipelineTests
                 State the awaited result of len.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7813,7 +7830,7 @@ public class PipelineTests
                 State the awaited result of s.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // The crux for a DEEP copy: an object with a series field, inside a series. A shallow bridge
@@ -7840,7 +7857,7 @@ public class PipelineTests
                 State the awaited result of total.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -7868,7 +7885,7 @@ public class PipelineTests
                 State (the awaited result of alpha) + (the awaited result of beta).
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ★ The one shape that must NOT compile. The interpreter hands task bodies the LIVE enclosing
@@ -7936,7 +7953,7 @@ public class PipelineTests
             Done.
             State "done".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -8021,7 +8038,7 @@ public class PipelineTests
                 State the awaited result of run-it.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // Mutation reached through a CALL is refused too — argument binding shares series and maps with
@@ -8069,7 +8086,7 @@ public class PipelineTests
             Done.
             State outer.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -8086,7 +8103,7 @@ public class PipelineTests
             Done.
             State s.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -8104,7 +8121,7 @@ public class PipelineTests
             State the size of counts.
             State counts.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // A map is the only store in the language with TWO escaping operands, and the key half had no
@@ -8126,7 +8143,7 @@ public class PipelineTests
             State the size of store.
             State store.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ── ESC.3 — nonlocal exits out of a rabbit unwind its arena ────────────────────────────────
@@ -8157,7 +8174,7 @@ public class PipelineTests
             Done.
             State total.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -8176,7 +8193,7 @@ public class PipelineTests
             Done.
             State t.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -8202,7 +8219,7 @@ public class PipelineTests
             Done.
             State "done".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -8234,7 +8251,7 @@ public class PipelineTests
             Done.
             State "done".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // The failure-goto is emitted from four places, not one — a bare fallible call, a bare pipe
@@ -8262,7 +8279,7 @@ public class PipelineTests
             Done.
             State "done".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -8284,7 +8301,7 @@ public class PipelineTests
             Done.
             State "done".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // `Suppress` jumps to the end of its exception handler, so a rabbit opened inside the handler
@@ -8310,7 +8327,7 @@ public class PipelineTests
             Done.
             State "done".
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // ★ The reason a return MERGES its rabbit's arena outward instead of copying the value into the
@@ -8334,7 +8351,7 @@ public class PipelineTests
             State outer.
             State r.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // An I/O failure's message is arena-templated (cufet_arena_msg), so both the goto-to-handler and
@@ -8372,7 +8389,7 @@ public class PipelineTests
                 State the message of the failure.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // Reclamation, not just non-crashing: 20,000 iterations each building a 200-element series
@@ -8405,7 +8422,7 @@ public class PipelineTests
             Done.
             State t.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
@@ -8429,7 +8446,86 @@ public class PipelineTests
                 State r.
             Done.
             """;
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ── Line endings on stdout ───────────────────────────────────────────
+    //
+    // Windows opens stdout in text mode, so the C runtime rewrote every '\n' on its way out as
+    // "\r\n". A '\n' the program put INSIDE a text value is data, and rewriting it made the
+    // compiled backend print something the interpreter did not.
+    //
+    // ★ The oracle could not see it. Both runners normalised "\r\n" to "\n" before comparing, so
+    // the rewritten data compared equal to the untouched data. It took a literal containing a
+    // "\r\n" PAIR — which normalisation cannot flatten — for the difference to surface at all.
+    // The comparison is byte-exact now; these tests pin the behaviour directly so the two halves
+    // (data preserved, terminator agreed) are each named rather than implied.
+
+    [Fact]
+    public void EmbeddedNewline_IsDataAndIsNotRewritten()
+    {
+        // The bug, at its smallest. Compiled used to give "a\r\nb"; the interpreter gave "a\nb".
+        Assert.Equal("a\nb" + Environment.NewLine, CompileRaw("State \"a\\nb\"."));
+        Assert.Equal(InterpretRaw("State \"a\\nb\"."), CompileRaw("State \"a\\nb\"."));
+    }
+
+    [Fact]
+    public void EmbeddedCarriageReturnNewline_SurvivesAsTyped()
+    {
+        // The shape that finally exposed it, because normalising cannot flatten a pair.
+        Assert.Equal("a\r\nb" + Environment.NewLine, CompileRaw("State \"a\\r\\nb\"."));
+        Assert.Equal(InterpretRaw("State \"a\\r\\nb\"."), CompileRaw("State \"a\\r\\nb\"."));
+    }
+
+    [Fact]
+    public void StateTerminator_IsThePlatformNewline()
+    {
+        // The other half: the terminator must still agree with the interpreter's WriteLine.
+        Assert.Equal("hi" + Environment.NewLine, CompileRaw("State \"hi\"."));
+        Assert.Equal(InterpretRaw("State \"hi\"."), CompileRaw("State \"hi\"."));
+    }
+
+    [Fact]
+    public void GeneratedC_UsesTheNewlineMacro()
+    {
+        // ★ The guard against the next one. Eleven sites printed a terminator by hand, and a new
+        // `State` arm added later would silently reintroduce the bug on Windows — the per-site
+        // pattern this codebase keeps getting caught by. Exercises every arm of the State switch
+        // so a newly added one cannot slip past by not being covered.
+        const string src = """
+            Define object point with (the number x, the number y).
+            Define nums as a series of number with (1, 2).
+            Define pair as a record with (the a 1, the b 2).
+            Define lookup as a map from text to number with ("a" : 1).
+            Define spot as a new point { the x 1, the y 2 }.
+            Define the (number or text) either as 1.
+            Define the voidable number maybe as 7.
+            State 1.
+            State "text".
+            State true.
+            State 0x0F.
+            State nums.
+            State pair.
+            State spot.
+            State lookup.
+            State either.
+            State maybe.
+            """;
+
+        // The matrix arm needs its book, so it gets its own program rather than reshaping this one.
+        const string matrixSrc = """
+            Pull a book on collections.
+                Define grid as a matrix with 2 by 2 filled with 0.
+                State grid.
+            Done.
+            """;
+
+        foreach (var c in new[] { GenerateC(src), GenerateC(matrixSrc) })
+        {
+            Assert.DoesNotContain("printf(\"\\n\")", c);
+            Assert.Contains("cufet_nl()", c);
+            Assert.Contains("CUFET_STDOUT_BINARY();", c);
+        }
     }
 
     // ── Verbatim text: <<...>> ───────────────────────────────────────────
@@ -8442,7 +8538,7 @@ public class PipelineTests
     public void RawText_Prints_MatchesInterpreter()
     {
         const string src = "State <<hello>>.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("hello", Compile(src));
     }
 
@@ -8450,7 +8546,7 @@ public class PipelineTests
     public void RawText_WithQuotes_MatchesInterpreter()
     {
         const string src = "State <<say \"hi\">>.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("say \"hi\"", Compile(src));
     }
 
@@ -8460,7 +8556,7 @@ public class PipelineTests
         // A lone trailing backslash is the case a C emitter gets wrong if it forwards the text
         // unescaped — it would swallow the closing quote of the emitted C literal.
         const string src = @"State <<C:\Users\>>.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal(@"C:\Users\", Compile(src));
     }
 
@@ -8468,7 +8564,7 @@ public class PipelineTests
     public void RawText_WithBraces_MatchesInterpreter()
     {
         const string src = "State <<{\"name\": \"x\"}>>.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("{\"name\": \"x\"}", Compile(src));
     }
 
@@ -8478,7 +8574,7 @@ public class PipelineTests
         // `\n` here is a backslash and an n, so this prints on ONE line. If either backend
         // interpreted it, this would print on two and the lengths would differ.
         const string src = "State the length of <<a\\nb>>.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("4", Compile(src));
     }
 
@@ -8486,7 +8582,7 @@ public class PipelineTests
     public void RawText_MultiLine_MatchesInterpreter()
     {
         const string src = "State <<one\ntwo>>.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("one\ntwo", Compile(src));
     }
 
@@ -8494,7 +8590,7 @@ public class PipelineTests
     public void RawText_Nested_MatchesInterpreter()
     {
         const string src = "State <<a <<b>> c>>.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("a <<b>> c", Compile(src));
     }
 
@@ -8505,7 +8601,7 @@ public class PipelineTests
         const string src =
             "Define name as \"world\".\n" +
             "State <<{hello}: >> joined to name.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("{hello}: world", Compile(src));
     }
 
@@ -8518,14 +8614,14 @@ public class PipelineTests
             "State the length of pattern.\n" +
             "State pattern in uppercase.\n" +
             "State pattern contains <<\\d>>.";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]
     public void RawText_InsideAnInterpolationHole_MatchesInterpreter()
     {
         const string src = "State \"[{<<{x}>>}]\".";
-        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("[{x}]", Compile(src));
     }
 }

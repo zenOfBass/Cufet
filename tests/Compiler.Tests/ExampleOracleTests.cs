@@ -44,6 +44,11 @@ public class ExampleOracleTests
     // examples belongs in a subdirectory of them.
     private static string ExpectedDir => Path.Combine(ExampleDir, "expected");
 
+    // Only for the `.expected` comparison, never for backend-vs-backend. A pinned file is checked
+    // in and travels through git's line-ending conversion, so holding it to the byte would fail on
+    // whoever's autocrlf differs. The oracle assertion has no such excuse and compares verbatim.
+    private static string Norm(string s) => s.Replace("\r\n", "\n").TrimEnd('\n');
+
     /// <summary>
     /// Examples the COMPILER cannot build on this platform, with the reason. Concurrency and
     /// subprocess programs need pthreads, sigaction and fork — POSIX, guarded in the emitted C, and
@@ -163,6 +168,9 @@ public class ExampleOracleTests
                 $"Otherwise this is a real compiler regression.\n\n{e.Message}");
         }
 
+        // ★ Byte for byte, deliberately. Both runners return output VERBATIM — see the note on
+        // Interpret — because the two backends are meant to agree on every byte, and a comparison
+        // that normalises line endings first cannot see a backend that rewrites them.
         var interpreted = Interpret(program);
         Assert.Equal(interpreted, compiled);
 
@@ -180,17 +188,17 @@ public class ExampleOracleTests
 
         if (Environment.GetEnvironmentVariable("CUFET_EXAMPLE_EXPECTED") == "1")
         {
-            File.WriteAllText(expectedPath, interpreted + "\n");
+            File.WriteAllText(expectedPath, Norm(interpreted) + "\n");
             return;
         }
 
-        var expected = File.ReadAllText(expectedPath).Replace("\r\n", "\n").TrimEnd('\n');
-        Assert.True(expected == interpreted,
+        var expected = Norm(File.ReadAllText(expectedPath));
+        Assert.True(expected == Norm(interpreted),
             $"{file} no longer produces its recorded output.\n" +
             "Both backends agree, so this is not a divergence — the program's behaviour changed.\n" +
             "If the new output is correct:\n" +
             "  CUFET_EXAMPLE_EXPECTED=1 dotnet test --filter ExampleOracleTests\n\n" +
-            $"--- expected ---\n{expected}\n--- actual ---\n{interpreted}");
+            $"--- expected ---\n{expected}\n--- actual ---\n{Norm(interpreted)}");
     }
 
     /// <summary>
@@ -268,6 +276,9 @@ public class ExampleOracleTests
     // reports the tests that finished as passing and exits non-zero with no failure to point at.
     // The example ran fine under `cufet`, which has always had the big stack; only the harness did
     // not.
+    //
+    // ★ Returns output VERBATIM. Normalising line endings here would defeat the comparison this
+    // suite exists for — see the note at the assertion.
     private static string Interpret(Program program)
     {
         var sb = new StringWriter();
@@ -288,7 +299,7 @@ public class ExampleOracleTests
             }
             finally { Directory.SetCurrentDirectory(saved); }
         }
-        return sb.ToString().Replace("\r\n", "\n").TrimEnd('\n');
+        return sb.ToString();
     }
 
     // The binary gets its working directory set directly, so no global state is touched.
@@ -320,7 +331,7 @@ public class ExampleOracleTests
             using var proc = Process.Start(psi)!;
             var output = proc.StandardOutput.ReadToEnd();
             proc.WaitForExit();
-            return output.Replace("\r\n", "\n").TrimEnd('\n');
+            return output;
         }
         finally { try { File.Delete(binPath); } catch { } }
     }
