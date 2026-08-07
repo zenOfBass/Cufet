@@ -50,8 +50,37 @@ public sealed class GccInvoker
             var stderr = proc.StandardError.ReadToEnd();
             proc.WaitForExit();
             if (proc.ExitCode != 0)
-                throw new CompilerException($"gcc compilation failed:\n{stderr.Trim()}");
+                throw new CompilerException(BuildFailureMessage(cSourcePath, stderr.Trim()));
         }
+    }
+
+    // ★ gcc failing on the generated C is not the author's mistake to fix.
+    //
+    // Every line gcc reads was written by this compiler, so an error pointing INSIDE that file
+    // means the code generator emitted something invalid — a defect here, not a problem with the
+    // Cufet program. Saying only "gcc compilation failed" and pasting a complaint about generated
+    // identifiers hands the author a diagnostic they cannot act on and implies the fault is theirs.
+    //
+    // That is exactly how the Judge grouped-arm bug presented: `cufet check --native` reported the
+    // program clean, and the only symptom was gcc objecting to a member of `cun_0` — a name that
+    // appears nowhere in the source and means nothing to the person who wrote it.
+    //
+    // An error that does NOT point into the generated file is an environment problem — no
+    // toolchain header, a linker failure — which the author CAN act on, so it is said plainly
+    // instead of being dressed up as a bug report.
+    private static string BuildFailureMessage(string cSourcePath, string stderr)
+    {
+        if (!stderr.Contains(Path.GetFileName(cSourcePath), StringComparison.Ordinal))
+            return $"gcc could not build the generated C:\n{stderr}\n\n"
+                 + "Nothing here points inside the generated file, so this is most likely a problem "
+                 + "with the toolchain rather than with your program.";
+
+        return "★ This is a bug in the Cufet compiler, not in your program.\n\n"
+             + "The C that gcc rejected was written by cufet, so nothing you change in the .cufe "
+             + "file is at fault. What gcc said:\n\n"
+             + $"{stderr}\n\n"
+             + "Please report it with the program and this message. `cufet emit-c <file.cufe> out.c` "
+             + "writes the generated C if that helps.";
     }
 
     private static string FindGcc()

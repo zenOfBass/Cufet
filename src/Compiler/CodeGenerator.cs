@@ -5456,7 +5456,23 @@ static void* cufet_pipe_stage(void* argp) {
             ExceptionMarkerType => _currentExcVar ?? throw new CompilerException("'the exception' is only available inside an 'In case of exception' handler."),
         MappingType       => $"{EmitExpr(target)}_{member}",   // the key/value of pair → cv_pair_key/_value
             FailureMarkerType => member == "message" ? $"({EmitExpr(target)}).message" : EmitFailureCategory(EmitExpr(target)),
-            _                 => $"({EmitExpr(target)}).{MangleName(member)}"   // record field
+            RecordType        => $"({EmitExpr(target)}).{MangleName(member)}",   // record field
+            // ★ NO catch-all, deliberately. This arm used to be `_ =>` and emitted the record shape
+            // for whatever arrived, on the assumption that nothing else could. A union reached it
+            // once — see the Judge grouped-arm fix — and the result was C naming a struct member
+            // that does not exist: invalid code emitted WITHOUT raising, so `cufet check --native`
+            // called the program clean and the only symptom was gcc failing at build time with a
+            // message about generated identifiers.
+            //
+            // Refusing is the whole point. `check --native` reports what the compiler refuses, so a
+            // throw here becomes a warning in the editor on the line responsible, while emitting
+            // becomes a broken build with nothing to act on. A wrong refusal is a visible bug; a
+            // wrong emission is an invisible one.
+            var other => throw new CompilerException(
+                other is UnionType u
+                    ? $"'{member}' cannot be read from a {FormatTypeName(u)} — narrow it to a single " +
+                      "case first (`If it is a <case>: …`) and read the member there."
+                    : $"reading '{member}' from a {FormatTypeName(other)} is not supported by the compiler."),
         };
     }
 

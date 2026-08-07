@@ -8449,6 +8449,57 @@ public class PipelineTests
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── When the compiler emits C that will not build ────────────────────
+    //
+    // ★ `cufet check --native` reports what the code generator REFUSES, and that is only as good
+    // as the generator refusing. It can also emit invalid C and return normally, in which case the
+    // check reports the program clean and gcc fails at build time — which is what the Judge
+    // grouped-arm bug did. Two things narrow that gap: the generator refuses instead of guessing
+    // (EmitMemberAccess has no catch-all any more), and a gcc failure is reported as what it is.
+
+    [Fact]
+    public void GccFailureOnGeneratedC_IsReportedAsACompilerBug()
+    {
+        // Everything gcc reads was written by cufet, so an error inside that file is never the
+        // author's to fix. Standing in for a code-generator defect with C that cannot compile.
+        var cPath = Path.GetTempFileName() + ".c";
+        var binPath = Path.GetTempFileName() + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "");
+        try
+        {
+            File.WriteAllText(cPath, "int main(void) { struct { int a; } s; return s.nope; }\n");
+            var e = Assert.Throws<CompilerException>(() => new GccInvoker().Compile(cPath, binPath));
+
+            Assert.Contains("bug in the Cufet compiler", e.Message);
+            Assert.Contains("not in your program", e.Message);
+            Assert.Contains("emit-c", e.Message);          // how to get the C to report it with
+            Assert.Contains("nope", e.Message);            // gcc's own words are still there
+        }
+        finally
+        {
+            try { File.Delete(cPath); } catch { }
+            try { File.Delete(binPath); } catch { }
+        }
+    }
+
+    [Fact]
+    public void MemberAccess_OnSomethingWithNoMembers_IsRefusedByTheFrontEnd()
+    {
+        // ★ The front end owns this, and the generator's refusal sits BEHIND it as a backstop with
+        // no route from source — every type the checker permits `'s` on (object, matrix, mapping,
+        // record, failure, exception, book) now has an explicit arm in EmitMemberAccess, so the
+        // throw is unreachable today and deliberately so. It exists because the arm it replaced was
+        // a catch-all that emitted the record shape for whatever arrived: when a union reached it
+        // through the Judge grouped-arm bug, the result was invalid C emitted WITHOUT raising, so
+        // `check --native` called the program clean. Should checker and generator ever disagree
+        // again, that now costs a refusal — which `check --native` reports — instead of a build
+        // that fails with a message about generated identifiers.
+        var e = Assert.Throws<TypeException>(() => GenerateC("""
+            Define nums as a series of number with (1, 2).
+            State nums's nope.
+            """));
+        Assert.Contains("requires an object", e.Message);
+    }
+
     // ── Judge: narrowing again inside a grouped arm ──────────────────────
     //
     // A grouped arm (`A quote or a paragraph:`) leaves `it` a union, so the arm itself narrows the

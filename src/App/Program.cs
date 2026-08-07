@@ -55,8 +55,9 @@ static void Help()
         check exits 0 when the program will run and 1 when it will not. An ERROR means it
         will not run; a WARNING means it will, and something about it is worth knowing, so
         warnings alone still exit 0. --strict makes any warning exit 1, for a CI gate.
-        --native adds what the native compiler refuses; those programs still interpret, so
-        they come back as warnings. --json writes one diagnostic per line, for editors.
+        --native adds what the native compiler REFUSES; those programs still interpret, so
+        they come back as warnings. A clean --native is not a promise the build will
+        succeed — only `build` proves that. --json writes one diagnostic per line, for editors.
         Running and building print warnings to stderr and carry on.
 
         tokens writes the semantic kind — variable, function, type, parameter, property,
