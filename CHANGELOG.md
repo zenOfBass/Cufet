@@ -169,6 +169,38 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★ Compiled, narrowing again inside a Judge's grouped arm emitted C that would not compile.**
+
+  ```
+  Judge thing, where it is:
+      An alpha or a beta:
+          If it is an alpha, return it's source.
+          Otherwise, return it's body.       ← 'cun_0' has no member named 'cv_body'
+      Done.
+      A gamma, return it's tag.
+  Done.
+  ```
+
+  A grouped arm leaves `it` a union, so the arm narrows its **type** without changing its
+  **representation** — the C variable is still the subject's whole union struct. Narrowing again
+  inside the arm is exhaustive to the checker, which eliminates from the arm's two cases and lands
+  on one. The compiler eliminated from the subject's three, found two left, declined to narrow, and
+  then emitted the field access against the union anyway.
+
+  The fix records which cases an arm leaves reachable and eliminates from that, while every emitted
+  access still indexes the representation union — a set rather than a substituted narrower type,
+  because an arm's case order need not match the subject's and a sub-union's own indices would
+  reach the wrong member. Three cases is the smallest shape that shows the bug: with two, the arm
+  covers everything and the two elimination sets agree.
+
+  ⚠ **`cufet check --native` reported no problems on it.** Its job is to run codegen and report what
+  the compiler refuses, but it only reports what codegen *throws* on — here codegen ran to
+  completion and produced C that gcc rejects, so the editor, the check verb and any front-end CI
+  pass all said clean and the failure appeared only at `build`. The narrowing bug is fixed; **that
+  gap is not**, and it is the more general problem.
+
+  Found by `examples/renderer.cufe`, which is now pinned.
+
 - **★ Compiled, a newline INSIDE a text value was rewritten on Windows.** `State "a\nb".` printed
   `61 0a 62` interpreted and `61 0d 0a 62` compiled — a live divergence, present since escape
   sequences existed.
