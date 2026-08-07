@@ -33,6 +33,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   does, so nothing downstream can tell — or needs to tell — which form produced the text, and every
   text operation works on one unchanged.
 
+- **A line break inside a text literal is one `\n`**, whatever the file is stored as, for `"..."`
+  as well as `<<...>>`. A CRLF source no longer puts a `\r` into the text.
+
+  This is a language rule rather than a lexer convenience. Without it the same program means
+  different things depending on how the working tree was checked out — `the length of` differs, and
+  a comparison against `"a\nb"` succeeds on one machine and fails on another. A language that
+  already makes "a character is a Unicode code point" a rule binding on both backends cannot leave
+  this one to git's autocrlf setting. It matters most for verbatim text, where a multi-line literal
+  is the ordinary way to write one and there is no escape to reach for instead.
+
+  A **lone** `\r` is not a line break on any platform Cufet targets, so one written deliberately is
+  kept as a carriage return.
+
+  `examples/rawtext.cufe` found this, and it is the first thing the new example harness caught that
+  the unit suites could not: the bug needed a real file, stored with real line endings, run on both
+  backends.
+
   ★ **The `exactly` modifier that was planned alongside this is dropped, not deferred.** The two
   were designed as independent switches — `<<...>>` turning escapes off, `exactly` turning
   interpolation off — which would have given four combinations. It does not survive contact: with

@@ -663,6 +663,13 @@ Define note as <<first line
 second line>>.
 ```
 
+★ **A line break in a literal is one `\n`**, whatever the file is stored as. A CRLF source does
+not put a `\r` into the text, so `the length of note` is 22 on every platform and a checkout
+that converts line endings cannot change what a program means. This holds for `"..."` too; it
+matters most here, because a multi-line verbatim literal is the ordinary way to write one and
+there is no escape to reach for instead. (A *lone* `\r` is not a line break, so one you write
+deliberately is kept.)
+
 ★ **There is no interpolation here** — that is the trade for total literalness. Join instead,
 which is what a hole is doing anyway:
 

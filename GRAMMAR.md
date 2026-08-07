@@ -190,6 +190,13 @@ quoted literal cannot hold plainly, and a form that suppressed one but not the o
 still need an escape for the other. The trade is that there is no hole inside it — use
 `joined to`.
 
+**★ A line break inside either form is one `\n`, whatever the file is stored as.** A CRLF source
+does not put a `\r` into the text. This is a language rule, not a lexer convenience: without it
+the same program means different things depending on how the working tree was checked out —
+`the length of` differs, and a comparison against `"a\nb"` fails on one machine and not another.
+A *lone* `\r` is not a line break on any platform Cufet targets, so one written deliberately is
+kept as a carriage return.
+
 **A character is a Unicode code point.** Every count and position — `the length of`, `the
 characters from N to M`, `the first`/`last N characters`, and what `the position of` returns — is
 measured in code points on **both** backends, regardless of how each one stores text (UTF-16
