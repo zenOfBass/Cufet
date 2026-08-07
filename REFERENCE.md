@@ -3138,6 +3138,24 @@ The lexer, parser, and type checker are shared, so a program that type-checks do
 identically either way, and every error message you have seen in this document is the
 same in both.
 
+**Checking native compatibility ahead of time** — `cufet check --native` runs the code
+generator without invoking `gcc` and reports what it **refuses**, as warnings, since those
+programs still interpret:
+
+```
+cufet check --native program.cufe
+```
+
+> ★ **A clean `--native` is not a promise the build will succeed.** It reports refusals,
+> and a refusal is the code generator saying so out loud. It cannot report a defect *in*
+> the generator — code that is emitted but does not compile — because from the generator's
+> side that looks like success. `cufet build` is the only thing that proves a program
+> builds, because only `gcc` reads the result.
+>
+> If `build` fails on the generated C, that is a **bug in Cufet, not in your program** —
+> every line `gcc` saw was written by the compiler — and it says so, with `emit-c` to get
+> the generated source to report alongside it.
+
 #### What you get
 
 A compiled program is an ordinary native executable. Its sections are real: functions

@@ -201,6 +201,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
   Found by `examples/renderer.cufe`, which is now pinned.
 
+- **★ The code generator could emit C that would not build, without saying anything.** The member
+  access it emits ended in a catch-all — *anything that gets here is a record* — so whatever
+  arrived got the record shape. A union arrived (the Judge bug above) and the result was C naming
+  a struct member that does not exist.
+
+  The catch-all is gone. Every type the checker permits `'s` on has an explicit arm, and anything
+  else is **refused** instead of emitted. That matters beyond the one bug: `cufet check --native`
+  reports what the generator refuses, so a refusal becomes a warning on the responsible line in the
+  editor, while a bad emission is a build failure with nothing to act on.
+
+  ⚠ **Said plainly in `REFERENCE.md` and in `--help`: a clean `--native` is not a promise the build
+  will succeed.** It reports refusals, and it cannot report a defect *in* the generator, because
+  from the generator's side emitting bad code looks like success. `cufet build` is the only proof.
+
+- **A failed `gcc` build now says it is a compiler bug.** Every line `gcc` reads was written by
+  `cufet`, so an error pointing inside the generated file is never the author's to fix. It used to
+  print `gcc compilation failed:` and paste a complaint about identifiers like `cun_0`, which names
+  nothing in the source and reads as though the program were at fault. It now says the defect is in
+  Cufet, keeps `gcc`'s own words, and points at `emit-c` for reporting it. An error that does *not*
+  point into the generated file is a toolchain problem and is still reported as one.
+
 - **★ Compiled, a newline INSIDE a text value was rewritten on Windows.** `State "a\nb".` printed
   `61 0a 62` interpreted and `61 0d 0a 62` compiled — a live divergence, present since escape
   sequences existed.
