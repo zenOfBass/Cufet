@@ -50,14 +50,15 @@ public sealed class Lexer
             tokens.Add(ReadNumber());
         else if (c == '"')
             ReadString(tokens);
+        // Tested BEFORE the symbol branch, which would otherwise take the first '<' as Lt.
+        // Nothing is taken away by that precedence: '<' '<' is two comparisons in a row, which
+        // no Cufet expression has.
+        else if (c == '<' && Next() == '<')
+            tokens.Add(ReadRawText());
         else if (c is '+' or '-' or '*' or '/' or '%' or '(' or ')' or '=' or '<' or '>' or ':' or ',' or '{' or '}' or '|')
             tokens.Add(ReadSymbol());
         else if (c == '\'')
             tokens.Add(ReadPossessive());
-        // DECIDED, DEFERRED:
-        //   <<...>> — verbatim strings with distinct open/close delimiters; nestable by depth-counting <</>>.
-        //   exactly — raw modifier (exactly "..." / exactly <<...>>) that suppresses interpretation.
-        //   Both wait until escape sequences exist and need a contrast.
         else if (c == '.')
         {
             tokens.Add(new Token(TokenType.Dot, ".", _line, ColumnAt(_pos)));
@@ -545,6 +546,71 @@ public sealed class Lexer
             tokens.AddRange(pieces);
             tokens.Add(new Token(TokenType.InterpolClose, "", _line, ColumnAt(_pos)));
         }
+    }
+
+    // Verbatim text: <<...>>. NOTHING inside is interpreted — no escape sequences, no
+    // interpolation holes — so the delimiters are the only structure a reader has to see.
+    //
+    // That totality is the whole point, and it is why the form gets its own delimiters rather
+    // than a modifier word on the quoted form. `"` and `{` are the two characters a quoted
+    // literal cannot hold plainly, and they are precisely the two that JSON, regular
+    // expressions, Windows paths and Cufet samples inside documentation are made of. A form
+    // that suppressed only one of them would still need an escape for the other, and an
+    // escape is the thing being escaped from.
+    //
+    // The cost, stated plainly: no interpolation here. `<<C:\Users\>> joined to name` builds
+    // what a hole would have built, and joining already chains.
+    //
+    // NESTING is depth-counted over '<<' and '>>', exactly as block comments count '/*' and
+    // '*/', and for the same reason — so that wrapping text that already contains the
+    // delimiters works. Inner pairs are kept in the text; only the matching outer '>>' closes.
+    //
+    // The one thing this cannot spell is text ENDING in '>', since '>>>' closes at the first
+    // two. Write that one with the quoted form. Every verbatim syntax has such a corner; this
+    // one is cheap to state and cheap to sidestep.
+    //
+    // The token is an ordinary String. A verbatim literal is a spelling, not a type: once
+    // lexed, nothing downstream can tell — or needs to tell — which form produced the text.
+    private Token ReadRawText()
+    {
+        // Like a quoted literal, this may run across newlines, so its position is the opener's.
+        int startLine = _line;
+        int startCol  = ColumnAt(_pos);
+        Advance(); // consume first '<'
+        Advance(); // consume second '<'
+        var sb = new System.Text.StringBuilder();
+        int depth = 1;
+
+        while (true)
+        {
+            if (AtEnd())
+                throw new LexerException(startLine, startCol,
+                    "unterminated verbatim text — expected '>>' to close it");
+            char c = Peek();
+
+            if (c == '<' && Next() == '<')
+            {
+                depth++;
+                Advance();
+                Advance();
+                sb.Append("<<");
+            }
+            else if (c == '>' && Next() == '>')
+            {
+                Advance();
+                Advance();
+                if (--depth == 0) break;
+                sb.Append(">>");
+            }
+            else
+            {
+                if (c == '\n') { _line++; _lineStart = _pos + 1; }
+                Advance();
+                sb.Append(c);
+            }
+        }
+
+        return new Token(TokenType.String, sb.ToString(), startLine, startCol);
     }
 
     private void SkipWhitespace()

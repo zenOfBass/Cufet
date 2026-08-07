@@ -8431,4 +8431,101 @@ public class PipelineTests
             """;
         Assert.Equal(Interpret(src), Compile(src));
     }
+
+    // ── Verbatim text: <<...>> ───────────────────────────────────────────
+    //
+    // Lexing is covered in Cufet.Lexer.Tests.RawTextTests. What is at stake HERE is that the
+    // text survives the trip through C: a verbatim literal makes it easy to write characters
+    // that previously reached a string only via an escape, and the emitter has to hold them.
+
+    [Fact]
+    public void RawText_Prints_MatchesInterpreter()
+    {
+        const string src = "State <<hello>>.";
+        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal("hello", Compile(src));
+    }
+
+    [Fact]
+    public void RawText_WithQuotes_MatchesInterpreter()
+    {
+        const string src = "State <<say \"hi\">>.";
+        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal("say \"hi\"", Compile(src));
+    }
+
+    [Fact]
+    public void RawText_WithBackslashes_MatchesInterpreter()
+    {
+        // A lone trailing backslash is the case a C emitter gets wrong if it forwards the text
+        // unescaped — it would swallow the closing quote of the emitted C literal.
+        const string src = @"State <<C:\Users\>>.";
+        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal(@"C:\Users\", Compile(src));
+    }
+
+    [Fact]
+    public void RawText_WithBraces_MatchesInterpreter()
+    {
+        const string src = "State <<{\"name\": \"x\"}>>.";
+        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal("{\"name\": \"x\"}", Compile(src));
+    }
+
+    [Fact]
+    public void RawText_UninterpretedEscapeIsTwoCharacters_MatchesInterpreter()
+    {
+        // `\n` here is a backslash and an n, so this prints on ONE line. If either backend
+        // interpreted it, this would print on two and the lengths would differ.
+        const string src = "State the length of <<a\\nb>>.";
+        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal("4", Compile(src));
+    }
+
+    [Fact]
+    public void RawText_MultiLine_MatchesInterpreter()
+    {
+        const string src = "State <<one\ntwo>>.";
+        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal("one\ntwo", Compile(src));
+    }
+
+    [Fact]
+    public void RawText_Nested_MatchesInterpreter()
+    {
+        const string src = "State <<a <<b>> c>>.";
+        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal("a <<b>> c", Compile(src));
+    }
+
+    [Fact]
+    public void RawText_JoinedToAQuotedLiteral_MatchesInterpreter()
+    {
+        // Joining is what stands in for the interpolation this form deliberately lacks.
+        const string src =
+            "Define name as \"world\".\n" +
+            "State <<{hello}: >> joined to name.";
+        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal("{hello}: world", Compile(src));
+    }
+
+    [Fact]
+    public void RawText_IsOrdinaryText_MatchesInterpreter()
+    {
+        // Same type, same operations — the form is a spelling, not a kind of value.
+        const string src =
+            "Define pattern as <<^\\d{3}$>>.\n" +
+            "State the length of pattern.\n" +
+            "State pattern in uppercase.\n" +
+            "State pattern contains <<\\d>>.";
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    [Fact]
+    public void RawText_InsideAnInterpolationHole_MatchesInterpreter()
+    {
+        const string src = "State \"[{<<{x}>>}]\".";
+        Assert.Equal(Interpret(src), Compile(src));
+        Assert.Equal("[{x}]", Compile(src));
+    }
 }

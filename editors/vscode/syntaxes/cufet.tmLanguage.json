@@ -32,6 +32,7 @@
     { "include": "#line-comment" },
     { "include": "#comment" },
     { "include": "#string" },
+    { "include": "#raw-text" },
     { "include": "#number" },
     { "include": "#declaration" },
     { "include": "#accessor-phrase" },
@@ -83,6 +84,16 @@
         },
         { "include": "#interpolation" }
       ]
+    },
+
+    "raw-text": {
+      "comment": "Verbatim text. Nothing inside is interpreted — no escapes, no interpolation — so unlike #string there are deliberately NO inner patterns. The self-include is the whole body, and it implements depth-counted nesting the way #comment does. Note this is matched before #operator, so '<<' never reaches the '<' rule.",
+      "name": "string.quoted.other.verbatim.cufet",
+      "begin": "<<",
+      "end": ">>",
+      "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.cufet" } },
+      "endCaptures":   { "0": { "name": "punctuation.definition.string.end.cufet" } },
+      "patterns": [ { "include": "#raw-text" } ]
     },
 
     "interpolation": {
