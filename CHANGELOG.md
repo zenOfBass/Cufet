@@ -106,17 +106,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `fork`). They are skipped **with a reason each**, and still held to the shared front end by a
   second theory — a platform gap never becomes a blind spot in the language.
 
-- **An example can pin its output, not just its agreement.** A `.expected` file beside an example
-  makes the harness assert the output matches it exactly. Opt-in — no file, no assertion — and
-  written for `config`, `huffmancoding`, `sudoku` and `recursivedescent`.
+- **An example can pin its output, not just its agreement.** An `examples/expected/<name>.expected`
+  file makes the harness assert the output matches it exactly. Opt-in — no file, no assertion — and
+  written for `config`, `huffmancoding`, `json`, `sudoku`, `recursivedescent` and `rawtext`.
+
+  The pins sit in their own directory rather than beside the programs: `examples/` is read by people
+  looking for programs, and one fixture per example halves the signal in that listing. `assets/`
+  already established that support material for the examples belongs in a subdirectory of them.
 
   ★ **Because agreement is not correctness.** The oracle proves the two backends say the same
   thing; it cannot tell whether that thing is right. `config.cufe` carries a deliberately malformed
   line so its error path runs, and if that warning ever stopped appearing both backends would agree
   on the new output and the test would still pass. Verified by deleting the malformed line: the
-  build now fails and shows the missing warning. A second check refuses a `.expected` beside an
-  example that never runs — a missing one, or a non-deterministic one like `markov` — so the file
-  cannot become an assertion nobody evaluates.
+  build now fails and shows the missing warning. A second check refuses a `.expected` for an example
+  that never runs — a missing one, or a non-deterministic one like `markov` — so the file cannot
+  become an assertion nobody evaluates. A third holds the pin count, because a deleted `.expected`
+  takes its assertion with it silently: the comparison is opt-in, so no file means no check and the
+  run stays green. Verified by moving one out and watching the count guard fail.
 
 - **Documented samples are held to the front end.** `DocBlockTests` extracts every fenced block from
   README, GRAMMAR and REFERENCE, runs the ~238 that look like programs, and records the 157 that
@@ -171,7 +177,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ★ **The test suite could not have caught this**, which is worth recording. Its interpreter side
   writes to an in-memory `StringWriter` and its compiled side reads the binary with
   `StandardOutputEncoding` already UTF-8, so both are lossless in-process and only the console ever
-  lost anything. Found by pinning `examples/json.expected` — the round-trip of `["héllo 👍"]` — and
+  lost anything. Found by pinning `examples/expected/json.expected` — the round-trip of `["héllo 👍"]` — and
   reading the bytes rather than the terminal. `json.expected` now holds that assertion permanently.
 
 - **★ An object declared inside a book pull crashed the compiler.** `CollectObjectDefs` was a

@@ -205,7 +205,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
     that same clause ends *"two well-defined behaviours differing is never in that category,"* and
     uppercasing `é` is well defined: Unicode says exactly what it is. The exception was covering a
     missing implementation rather than a genuine ambiguity. Found by pinning
-    `examples/json.expected`, which put a non-ASCII round trip under test for the first time.
+    `examples/expected/json.expected`, which put a non-ASCII round trip under test for the first time.
 
     **Settle before building:** how much of the table to carry. Full Unicode case mapping is large
     and has locale-sensitive corners (Turkish dotless ı, German ß → SS, and the one-to-many

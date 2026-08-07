@@ -1,0 +1,17 @@
+--- the sample, fenced ---
+```
+
+Define path as <<C:\Users\me>>.
+Define doc as <<{"name": "rabbit", "gift": "fire"}>>.
+State "the {hole} stays literal".
+
+```
+
+--- checks ---
+inner literal survived nesting: PASS
+json arrived verbatim (braces and quotes): PASS
+braces stayed literal (no interpolation): PASS
+multiline content counted 3 lines: PASS
+empty raw literal is empty: PASS
+raw and escaped forms agree on value: PASS
+concat idiom: C:\Users\kick_
