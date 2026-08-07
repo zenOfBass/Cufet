@@ -134,6 +134,31 @@ public class RawTextTests
     }
 
     [Fact]
+    public void RawText_CrlfBecomesOneNewline()
+    {
+        // ★ A line break is ONE '\n' whatever the file is stored as. Without this the same
+        // program means different things depending on how git checked it out — and a multi-line
+        // verbatim literal is the normal way to write one, with no escape to reach for instead.
+        Assert.Equal("one\ntwo", LexOne("<<one\r\ntwo>>").Lexeme);
+    }
+
+    [Fact]
+    public void RawText_CrlfIsCountedAsOneLine()
+    {
+        var tokens = Lex("<<one\r\ntwo>>\r\nfoo");
+        Assert.Equal("foo", tokens[1].Lexeme);
+        Assert.Equal(3, tokens[1].Line);
+        Assert.Equal(1, tokens[1].Column);
+    }
+
+    [Fact]
+    public void RawText_LoneCarriageReturnIsKept()
+    {
+        // Not a line break on any platform Cufet targets, so it meant a carriage return.
+        Assert.Equal("a\rb", LexOne("<<a\rb>>").Lexeme);
+    }
+
+    [Fact]
     public void RawText_LineCountingContinuesAfterIt()
     {
         var tokens = Lex("<<one\ntwo>>\nfoo");
@@ -193,6 +218,14 @@ public class RawTextTests
         // The hole lexes a full expression, and a verbatim literal is an expression.
         var tokens = Lex("\"a{<<{x}>>}b\"");
         Assert.Contains(tokens, t => t.Type == TokenType.String && t.Lexeme == "{x}");
+    }
+
+    [Fact]
+    public void QuotedLiteral_FollowsTheSameNewlineRule()
+    {
+        // The rule is about literals, not about this form — one helper serves both, so the two
+        // cannot drift into disagreeing about what a line break is.
+        Assert.Equal("one\ntwo", LexOne("\"one\r\ntwo\"").Lexeme);
     }
 
     [Fact]

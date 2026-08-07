@@ -529,7 +529,9 @@ public sealed class Lexer
             }
 
             // ── Ordinary character ───────────────────────────────────────────
-            if (c == '\n') { _line++; _lineStart = _pos + 1; }
+            // A line break inside a literal is ONE '\n', whatever the file is stored as — see
+            // the note on NewlineInLiteral.
+            if (NewlineInLiteral()) { sb.Append('\n'); continue; }
             Advance();
             sb.Append(c);
         }
@@ -604,13 +606,37 @@ public sealed class Lexer
             }
             else
             {
-                if (c == '\n') { _line++; _lineStart = _pos + 1; }
+                if (NewlineInLiteral()) { sb.Append('\n'); continue; }
                 Advance();
                 sb.Append(c);
             }
         }
 
         return new Token(TokenType.String, sb.ToString(), startLine, startCol);
+    }
+
+    // A line break inside a text literal, consumed and counted. Returns false if the position is
+    // not one, having consumed nothing.
+    //
+    // ★ A break is ONE '\n' in the value regardless of how the file stores it, so a CRLF source
+    // does not silently put a '\r' into the text. This is a LANGUAGE RULE, not a convenience:
+    // without it the same program means different things depending on how git checked it out —
+    // `the length of` differs, a comparison against "a\nb" fails — and a language that already
+    // makes "a character is a Unicode code point" a rule on both backends cannot leave this to
+    // the working tree. It matters most for verbatim text, where a multi-line literal is the
+    // normal way to write one and there is no escape to reach for instead.
+    //
+    // Lone CR is left alone: it is not a line break on any platform Cufet targets, so a program
+    // that has one meant a carriage return and gets one.
+    private bool NewlineInLiteral()
+    {
+        if (Peek() == '\r' && Next() == '\n') Advance();   // fall through to the '\n'
+        else if (Peek() != '\n') return false;
+
+        _line++;
+        Advance();
+        _lineStart = _pos;
+        return true;
     }
 
     private void SkipWhitespace()
