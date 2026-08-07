@@ -1,0 +1,82 @@
+/* renderer — a tiny folk-tale markup engine, and a Judge stress test.
+
+   Blocks are a closed union of object types; inline runs are a mixed
+   union of text and two object types. Every dispatch is a Judge:
+   exhaustive arms with no Otherwise, a grouped arm that must re-narrow
+   inside, an expression subject, and returns that live only in arms. */
+
+Define object heading with (the text title, the number level).
+Define object paragraph with (the catalogue of (text or emphasis or link) body).
+Define object quote with (the catalogue of (text or emphasis or link) body, the text source).
+Define object code-block with (the text content).
+Define object emphasis with (the text span).
+Define object link with (the text label, the text target).
+
+Bind text to render-inline, given (the (text or emphasis or link) piece):
+    Judge piece, where it is:
+        A text, return it.
+        An emphasis, return "*" joined to it's span joined to "*".
+        A link, return it's label joined to " (" joined to it's target joined to ")".
+    Done.
+Done.
+
+Bind text to render-body, given (the catalogue of (text or emphasis or link) body):
+    Define out as "".
+    For each piece in body, repeat:
+        The out becomes out joined to cast render-inline on (piece).
+    Done.
+    Return out.
+Done.
+
+Bind text to render-block, given (the (heading or paragraph or quote or code-block) block):
+    Judge block, where it is:
+        A heading:
+            Define marks as "".
+            Define i as 1.
+            While i is not greater than it's level, repeat:
+                The marks becomes marks joined to "#".
+                The i becomes i + 1.
+            Done.
+            Return marks joined to " " joined to it's title.
+        Done.
+        A quote or a paragraph:
+            If it is a quote:
+                Return "> " joined to cast render-body on (it's body) joined to " — " joined to it's source.
+            Done.
+            Otherwise:
+                Return cast render-body on (it's body).
+            Done.
+        Done.
+        A code-block, return "```" joined to "\n" joined to it's content joined to "\n```".
+    Done.
+Done.
+
+Bind void to play:
+    Define doc as a catalogue of (heading or paragraph or quote or code-block) with (
+        a new heading { the title "How Rabbit Brought Fire", the level 1 },
+        a new paragraph { the body a catalogue of (text or emphasis or link) with (
+            "In the beginning the people had no fire, and the ",
+            a new emphasis { the span "Weasels" },
+            " kept it for themselves.") },
+        a new quote { the body a catalogue of (text or emphasis or link) with (
+            "I can run and swim faster than the Weasels, and I am also a ",
+            a new emphasis { the span "good dancer" },
+            ".") , the source "Rabbit, to the council" },
+        a new code-block { the content "Seed the chance with 42." },
+        a new paragraph { the body a catalogue of (text or emphasis or link) with (
+            "So he danced close to the fire until the pine tar in his hair caught, and ran ",
+            a new link { the label "home", the target "the hollow tree" },
+            " with his head ablaze.") }).
+
+    For each block in doc, repeat:
+        State cast render-block on (block).
+        State "".
+    Done.
+
+    Judge the first of doc, where it is:
+        A heading, State "the document opens with: " joined to it's title.
+        Otherwise, State "the document opens with body text".
+    Done.
+Done.
+
+Cast play.
