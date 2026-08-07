@@ -50,33 +50,14 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 1 — usable by someone other than the author
 
-1. **Raw text — `<<…>>` and `exactly`.** Both were decided early and deferred, and are recorded as
-   a `DECIDED, DEFERRED` note in `src/Lexer/Lexer.cs`. The note says they wait until escape
-   sequences exist to contrast against; escapes are in use today, so the wait is over.
-
-   - **`<<…>>`** — a verbatim literal with distinct open and close delimiters, so a literal `"`
-     needs no escaping. Nestable by depth-counting `<<` and `>>`.
-   - **`exactly`** — a modifier (`exactly "…"`, `exactly <<…>>`) that suppresses interpretation.
-
-   ★ **Decide whether both earn their place before building either.** They overlap: if `<<…>>`
-   already suppresses everything then `exactly <<…>>` says nothing, and `exactly "…"` becomes a
-   second way to spell what `<<…>>` spells — the shape refused above for the Hadamard product and
-   made a condition of `Judge`. The real question is whether keeping `"` as the delimiter while
-   turning interpretation off is worth its own word, or whether one form should do the whole job.
-
-   **"Interpretation" here is wider than escapes.** Cufet interpolates, so `"{total} sold"` reads
-   `total` as a variable — a raw form has to suppress `{` as well as `\`, or it solves half the
-   problem. The cases that motivate the feature are full of both: a regex, a Windows path, embedded
-   JSON.
-
-2. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
+1. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
    briefly a linter rule and is not one. Both tools would need the same "how large is large"
    threshold, and one number owned in two places is one number that drifts. The severity settles
    it too: every other linter rule flags something a tool cannot fix for you — nesting you have to
    rename your way out of, an ordering you have to rethink, a capital you have to type. Layout is
    pure mechanism, so a warning about it is noise next to a tool that simply does it.
 
-3. **Expression-bodied members.** A getter or function whose body is a single expression, written
+2. **Expression-bodied members.** A getter or function whose body is a single expression, written
    with no `return` and no `Done.`:
 
    ```
@@ -96,7 +77,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    this reason, was argued for deliberately, and nobody has regretted it. Precedent beats purity
    here.
 
-4. **A conditional expression.** There is no way to branch in expression position, so a value that
+3. **A conditional expression.** There is no way to branch in expression position, so a value that
    depends on a condition must be declared and then mutated:
 
    ```
@@ -121,7 +102,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    **Settle before building:** whether the two arms must be the same type or may form a union, and
    confirming only the taken arm evaluates.
 
-5. **Read-only fields — `permanently` on a field.** There is no way to say *set at construction,
+4. **Read-only fields — `permanently` on a field.** There is no way to say *set at construction,
    never changed after*:
 
    ```
@@ -140,7 +121,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    `private` only mean something across a boundary — and that boundary arrives with the module
    arc in Tier 4. Within one file they are a comment with ceremony attached.
 
-6. **Shared constants — top-level `permanently` visible inside functions.** A top-level function
+5. **Shared constants — top-level `permanently` visible inside functions.** A top-level function
    cannot see top-level data, so a constant has to be passed as a parameter or wrapped in a
    function to reach one:
 
@@ -166,7 +147,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    `f` reads `x` is circular, so either the initialiser is restricted to constant-foldable
    expressions, or an order is defined and cycles are refused.
 
-7. **A bits value's width, as data.** A `bits` carries a width and shows it — `0x0F` prints with
+6. **A bits value's width, as data.** A `bits` carries a width and shows it — `0x0F` prints with
    its leading zero — but a program cannot **read** that width or **ask for** one:
 
    ```
@@ -193,9 +174,9 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 2 — leverage
 
-8. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+7. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
-9. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
+8. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
    tree, linked structure or wrapper cannot be looped over at all:
 
    ```
@@ -214,7 +195,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    method dispatch: no suspension, so no arena question about where paused state lives, and nothing
    the two backends could disagree about.
 
-10. **Unicode casing in the compiled backend.** `"héllo" in uppercase` is `HÉLLO` interpreted and
+9. **Unicode casing in the compiled backend.** `"héllo" in uppercase` is `HÉLLO` interpreted and
     `HéLLO` compiled. The emitted C has no case table, so anything outside `A–Z` / `a–z` passes
     through unchanged, and the two backends knowingly disagree.
 
@@ -239,7 +220,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 Both need a design session before they can be ordered against anything. Neither is blocked by a
 numbered item; they are here because they are large, not because they are waiting.
 
-11. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+10. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
@@ -248,7 +229,7 @@ numbered item; they are here because they are large, not because they are waitin
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-12. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+11. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -288,14 +269,14 @@ numbered item; they are here because they are large, not because they are waitin
 
 ### Tier 4 — modules, strictly in this order
 
-13. **The `module` interface.** A named interface defining the contract for any loadable thing.
+12. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-14. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+13. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-15. **What a book exports.** Every member of a book is public API, permanently, because there is
+14. **What a book exports.** Every member of a book is public API, permanently, because there is
     no way to mark one internal. It does not bite yet — the bundled three are built in and you
     cannot write a book — but the moment the loader below lands, a book author has no way to say
     *this is my helper, do not call it*.
@@ -309,7 +290,7 @@ numbered item; they are here because they are large, not because they are waitin
     the book, so the boundary is *what a book hands out* — the object question is a different and
     much weaker one, since within a file a visibility marker is a comment with ceremony attached.
 
-16. **A package manager for books.**
+15. **A package manager for books.**
 
 ### Tier 5 — Cufet in Cufet
 
@@ -319,7 +300,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-17. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+16. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -327,7 +308,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-18. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
+17. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
@@ -335,7 +316,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-19. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+18. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 

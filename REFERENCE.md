@@ -620,6 +620,60 @@ With the file "logs/{who}.txt" open for writing as log:
 Done.
 ```
 
+**Verbatim text** — `<<...>>`, where **nothing** is interpreted:
+
+```
+State <<C:\Users\me>>.
+State <<{"name": "x"}>>.
+State <<^\d{3}-\d{4}$>>.
+```
+```
+C:\Users\me
+{"name": "x"}
+^\d{3}-\d{4}$
+```
+
+`"` and `{` are the two characters a quoted literal cannot hold plainly, and they are exactly
+what JSON, regular expressions, Windows paths and Cufet samples inside documentation are made
+of. Inside `<<...>>` both are ordinary characters: there are no escape sequences, so a lone `\`
+is a backslash and `\q` is two characters rather than an error, and there are no interpolation
+holes, so `{x}` is three characters.
+
+The two forms produce the same kind of value. A verbatim literal is a **spelling**, not a type —
+everything in this section works on one:
+
+```
+Define pattern as <<\d+>>.
+State the length of pattern.               → 3
+State pattern joined to <<$>>.             → \d+$
+If pattern contains <<\d>>, state "yes".   → yes
+```
+
+**Nesting** is depth-counted over `<<` and `>>`, the way block comments count `/*` and `*/` — so
+text that already contains the delimiters can still be wrapped:
+
+```
+State <<a <<b>> c>>.        → a <<b>> c
+```
+
+It may run across lines, and the line breaks are part of the text:
+
+```
+Define note as <<first line
+second line>>.
+```
+
+★ **There is no interpolation here** — that is the trade for total literalness. Join instead,
+which is what a hole is doing anyway:
+
+```
+Define name as "world".
+State <<hello, >> joined to name.          → hello, world
+```
+
+> ⚠ **Text ending in `>` needs the quoted form.** `<<a>>>` closes at the first `>>` and leaves a
+> stray `>` behind. Write `"a>"`. This is the one thing the verbatim form cannot spell.
+
 **Length** — `the length of`, the character count:
 ```
 State the length of "hello".          → 5
@@ -2450,9 +2504,10 @@ Failure categories, and the message each produces:
   explanation; change it in the rabbit body before starting tasks, or pass the directory in and
   build full paths. (Reading it from a task is fine.)
 
-> **Windows paths need doubled backslashes.** `"C:\Windows"` is a *lexer* error, because `\W` is
-> not a recognised escape. Write `"C:\\Windows"` or — usually nicer — `"C:/Windows"`, which
-> Windows accepts everywhere Cufet passes a path through.
+> **Windows paths in a quoted literal need doubled backslashes.** `"C:\Windows"` is a *lexer*
+> error, because `\W` is not a recognised escape. Write `<<C:\Windows>>`, where nothing is
+> escaped at all, or `"C:\\Windows"`, or — often nicest — `"C:/Windows"`, which Windows accepts
+> everywhere Cufet passes a path through.
 
 #### Directory traversal
 

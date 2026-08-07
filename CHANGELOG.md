@@ -10,6 +10,42 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **Verbatim text — `<<...>>`.** A second spelling for a text literal in which **nothing** is
+  interpreted: no escape sequences, and no interpolation holes.
+
+  ```
+  State <<C:\Users\me>>.
+  State <<{"name": "x"}>>.
+  State <<^\d{3}-\d{4}$>>.
+  ```
+
+  `"` and `{` are the two characters a quoted literal cannot hold plainly, and they are exactly what
+  JSON, regular expressions, Windows paths and Cufet samples inside documentation are made of.
+  Inside `<<...>>` both are ordinary characters — a lone `\` is a backslash, and `\q` is two
+  characters rather than the lexer error it is in a quoted literal.
+
+  Nesting is depth-counted over `<<` and `>>`, the way block comments already count `/*` and `*/`,
+  so text containing the delimiters can still be wrapped: `<<a <<b>> c>>` is `a <<b>> c`. It may run
+  across lines. There is **no interpolation** inside it — that is the trade for total literalness,
+  and `joined to` covers what a hole would have done.
+
+  A verbatim literal is a **spelling, not a type**. It lexes to the same token a quoted literal
+  does, so nothing downstream can tell — or needs to tell — which form produced the text, and every
+  text operation works on one unchanged.
+
+  ★ **The `exactly` modifier that was planned alongside this is dropped, not deferred.** The two
+  were designed as independent switches — `<<...>>` turning escapes off, `exactly` turning
+  interpolation off — which would have given four combinations. It does not survive contact: with
+  escapes off there is no `\{`, so a form that kept interpolation could express a literal `"` but
+  not a literal `{`, and the flagship case (JSON) is made of both. Restoring it needs a `{{`
+  doubling rule, which puts a meta-sequence back into the one form whose whole promise is that it
+  has none. The remaining cell — escapes on, interpolation off — saves two backslashes over `\{x\}`
+  and costs a reserved word. `exactly` stays available as an ordinary name.
+
+  ⚠ **The one corner:** `<<a>>>` closes at the first `>>`, so text *ending* in `>` needs the quoted
+  form (`"a>"`). Nothing else changes: `a < b` and `a <= b` lex exactly as before, since `<<` was
+  only claimable because two comparisons in a row is not an expression Cufet has.
+
 - **A matrix cell can be written.** `The item at (row, column) of m becomes 7.` — the write half of
   an accessor that until now could only read:
 

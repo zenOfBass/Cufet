@@ -176,6 +176,20 @@ yet accepted.
 | `lowercase` | Lowercase |
 | `trimmed` | Trimmed |
 
+**Two literal forms, one type.** Which delimiters you use decides only what the lexer
+interprets on the way in; both produce `text`, and after lexing nothing downstream can tell
+them apart.
+
+| Form | Escapes (`\n`, `\"`, `\{`, …) | Interpolation (`{...}`) | Nests |
+|---|---|---|---|
+| `"..."` | yes | yes | — |
+| `<<...>>` | **no** | **no** | yes, by depth-counting `<<` / `>>` |
+
+Both may run across lines. `<<...>>` is total by design: `"` and `{` are the two characters a
+quoted literal cannot hold plainly, and a form that suppressed one but not the other would
+still need an escape for the other. The trade is that there is no hole inside it — use
+`joined to`.
+
 **A character is a Unicode code point.** Every count and position — `the length of`, `the
 characters from N to M`, `the first`/`last N characters`, and what `the position of` returns — is
 measured in code points on **both** backends, regardless of how each one stores text (UTF-16
@@ -1564,6 +1578,16 @@ an argument, a file path — not only in `State`.
 ★ **The hole is narrower than `State`.** `State parts.` prints a series as `(a, b)`, but
 `State "the parts: {parts}".` is a static type error — the conversion a hole performs has no
 answer for a container. Print it on its own line, or build the text explicitly.
+
+### Verbatim text — `<<...>>` cannot spell text ending in `>`
+
+`<<a>>>` closes at the **first** `>>` and leaves a stray `>` behind, which is then a comparison
+operator and almost certainly a parse error. Write that one as `"a>"`. Every verbatim syntax has
+such a corner; this is Cufet's, and it is the only one.
+
+Otherwise `<` and `>` are untouched: `a < b` and `a <= b` lex exactly as before. `<<` is claimed
+only because two comparisons in a row is not an expression Cufet has, so nothing valid was taken
+away.
 
 ### ★ Transformations TRAIL, accessors LEAD
 
