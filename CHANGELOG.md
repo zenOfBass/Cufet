@@ -169,6 +169,34 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★ Compiled, a newline INSIDE a text value was rewritten on Windows.** `State "a\nb".` printed
+  `61 0a 62` interpreted and `61 0d 0a 62` compiled — a live divergence, present since escape
+  sequences existed.
+
+  Windows opens stdout in **text mode**, where the C runtime turns every `\n` on its way out into
+  `\r\n`. That is right for a line terminator and wrong for data: a `\n` the program put inside a
+  text value is content, and rewriting it made the compiled backend print something the interpreter
+  did not. Stdout is now opened in **binary** — nothing is rewritten — and the terminator `State`
+  appends is explicit, still `\r\n` on Windows to match the interpreter's `WriteLine`. Eleven
+  by-hand terminator sites became one `cufet_nl()`. Files were never affected: both backends were
+  already byte-clean there, the compiler through `fopen(…, "wb")` and the interpreter through
+  `Write`. Subprocess output forwarded to stdout was being mangled the same way and is fixed with it.
+
+  ★ **The oracle could not see it, and that is the more important half.** Both runners normalised
+  `\r\n` to `\n` before comparing, so rewritten data compared equal to untouched data — the suite
+  was structurally blind to the axis for as long as it has existed. It surfaced only because
+  `examples/rawtext.cufe` put a `\r\n` **pair** in a literal, which normalisation cannot flatten.
+  **This is the second bug of exactly this shape**, after the CLI encoding one below, so the fix is
+  to the harness and not just to the symptom: backend-vs-backend comparisons are now byte-exact,
+  and normalisation survives only where the expected value is a C# literal or a checked-in
+  `.expected` file that travels through git's line-ending conversion.
+
+  Measured before committing to it: pointing all 379 oracle assertions and the example harness at
+  raw output surfaced **exactly one** divergence across 562 tests — this one. Nothing else was
+  hiding. `GeneratedC_UsesTheNewlineMacro` now refuses a by-hand newline in the emitted C, because
+  a new `State` arm would otherwise reintroduce it silently; verified by putting the bug back at
+  one site and watching both it and the behavioural test fail.
+
 - **★ The CLI mangled every non-ASCII character it printed.** `State "héllo 👍".` came out as
   `h?llo ??` interpreted and correctly compiled — a real divergence, because the CLI wrote through
   the console's default encoding, a legacy code page on Windows, while a compiled binary writes
