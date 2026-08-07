@@ -38,6 +38,12 @@ public class ExampleOracleTests
 
     private static string ExampleDir => Path.Combine(RepoRoot, "examples");
 
+    // Pinned outputs live in their own directory rather than beside the programs. `examples/` is
+    // read by people looking for programs, and interleaving a fixture with every example halves
+    // the signal in that listing — `assets/` already established that support material for the
+    // examples belongs in a subdirectory of them.
+    private static string ExpectedDir => Path.Combine(ExampleDir, "expected");
+
     /// <summary>
     /// Examples the COMPILER cannot build on this platform, with the reason. Concurrency and
     /// subprocess programs need pthreads, sigaction and fork — POSIX, guarded in the emitted C, and
@@ -113,6 +119,16 @@ public class ExampleOracleTests
             .Where(f => !File.Exists(Path.Combine(ExampleDir, f)))
             .ToList();
         Assert.True(stale.Count == 0, $"skip list names missing example(s): {string.Join(", ", stale)}");
+
+        // ★ The pins need the same guard, and they need it MORE since they moved into their own
+        // directory. An `.expected` that goes missing takes its assertion with it silently: the
+        // comparison is opt-in, so no file simply means no check, and the run stays green. When
+        // they sat beside the programs a deletion was at least visible in the listing.
+        Assert.True(Directory.Exists(ExpectedDir),
+            $"examples/expected/ not found from {AppContext.BaseDirectory} — every pinned output " +
+            "has stopped being compared, and nothing else would have said so.");
+        var pins = Directory.GetFiles(ExpectedDir, "*.expected").Length;
+        Assert.True(pins >= 6, $"only {pins} pinned outputs found — one has been deleted, or the path broke.");
     }
 
     /// <summary>
@@ -156,9 +172,10 @@ public class ExampleOracleTests
         // both backends would agree on the new output and this test would still pass. A canary
         // nothing checks cannot fail.
         //
-        // So an example may sit next to a `.expected` file, and where one exists the output must
-        // match it exactly. Opt-in: no file, no assertion.
-        var expectedPath = Path.Combine(ExampleDir, Path.GetFileNameWithoutExtension(file) + ".expected");
+        // So an example may have an `examples/expected/<name>.expected` file, and where one exists
+        // the output must match it exactly. Opt-in: no file, no assertion — create it empty and
+        // regenerate to start pinning one.
+        var expectedPath = Path.Combine(ExpectedDir, Path.GetFileNameWithoutExtension(file) + ".expected");
         if (!File.Exists(expectedPath)) return;
 
         if (Environment.GetEnvironmentVariable("CUFET_EXAMPLE_EXPECTED") == "1")
@@ -177,16 +194,19 @@ public class ExampleOracleTests
     }
 
     /// <summary>
-    /// A `.expected` beside an example that never runs here is a file nobody checks. Skipped
+    /// A `.expected` for an example that never runs here is a file nobody checks. Skipped
     /// examples cannot be built on this platform and non-deterministic ones have no fixed output,
     /// so either is a mistake worth naming rather than a quietly dead assertion.
+    ///
+    /// This matters more now that the pins sit in their own directory: a renamed or deleted
+    /// example no longer leaves its orphan sitting visibly next to the gap.
     /// </summary>
     [Fact]
     public void ExpectedOutputFiles_BelongToExamplesThatAreActuallyCompared()
     {
-        if (!Directory.Exists(ExampleDir)) return;
+        if (!Directory.Exists(ExpectedDir)) return;
 
-        var stranded = Directory.GetFiles(ExampleDir, "*.expected")
+        var stranded = Directory.GetFiles(ExpectedDir, "*.expected")
             .Select(Path.GetFileNameWithoutExtension)
             .Where(name => !File.Exists(Path.Combine(ExampleDir, name + ".cufe"))
                         || NonDeterministicSkips.ContainsKey(name + ".cufe"))

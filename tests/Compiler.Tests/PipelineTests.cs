@@ -1845,7 +1845,7 @@ public class PipelineTests
         //
         // What this DOES pin is that the two agree on the characters themselves — code points
         // through the lexer, the string table and the emitted C. The console encoding is asserted
-        // by examples/json.expected, which is written and compared as UTF-8 bytes.
+        // by examples/expected/json.expected, which is written and compared as UTF-8 bytes.
         const string src = """
             State "héllo 👍".
             State the length of "héllo 👍".
