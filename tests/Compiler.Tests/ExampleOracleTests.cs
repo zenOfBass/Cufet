@@ -133,7 +133,7 @@ public class ExampleOracleTests
             $"examples/expected/ not found from {AppContext.BaseDirectory} — every pinned output " +
             "has stopped being compared, and nothing else would have said so.");
         var pins = Directory.GetFiles(ExpectedDir, "*.expected").Length;
-        Assert.True(pins >= 6, $"only {pins} pinned outputs found — one has been deleted, or the path broke.");
+        Assert.True(pins >= 7, $"only {pins} pinned outputs found — one has been deleted, or the path broke.");
     }
 
     /// <summary>

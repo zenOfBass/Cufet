@@ -8449,6 +8449,133 @@ public class PipelineTests
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── Judge: narrowing again inside a grouped arm ──────────────────────
+    //
+    // A grouped arm (`A quote or a paragraph:`) leaves `it` a union, so the arm itself narrows the
+    // TYPE without changing the REPRESENTATION — cv_it stays the subject's whole union struct.
+    // Narrowing again inside the arm is exhaustive to the checker and was not to the compiler,
+    // which kept eliminating from every case of the subject rather than from the arm's, found two
+    // left, declined to narrow, and then emitted the field access against the union anyway. The
+    // result was C that gcc rejects, so it surfaced at build time with `check --native` silent.
+    //
+    // Found by examples/renderer.cufe. The three-case shape is the smallest that shows it: with a
+    // two-case union the arm covers everything, so the two elimination sets are equal and agree.
+
+    [Fact]
+    public void JudgeGroupedArm_NarrowedAgainInside_MatchesInterpreter()
+    {
+        const string src = """
+            Define object alpha with (the text body, the text source).
+            Define object beta with (the text body).
+            Define object gamma with (the text tag).
+
+            Bind text to pick, given (the (alpha or beta or gamma) thing):
+                Judge thing, where it is:
+                    An alpha or a beta:
+                        If it is an alpha, return it's source.
+                        Otherwise, return it's body.
+                    Done.
+                    A gamma, return it's tag.
+                Done.
+            Done.
+
+            State cast pick on (a new alpha { the body "B", the source "S" }).
+            State cast pick on (a new beta { the body "B2" }).
+            State cast pick on (a new gamma { the tag "T" }).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("S\nB2\nT", Compile(src));
+    }
+
+    [Fact]
+    public void JudgeGroupedArm_ArmOrderNeedNotMatchTheSubjects()
+    {
+        // ★ Why the fix keeps a case SET rather than substituting a narrower union TYPE. The arm
+        // lists its cases in the opposite order to the subject, so a sub-union's own indices would
+        // reach the wrong member — every emitted access has to index the representation union.
+        const string src = """
+            Define object alpha with (the text a-field).
+            Define object beta with (the number b-field).
+            Define object gamma with (the text c-field).
+
+            Bind text to pick, given (the (alpha or beta or gamma) thing):
+                Judge thing, where it is:
+                    A gamma or a beta:
+                        If it is a beta, return "beta".
+                        Otherwise, return it's c-field.
+                    Done.
+                    An alpha, return it's a-field.
+                Done.
+            Done.
+
+            State cast pick on (a new gamma { the c-field "G" }).
+            State cast pick on (a new beta { the b-field 1 }).
+            State cast pick on (a new alpha { the a-field "A" }).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("G\nbeta\nA", Compile(src));
+    }
+
+    [Fact]
+    public void JudgeOtherwise_CoveringTwoCases_NarrowsAgainInside()
+    {
+        // The same restriction applies to a Judge's own Otherwise when it covers more than one case.
+        const string src = """
+            Define object alpha with (the text body).
+            Define object beta with (the text body).
+            Define object gamma with (the text tag).
+
+            Bind text to pick, given (the (alpha or beta or gamma) thing):
+                Judge thing, where it is:
+                    A gamma, return it's tag.
+                    Otherwise:
+                        If it is an alpha, return "a:" joined to it's body.
+                        Otherwise, return "b:" joined to it's body.
+                    Done.
+                Done.
+            Done.
+
+            State cast pick on (a new alpha { the body "X" }).
+            State cast pick on (a new beta { the body "Y" }).
+            State cast pick on (a new gamma { the tag "Z" }).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("a:X\nb:Y\nZ", Compile(src));
+    }
+
+    [Fact]
+    public void JudgeGroupedArm_DoesNotOverNarrowAfterTheArm()
+    {
+        // ★ The restriction must not leak. After the Judge, `thing` is the full union again, so an
+        // else-arm out here still has two cases left and must NOT narrow — the bug's mirror image,
+        // where a stale arm set would narrow something that is genuinely still a union.
+        const string src = """
+            Define object alpha with (the text body).
+            Define object beta with (the text body).
+            Define object gamma with (the text body).
+
+            Bind text to pick, given (the (alpha or beta or gamma) thing):
+                Judge thing, where it is:
+                    An alpha or a beta:
+                        If it is an alpha, return "a".
+                        Otherwise, return "b".
+                    Done.
+                    A gamma, return "g".
+                Done.
+            Done.
+
+            Bind text to recheck, given (the (alpha or beta or gamma) thing):
+                If thing is an alpha, return "A".
+                Otherwise, return "not-A".
+            Done.
+
+            State cast pick on (a new beta { the body "y" }).
+            State cast recheck on (a new beta { the body "y" }).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("b\nnot-A", Compile(src));
+    }
+
     // ── Line endings on stdout ───────────────────────────────────────────
     //
     // Windows opens stdout in text mode, so the C runtime rewrote every '\n' on its way out as

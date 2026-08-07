@@ -100,7 +100,7 @@ public sealed class CodeGenerator
         _openFiles.Clear(); _loopFileDepths.Clear(); _loopExcDepths.Clear(); _loopRabbitDepths.Clear();
         _rabbitCtx.Clear(); _rabbitDepth = 0; _excOpen = 0;
         _varRabbitDepth.Clear(); _closureEscapeDepth = null;
-        _narrowedVars.Clear(); _currentFailVar = null; _closureSelf = null; _currentTaskReturn = null;
+        _narrowedVars.Clear(); _armCases.Clear(); _currentFailVar = null; _closureSelf = null; _currentTaskReturn = null;
         // The channel deep-copy registry IS reset: an OPEN union's TypeSig is the constant "U(*)"
         // regardless of its discovered case set, so a union registered during an early iteration
         // would dedup against a later, LARGER case set and skip registering the new cases'
@@ -386,6 +386,23 @@ public sealed class CodeGenerator
     // Voidable narrows to `.val` (2-case tagged struct); a closed union narrows to `.val.c<k>` (the
     // N-case generalization) — same model, different accessor.
     private readonly Dictionary<string, (CufetType Type, string Access)> _narrowedVars = new();
+
+    // ★ Cases still reachable for a variable the checker narrowed in TYPE but not in REPRESENTATION.
+    //
+    // A Judge's GROUPED arm is the case that needs this. `A quote or a paragraph:` leaves `it` a
+    // union, so there is no payload to reach through and _narrowedVars has nothing to record — but
+    // the checker does know `it` is one of TWO cases now, not one of the subject's four. Narrowing
+    // again inside the arm (`If it is a quote: … Otherwise: …`) is exhaustive to the checker and
+    // was NOT to the compiler, which kept eliminating from all four, found two left, and declined
+    // to narrow — then emitted the field access against the union struct anyway. That produced C
+    // that gcc rejects, so the failure landed at build time with no diagnostic from `check`.
+    //
+    // Indices are into the REPRESENTATION union (the subject's, the one cv_it actually is), never
+    // into the arm's smaller one, because every emitted `.val.c<k>` has to index the real struct.
+    // Keeping the restricted SET rather than substituting a narrower TYPE is what keeps those two
+    // apart: an arm's case order need not match the subject's, so a sub-union's own indices would
+    // silently reach the wrong member.
+    private readonly Dictionary<string, List<int>> _armCases = new();
 
     // Object definitions by name (nominal types), collected up front. Objects are also
     // C value structs (cd_<name>); methods become C functions taking a receiver pointer.
@@ -4079,6 +4096,7 @@ static void* cufet_pipe_stage(void* argp) {
                 FlushPreEmits(sb, indent);
                 sb.AppendLine($"{indent}{MangleName(b.Name)} = {valExpr};");
                 _narrowedVars.Remove(b.Name);   // reassignment clears any active narrowing
+                _armCases.Remove(b.Name);       // …and any arm-restricted case set with it
                 break;
             }
 
@@ -4609,11 +4627,14 @@ static void* cufet_pipe_stage(void* argp) {
             sb.AppendLine($"{inner}{keyword} ({test}) {{");
 
             // One case ⇒ `it` reads at that case's concrete type. Grouped cases stay the union,
-            // matching the checker: an arm covering two cases cannot know which one arrived.
+            // matching the checker: an arm covering two cases cannot know which one arrived — but
+            // it does know it is one of THOSE, which is what the arm's case set carries so a
+            // narrowing inside the arm can finish the job.
             (string, CufetType, string)? narrow = indices.Count == 1
                 ? ("it", allCases[indices[0]], $".val.c{indices[0]}")
                 : null;
-            EmitNarrowedBlock(sb, narrow, arm.Body, body);
+            EmitNarrowedBlock(sb, narrow, arm.Body, body,
+                              indices.Count > 1 ? ("it", indices) : null);
             keyword = "} else if";
         }
 
@@ -4625,7 +4646,8 @@ static void* cufet_pipe_stage(void* argp) {
             (string, CufetType, string)? narrow = left.Count == 1
                 ? ("it", allCases[left[0]], $".val.c{left[0]}")
                 : null;
-            EmitNarrowedBlock(sb, narrow, judge.OtherwiseBody, body);
+            EmitNarrowedBlock(sb, narrow, judge.OtherwiseBody, body,
+                              left.Count > 1 ? ("it", left) : null);
         }
 
         sb.AppendLine($"{inner}}}");
@@ -4689,24 +4711,50 @@ static void* cufet_pipe_stage(void* argp) {
         }
         if (ut == null || name == null) return null;
         var allCases = UnionCases(ut);
-        var remaining = Enumerable.Range(0, allCases.Count).Where(i => !excluded.Contains(i)).ToList();
+        // Eliminate from what is REACHABLE here, not from the whole union. Inside a Judge's grouped
+        // arm those differ, and using the whole union leaves cases the arm already ruled out — which
+        // is how an else-arm the checker had narrowed to one concrete case stayed a union here.
+        var reachable = _armCases.TryGetValue(name, out var restricted)
+            ? restricted
+            : Enumerable.Range(0, allCases.Count).ToList();
+        var remaining = reachable.Where(i => !excluded.Contains(i)).ToList();
         if (remaining.Count != 1) return null;   // 2+ left ⇒ still a union; the front-end restricts its use
         int j = remaining[0];
         return (name, allCases[j], $".val.c{j}");
     }
 
-    // Emits a block with an optional voidable variable narrowed to its inner type inside it.
+    // Emits a block with an optional voidable variable narrowed to its inner type inside it, and
+    // an optional restriction on which union cases are still reachable there (see _armCases).
     private void EmitNarrowedBlock(StringBuilder sb, (string Name, CufetType Inner, string Access)? narrow,
-                                   IReadOnlyList<IStatement> body, string indent)
+                                   IReadOnlyList<IStatement> body, string indent,
+                                   (string Name, List<int> Cases)? armCases = null)
     {
-        if (narrow is not var (name, inner, access) || narrow is null) { EmitScopedBlock(sb, body, indent); return; }
-        bool had = _narrowedVars.TryGetValue(name, out var prev);
-        // Narrowings COMPOSE — a voidable-of-union narrowed by `is not void` then by `is a <case>`
-        // reads `.val` (out of the cvd) THEN `.val.c<k>` (out of the cun). Replacing rather than
-        // nesting would emit `(x).val.c0` against the cvd and hit a non-existent member.
-        _narrowedVars[name] = (inner, (had ? prev.Access : "") + access);
-        EmitScopedBlock(sb, body, indent);
-        if (had) _narrowedVars[name] = prev!; else _narrowedVars.Remove(name);  // had ⇒ prev non-null
+        bool hadSet = false;
+        List<int>? prevSet = null;
+        if (armCases is not null)
+        {
+            hadSet = _armCases.TryGetValue(armCases.Value.Name, out prevSet);
+            _armCases[armCases.Value.Name] = armCases.Value.Cases;
+        }
+
+        try
+        {
+            if (narrow is not var (name, inner, access) || narrow is null) { EmitScopedBlock(sb, body, indent); return; }
+            bool had = _narrowedVars.TryGetValue(name, out var prev);
+            // Narrowings COMPOSE — a voidable-of-union narrowed by `is not void` then by `is a <case>`
+            // reads `.val` (out of the cvd) THEN `.val.c<k>` (out of the cun). Replacing rather than
+            // nesting would emit `(x).val.c0` against the cvd and hit a non-existent member.
+            _narrowedVars[name] = (inner, (had ? prev.Access : "") + access);
+            EmitScopedBlock(sb, body, indent);
+            if (had) _narrowedVars[name] = prev!; else _narrowedVars.Remove(name);  // had ⇒ prev non-null
+        }
+        finally
+        {
+            if (armCases is not null)
+            {
+                if (hadSet) _armCases[armCases.Value.Name] = prevSet!; else _armCases.Remove(armCases.Value.Name);
+            }
+        }
     }
 
     // `x is not void` (x a voidable variable) → (x, inner); narrows x in the then-branch only.
@@ -7343,6 +7391,8 @@ static void* cufet_pipe_stage(void* argp) {
         var savedFail = _currentFailVar;
         _currentFailVar = capturesFailure ? capFailField : null;   // `the failure` → the captured copy
         var savedNarrow = new Dictionary<string, (CufetType, string)>(_narrowedVars); _narrowedVars.Clear();
+        // `it` does not cross into a closure body, and neither does the arm set that qualifies it.
+        var savedArmCases = new Dictionary<string, List<int>>(_armCases); _armCases.Clear();
         var savedSelf = _closureSelf;
         _closureSelf = selfName != null ? (selfName, clos, ft) : null;   // self-reference → self-call
         _currentReturnType = ret;
@@ -7384,6 +7434,8 @@ static void* cufet_pipe_stage(void* argp) {
         _closureSelf = savedSelf;
         _narrowedVars.Clear();
         foreach (var kv in savedNarrow) _narrowedVars[kv.Key] = kv.Value;
+        _armCases.Clear();
+        foreach (var kv in savedArmCases) _armCases[kv.Key] = kv.Value;
         _varTypes.Clear();
         foreach (var kv in savedVT) _varTypes[kv.Key] = kv.Value;
 
