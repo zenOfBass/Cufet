@@ -1,0 +1,52 @@
+/* rawtext — the verbatim literal <<…>> under load.
+
+   The job: carry a fenced Cufet sample whose own code uses raw literals,
+   so the outer literal must nest — inner << >> pairs stay in the content
+   by depth counting. Quotes, braces, backslashes and {holes} all arrive
+   verbatim: no escapes, no interpolation, no meta-sequence at all.
+
+   The checks print PASS/FAIL so the harness can assert on them.
+   The one documented limitation (a lone >> closes early) is why every
+   angle-bracket pair in the content is balanced. */
+
+Bind void to play:
+    Define sample as <<
+Define path as <<C:\Users\me>>.
+Define doc as <<{"name": "rabbit", "gift": "fire"}>>.
+State "the {hole} stays literal".
+>>.
+
+    State "--- the sample, fenced ---".
+    State "```".
+    State sample.
+    State "```".
+    State "".
+
+    State "--- checks ---".
+    If sample contains <<C:\Users\me>>, state "inner literal survived nesting: PASS".
+    Otherwise, state "inner literal survived nesting: FAIL".
+
+    If sample contains <<{"name": "rabbit", "gift": "fire"}>>:
+        State "json arrived verbatim (braces and quotes): PASS".
+    Done.
+    Otherwise, state "json arrived verbatim (braces and quotes): FAIL".
+
+    If sample contains <<{hole}>>, state "braces stayed literal (no interpolation): PASS".
+    Otherwise, state "braces stayed literal (no interpolation): FAIL".
+
+    Define lines as (sample trimmed) split by "\n".
+    If the number of lines is 3, state "multiline content counted 3 lines: PASS".
+    Otherwise, state "multiline content counted 3 lines: FAIL".
+
+    Define empty as <<>>.
+    If the length of empty is 0, state "empty raw literal is empty: PASS".
+    Otherwise, state "empty raw literal is empty: FAIL".
+
+    If <<a"b>> is "a\"b", state "raw and escaped forms agree on value: PASS".
+    Otherwise, state "raw and escaped forms agree on value: FAIL".
+
+    Define name as "kick_".
+    State <<concat idiom: >> joined to (<<C:\Users\>> joined to name).
+Done.
+
+Cast play.
