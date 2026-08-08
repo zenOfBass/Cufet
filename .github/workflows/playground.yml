@@ -35,6 +35,15 @@ jobs:
   test:
     name: Front end
     runs-on: ubuntu-latest
+    # ★ These tests take SECONDS. Ten minutes is not a budget, it is a tripwire.
+    #
+    # A fault that makes a test hang does not fail the run — it wedges it, and GitHub's default
+    # job limit is SIX HOURS. That is not hypothetical: a one-word change to void equality
+    # (`return true` → `return false` in ValuesEqual) put a test into a loop that never ended and
+    # cost two hours locally before anyone looked. A per-test timeout would be better, but xUnit
+    # 2.4.2 has no global default for one and cannot free a synchronously blocked thread anyway,
+    # so the wall clock is where this belongs.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -55,6 +64,7 @@ jobs:
     name: Build the site
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
