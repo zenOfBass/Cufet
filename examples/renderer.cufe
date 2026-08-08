@@ -23,7 +23,7 @@ Done.
 Bind text to render-body, given (the catalogue of (text or emphasis or link) body):
     Define out as "".
     For each piece in body, repeat:
-        The out becomes "{out} {cast render-inline on (piece)}".
+        The out becomes "{out}{cast render-inline on (piece)}".
     Done.
     Return out.
 Done.
