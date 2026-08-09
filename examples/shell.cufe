@@ -60,9 +60,7 @@ While running, repeat:
                     Try to:
                         If n is 1:
                             Define home as the environment variable "HOME" but void is "".
-                            If the length of home is 0:
-                                home becomes the environment variable "USERPROFILE" but void is "/".
-                            Done.
+                            If the length of home is 0, home becomes the environment variable "USERPROFILE" but void is "/".
                             The current directory becomes home.
                         Done.
                         If n is 2, the current directory becomes item 2 of parts.
