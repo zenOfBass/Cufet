@@ -271,6 +271,39 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   The gcc failure also arrived correctly labelled "This is a bug in the Cufet compiler, not in your
   program" — the message added hours earlier, on its first real encounter.
 
+- **★★ The capture-write refusal missed any write one `If` or `Judge` arm deep — a LIVE DIVERGENCE.**
+
+  ```
+  Define tally as 0.
+  Pull a rabbit.
+      Have rabbit start a task as bump:
+          If 1 is 1:
+              tally becomes tally + 5.      ← never refused
+          Done.
+          return 1.
+      Done.
+      State the awaited result of bump.
+  Done.
+  State tally.
+  ```
+
+  `cufet check --native` reported **no problems**, the interpreter printed **5**, and the compiled
+  binary printed **0**. Take the `If` away and the same write is refused, as it has been since TCAP
+  shipped — the refusal exists precisely because the interpreter hands a task the live enclosing
+  binding while the compiler hands it a copy.
+
+  `TaskBodyMayMutate` had the same arm-record hole as `CollectRefsDefs` above, and this one does not
+  fail loudly: a missed write is not a compile error, it is a program that quietly means two
+  different things. **This walk must over-approximate** — a missed write ships a divergence, an
+  extra refusal costs only a clean error — so it now descends into everything in the AST namespace.
+
+  Found by **auditing for the same hole** once CI exposed the first one, which also turned up
+  `ProgramUsesOpenUnion` (open-union discovery would have missed a union first seen inside an arm);
+  fixed the same way. Two further reflection walks were checked and were already safe, descending
+  unconditionally. **That makes seven instances of this one bug class**, so the rule is worth
+  stating plainly: a walk over the AST must key on the **namespace**, never on
+  `IExpression`/`IStatement`, because `ConditionArm` and `JudgeArm` implement neither.
+
 - **★ Compiled, narrowing again inside a Judge's grouped arm emitted C that would not compile.**
 
   ```
