@@ -1,0 +1,101 @@
+/* Interfaces under load.
+
+   Three animals from the fire story, each crossing to the island its own
+   way, unified by the crosser interface; hopper and a herald share the
+   brace-less single-method announcer interface. The thunderbird satisfies
+   its contract partly through an unto method.
+
+   Methods return values rather than mutating, so value semantics never
+   blur the polymorphism.
+
+   ★ AN INTERFACE IS A PARAMETER TYPE AND NOTHING ELSE. It cannot be the
+   element type of a container, a field, or a return type. That is what
+   makes it free: the concrete type is known at every call site, so each
+   conformer gets its own specialised copy of the function — no vtables,
+   no type tags, no dispatch at runtime.
+
+   So a mixed crew is held as a CLOSED UNION, and Judge narrows each
+   element back to a concrete type before the call. The union says which
+   animals exist; the interface says what they must be able to do. Writing
+   `a catalogue with (...)` instead infers an OPEN union from the values
+   and the call is refused — correctly, since an open union has no fixed
+   set of conformers to specialise for. */
+
+Define crosser as an interface for {
+    The text function crossing-style,
+    The number function crossing-cost, given (the number distance)
+}.
+
+Define announcer as an interface for the text function announce.
+
+Define object hopper with (the text name) and crosser and announcer:
+    Bind text to crossing-style:
+        Return "swims, then dances close to the fire".
+    Done.
+    Bind number to crossing-cost, given (the number distance):
+        Return distance * 1.
+    Done.
+    Bind text to announce:
+        Return "I can run and swim faster than the Weasels".
+    Done.
+Done.
+
+Define object thunderbird with (the text name) and crosser:
+    Bind text to crossing-style:
+        Return "flies through the storm".
+    Done.
+Done.
+
+Bind number to crossing-cost unto thunderbird, given (the number distance):
+    Return distance * 3.
+Done.
+
+Define object beaver with (the text name) and crosser:
+    Bind text to crossing-style:
+        Return "dams the water and walks across".
+    Done.
+    Bind number to crossing-cost, given (the number distance):
+        Return distance * 2.
+    Done.
+Done.
+
+Define object herald with (the text office) and announcer:
+    Bind text to announce:
+        Return one's office joined to ": the council is called".
+    Done.
+Done.
+
+Bind text to report-crossing, given (the crosser who, the number distance):
+    Define style as cast crossing-style on (who).
+    Define cost as cast crossing-cost on (who, distance).
+    Return style joined to " — " joined to cost converted to text.
+Done.
+
+Bind text to herald-line, given (the announcer who):
+    Return "herald-line: " joined to cast announce on (who).
+Done.
+
+Bind void to play:
+    Define trickster as a new hopper { the name "Hopper" }.
+    Define crew as a catalogue of (hopper or thunderbird or beaver) with (
+        trickster,
+        a new thunderbird { the name "Thunderbird" },
+        a new beaver { the name "Beaver" }).
+    Define distance as 12.
+    /* Judge narrows `it` to one concrete animal per arm, which is what
+       report-crossing needs — the arms look repetitive because each one
+       compiles to a different specialisation. */
+    For each who in crew, repeat:
+        Judge who, where it is:
+            A hopper, State cast report-crossing on (it, distance).
+            A thunderbird, State cast report-crossing on (it, distance).
+            A beaver, State cast report-crossing on (it, distance).
+        Done.
+    Done.
+    State "".
+    State cast herald-line on (trickster).
+    Define crier as a new herald { the office "town crier" }.
+    State cast herald-line on (crier).
+Done.
+
+Cast play.
