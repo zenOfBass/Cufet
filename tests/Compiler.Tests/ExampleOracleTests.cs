@@ -74,6 +74,18 @@ public class ExampleOracleTests
     private static readonly Dictionary<string, string> NonDeterministicSkips = new()
     {
         ["markov.cufe"] = "chance — the backends' generators differ, so the babble does too",
+        // Both backends are CORRECT here and disagree anyway: the sum is 930 either way and every
+        // item is processed exactly once, but the per-worker split is decided by the scheduler.
+        // The interpreter's is cooperative and drains one worker first (30/0/0); the compiler's is
+        // real pthreads and shares the work out (measured on Linux: 9/17/4). Thread scheduling is
+        // the platform's to decide, which is the oracle rule's narrow exception rather than a
+        // divergence — so this drops to the weaker bar: both backends must build and run cleanly.
+        //
+        // Found before it could fail CI, by compiling the example under WSL gcc and comparing:
+        // it is Windows-skipped, so nothing had ever built it here, and the new Linux job would
+        // have been the first thing to run it.
+        ["work-queue.cufe"] = "task scheduling — the split across workers differs between a "
+                            + "cooperative scheduler and real threads, though the totals do not",
     };
 
     private static bool IsSkipped(string file) =>

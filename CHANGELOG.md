@@ -175,6 +175,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   It also qualifies the mutation-testing figure below. 14/18 was measured on a machine where 13%
   of the suite does not execute, and one survivor sat in a POSIX `poll` loop Windows never reaches.
 
+  **It found something before its first run.** WSL was reachable after all — the failure earlier
+  was `wsl` resolving to the zero-byte `WindowsApps` execution-alias stub rather than the real
+  `C:\Windows\System32\wsl.exe`. There is no dotnet inside WSL, so the xUnit suite still cannot be
+  run there, but `emit-c` plus real Linux gcc previews the codegen half. All five POSIX-only
+  examples **compile** under gcc 15.1.1, and `channel-deepcopy` and `parallelsum` match the
+  interpreter exactly. `work-queue.cufe` does not, and never will: the totals agree (930, every
+  item processed exactly once) while the per-worker split is the scheduler's to choose — 30/0/0
+  from the interpreter's cooperative scheduler against 9/17/4 from real pthreads. That is the
+  oracle rule's narrow platform-owned exception, so it joins `markov` under the weaker bar of
+  building and running cleanly on both backends.
+
+  Still unpreviewable from here: `shell.cufe` and `subprocess-pipes.cufe`, whose *interpreted*
+  output is itself platform-dependent (`cmd` versus `sh`), so Windows cannot stand in for the
+  comparison CI will make. If the first run finds anything, expect it there.
+
   Deliberately its own workflow rather than part of the deploy: `playground.yml` gates publishing
   the site, and a failure in newly-exercised tests must not stand between a fix and a published
   page. **Expect red before green** — 73 tests are about to run for the first time, and failures
