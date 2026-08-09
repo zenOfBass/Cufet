@@ -1693,6 +1693,39 @@ call happens; the compiler refuses with a message saying so. Self-recursion nest
 block is fine, and so is mutual recursion at the top level. **Declare mutually recursive
 functions at the top level** and both backends agree.
 
+### ★ An interface is a PARAMETER type and nothing else
+
+An interface may be the declared type of a function parameter. It may **not** be the element type
+of a series or catalogue, a field type, a return type, or a variable's type, and an
+interface-typed parameter may not be reassigned or forwarded to another interface-taking function.
+
+That is not an omission — it is what makes interfaces free. The argument at every call site is a
+**concrete** conformer, so each one gets its own specialised copy of the function and method calls
+stay direct. **No vtables, no type tags, no runtime dispatch.** Polymorphism that could be stored
+would need a representation that travels with the value, which is the cost this design declines.
+
+**Hold a mixed group as a closed union and narrow it back.** The union says which types exist; the
+interface says what they must be able to do:
+
+```
+Define crew as a catalogue of (hopper or thunderbird or beaver) with (…).
+For each who in crew, repeat:
+    Judge who, where it is:
+        A hopper,      State cast report-crossing on (it, distance).
+        A thunderbird, State cast report-crossing on (it, distance).
+        A beaver,      State cast report-crossing on (it, distance).
+    Done.
+Done.
+```
+
+The arms look repetitive and are not: each compiles to a different specialisation.
+
+⚠ **The mistake this actually produces.** Writing `a catalogue with (…)` and letting the element
+type be inferred from mixed values gives an **open union**, and passing that where an interface is
+required is refused — correctly, since an open union has no fixed set of conformers to specialise
+for. The refusal names a type you never wrote, which is the confusing part: you get told you
+passed "an open union" without having typed the word `union` anywhere. Name the element type.
+
 ### `Return a failure.` re-propagates; `Return a failure "msg".` originates
 
 The parser checks whether a **string literal** immediately follows `failure`:
