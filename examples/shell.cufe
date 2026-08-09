@@ -99,9 +99,7 @@ While running, repeat:
 
                 /* 'cd' is handled above and is not a program, so it must not fall through to the
                    refusal — it is not permitted to LAUNCH, which is a different thing. */
-                If cast permitted on (cmd) is false and cmd is not "cd":
-                    State "cufetsh: {cmd}: command not permitted".
-                Done.
+                If cast permitted on (cmd) is false and cmd is not "cd", state "cufetsh: {cmd}: command not permitted".
             Done.
         Done.
     Done.
