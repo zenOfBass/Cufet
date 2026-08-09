@@ -128,11 +128,15 @@ public sealed class CodeGenerator
             case System.Collections.IEnumerable en:
                 foreach (var it in en) if (ProgramUsesOpenUnion(it)) return true;
                 return false;
-            case IStatement or IExpression:
+            default:
+                // Keyed on the NAMESPACE, not on IStatement/IExpression: `ConditionArm` and
+                // `JudgeArm` implement neither, so matching the interfaces walked past every `If`
+                // arm and every judgement — and an open union first seen inside one would have
+                // been left out of the whole-program discovery this pass exists to perform.
+                if (node.GetType().Namespace != typeof(IStatement).Namespace) return false;
                 foreach (var prop in node.GetType().GetProperties())
                     if (ProgramUsesOpenUnion(prop.GetValue(node))) return true;
                 return false;
-            default: return false;
         }
     }
 
@@ -6435,15 +6439,27 @@ static void* cufet_pipe_stage(void* argp) {
             if (found) return;
             switch (val)
             {
-                case IExpression or IStatement:
-                    if (TaskBodyMayMutate(val, name)) found = true;
-                    break;
-                case string: break;
+                case null or string or CufetType: break;
                 case System.Runtime.CompilerServices.ITuple tup:
                     for (int i = 0; i < tup.Length && !found; i++) Visit(tup[i]);
                     break;
                 case System.Collections.IEnumerable en:
                     foreach (var item in en) { Visit(item); if (found) break; }
+                    break;
+                default:
+                    // ★ Keyed on the NAMESPACE, not on IExpression/IStatement. `ConditionArm` and
+                    // `JudgeArm` implement neither, so matching the interfaces walked past the body
+                    // of every `If` arm — and THIS walk decides whether a task's capture-write is
+                    // refused. A write hidden one `If` deep was not seen, the refusal never fired,
+                    // and the program compiled to something the interpreter disagrees with.
+                    // Measured: `If 1 is 1: tally becomes tally + 5. Done.` inside a task printed
+                    // 5 interpreted and 0 compiled, with `check --native` reporting no problems.
+                    //
+                    // This walk must OVER-approximate: missing a write ships a divergence, while an
+                    // extra refusal only costs a clean error. Descending into everything in the AST
+                    // namespace is the safe direction.
+                    if (val.GetType().Namespace == typeof(IStatement).Namespace
+                        && TaskBodyMayMutate(val, name)) found = true;
                     break;
             }
         }

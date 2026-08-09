@@ -152,6 +152,60 @@ public class PipelineEscapeTests : PipelineTestBase
         Assert.Contains("captured from outside the task", ex.Message);
     }
 
+    // ★ The same write, one `If` deep — which used to slip past the refusal entirely.
+    //
+    // `TaskBodyMayMutate` descended by matching IExpression/IStatement, and `ConditionArm`
+    // implements neither, so the body of every `If` arm was invisible to it. The refusal never
+    // fired and the program compiled: `check --native` reported no problems, the interpreter
+    // printed 5 and the binary printed 0. That is the exact divergence the test above exists to
+    // prevent, reachable by adding one line of nesting.
+    //
+    // The walk MUST over-approximate. Missing a write ships a divergence; an extra refusal only
+    // costs a clean error, which is why it now descends into everything in the AST namespace.
+    // Found by auditing for the same hole after the Linux CI job exposed it in CollectRefsDefs.
+    [Fact]
+    public void TaskCapture_MutatingInsideAnIfArm_IsRefused()
+    {
+        const string src = """
+            Define tally as 0.
+            Pull a rabbit.
+                Have rabbit start a task as bump:
+                    If 1 is 1:
+                        tally becomes tally + 5.
+                    Done.
+                    return 1.
+                Done.
+                State the awaited result of bump.
+            Done.
+            State tally.
+            """;
+        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        Assert.Contains("captured from outside the task", ex.Message);
+    }
+
+    [Fact]
+    public void TaskCapture_MutatingInsideAJudgeArm_IsRefused()
+    {
+        // `JudgeArm` had the identical hole, and the namespace-keyed descend closes both.
+        const string src = """
+            Define tally as 0.
+            Pull a rabbit.
+                Define the (number or text) subject as 7.
+                Have rabbit start a task as bump:
+                    Judge subject, where it is:
+                        A number, tally becomes tally + 5.
+                        A text, tally becomes tally + 1.
+                    Done.
+                    return 1.
+                Done.
+                State the awaited result of bump.
+            Done.
+            State tally.
+            """;
+        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        Assert.Contains("captured from outside the task", ex.Message);
+    }
+
     // ★ The same write, with the one thing that made it a divergence removed: nobody reads `tally`
     // afterwards. Interpreted, the write lands on the enclosing binding; compiled, on the task's own
     // copy — and with nothing ever looking at either, the two programs print the same thing. So it
