@@ -279,6 +279,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   The gcc failure also arrived correctly labelled "This is a bug in the Cufet compiler, not in your
   program" — the message added hours earlier, on its first real encounter.
 
+- **★★ A task published its result BEFORE running its own unmakers, so an awaiter raced the
+  cleanup.** `the awaited result of` woke the waiting thread while the task thread was still
+  executing destructors.
+
+  An unmaker is **user code** — it can print, write a file, close a handle — so this is not an
+  internal ordering detail. Measured over 200 runs of one task whose unmaker prints a line: **185**
+  in the interpreter's order, **1** reversed, and **14 with the two lines torn into each other**
+  (both texts emitted, then both newlines), because two threads were writing at once. After the
+  fix, **200/200**.
+
+  The emitted C said it plainly — `cufet_rbox_publish(...)` then `cufet_run_unmakers_to(...)`. The
+  comment beside it argued that publishing early was safe because the returned envelope is
+  self-contained heap; true about memory, and beside the point, since publishing is what releases
+  the awaiter. Both publish sites now clean up first — the value-returning `return` and the
+  fall-off-the-end path — and publish still precedes `free(cf_a)`, which owns the box.
+
+  **`the awaited result of` now means the task is finished, cleanup included**, which is what a
+  structured join should have meant all along.
+
+  Caught by the Linux CI job on a later push, as an intermittent failure of
+  `Unmaker_InsideConcurrentTask_FiresOnItsOwnThread`. Verified by re-emitting the C and running it
+  200 times under WSL, and the concurrency examples were re-checked under gcc **and ASan** — all
+  clean — because this reorder touches every task return and almost none of that surface runs on
+  Windows.
+
 - **★★ The capture-write refusal missed any write one `If` or `Judge` arm deep — a LIVE DIVERGENCE.**
 
   ```
