@@ -216,6 +216,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   box, and every generated binary is written and executed under real-time antivirus. Excluding the
   build temp directory is the next lever, and it belongs to the machine rather than to the repo.
 
+  ⚠ **It also exposed a latent race, which is now fixed.** Every harness built its temp paths as
+  `Path.GetTempFileName()`, deleted the file, and reused the stem for `<stem>.c` and `<stem>.exe`.
+  That name is unique only *because* the file exists — deleting it hands the name straight back, so
+  two tests can be given the same one. Serially it never mattered; at 17-way parallelism the
+  example suite failed roughly **one run in three**. All eight sites now build a stem that is unique
+  by construction (`cufet-<guid>`), with no file created and no name to reuse: **0 failures in 6
+  runs**, where the same loop had reproduced it twice.
+
 - **Four tests added for gaps that mutation testing found.** A fault was injected into the code
   generator at each of these points and **nothing went red**.
 
@@ -381,7 +389,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
   Measured before committing to it: pointing all 379 oracle assertions and the example harness at
   raw output surfaced **exactly one** divergence across 562 tests — this one. Nothing else was
-  hiding. `GeneratedC_UsesTheNewlineMacro` now refuses a by-hand newline in the emitted C, because
+  hiding.
+
+  **Every survivor from the sample has now been resolved**, each by experiment rather than by
+  reading the code — five equivalent (`845` bits width, `1453` POSIX `poll`, `6808` range direction,
+  `1542` the decimal `power == -1` case, and `Interpreter.Core.cs:1710`, whose null guard is
+  unreachable because embed-ness is fixed by an object's type), and three genuine gaps now tested.
+  The last of them, `6967`, turned out to be observable **only in the wording of a refusal**: the
+  two stream types are otherwise indistinguishable to the code generator, since the `fopen` mode is
+  decided separately — and mutating *that* is caught, because it truncates the file being read. A
+  refusal naming the wrong type sends a reader hunting for a bug they never wrote, so it is pinned. `GeneratedC_UsesTheNewlineMacro` now refuses a by-hand newline in the emitted C, because
   a new `State` arm would otherwise reintroduce it silently; verified by putting the bug back at
   one site and watching both it and the behavioural test fail.
 
