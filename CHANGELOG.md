@@ -178,6 +178,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   box, and every generated binary is written and executed under real-time antivirus. Excluding the
   build temp directory is the next lever, and it belongs to the machine rather than to the repo.
 
+- **Four tests added for gaps that mutation testing found.** A fault was injected into the code
+  generator at each of these points and **nothing went red**.
+
+  - **Bits ordering at equality.** `Lte` emitted `<=`; changing it to `<` survived, because
+    nothing compared two bits values that were *equal* — the only input where the two differ.
+  - **Matrix equality inside a container.** Equality has two lowerings: `EmitBinary` for a bare
+    `is`, and `EqCall` for a value compared as part of something else. The survivor was in
+    `EqCall`, so a test of `m is n` does not reach it — written first, that test passed happily
+    with the mutation reintroduced. A matrix inside a record is what reaches it.
+  - **`cufet_dec_from_dbl` either side of `power == -1`**, a boundary with no coverage at all.
+
+  ★ **One of the four "gaps" turned out not to be one.** The `power == -1` mutant is
+  **equivalent**: inverting it divides by 10, but such a value is necessarily above 1e14, so the
+  next line's `dbl < 1e14` bump multiplies by 10 and increments `power` straight back. Both paths
+  reach the same mantissa and scale, so no test can tell them apart. It was misfiled as a coverage
+  gap until the test was written and *failed to fail* — which is why each of these was checked by
+  reintroducing its own mutation rather than by trusting the analysis. That correction moves the
+  sample's score from 14/19 to **14/18**.
+
 - **Four more hand-written walks converted to the shared `AstSearch`.** `ProgramUsesConcurrency`
   (whose own comment already recorded losing concurrency inside a book pull),
   `CollectInterfaceDefs`, `CollectObjectDefs` and `MergeUntoMethods` — the last of which was

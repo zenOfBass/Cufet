@@ -334,4 +334,102 @@ public class PipelineRecentTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("[{x}]", Compile(src));
     }
+
+    // ── Gaps found by mutation testing ───────────────────────────────────
+    //
+    // ★ These exist because a fault was injected into the compiler and NOTHING went red.
+    //
+    // A 25-mutant sample scored 14/19 after discounting provably-equivalent mutants. The
+    // survivors clustered on BOUNDARY conditions, which is exactly the blind spot of tests
+    // written per feature with typical values: each line below was flipped in the code generator,
+    // the whole suite ran, and it stayed green. They are kept together rather than filed by topic
+    // because the provenance is the point — the suite could not see these, and now it can.
+
+    [Fact]
+    public void BitsOrdering_AtEquality_MatchesInterpreter()
+    {
+        // CodeGenerator emitted `<=` for Lte; changing it to `<` survived, because nothing
+        // compared two bits values that were EQUAL — the one input where the two differ.
+        const string src = """
+            Define mask as 0x0F.
+            Define other as 0x0F.
+            State mask <= other.
+            State mask >= other.
+            State mask < other.
+            State mask > other.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("true\ntrue\nfalse\nfalse", Compile(src));
+    }
+
+    [Fact]
+    public void MatrixEquality_IsByReference_MatchesInterpreter()
+    {
+        // Bare `is` on two matrices, which EmitBinary lowers directly.
+        const string src = """
+            Pull a book on collections.
+                Define grid as a matrix with 2 by 2 filled with 0.
+                Define alias as grid.
+                Define twin as a matrix with 2 by 2 filled with 0.
+                State grid is alias.
+                State grid is twin.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("true\nfalse", Compile(src));
+    }
+
+    [Fact]
+    public void MatrixEquality_InsideAContainer_MatchesInterpreter()
+    {
+        // ★ The surviving mutant was in EqCall, not in EmitBinary — two DIFFERENT lowerings of
+        // equality. EqCall is the CONTAINER path, reached only when a matrix is compared as part
+        // of something else, so the test above does not touch it: written first, it passed
+        // happily with the mutation reintroduced. A matrix inside a record is what reaches it.
+        //
+        // Reference equality is still the rule there, so two records holding the SAME matrix are
+        // equal and two holding identical-but-distinct matrices are not — the half that a
+        // contents-comparison would get wrong.
+        const string src = """
+            Pull a book on collections.
+                Define grid as a matrix with 2 by 2 filled with 0.
+                Define twin as a matrix with 2 by 2 filled with 0.
+                Define left as a record with (the board grid).
+                Define right as a record with (the board grid).
+                Define apart as a record with (the board twin).
+                State left is right.
+                State left is apart.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("true\nfalse", Compile(src));
+    }
+
+    [Fact]
+    public void DoubleToDecimal_AtThePowerMinusOneCase_MatchesInterpreter()
+    {
+        // `cufet_dec_from_dbl` has a special case for power == -1. power = 14 - ((exp*19728)>>16)
+        // is -1 only for values in roughly [2^49, 1e15) — 2^49 sits just inside, 2^48 below and
+        // 2^50 above, so these three straddle the branch rather than merely touching it.
+        //
+        // ★ The mutant that survived here is EQUIVALENT, and this test does not catch it — which
+        // is correct, because nothing can. Inverting the condition makes it divide by 10; but a
+        // value with power == -1 is necessarily above 1e14, so after the divide the very next
+        // line's `dbl < 1e14` bump multiplies by 10 and increments power back. Both paths end at
+        // the same mantissa and the same scale. It was misfiled as a coverage gap until this test
+        // was written and failed to fail.
+        //
+        // The test earns its place anyway: it pins exact values either side of a boundary that
+        // had no coverage at all, so a change to that branch which is NOT self-cancelling is
+        // caught. It just is not evidence about that particular mutant.
+        const string src = """
+            Pull a book on math.
+                State (math's power of (2, 49)) but void is -1.
+                State (math's power of (2, 48)) but void is -1.
+                State (math's power of (2, 50)) but void is -1.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("562949953421312\n281474976710656\n1125899906842620", Compile(src));
+    }
 }
