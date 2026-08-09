@@ -4120,12 +4120,25 @@ static void* cufet_pipe_stage(void* argp) {
                         sb.AppendLine($"{indent}void* cf_tret{rid} = {ChanHeapEnv(tctx.ResultType)}({retExpr});");
                         // PUBLISHED to the result box rather than returned. The thread's return value
                         // is no longer how a result travels: awaiters read the box, and pthread_join
-                        // happens once at the rabbit's Done. Publishing before the arena is popped is
-                        // safe because the envelope is already self-contained heap.
-                        sb.AppendLine($"{indent}cufet_rbox_publish(cf_a->cf_selfbox, cf_tret{rid});");
+                        // happens once at the rabbit's Done.
+                        //
+                        // ★ CLEAN UP FIRST, THEN PUBLISH. Publishing RELEASES THE AWAITER, and an
+                        // unmaker is user code — it can print, write a file, close a handle. This
+                        // used to publish first, on the reasoning that the envelope is
+                        // self-contained heap so the arena pops could not hurt it. True as far as
+                        // memory goes, and beside the point: the awaiting thread woke and ran
+                        // alongside this thread's unmakers. Measured over 200 runs of a task whose
+                        // unmaker prints — 185 in the interpreter's order, 1 reversed, and 14 with
+                        // the two lines TORN INTO EACH OTHER (both texts, then both newlines).
+                        //
+                        // `the awaited result of` has to mean the task is finished, cleanup and all.
                         // ESC.3: the result is already on the heap, so rabbits this return jumps out
-                        // of are genuinely reclaimed before the task's own arena goes.
-                        sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{ArenaPopStmts(0)}cufet_arena_pop(); free(cf_a); return NULL;");
+                        // of are genuinely reclaimed before the task's own arena goes — and the
+                        // envelope outlives every pop below. Publish must still precede free(cf_a),
+                        // which owns the box pointer being published to.
+                        sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{ArenaPopStmts(0)}cufet_arena_pop();");
+                        sb.AppendLine($"{indent}cufet_rbox_publish(cf_a->cf_selfbox, cf_tret{rid});");
+                        sb.AppendLine($"{indent}free(cf_a); return NULL;");
                     }
                     else
                     {
@@ -6341,14 +6354,18 @@ static void* cufet_pipe_stage(void* argp) {
         // only, and it yields NULL: the task is ABANDONED and reaped by the rabbit's structured
         // join, exactly as an interrupted pipe stage is. Run this thread's pending unmakers and
         // close its open files first — both registries are _Thread_local, so a worker touches only
+        // its own — otherwise an interrupt would skip every destructor and lose buffered writes.
+        //
+        // ★ And they run BEFORE the publish below, for the reason the value-returning return
+        // documents: publishing releases the awaiter, so doing it first lets that thread run
+        // concurrently with this one's unmakers, which are user code that can print.
+        _taskFns.AppendLine($"    {UnmakerRunStmt("0")}cufet_close_files_from(0);");
         // ★ Publish nothing, but publish it. A task reaching here either fell off the end or was
         // abandoned at its landing pad by an interrupt, and in both cases it never published a
         // result — so any awaiter would wait forever. An empty publish wakes them with NULL, which
         // the await site reads as "no result" and turns into a checkpoint. Harmless when nobody is
         // waiting, and NULL for a fire-and-forget task whose box does not exist.
         _taskFns.AppendLine($"    cufet_rbox_publish(cf_a->cf_selfbox, NULL);");
-        // its own — otherwise an interrupt would skip every destructor and lose buffered writes.
-        _taskFns.AppendLine($"    {UnmakerRunStmt("0")}cufet_close_files_from(0);");
         _taskFns.AppendLine($"    cufet_arena_pop();");
         _taskFns.AppendLine($"    free(cf_a);");
         _taskFns.AppendLine($"    return NULL;");
