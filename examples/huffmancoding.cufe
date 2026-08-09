@@ -13,7 +13,7 @@ Define object hnode with (the text symbol, the number freq, the series of hnode 
 Define object hcode with (the bits pattern, the number width).
 
 Bind map from text to number to frequencies, given (the text source):
-    Define counts as a map from text to number with ().
+    Define counts as a map from text to number.
     Define total as the length of source.
     Define i as 1.
     While i is not greater than total, repeat:
@@ -22,20 +22,18 @@ Bind map from text to number to frequencies, given (the text source):
             Define old as the entry for ch in counts but void is 0.
             In counts, the entry for ch becomes old + 1.
         Done.
-        Otherwise:
-            In counts, the entry for ch becomes 1.
-        Done.
+        Otherwise, in counts, the entry for ch becomes 1.
         The i becomes i + 1.
     Done.
     Return counts.
 Done.
 
 Bind series of hnode to leaves-from, given (the map from text to number counts):
-    Define leaves as a series of hnode with ().
+    Define leaves as a series of hnode.
     For each pair in counts, repeat:
         Define sym as the key of pair.
         Define n as the value of pair.
-        Add a new hnode { the symbol sym, the freq n, the children a series of hnode with () } to leaves.
+        Add a new hnode { the symbol sym, the freq n, the children a series of hnode } to leaves.
     Done.
     Return leaves.
 Done.
@@ -49,7 +47,7 @@ Bind hnode to build-tree, given (the series of hnode leaves):
         Remove the first item from queue.
         Remove the first item from queue.
         Define merged as a new hnode { the symbol "", the freq least's freq + next-least's freq,
-                                   the children a series of hnode with (least, next-least) }.
+                                       the children a series of hnode with (least, next-least) }.
         Add merged to queue.
         The queue becomes queue sorted by the freq.
         The count becomes the number of queue.
@@ -84,7 +82,7 @@ Done.
    current chunk and starts the next, so every chunk's printed digits are
    exactly its bits and decode is a plain walk over chunks. */
 Bind series of hcode to encode, given (the text source, the map from text to hcode codes):
-    Define chunks as a series of hcode with ().
+    Define chunks as a series of hcode.
     Define acc as 0b0.
     Define fill as 0.
     Define started as false.
@@ -116,9 +114,7 @@ Bind series of hcode to encode, given (the text source, the map from text to hco
         Done.
         The i becomes i + 1.
     Done.
-    If started is true:
-        Add a new hcode { the pattern acc, the width fill } to chunks.
-    Done.
+    If started is true, add a new hcode { the pattern acc, the width fill } to chunks.
     Return chunks.
 Done.
 
@@ -136,12 +132,8 @@ Bind text to decode, given (the series of hcode chunks, the hnode root):
             Define aligned as pattern shifted right by drop.
             Define bit as (aligned and 0b1) converted to number.
             Define kids as node's children.
-            If bit is 0:
-                The node becomes the first of kids.
-            Done.
-            Otherwise:
-                The node becomes item 2 of kids.
-            Done.
+            If bit is 0, the node becomes the first of kids.
+            Otherwise, the node becomes item 2 of kids.
             If the number of node's children is 0:
                 The out becomes out joined to node's symbol.
                 The node becomes root.
@@ -158,13 +150,10 @@ Bind void to play:
     Define counts as cast frequencies on (message).
     Define leaves as cast leaves-from on (counts).
     Define root as cast build-tree on (leaves).
-    Define codes as a map from text to hcode with ().
-    If the number of root's children is 0:
-        In codes, the entry for root's symbol becomes a new hcode { the pattern 0b1, the width 1 }.
-    Done.
-    Otherwise:
-        Cast assign-codes on (root, 0b0, 0, codes).
-    Done.
+    Define codes as a map from text to hcode.
+    If the number of root's children is 0, in codes, the entry for root's symbol becomes a new hcode 
+                                                   { the pattern 0b1, the width 1 }.
+    Otherwise, cast assign-codes on (root, 0b0, 0, codes).
 
     State "message: {message}".
     State "".
@@ -199,9 +188,7 @@ Bind void to play:
         State "decoded: {round-trip}".
         State "round trip holds".
     Done.
-    Otherwise:
-        State "MISMATCH: {round-trip}".
-    Done.
+    Otherwise, state "MISMATCH: {round-trip}".
 Done.
 
 Cast play.
