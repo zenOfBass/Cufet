@@ -571,6 +571,36 @@ public class PipelineLanguageTests : PipelineTestBase
     // records + objects + text)` — an internal class name, an internal slice number, and a list of
     // features that have nothing to do with it. These pin the messages a reader actually meets.
 
+    [Fact]
+    public void Refusal_StateOfAStream_NamesTheRightStreamKind()
+    {
+        // A refusal that names the WRONG type is worse than no refusal — the reader goes looking
+        // for a bug in code they never wrote. `State <stream>` is not compiled, so the binding's
+        // static type is only ever seen HERE, in the apology.
+        //
+        // Found by chasing a surviving mutant: flipping `wos.Mode == OpenMode.Reading` in the
+        // binding's type assignment left every stream test green, because the two stream types are
+        // otherwise indistinguishable to the code generator — the fopen mode is decided separately
+        // (and mutating THAT is caught, since it truncates the file being read). Cosmetic, but
+        // catchable, so it is caught rather than left as an unexplained survivor.
+        const string writing = """
+            With the file "cf-stream-probe.txt" open for writing as out:
+                Write "hi" to out.
+                State out.
+            Done.
+            """;
+        var wEx = Assert.Throws<CompilerException>(() => GenerateC(writing));
+        Assert.Contains("writable stream of text", wEx.Message);
+
+        const string reading = """
+            With the file "cf-stream-probe.txt" open for reading as inp:
+                State inp.
+            Done.
+            """;
+        var rEx = Assert.Throws<CompilerException>(() => GenerateC(reading));
+        Assert.Contains("readable stream of text", rEx.Message);
+    }
+
     // Was Refusal_AwaitInsideTask_ExplainsTheRestriction, asserting a clean refusal. Awaiting
     // inside a task now works, so the test asserts the behaviour instead of the apology — the
     // same conversion every shipped deferral in this suite has had.

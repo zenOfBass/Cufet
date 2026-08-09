@@ -735,8 +735,8 @@ public class PipelineEscapeTests : PipelineTestBase
     {
         // Everything gcc reads was written by cufet, so an error inside that file is never the
         // author's to fix. Standing in for a code-generator defect with C that cannot compile.
-        var cPath = Path.GetTempFileName() + ".c";
-        var binPath = Path.GetTempFileName() + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "");
+        var cPath = Path.Combine(Path.GetTempPath(), "cufet-" + Guid.NewGuid().ToString("N")) + ".c";
+        var binPath = Path.Combine(Path.GetTempPath(), "cufet-" + Guid.NewGuid().ToString("N")) + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "");
         try
         {
             File.WriteAllText(cPath, "int main(void) { struct { int a; } s; return s.nope; }\n");

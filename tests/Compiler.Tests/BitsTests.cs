@@ -23,8 +23,10 @@ public class BitsTests
         new TypeChecker().Check(program);
         var cSource = new CodeGenerator().Generate(program);
 
-        var tmp = Path.GetTempFileName();
-        File.Delete(tmp);
+        // A unique stem WITHOUT creating a file: GetTempFileName is unique only while its file exists,
+        // and deleting it to reuse the stem releases the name for another thread to be handed.
+
+        var tmp = Path.Combine(Path.GetTempPath(), "cufet-" + Guid.NewGuid().ToString("N"));
         var cPath   = tmp + ".c";
         var binExt  = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "";
         var binPath = tmp + binExt;
