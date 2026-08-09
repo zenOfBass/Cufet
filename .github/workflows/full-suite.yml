@@ -1,0 +1,73 @@
+# Runs EVERY test, on Linux, where the ones Windows skips can finally execute.
+#
+# ★ Why this exists, in one number: 73 of the 549 compiler tests — 13% — begin with
+#
+#     if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+#
+# and have never run automatically. Concurrency, channels, subprocesses, arena-escape probes and
+# every AddressSanitizer sweep are POSIX-only: they need pthreads, fork/exec and sigaction, which
+# the mingw toolchain on the development machine does not have. Five of the twenty-six examples
+# are skipped there for the same reason. Until now they ran only when someone remembered to go
+# through WSL by hand, which is to say: rarely, and never as a gate.
+#
+# That is the largest blind spot left in this project's testing. It is not a thin patch of
+# coverage — it is an entire platform, and it is the platform where Cufet's most dangerous code
+# lives. A bug in arena escape, in a pthread's lifetime, or in fork/exec is a memory-safety bug
+# rather than a wrong answer, and those are exactly the tests that do not run on Windows.
+#
+# It also qualifies the mutation-testing result recorded in CHANGELOG.md: 14/18 was measured on a
+# machine where 13% of the suite does not execute. One survivor was in a POSIX `poll` loop that
+# Windows never reaches, so the real figure is probably better — but that cannot be known until
+# these run.
+#
+# ── Deliberately NOT part of playground.yml ─────────────────────────────────────────────────
+# That workflow gates the Pages deploy. This suite is slower and, on its first runs, expected to
+# be RED — that is the point of building it. A surprise failure here must not block publishing
+# the site, so it lives in its own file with its own history.
+#
+# ── Expect red before green ─────────────────────────────────────────────────────────────────
+# 73 tests are about to run for the first time in CI, plus five examples on both backends. If
+# they all pass immediately that is a pleasant surprise, not the assumption. Failures here are
+# the return on building it; treat them as findings rather than as breakage.
+
+name: Full suite (Linux)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Every test, including the 73 Windows skips
+    runs-on: ubuntu-latest
+
+    # ★ A tripwire, not a budget. The suite runs in ~5 minutes locally, so thirty is generous —
+    # and the reason it is set at all is that a fault which makes a test HANG does not fail the
+    # run, it wedges it, and GitHub's default job limit is SIX HOURS. Measured, not hypothetical:
+    # a one-word change to void equality put a test into a loop that never ended and cost two
+    # hours locally before anyone thought to look. Mutation testing found that 1 in 23 injected
+    # faults hangs rather than fails, so this is a live failure mode, not a precaution.
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # gcc is preinstalled on ubuntu-latest, but the compiler suite shells out to it for every
+      # single test, so which one it found belongs in the log. When a codegen test fails here and
+      # passes under mingw, the toolchain version is the first thing anyone will want.
+      - name: Show the toolchain
+        run: |
+          gcc --version | head -1
+          dotnet --version
+
+      # The whole solution, not just the compiler project. The lexer and interpreter are already
+      # gated by playground.yml, and re-running them costs about three seconds — cheap insurance
+      # against this workflow quietly covering less than its name claims if that one ever changes.
+      - name: Run every test
+        run: dotnet test Cufet.sln --nologo

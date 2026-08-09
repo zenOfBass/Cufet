@@ -111,6 +111,9 @@ jobs:
     name: Deploy
     needs: build
     runs-on: ubuntu-latest
+    # Publishing is a single action call; if it has not finished in ten minutes it is stuck, and
+    # a stuck deploy holds the `pages` concurrency group and blocks every later one behind it.
+    timeout-minutes: 10
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -118,11 +121,9 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v4
 
-# Worth doing next, but deliberately not here: a full-suite CI job.
+# The full suite lives in full-suite.yml, deliberately not here.
 #
-# The compiler test suite contains a large number of tests that are LINUX-ONLY — subprocesses,
-# concurrency, signals, and every ASan/TSan check — and they early-return on Windows. They
-# therefore never run on the machine this project is developed on except by hand through WSL.
-# A Linux CI job would run them automatically for the first time, which is genuinely valuable
-# and also fairly likely to surface something. That deserves its own change rather than riding
-# along with a deploy workflow, where a surprise failure would block publishing the site.
+# This workflow gates the Pages deploy, so it runs only the lexer and interpreter: they are the
+# code the playground ships, they need no gcc, and they finish in seconds. The compiler suite is
+# slower and its Linux-only tests are newly exercised, so a failure there must not stand between
+# a fix and a published site.

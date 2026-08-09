@@ -159,6 +159,29 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **★ CI now runs the whole suite on Linux — `.github/workflows/full-suite.yml`.**
+
+  **73 of the 549 compiler tests — 13% — have never run automatically.** They open with
+  `if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;` because subprocesses,
+  concurrency, signals and every AddressSanitizer sweep need pthreads, fork/exec and sigaction,
+  which the mingw toolchain on the development machine does not have. Five of the twenty-six
+  examples are skipped there for the same reason. Until now they ran only when someone remembered
+  to go through WSL by hand.
+
+  That was the largest blind spot left — not a thin patch of coverage but an entire platform, and
+  the one where the riskiest code lives: a fault in arena escape, in a pthread's lifetime, or in
+  fork/exec is a memory-safety bug rather than a wrong answer.
+
+  It also qualifies the mutation-testing figure below. 14/18 was measured on a machine where 13%
+  of the suite does not execute, and one survivor sat in a POSIX `poll` loop Windows never reaches.
+
+  Deliberately its own workflow rather than part of the deploy: `playground.yml` gates publishing
+  the site, and a failure in newly-exercised tests must not stand between a fix and a published
+  page. **Expect red before green** — 73 tests are about to run for the first time, and failures
+  there are the return on building it. Every job in both workflows now carries `timeout-minutes`,
+  because mutation testing measured that 1 in 23 injected faults makes a test *hang* rather than
+  fail, and GitHub's default job limit is six hours.
+
 - **★ The test suite runs in half the time — `PipelineTests` split into 17 classes.** The full run
   went from **~600s to 318s**, with every one of the 2173 tests unchanged and still passing.
 
