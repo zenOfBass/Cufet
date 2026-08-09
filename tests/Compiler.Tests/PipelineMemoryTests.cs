@@ -610,4 +610,89 @@ public class PipelineMemoryTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ── Capture completeness: arm-bearing nodes ──────────────────────────
+    //
+    // ★ These assert on the EMITTED C rather than on a running binary, deliberately. The tests
+    // that caught this bug are Linux-only — tasks need pthreads — so on the development machine
+    // nothing would notice a relapse until CI ran. Codegen itself is platform-independent, so
+    // checking the generated capture struct holds everywhere.
+    //
+    // The bug: CollectRefsDefs walked children by matching IExpression/IStatement, and
+    // `ConditionArm`/`JudgeArm` implement neither. Everything inside an `If` arm — condition AND
+    // body — was therefore invisible, so a task referencing an enclosing variable ONLY there never
+    // captured it and emitted `cv_<name> undeclared`. Found by the first run of the Linux CI job.
+
+    [Fact]
+    public void TaskCapture_UsedOnlyInAnIfCondition_IsStillCaptured()
+    {
+        // `limit` appears nowhere else in the task. This is the work-queue collector's shape,
+        // reduced: `If count is n, Stop.` was its only mention of `n`.
+        const string src = """
+            Pull a rabbit.
+                Define ch as a channel of number.
+                Define limit as 3.
+                Have rabbit start a task as worker:
+                    Define i as 0.
+                    While i is 100 or less, repeat:
+                        i becomes i + 1.
+                        If i is limit, Stop.
+                    Done.
+                    Send i through ch.
+                Done.
+                Define d as the delivery from ch.
+                State d but void is -1.
+            Done.
+            """;
+        Assert.Matches(@"struct cufet_targ\d+ \{[^}]*cv_limit", GenerateC(src));
+    }
+
+    [Fact]
+    public void TaskCapture_UsedOnlyInAnIfBody_IsStillCaptured()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define ch as a channel of number.
+                Define bonus as 41.
+                Have rabbit start a task as worker:
+                    Define total as 1.
+                    If total is 1:
+                        total becomes total + bonus.
+                    Done.
+                    Send total through ch.
+                Done.
+                Define d as the delivery from ch.
+                State d but void is -1.
+            Done.
+            """;
+        Assert.Matches(@"struct cufet_targ\d+ \{[^}]*cv_bonus", GenerateC(src));
+    }
+
+    [Fact]
+    public void TaskCapture_UsedOnlyInAJudgeArmBody_IsStillCaptured()
+    {
+        // `JudgeArm` implements neither interface either, so it had the identical hole — but the
+        // variable has to be used inside an ARM BODY to prove it. A first version of this test
+        // captured the Judge's SUBJECT and passed with the fix reverted, because `Subject` is an
+        // ordinary IExpression property of JudgeStatement and the old walk reached it fine. It
+        // named a path it never took. `bonus` below appears nowhere but inside an arm.
+        const string src = """
+            Pull a rabbit.
+                Define ch as a channel of number.
+                Define bonus as 41.
+                Define the (number or text) subject as 7.
+                Have rabbit start a task as worker:
+                    Define out as 0.
+                    Judge subject, where it is:
+                        A number, out becomes bonus.
+                        A text, out becomes 2.
+                    Done.
+                    Send out through ch.
+                Done.
+                Define d as the delivery from ch.
+                State d but void is -1.
+            Done.
+            """;
+        Assert.Matches(@"struct cufet_targ\d+ \{[^}]*cv_bonus", GenerateC(src));
+    }
 }

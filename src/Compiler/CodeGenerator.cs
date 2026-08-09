@@ -6704,19 +6704,34 @@ static void* cufet_pipe_stage(void* argp) {
                 Nested(nb.Parameters.Select(p => p.Name), nb.Body);
                 return;
         }
-        // Generic: visit every IExpression / IStatement child, including tuple-wrapped ones
-        // (record/object/map literal fields) and lists thereof.
+        // Generic: visit every AST child, including tuple-wrapped ones (record/object/map literal
+        // fields) and lists thereof.
+        //
+        // ★ Keyed on the NAMESPACE, not on IExpression/IStatement — the same correction AstSearch
+        // carries, and for the same reason. `ConditionArm` and `JudgeArm` are plain records that
+        // HOLD statements without implementing either interface, so matching the interfaces walked
+        // straight past the condition AND the body of every `If` arm and every judgement.
+        //
+        // The symptom was a task or closure that referenced an enclosing variable ONLY inside an
+        // `If` arm: the name never reached `refs`, so it was never captured, and the emitted C said
+        // `cv_<name> undeclared`. It hid for so long because a body that also touches the variable
+        // anywhere else is rescued by that other mention — the work-queue collector broke only
+        // because `If count is n, Stop.` was its sole use of `n`. `Otherwise` bodies were fine
+        // throughout, since ElseBody is an ordinary property rather than an arm.
         void Visit(object? val)
         {
             switch (val)
             {
-                case IExpression or IStatement: CollectRefsDefs(val, refs, defs); break;
-                case string: break;
+                case null or string or CufetType: break;
                 case System.Runtime.CompilerServices.ITuple tup:
                     for (int i = 0; i < tup.Length; i++) Visit(tup[i]);
                     break;
                 case System.Collections.IEnumerable en:
                     foreach (var item in en) Visit(item);
+                    break;
+                default:
+                    if (val.GetType().Namespace == typeof(IStatement).Namespace)
+                        CollectRefsDefs(val, refs, defs);
                     break;
             }
         }
