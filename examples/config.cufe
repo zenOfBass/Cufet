@@ -72,14 +72,9 @@ Bind void to use-config, given (the atlas from text to (text or number or fact) 
     State "using configuration:".
     
     Define host as the entry for "host" in config.
-    If host is not void:
-        If host is a text, state "  connecting to {host}...".
-    Done.
-    
+    If host is not void, if host is a text, state "  connecting to {host}...".
     Define port as the entry for "port" in config.
-    If port is not void:
-        If port is a number, state "  on port {port converted to text}.".
-    Done.
+    If port is not void, if port is a number, state "  on port {port converted to text}.".
     
     Define debug as the entry for "debug" in config.
     If debug is not void:
