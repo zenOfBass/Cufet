@@ -159,6 +159,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **★ The test suite runs in half the time — `PipelineTests` split into 17 classes.** The full run
+  went from **~600s to 318s**, with every one of the 2173 tests unchanged and still passing.
+
+  xUnit 2.4.2 parallelises across *collections*, and by default a collection is a class — so tests
+  inside one class run strictly sequentially. All 429 compiler tests lived in a single 8,800-line
+  class, which pinned them to one core. Measured before touching anything: `PipelineTests` alone
+  was **7m01s of a 7m05s assembly**, so it was not merely the slowest part, it was the entire
+  runtime; the other 116 tests finished beside it in seconds.
+
+  The split is by theme, into classes of ~30 tests each. Balance is the constraint that matters —
+  the suite is only as fast as its largest class, and whatever is still running at the end has the
+  machine to itself. `PipelineTestBase` holds the shared helpers.
+
+  **What the measurements said, including the parts that did not work.** A first cut left one class
+  at 91 tests and another at 4; rebalancing to a ~35 maximum bought **10 seconds**, so imbalance was
+  not the limit. The remaining ceiling is the machine: gcc is CPU-bound and this is a **4-core**
+  box, and every generated binary is written and executed under real-time antivirus. Excluding the
+  build temp directory is the next lever, and it belongs to the machine rather than to the repo.
+
 - **Four more hand-written walks converted to the shared `AstSearch`.** `ProgramUsesConcurrency`
   (whose own comment already recorded losing concurrency inside a book pull),
   `CollectInterfaceDefs`, `CollectObjectDefs` and `MergeUntoMethods` — the last of which was
