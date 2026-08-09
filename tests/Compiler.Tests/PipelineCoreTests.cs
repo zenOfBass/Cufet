@@ -1,0 +1,239 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+using Cufet.Compiler;
+using Cufet.Interpreter;
+using Xunit;
+using CufetInterpreter = Cufet.Interpreter.Interpreter;
+using CufetLexer = Cufet.Lexer.Lexer;
+namespace Cufet.Compiler.Tests;
+
+/// <summary>One slice of the pipeline oracle suite — see PipelineTestBase for why it is split.</summary>
+public class PipelineCoreTests : PipelineTestBase
+{
+
+    // ── Acceptance bar: State 1 + 1. → binary runs → prints 2 ──────────
+
+    [Fact]
+    public void State_Addition_PrintsResult()
+    {
+        Assert.Equal("2", Compile("State 1 + 1."));
+    }
+
+    [Fact]
+    public void State_Addition_MatchesInterpreter()
+    {
+        const string src = "State 1 + 1.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ── Oracle: compiled output == interpreter output ────────────────────
+
+    [Fact]
+    public void State_Literal_MatchesInterpreter()
+    {
+        const string src = "State 5.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void State_Subtraction_MatchesInterpreter()
+    {
+        const string src = "State 10 - 3.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void DeclaredUnion_NarrowsToNumber_MatchesInterpreter()
+    {
+        const string src =
+            "Define the (number or text) x as 42.\n" +
+            "If x is a number:\n" +
+            "    State x + 1.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State the length of x.\n" +
+            "Done.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void DeclaredUnion_NarrowsToTextByElimination_MatchesInterpreter()
+    {
+        const string src =
+            "Define the (number or text) x as 42.\n" +
+            "x becomes \"hello\".\n" +
+            "If x is a number:\n" +
+            "    State x + 1.\n" +
+            "Done.\n" +
+            "Otherwise:\n" +
+            "    State the length of x.\n" +
+            "Done.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void DeclaredType_PlainNumber_MatchesInterpreter()
+    {
+        const string src =
+            "Define the number n as 3.\n" +
+            "Define the text who as \"Nathan\".\n" +
+            "State n + 1.\n" +
+            "State who.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ★ A voidable does not nest, and this is the case that proved it has to not. The annotation
+    // type-checked, ran interpreted, and passed `check --native` — then gcc rejected the generated
+    // C, because the map's get returns a cvd_<inner> and the binding wanted a cvd_<outer>. Check
+    // passing and the build failing is the divergence class that never ships, so VoidableType now
+    // collapses nesting in its constructor and `voidable voidable number` simply IS
+    // `voidable number`.
+    [Fact]
+    public void NestedVoidableAnnotation_IsFlattened_MatchesInterpreter()
+    {
+        const string src =
+            "Define ages as a map from text to number with (\"a\" : 1).\n" +
+            "Define the voidable voidable number present as the entry for \"a\" in ages.\n" +
+            "Define the voidable voidable number absent as the entry for \"b\" in ages.\n" +
+            "State present.\n" +
+            "State absent.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void NestedVoidableAnnotation_TakesAPlainValue_MatchesInterpreter()
+    {
+        // Flattened, so it widens a bare number exactly as `voidable number` does.
+        const string src =
+            "Define the voidable voidable number x as 5.\n" +
+            "State x.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void State_Multiplication_MatchesInterpreter()
+    {
+        const string src = "State 3 * 4.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void State_Division_MatchesInterpreter()
+    {
+        const string src = "State 10 / 2.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void State_Parenthesized_MatchesInterpreter()
+    {
+        const string src = "State 2 * (3 + 4).";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void State_UnaryNegation_MatchesInterpreter()
+    {
+        const string src = "State -5.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void State_MultipleStatements_MatchesInterpreter()
+    {
+        const string src = "State 1 + 1. State 3 * 3.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void State_Zero_MatchesInterpreter()
+    {
+        const string src = "State 0.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ── Slice 2: variables ───────────────────────────────────────────────
+
+    [Fact]
+    public void Variable_DefineAndUse_MatchesInterpreter()
+    {
+        const string src = "Define x as 5. State x.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Variable_DefineAndReassign_MatchesInterpreter()
+    {
+        const string src = "Define x as 3. x becomes 7. State x.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Variable_ChainedDefines_MatchesInterpreter()
+    {
+        const string src = "Define x as 3. Define y as x + 5. State y.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Variable_SelfReferenceReassignment_MatchesInterpreter()
+    {
+        const string src = "Define x as 1. x becomes x + 1. State x.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Variable_HyphenatedName_MatchesInterpreter()
+    {
+        const string src = "Define grand-total as 100. State grand-total.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Variable_MultipleVarsInteracting_MatchesInterpreter()
+    {
+        const string src = "Define x as 3. Define y as 4. State x + y.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Variable_FullSpecExample_MatchesInterpreter()
+    {
+        // Define x as 5. Define y as x + 3. y becomes y * 2. State y. → 16
+        const string src = "Define x as 5. Define y as x + 3. y becomes y * 2. State y.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Variable_Permanent_MatchesInterpreter()
+    {
+        const string src = "Define x as 10 permanently. State x.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Variable_VariableInArithmetic_MatchesInterpreter()
+    {
+        const string src = "Define width as 6. Define height as 7. State width * height.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Variable_MixedWithStateArithmetic_MatchesInterpreter()
+    {
+        // Slice 1 arithmetic alongside slice 2 variables
+        const string src = "State 1 + 1. Define x as 10. x becomes x - 3. State x.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ── Slice 3: control flow ────────────────────────────────────────────
+
+    [Fact]
+    public void If_TrueBranch_MatchesInterpreter()
+    {
+        const string src = "Define x as 5. If x is 5, state x. Otherwise, state 0.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+}
