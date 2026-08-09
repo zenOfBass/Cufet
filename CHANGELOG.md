@@ -245,6 +245,32 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★ A task never captured a variable it used only inside an `If` or `Judge` arm.** The emitted C
+  said `cv_<name> undeclared` and gcc refused it.
+
+  `CollectRefsDefs` — the free-variable analysis that decides what a task or closure captures —
+  walked children by matching `IExpression`/`IStatement`. **`ConditionArm` and `JudgeArm` implement
+  neither.** They are plain records that *hold* statements, so the walk stepped straight over the
+  condition and the body of every `If` arm and every judgement. `AstSearch` had already been
+  corrected for exactly this and even names both records in its comment; this was a separate
+  hand-written walk that never got converted, so it is now keyed on the namespace too.
+
+  It hid because a body that mentions the variable anywhere else is rescued by that other mention —
+  the same reason the `BecomesStatement` case above it survived so long. The work-queue collector
+  broke because `If count is n, Stop.` was its *only* use of `n`; the producer in the same program
+  captured `n` correctly from a `While` condition. `Otherwise` bodies were never affected, since
+  `ElseBody` is an ordinary property rather than an arm.
+
+  ★ **Found by the first run of the new Linux CI job**, in two tests that had never executed
+  anywhere — `Concurrency_FanOut_WorkQueue_EachItemProcessedOnce` and its ASan twin. It was
+  reproduced and fixed on Windows without needing Linux at all, because *code generation* runs on
+  both platforms; those tests are Linux-only merely because mingw cannot build pthreads. The
+  regression tests therefore assert on the **emitted C**, so a relapse fails on the development
+  machine rather than waiting for CI.
+
+  The gcc failure also arrived correctly labelled "This is a bug in the Cufet compiler, not in your
+  program" — the message added hours earlier, on its first real encounter.
+
 - **★ Compiled, narrowing again inside a Judge's grouped arm emitted C that would not compile.**
 
   ```
