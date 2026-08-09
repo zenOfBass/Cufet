@@ -58,8 +58,7 @@ Define object parser with (the series of text tokens, the number pos):
         While (cast one's peek) is "+", repeat:
             Cast one's advance.
             Define right as cast one's parse-term or pass the failure off.
-            The node becomes a new add-node {
-                the kids a catalogue of (num-node or add-node or mul-node) with (node, right) }.
+            The node becomes a new add-node { the kids a catalogue of (num-node or add-node or mul-node) with (node, right) }.
         Done.
         Return node.
     Done.
@@ -69,8 +68,7 @@ Define object parser with (the series of text tokens, the number pos):
         While (cast one's peek) is "*", repeat:
             Cast one's advance.
             Define right as cast one's parse-factor or pass the failure off.
-            The node becomes a new mul-node {
-                the kids a catalogue of (num-node or add-node or mul-node) with (node, right) }.
+            The node becomes a new mul-node { the kids a catalogue of (num-node or add-node or mul-node) with (node, right) }.
         Done.
         Return node.
     Done.
