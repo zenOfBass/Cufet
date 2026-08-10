@@ -132,8 +132,7 @@ Bind text to decode, given (the series of hcode chunks, the hnode root):
             Define aligned as pattern shifted right by drop.
             Define bit as (aligned and 0b1) converted to number.
             Define kids as node's children.
-            If bit is 0, the node becomes the first of kids.
-            Otherwise, the node becomes item 2 of kids.
+            The node becomes the first of kids when bit is 0, otherwise item 2 of kids.
             If the number of node's children is 0:
                 The out becomes out joined to node's symbol.
                 The node becomes root.
