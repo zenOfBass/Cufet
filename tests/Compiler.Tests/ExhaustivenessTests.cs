@@ -156,4 +156,66 @@ public class ExhaustivenessTests
         Assert.True(unnamed.Count == 0,
             $"TypeChecker.FormatType falls through to \"<unknown>\" for: {string.Join(", ", unnamed)}.");
     }
+
+    // ── Diagnostics must not leak internal vocabulary ────────────────────
+    //
+    // The ROADMAP asked for "a periodic error-message audit for internal vocabulary". Periodic
+    // means someone has to remember; this makes it continuous instead.
+    //
+    // The failure is real and shipped once: awaiting inside a task reported `'TaskHandleType' is
+    // not yet supported by the compiler (slice 5B: records + objects + text)` — a C# class name,
+    // this project's internal slice numbering, and a feature list with nothing to do with it. The
+    // most recent sweep found `"Open unions are the CAT.2 slice."`, which was worse than jargon:
+    // it also described a SHIPPED feature as missing.
+    //
+    // Scoped to prose deliberately. Emitted C is full of `cufet_*` and `cv_*` and should be — it
+    // is code, not a sentence — so a string only counts if it reads like one.
+    [Fact]
+    public void UserFacingMessages_DoNotLeakInternalVocabulary()
+    {
+        var srcRoot = FindRepoRoot();
+        var codey = new System.Text.RegularExpressions.Regex(
+            @"[;{}]|->|\*\)|\(\)|#include|static |return |\+\+|==|!=|&&|\|\||%s|%d|\bint \b");
+        var banned = new (string Label, System.Text.RegularExpressions.Regex Pattern)[]
+        {
+            ("internal slice/arc code", new(@"\b(slice\s*\d+[A-Z]?|Arc\s*\d+[A-Z]?|CONC\.[A-Z]|ESC\.\d[a-z]?|CAT\.\d|TCAP|UNMK|DD\.\d|ISA\.\d[a-z]?|INT\.\d|CL\.\d)\b")),
+            ("C# type name",           new(@"\b[A-Z][A-Za-z]*(?:Statement|Expression|Marker|Struct)\b")),
+            ("emitted-C identifier",   new(@"\b(?:cv_|cf_|cun_|cchan_|cser_|cvd_)\w+")),
+            ("private field name",     new(@"\b_[a-z]\w{3,}")),
+        };
+
+        var offenders = new List<string>();
+        foreach (var dir in new[] { "src/Lexer", "src/Interpreter", "src/Compiler", "src/App" })
+        foreach (var file in Directory.GetFiles(Path.Combine(srcRoot, dir), "*.cs", SearchOption.AllDirectories))
+        {
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var t = lines[i].TrimStart();
+                if (t.StartsWith("//") || t.StartsWith("*")) continue;
+                foreach (System.Text.RegularExpressions.Match lit in
+                         System.Text.RegularExpressions.Regex.Matches(lines[i], "\"((?:[^\"\\\\]|\\\\.)*)\""))
+                {
+                    // Interpolation holes hold expressions, not prose the message ships.
+                    var body = System.Text.RegularExpressions.Regex.Replace(lit.Groups[1].Value, @"\{[^{}]*\}", "");
+                    if (body.Length < 25 || body.Split(' ').Length < 5) continue;
+                    if (codey.IsMatch(body)) continue;
+                    foreach (var (label, pattern) in banned)
+                        if (pattern.Match(body) is { Success: true } m)
+                            offenders.Add($"{Path.GetFileName(file)}:{i + 1} [{label}: {m.Value}] {body.Trim()[..Math.Min(90, body.Trim().Length)]}");
+                }
+            }
+        }
+
+        Assert.True(offenders.Count == 0,
+            "these user-facing messages contain vocabulary only a compiler author knows:\n  "
+            + string.Join("\n  ", offenders));
+    }
+
+    private static string FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Cufet.sln"))) dir = dir.Parent;
+        return dir?.FullName ?? "";
+    }
 }

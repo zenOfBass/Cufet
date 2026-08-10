@@ -2820,10 +2820,26 @@ static void* cufet_pipe_stage(void* argp) {
     // (`a catalogue with (…)` — UnionType.Open) are CAT.2 (bounded whole-program tag set) → clean throw.
     private string RegisterUnionStruct(UnionType ut)
     {
+        // ★ A BACKSTOP, not a limitation — and the message must not pretend otherwise.
+        //
+        // It used to read "open catalogues … are not yet supported by the compiler; use a closed
+        // catalogue … Open unions are the CAT.2 slice." Two things wrong with that. Open
+        // catalogues ARE supported — they compile through the bounded whole-program tag set, and
+        // `a catalogue with (1, "two", 3)` builds and runs today — so the message described a
+        // shipped feature as missing and would have sent a reader rewriting working code. And
+        // "the CAT.2 slice" is this project's internal numbering, which names nothing a user can
+        // look up.
+        //
+        // Reaching here means a caller routed an OPEN union into the CLOSED-union struct builder
+        // instead of the open-union path. That is a defect in this compiler, so it says so, in the
+        // same terms a rejected gcc build does.
         if (ut.Cases == null)
             throw new CompilerException(
-                "open catalogues (`a catalogue with (…)` — an open union) are not yet supported by the compiler; " +
-                "use a closed catalogue (`a catalogue of (number or text) with (…)`). Open unions are the CAT.2 slice.");
+                "★ This is a bug in the Cufet compiler, not in your program.\n\n"
+              + "An open union reached the closed-union struct builder. Open catalogues are "
+              + "supported — they use a separate whole-program tag set — so nothing in your "
+              + "program needs changing.\n\n"
+              + "Please report it with the program that produced it.");
         string sig = TypeSig(ut);
         if (_unionSig2Name.TryGetValue(sig, out var name)) return name;
         name = $"cun_{_unionCounter++}";
