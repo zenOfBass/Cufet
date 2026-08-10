@@ -340,9 +340,14 @@ public class ExampleOracleTests
                 RedirectStandardOutput = true,
                 StandardOutputEncoding = System.Text.Encoding.UTF8,
                 WorkingDirectory = RepoRoot,
+                // Redirect stdin and close it immediately: an example that reads input must get
+                // EOF, not the TEST HOST's stdin. See PipelineTestBase.CompileRaw for the full
+                // story — inheriting it wedges the run for hours under `dotnet test` on Linux.
+                RedirectStandardInput = true,
                 UseShellExecute = false,
             };
             using var proc = Process.Start(psi)!;
+            proc.StandardInput.Close();
             var output = proc.StandardOutput.ReadToEnd();
             proc.WaitForExit();
             return output;

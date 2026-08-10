@@ -344,9 +344,11 @@ public abstract class PipelineTestBase
                 RedirectStandardOutput = true,
                 StandardOutputEncoding = System.Text.Encoding.UTF8,   // binaries print UTF-8 (e.g. em-dash messages)
                 RedirectStandardError  = true,
+                RedirectStandardInput  = true,   // closed below — a read must give EOF, never the host's stdin
                 UseShellExecute        = false,
             };
             using var proc = Process.Start(psi)!;
+            proc.StandardInput.Close();
             var killer = Task.Run(() =>
             {
                 Thread.Sleep(delayMs);
@@ -394,9 +396,11 @@ public abstract class PipelineTestBase
                 RedirectStandardOutput = true,
                 StandardOutputEncoding = System.Text.Encoding.UTF8,   // binaries print UTF-8 (e.g. em-dash messages)
                 RedirectStandardError  = true,
+                RedirectStandardInput  = true,   // closed below — a read must give EOF, never the host's stdin
                 UseShellExecute        = false,
             };
             using var proc = Process.Start(psi)!;
+            proc.StandardInput.Close();
             var output = proc.StandardOutput.ReadToEnd();
             var stderr = proc.StandardError.ReadToEnd();
             proc.WaitForExit();

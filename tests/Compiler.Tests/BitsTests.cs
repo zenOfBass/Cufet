@@ -44,9 +44,11 @@ public class BitsTests
             {
                 RedirectStandardOutput = true,
                 StandardOutputEncoding = System.Text.Encoding.UTF8,
+                RedirectStandardInput = true,   // closed below — a read must give EOF, never the host's stdin
                 UseShellExecute = false,
             };
             using var proc = Process.Start(psi)!;
+            proc.StandardInput.Close();
             var output = proc.StandardOutput.ReadToEnd();
             proc.WaitForExit();
             return output.Replace("\r\n", "\n").TrimEnd('\n');
