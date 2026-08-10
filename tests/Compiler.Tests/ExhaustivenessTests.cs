@@ -139,6 +139,158 @@ public class ExhaustivenessTests
             "Remove them from KnownBodyBearingNodes so this list keeps meaning something.");
     }
 
+    // ── The reflection walks must not gate descent on the interfaces ──────
+    //
+    // The most-repeated bug in this codebase, seven times over: a generic walk that descends with
+    //
+    //     if (child is IExpression or IStatement) Recurse(child);
+    //
+    // `ConditionArm` (every `If`/`Otherwise` arm) and `JudgeArm` implement NEITHER interface. They
+    // are plain records that HOLD statements, so that gate steps straight over the condition and
+    // the body of every `If` and every judgement. It reads as complete, which is why it kept being
+    // written — asking "is this an AST node?" as a disjunction of the two interfaces is simply the
+    // wrong question, and the namespace is the right one.
+    //
+    // Two of the seven shipped as live divergences: a task capturing a variable used only inside an
+    // `If` arm emitted `cv_<name> undeclared`, and a capture-WRITE one `If` deep escaped the refusal
+    // entirely — `check --native` reported no problems while the interpreter printed 5 and the
+    // compiled binary printed 0.
+    //
+    // The behavioural tests for those two live in PipelineMemoryTests and PipelineEscapeTests, and
+    // they only cover walks that already exist. This is the part they cannot do: fail on the SEVENTH
+    // walk, written the same wrong way, before anyone runs a program through it.
+    //
+    // Gating on nothing at all is fine and two walks do it — descending into everything only ever
+    // over-approximates, and over-approximating is the safe direction here.
+    private static readonly HashSet<string> KnownReflectionWalks =
+    [
+        "Ast.cs: Contains",
+        "CodeGenerator.cs: ProgramUsesOpenUnion",
+        "CodeGenerator.cs: TaskBodyMayMutate",
+        "CodeGenerator.cs: IsBoundSomewhere",
+        "CodeGenerator.cs: CaptureWriteIsObservable",
+        "CodeGenerator.cs: CollectRefsDefs",
+    ];
+
+    // A generic AST walk's fingerprint: it asks an unknown node for its properties.
+    private const string WalkFingerprint = "GetType().GetProperties()";
+
+    private static readonly System.Text.RegularExpressions.Regex MemberDecl = new(
+        @"^    (?:(?:public|private|internal|protected|static|sealed|override|virtual|partial|async|unsafe|new)\s+)+[\w<>,\[\]\?\.]+\s+(\w+)\s*(?:<[^>]*>)?\s*\(");
+
+    // `x is IStatement`, `x is not (IExpression or IStatement)`, and everything between.
+    private static readonly System.Text.RegularExpressions.Regex InterfaceGate = new(
+        @"\bis\s+(?:not\s+)?\(?\s*(?:IExpression|IStatement)\b(?:\s*or\s*(?:IExpression|IStatement)\b)?");
+
+    // The disjunction on its own — banned everywhere, walk or not. "Is this an expression or a
+    // statement?" has exactly one meaning, "is this an AST node?", and exactly one correct spelling.
+    private static readonly System.Text.RegularExpressions.Regex EitherInterface = new(
+        @"\bis\s+(?:not\s+)?\(?\s*(?:IExpression|IStatement)\s+or\s+(?:IExpression|IStatement)\b");
+
+    // Every member that contains the walk fingerprint, as (label, first line, last line).
+    private static List<(string Label, string File, int Start, int End, string[] Lines)> FindWalks()
+    {
+        var walks = new List<(string, string, int, int, string[])>();
+        foreach (var file in SourceFiles())
+        {
+            var lines = File.ReadAllLines(file);
+
+            // Member boundaries by declaration line at class indentation. Deliberately NOT by
+            // brace matching: CodeGenerator.cs emits C, so its string literals are full of braces.
+            var decls = new List<(int Line, string Name)>();
+            for (int i = 0; i < lines.Length; i++)
+                if (MemberDecl.Match(lines[i]) is { Success: true } m) decls.Add((i, m.Groups[1].Value));
+
+            for (int d = 0; d < decls.Count; d++)
+            {
+                int start = decls[d].Line;
+                int end = d + 1 < decls.Count ? decls[d + 1].Line - 1 : lines.Length - 1;
+                bool isWalk = false;
+                for (int i = start; i <= end && !isWalk; i++)
+                    isWalk = lines[i].Contains(WalkFingerprint);
+                if (isWalk)
+                    walks.Add(($"{Path.GetFileName(file)}: {decls[d].Name}", file, start, end, lines));
+            }
+        }
+        return walks;
+    }
+
+    [Fact]
+    public void ReflectionWalks_DoNotGateDescentOnTheInterfaces()
+    {
+        var offenders = new List<string>();
+
+        foreach (var (label, _, start, end, lines) in FindWalks())
+            for (int i = start; i <= end; i++)
+            {
+                var t = lines[i].TrimStart();
+                if (t.StartsWith("//") || t.StartsWith("*")) continue;   // the comments SAY the rule
+                if (InterfaceGate.Match(lines[i]) is { Success: true } m)
+                    offenders.Add($"{label} (line {i + 1}) [{m.Value.Trim()}] {t}");
+            }
+
+        Assert.True(offenders.Count == 0,
+            "a reflection walk over the AST gates its descent on IExpression/IStatement:\n  "
+            + string.Join("\n  ", offenders)
+            + "\n\nConditionArm and JudgeArm implement neither, so this walks past the condition and "
+            + "body of every `If` arm and every judgement. Gate on the namespace instead — "
+            + "`node.GetType().Namespace == typeof(IStatement).Namespace` — or on nothing at all.");
+
+        // The same shape outside a walk is still the wrong question, so it is banned everywhere.
+        var elsewhere = new List<string>();
+        foreach (var file in SourceFiles())
+        {
+            var lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var t = lines[i].TrimStart();
+                if (t.StartsWith("//") || t.StartsWith("*")) continue;
+                if (EitherInterface.IsMatch(lines[i]))
+                    elsewhere.Add($"{Path.GetFileName(file)}:{i + 1} {t}");
+            }
+        }
+
+        Assert.True(elsewhere.Count == 0,
+            "`is IExpression or IStatement` asks \"is this an AST node?\" and gets the answer wrong "
+            + "for ConditionArm and JudgeArm. Ask the namespace:\n  " + string.Join("\n  ", elsewhere));
+    }
+
+    [Fact]
+    public void EveryReflectionWalk_IsAccountedFor()
+    {
+        var found = FindWalks().Select(w => w.Label).ToHashSet();
+
+        var added = found.Except(KnownReflectionWalks).OrderBy(n => n).ToList();
+        Assert.True(added.Count == 0,
+            $"New generic AST walk(s): {string.Join(", ", added)}.\n" +
+            "A walk that descends by reflection must be shown to see INSIDE `ConditionArm` and " +
+            "`JudgeArm` — the two AST records that implement neither IExpression nor IStatement. " +
+            "Write a test where the thing the walk is looking for appears ONLY inside an `If` arm " +
+            "body and ONLY inside a `Judge` arm body (a first attempt at one of these captured the " +
+            "Judge's Subject, which is an ordinary property, and passed with the bug reverted).\n" +
+            "Then add the walk here.");
+
+        var removed = KnownReflectionWalks.Except(found).OrderBy(n => n).ToList();
+        Assert.True(removed.Count == 0,
+            $"Reflection walk(s) gone: {string.Join(", ", removed)}. Remove them from " +
+            "KnownReflectionWalks so this list keeps meaning something.");
+    }
+
+    // Every hand-written source file of the front end and both backends. `obj/` and `bin/` are
+    // excluded: they hold generated files (GlobalUsings, AssemblyInfo) that nobody wrote and
+    // nobody can fix.
+    private static IEnumerable<string> SourceFiles()
+    {
+        var root = FindRepoRoot();
+        foreach (var dir in new[] { "src/Lexer", "src/Interpreter", "src/Compiler", "src/App" })
+        foreach (var file in Directory.GetFiles(Path.Combine(root, dir), "*.cs", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(root, file).Replace('\\', '/');
+            if (rel.Contains("/obj/") || rel.Contains("/bin/")) continue;
+            yield return file;
+        }
+    }
+
     [Fact]
     public void EveryCufetType_IsNamedByTheFrontEndToo()
     {
@@ -173,7 +325,6 @@ public class ExhaustivenessTests
     [Fact]
     public void UserFacingMessages_DoNotLeakInternalVocabulary()
     {
-        var srcRoot = FindRepoRoot();
         var codey = new System.Text.RegularExpressions.Regex(
             @"[;{}]|->|\*\)|\(\)|#include|static |return |\+\+|==|!=|&&|\|\||%s|%d|\bint \b");
         var banned = new (string Label, System.Text.RegularExpressions.Regex Pattern)[]
@@ -185,8 +336,7 @@ public class ExhaustivenessTests
         };
 
         var offenders = new List<string>();
-        foreach (var dir in new[] { "src/Lexer", "src/Interpreter", "src/Compiler", "src/App" })
-        foreach (var file in Directory.GetFiles(Path.Combine(srcRoot, dir), "*.cs", SearchOption.AllDirectories))
+        foreach (var file in SourceFiles())
         {
             var lines = File.ReadAllLines(file);
             for (int i = 0; i < lines.Length; i++)

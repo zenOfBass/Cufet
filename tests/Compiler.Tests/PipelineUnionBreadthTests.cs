@@ -30,6 +30,56 @@ public class PipelineUnionBreadthTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── The discovery pre-pass has to look inside arms ────────────────────
+    //
+    // `ProgramUsesOpenUnion` decides whether whole-program open-union discovery runs at all. It is
+    // the third walk to have carried the arm-record hole: `ConditionArm` and `JudgeArm` implement
+    // neither IExpression nor IStatement, so a walk that descended by matching those interfaces saw
+    // nothing inside an `If` arm or a judgement — and a catalogue FIRST mentioned in one was left
+    // out of the discovery it exists to trigger.
+    //
+    // ★ The catalogue below is mentioned nowhere else. That is the whole test: a program that also
+    // names one at the top level is rescued by that other mention and stays green with the bug back.
+
+    [Fact]
+    public void OpenCatalogue_FirstSeenInsideAnIfArm_IsStillDiscovered()
+    {
+        const string src = """
+            Define flag as true.
+            If flag is true:
+                Define items as a catalogue with (1, "two").
+                Add true to items.
+                For each i in items, repeat:
+                    If i is a number, State "n".
+                    Otherwise, If i is a text, State "t".
+                    Otherwise, State "f".
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void OpenCatalogue_FirstSeenInsideAJudgeArm_IsStillDiscovered()
+    {
+        const string src = """
+            Define the (number or text) subject as 7.
+            Judge subject, where it is:
+                A number:
+                    Define items as a catalogue with (1, "two").
+                    Add true to items.
+                    For each i in items, repeat:
+                        If i is a number, State "n".
+                        Otherwise, If i is a text, State "t".
+                        Otherwise, State "f".
+                    Done.
+                Done.
+                A text, State "text".
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     [Fact]
     public void OpenCatalogue_IsATypeNeverWidenedIn_IsFalse()
     {
