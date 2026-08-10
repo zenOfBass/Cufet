@@ -6,7 +6,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
-## [Unreleased]
+## [0.14.0] — 2026-08-09
+
+0.13.0 made Cufet account for every case. **0.14.0 makes the two backends prove they
+agree.** Every example is now an oracle test, the whole suite runs on Linux, and the
+harness that resulted found two places where a compiled program and an interpreted one
+had been quietly disagreeing. The language gained verbatim text and a writable matrix
+cell; most of the work went underneath.
 
 ### Added
 

@@ -451,8 +451,9 @@ indistinguishable from having forgotten.
   result to the block underneath is what catches a doc that is merely *wrong* — the failure mode
   that has actually recurred.
 
-- **An LSP.** The front end emits one diagnostic per run, with a line and a long prose
-  explanation, so LSP's incremental machinery has nothing to earn back on diagnostics alone.
+- **An LSP.** A run stops at its first error, so the front end reports at most one — plus any
+  warnings it collected on the way, each with a line, a column and a long prose explanation. LSP's
+  incremental machinery has nothing to earn back on a report that small.
   *Blocker:* wanting go-to-definition, completion or rename — the features that genuinely need a
   resident index, and that nobody has asked for yet.
 
