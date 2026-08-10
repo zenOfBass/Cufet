@@ -163,6 +163,25 @@ public class PipelineTextFailureTests : PipelineTestBase
     }
 
     [Fact]
+    public void Text_ConvertAtTheDecimalBoundary_MatchesInterpreter()
+    {
+        // Found by mutation testing on Linux: nothing exercised either side of the compiled
+        // parser's overflow guard, so `coef > max96` could become `coef >= max96` and the whole
+        // suite stayed green.
+        //
+        // max96 is 2^96-1 — the largest coefficient a decimal can hold, and a perfectly ordinary
+        // number to write down. One more digit of magnitude is not representable and must come
+        // back void on BOTH backends; the interpreter gets that from decimal.TryParse, the
+        // compiler from this guard, and the two only agree if the boundary sits in the same place.
+        const string src = """
+            State "79228162514264337593543950335" converted to number but void is -1.
+            State "79228162514264337593543950336" converted to number but void is -1.
+            State "7922816251426433759354395033.5" converted to number but void is -1.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
     public void Text_ReadmeParseAge_MatchesInterpreter()
     {
         // The README parse-age integration verbatim (text→number + fallibility + joined to),
