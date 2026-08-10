@@ -16,12 +16,8 @@ Bind fact to placeable, given (the matrix board, the number r, the number c, the
         If item at (i, c) of board is v, return false.
         The i becomes i + 1.
     Done.
-    Define box-top as 1.
-    If r is greater than 3, the box-top becomes 4.
-    If r is greater than 6, the box-top becomes 7.
-    Define box-left as 1.
-    If c is greater than 3, the box-left becomes 4.
-    If c is greater than 6, the box-left becomes 7.
+    Define box-top as 7 when r is greater than 6, otherwise 4 when r is greater than 3, otherwise 1.
+    Define box-left as 7 when c is greater than 6, otherwise 4 when c is greater than 3, otherwise 1.
     Define dr as 0.
     While dr is less than 3, repeat:
         Define dc as 0.
