@@ -35,6 +35,11 @@ public enum TokenType
     Otherwise, // "Otherwise"
     Done,      // "Done" — closes a multi-statement block
 
+    // `<value> when <condition>, otherwise <value>` — a conditional EXPRESSION, the only way to
+    // let a value depend on a condition without declaring it first and mutating it. `Otherwise`
+    // above does double duty as its second half; `when` is the only new word.
+    When,      // "when"
+
     // `Judge <subject>, where it is:` — an exhaustive case construct. The subject is bound to
     // `it` for the block and narrowed inside each arm; `Otherwise` is the default arm.
     Judge,     // "Judge" — opens the construct
