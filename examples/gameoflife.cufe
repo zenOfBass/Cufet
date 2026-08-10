@@ -65,8 +65,8 @@ Bind void to render, given (the matrix board):
     For each r in range 1 to the rows of board, repeat:
         Define line as "".
         For each c in range 1 to the columns of board, repeat:
-            If item at (r, c) of board is 1, the line becomes "{line}#".
-            Otherwise, the line becomes "{line}.".
+            Define cell as "#" when item at (r, c) of board is 1, otherwise ".".
+            The line becomes "{line}{cell}".
         Done.
         State "{line}".
     Done.
