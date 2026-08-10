@@ -509,6 +509,25 @@ public sealed class CodeGenerator
 #endif
 #define cufet_nl() fputs(CUFET_NL, stdout)
 
+/* ───────── One `State` is ONE line, even from two threads ─────────
+   A State writes in several calls — the value, then the terminator, and a series or record writes
+   every element and separator separately. Two threads printing at once interleaved BETWEEN those
+   calls, so output came out spliced: `side effectdone` followed by both newlines. Measured at
+   roughly 4-8% of runs on a two-thread program whose output is otherwise deterministic.
+
+   Locking the stream for the whole statement makes a State atomic against other threads. stdio
+   calls take this same lock individually, so holding it across them is exactly what it is for, and
+   an unthreaded program pays one uncontended lock per line.
+
+   No-op off POSIX: tasks are pthreads-only, so a Windows build has no second thread to race. */
+#if defined(__unix__) || defined(__APPLE__)
+#define cufet_out_lock()   flockfile(stdout)
+#define cufet_out_unlock() funlockfile(stdout)
+#else
+#define cufet_out_lock()   ((void)0)
+#define cufet_out_unlock() ((void)0)
+#endif
+
 /* ───────── Exceptions (E-prime): setjmp/longjmp over SOFTWARE faults ─────────
    Cufet numbers are software decimals, so divide/modulo-by-zero, series/matrix OOB, etc. are
    software-DETECTED conditions, not hardware signals. Every fault site calls cufet_raise: if a
@@ -4072,7 +4091,9 @@ static void* cufet_pipe_stage(void* argp) {
                     UnionType       => $"{WriteCall(valExpr, t)}; cufet_nl()",
                     _ => throw new CompilerException($"State of a '{FormatTypeName(t)}' is not yet supported by the compiler.")
                 };
-                sb.AppendLine($"{indent}{printStmt};");
+                // Locked for the whole statement: a State is several writes, and a concurrent State
+                // on another thread used to splice itself between them. See cufet_out_lock.
+                sb.AppendLine($"{indent}cufet_out_lock(); {printStmt}; cufet_out_unlock();");
                 break;
             }
 

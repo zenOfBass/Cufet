@@ -577,6 +577,14 @@ public class PipelineTaskTests : PipelineTestBase
         // A named task whose REFERENCE result is never awaited: the Done.-join teardown must free the
         // whole heap bridge THROUGH the slot's freeenv (not just the envelope pointer), so the nested
         // series allocations free too. ASan/LSan clean = the free-on-all-paths proof for reference results.
+        //
+        // ★ Order-independent, because this program does not order its two lines. The task prints
+        // and is never awaited, and `State "done"` runs BEFORE the rabbit's join — so nothing
+        // sequences the task thread against the main one. The cooperative interpreter always yields
+        // "done" first; real threads mostly agree and sometimes do not. Asserting the exact string
+        // was asserting a coincidence, and it duly failed in CI after passing for months.
+        //
+        // What the test is actually for — the free-on-all-paths proof under ASan — is untouched.
         const string src = """
             Pull a rabbit.
                 Have rabbit start a task as maker:
@@ -586,6 +594,6 @@ public class PipelineTaskTests : PipelineTestBase
                 State "done".
             Done.
             """;
-        Assert.Equal(Interpret(src), CompileWithASan(src));
+        AssertSameLinesInAnyOrder(Interpret(src), CompileWithASan(src));
     }
 }

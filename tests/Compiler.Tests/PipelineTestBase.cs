@@ -41,6 +41,25 @@ public abstract class PipelineTestBase
     protected static string Compile(string source, string? stdin = null) => Norm(CompileRaw(source, stdin));
     protected static string Interpret(string source, string? stdin = null) => Norm(InterpretRaw(source, stdin));
 
+    /// <summary>
+    /// Same lines, order not required — for programs where the ORDER is the scheduler's to choose.
+    ///
+    /// ★ Only where nothing in the program orders the writes. A task that prints and is never
+    /// awaited races the main thread by construction: the cooperative interpreter always resolves
+    /// it one way, real threads do not, and neither is wrong. That is the oracle rule's
+    /// platform-owned exception, and asserting an exact string there asserts a coincidence — this
+    /// one passed for months and then failed in CI.
+    ///
+    /// NOT a licence to soften a real divergence. Where a program does order its output — an
+    /// await, a channel, a join — the exact comparison is the whole point and stays.
+    /// </summary>
+    protected static void AssertSameLinesInAnyOrder(string expected, string actual)
+    {
+        static string[] Lines(string s) =>
+            Norm(s).Split('\n').OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        Assert.Equal(Lines(expected), Lines(actual));
+    }
+
     // Compiles source to a temp native binary, runs it (optionally feeding stdin), returns stdout.
     protected static string CompileRaw(string source, string? stdin = null)
     {
