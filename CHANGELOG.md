@@ -157,6 +157,33 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   constructs came through rather than judging the existing ~60 walk-by-node cells, which is a
   separate job needing a reason per cell.
 
+- **★ A structural guard against the arm-record walk bug — the most-repeated bug in this codebase,
+  seven instances.** A generic walk that descends with `if (child is IExpression or IStatement)`
+  reads as complete and is not: `ConditionArm` (every `If`/`Otherwise` arm) and `JudgeArm` implement
+  neither interface, so it steps over the condition *and* the body of every `If` and every
+  judgement. Two of the seven shipped as live divergences.
+
+  All six reflection walks in `src/` are correct today; the point is the seventh. Two tests, in
+  `ExhaustivenessTests`:
+  - `ReflectionWalks_DoNotGateDescentOnTheInterfaces` — finds every member containing the walk
+    fingerprint (`GetType().GetProperties()`) and fails if it gates descent on either interface.
+    Gating on the namespace is right; gating on **nothing** is also right, and two walks do that —
+    descending into everything only over-approximates, which is the safe direction. Members are
+    delimited by declaration lines at class indentation rather than by brace matching, because
+    `CodeGenerator.cs` emits C and its string literals are full of braces.
+  - `EveryReflectionWalk_IsAccountedFor` — a seventh walk fails until it is shown to see inside
+    `ConditionArm` and `JudgeArm`, and the message says how to write that test.
+
+  Both verified by reintroducing the bug: the interface gate put back in `CollectRefsDefs` names the
+  member, line, and matched text; a dummy seventh walk fails the inventory.
+
+- **Two tests for open-union discovery inside arms**, closing the last of the three walks that
+  carried the hole to have no behavioural coverage. A catalogue first mentioned inside an `If` arm
+  and inside a `Judge` arm — mentioned *nowhere else*, since a program that also names one at the
+  top level is rescued by that other mention and stays green with the bug back. Verified: with the
+  interface gate restored in `ProgramUsesOpenUnion` the pre-pass never runs, `cun_open` is emitted
+  with an empty case set, and gcc rejects it.
+
 ### Changed
 
 - **★ CI now runs the whole suite on Linux — `.github/workflows/full-suite.yml`.**
