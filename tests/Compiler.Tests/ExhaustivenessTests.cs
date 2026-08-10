@@ -362,6 +362,59 @@ public class ExhaustivenessTests
             + string.Join("\n  ", offenders));
     }
 
+    // ── Every launcher of a compiled binary must close its stdin ─────────
+    //
+    // Six places in this test project start a compiled Cufet binary, each with its own
+    // hand-rolled ProcessStartInfo. Five of them did not redirect stdin, so the child inherited
+    // the TEST HOST's — and what that is depends on how the suite was launched. Under
+    // `dotnet test` on Linux it is a pipe somebody still holds open, so a program that reads
+    // input blocks on read() forever.
+    //
+    // Measured: a single binary sat in `pipe_read` for 2h15m having used ZERO CPU, with the
+    // whole suite waiting on it. It never showed on Windows (the inherited handle gives EOF) and
+    // never showed in CI or the mutation harness (both redirect from /dev/null). It took running
+    // the suite interactively through wsl.exe — the one launch that supplies a live pipe.
+    //
+    // ★ Patching five by hand is the same shape as the AST-walk bug this file already guards:
+    // one rule, N copies, one forgotten, silent when wrong. So it gets the same treatment.
+    [Fact]
+    public void EveryCompiledBinaryLauncher_ClosesStdin()
+    {
+        var offenders = new List<string>();
+        var root = FindRepoRoot();
+
+        foreach (var file in Directory.GetFiles(
+                     Path.Combine(root, "tests"), "*.cs", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(root, file).Replace('\\', '/');
+            if (rel.Contains("/obj/") || rel.Contains("/bin/")) continue;
+            var lines = File.ReadAllLines(file);
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                // Keyed on `binPath` deliberately: this is about launching a COMPILED CUFET
+                // PROGRAM. `new ProcessStartInfo("/bin/kill", …)` in the interrupt runner is not
+                // one and must not be dragged in.
+                if (!lines[i].Contains("new ProcessStartInfo(binPath)")) continue;
+
+                var window = string.Join("\n", lines.Skip(i).Take(20));
+                if (!window.Contains("RedirectStandardInput"))
+                    offenders.Add($"{rel}:{i + 1} does not set RedirectStandardInput");
+                else if (!window.Contains("StandardInput.Close()"))
+                    offenders.Add($"{rel}:{i + 1} redirects stdin but never closes it");
+            }
+        }
+
+        Assert.True(offenders.Count == 0,
+            "a compiled Cufet binary is launched without a closed stdin:\n  "
+            + string.Join("\n  ", offenders)
+            + "\n\nRedirect stdin and close it immediately. The close is what turns a read into "
+            + "EOF, which is what the interpreter gives a program whose reader is null — so both "
+            + "backends agree by construction instead of by accident. Inheriting the test host's "
+            + "stdin instead wedges the whole suite for hours, and only on Linux, and only when "
+            + "launched with a live pipe.");
+    }
+
     private static string FindRepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
