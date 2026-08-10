@@ -21,25 +21,28 @@ Pull a rabbit.
         Close ch-map.
     Done.
 
-    Have rabbit start a task as list-consumer:
+    // ONE consumer, draining both channels in turn. Two concurrent consumers would print in
+    // whichever order the scheduler chose, and the two backends do not schedule alike: the
+    // interpreter is cooperative and always picks one order, while the compiled binary uses real
+    // threads and picks either. Nothing here is racing for a value — only for the terminal — so
+    // the fix belongs in the example rather than in a weaker comparison.
+    Have rabbit start a task as consumer:
         Define received as the delivery from ch-list.
         While received is not void, repeat:
-            Define r as (received but void is (a series of series of number)).
-            Define inner-copy as the first of r.
-            State "outer-len= {the number of r converted to text}".
+            Define holding as (received but void is (a series of series of number)).
+            Define inner-copy as the first of holding.
+            State "outer-len= {the number of holding converted to text}".
             State "inner-len= {the number of inner-copy converted to text}".
             State "inner[1]= {the first of inner-copy converted to text}".
             received becomes the delivery from ch-list.
         Done.
-    Done.
 
-    Have rabbit start a task as map-consumer:
-        Define received as the delivery from ch-map.
-        While received is not void, repeat:
-            Define r as (received but void is (a map from text to series of number)).
-            Define batch-copy as (the entry for "batch" in r but void is (a series of number)).
+        Define delivered as the delivery from ch-map.
+        While delivered is not void, repeat:
+            Define held-map as (delivered but void is (a map from text to series of number)).
+            Define batch-copy as (the entry for "batch" in held-map but void is (a series of number)).
             State "batch-len= {the number of batch-copy converted to text}".
-            received becomes the delivery from ch-map.
+            delivered becomes the delivery from ch-map.
         Done.
     Done.
 Done.
