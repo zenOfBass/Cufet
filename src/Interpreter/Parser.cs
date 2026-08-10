@@ -1768,13 +1768,15 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.Failure);
                 SkipNoise();
-                return new FailureFallback(left, ParseExprOr(), line, col);
+                left = new FailureFallback(left, ParseExprOr(), line, col);
+                return ParseWhenSuffix(left);
             }
             Consume(TokenType.Void);
             SkipNoise();
             Consume(TokenType.Is);
             SkipNoise();
-            return new ButVoidDefault(left, ParseExprOr(), line, col);
+            left = new ButVoidDefault(left, ParseExprOr(), line, col);
+            return ParseWhenSuffix(left);
         }
 
         if (Peek().Type == TokenType.Or && PeekAfterCurrent() == TokenType.Pass)
@@ -1788,10 +1790,39 @@ public sealed class Parser
             Consume(TokenType.Failure);
             SkipNoise();
             Consume(TokenType.Off);
-            return new FailurePropagate(left, line, col);
+            return ParseWhenSuffix(new FailurePropagate(left, line, col));
         }
 
-        return left;
+        return ParseWhenSuffix(left);
+    }
+
+    // `<value> when <condition>, otherwise <alternative>`
+    //
+    // The loosest-binding thing in the expression grammar, so `a but void is b when c, otherwise d`
+    // reads as `(a but void is b) when c, otherwise d` — the conditional chooses between two whole
+    // values, which is the only way the form is ever worth reading.
+    //
+    // ★ There is no ambiguity with a separator comma, and it needs no lookahead: `when` REQUIRES
+    // `, otherwise`, so `f(x when c, y)` is not "two arguments", it is an unfinished conditional
+    // and says so. That is what makes it safe to allow inside an argument or element list —
+    // `("small" when n is 1, otherwise "big", "fixed")` is deterministically two elements.
+    //
+    // The alternative recurses through ParseExpression, so the form is RIGHT-associative and
+    // `a when p, otherwise b when q, otherwise c` chains as a fallback ladder.
+    private IExpression ParseWhenSuffix(IExpression left)
+    {
+        SkipNoise();
+        if (Peek().Type != TokenType.When) return left;
+
+        var whenTok = Advance();
+        SkipNoise();
+        var condition = ParseExprOr();
+        SkipNoise();
+        Consume(TokenType.Comma);
+        SkipNoise();
+        Consume(TokenType.Otherwise);
+        SkipNoise();
+        return new ConditionalExpression(left, condition, ParseExpression(), whenTok.Line, whenTok.Column);
     }
 
     // Handles '|' in expression context: 'run "a" | run "b"' inside parens/Define/etc.

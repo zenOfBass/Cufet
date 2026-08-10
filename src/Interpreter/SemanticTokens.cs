@@ -717,6 +717,8 @@ public sealed class SemanticTokenizer
             case TextTrim ttr:           Walk(ttr.Text); break;
 
             case ButVoidDefault bv:   Walk(bv.Voidable); Walk(bv.Default); break;
+            case ConditionalExpression ce:
+                Walk(ce.Value); Walk(ce.Condition); Walk(ce.Alternative); break;
             case FailureLiteral fl:   Walk(fl.Message); Walk(fl.Category); break;
             case FailureFallback ff:  Walk(ff.Fallible); Walk(ff.Default); break;
             case FailurePropagate fp: Walk(fp.Fallible); break;

@@ -5120,6 +5120,7 @@ static void* cufet_pipe_stage(void* argp) {
                                      : FieldType(TypeOf(pa.Target), pa.Member),
         VoidLiteral           => TVoid,
         ButVoidDefault bvd    => TypeOf(bvd.Voidable) is VoidableType vt ? vt.Inner : TypeOf(bvd.Default),
+        ConditionalExpression ce => ConditionalType(ce),
         MapLiteral ml         => MapLiteralType(ml),
         // Lookup flatten: on a voidable-valued map the entry IS already voidable — never nest.
         MapLookup mlk         => MapValueType(mlk.Map) is VoidableType vvt ? vvt : new VoidableType(MapValueType(mlk.Map)),
@@ -5683,6 +5684,7 @@ static void* cufet_pipe_stage(void* argp) {
         ObjectLiteral ol      => EmitObjectLiteral(ol),
         PossessiveAccess pa   => EmitMemberAccess(pa.Target, pa.Member),
         ButVoidDefault bvd    => EmitButVoidDefault(bvd),
+        ConditionalExpression ce => EmitConditional(ce),
         MapLiteral ml         => EmitMapLiteral(ml),
         MapLookup mlk         => $"{MapName(mlk.Map)}_get({EmitExpr(mlk.Map)}, {EmitExpr(mlk.Key)})",
         MapHasKey mhk         => $"{MapName(mhk.Map)}_has({EmitExpr(mhk.Map)}, {EmitExpr(mhk.Key)})",
@@ -5820,6 +5822,35 @@ static void* cufet_pipe_stage(void* argp) {
 
     // `<voidable> but void is <default>` → the value if present, else the default. The
     // voidable is bound to a temp (single eval); the default is lazy (only in the else arm).
+    // `X when C, otherwise Y` — the result type. Mirrors TypeChecker.InferConditional, which is
+    // the source of truth: both arms when they agree, the flattened union of the two when they do
+    // not. Deduplicating by signature is what keeps `(number or text) when C, otherwise number`
+    // from producing a three-case union with `number` in it twice.
+    private CufetType ConditionalType(ConditionalExpression ce)
+    {
+        var valueType = TypeOf(ce.Value);
+        var altType   = TypeOf(ce.Alternative);
+
+        var cases = new List<CufetType>();
+        var seen  = new HashSet<string>();
+        foreach (var part in new[] { valueType, altType })
+            foreach (var one in part is UnionType { Cases: not null } u ? u.Cases : [part])
+                if (seen.Add(TypeSig(one))) cases.Add(one);
+
+        return cases.Count == 1 ? cases[0] : new UnionType(cases);
+    }
+
+    // ★ A C ternary, so exactly ONE arm runs — the same guarantee the interpreter gives. Both arms
+    // are coerced to the RESULT type so they agree: when the arms differ the result is a union, and
+    // a bare case value in one arm would otherwise give gcc "type mismatch in conditional
+    // expression". Same rule EmitButVoidDefault and EmitFailureFallback follow, for the same reason.
+    private string EmitConditional(ConditionalExpression ce)
+    {
+        var resultType = TypeOf(ce);
+        string cond = EmitExpr(ce.Condition);
+        return $"({cond} ? {EmitAsType(ce.Value, resultType)} : {EmitAsType(ce.Alternative, resultType)})";
+    }
+
     private string EmitButVoidDefault(ButVoidDefault bvd)
     {
         var vt = (VoidableType)TypeOf(bvd.Voidable);

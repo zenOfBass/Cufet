@@ -1043,6 +1043,7 @@ public sealed partial class Interpreter
         FailureFallback ff    => EvaluateFailureFallback(ff),
         FailurePropagate fp   => EvaluateFailurePropagate(fp),
         ButVoidDefault bvd    => EvaluateButVoidDefault(bvd),
+        ConditionalExpression ce => EvaluateConditional(ce),
         MapLiteral     ml     => EvaluateMapLiteral(ml),
         MapLookup      mlu    => EvaluateMapLookup(mlu),
         MapHasKey      mhk    => EvaluateMapHasKey(mhk),
@@ -1161,6 +1162,18 @@ public sealed partial class Interpreter
     {
         var v = Evaluate(bvd.Voidable);
         return v is VoidValue ? Evaluate(bvd.Default) : v;
+    }
+
+    // `X when C, otherwise Y`
+    //
+    // ★ The condition first, then EXACTLY ONE arm. Evaluating both would run a call, raise a
+    // failure, or print something the program never asked for — and the compiler cannot evaluate
+    // both either, so doing it here would be a divergence rather than a mere inefficiency.
+    private object EvaluateConditional(ConditionalExpression ce)
+    {
+        if (Evaluate(ce.Condition) is not bool taken)
+            throw new RuntimeException("A 'when' condition must evaluate to true or false.");
+        return Evaluate(taken ? ce.Value : ce.Alternative);
     }
 
     private object EvaluateSeriesAccess(SeriesAccess sa)

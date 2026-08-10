@@ -392,6 +392,22 @@ public sealed record RangeExpression(IExpression Start, IExpression End, IExpres
 // Used in: Define x as void. / x becomes void. / If x is not void: ...
 public sealed record VoidLiteral(int Line, int Column) : IExpression;
 
+// <value> when <condition>, otherwise <alternative>
+//
+// The only way to make a value depend on a condition in expression position. Without it a
+// conditional value must be declared and then mutated, which forces a MUTABLE binding — so a
+// `permanently` binding could not be conditionally initialised at all. That is the hole this
+// closes, and it is why this is not a second spelling of `If`.
+//
+// ★ Exactly one arm evaluates. The condition is evaluated first and only the chosen side after
+// it, so a call or a failure in the untaken arm never happens — same as `If`, and the thing that
+// makes the form safe to use with effects on either side.
+//
+// Field order matches reading order. `Otherwise` is reused rather than a new word, and the comma
+// before it is what `If x is 1, state "one".` already does.
+public sealed record ConditionalExpression(
+    IExpression Value, IExpression Condition, IExpression Alternative, int Line, int Column) : IExpression;
+
 // <voidable-expr> but void is <default-expr>
 // Produces plain T: returns the value if present, otherwise the default.
 public sealed record ButVoidDefault(IExpression Voidable, IExpression Default, int Line, int Column) : IExpression;

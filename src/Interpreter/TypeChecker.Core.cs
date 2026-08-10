@@ -1350,6 +1350,7 @@ public sealed partial class TypeChecker
         SortExpression sort                                                                              => InferSort(sort),
         RangeExpression re                                                                               => InferRangeExpr(re),
         ButVoidDefault bvd                                                                               => InferButVoidDefault(bvd),
+        ConditionalExpression ce                                                                         => InferConditional(ce),
         FailureLiteral fl                                                                                => InferFailureLiteral(fl),
         FailureFallback ff                                                                               => InferFailureFallback(ff),
         FailurePropagate fp                                                                              => InferFailurePropagate(fp),
@@ -1645,6 +1646,47 @@ public sealed partial class TypeChecker
             return false;
         }
         return false;
+    }
+
+    // "X when C, otherwise Y" → X's type when both arms agree, the UNION of the two when they
+    // do not.
+    //
+    // ★ A union rather than an error, because the language already infers one from mixed
+    // elements — `a catalogue with (1, "two")` is a union nobody declared. Refusing here would
+    // make the conditional narrower than the collection literal sitting next to it, and would
+    // reopen the hole this feature exists to close: a `permanently` binding could only be
+    // conditionally initialised when the two arms happened to have the same type.
+    //
+    // Strictness is still available where it is wanted, through the annotation the language
+    // already has: `Define the number fee as 0 when member is true, otherwise 25.` makes a
+    // mismatched arm an error at the definition rather than at the first use.
+    private CufetType? InferConditional(ConditionalExpression ce)
+    {
+        var condType = InferType(ce.Condition);
+        if (condType is not null and not FactType)
+            throw new TypeException(
+                $"A 'when' condition must be true or false, but this one is {FormatType(condType)}.",
+                ce.Line, ce.Column);
+
+        var valueType = InferType(ce.Value);
+        var altType   = InferType(ce.Alternative);
+
+        // An arm whose type is unknown tells us nothing; take the one that does.
+        if (valueType is null) return altType;
+        if (altType   is null) return valueType;
+
+        // Already compatible in one direction — no union needed, and the wider one wins so a
+        // narrow arm widening into a declared union stays that union.
+        if (IsAssignable(valueType, altType)) return valueType;
+        if (IsAssignable(altType, valueType)) return altType;
+
+        // Genuinely different: flatten both sides so `(a or b) when c, otherwise d` is a
+        // three-case union rather than a union holding a union.
+        var cases = new List<CufetType>();
+        foreach (var t in new[] { valueType, altType })
+            if (t is UnionType { Cases: not null } u) cases.AddRange(u.Cases);
+            else cases.Add(t);
+        return new UnionType(cases);
     }
 
     // "X but void is Y" → plain T.

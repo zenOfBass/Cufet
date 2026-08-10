@@ -108,6 +108,7 @@ public sealed class Lexer
             "becomes"   => TokenType.Becomes,
             "if"        => TokenType.If,
             "otherwise" => TokenType.Otherwise,
+            "when"      => TokenType.When,
             "judge"     => TokenType.Judge,
             "where"     => TokenType.Where,
             "descend"   => TokenType.Descend,
