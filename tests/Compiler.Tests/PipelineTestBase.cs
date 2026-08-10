@@ -93,11 +93,21 @@ public abstract class PipelineTestBase
             {
                 RedirectStandardOutput = true,
                 StandardOutputEncoding = System.Text.Encoding.UTF8,   // binaries print UTF-8 (e.g. em-dash messages)
-                RedirectStandardInput  = stdin != null,
+                // ★ ALWAYS redirect, even with no stdin to give. This used to be `stdin != null`,
+                // which let a program with no test-supplied input inherit the TEST HOST's stdin —
+                // and what that is depends on how the suite was launched. Under `dotnet test` on
+                // Linux it is a pipe somebody still holds open, so a program that reads input
+                // blocks on read() forever: measured at 2h15m of a single binary sitting in
+                // pipe_read having used zero CPU. On Windows the inherited handle gives EOF, so it
+                // never showed, and a run redirected from /dev/null hides it too.
+                RedirectStandardInput  = true,
                 UseShellExecute = false,
             };
             using var proc = Process.Start(psi)!;
-            if (stdin != null) { proc.StandardInput.Write(stdin); proc.StandardInput.Close(); }
+            // Write what there is, then ALWAYS close: the close is what turns a read into EOF,
+            // and EOF is what the interpreter side gives a program when its reader is null.
+            if (stdin != null) proc.StandardInput.Write(stdin);
+            proc.StandardInput.Close();
             var output = proc.StandardOutput.ReadToEnd();
             proc.WaitForExit();
             return output;
