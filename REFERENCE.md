@@ -1427,6 +1427,29 @@ State the make of car.          ← named: "Honda"
 State the first of car.         ← positional: "Honda"
 ```
 
+**Read-only fields** — `permanently` after the field name, the same place it goes on a `Define`:
+```
+Define object user with (the text id permanently, the text name).
+
+Define alice as a new user { the id "u-1", the name "Alice" }.
+The alice's name becomes "Alicia".      ← fine, name is an ordinary field
+The alice's id becomes "u-2".           ← refused, id is permanent
+```
+
+The field is set when the object is made and never changes after. It is per-field, so other
+fields on the same object stay writable, and it is the same `permanently` that fixes a binding —
+shallow in the same way, fixing the field rather than what it holds.
+
+A setter cannot be used to get around it, and that is deliberate: setters are infallible and
+transform-only, so one guarding an id could only ignore a bad write rather than reject it. The
+same refusal applies inside the object's own methods (`one's id becomes …`) and to a field
+inherited through an embed.
+
+Pairs with `when` for the value:
+```
+Define account-fee as a new account { the fee 0 when member is true, otherwise 25 }.
+```
+
 **Method dispatch:**
 ```
 Cast describe on car.                   ← verb-first, no extra args

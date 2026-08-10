@@ -10,6 +10,42 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **★ Read-only fields — `permanently` on an object field.**
+
+  ```
+  Define object user with (the text id permanently, the text name).
+  Define alice as a new user { the id "u-1", the name "Alice" }.
+  The alice's id becomes "u-2".        ← refused
+  ```
+
+  Set when the object is made, never written after. **Nothing else in the language expressed that
+  invariant.** A setter cannot: setters are infallible and transform-only, so one guarding an id
+  could only ignore a bad write, never reject it — which is worse than no protection, because it
+  looks like protection.
+
+  It reuses a word rather than importing one. `permanently` already fixes a binding and is already
+  documented as shallow — it fixes the binding, not the contents — and a field carries the same
+  rule, so there is no `readonly` or `final` to learn.
+
+  The refusal covers every route into the field, each of which would otherwise have been a silent
+  way around it:
+  - **From inside the type's own method** — `one's id becomes …`, the write its author is most
+    likely to reach for.
+  - **Through an embed.** A promoted field belongs to the embedded type while the write goes
+    through the outer object, whose own permanent set says nothing about it. Checking only the
+    outer type would have made embedding a laundering route.
+  - **Through a setter.** Checked *before* the setter branch, so declaring a setter cannot turn a
+    permanent field back into a mutable one.
+
+  Pairs with the conditional expression above: `a new account { the fee 0 when member is true,
+  otherwise 25 }` — `when` supplies the value and `permanently` fixes it. Before both landed there
+  was no way to choose a permanent field's value at all.
+
+  Carried as a **name-keyed set** beside `NamedFields` rather than folded into that tuple, which is
+  read in ~98 places across 14 files; a name set cannot fall out of step with the field list the
+  way a parallel positional list could. Four separate places rebuild `ObjectType` and all four
+  forward it — dropping any one loses the feature silently.
+
 - **★ A conditional expression — `<value> when <condition>, otherwise <value>`.**
 
   ```

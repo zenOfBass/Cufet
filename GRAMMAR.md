@@ -1543,6 +1543,31 @@ producing a false positive.
 
 ## 8. Sharp edges
 
+### ★ A `permanently` field is refused down EVERY write route, not just the obvious one
+
+```
+Define object user with (the text id permanently, the text name).
+```
+
+The adverb **trails the field name** — `the text id permanently` — which is the same position
+`Define max-retries as 3 permanently.` already uses. One rule: `permanently` follows the thing it
+fixes. It also only reads as English there, because the verb it modifies is the enclosing `Define`.
+It is per-FIELD: neighbours in the same object stay writable.
+
+Construction is not a write, so the `a new user { … }` literal sets it normally. Everything after
+is refused, and the refusal is deliberately checked in front of the setter branch:
+
+| Route | |
+|---|---|
+| `alice's id becomes …` | refused |
+| `one's id becomes …` inside its own method | refused |
+| a promoted field written through an embed | refused |
+| a `Set id given (…)` setter | refused — a setter cannot stand in for this |
+
+The setter case is the one worth stating out loud: setters are **infallible and transform-only**,
+so one guarding a permanent field could only ignore a bad write, never reject it. Letting the write
+route through a setter would leave `permanently` meaning nothing to anyone who declared one.
+
 ### ★ `when` binds loosest, and `, otherwise` is mandatory
 
 `<value> when <condition>, otherwise <value>` is an expression, and it binds **looser than
