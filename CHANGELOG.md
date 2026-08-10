@@ -279,6 +279,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   The gcc failure also arrived correctly labelled "This is a bug in the Cufet compiler, not in your
   program" — the message added hours earlier, on its first real encounter.
 
+- **★ One `State` is now ONE line, even from two threads.** A `State` writes in several calls — the
+  value, then the terminator, and a series or record writes every element and separator
+  separately — so a concurrent `State` on another thread spliced itself between them. Output came
+  out as `side effectdone` followed by both newlines, in **4-8% of runs** of a two-thread program.
+
+  The statement now holds the stream lock for its whole emission, which is what that lock is for:
+  stdio takes it per call anyway, so an unthreaded program pays one uncontended lock per line. It
+  is a no-op off POSIX, where there is no second thread to race. Measured on the program that
+  produced the splicing: **300/300 clean**, from 12-25 torn per 300 before.
+
+  ⚠ **Ordering is a separate question and is NOT guaranteed.** A task that prints and is never
+  awaited races the main thread by construction; the lock stopped the *tearing*, not the race. The
+  test that caught this asserted an exact string on two lines nothing sequences, so it was
+  asserting a coincidence — it passed for months, then failed in CI. It now compares the lines
+  order-independently through `AssertSameLinesInAnyOrder`, whose comment is explicit that this is
+  only for output nothing orders, and never a way to soften a real divergence. A scan of the other
+  concurrency tests found no second instance: every other task-printing test has an await or a
+  channel between the writes, so its order is real and its exact assertion stays.
+
 - **★ A refusal described a shipped feature as missing, in this project's private vocabulary.**
   Registering a union struct refused an open one with *"open catalogues … are not yet supported by
   the compiler … Open unions are the CAT.2 slice."*
