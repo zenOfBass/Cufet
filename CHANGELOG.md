@@ -279,6 +279,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   The gcc failure also arrived correctly labelled "This is a bug in the Cufet compiler, not in your
   program" — the message added hours earlier, on its first real encounter.
 
+- **★ A refusal described a shipped feature as missing, in this project's private vocabulary.**
+  Registering a union struct refused an open one with *"open catalogues … are not yet supported by
+  the compiler … Open unions are the CAT.2 slice."*
+
+  Open catalogues **are** supported — `a catalogue with (1, "two", 3)` builds and runs — so the
+  message would have sent a reader rewriting working code, and "the CAT.2 slice" names nothing
+  anyone can look up. It is also a **backstop rather than a limitation**: reaching it means a
+  caller routed an open union into the closed-union builder, which is a defect here. It now says
+  so, in the same terms a rejected `gcc` build does.
+
+  Found by the **error-message audit** the roadmap had deferred. That sweep also named a category
+  the item did not anticipate: several refusals say "not yet supported by the compiler" while
+  guarding paths that are simply unreachable — `unto` methods and function-value calls both compile
+  today, and their refusals sit on branches a correct caller never takes. A backstop that
+  apologises like a limitation teaches a reader to work around something that is not there.
+  `UserFacingMessages_DoNotLeakInternalVocabulary` now runs the vocabulary half of the audit on
+  every build, so "periodic" no longer depends on remembering.
+
 - **★★ A task published its result BEFORE running its own unmakers, so an awaiter raced the
   cleanup.** `the awaited result of` woke the waiting thread while the task thread was still
   executing destructors.
