@@ -1,4 +1,4 @@
-﻿using Cufet.Lexer;
+using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
 
@@ -14,6 +14,22 @@ public sealed partial class TypeChecker
                 null, stmt.Line, stmt.Column,
                 $"set '{stmt.Member}' on a {FormatType(targetType)}",
                 "Only objects support possessive field assignment (alice's field becomes X).");
+
+        // ★ Checked BEFORE the setter branch, deliberately. A setter is infallible and
+        // transform-only, so one guarding a permanent field could not reject the write — only
+        // quietly ignore it, which is worse than no protection. Routing through a setter must
+        // therefore not become a way around `permanently`.
+        //
+        // This covers the write wherever it is written from: `alice's id becomes …` outside the
+        // type, and `one's id becomes …` inside one of its own methods. Construction is
+        // untouched — the field is set by the `a new …` literal, which is not a write.
+        if (IsPermanentInOtOrPromoted(ot, stmt.Member))
+            throw TypeError(
+                $"'{stmt.Member}' is permanent — it is set when the {ot.Name} is made, and never changes after",
+                null, stmt.Line, stmt.Column,
+                $"change '{stmt.Member}' after the {ot.Name} was made",
+                $"Give '{stmt.Member}' its value in the 'a new {ot.Name}' literal. If it has to change later, " +
+                $"declare the field without 'permanently'.");
 
         // Setter intercepts the write if one is defined; setter param type is the expected type.
         var setterSig = FindSetterInOtOrPromoted(ot, stmt.Member);
@@ -43,6 +59,16 @@ public sealed partial class TypeChecker
 
     private void CheckObjectNamedSet(ObjectType ot, string fieldName, IExpression value, int line, int col)
     {
+        // Also guarded here, not only in CheckPossessiveSet: this is the shared field-write check
+        // and has other callers, and a permanent field must be refused down every route into it.
+        if (IsPermanentInOtOrPromoted(ot, fieldName))
+            throw TypeError(
+                $"'{fieldName}' is permanent — it is set when the {ot.Name} is made, and never changes after",
+                null, line, col,
+                $"change '{fieldName}' after the {ot.Name} was made",
+                $"Give '{fieldName}' its value in the 'a new {ot.Name}' literal. If it has to change later, " +
+                $"declare the field without 'permanently'.");
+
         // Field lookup includes promoted fields from embedded types.
         var fieldType = FindFieldInOtOrPromoted(ot, fieldName);
         if (fieldType == null)
@@ -79,6 +105,21 @@ public sealed partial class TypeChecker
     // own fields take priority; then the embed handle (fieldName == EmbeddedTypeName);
     // then promoted fields recursively through the embed chain.
     // Returns null if not found (collision detection happens at definition time).
+
+    // Is `fieldName` permanent on `ot` or anywhere up its embed chain?
+    //
+    // ★ The chain matters. A field promoted from an embedded type is written through the OUTER
+    // object — `the admin's id becomes …` where `id` belongs to the embedded `user` — and the
+    // outer type's own PermanentFields says nothing about it. Checking only the outer set would
+    // leave embedding as a way to launder a permanent field into a mutable one.
+    private bool IsPermanentInOtOrPromoted(ObjectType ot, string fieldName)
+    {
+        if (ot.PermanentFields.Contains(fieldName)) return true;
+        return ot.EmbeddedTypeName != null
+            && _objectDefs.TryGetValue(ot.EmbeddedTypeName, out var embed)
+            && IsPermanentInOtOrPromoted(embed, fieldName);
+    }
+
     private CufetType? FindFieldInOtOrPromoted(ObjectType ot, string fieldName)
     {
         var own = ot.NamedFields.FirstOrDefault(f => f.FieldName == fieldName);

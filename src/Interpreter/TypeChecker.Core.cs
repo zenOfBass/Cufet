@@ -152,6 +152,12 @@ public sealed class ObjectType : CufetType
     public string? EmbeddedTypeName { get; }
     // Slice 5 — conformance: interface names declared with "and <interface>" clauses.
     public IReadOnlyList<string> ConformedInterfaces { get; }
+    // Fields declared `the permanently <type> <name>` — settable at construction, never after.
+    // A NAME set rather than a flag folded into NamedFields, which is read in ~98 places; a
+    // name-keyed set cannot fall out of step with the field list the way a parallel list could.
+    // Not part of equality — ObjectType is nominal, and permanence is a property of the one
+    // declaration that named the type.
+    public IReadOnlySet<string> PermanentFields { get; }
 
     public ObjectType(
         string name,
@@ -163,9 +169,11 @@ public sealed class ObjectType : CufetType
         string? embeddedTypeName = null,
         IReadOnlyList<string>? conformedInterfaces = null,
         IReadOnlyList<string>? constructors = null,
-        string? unmaker = null)
+        string? unmaker = null,
+        IReadOnlyList<string>? permanentFields = null)
     {
         Name               = name;
+        PermanentFields    = permanentFields is null ? [] : new HashSet<string>(permanentFields, StringComparer.Ordinal);
         PositionalTypes    = positionalTypes;
         NamedFields        = namedFields.OrderBy(f => f.FieldName, StringComparer.Ordinal).ToList();
         Methods            = methods;
@@ -596,7 +604,8 @@ public sealed partial class TypeChecker
             var setters     = ot.Setters.Select(s => (s.SetterName, ResolveParamType(s.ParamType), s.ParamName)).ToList();
             _objectDefs[name] = new ObjectType(
                 ot.Name, positionals, named, methods, getters, setters,
-                ot.EmbeddedTypeName, ot.ConformedInterfaces, ot.Constructors, ot.Unmaker);
+                ot.EmbeddedTypeName, ot.ConformedInterfaces, ot.Constructors, ot.Unmaker,
+                ot.PermanentFields.ToList());   // ★ rebuilt here — dropping it loses the whole feature
         }
         // Also resolve function signatures registered in global scope by Pass1Hoist so
         // InferType on function references returns fully-resolved FunctionTypes directly.
@@ -717,7 +726,8 @@ public sealed partial class TypeChecker
             _objectDefs[od.Name] = new ObjectType(
                 od.Name, od.PositionalTypes, od.NamedFields, methodSigs,
                 getterSigs, setterSigs,
-                od.EmbeddedTypeName, od.ConformedInterfaces);
+                od.EmbeddedTypeName, od.ConformedInterfaces,
+                permanentFields: od.PermanentFields);
         }
 
         // Anything left in unto* dictionaries targets a name that isn't a defined object type.
@@ -801,7 +811,7 @@ public sealed partial class TypeChecker
             _objectDefs[typeName] = new ObjectType(
                 ot.Name, ot.PositionalTypes, ot.NamedFields, ot.Methods,
                 ot.Getters, ot.Setters, ot.EmbeddedTypeName, ot.ConformedInterfaces,
-                newCtorNames, ot.Unmaker);
+                newCtorNames, ot.Unmaker, ot.PermanentFields.ToList());
         }
 
         // Gather destructors ('Bind unmaking a <type> to <name>'), validate, register on ObjectType.Unmaker.
@@ -829,7 +839,7 @@ public sealed partial class TypeChecker
             _objectDefs[typeName] = new ObjectType(
                 ot.Name, ot.PositionalTypes, ot.NamedFields, ot.Methods,
                 ot.Getters, ot.Setters, ot.EmbeddedTypeName, ot.ConformedInterfaces,
-                ot.Constructors, ud.Name);
+                ot.Constructors, ud.Name, ot.PermanentFields.ToList());
         }
     }
 

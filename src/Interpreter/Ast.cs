@@ -303,7 +303,12 @@ public sealed record ObjectDefinition(
     string? EmbeddedTypeName,
     IReadOnlyList<string> ConformedInterfaces,
     int Line,
-    int Column
+    int Column,
+    // Field NAMES declared `the permanently <type> <name>` — set at construction, never written
+    // after. Carried as a name set beside NamedFields rather than folded into that tuple: the
+    // tuple is read in 98 places across 14 files, and a name-keyed set cannot fall out of step
+    // with the field list the way a parallel positional list could.
+    IReadOnlyList<string>? PermanentFields = null
 ) : IStatement;
 
 // a new <TypeName> {<fields>}

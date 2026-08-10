@@ -155,7 +155,7 @@ public sealed class Parser
         SkipNoise();
         var name = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
-        var shape = ParseRecordShapeAnnotation(); // consumes "with (...)"
+        var shape = ParseRecordShapeAnnotation(out var permanentFields); // consumes "with (...)"
         SkipNoise();
 
         // Optional trailing 'and' clauses:
@@ -212,7 +212,7 @@ public sealed class Parser
             Consume(TokenType.Dot);
         }
 
-        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, getters, setters, embeddedTypeName, conformedInterfaces, line, col);
+        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, getters, setters, embeddedTypeName, conformedInterfaces, line, col, permanentFields);
     }
 
     // Define <name> as an interface for { <method-sigs> } / single method without {}
@@ -523,32 +523,40 @@ public sealed class Parser
     // Parses: with (<positional-types>, the <type> <field-name>, ...)
     // Positional types are bare type keywords; named fields start with 'the'.
     // Positionals must come before named fields — parser error otherwise.
-    private RecordType ParseRecordShapeAnnotation()
+    private RecordType ParseRecordShapeAnnotation() => ParseRecordShapeAnnotation(out _);
+
+    private RecordType ParseRecordShapeAnnotation(out List<string> permanentFields)
     {
         Consume(TokenType.With); SkipNoise();
-        return ParseRecordShapeBody();
+        return ParseRecordShapeBody(out permanentFields);
     }
 
     // Parses: (<positional-types>, the <type> <field-name>, ...)
     // Called by both ParseRecordShapeAnnotation (after 'with') and the 'series of records like (...)' path.
-    private RecordType ParseRecordShapeBody()
+    private RecordType ParseRecordShapeBody() => ParseRecordShapeBody(out _);
+
+    // `permanentFields` collects the names declared `the permanently <type> <name>`. It is an out
+    // parameter rather than part of RecordType because permanence is a property of the DECLARATION,
+    // not of the type: two objects with the same field types differ only in what may be written.
+    private RecordType ParseRecordShapeBody(out List<string> permanentFields)
     {
         Consume(TokenType.LParen);
         // No SkipNoise here — preserve leading 'the' that signals a named field.
 
         var positionalTypes = new List<CufetType>();
         var namedFields     = new List<(string Name, CufetType Type)>();
+        permanentFields     = [];
         bool seenNamed      = false;
 
         if (Peek().Type != TokenType.RParen)
         {
-            ParseOneRecordShapeField(positionalTypes, namedFields, ref seenNamed);
+            ParseOneRecordShapeField(positionalTypes, namedFields, permanentFields, ref seenNamed);
             SkipNoise(); // safe: after a field, next is comma or RParen
             while (Peek().Type == TokenType.Comma)
             {
                 Advance();
                 // No SkipNoise — preserve leading 'the' for named field detection.
-                ParseOneRecordShapeField(positionalTypes, namedFields, ref seenNamed);
+                ParseOneRecordShapeField(positionalTypes, namedFields, permanentFields, ref seenNamed);
                 SkipNoise(); // safe: after a field, next is comma or RParen
             }
         }
@@ -559,15 +567,25 @@ public sealed class Parser
     private void ParseOneRecordShapeField(
         List<CufetType> positionalTypes,
         List<(string Name, CufetType Type)> namedFields,
+        List<string> permanentFields,
         ref bool seenNamed)
     {
-        if (Peek().Type == TokenType.Article) // named: the <type> <name>
+        if (Peek().Type == TokenType.Article) // named: the [permanently] <type> <name>
         {
             Advance(); SkipNoise();
+            // `the permanently text id` — set at construction, never written after. The adverb
+            // sits where it reads: before the type, the way `permanently` trails a Define.
+            bool permanent = false;
+            if (Peek().Type == TokenType.Permanently)
+            {
+                Advance(); SkipNoise();
+                permanent = true;
+            }
             var fieldType = ParseTypeAnnotation(); SkipNoise();
             var fieldName = Consume(TokenType.Identifier).Lexeme;
             seenNamed = true;
             namedFields.Add((fieldName, fieldType));
+            if (permanent) permanentFields.Add(fieldName);
         }
         else
         {
