@@ -10,6 +10,41 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **★ A conditional expression — `<value> when <condition>, otherwise <value>`.**
+
+  ```
+  Define label as "item" when count is 1, otherwise "items".
+  Define fee as 0 when member is true, otherwise 25 permanently.
+  ```
+
+  **This closes a hole rather than adding a second spelling.** A value depending on a condition
+  previously had to be declared and then mutated — `Define label as "items".` followed by
+  `If count is 1, the label becomes "item".` — which forces a **mutable** binding. So a
+  `permanently` binding could not be conditionally initialised **at all**: immutability was
+  unavailable at exactly the point a value depends on a condition. Nothing else in the language
+  does this job.
+
+  `when` is the only new reserved word; `otherwise` already was one, and the comma before it is
+  what `If x is 1, state "one".` already does.
+
+  - **Exactly one arm evaluates**, on both backends — a C ternary compiled, a single `Evaluate`
+    interpreted. A call or a `State` in the untaken arm does not happen, tested with the effect on
+    each side in turn.
+  - **`, otherwise` is mandatory, and that is what removes the ambiguity.** A comma inside an
+    argument or element list cannot be confused with the conditional's, because a half-written
+    `f(x when c, y)` has no valid reading as two arguments — it is an unfinished conditional and
+    says so. No lookahead, no backtracking. So `("small" when n is 1, otherwise "big", "fixed")`
+    is deterministically two elements. Legal, and left legal: it reads worse than naming the value
+    first, but that is a style question, not a grammar one.
+  - **Binds loosest of everything**, including `but void is` and `but on failure`, so it always
+    chooses between two whole values.
+  - **Right-associative**, so `a when p, otherwise b when q, otherwise c` is a fallback ladder.
+  - **The arms may differ in type**, giving their union — the same inference
+    `a catalogue with (1, "two")` already performs. Refusing here would have made the conditional
+    narrower than the collection literal beside it, and would have reopened the hole for every
+    pair of arms that did not happen to match. Strictness stays available through the existing
+    annotation: `Define the number fee as 0 when member is true, otherwise 25.`
+
 - **★ Two tests for gaps found by the first mutation run measured against the WHOLE suite.**
   Mutation sampling had only ever run on Windows, where the 73 pthread tests do not exist, so
   every previous score was taken against 87% of the suite. Run on Linux — same method, same fixed

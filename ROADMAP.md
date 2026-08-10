@@ -77,32 +77,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    this reason, was argued for deliberately, and nobody has regretted it. Precedent beats purity
    here.
 
-3. **A conditional expression.** There is no way to branch in expression position, so a value that
-   depends on a condition must be declared and then mutated:
-
-   ```
-   Define label as "items".
-   If count is 1, the label becomes "item".
-   ```
-
-   ★ **This is a hole, not an ergonomic complaint.** That workaround forces a mutable binding, so a
-   `permanently` binding cannot be conditionally initialised **at all** — immutability is
-   unavailable precisely where a value depends on a condition. That is what separates this from
-   the "second spelling" charge: nothing else in the language does this job.
-
-   **The word is open.** The shape is `<value> <word> <condition>, otherwise <value>`, and `when`
-   is unreserved and reads correctly — `Define label as "item" when count is 1, otherwise
-   "items".` — but the word is not settled. Whatever it is, it must not be `if`: that already
-   opens a statement, and reusing it in expression position is the kind of overload the
-   colon-versus-comma decision above exists to avoid.
-
-   `but void is X` is precedent that branching already happens in expression position, so this is
-   not a new category of thing.
-
-   **Settle before building:** whether the two arms must be the same type or may form a union, and
-   confirming only the taken arm evaluates.
-
-4. **Read-only fields — `permanently` on a field.** There is no way to say *set at construction,
+3. **Read-only fields — `permanently` on a field.** There is no way to say *set at construction,
    never changed after*:
 
    ```
@@ -121,7 +96,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    `private` only mean something across a boundary — and that boundary arrives with the module
    arc in Tier 4. Within one file they are a comment with ceremony attached.
 
-5. **Shared constants — top-level `permanently` visible inside functions.** A top-level function
+4. **Shared constants — top-level `permanently` visible inside functions.** A top-level function
    cannot see top-level data, so a constant has to be passed as a parameter or wrapped in a
    function to reach one:
 
@@ -147,7 +122,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    `f` reads `x` is circular, so either the initialiser is restricted to constant-foldable
    expressions, or an order is defined and cycles are refused.
 
-6. **A bits value's width, as data.** A `bits` carries a width and shows it — `0x0F` prints with
+5. **A bits value's width, as data.** A `bits` carries a width and shows it — `0x0F` prints with
    its leading zero — but a program cannot **read** that width or **ask for** one:
 
    ```
@@ -174,9 +149,9 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 2 — leverage
 
-7. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+6. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
-8. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
+7. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
    tree, linked structure or wrapper cannot be looped over at all:
 
    ```
@@ -195,7 +170,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    method dispatch: no suspension, so no arena question about where paused state lives, and nothing
    the two backends could disagree about.
 
-9. **Unicode casing in the compiled backend.** `"héllo" in uppercase` is `HÉLLO` interpreted and
+8. **Unicode casing in the compiled backend.** `"héllo" in uppercase` is `HÉLLO` interpreted and
     `HéLLO` compiled. The emitted C has no case table, so anything outside `A–Z` / `a–z` passes
     through unchanged, and the two backends knowingly disagree.
 
@@ -220,7 +195,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 Both need a design session before they can be ordered against anything. Neither is blocked by a
 numbered item; they are here because they are large, not because they are waiting.
 
-10. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+9. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
@@ -229,7 +204,7 @@ numbered item; they are here because they are large, not because they are waitin
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-11. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+10. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -269,14 +244,14 @@ numbered item; they are here because they are large, not because they are waitin
 
 ### Tier 4 — modules, strictly in this order
 
-12. **The `module` interface.** A named interface defining the contract for any loadable thing.
+11. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-13. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+12. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-14. **What a book exports.** Every member of a book is public API, permanently, because there is
+13. **What a book exports.** Every member of a book is public API, permanently, because there is
     no way to mark one internal. It does not bite yet — the bundled three are built in and you
     cannot write a book — but the moment the loader below lands, a book author has no way to say
     *this is my helper, do not call it*.
@@ -290,7 +265,7 @@ numbered item; they are here because they are large, not because they are waitin
     the book, so the boundary is *what a book hands out* — the object question is a different and
     much weaker one, since within a file a visibility marker is a comment with ceremony attached.
 
-15. **A package manager for books.**
+14. **A package manager for books.**
 
 ### Tier 5 — Cufet in Cufet
 
@@ -300,7 +275,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-16. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+15. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -308,7 +283,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-17. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
+16. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
@@ -316,7 +291,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-18. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+17. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 

@@ -79,6 +79,7 @@ as identifiers, but that is fine — they read as natural articles.
 |---|---|
 | `if` | If |
 | `otherwise` | Otherwise |
+| `when` | When |
 | `done` | Done |
 | `while` | While |
 | `repeat` | Repeat |
@@ -1541,6 +1542,44 @@ producing a false positive.
 ---
 
 ## 8. Sharp edges
+
+### ★ `when` binds loosest, and `, otherwise` is mandatory
+
+`<value> when <condition>, otherwise <value>` is an expression, and it binds **looser than
+everything else** — including the `but void is` and `but on failure` suffixes:
+
+```
+Define parsed as raw but void is 0 when shout is true, otherwise 99.
+                 └──────────────┘ one arm      └──┘ the other
+```
+
+The `, otherwise` half is **required**. That is not decoration — it is what makes the comma
+unambiguous inside an argument or element list, with no lookahead:
+
+```
+Define sizes as a series of text with ("small" when n is 1, otherwise "big", "fixed").
+                                       └──── element 1 ─────────────────┘  └ el 2 ┘
+```
+
+A half-written `f(x when c, y)` is therefore **not** two arguments; it is an unfinished
+conditional and is refused as one. Writing a conditional inside a list is legal and reads badly;
+naming the value first is the recommended style, but the language does not force it.
+
+Chaining is **right-associative**, so a ladder falls through rather than nesting on the left:
+
+```
+"one" when count is 1, otherwise "two" when count is 2, otherwise "many"
+```
+
+**Exactly one arm evaluates**, on both backends — the compiler emits a C ternary and the
+interpreter evaluates the chosen side only. A call, a failure or a `State` in the untaken arm
+does not happen.
+
+**The arms may differ in type**, and the result is their union — the same inference
+`a catalogue with (1, "two")` already performs. For strictness, annotate: `Define the number fee
+as 0 when member is true, otherwise 25.` makes a mismatched arm an error at the definition.
+
+The condition must be `true` or `false`; there is no truthiness.
 
 ### ★ A type may precede the name in `Define`, and a NAME is what tells the two forms apart
 

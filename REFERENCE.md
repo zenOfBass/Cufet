@@ -354,6 +354,70 @@ Comma after the condition → inline single statement. Colon after the condition
 
 ---
 
+### Conditional values — `when` / `otherwise`
+
+`If` chooses which **statement** runs. `when` chooses which **value** you get, in the middle of
+an expression:
+
+```
+Define label as "item" when count is 1, otherwise "items".
+State "You have {count converted to text} {label}.".
+```
+
+Both halves are required — a `when` always has an `otherwise`.
+
+The reason it exists is immutability. Without it, a value that depends on a condition has to be
+declared and then changed:
+
+```
+Define label as "items".
+If count is 1, the label becomes "item".
+```
+
+That needs `label` to be mutable, so a `permanently` binding could not be conditionally
+initialised at all. With `when`, it can:
+
+```
+Define fee as 0 when member is true, otherwise 25 permanently.
+```
+
+**Only the chosen side runs.** If the untaken arm calls a function, that call does not happen:
+
+```
+Define picked as 1 when flag is true, otherwise cast expensive on (2).
+```
+
+**They chain**, falling through left to right:
+
+```
+Define name as "one" when count is 1,
+    otherwise "two" when count is 2,
+    otherwise "many".
+```
+
+**The two sides may be different types**, in which case the result is a union — the same thing
+`a catalogue with (1, "two")` does. If you would rather a mismatch be an error, say the type:
+
+```
+Define the number fee as 0 when member is true, otherwise 25.
+```
+
+`when` binds looser than everything else, so it always picks between two whole values — including
+across `but void is`:
+
+```
+Define parsed as raw but void is 0 when shout is true, otherwise 99.
+```
+
+A conditional is legal inside an argument or element list, but it reads better named first:
+
+```
+Define label as "item" when count is 1, otherwise "items".
+Cast show on (label).
+```
+
+---
+
 ### `Judge` — handling every case
 
 `Judge` dispatches on what a value **is**. The subject and verb are stated once in
