@@ -6,6 +6,46 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **★ Two tests for gaps found by the first mutation run measured against the WHOLE suite.**
+  Mutation sampling had only ever run on Windows, where the 73 pthread tests do not exist, so
+  every previous score was taken against 87% of the suite. Run on Linux — same method, same fixed
+  seed, 20 mutants — it caught **13 of 18** (two more did not compile and are discarded, since a
+  fault the compiler rejects is not one the suite could have caught).
+
+  Four survived. Two are **equivalent mutants**, catchable by nothing: `power > 28` → `>= 28`
+  assigns 28 to an `int` already holding 28, and `ValuesEqual`'s null guard is unreachable — a
+  probe that threw on that line ran all 1947 tests without firing. Discounting those, **13/16**.
+
+  The other two were real, and both hid the same way — **the code was emitted but never called**:
+  - `cufet_parse_number`'s overflow guard, `coef > max96`, where `max96` is 2⁹⁶−1. Nothing
+    converted text at either side of the decimal maximum, so the boundary could move by one digit
+    of magnitude and stay green. Moving it makes the interpreter parse
+    `79228162514264337593543950335` while the compiled binary calls it unparseable — a divergence
+    `check --native` reports nothing about.
+  - `EqCall`'s `FunctionType` arm, which compares a function value's `fn` and `env` pointers.
+    `Closure_SeriesOfFunctions` builds a series of functions and its own comment says function
+    equality was "added for the series" — but it only ever *casts* an element, never compares the
+    series, so the arm was emitted and never reached. Comparing two series built from the same
+    functions is what reaches it.
+
+  Both verified by reintroducing the mutation and watching the new test fail.
+
+- **The mutation harness runs on Linux.** Process-group kill (`setsid` + `killpg`) rather than
+  `taskkill /T /F`, an ext4 workspace under `$HOME` rather than the 9p mount, and a **baseline
+  gate**: all three tiers must pass on the unmutated copy before anything is scored, because a
+  suite that is red for an unrelated reason scores every mutant as caught and reports a perfect
+  number that means nothing. It still mutates a COPY; the live repo is only ever read.
+
+  One mutant **HUNG** rather than being caught: making `void is void` return false wedges the
+  interpreter suite instead of failing it. That is its own verdict — not caught, since nothing
+  reports, but not silent either. In CI it looks like a hang, not a failure.
+
+---
+
 ## [0.14.0] — 2026-08-09
 
 0.13.0 made Cufet account for every case. **0.14.0 makes the two backends prove they
