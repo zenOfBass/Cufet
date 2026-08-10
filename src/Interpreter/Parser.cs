@@ -570,22 +570,23 @@ public sealed class Parser
         List<string> permanentFields,
         ref bool seenNamed)
     {
-        if (Peek().Type == TokenType.Article) // named: the [permanently] <type> <name>
+        if (Peek().Type == TokenType.Article) // named: the <type> <name> [permanently]
         {
             Advance(); SkipNoise();
-            // `the permanently text id` — set at construction, never written after. The adverb
-            // sits where it reads: before the type, the way `permanently` trails a Define.
-            bool permanent = false;
-            if (Peek().Type == TokenType.Permanently)
-            {
-                Advance(); SkipNoise();
-                permanent = true;
-            }
             var fieldType = ParseTypeAnnotation(); SkipNoise();
             var fieldName = Consume(TokenType.Identifier).Lexeme;
             seenNamed = true;
             namedFields.Add((fieldName, fieldType));
-            if (permanent) permanentFields.Add(fieldName);
+
+            // `the text id permanently` — TRAILING, the same position `Define x as 3 permanently`
+            // already uses, so the rule is one rule: `permanently` follows the thing it fixes.
+            // It also only reads as English there, because the verb it modifies is the enclosing
+            // `Define`: "Define object user with the text id permanently."
+            if (Peek().Type == TokenType.Permanently)
+            {
+                Advance();
+                permanentFields.Add(fieldName);
+            }
         }
         else
         {
