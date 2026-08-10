@@ -44,6 +44,46 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   interpreter suite instead of failing it. That is its own verdict — not caught, since nothing
   reports, but not silent either. In CI it looks like a hang, not a failure.
 
+### Fixed
+
+- **★★ The test suite could hang forever, on both backends, for one reason: "no input supplied"
+  silently meant "inherit whatever the host has" instead of "EOF".** Found by running the suite
+  interactively through `wsl.exe`, which is the only launch that hands it a live pipe — a pipe
+  nobody writes to and nobody closes. Measured: **2h15m** with a single compiled binary parked in
+  `pipe_read` having used zero CPU, the whole run stopped behind it.
+
+  It could not appear on Windows, where the inherited handle gives EOF. It could not appear in CI
+  or under the mutation harness, both of which redirect from `/dev/null`. Only a real terminal
+  exposed it, which is why a green CI and a green local run had both been true for months.
+
+  The same mistake existed once per backend, reached by different mechanisms:
+  - **Compiled** — six places start a compiled binary, each with its own hand-rolled
+    `ProcessStartInfo`, and five did not redirect stdin, so the child inherited the test host's.
+    All six now redirect and close it; the close is what turns a read into EOF.
+  - **Interpreted** — `Interpreter`'s constructor does `_in = input ?? Console.In`, which is
+    correct for the CLI and wrong for a test, and ~30 helpers build an interpreter with no reader.
+    Fixed **once**, with a `[ModuleInitializer]` per test assembly setting `Console.SetIn(
+    TextReader.Null)`, rather than at 30 call sites — so a helper written tomorrow inherits it.
+
+- **A guard so launcher number seven cannot forget.** `EveryCompiledBinaryLauncher_ClosesStdin`
+  fails when a `new ProcessStartInfo(binPath)` appears without redirecting and closing stdin, and
+  names the file and line. Verified by reverting one launcher. Patching five of six by hand is the
+  same shape as the arm-record walk bug — one rule, N copies, one forgotten, silent when wrong —
+  so it gets the same treatment.
+
+- **`examples/channel-deepcopy.cufe` printed in whichever order the scheduler chose.** Two consumer
+  tasks wrote to the terminal with nothing ordering them against each other, so the interpreter
+  (cooperative, deterministic) and the compiled binary (real threads) could disagree on line order.
+  It failed roughly one run in seven, under load, on Linux only — mingw cannot build pthreads, so
+  Windows never ran it, and it won the coin flip during the mutation run's baseline.
+
+  Fixed in the **example**, by draining both channels from one consumer, rather than by comparing
+  order-insensitively. An any-order comparison would also have accepted `inner-len=` before
+  `outer-len=`, and that ordering *is* fixed by the program — loosening the oracle to fit one
+  example would have cost more than the example was worth. Nothing was racing for a value; the
+  deep-copy semantics the example exists to show are unchanged, and both producers still run
+  concurrently.
+
 ---
 
 ## [0.14.0] — 2026-08-09
