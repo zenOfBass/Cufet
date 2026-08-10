@@ -201,6 +201,29 @@ public class PipelineClosureTests : PipelineTestBase
     }
 
     [Fact]
+    public void Closure_SeriesOfFunctions_Compared()
+    {
+        // Found by mutation testing on Linux. Closure_SeriesOfFunctions above notes that function
+        // eq is "added for the series" — but it was only ever EMITTED, never called, so EqCall's
+        // FunctionType arm could compare the environment pointers with != and the whole suite
+        // stayed green.
+        //
+        // Function values are reference equality on both backends, so two series built from the
+        // same two named functions are equal and a reordered one is not. Comparing the series is
+        // what reaches the arm; casting an element (as above) never does.
+        const string src = """
+            Bind number to inc, given (the number n): Return n + 1. Done.
+            Bind number to dbl, given (the number n): Return n * 2. Done.
+            Define ops as a series of number function given (the number) with (inc, dbl).
+            Define twin as a series of number function given (the number) with (inc, dbl).
+            Define flipped as a series of number function given (the number) with (dbl, inc).
+            If ops is twin, State "twin same". Otherwise, State "twin diff".
+            If ops is flipped, State "flipped same". Otherwise, State "flipped diff".
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
     public void Closure_FunctionReturningFunction_AsValue()
     {
         // make-adder as a VALUE — its type is (number) -> (number -> number), a cfn whose RETURN is a
