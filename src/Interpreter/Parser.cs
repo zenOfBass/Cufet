@@ -695,6 +695,93 @@ public sealed class Parser
         return result;
     }
 
+    // ── The inline-body rule, in one place ────────────────────────────────
+    //
+    // ★ EVERY block construct offers the same choice: a comma and ONE thing, or a colon and a
+    // block closed by `Done.` `If` and `Judge` have always worked this way (ParseIfBody above);
+    // these three helpers extend the same rule to the rest, so there is nothing per-construct to
+    // remember.
+    //
+    // The comma is the point and a colon would be wrong: Cufet already spells *one thing, inline*
+    // with a comma and *a block* with a colon, so an expression body — being one thing — takes a
+    // comma. Spelling it with a colon would leave the only reliable structural signal meaning two
+    // different things.
+    //
+    // An inline body produces an ORDINARY one-statement body, so nothing downstream changes: the
+    // AST, the type checker, the interpreter and the compiler cannot tell the two spellings apart.
+
+    // A body that must produce a value (a function or getter with a return type). The one thing is
+    // an EXPRESSION and its `Return` is implicit — dropping `Return` and `Done.` is the whole of
+    // what this form buys, and it is the same trade the inline `If` already made.
+    private IReadOnlyList<IStatement> ParseValueBodyOrBlock()
+    {
+        SkipNoise();
+        if (Peek().Type == TokenType.Comma)
+        {
+            var comma = Advance();
+            SkipNoise();
+            _nestDepth++;
+            var value = ParseExpression();
+            _nestDepth--;
+            SkipNoise();
+            Consume(TokenType.Dot);
+            return new IStatement[] { new ReturnStatement(value, comma.Line, comma.Column) };
+        }
+        Consume(TokenType.Colon);
+        _nestDepth++;
+        var body = ParseFunctionBody();
+        _nestDepth--;
+        return body;
+    }
+
+    // A body that returns nothing (a void function, a setter, a destructor). The one thing is a
+    // STATEMENT, because there is no value to imply a `Return` for.
+    private IReadOnlyList<IStatement> ParseVoidBodyOrBlock()
+    {
+        SkipNoise();
+        if (Peek().Type == TokenType.Comma)
+        {
+            Advance();
+            SkipNoise();
+            _nestDepth++;
+            var stmt = ParseStatement();
+            _nestDepth--;
+            return new[] { stmt };
+        }
+        Consume(TokenType.Colon);
+        _nestDepth++;
+        var body = ParseFunctionBody();
+        _nestDepth--;
+        return body;
+    }
+
+    // A loop body. The comma is already spent on the loop's own header, so `repeat:` is what
+    // separates the two forms rather than the comma — one token, and no ambiguity:
+    //     For each n in items, repeat: State n. Done.
+    //     For each n in items, State n.
+    private IReadOnlyList<IStatement> ParseLoopBodyOrInline()
+    {
+        SkipNoise();
+        _loopDepth++;
+        _nestDepth++;
+        try
+        {
+            if (Peek().Type == TokenType.Repeat)
+            {
+                Advance();
+                SkipNoise();
+                Consume(TokenType.Colon);
+                return ParseLoopBody();
+            }
+            return new[] { ParseStatement() };
+        }
+        finally
+        {
+            _nestDepth--;
+            _loopDepth--;
+        }
+    }
+
     // Judge <subject>, where it is:
     //     A num-node, state "leaf".
     //     An add-node or a mul-node: ... Done.
@@ -774,15 +861,7 @@ public sealed class Parser
         var condition = ParseCondition();
         SkipNoise();
         Consume(TokenType.Comma);
-        SkipNoise();
-        Consume(TokenType.Repeat);
-        SkipNoise();
-        Consume(TokenType.Colon);
-        _loopDepth++;
-        _nestDepth++;
-        var body = ParseLoopBody();
-        _nestDepth--;
-        _loopDepth--;
+        var body = ParseLoopBodyOrInline();
         return new WhileStatement(condition, body);
     }
 
@@ -895,15 +974,7 @@ public sealed class Parser
         var seriesExpr = ParseExpression();
         SkipNoise();
         Consume(TokenType.Comma);
-        SkipNoise();
-        Consume(TokenType.Repeat);
-        SkipNoise();
-        Consume(TokenType.Colon);
-        _loopDepth++;
-        _nestDepth++;
-        var body = ParseLoopBody();
-        _nestDepth--;
-        _loopDepth--;
+        var body = ParseLoopBodyOrInline();
         return new ForEachStatement(iterName, seriesExpr, body, forTok.Line, forTok.Column);
     }
 
@@ -3849,11 +3920,8 @@ public sealed class Parser
         if (returnType == null)
             throw new ParseException(Peek(), "a return type — getters cannot be void");
         SkipNoise();
-        Consume(TokenType.Colon);
         _functionDepth++;
-        _nestDepth++;
-        var body = ParseFunctionBody();
-        _nestDepth--;
+        var body = ParseValueBodyOrBlock();   // a getter always returns, so its inline form is an expression
         _functionDepth--;
 
         _inObjectDef    = savedInObjectDef;

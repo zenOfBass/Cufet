@@ -47,48 +47,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 1 — usable by someone other than the author
 
-1. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
-   briefly a linter rule and is not one. Both tools would need the same "how large is large"
-   threshold, and one number owned in two places is one number that drifts. The severity settles
-   it too: every other linter rule flags something a tool cannot fix for you — nesting you have to
-   rename your way out of, an ordering you have to rethink, a capital you have to type. Layout is
-   pure mechanism, so a warning about it is noise next to a tool that simply does it.
-
-2. **Inline forms for block constructs — one rule, not one per release.** Today `If` and `Judge`
-   arms take a comma and a single statement; nothing else does, and nobody can predict which. State
-   it as a rule — **every block construct takes a comma and one statement** — and ship the missing
-   cases together:
-
-   ```
-   Get area as number, one's radius * one's radius * 3.
-   Bind number to double, given (the number amount), amount * 2.
-   For each n in items, State n.
-   ```
-
-   ★ **The comma is the point, and the colon is wrong.** Cufet already spells *one thing, inline*
-   with a comma — `If x is 1, state "one".` — and *a block, closed by `Done.`* with a colon. An
-   expression body is the first of those, so it takes a comma. Spelling it with a colon would
-   leave the only reliable structural signal meaning two different things.
-
-   **Loops are unambiguous** despite the existing comma in `For each i in xs, repeat:` — the block
-   marker there is `repeat:`, not the comma, so one token separates the two forms.
-
-   **Measured:** 110 inline `If`s already in use; 14 of 78 block-form loops have a single-statement
-   body. **Objects already have a one-line form** (`Define object user with (…).`) — nothing to do.
-   **`Try` is deliberately excluded**: its body is rarely one statement and its handler is the part
-   you least want compressed.
-
-   **Why one arc rather than one at a time.** Shipping these piecemeal grows a second spelling per
-   release with no pattern behind it, and the formatter (item 1) has to know every inline form there
-   is — teaching it one rule is cheaper than four exceptions.
-
-   **The objection, and the answer to it.** A one-line block already exists, so this earns its place
-   solely by dropping `return` and `Done.`, which is the "second spelling of an existing construct"
-   charge `Judge` is held to. The counter is the inline `If`: that construct exists for exactly
-   this reason, was argued for deliberately, and nobody has regretted it. Precedent beats purity
-   here.
-
-3. **Increase / decrease — self-referential arithmetic without repeating the name.**
+1. **Increase / decrease — self-referential arithmetic without repeating the name.**
 
    ```
    Increase i by 1.
@@ -110,7 +69,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    **Settle before building:** the exact verbs, and whether the value may be an arbitrary
    expression (`Increase total by item at (r, c) of board.`) or only a simple one.
 
-4. **A bits value's width, as data.** A `bits` carries a width and shows it — `0x0F` prints with
+2. **A bits value's width, as data.** A `bits` carries a width and shows it — `0x0F` prints with
    its leading zero — but a program cannot **read** that width or **ask for** one:
 
    ```
@@ -137,7 +96,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 2 — leverage
 
-5. **`unto` targeting an INTERFACE — default methods, which is most of what traits give.**
+4. **`unto` targeting an INTERFACE — default methods, which is most of what traits give.**
 
    ```
    Bind text to describe unto shape:        ← every conformer gets it
@@ -167,9 +126,9 @@ Ordered by what unblocks what, not by size. Two framings set the order:
      from *contract* into *contract with fallbacks* — decide it deliberately.
    - **Interfaces conforming to interfaces** — start with no. That is where trait systems get deep.
 
-6. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+5. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
-7. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
+6. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
    tree, linked structure or wrapper cannot be looped over at all:
 
    ```
@@ -188,7 +147,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    method dispatch: no suspension, so no arena question about where paused state lives, and nothing
    the two backends could disagree about.
 
-8. **Unicode casing in the compiled backend.** `"héllo" in uppercase` is `HÉLLO` interpreted and
+7. **Unicode casing in the compiled backend.** `"héllo" in uppercase` is `HÉLLO` interpreted and
     `HéLLO` compiled. The emitted C has no case table, so anything outside `A–Z` / `a–z` passes
     through unchanged, and the two backends knowingly disagree.
 
@@ -210,13 +169,14 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 3 — the design mountains
 
-All need a design session before they can be ordered against anything. None is blocked by a
-numbered item; they are here because they are large, not because they are waiting.
+All need a design session before they can be ordered against anything. They are here because
+they are large, not because they are waiting — except the formatter, which is genuinely
+blocked by the inline forms in Tier 1.
 
-9. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+8. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
-10. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
+9. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
    container holds one concrete type or fakes it with an open union.
 
    ★ **The syntax already exists.** `a series of number`, `a map from text to number` — a
@@ -225,7 +185,7 @@ numbered item; they are here because they are large, not because they are waitin
    chosen: monomorphization, the same technique interface parameters use today, with **interfaces as
    the constraint mechanism** rather than a new concept.
 
-   **Do it AFTER `unto` on interfaces** (item 5). Default methods may absorb enough of the pressure
+   **Do it AFTER `unto` on interfaces** (item 4). Default methods may absorb enough of the pressure
    that generics can be scoped smaller and aimed at cases that are known rather than guessed.
 
    ⚠ **The cost lands on the language's best asset.** Cufet's distinguishing feature is errors that
@@ -249,7 +209,7 @@ numbered item; they are here because they are large, not because they are waitin
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-11. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+10. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -286,6 +246,30 @@ numbered item; they are here because they are large, not because they are waitin
    **A stash is saved execution state, not a stack data structure**, so it cannot be a library:
    suspend and resume need compiler and runtime support. (The naming is Turing's — the ACE design
    used *bury* and *unbury* for subroutine linkage.)
+
+11. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
+    briefly a linter rule and is not one. Both tools would need the same "how large is large"
+    threshold, and one number owned in two places is one number that drifts. The severity settles
+    it too: every other linter rule flags something a tool cannot fix for you — nesting you have to
+    rename your way out of, an ordering you have to rethink, a capital you have to type. Layout is
+    pure mechanism, so a warning about it is noise next to a tool that simply does it.
+
+    **Blocked twice over.** It must come after the inline forms in Tier 1, or it would be taught
+    layout rules for constructs whose spelling is about to change. And doing it properly means
+    teaching the **lexer to carry comments as trivia** first — comments are skipped today and
+    never reach the AST, so a printer built from the AST would silently delete all 241 comment
+    lines in `examples/`, including the 34-line header on `binarysearchtree.cufe`. That is a
+    change to the shared front end both backends sit on.
+
+    **When it is built**, prefer a **token-stream** formatter to an AST printer: it rewrites only
+    the whitespace between tokens, so comments are safe because it never moves them, and it gets
+    a mechanical oracle — `format(x)` must lex to the same token sequence as `x`, and `format`
+    must be idempotent. Both are checkable across every example and fixture.
+
+    **Still undecided:** whether continuation lines align to the open delimiter (today's style,
+    but the indent then depends on the name's length, so a rename reflows the block) or explode
+    to a fixed indent; and the width that makes a shape "large" — the corpus median is 43 and p90
+    is 82, so 90–100 leaves nearly everything alone.
 
 ### Tier 4 — modules, strictly in this order
 
