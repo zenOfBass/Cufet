@@ -59,7 +59,8 @@ public sealed partial class Interpreter
         // Evaluate args in caller scope before altering env.
         var argValues = args.Select(Evaluate).ToList();
 
-        var saved = SaveScopes();
+        var saved      = SaveScopes();
+        var prevHidden = _hiddenTopLevelData;
 
         if (func.CapturedEnv != null)
         {
@@ -69,23 +70,9 @@ public sealed partial class Interpreter
         }
         else
         {
-            // Top-level function: function-typed bindings, plus top-level CONSTANTS.
-            // A `permanently` binding cannot be mutated, so sharing it cannot reintroduce the
-            // hidden-mutation the isolation exists to prevent. See TypeChecker.CheckBind, which
-            // draws the same line — the checker decides legality, this keeps the runtime in step.
-            foreach (var scope in saved.Scopes)
-                foreach (var (k, v) in scope)
-                    if (v is FunctionValue || _permanentTopLevel.Contains(k)) Scope[k] = v;
-
-            // On first entry from the top level, record which data values are now hidden so that
-            // UndefinedVariableMessage can produce a teaching error instead of "X isn't defined".
-            if (_callDepth == 1 && saved.Scopes.Count > 0)
-            {
-                _hiddenTopLevelData = new Dictionary<string, object>();
-                foreach (var (k, v) in saved.Scopes[0])
-                    if (v is not FunctionValue && !_permanentTopLevel.Contains(k))
-                        _hiddenTopLevelData[k] = v;
-            }
+            // Top-level function: function-typed bindings, plus top-level CONSTANTS. See
+            // ImportTopLevelVisible — the rule and the reason for it live there, once.
+            ImportTopLevelVisible(saved.Scopes);
         }
 
         // Bind parameters. Binding is binding: arg-passing applies the SAME region-aware
@@ -109,8 +96,7 @@ public sealed partial class Interpreter
         {
             RestoreScopes(saved);
             _callDepth--;
-            if (_callDepth == 0 && func.CapturedEnv == null)
-                _hiddenTopLevelData = null;
+            _hiddenTopLevelData = prevHidden;
         }
 
         return returnValue;
@@ -155,13 +141,12 @@ public sealed partial class Interpreter
             throw new RuntimeException(
                 $"'{method.Name}' expects {paramNames.Count} argument(s), got {args.Count} (line {line}).");
 
-        var argValues = args.Select(Evaluate).ToList();
-        var saved     = SaveScopes();
+        var argValues  = args.Select(Evaluate).ToList();
+        var saved      = SaveScopes();
+        var prevHidden = _hiddenTopLevelData;
 
-        // Method scope: only function-typed bindings from caller visible.
-        foreach (var scope in saved.Scopes)
-            foreach (var (k, v) in scope)
-                if (v is FunctionValue) Scope[k] = v;
+        // Method scope: functions and top-level constants from the caller visible.
+        ImportTopLevelVisible(saved.Scopes);
 
         for (int i = 0; i < paramNames.Count; i++)
             Scope[paramNames[i]] = argValues[i];
@@ -181,6 +166,7 @@ public sealed partial class Interpreter
         {
             RestoreScopes(saved);
             _callDepth--;
+            _hiddenTopLevelData = prevHidden;
         }
 
         return returnValue;

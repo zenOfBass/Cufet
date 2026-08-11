@@ -1320,22 +1320,57 @@ public sealed partial class TypeChecker
         return t is null ? null : ResolveParamType(t);
     }
 
-    // Top-level data names hidden from the top-level function body currently being checked. Empty
-    // everywhere else. Set by CheckBind when it isolates the scope; see the note there for why an
-    // unresolved name was not enough on its own.
+    // Top-level data names hidden from the detached body currently being checked. Empty everywhere
+    // else. Set by ImportTopLevelVisible; see the note there for why an unresolved name was not
+    // enough on its own.
     private HashSet<string> _hiddenTopLevelData = new(StringComparer.Ordinal);
+
+    // ★ The ONE place the top-level visibility rule lives. Every body that runs detached from the
+    // top-level scope — a top-level function, a method, a getter, a setter, a destructor, an
+    // operator overload, a top-level lambda — imports exactly this: function signatures (so mutual
+    // recursion resolves) and `permanently` constants.
+    //
+    // The old rule hid all top-level data, justified as "keeps data flow explicit and prevents
+    // hidden mutation". A `permanently` binding cannot be mutated, so none of that applies to it —
+    // the rule was broader than the reason for it. Letting exactly the immutable half through gives
+    // back shared constants without letting global mutable state in. This is what `static` would
+    // have been, minus the part worth refusing.
+    //
+    // ★ It also records what it filtered OUT. Isolating the scope hides those names, but an
+    // unresolved name infers to null and the check passes SILENTLY — so a program reading top-level
+    // data from a detached body type-checked clean, refused at RUNTIME interpreted, and emitted
+    // undeclared C compiled. Three answers to one program. Recording the hidden names lets
+    // InferTypeCore refuse at check time, identically for both backends.
+    //
+    // ⚠ Callers must save _hiddenTopLevelData before calling and restore it in their finally — a
+    // nested body must not inherit an outer body's hidden set after the outer scope is restored.
+    private void ImportTopLevelVisible(
+        (List<Dictionary<string, TypeInfo>> V, List<Dictionary<string, CufetType>> T) saved)
+    {
+        foreach (var scope in saved.V)
+            foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType || kv.Value.Permanent))
+                Scope[k] = v;
+
+        _hiddenTopLevelData = saved.V
+            .SelectMany(s => s)
+            .Where(kv => kv.Value.Type is not FunctionType && !kv.Value.Permanent)
+            .Select(kv => kv.Key)
+            .ToHashSet(StringComparer.Ordinal);
+    }
 
     // The same rule the interpreter enforced at runtime, moved to check time so both backends
     // refuse identically — and so `check` stops passing a program that cannot run. The wording
     // follows the interpreter's original message, which was already the clearest thing about this.
     private TypeException HiddenTopLevelDataError(VariableReference vr) =>
         TypeError(
-            $"'{vr.Name}' is a top-level value, but top-level functions can't see top-level data",
+            $"'{vr.Name}' is a top-level value, but function and method bodies can't see top-level data",
             null, vr.Line, vr.Column,
-            $"read '{vr.Name}' inside a top-level function",
-            $"Top-level functions see other functions (for mutual recursion) but not top-level data. " +
-            $"This keeps data flow explicit and prevents hidden mutation.\n" +
-            $"Pass '{vr.Name}' in as a parameter, or define the function inside a scope where " +
+            $"read '{vr.Name}' inside a top-level function or a method",
+            $"They see other functions (for mutual recursion) and top-level `permanently` constants, " +
+            $"but not top-level data that can change. This keeps data flow explicit and prevents " +
+            $"hidden mutation.\n" +
+            $"Declare it `Define {vr.Name} as <value> permanently.` if it never changes, or pass " +
+            $"'{vr.Name}' in as a parameter, or define the function inside a scope where " +
             $"'{vr.Name}' is already bound, so it captures '{vr.Name}' as a closure.");
 
     // Returns null for genuine inference gaps (undeclared variable, unhandled expression form).

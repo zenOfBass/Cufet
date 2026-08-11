@@ -82,10 +82,34 @@ public sealed partial class Interpreter
     // UndefinedVariableMessage to emit a teaching error instead of a misdirecting "isn't defined".
     private Dictionary<string, object>? _hiddenTopLevelData;
 
-    // Names of top-level `permanently` bindings — the shared constants a top-level function may
-    // read. Kept by name because ExecuteCall's isolation filters the caller's scopes by VALUE, and
-    // an evaluated constant looks like any other datum.
+    // Names of top-level `permanently` bindings — the shared constants a detached body may read.
+    // Kept by name because the isolation below filters the caller's scopes by VALUE, and an
+    // evaluated constant looks like any other datum.
     private readonly HashSet<string> _permanentTopLevel = new(StringComparer.Ordinal);
+
+    // ★ The ONE place the runtime's top-level visibility rule lives — the mirror of the checker's
+    // TypeChecker.ImportTopLevelVisible, which decides legality; this keeps the runtime in step.
+    // Every body that runs detached from the top-level scope — a top-level function, a method, a
+    // getter, a setter, a destructor, an operator overload — imports exactly this: function values
+    // (so mutual recursion resolves) and `permanently` constants. A `permanently` binding cannot be
+    // mutated, so sharing it cannot reintroduce the hidden mutation the isolation exists to prevent.
+    //
+    // On first entry from the top level it also records what was filtered OUT, so
+    // UndefinedVariableMessage can teach instead of misdirecting with "isn't defined".
+    //
+    // ⚠ Callers must save _hiddenTopLevelData before calling and restore it in their finally.
+    private void ImportTopLevelVisible(List<Dictionary<string, object>> savedScopes)
+    {
+        foreach (var scope in savedScopes)
+            foreach (var (k, v) in scope)
+                if (v is FunctionValue || _permanentTopLevel.Contains(k)) Scope[k] = v;
+
+        if (_callDepth != 1 || savedScopes.Count == 0) return;
+        _hiddenTopLevelData = new Dictionary<string, object>();
+        foreach (var (k, v) in savedScopes[0])
+            if (v is not FunctionValue && !_permanentTopLevel.Contains(k))
+                _hiddenTopLevelData[k] = v;
+    }
 
     private Dictionary<string, object> Scope => _scopes[^1];
 
@@ -1685,10 +1709,9 @@ public sealed partial class Interpreter
                 $"Operator '{OpSymbol(oad.Operator)}' overload for '{oad.OperandTypeName}' caused infinite recursion (line {line}).");
         }
 
-        var saved = SaveScopes();
-        foreach (var scope in saved.Scopes)
-            foreach (var (k, v) in scope)
-                if (v is FunctionValue) Scope[k] = v;
+        var saved      = SaveScopes();
+        var prevHidden = _hiddenTopLevelData;
+        ImportTopLevelVisible(saved.Scopes);
         Scope[oad.LeftName]  = left;
         Scope[oad.RightName] = right;
 
@@ -1708,6 +1731,7 @@ public sealed partial class Interpreter
         {
             RestoreScopes(saved);
             _callDepth--;
+            _hiddenTopLevelData = prevHidden;
         }
 
         if (returnValue == null)
@@ -1793,10 +1817,12 @@ public sealed partial class Interpreter
         var located = line > 0 ? $" on line {line}" : "";
 
         if (_hiddenTopLevelData != null && _hiddenTopLevelData.ContainsKey(name))
-            return $"'{name}' is a top-level value, but top-level functions can't see top-level data{located}.\n\n" +
-                   $"Top-level functions see other functions (for mutual recursion) but not top-level data.\n" +
+            return $"'{name}' is a top-level value, but function and method bodies can't see top-level data{located}.\n\n" +
+                   $"They see other functions (for mutual recursion) and top-level `permanently` constants, but not top-level data that can change.\n" +
                    $"This keeps data flow explicit and prevents hidden mutations — the same principle behind Cufet's message-passing model.\n\n" +
-                   $"Fix: pass '{name}' as a parameter:\n" +
+                   $"Fix: declare it a shared constant if it never changes:\n" +
+                   $"    Define {name} as <value> permanently.\n" +
+                   $"Or pass '{name}' as a parameter:\n" +
                    $"    Bind void to your-function, given (the <type> {name}): ...\n" +
                    $"Or define your function inside a scope where '{name}' is already bound, so it captures '{name}' as a closure.";
 

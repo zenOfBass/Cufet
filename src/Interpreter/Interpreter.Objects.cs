@@ -67,10 +67,9 @@ public sealed partial class Interpreter
             throw new RuntimeException($"Getter '{getter.Name}' called itself too many times (line {line}).");
         }
 
-        var saved = SaveScopes();
-        foreach (var scope in saved.Scopes)
-            foreach (var (k, v) in scope)
-                if (v is FunctionValue) Scope[k] = v;
+        var saved      = SaveScopes();
+        var prevHidden = _hiddenTopLevelData;
+        ImportTopLevelVisible(saved.Scopes);
         Scope["one"] = receiver;
 
         object? returnValue = null;
@@ -87,6 +86,7 @@ public sealed partial class Interpreter
         {
             RestoreScopes(saved);
             _callDepth--;
+            _hiddenTopLevelData = prevHidden;
         }
 
         if (returnValue == null)
@@ -109,10 +109,9 @@ public sealed partial class Interpreter
             throw new RuntimeException($"Setter '{setter.Name}' called itself too many times (line {line}).");
         }
 
-        var saved = SaveScopes();
-        foreach (var scope in saved.Scopes)
-            foreach (var (k, v) in scope)
-                if (v is FunctionValue) Scope[k] = v;
+        var saved      = SaveScopes();
+        var prevHidden = _hiddenTopLevelData;
+        ImportTopLevelVisible(saved.Scopes);
         Scope["one"]             = receiver;
         Scope[setter.ParamName]  = newValue;
 
@@ -126,6 +125,7 @@ public sealed partial class Interpreter
         {
             RestoreScopes(saved);
             _callDepth--;
+            _hiddenTopLevelData = prevHidden;
             _inSetterFor = prevInSetterFor;
         }
     }
@@ -259,10 +259,9 @@ public sealed partial class Interpreter
             return; // infallible — swallow instead of throwing
         }
 
-        var saved = SaveScopes();
-        foreach (var scope in saved.Scopes)
-            foreach (var (k, v) in scope)
-                if (v is FunctionValue) Scope[k] = v;
+        var saved      = SaveScopes();
+        var prevHidden = _hiddenTopLevelData;
+        ImportTopLevelVisible(saved.Scopes);
         Scope["one"] = receiver;
 
         try
@@ -275,6 +274,7 @@ public sealed partial class Interpreter
         {
             RestoreScopes(saved);
             _callDepth--;
+            _hiddenTopLevelData = prevHidden;
         }
     }
 }

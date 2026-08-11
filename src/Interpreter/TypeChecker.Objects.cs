@@ -414,9 +414,8 @@ public sealed partial class TypeChecker
     {
         var saved = SaveScopes();
 
-        // Method scope: functions visible, plus 'one' (self) + parameters.
-        foreach (var scope in saved.V)
-            foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
+        // Method scope: functions and top-level constants visible, plus 'one' (self) + parameters.
+        ImportTopLevelVisible(saved);
         Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), selfLine, IsParameter: true);
         foreach (var (type, name) in method.Parameters)
             Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), method.Line, IsParameter: true);
@@ -425,6 +424,7 @@ public sealed partial class TypeChecker
         var prevReturnType       = _expectedReturnType;
         var prevFunctionLine     = _functionDeclarationLine;
         var prevRabbitDepth      = _rabbitDepth;
+        var prevHidden           = _hiddenTopLevelData;
         _inFunction              = true;
         _expectedReturnType      = method.ReturnType;
         _functionDeclarationLine = method.Line;
@@ -457,6 +457,7 @@ public sealed partial class TypeChecker
             _expectedReturnType      = prevReturnType;
             _functionDeclarationLine = prevFunctionLine;
             _rabbitDepth             = prevRabbitDepth;
+            _hiddenTopLevelData      = prevHidden;
             RestoreScopes(saved);
         }
     }
@@ -475,14 +476,14 @@ public sealed partial class TypeChecker
     {
         var saved = SaveScopes();
 
-        foreach (var scope in saved.V)
-            foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
+        ImportTopLevelVisible(saved);
         Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), selfLine, IsParameter: true);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
         var prevFunctionLine     = _functionDeclarationLine;
         var prevRabbitDepth      = _rabbitDepth;
+        var prevHidden           = _hiddenTopLevelData;
         _inFunction              = true;
         _expectedReturnType      = getter.ReturnType;
         _functionDeclarationLine = getter.Line;
@@ -513,6 +514,7 @@ public sealed partial class TypeChecker
             _expectedReturnType      = prevReturnType;
             _functionDeclarationLine = prevFunctionLine;
             _rabbitDepth             = prevRabbitDepth;
+            _hiddenTopLevelData      = prevHidden;
             RestoreScopes(saved);
         }
     }
@@ -522,8 +524,7 @@ public sealed partial class TypeChecker
     {
         var saved = SaveScopes();
 
-        foreach (var scope in saved.V)
-            foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
+        ImportTopLevelVisible(saved);
         Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), selfLine, IsParameter: true);
         Scope[setter.ParamName] = new TypeInfo(setter.ParamType, new VariableReference(setter.ParamName, 0, 0), setter.Line, IsParameter: true);
 
@@ -531,6 +532,7 @@ public sealed partial class TypeChecker
         var prevReturnType       = _expectedReturnType;
         var prevFunctionLine     = _functionDeclarationLine;
         var prevRabbitDepth      = _rabbitDepth;
+        var prevHidden           = _hiddenTopLevelData;
         _inFunction              = true;
         _expectedReturnType      = null; // void — setters never return a value
         _functionDeclarationLine = setter.Line;
@@ -546,6 +548,7 @@ public sealed partial class TypeChecker
             _expectedReturnType      = prevReturnType;
             _functionDeclarationLine = prevFunctionLine;
             _rabbitDepth             = prevRabbitDepth;
+            _hiddenTopLevelData      = prevHidden;
             RestoreScopes(saved);
         }
     }
@@ -575,14 +578,14 @@ public sealed partial class TypeChecker
                 $"Define 'object {ud.UnmakesTypeName}' before declaring a destructor for it.");
 
         var saved = SaveScopes();
-        foreach (var scope in saved.V)
-            foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
+        ImportTopLevelVisible(saved);
         Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), ud.Line, IsParameter: true);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
         var prevFunctionLine     = _functionDeclarationLine;
         var prevRabbitDepth      = _rabbitDepth;
+        var prevHidden           = _hiddenTopLevelData;
         _inFunction              = true;
         _expectedReturnType      = null; // void — 'return a failure' is caught as "returning a value from void"
         _functionDeclarationLine = ud.Line;
@@ -595,6 +598,7 @@ public sealed partial class TypeChecker
             _expectedReturnType      = prevReturnType;
             _functionDeclarationLine = prevFunctionLine;
             _rabbitDepth             = prevRabbitDepth;
+            _hiddenTopLevelData      = prevHidden;
             RestoreScopes(saved);
         }
         // No DefinitelyReturns check — destructors are void, return is optional.
@@ -766,8 +770,7 @@ public sealed partial class TypeChecker
         bool isFallible = HasDirectFailureReturn(oad.Body);
 
         var saved = SaveScopes();
-        foreach (var scope in saved.V)
-            foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
+        ImportTopLevelVisible(saved);
         Scope[oad.LeftName]  = new TypeInfo(objType, new VariableReference(oad.LeftName, 0, 0), oad.Line);
         Scope[oad.RightName] = new TypeInfo(objType, new VariableReference(oad.RightName, 0, 0), oad.Line);
 
@@ -777,6 +780,7 @@ public sealed partial class TypeChecker
         var prevRabbitDepth      = _rabbitDepth;
         var prevInferring        = _inferringLambdaReturn;
         var prevOvFallible       = _overloadBodyIsFallible;
+        var prevHidden           = _hiddenTopLevelData;
 
         _inFunction              = true;
         _expectedReturnType      = null;
@@ -805,6 +809,7 @@ public sealed partial class TypeChecker
             _rabbitDepth             = prevRabbitDepth;
             _inferringLambdaReturn   = prevInferring;
             _overloadBodyIsFallible  = prevOvFallible;
+            _hiddenTopLevelData      = prevHidden;
             RestoreScopes(saved);
 
             if (inferredReturn != null)

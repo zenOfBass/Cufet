@@ -119,6 +119,25 @@ public sealed class CodeGenerator
         new(ReferenceEqualityComparer.Instance as IEqualityComparer<DefineStatement>);
     private readonly List<string> _sharedConstDecls = [];
 
+    // The Cufet type of each shared constant, by name. Computed BEFORE any body is emitted,
+    // because bodies emit before main — so the `_varTypes[d.Name] = vt` main performs when it
+    // assigns the constant comes far too late for a function that reads one.
+    private readonly Dictionary<string, CufetType> _sharedConstTypes = new(StringComparer.Ordinal);
+
+    // ★ Re-seeds the shared constants into a freshly cleared _varTypes. Every DETACHED body — a
+    // top-level function, a method, a getter, a setter, a destructor, an operator overload, a pipe
+    // stage — clears the type map and seeds only its own parameters and receiver. Without this a
+    // constant read inside one has no known type and falls back to number: `State greeting` emitted
+    // cufet_print_number on a const char* and gcc rejected the file, under the banner "★ This is a
+    // bug in the Cufet compiler" — which it was.
+    //
+    // The set of bodies here is the same one TypeChecker.ImportTopLevelVisible governs. Keep the
+    // two in step: a body that may READ a constant must also KNOW ITS TYPE.
+    private void SeedSharedConstantTypes()
+    {
+        foreach (var (name, type) in _sharedConstTypes) _varTypes[name] = type;
+    }
+
     // Does the program mention an OPEN union anywhere (so the discovery pre-pass is worth running)?
     // Walks AST nodes AND their CufetType annotations — an open union can appear only via a type
     // annotation (`a catalogue …` / `an atlas …`), never as a value literal.
@@ -2140,6 +2159,23 @@ static void* cufet_pipe_stage(void* argp) {
             _funcTypes[bind.Name] = new FunctionType(bind.Parameters.Select(p => p.Type).ToList(), bind.ReturnType);
         }
 
+        // ── Shared constants ──────────────────────────────────────────────────
+        // Top-level `permanently` bindings are readable from every detached body, so they cannot be
+        // locals of main. Identified by REFERENCE, not by name: a `permanently` local deeper in the
+        // program may share a name and must stay a local.
+        //
+        // ★ Registered HERE, before any body is emitted, not at main-emission time. Bodies emit
+        // first, so a function reading a constant needs its type already known — see
+        // SeedSharedConstantTypes. Types are computed in source order and recorded into _varTypes as
+        // they go, so a constant whose initialiser reads an earlier constant resolves.
+        foreach (var topLevelConst in program.Statements.OfType<DefineStatement>().Where(d => d.Permanent))
+        {
+            _sharedConstants.Add(topLevelConst);
+            var constType = topLevelConst.DeclaredType ?? TypeOf(topLevelConst.Value);
+            _sharedConstTypes[topLevelConst.Name] = constType;
+            _varTypes[topLevelConst.Name]         = constType;
+        }
+
         // The whole body emission, as a reusable pass: the CAT.2 discovery pre-pass runs it into a
         // throwaway buffer first so the OPEN-union case set is complete before the real pass emits
         // any `is a` tag check (function bodies emit before main, so an `is a T` can precede `Add T`).
@@ -2186,14 +2222,8 @@ static void* cufet_pipe_stage(void* argp) {
 
             // ── main() ────────────────────────────────────────────────────────
             // A global arena is pushed so series created at top level (outside an
-            // explicit Pull) are safely tracked and freed at program exit.
-            // ── Shared constants ──────────────────────────────────────────────
-            // Top-level `permanently` bindings are readable from top-level functions, so they
-            // cannot be locals of main. Identified by REFERENCE, not by name: a `permanently`
-            // local deeper in the program may share a name and must stay a local.
-            foreach (var topLevelConst in program.Statements.OfType<DefineStatement>().Where(d => d.Permanent))
-                _sharedConstants.Add(topLevelConst);
-
+            // explicit Pull) are safely tracked and freed at program exit. The shared constants
+            // were registered before any body was emitted (see above); main only ASSIGNS them.
             body.AppendLine("int main(void) {");
             // Before anything is printed. Threads inherit the process's stdout mode, so tasks are
             // covered by this one call. See CUFET_NL for why it is needed at all.
@@ -2523,6 +2553,7 @@ static void* cufet_pipe_stage(void* argp) {
         var savedRet = _currentReturnType;
         var savedExcOpen = _excOpen; _excOpen = 0;
         _varTypes.Clear();
+        SeedSharedConstantTypes();
         _methodReceiverType = typeName;
         _currentReturnType = null;                    // void + infallible (front-end enforced)
         _varTypes["one"] = ObjType(typeName);
@@ -2610,6 +2641,7 @@ static void* cufet_pipe_stage(void* argp) {
         var savedRet     = _currentReturnType;
         var savedExcOpen = _excOpen; _excOpen = 0;   // exc handlers never span function frames
         _varTypes.Clear();
+        SeedSharedConstantTypes();
         _methodReceiverType = null;
         _currentReturnType  = OverloadReturnType(oad.OperandTypeName, oad.Operator);
         _varTypes[oad.LeftName]  = ObjType(oad.OperandTypeName);
@@ -5451,6 +5483,7 @@ static void* cufet_pipe_stage(void* argp) {
         var savedPipeIn = _currentPipeInputElem;
         _currentPipeInputElem = _stageInputElem.TryGetValue(bind.Name, out var pin) ? pin : null;
         _varTypes.Clear();
+        SeedSharedConstantTypes();
         _currentReturnType = bind.ReturnType;
         foreach (var (pType, pName) in bind.Parameters)
             _varTypes[pName] = pType;
@@ -5489,6 +5522,7 @@ static void* cufet_pipe_stage(void* argp) {
         var savedRet = _currentReturnType;
         var savedExcOpen = _excOpen; _excOpen = 0;   // exc handlers never span function frames
         _varTypes.Clear();
+        SeedSharedConstantTypes();
         _methodReceiverType = def.Name;
         _currentReturnType = g.ReturnType;
         _varTypes["one"] = ObjType(def.Name);
@@ -5511,6 +5545,7 @@ static void* cufet_pipe_stage(void* argp) {
         var savedRecv = _methodReceiverType;
         var savedSetter = _inSetterForField;
         _varTypes.Clear();
+        SeedSharedConstantTypes();
         _methodReceiverType = def.Name;
         _inSetterForField   = s.Name;                 // one's <name> becomes X → raw write
         _varTypes["one"] = ObjType(def.Name);
@@ -5670,6 +5705,7 @@ static void* cufet_pipe_stage(void* argp) {
         var savedRet = _currentReturnType;
         var savedExcOpen = _excOpen; _excOpen = 0;   // exc handlers never span function frames
         _varTypes.Clear();
+        SeedSharedConstantTypes();
         _methodReceiverType = def.Name;               // `one` → (*cv_one), resolves fields
         _currentReturnType = method.ReturnType;
         _varTypes["one"] = ObjType(def.Name);
@@ -6024,6 +6060,7 @@ static void* cufet_pipe_stage(void* argp) {
     {
         var saved = new Dictionary<string, CufetType>(_varTypes);
         _varTypes.Clear();
+        SeedSharedConstantTypes();
         foreach (var (pt, pn) in parameters) _varTypes[pn] = pt;
         CufetType? outType = null;
         void Walk(IReadOnlyList<IStatement> stmts)

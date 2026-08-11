@@ -157,4 +157,155 @@ public class PipelineTopLevelDataTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("15", Interpret(src));
     }
+
+    // ── The rule applies to every detached body, not just top-level functions ─────────
+    //
+    // ★ Shared constants first shipped in CheckBind alone, so a method could not read one — and
+    // the three backends disagreed about that program too, in BOTH directions:
+    //
+    //   a method reading a constant     → checked clean, ran with "'limit' isn't defined",
+    //                                     compiled and printed the right answer
+    //   a method reading mutable data   → checked clean, ran with the teaching refusal,
+    //                                     compiled to `cv_tally undeclared` and blamed the compiler
+    //
+    // Methods, getters, setters, destructors and operator overloads all detach from the top-level
+    // scope exactly as a function does, so they all import exactly what a function imports.
+
+    [Fact]
+    public void AMethod_CanReadASharedConstant()
+    {
+        const string src = """
+            Define toll as 5 permanently.
+            Define object bridge with (the number span):
+                Bind number to cost:
+                    Return one's span + toll.
+                Done.
+            Done.
+            Define b as a new bridge { the span 2 }.
+            State cast b's cost.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("7", Interpret(src));
+    }
+
+    [Fact]
+    public void AGetterAndASetter_CanReadASharedConstant()
+    {
+        const string src = """
+            Define toll as 5 permanently.
+            Define object bridge with (the number span):
+                Get cost as number:
+                    Return one's span + toll.
+                Done.
+                Set span given (the number s):
+                    One's span becomes s - toll.
+                Done.
+            Done.
+            Define b as a new bridge { the span 2 }.
+            State b's cost.
+            b's span becomes 20.
+            State b's span.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("7\n15", Interpret(src));
+    }
+
+    [Fact]
+    public void AnOperatorOverload_CanReadASharedConstant()
+    {
+        const string src = """
+            Define toll as 5 permanently.
+            Define object bridge with (the number span).
+            Bind overloading +, given (the lhs is a bridge, the rhs is a bridge):
+                Return a new bridge { the span lhs's span + rhs's span + toll }.
+            Done.
+            Define first-span as a new bridge { the span 1 }.
+            Define second-span as a new bridge { the span 2 }.
+            Define summed as first-span + second-span.
+            State summed's span.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("8", Interpret(src));
+    }
+
+    [Fact]
+    public void ATextSharedConstant_KnowsItIsText_InsideAFunction()
+    {
+        // ★ The minimal repro of the compiler half. `SharedConstants_AreReadableFromSeveralFunctions`
+        // passed with a text constant only because a declared `text` return type told the generator
+        // what it was. Where nothing else supplies the type — `State it`, or an interpolation hole —
+        // the body's type map decided, and a detached body's map was cleared and never re-seeded, so
+        // a text constant defaulted to NUMBER: gcc got cufet_print_number on a const char*.
+        const string src = """
+            Define farewell as "closing" permanently.
+            Bind void to play:
+                State farewell.
+                State "{farewell} now".
+            Done.
+            Cast play.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("closing\nclosing now", Interpret(src));
+    }
+
+    [Fact]
+    public void ADestructor_CanReadASharedConstant()
+    {
+        const string src = """
+            Define farewell as "closing" permanently.
+            Define object gate with (the number id).
+            Bind unmaking a gate to close-gate:
+                State "{farewell} {one's id}".
+            Done.
+            Pull a rabbit.
+                Define g as a new gate { the id 4 }.
+                State "open".
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("open\nclosing 4", Interpret(src));
+    }
+
+    [Fact]
+    public void AMethod_ReadingMutableTopLevelData_IsRefusedByTheChecker()
+    {
+        // ★ The half that used to pass the checker silently: the name was hidden but unresolved,
+        // and an unresolved name infers to null, so nothing complained until run time (interpreted)
+        // or gcc (compiled). Neither backend now gets that far.
+        const string src = """
+            Define tally as 7.
+            Define object bridge with (the number span):
+                Bind number to cost:
+                    Return one's span + tally.
+                Done.
+            Done.
+            Define b as a new bridge { the span 2 }.
+            State cast b's cost.
+            """;
+        var ex = Assert.ThrowsAny<Exception>(() => InterpretRaw(src));
+        Assert.Contains("top-level", ex.Message);
+        Assert.Contains("tally", ex.Message);
+
+        var cex = Assert.ThrowsAny<Exception>(() => CompileRaw(src));
+        Assert.Contains("top-level", cex.Message);
+        Assert.DoesNotContain("undeclared", cex.Message);
+        Assert.DoesNotContain("bug in the Cufet compiler", cex.Message);
+    }
+
+    [Fact]
+    public void ALambdaBesideItsData_StillCapturesRatherThanRefusing()
+    {
+        // ★ The control on the fix. A lambda literal is NOT a detached body — it closes over its
+        // enclosing scope — so the hidden-name recording must not reach it. Recording it here
+        // rejected a lambda sitting directly beside the binding it captures.
+        const string src = """
+            Pull a rabbit.
+                Define nums as a series of number with (1, 2, 3).
+                Define f as a function: Return the number of nums. Done.
+                State cast f on ().
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("3", Interpret(src));
+    }
 }

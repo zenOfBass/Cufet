@@ -228,29 +228,9 @@ public sealed partial class TypeChecker
         }
         else
         {
-            // Top-level function body: function signatures, plus top-level CONSTANTS.
-            //
-            // ★ The old rule hid all top-level data, and its own justification was "keeps data flow
-            // explicit and prevents hidden mutation". A `permanently` binding cannot be mutated, so
-            // none of that applies to it — the rule was broader than the reason for it. Letting
-            // exactly the immutable half through gives back shared constants without letting global
-            // mutable state back in. This is what `static` would have been, minus the part worth
-            // refusing.
-            foreach (var scope in saved.V)
-                foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType || kv.Value.Permanent))
-                    Scope[k] = v;
-
-            // ★ Remember what was filtered OUT. Isolating the scope hides those names, but an
-            // unresolved name infers to null and the check passes silently — so a program that
-            // reads top-level data from a top-level function used to type-check clean, refuse at
-            // RUNTIME interpreted, and emit undeclared C compiled. Three answers to one program.
-            // Recording the hidden names lets InferTypeCore refuse with the same teaching message
-            // the interpreter already had, at check time, for both backends.
-            _hiddenTopLevelData = saved.V
-                .SelectMany(s => s)
-                .Where(kv => kv.Value.Type is not FunctionType && !kv.Value.Permanent)
-                .Select(kv => kv.Key)
-                .ToHashSet(StringComparer.Ordinal);
+            // Top-level function body: function signatures, plus top-level CONSTANTS. See
+            // ImportTopLevelVisible — the rule and the reason for it live there, once.
+            ImportTopLevelVisible(saved);
         }
         foreach (var (type, name) in bind.Parameters)
             Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), bind.Line, IsParameter: true);
@@ -318,8 +298,14 @@ public sealed partial class TypeChecker
                         ? v with { RabbitDepth = CapturedParameterDepth }
                         : v;
         else
+            // ⚠ Deliberately NOT ImportTopLevelVisible: a lambda literal is not a detached body.
+            // It CAPTURES its enclosing scope, so nothing is hidden from it — recording hidden
+            // names here rejected `Define f as a function: Return the number of nums. Done.`
+            // sitting right beside the `nums` it closes over. Constants are imported for the case
+            // where there is nothing to capture; the rest is left to the capture machinery.
             foreach (var scope in saved.V)
-                foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
+                foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType || kv.Value.Permanent))
+                    Scope[k] = v;
         foreach (var (type, name) in lambda.Parameters)
             Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), lambda.Line, IsParameter: true);
 
@@ -329,6 +315,7 @@ public sealed partial class TypeChecker
         var prevInferring         = _inferringLambdaReturn;
         var prevRabbitDepth       = _rabbitDepth;
         var prevOverloadFallible  = _overloadBodyIsFallible;
+        var prevHidden            = _hiddenTopLevelData;
         _inFunction               = true;
         _expectedReturnType       = null; // set by first Return via CheckReturn
         _functionDeclarationLine  = lambda.Line;
@@ -350,6 +337,7 @@ public sealed partial class TypeChecker
             _expectedReturnType      = prevReturnType;
             _rabbitDepth             = prevRabbitDepth;
             _overloadBodyIsFallible  = prevOverloadFallible;
+            _hiddenTopLevelData      = prevHidden;
             RestoreScopes(saved);
         }
 
