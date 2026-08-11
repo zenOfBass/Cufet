@@ -162,6 +162,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★★ A top-level `Define`d lambda could not be called from a function or a method when compiled**
+  — `'doubler': unresolved call`, while the interpreter ran it. It was emitted as a local of `main`,
+  so no other function could reach it. Now hoisted to file scope like a shared constant. Aliases
+  (`Define f as doubler.`) too.
+
+- **A shared constant of series or map type did not compile at all** — its declaration named a
+  generated C type and was emitted above that type's definition. Scalars were unaffected, which is
+  why it went unnoticed.
+
 - **★★ One program, three answers: a top-level function reading top-level data.** The rule — top
   level functions see other functions but not top-level data — lived only in the **interpreter**,
   and only at **run time**. So:
