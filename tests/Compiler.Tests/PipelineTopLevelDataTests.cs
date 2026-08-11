@@ -47,16 +47,69 @@ public class PipelineTopLevelDataTests : PipelineTestBase
     }
 
     [Fact]
-    public void APermanentlyBinding_IsRefusedTheSameWay_ForNow()
+    public void APermanentlyBinding_IsASharedConstant()
     {
-        // Documents today's behaviour deliberately: `permanently` makes no difference yet, because
-        // the rule is about top-level DATA rather than about mutability. Relaxing it for exactly
-        // the immutable case is the shared-constants item, and this test is what will change when
-        // that lands — which is the point of writing it down now.
+        // ★ The shared-constants feature, and the exact test that was written to fail when it
+        // landed. The old rule hid ALL top-level data, justified as keeping data flow explicit and
+        // preventing hidden mutation — but a `permanently` binding cannot be mutated, so the rule
+        // was broader than its own reason. Only the immutable half comes back.
         const string src = """
             Define max-retries as 3 permanently.
             Bind number to budget:
                 Return max-retries * 2.
+            Done.
+            State cast budget.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("6", Interpret(src));
+    }
+
+    [Fact]
+    public void SharedConstants_ComposeWithEachOther()
+    {
+        // Source order, and an initialiser reading an earlier constant.
+        const string src = """
+            Define max-retries as 3 permanently.
+            Define total-budget as max-retries * 10 permanently.
+            Bind number to budget:
+                Return total-budget.
+            Done.
+            State cast budget.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("30", Interpret(src));
+    }
+
+    [Fact]
+    public void SharedConstants_AreReadableFromSeveralFunctions()
+    {
+        // ★ The compiled form is a FILE-SCOPE global assigned at the top of main — not a local of
+        // main, which no function could see. Two readers prove the declaration is shared rather
+        // than duplicated per function.
+        const string src = """
+            Define greeting as "hi" permanently.
+            Bind text to loud:
+                Return greeting in uppercase.
+            Done.
+            Bind text to quiet:
+                Return greeting.
+            Done.
+            State cast loud.
+            State cast quiet.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("HI\nhi", Interpret(src));
+    }
+
+    [Fact]
+    public void AMutableTopLevelBinding_IsStillRefused()
+    {
+        // The half of the rule that stays. Without `permanently` this is exactly the hidden global
+        // mutable state the isolation exists to prevent.
+        const string src = """
+            Define counter as 3.
+            Bind number to budget:
+                Return counter * 2.
             Done.
             State cast budget.
             """;

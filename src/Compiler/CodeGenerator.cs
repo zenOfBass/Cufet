@@ -112,6 +112,13 @@ public sealed class CodeGenerator
         _loopUnmakerSnaps.Clear(); _scopeDepth = 0; _frameUnmakerBase = null;
     }
 
+    // Top-level `permanently` bindings, by reference — the shared constants that must live at C
+    // file scope so top-level functions can read them. Reference identity, not name: a
+    // `permanently` local elsewhere may share a name and stays a local.
+    private readonly HashSet<DefineStatement> _sharedConstants =
+        new(ReferenceEqualityComparer.Instance as IEqualityComparer<DefineStatement>);
+    private readonly List<string> _sharedConstDecls = [];
+
     // Does the program mention an OPEN union anywhere (so the discovery pre-pass is worth running)?
     // Walks AST nodes AND their CufetType annotations — an open union can appear only via a type
     // annotation (`a catalogue …` / `an atlas …`), never as a value literal.
@@ -2180,6 +2187,13 @@ static void* cufet_pipe_stage(void* argp) {
             // ── main() ────────────────────────────────────────────────────────
             // A global arena is pushed so series created at top level (outside an
             // explicit Pull) are safely tracked and freed at program exit.
+            // ── Shared constants ──────────────────────────────────────────────
+            // Top-level `permanently` bindings are readable from top-level functions, so they
+            // cannot be locals of main. Identified by REFERENCE, not by name: a `permanently`
+            // local deeper in the program may share a name and must stay a local.
+            foreach (var topLevelConst in program.Statements.OfType<DefineStatement>().Where(d => d.Permanent))
+                _sharedConstants.Add(topLevelConst);
+
             body.AppendLine("int main(void) {");
             // Before anything is printed. Threads inherit the process's stdout mode, so tasks are
             // covered by this one call. See CUFET_NL for why it is needed at all.
@@ -2245,6 +2259,16 @@ static void* cufet_pipe_stage(void* argp) {
         // so no call site can be missed. Draining can register further specializations, hence the
         // fixed point. Runs before the struct/forward-decl sections so their shapes are registered.
         DrainIfaceSpecializations(body);
+
+        // File-scope declarations for the shared constants assigned at the top of main. Collected
+        // while main was emitted (their C types are only known then) and appended to `sb`, which
+        // precedes every function body in the output — so a function can reference one.
+        if (_sharedConstDecls.Count > 0)
+        {
+            sb.AppendLine("// ── Shared constants (top-level `permanently` bindings) ──");
+            foreach (var declLine in _sharedConstDecls) sb.AppendLine(declLine);
+            sb.AppendLine();
+        }
 
         // ── Series + map struct forward declarations (so value structs can hold their pointers) ──
         EmitSeriesForwardDecls(sb);
@@ -4110,6 +4134,20 @@ static void* cufet_pipe_stage(void* argp) {
                 // are arena pointers; leave those non-const (const applies to value types).
                 bool constable = vt is NumberType or FactType or TextType or RecordType;
                 string decl = (d.Permanent && constable) ? "const " + EmitCType(vt) : EmitCType(vt);
+
+                // ★ A shared constant lives at FILE scope, because a top-level function may read
+                // it and a local in main is invisible to one. Declared there and ASSIGNED here,
+                // rather than initialised in place: a Cufet initialiser is not a C constant
+                // expression (a number is built by cufet_dec_lit), so a static initialiser would
+                // not compile. Assigning at the top of main is safe because nothing can call a
+                // function before main starts.
+                if (_sharedConstants.Contains(d))
+                {
+                    _sharedConstDecls.Add($"static {EmitCType(vt)} {MangleName(d.Name)};");
+                    sb.AppendLine($"{indent}{MangleName(d.Name)} = {valExpr};");
+                    break;
+                }
+
                 sb.AppendLine($"{indent}{decl} {MangleName(d.Name)} = {valExpr};");
                 // UNMK: register the unmaker for a Define'd unmakeable object — ONLY inside a block
                 // scope (matching the interpreter's _scopeDefOrder appending only on Define + firing

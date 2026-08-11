@@ -82,6 +82,11 @@ public sealed partial class Interpreter
     // UndefinedVariableMessage to emit a teaching error instead of a misdirecting "isn't defined".
     private Dictionary<string, object>? _hiddenTopLevelData;
 
+    // Names of top-level `permanently` bindings — the shared constants a top-level function may
+    // read. Kept by name because ExecuteCall's isolation filters the caller's scopes by VALUE, and
+    // an evaluated constant looks like any other datum.
+    private readonly HashSet<string> _permanentTopLevel = new(StringComparer.Ordinal);
+
     private Dictionary<string, object> Scope => _scopes[^1];
 
     private bool TryLookupValue(string name, out object val)
@@ -534,6 +539,13 @@ public sealed partial class Interpreter
             {
                 Scope[d.Name] = BindCopy(Evaluate(d.Value));
                 _scopeDefOrder[^1].Add(d.Name);
+                // A top-level `permanently` binding is a shared constant: top-level functions may
+                // read it. Recorded by NAME because the isolation in ExecuteCall filters by value
+                // and a constant is indistinguishable from any other datum once evaluated.
+                // Only at the outermost scope — a `permanently` local inside a rabbit or a
+                // function is not shared with anything.
+                if (_callDepth == 0 && _scopes.Count == 1 && d.Permanent)
+                    _permanentTopLevel.Add(d.Name);
                 break;
             }
 

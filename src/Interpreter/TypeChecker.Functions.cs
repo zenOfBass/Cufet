@@ -228,9 +228,17 @@ public sealed partial class TypeChecker
         }
         else
         {
-            // Top-level function body: only function signatures visible — no caller/global locals.
+            // Top-level function body: function signatures, plus top-level CONSTANTS.
+            //
+            // ★ The old rule hid all top-level data, and its own justification was "keeps data flow
+            // explicit and prevents hidden mutation". A `permanently` binding cannot be mutated, so
+            // none of that applies to it — the rule was broader than the reason for it. Letting
+            // exactly the immutable half through gives back shared constants without letting global
+            // mutable state back in. This is what `static` would have been, minus the part worth
+            // refusing.
             foreach (var scope in saved.V)
-                foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
+                foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType || kv.Value.Permanent))
+                    Scope[k] = v;
 
             // ★ Remember what was filtered OUT. Isolating the scope hides those names, but an
             // unresolved name infers to null and the check passes silently — so a program that
@@ -240,7 +248,7 @@ public sealed partial class TypeChecker
             // the interpreter already had, at check time, for both backends.
             _hiddenTopLevelData = saved.V
                 .SelectMany(s => s)
-                .Where(kv => kv.Value.Type is not FunctionType)
+                .Where(kv => kv.Value.Type is not FunctionType && !kv.Value.Permanent)
                 .Select(kv => kv.Key)
                 .ToHashSet(StringComparer.Ordinal);
         }
