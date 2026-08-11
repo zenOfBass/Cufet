@@ -218,19 +218,6 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   same shape as the arm-record walk bug — one rule, N copies, one forgotten, silent when wrong —
   so it gets the same treatment.
 
-- **`examples/channel-deepcopy.cufe` printed in whichever order the scheduler chose.** Two consumer
-  tasks wrote to the terminal with nothing ordering them against each other, so the interpreter
-  (cooperative, deterministic) and the compiled binary (real threads) could disagree on line order.
-  It failed roughly one run in seven, under load, on Linux only — mingw cannot build pthreads, so
-  Windows never ran it, and it won the coin flip during the mutation run's baseline.
-
-  Fixed in the **example**, by draining both channels from one consumer, rather than by comparing
-  order-insensitively. An any-order comparison would also have accepted `inner-len=` before
-  `outer-len=`, and that ordering *is* fixed by the program — loosening the oracle to fit one
-  example would have cost more than the example was worth. Nothing was racing for a value; the
-  deep-copy semantics the example exists to show are unchanged, and both producers still run
-  concurrently.
-
 ---
 
 ## [0.14.0] — 2026-08-09
@@ -279,10 +266,6 @@ cell; most of the work went underneath.
   A **lone** `\r` is not a line break on any platform Cufet targets, so one written deliberately is
   kept as a carriage return.
 
-  `examples/rawtext.cufe` found this, and it is the first thing the new example harness caught that
-  the unit suites could not: the bug needed a real file, stored with real line endings, run on both
-  backends.
-
   ★ **The `exactly` modifier that was planned alongside this is dropped, not deferred.** The two
   were designed as independent switches — `<<...>>` turning escapes off, `exactly` turning
   interpolation off — which would have given four combinations. It does not survive contact: with
@@ -318,8 +301,6 @@ cell; most of the work went underneath.
 
   Cells hold numbers and nothing else. Out-of-range indices fault with the same message the read
   gives, on both backends.
-
-- **`examples/gameoflife.cufe`** — Conway's Game of Life on a matrix, with wrapping edges.
 
 - **★ Every example is now an oracle test.** All 20 programs in `examples/` run on both backends
   under `dotnet test`, and the compiled output must equal the interpreted output exactly. Until now
@@ -664,8 +645,6 @@ cell; most of the work went underneath.
   pass all said clean and the failure appeared only at `build`. The narrowing bug is fixed; **that
   gap is not**, and it is the more general problem.
 
-  Found by `examples/renderer.cufe`, which is now pinned.
-
 - **★ The code generator could emit C that would not build, without saying anything.** The member
   access it emits ended in a catch-all — *anything that gets here is a record* — so whatever
   arrived got the record shape. A union arrived (the Judge bug above) and the result was C naming
@@ -700,15 +679,6 @@ cell; most of the work went underneath.
   already byte-clean there, the compiler through `fopen(…, "wb")` and the interpreter through
   `Write`. Subprocess output forwarded to stdout was being mangled the same way and is fixed with it.
 
-  ★ **The oracle could not see it, and that is the more important half.** Both runners normalised
-  `\r\n` to `\n` before comparing, so rewritten data compared equal to untouched data — the suite
-  was structurally blind to the axis for as long as it has existed. It surfaced only because
-  `examples/rawtext.cufe` put a `\r\n` **pair** in a literal, which normalisation cannot flatten.
-  **This is the second bug of exactly this shape**, after the CLI encoding one below, so the fix is
-  to the harness and not just to the symptom: backend-vs-backend comparisons are now byte-exact,
-  and normalisation survives only where the expected value is a C# literal or a checked-in
-  `.expected` file that travels through git's line-ending conversion.
-
   Measured before committing to it: pointing all 379 oracle assertions and the example harness at
   raw output surfaced **exactly one** divergence across 562 tests — this one. Nothing else was
   hiding.
@@ -732,8 +702,7 @@ cell; most of the work went underneath.
   ★ **The test suite could not have caught this**, which is worth recording. Its interpreter side
   writes to an in-memory `StringWriter` and its compiled side reads the binary with
   `StandardOutputEncoding` already UTF-8, so both are lossless in-process and only the console ever
-  lost anything. Found by pinning `examples/expected/json.expected` — the round-trip of `["héllo 👍"]` — and
-  reading the bytes rather than the terminal. `json.expected` now holds that assertion permanently.
+  lost anything.
 
 - **★ An object declared inside a book pull crashed the compiler.** `CollectObjectDefs` was a
   hand-written switch over block-bearing statements with no arm for `PullStatement`, so this was
@@ -1271,12 +1240,6 @@ as 42.` — and with it, a union-typed variable became expressible at all.
   exception, and the cooperative interpreter would have hidden it by running deterministically.
   The compiler refuses with an explanation. Reading from a task stays allowed.
 
-- **[`examples/shell.cufe`](examples/shell.cufe) has `cd`.** The gap the roadmap called the one
-  visible hole in the program most likely to be shown to someone. Bare `cd` goes home; a bad path
-  prints and the loop carries on. It also makes the already-permitted `pwd` mean something, since
-  it can now report somewhere you chose.
-
-
 **An empty map no longer needs `with ()`**
 
 - **`Define ages as a map from text to number.`** now builds an empty typed map, the same way
@@ -1517,11 +1480,6 @@ built entirely in this release: literals, gates, shifts, arithmetic, and convers
 
 - `hex`, `binary` and `octal` are not reserved words.
 
-- **[`examples/permissions.cufe`](examples/permissions.cufe)** — a worked Unix-permissions
-  program: building a mode with `or`, testing with `and`, clearing with `and not`, positioning
-  with a shift, and the `(1 << n) - 1` mask idiom. No divide-and-modulo standing in for a mask
-  anywhere, which is exactly what this type was for.
-
 - A full **REFERENCE chapter**, held back deliberately until the type was whole.
 
 **Book vocabulary no longer costs every program a name**
@@ -1636,11 +1594,6 @@ built entirely in this release: literals, gates, shifts, arithmetic, and convers
   its rationale is DESIGN.md. Implementation invariants and known limitations moved to
   CONTRIBUTING.md. Nothing restates anything else, which is the only thing that actually prevents
   drift.
-
-- **The soundness probes moved** from `examples/` to
-  [`tests/fixtures/soundness/`](tests/fixtures/soundness/). Six of the nine are *supposed* to fail
-  type-checking, so they read as broken demos while they sat beside the showcase programs. They
-  are now enforced by a test that enumerates the directory, so a new probe is a drop-in.
 
 ---
 
@@ -1986,9 +1939,6 @@ complete — native backend is the next era.
   narrative added to Design decisions; forward roadmap updated (native backend is next);
   Known minor issues concurrency/SIGINT sections updated; test count and table updated.
 - README.md / REFERENCE.md: bumped to 0.9.0.
-- `examples/dijkstra.cufe`: complete rewrite using text node names as map keys
-  (object-as-key design incompatible with map key value-type constraint; procedural
-  rewrite also cleaner). Verifies expected distances and prints `PASS`.
 
 ### Test campaign (five test, every finding resolved)
 
@@ -2111,7 +2061,7 @@ exercise of operator overloading.
   arc added to Design decisions; forward roadmap updated.
 - README.md / REFERENCE.md: bumped to 0.8.0.
 - GRAMMAR.md §5: matrix arithmetic section added (operators, dimension rules,
-  fallibility, strict-fallible examples, not-defined cases).
+  fallibility, not-defined cases).
 
 ---
 
@@ -2144,8 +2094,6 @@ exercise of operator overloading.
 - **Getters and setters** — `Get <name> as <type>:` / `Set <name> given (…):`
   inside object bodies; uniform access property; `unto` forms for outside-body
   declaration; setter self-write bypass.
-- Numerous example programs (n-queens, Tower of Hanoi, Dijkstra, card dealing,
-  word frequency, arbtree).
 
 ---
 
