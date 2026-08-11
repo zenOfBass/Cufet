@@ -57,12 +57,15 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    rename your way out of, an ordering you have to rethink, a capital you have to type. Layout is
    pure mechanism, so a warning about it is noise next to a tool that simply does it.
 
-2. **Expression-bodied members.** A getter or function whose body is a single expression, written
-   with no `return` and no `Done.`:
+2. **Inline forms for block constructs — one rule, not one per release.** Today `If` and `Judge`
+   arms take a comma and a single statement; nothing else does, and nobody can predict which. State
+   it as a rule — **every block construct takes a comma and one statement** — and ship the missing
+   cases together:
 
    ```
    Get area as number, one's radius * one's radius * 3.
    Bind number to double, given (the number amount), amount * 2.
+   For each n in items, State n.
    ```
 
    ★ **The comma is the point, and the colon is wrong.** Cufet already spells *one thing, inline*
@@ -70,14 +73,47 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    expression body is the first of those, so it takes a comma. Spelling it with a colon would
    leave the only reliable structural signal meaning two different things.
 
-   **The objection, and the answer to it.** A one-line block already exists — `Bind number to
-   double, given (the number amount): return amount * 2. Done.` — so this earns its place solely
-   by dropping `return` and `Done.`, which is the "second spelling of an existing construct"
+   **Loops are unambiguous** despite the existing comma in `For each i in xs, repeat:` — the block
+   marker there is `repeat:`, not the comma, so one token separates the two forms.
+
+   **Measured:** 110 inline `If`s already in use; 14 of 78 block-form loops have a single-statement
+   body. **Objects already have a one-line form** (`Define object user with (…).`) — nothing to do.
+   **`Try` is deliberately excluded**: its body is rarely one statement and its handler is the part
+   you least want compressed.
+
+   **Why one arc rather than one at a time.** Shipping these piecemeal grows a second spelling per
+   release with no pattern behind it, and the formatter (item 1) has to know every inline form there
+   is — teaching it one rule is cheaper than four exceptions.
+
+   **The objection, and the answer to it.** A one-line block already exists, so this earns its place
+   solely by dropping `return` and `Done.`, which is the "second spelling of an existing construct"
    charge `Judge` is held to. The counter is the inline `If`: that construct exists for exactly
    this reason, was argued for deliberately, and nobody has regretted it. Precedent beats purity
    here.
 
-3. **A bits value's width, as data.** A `bits` carries a width and shows it — `0x0F` prints with
+3. **Increase / decrease — self-referential arithmetic without repeating the name.**
+
+   ```
+   Increase i by 1.
+   Decrease remaining by 1.
+   ```
+
+   ★ **Measured: 38 of 109 `becomes` statements in `examples/` (35%) are `X becomes X + …`**, 24 of
+   them exactly `+ 1`. The repetition is where a typo hides — and it hides *well*, because a line
+   that is genuinely not self-referential (`The next-w becomes w + 1.` in `huffmancoding.cufe`,
+   which is correct) is invisible among 37 that are. An increment form makes the odd one out
+   announce itself.
+
+   **Not `+=`.** Symbol soup in a language whose statements read as sentences, and worse after the
+   article — `The i += 1.` **Not `Add 1 to i.`** either: `Add <x> to <series>` already exists, and
+   overloading it would make the meaning depend on a type the reader cannot see.
+
+   Keep it numeric. One meaning, no text concatenation, no series.
+
+   **Settle before building:** the exact verbs, and whether the value may be an arbitrary
+   expression (`Increase total by item at (r, c) of board.`) or only a simple one.
+
+4. **A bits value's width, as data.** A `bits` carries a width and shows it — `0x0F` prints with
    its leading zero — but a program cannot **read** that width or **ask for** one:
 
    ```
@@ -104,9 +140,39 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 2 — leverage
 
-4. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+5. **`unto` targeting an INTERFACE — default methods, which is most of what traits give.**
+
+   ```
+   Bind text to describe unto shape:        ← every conformer gets it
+       Return "a {one's name} of area {one's area converted to text}".
+   Done.
+   ```
+
+   ★ **It fits the locked monomorphization design without touching it.** Interface polymorphism
+   lives at exactly one position — the function parameter — and the argument is always a concrete
+   conformer at the call site. So a default method has a concrete receiver every time it is called
+   and specialises per conformer. No vtable, no type tag, nothing to relax.
+
+   **It needs no new concepts.** `InterfaceDefinition` already carries full method signatures, so a
+   default can be written against the contract (`one's area`). `unto` already exists. The current
+   refusal even names the extension point: *"'X' is an interface, not an object type — methods
+   can't be attached to it with 'unto'."*
+
+   **Chosen over a separate `trait` construct**, and over mixins: no trait state, which is the line
+   Rust draws too, and no new keyword to learn.
+
+   **Settle before building:**
+   - **Specialisation** — a type's own method beats the interface's default.
+   - **Conflict** — two interfaces supplying the same method name to one type must be refused, not
+     silently resolved.
+   - **Does a default satisfy conformance?** If `shape` requires `describe` *and* supplies one, must
+     a conformer still define it? Rust says no. That is the useful answer, but it turns "interface"
+     from *contract* into *contract with fallbacks* — decide it deliberately.
+   - **Interfaces conforming to interfaces** — start with no. That is where trait systems get deep.
+
+6. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
-5. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
+7. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
    tree, linked structure or wrapper cannot be looped over at all:
 
    ```
@@ -125,7 +191,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    method dispatch: no suspension, so no arena question about where paused state lives, and nothing
    the two backends could disagree about.
 
-6. **Unicode casing in the compiled backend.** `"héllo" in uppercase` is `HÉLLO` interpreted and
+8. **Unicode casing in the compiled backend.** `"héllo" in uppercase` is `HÉLLO` interpreted and
     `HéLLO` compiled. The emitted C has no case table, so anything outside `A–Z` / `a–z` passes
     through unchanged, and the two backends knowingly disagree.
 
@@ -147,11 +213,38 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 3 — the design mountains
 
-Both need a design session before they can be ordered against anything. Neither is blocked by a
+All need a design session before they can be ordered against anything. None is blocked by a
 numbered item; they are here because they are large, not because they are waiting.
 
-7. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+9. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
+
+10. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
+   container holds one concrete type or fakes it with an open union.
+
+   ★ **The syntax already exists.** `a series of number`, `a map from text to number` — a
+   user-defined `a stack of number` reads exactly like the built-ins, so there is nothing to invent
+   at the use site. Most languages have to bolt on `<>`. The implementation strategy is also already
+   chosen: monomorphization, the same technique interface parameters use today, with **interfaces as
+   the constraint mechanism** rather than a new concept.
+
+   **Do it AFTER `unto` on interfaces** (item 5). Default methods may absorb enough of the pressure
+   that generics can be scoped smaller and aimed at cases that are known rather than guessed.
+
+   ⚠ **The cost lands on the language's best asset.** Cufet's distinguishing feature is errors that
+   name the line, the violation and the fix. Generic type errors are the worst errors in every
+   language that has them, because the failure is a unification that went wrong three inferences
+   deep. Budget for that specifically.
+
+   **Two decisions to take deliberately, both against the grain of other languages:**
+   - **Require explicit type arguments; do not infer them.** Cufet already makes you write
+     `Define the text name as`. Inference is where generic errors become unreadable, and declining
+     it is in character rather than a limitation.
+   - **No variance.** Not covariance, not contravariance. It is the part nobody can explain to a
+     learner, and a teaching language that ships `IEnumerable<out T>` has lost the plot.
+
+   **The trigger:** the first time a container is written twice for two element types, or an open
+   union is used to fake one.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
    `matrix * number` scalar scaling, which is deferred today for exactly that reason. (The
@@ -159,7 +252,7 @@ numbered item; they are here because they are large, not because they are waitin
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-8. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+11. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -199,14 +292,14 @@ numbered item; they are here because they are large, not because they are waitin
 
 ### Tier 4 — modules, strictly in this order
 
-9. **The `module` interface.** A named interface defining the contract for any loadable thing.
+12. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-10. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+13. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-11. **What a book exports.** Every member of a book is public API, permanently, because there is
+14. **What a book exports.** Every member of a book is public API, permanently, because there is
     no way to mark one internal. It does not bite yet — the bundled three are built in and you
     cannot write a book — but the moment the loader below lands, a book author has no way to say
     *this is my helper, do not call it*.
@@ -220,7 +313,7 @@ numbered item; they are here because they are large, not because they are waitin
     the book, so the boundary is *what a book hands out* — the object question is a different and
     much weaker one, since within a file a visibility marker is a comment with ceremony attached.
 
-12. **A package manager for books.**
+15. **A package manager for books.**
 
 ### Tier 5 — Cufet in Cufet
 
@@ -230,7 +323,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-13. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+16. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -238,7 +331,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-14. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
+17. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
@@ -246,7 +339,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-15. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+18. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
@@ -301,6 +394,34 @@ indistinguishable from having forgotten.
 **Promote an item the moment its blocker becomes a numbered item.**
 
 ### Language
+
+- **Named loops — a label so `Stop.` can leave an OUTER loop.** *Blocker: no demonstrated need.*
+  Across 28 examples — a sudoku solver with triple-nested loops, a JSON parser, recursive descent,
+  Dijkstra, Huffman — there are 7 uses of `Stop.`/`Skip.` and **not one wants to escape an outer
+  loop**, nor is there any trace of the flag workaround that would appear if the need were being
+  routed around. The deepest nesting escapes with `return` from inside a function, and extracting a
+  nested search into a named function is usually better than labelling the loop anyway.
+
+  **The argument worth revisiting is readability, not capability:** `Stop.` silently means "the
+  innermost one", and in a triple-nested loop the reader has to count. An optional label could make
+  *existing* code clearer without enabling anything new.
+
+  **The trigger:** the first program that needs a mutable flag purely to break an outer loop.
+
+- **`is any of (…)` — membership as a comparison.** `If x is any of (1, 2, 3)` over
+  `If x is 1 or x is 2 or x is 3`. *Blocker: small win.* ⚠ If built, it must be a **comparison,
+  never a value** — `Define maybe as any of (1,2,3).` would import Raku-style junctions, whose
+  threading order is explicitly undefined and therefore incompatible with no-divergence.
+
+- **Compile-time macros.** Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs,
+  which are first-class and runtime. Fexprs are ruled out on their own terms: Wand's result means
+  no two expressions are ever equivalent, which takes out `check`, monomorphization, and any
+  compiled backend that is not an embedded interpreter.
+
+  *Blocker: self-hosting (Tier 5).* A macro expander generates Cufet AST, so building it in C# now
+  means building it again in Cufet later. ⚠ Macro errors are the worst part of every language that
+  has them, and clear errors are this language's distinguishing feature — that tax should be paid
+  deliberately, not absorbed early.
 
 - **`Judge` value arms and `Descend.`** The construct ships — closed-union subjects, `or`
   grouping, `it` narrowed per arm, `Otherwise`, and coverage proved or defaulted so control can
