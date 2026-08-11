@@ -5896,7 +5896,7 @@ static void* cufet_pipe_stage(void* argp) {
             }
             // Recursive for the same reason as the voidable arm above: `(A or B) or failure`
             // returning an `A` must tag it into the union first. This is the shape every
-            // recursive-descent parser has, and it is what examples/recursive-descent.cufe hit.
+            // recursive-descent parser has, and it is what examples/parsing/recursivedescent.cufe hit.
             return $"(({cfl}){{ .is_failure = 0, .val = {EmitAsType(expr, ft.Inner)} }})";  // widen T → success
         }
         return EmitExpr(expr);

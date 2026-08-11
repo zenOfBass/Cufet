@@ -88,15 +88,33 @@ public class ExampleOracleTests
                             + "cooperative scheduler and real threads, though the totals do not",
     };
 
-    private static bool IsSkipped(string file) =>
-        (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && WindowsOnlySkips.ContainsKey(file))
-        || NonDeterministicSkips.ContainsKey(file);
+    /// ★ Skip lists and pins are keyed on the BASE NAME, never on the path. Which folder an example
+    /// sits in is a presentation choice for whoever is reading `examples/`; keying on it would mean
+    /// every reshuffle edited this file, and a stale key fails as "missing example" rather than as
+    /// "moved". Basename uniqueness is what makes that safe — ExampleCorpus_IsPresent asserts it.
+    private static bool IsSkipped(string file)
+    {
+        var name = Path.GetFileName(file);
+        return (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && WindowsOnlySkips.ContainsKey(name))
+            || NonDeterministicSkips.ContainsKey(name);
+    }
+
+    /// Paths relative to ExampleDir, forward-slashed, so a test ID reads `algorithms/dijkstra.cufe`
+    /// and looks the same on both platforms.
+    ///
+    /// ★ RECURSIVE. Examples live in category folders, and the non-recursive scan this replaced
+    /// would have dropped an entire folder from the corpus without failing anything — the theories
+    /// below simply would not have been handed those files. `expected/` and `assets/` hold no
+    /// `.cufe`, so nothing needs excluding; if that ever changes, exclude them here.
+    private static IEnumerable<string> ExampleFiles() =>
+        Directory.Exists(ExampleDir)
+            ? Directory.GetFiles(ExampleDir, "*.cufe", SearchOption.AllDirectories)
+                       .Select(p => Path.GetRelativePath(ExampleDir, p).Replace('\\', '/'))
+                       .OrderBy(p => p, StringComparer.Ordinal)
+            : [];
 
     private static IEnumerable<object[]> AllExamples() =>
-        Directory.Exists(ExampleDir)
-            ? Directory.GetFiles(ExampleDir, "*.cufe").OrderBy(p => p)
-                       .Select(p => new object[] { Path.GetFileName(p) })
-            : [];
+        ExampleFiles().Select(p => new object[] { p });
 
     public static IEnumerable<object[]> OracleExamples() =>
         AllExamples().Where(a => !IsSkipped((string)a[0]));
@@ -112,9 +130,9 @@ public class ExampleOracleTests
     public static IEnumerable<object[]> NonDeterministicExamples()
     {
         var found = AllExamples()
-            .Where(a => NonDeterministicSkips.ContainsKey((string)a[0])
+            .Where(a => NonDeterministicSkips.ContainsKey(Path.GetFileName((string)a[0]))
                      && !(RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                          && WindowsOnlySkips.ContainsKey((string)a[0])))
+                          && WindowsOnlySkips.ContainsKey(Path.GetFileName((string)a[0]))))
             .ToList();
         return found.Count > 0 ? found : [[NoSuchExample]];
     }
@@ -128,12 +146,41 @@ public class ExampleOracleTests
     public void ExampleCorpus_IsPresent()
     {
         Assert.True(Directory.Exists(ExampleDir), $"examples/ not found from {AppContext.BaseDirectory}");
-        Assert.True(AllExamples().Count() >= 20,
-            $"only {AllExamples().Count()} examples found — the corpus has shrunk or the enumeration broke.");
 
-        // A skip entry for a file that no longer exists is a stale excuse; say so.
+        // ★ The floor has to track the corpus. It sat at 20 while 29 examples existed, which meant
+        // nine could stop being enumerated and this still passed — and the enumeration was
+        // non-recursive, so moving examples into folders was exactly how that would have happened.
+        // A floor far below the count is not a guard. Raise it when you add examples; it only ever
+        // fails for a deletion or a broken scan, never for an addition.
+        var files = ExampleFiles().ToList();
+        Assert.True(files.Count >= 29,
+            $"only {files.Count} examples found — the corpus has shrunk or the enumeration broke.");
+
+        // ★ Every category folder must contribute. Found by listing directories rather than by
+        // filtering the enumeration above, so this fails if the scan stops descending into one —
+        // which asserting against the same enumeration could never catch.
+        var folders = Directory.GetDirectories(ExampleDir)
+            .Select(d => Path.GetFileName(d)!)
+            .Where(d => Directory.GetFiles(Path.Combine(ExampleDir, d), "*.cufe", SearchOption.AllDirectories).Length > 0)
+            .ToList();
+        var missing = folders.Where(d => !files.Any(f => f.StartsWith(d + "/", StringComparison.Ordinal))).ToList();
+        Assert.True(missing.Count == 0,
+            $"these example folders hold .cufe files that the enumeration did not return: {string.Join(", ", missing)}");
+
+        // ★ Basenames are the key for skips and pins, so two examples sharing one in different
+        // folders would silently make a skip or a pinned output apply to whichever was found first.
+        var duplicates = files.GroupBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => $"{g.Key} ({string.Join(" + ", g)})")
+            .ToList();
+        Assert.True(duplicates.Count == 0,
+            $"example file names must be unique across folders — skips and .expected key on them: {string.Join("; ", duplicates)}");
+
+        // A skip entry for a file that no longer exists is a stale excuse; say so. Matched on
+        // basename, so moving an example between folders never makes its skip stale.
+        var present = files.Select(Path.GetFileName).ToHashSet(StringComparer.Ordinal);
         var stale = WindowsOnlySkips.Keys.Concat(NonDeterministicSkips.Keys)
-            .Where(f => !File.Exists(Path.Combine(ExampleDir, f)))
+            .Where(f => !present.Contains(f))
             .ToList();
         Assert.True(stale.Count == 0, $"skip list names missing example(s): {string.Join(", ", stale)}");
 
@@ -226,9 +273,13 @@ public class ExampleOracleTests
     {
         if (!Directory.Exists(ExpectedDir)) return;
 
+        // Matched on basename against the whole recursive corpus — a pin belongs to its program
+        // wherever that program has been filed.
+        var present = ExampleFiles().Select(Path.GetFileName).ToHashSet(StringComparer.Ordinal);
+
         var stranded = Directory.GetFiles(ExpectedDir, "*.expected")
             .Select(Path.GetFileNameWithoutExtension)
-            .Where(name => !File.Exists(Path.Combine(ExampleDir, name + ".cufe"))
+            .Where(name => !present.Contains(name + ".cufe")
                         || NonDeterministicSkips.ContainsKey(name + ".cufe"))
             .OrderBy(n => n)
             .ToList();

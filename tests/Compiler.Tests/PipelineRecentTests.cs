@@ -41,7 +41,7 @@ public class PipelineRecentTests : PipelineTestBase
     // left, declined to narrow, and then emitted the field access against the union anyway. The
     // result was C that gcc rejects, so it surfaced at build time with `check --native` silent.
     //
-    // Found by examples/renderer.cufe. The three-case shape is the smallest that shows it: with a
+    // Found by examples/structures/renderer.cufe. The three-case shape is the smallest that shows it: with a
     // two-case union the arm covers everything, so the two elimination sets are equal and agree.
 
     [Fact]

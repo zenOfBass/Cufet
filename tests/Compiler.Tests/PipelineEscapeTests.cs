@@ -337,7 +337,7 @@ public class PipelineEscapeTests : PipelineTestBase
     }
 
     // ── ESC.3b — two more escape holes, found by ASan-sweeping every example ───────────────────
-    // examples/parallelsum.cufe was a heap-use-after-free. The escape annotation drives two
+    // examples/concurrency/parallelsum.cufe was a heap-use-after-free. The escape annotation drives two
     // different things — deep-copying the stored VALUE, and redirecting the destination
     // CONTAINER's own growth — but was gated on the value being region-bearing, which only the
     // first needs. A `series of number` living outside a rabbit and appended to inside one had its

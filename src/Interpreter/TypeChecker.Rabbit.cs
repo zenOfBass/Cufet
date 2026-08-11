@@ -193,7 +193,7 @@ public sealed partial class TypeChecker
     // Gating the whole annotation on the value being region-bearing missed (2) entirely: a
     // `series of number` declared outside a rabbit and appended to inside one had its data buffer
     // reallocated into the rabbit's arena, so the series dangled after `Done.` even though every
-    // element was a plain value. (Found in examples/parallelsum.cufe.) So a non-region-bearing
+    // element was a plain value. (Found in examples/concurrency/parallelsum.cufe.) So a non-region-bearing
     // value takes the depth of the store SITE — which is what decides (2).
     private int? EscapeDepthFor(IExpression valueExpr, CufetType? valueType, int targetDepth)
     {
