@@ -249,6 +249,41 @@ public class PipelineTopLevelDataTests : PipelineTestBase
     }
 
     [Fact]
+    public void ASharedConstant_MayBeASeriesOrAMap()
+    {
+        // ★ A region-typed constant declares a GENERATED C type — `static cser_0* cv_suits;` — so
+        // its declaration has to sit AFTER the series/map sections, not before them. It was emitted
+        // before, two lines above `typedef struct cser_0_s cser_0;`, and only scalars survived
+        // that: CufetDec and const char* come from the prelude, so numbers, text and facts all
+        // worked while a `permanently` lookup table — the most natural shared constant there is —
+        // did not build at all. Interpreted it was correct the whole time.
+        const string src = """
+            Define suits as a series of text with ("clubs", "hearts", "spades") permanently.
+            Define weights as a map from text to number permanently.
+
+            Define object hand with (the number slot):
+                Bind text to pick:
+                    Define slot-index as one's slot.
+                    Return item slot-index of suits.
+                Done.
+            Done.
+
+            Bind text to first-suit:
+                Return item 1 of suits.
+            Done.
+
+            In weights, the entry for "clubs" becomes 3.
+            Define h as a new hand { the slot 2 }.
+            State cast first-suit.
+            State cast h's pick.
+            State (the entry for "clubs" in weights) but void is 0.
+            State the number of suits.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("clubs\nhearts\n3\n3", Interpret(src));
+    }
+
+    [Fact]
     public void ADestructor_CanReadASharedConstant()
     {
         const string src = """

@@ -2290,16 +2290,6 @@ static void* cufet_pipe_stage(void* argp) {
         // fixed point. Runs before the struct/forward-decl sections so their shapes are registered.
         DrainIfaceSpecializations(body);
 
-        // File-scope declarations for the shared constants assigned at the top of main. Collected
-        // while main was emitted (their C types are only known then) and appended to `sb`, which
-        // precedes every function body in the output — so a function can reference one.
-        if (_sharedConstDecls.Count > 0)
-        {
-            sb.AppendLine("// ── Shared constants (top-level `permanently` bindings) ──");
-            foreach (var declLine in _sharedConstDecls) sb.AppendLine(declLine);
-            sb.AppendLine();
-        }
-
         // ── Series + map struct forward declarations (so value structs can hold their pointers) ──
         EmitSeriesForwardDecls(sb);
         EmitMapForwardDecls(sb);
@@ -2325,6 +2315,24 @@ static void* cufet_pipe_stage(void* argp) {
         // ── Series + map container structs + helpers (need element/K/V + cfn structs above) ──
         EmitSeriesRuntime(sb);
         EmitMapRuntime(sb);
+
+        // File-scope declarations for the shared constants assigned at the top of main. Collected
+        // while main was emitted (their C types are only known then) and appended to `sb`, which
+        // precedes every function body in the output — so a function can reference one.
+        //
+        // ★ Emitted HERE, after every type section, not before them. A constant's declaration names
+        // its C type, and a REGION-typed one names a generated type: `static cser_0* cv_suits;`
+        // two lines above `typedef struct cser_0_s cser_0;` is "unknown type name 'cser_0'". The
+        // scalar cases hid it — CufetDec and const char* come from the prelude, so numbers, text
+        // and facts all worked while a `permanently` lookup table would not build at all. Sitting
+        // after the series/map runtime covers every shape a constant can have: scalars, records
+        // and objects (EmitStructs), closures (EmitClosureStructs), series and maps (just above).
+        if (_sharedConstDecls.Count > 0)
+        {
+            sb.AppendLine("// ── Shared constants (top-level `permanently` bindings) ──");
+            foreach (var declLine in _sharedConstDecls) sb.AppendLine(declLine);
+            sb.AppendLine();
+        }
 
         // ── Channel-of-T deep-copy helpers (need the series/map/record/object structs above) ──
         EmitChannelDeepCopy(sb);
