@@ -14,7 +14,7 @@
         how many words were typed rather than building an array. That is the whole
         shape of the program: split the line, look at what you got, choose a call.
 
-    Run it interpreted, or compile it — `cufet build examples/shell.cufe` produces
+    Run it interpreted, or compile it — `cufet build examples/systems/shell.cufe` produces
     a native binary with no managed runtime under it. The subprocess machinery is
     POSIX, so a compiled shell needs Linux, macOS, or WSL. */
 

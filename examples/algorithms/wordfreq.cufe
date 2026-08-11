@@ -1,3 +1,7 @@
+// The path is relative to the REPOSITORY ROOT, not to this file, so run it from there:
+//     cufet examples/algorithms/wordfreq.cufe
+// Assets stay at examples/assets/ whatever folder a program is filed under, so moving this
+// program between categories never touches the path.
 Define sample-text as "examples/assets/sample.txt".
 
 Pull a rabbit.

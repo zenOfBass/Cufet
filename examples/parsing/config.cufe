@@ -86,6 +86,8 @@ Bind void to use-config, given (the atlas from text to (text or number or fact) 
 Done.
 
 Bind void to play:
+    // Relative to the REPOSITORY ROOT, not to this file — run it from there:
+    //     cufet examples/parsing/config.cufe
     Define source as "examples/assets/config.txt".
     Try to:
         Define content as read all from the file source.
