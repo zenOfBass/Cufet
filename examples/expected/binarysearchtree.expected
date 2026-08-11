@@ -1,0 +1,18 @@
+inserted:  50, 30, 70, 20, 40, 60, 80, 30, 65
+in order:  20, 30, 40, 50, 60, 65, 70, 80
+height:    4 levels
+
+      80
+   70
+         65
+      60
+         ·
+50
+      40
+   30
+      20
+
+40: found
+65: found
+45: missing
+80: found

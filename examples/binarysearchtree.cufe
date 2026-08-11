@@ -1,0 +1,171 @@
+// A binary search tree that inserts top-down, by mutating the tree it walks.
+//
+// Two things about Cufet decide the whole shape of this program.
+//
+// A node cannot hold a node BY VALUE — that would be a struct containing itself, with no end
+// and no fixed size — so each link is a `series of node` holding either nothing or one child.
+// An empty series is "no child here", which is the same indirection `arbtree` uses, spelled to
+// make the two sides of a search tree tell them apart.
+//
+// The second is sharper, and it is why `permanently` is on the rank. An object is a VALUE:
+// pull a node out of a series and you hold a copy, so writing to its rank changes nothing that
+// anyone else can see. In a search tree that is the worst possible bug — every key stays where
+// the old ordering put it, the structure still looks perfectly well formed, and every later
+// search silently walks the wrong way. `permanently` turns that quiet nothing into a refusal at
+// check time. Nothing else in the language expresses "set when the node is made, never after".
+//
+// A series field is the exception: it is a region, so it is SHARED rather than copied. That is
+// what makes insertion work at all — `child` below is a copy of a node, but its links are the
+// real ones, so attaching through the copy attaches to the tree.
+
+Define empty-slot as "·" permanently.
+Define indent-step as "   " permanently.
+Define separator as ", " permanently.
+
+Define object node with (the number rank permanently,
+                         the series of node left,
+                         the series of node right):
+
+    // Insertion walks down and attaches at the first empty link. Duplicates are dropped, which
+    // is the choice that keeps `holds` an exact answer rather than a first-of-several.
+    Bind void to insert, given (the number value):
+        If value is one's rank, Return.
+
+        If value is less than one's rank:
+            If the number of one's left is 0:
+                Add (cast leaf on (value)) to one's left.
+                Return.
+            Done.
+            // A copy of the child, whose links are the child's own — see the header.
+            Define child as item 1 of one's left.
+            Cast child's insert on (value).
+            Return.
+        Done.
+
+        If the number of one's right is 0:
+            Add (cast leaf on (value)) to one's right.
+            Return.
+        Done.
+        Define right-child as item 1 of one's right.
+        Cast right-child's insert on (value).
+    Done.
+
+    Bind fact to holds, given (the number value):
+        If value is one's rank, Return true.
+
+        If value is less than one's rank:
+            If the number of one's left is 0, Return false.
+            Define child as item 1 of one's left.
+            Return cast child's holds on (value).
+        Done.
+
+        If the number of one's right is 0, Return false.
+        Define right-child as item 1 of one's right.
+        Return cast right-child's holds on (value).
+    Done.
+
+    // In order: left, self, right — which for a search tree is ascending order, and is the cheapest
+    // way to show that every insertion landed where it belonged.
+    Bind void to collect-into, given (the series of number out):
+        If the number of one's left is greater than 0:
+            Define child as item 1 of one's left.
+            Cast child's collect-into on (out).
+        Done.
+
+        Add one's rank to out.
+
+        If the number of one's right is greater than 0:
+            Define right-child as item 1 of one's right.
+            Cast right-child's collect-into on (out).
+        Done.
+    Done.
+
+    Bind number to height:
+        Define left-height as 0.
+        If the number of one's left is greater than 0:
+            Define child as item 1 of one's left.
+            The left-height becomes cast child's height.
+        Done.
+
+        Define right-height as 0.
+        If the number of one's right is greater than 0:
+            Define right-child as item 1 of one's right.
+            The right-height becomes cast right-child's height.
+        Done.
+
+        Define deeper as left-height when left-height is greater than right-height,
+                         otherwise right-height.
+        Return deeper + 1.
+    Done.
+
+    // Right child above, left child below, so the drawing reads the way the tree is ordered.
+    //
+    // A missing child is marked only on a node that HAS one, because that is the only place the
+    // mark carries information: it says which side is empty. Printing it under a leaf as well
+    // would double the drawing to say "a leaf has no children", which the reader already knows.
+    Bind void to draw, given (the text pad):
+        Define has-children as (the number of one's left + the number of one's right) is greater than 0.
+        If has-children, cast draw-link on (one's right, pad).
+        State "{pad}{one's rank}".
+        If has-children, cast draw-link on (one's left, pad).
+    Done.
+Done.
+
+// A fresh leaf, so the three-empty-series literal is written once rather than at every insert.
+Bind node to leaf, given (the number value):
+    Return a new node { the rank value, the left a series of node, the right a series of node }.
+Done.
+
+// A series cannot go into a text hole — a hole takes exactly what `converted to text` takes, and
+// a series is not on that list — so this is how one reaches a sentence.
+Bind text to as-line, given (the series of number ns):
+    Define out as "".
+    Define i as 1.
+    While i is less than the number of ns + 1, repeat:
+        If i is greater than 1, the out becomes out joined to separator.
+        The out becomes out joined to "{item i of ns}".
+        The i becomes i + 1.
+    Done.
+    Return out.
+Done.
+
+// Draws one link, present or not. A link is a series, so "no child" is something this can be
+// handed and print — which a method on `node` could not be, there being no node to call it on.
+Bind void to draw-link, given (the series of node link, the text pad):
+    If the number of link is 0:
+        State "{pad}{indent-step}{empty-slot}".
+        Return.
+    Done.
+    Define child as item 1 of link.
+    Cast child's draw on (pad joined to indent-step).
+Done.
+
+Pull a rabbit.
+    Define values as a series of number with (50, 30, 70, 20, 40, 60, 80, 30, 65).
+
+    Define root as cast leaf on (item 1 of values).
+    Define i as 2.
+    While i is less than the number of values + 1, repeat:
+        Cast root's insert on (item i of values).
+        The i becomes i + 1.
+    Done.
+
+    Define walked as a series of number.
+    Cast root's collect-into on (walked).
+
+    State "inserted:  {cast as-line on (values)}".
+    State "in order:  {cast as-line on (walked)}".
+
+    Define tall as cast root's height.
+    Define level-word as "level" when tall is 1, otherwise "levels".
+    State "height:    {tall} {level-word}".
+    State "".
+
+    Cast root's draw on ("").
+    State "".
+
+    For each probe in a series of number with (40, 65, 45, 80), repeat:
+        Define verdict as "found" when cast root's holds on (probe), otherwise "missing".
+        State "{probe}: {verdict}".
+    Done.
+Done.
