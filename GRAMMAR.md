@@ -1543,7 +1543,7 @@ producing a false positive.
 
 ## 8. Sharp edges
 
-### ★ A top-level function sees other functions and CONSTANTS — not top-level data
+### ★ A function or method sees other functions and CONSTANTS — not top-level data
 
 ```
 Define max-retries as 3 permanently.
@@ -1557,6 +1557,20 @@ Done.
 
 The rule keeps data flow explicit and prevents hidden global mutation. A `permanently` binding
 cannot be mutated, so it is exempt — the restriction was previously broader than the reason for it.
+
+**It applies to every body that leaves the top-level scope**, in exactly the same terms: a
+top-level function, a **method**, a **getter**, a **setter**, a **destructor**, an **operator
+overload**, a **pipe stage**. There is one rule, not one per body kind.
+
+A **lambda literal is not in that list** — it *captures* its enclosing scope, so a lambda sitting
+beside a binding closes over it normally:
+
+```
+Pull a rabbit.
+    Define nums as a series of number with (1, 2, 3).
+    Define f as a function: Return the number of nums. Done.   ← captures nums
+Done.
+```
 
 The refusal is enforced by the **TypeChecker**, so both backends agree and `cufet check` catches
 it. It used to be raised only by the interpreter at run time, which meant `check` reported no
@@ -1713,31 +1727,49 @@ transformation, it goes *after*.
 subtraction. Write `x - y` with spaces. Digits cannot start an identifier, so `1-1`
 is unambiguous and works either way — the rule only bites between names.
 
-### Top-level functions see other functions, but not top-level data
+### Functions and methods see other functions, but not top-level data
 
 `Bind void to f:` at the top level creates a **global procedure**, not a closure.
 When called, it runs in an isolated environment: other top-level functions are
-visible (enabling mutual recursion), but top-level `Define`d values are not.
+visible (enabling mutual recursion) and top-level `permanently` constants are
+visible, but ordinary top-level `Define`d values are not. Methods, getters,
+setters, destructors and operator overloads run in the same isolation.
 
 ```
 Define total as 0.
 
 Bind void to show:
-    State total.          ← RUNTIME ERROR: 'total' is a top-level value,
-Done.                        not visible inside a top-level function.
+    State total.          ← CHECK ERROR: 'total' is a top-level value,
+Done.                        not visible inside a function or method.
 Cast show.
 ```
 
 The error teaches the fix rather than saying "total isn't defined":
 
 ```
-'total' is a top-level value, but top-level functions can't see top-level data.
-Top-level functions see other functions (for mutual recursion) but not top-level data.
-Fix: pass 'total' as a parameter, or define your function inside a scope where
+'total' is a top-level value, but function and method bodies can't see top-level data.
+They see other functions (for mutual recursion) and top-level `permanently` constants,
+but not top-level data that can change.
+Fix: declare it a shared constant if it never changes:
+    Define total as <value> permanently.
+Or pass 'total' as a parameter, or define your function inside a scope where
 'total' is already bound so it captures 'total' as a closure.
 ```
 
-**Fix 1 — pass as a parameter** (preferred for pure helpers):
+**Fix 1 — `permanently`, when the value never changes** (see the shared-constants
+rule above): the binding becomes a constant and every function and method may read it.
+
+```
+Define total as 42 permanently.
+
+Bind void to show:
+    State total.          ← OK: a shared constant
+Done.
+Cast show.
+```
+
+**Fix 2 — pass as a parameter** (preferred for pure helpers, and the only option
+when the value changes):
 
 ```
 Define total as 42.
@@ -1748,7 +1780,7 @@ Done.
 Cast show on (total).
 ```
 
-**Fix 2 — nested closure** (when multiple helpers share the same data):
+**Fix 3 — nested closure** (when multiple helpers share the same *mutable* data):
 
 ```
 Define total as 42.
@@ -1770,7 +1802,11 @@ the function independently testable. Nested closures are the right tool when
 you need a family of helpers sharing a common context.
 
 **Mutual recursion still works**: top-level functions can call each other freely,
-because they see other `Bind`-defined functions (though not `Define`d data).
+because they see other `Bind`-defined functions (though not mutable `Define`d data).
+
+**A lambda is not affected**: `Define f as a function: … Done.` captures its enclosing
+scope, so it reads the locals around it normally. The isolation is about bodies that
+*detach* from the top-level scope, not about every body.
 
 ⚠ **Top level only, when compiling.** A `Bind` nested inside a rabbit or another function is a
 closure, and the native compiler emits it where it stands — so it cannot call a name declared

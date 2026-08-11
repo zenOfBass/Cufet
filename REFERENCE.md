@@ -231,7 +231,8 @@ Define greeting as "Hello!" permanently.
 A permanent binding can never be reassigned — `max-retries becomes 4.` is a
 static type error that names both the declaration line and the violation.
 
-**A top-level constant is shared** — functions can read it, unlike ordinary top-level data:
+**A top-level constant is shared** — functions and methods can read it, unlike ordinary top-level
+data:
 
 ```
 Define max-retries as 3 permanently.
@@ -244,7 +245,16 @@ Done.
 Bind number to wrong:
     Return counter * 2.         ← refused: top-level data is not visible
 Done.
+
+Define object job with (the number tries):
+    Bind fact to exhausted:
+        Return one's tries is greater than max-retries.   ← fine: methods see it too
+    Done.
+Done.
 ```
+
+Every body that leaves the top-level scope reads them on the same terms — a function, a method, a
+getter, a setter, a destructor, an operator overload, a pipe stage.
 
 The difference is mutation, not scope. Functions are kept away from top-level data so data flow
 stays explicit and nothing can be changed behind your back — and a permanent binding cannot be

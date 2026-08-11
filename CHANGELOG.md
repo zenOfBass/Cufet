@@ -10,7 +10,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **★ Shared constants — a top-level `permanently` binding is visible inside top-level functions.**
+- **★ Shared constants — a top-level `permanently` binding is visible inside any function or
+  method.**
 
   ```
   Define max-retries as 3 permanently.
@@ -29,12 +30,28 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   exist as top-level functions and static *factories* as named constructors; only shared data was
   missing, and only its immutable half should return.
 
+  **Every detached body reads them, not just top-level functions** — methods, getters, setters,
+  destructors, operator overloads and pipe stages all leave the top-level scope in exactly the way
+  a function does, so they all see exactly what a function sees. Each backend now states that rule
+  in one place rather than at each body kind: `TypeChecker.ImportTopLevelVisible` decides what is
+  legal, `Interpreter.ImportTopLevelVisible` keeps the runtime in step, and
+  `CodeGenerator.SeedSharedConstantTypes` gives the C generator the constant's type. A lambda
+  literal is deliberately excluded — it *captures* its enclosing scope, so nothing is hidden from
+  it in the first place.
+
+  **The mutable half is now refused by the checker in those bodies too.** It was hidden but
+  unresolved, and an unresolved name infers to nothing, so a method reading top-level data passed
+  `check` in silence and failed later — at run time interpreted, at `gcc` compiled, with the
+  compiler blaming itself for a program that was simply invalid.
+
   **Compiled, a shared constant is a file-scope global assigned at the top of `main`** — not a
   local of `main`, which no function could see. Declared rather than initialised in place because
   a Cufet initialiser is not a C constant expression (a number is built by `cufet_dec_lit`), and
   assigning at the top of `main` is safe since nothing can call a function before `main` starts.
   The compiler identifies them **by reference, not by name**, so a `permanently` local deeper in
-  the program may share a name and stays a local.
+  the program may share a name and stays a local. Their *types* are registered before any body is
+  emitted, since bodies emit before `main`: without that a text constant fell back to number and
+  `State greeting` emitted `cufet_print_number` on a `const char*`.
 
   Pairs with read-only fields below — both are `permanently` earning its keep.
 
