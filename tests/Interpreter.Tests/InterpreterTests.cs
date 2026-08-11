@@ -1972,8 +1972,12 @@ public class InterpreterTests
     [Fact]
     public void FunctionDoesNotSeeGlobalVariables()
     {
-        // x is a global; the function cannot access it and should throw.
-        Assert.Throws<RuntimeException>(() => Run(
+        // x is a global; the function cannot access it and should be refused.
+        // ★ TypeException, not RuntimeException: the rule moved to the TypeChecker so that both
+        // backends refuse identically and `check` catches it. It used to fire only when the
+        // interpreter ran the call, which left the compiler emitting undeclared C for the same
+        // program.
+        Assert.Throws<TypeException>(() => Run(
             "Define x as 99.\n" +
             "Bind number to getX:\n" +
             "    return x.\n" +

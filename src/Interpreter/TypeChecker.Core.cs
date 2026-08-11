@@ -1320,6 +1320,24 @@ public sealed partial class TypeChecker
         return t is null ? null : ResolveParamType(t);
     }
 
+    // Top-level data names hidden from the top-level function body currently being checked. Empty
+    // everywhere else. Set by CheckBind when it isolates the scope; see the note there for why an
+    // unresolved name was not enough on its own.
+    private HashSet<string> _hiddenTopLevelData = new(StringComparer.Ordinal);
+
+    // The same rule the interpreter enforced at runtime, moved to check time so both backends
+    // refuse identically — and so `check` stops passing a program that cannot run. The wording
+    // follows the interpreter's original message, which was already the clearest thing about this.
+    private TypeException HiddenTopLevelDataError(VariableReference vr) =>
+        TypeError(
+            $"'{vr.Name}' is a top-level value, but top-level functions can't see top-level data",
+            null, vr.Line, vr.Column,
+            $"read '{vr.Name}' inside a top-level function",
+            $"Top-level functions see other functions (for mutual recursion) but not top-level data. " +
+            $"This keeps data flow explicit and prevents hidden mutation.\n" +
+            $"Pass '{vr.Name}' in as a parameter, or define the function inside a scope where " +
+            $"'{vr.Name}' is already bound, so it captures '{vr.Name}' as a closure.");
+
     // Returns null for genuine inference gaps (undeclared variable, unhandled expression form).
     // Returns a concrete CufetType for anything we can type statically.
     // Throws TypeException for operand type mismatches.
@@ -1335,6 +1353,7 @@ public sealed partial class TypeChecker
         BinaryExpression bin                                                                             => InferBinary(bin),
         VariableReference { Name: var n } when _narrowedVars.TryGetValue(n, out var narrowed)           => narrowed,
         VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => ti.Type,
+        VariableReference hv when _hiddenTopLevelData.Contains(hv.Name)                                  => throw HiddenTopLevelDataError(hv),
         VariableReference                                                                                => null,
         SeriesLiteral lit                                                                                => InferSeriesLiteral(lit),
         SeriesAccess acc                                                                                 => InferSeriesAccess(acc),

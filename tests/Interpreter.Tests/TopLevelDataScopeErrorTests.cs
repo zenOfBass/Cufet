@@ -6,11 +6,28 @@ using CufetLexer = Cufet.Lexer.Lexer;
 namespace Cufet.Interpreter.Tests;
 
 // Tests for the educational error emitted when a top-level function references a
-// top-level Defined value. The semantics are unchanged (reference still fails); the
+// top-level Defined value. The semantics are unchanged (the reference still fails); the
 // error teaches the fix instead of misdirecting with "X isn't defined".
+//
+// ★ The refusal moved from RUN TIME to CHECK TIME. It used to live only in the interpreter, so
+// one program got three answers: `check` reported no problems, running it refused, and compiling
+// it emitted undeclared C and blamed the compiler. The rule now lives in the TypeChecker, which
+// both backends run, so they refuse identically and `check` catches it.
+//
+// These tests therefore assert on the CHECKER. What they are really protecting is the message —
+// that it names the variable, explains the rule, and offers both fixes — so the assertions below
+// are unchanged; only where the exception comes from moved.
 public class TopLevelDataScopeErrorTests
 {
-    private static RuntimeException RunFails(string source)
+    private static TypeException RunFails(string source)
+    {
+        var tokens  = new CufetLexer(source).Tokenize();
+        var program = new Parser(tokens).Parse();
+        return Assert.Throws<TypeException>(() => new TypeChecker().Check(program));
+    }
+
+    // For the cases the checker still cannot see — a name that was never defined at all.
+    private static RuntimeException RunFailsAtRuntime(string source)
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
@@ -118,10 +135,15 @@ public class TopLevelDataScopeErrorTests
 
     // ── Genuine undefined still gives the plain error ─────────────────────────────
 
+    // ★ The control, and it deliberately does NOT go through RunFails. A name that was never
+    // defined anywhere is not the same case as one deliberately hidden from a top-level function:
+    // the checker still infers it to null and lets the interpreter report it at run time. Keeping
+    // this on the runtime path is what proves the new check-time refusal fires for hidden data
+    // specifically, rather than for every name the checker cannot resolve.
     [Fact]
     public void GenuineUndefined_GivesPlainError()
     {
-        var ex = RunFails("""
+        var ex = RunFailsAtRuntime("""
             Bind void to show:
                 State nonexistent.
             Done.

@@ -231,6 +231,18 @@ public sealed partial class TypeChecker
             // Top-level function body: only function signatures visible — no caller/global locals.
             foreach (var scope in saved.V)
                 foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType)) Scope[k] = v;
+
+            // ★ Remember what was filtered OUT. Isolating the scope hides those names, but an
+            // unresolved name infers to null and the check passes silently — so a program that
+            // reads top-level data from a top-level function used to type-check clean, refuse at
+            // RUNTIME interpreted, and emit undeclared C compiled. Three answers to one program.
+            // Recording the hidden names lets InferTypeCore refuse with the same teaching message
+            // the interpreter already had, at check time, for both backends.
+            _hiddenTopLevelData = saved.V
+                .SelectMany(s => s)
+                .Where(kv => kv.Value.Type is not FunctionType)
+                .Select(kv => kv.Key)
+                .ToHashSet(StringComparer.Ordinal);
         }
         foreach (var (type, name) in bind.Parameters)
             Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), bind.Line, IsParameter: true);
@@ -239,6 +251,7 @@ public sealed partial class TypeChecker
         var prevReturnType        = _expectedReturnType;
         var prevFunctionLine      = _functionDeclarationLine;
         var prevRabbitDepth       = _rabbitDepth;
+        var prevHidden            = _hiddenTopLevelData;
         _inFunction               = true;
         _expectedReturnType       = bind.ReturnType;
         _functionDeclarationLine  = bind.Line;
@@ -268,6 +281,7 @@ public sealed partial class TypeChecker
             _expectedReturnType       = prevReturnType;
             _functionDeclarationLine  = prevFunctionLine;
             _rabbitDepth              = prevRabbitDepth;
+            _hiddenTopLevelData       = prevHidden;
             RestoreScopes(saved);
         }
 
