@@ -1543,6 +1543,29 @@ producing a false positive.
 
 ## 8. Sharp edges
 
+### ★ A top-level function sees other functions and CONSTANTS — not top-level data
+
+```
+Define max-retries as 3 permanently.
+Define counter as 3.
+
+Bind number to budget:
+    Return max-retries * 2.     ← fine: permanently, so it cannot be mutated
+    Return counter * 2.         ← refused: ordinary top-level data
+Done.
+```
+
+The rule keeps data flow explicit and prevents hidden global mutation. A `permanently` binding
+cannot be mutated, so it is exempt — the restriction was previously broader than the reason for it.
+
+The refusal is enforced by the **TypeChecker**, so both backends agree and `cufet check` catches
+it. It used to be raised only by the interpreter at run time, which meant `check` reported no
+problems, running the program refused, and compiling it emitted undeclared C and blamed the
+compiler.
+
+A name that was never defined at all is a different case: it is still reported when the program
+runs, not by `check`.
+
 ### ★ A `permanently` field is refused down EVERY write route, not just the obvious one
 
 ```

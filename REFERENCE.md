@@ -231,6 +231,25 @@ Define greeting as "Hello!" permanently.
 A permanent binding can never be reassigned — `max-retries becomes 4.` is a
 static type error that names both the declaration line and the violation.
 
+**A top-level constant is shared** — functions can read it, unlike ordinary top-level data:
+
+```
+Define max-retries as 3 permanently.
+Define counter as 3.
+
+Bind number to budget:
+    Return max-retries * 2.     ← fine
+Done.
+
+Bind number to wrong:
+    Return counter * 2.         ← refused: top-level data is not visible
+Done.
+```
+
+The difference is mutation, not scope. Functions are kept away from top-level data so data flow
+stays explicit and nothing can be changed behind your back — and a permanent binding cannot be
+changed at all, so it is safe to share. For anything mutable, pass it in as a parameter.
+
 **Shallow by construction:** `permanently` fixes the *binding*, not the
 *contents*. A permanent series or map can still add and remove elements; a
 permanent object can still mutate its fields — those operations go through

@@ -10,6 +10,34 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **★ Shared constants — a top-level `permanently` binding is visible inside top-level functions.**
+
+  ```
+  Define max-retries as 3 permanently.
+  Bind number to budget:
+      Return max-retries * 2.       ← an error before this
+  Done.
+  ```
+
+  **The rule was broader than its own justification.** Top-level functions could not see top-level
+  data, to keep data flow explicit and prevent hidden mutation — the error message said so. But a
+  `permanently` binding **cannot be mutated**, so none of that reasoning applied to it. Only the
+  immutable half comes back; an ordinary top-level binding is still refused, because that is the
+  hidden global mutable state the rule exists to prevent.
+
+  This is what `static` would have been, minus the part worth refusing. Static *methods* already
+  exist as top-level functions and static *factories* as named constructors; only shared data was
+  missing, and only its immutable half should return.
+
+  **Compiled, a shared constant is a file-scope global assigned at the top of `main`** — not a
+  local of `main`, which no function could see. Declared rather than initialised in place because
+  a Cufet initialiser is not a C constant expression (a number is built by `cufet_dec_lit`), and
+  assigning at the top of `main` is safe since nothing can call a function before `main` starts.
+  The compiler identifies them **by reference, not by name**, so a `permanently` local deeper in
+  the program may share a name and stays a local.
+
+  Pairs with read-only fields below — both are `permanently` earning its keep.
+
 - **★ Read-only fields — `permanently` on an object field.**
 
   ```
