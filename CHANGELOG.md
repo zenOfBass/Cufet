@@ -117,6 +117,37 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★★ One program, three answers: a top-level function reading top-level data.** The rule — top
+  level functions see other functions but not top-level data — lived only in the **interpreter**,
+  and only at **run time**. So:
+
+  | | |
+  |---|---|
+  | `cufet check` | "No problems found" |
+  | interpreted | refused, with a good teaching message |
+  | compiled | `cv_max_retries` undeclared → **"★ This is a bug in the Cufet compiler, not in your program."** |
+
+  The compiled message is the worst part. It is *technically* true — the compiler should not have
+  emitted that C — but it sends the reader hunting for a defect in Cufet when their program was
+  invalid and three tools failed to say so.
+
+  It hid because isolating the scope was silent: the checker removes top-level data from a
+  top-level function's scope, and an unresolved name **infers to null rather than erroring**, so
+  the check passed with nothing to report.
+
+  Fixed by recording which names the isolation removed and refusing a reference to one **at check
+  time**, with the interpreter's original wording — which was already the clearest thing about
+  this. Both backends run the checker, so they now refuse identically and `check` regains its
+  contract of catching what will not run.
+
+  A genuinely undefined name is deliberately left alone: it still infers to null and is reported
+  by the interpreter, because "never defined anywhere" is a different case from "deliberately
+  hidden from this scope". `GenuineUndefined_GivesPlainError` stays on the runtime path to prove
+  the new refusal is specific rather than catching every unresolvable name.
+
+  Groundwork for shared constants, which is now just relaxing this one static rule for
+  `permanently` bindings.
+
 - **★★ The test suite could hang forever, on both backends, for one reason: "no input supplied"
   silently meant "inherit whatever the host has" instead of "EOF".** Found by running the suite
   interactively through `wsl.exe`, which is the only launch that hands it a live pipe — a pipe
