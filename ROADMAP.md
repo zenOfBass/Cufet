@@ -22,10 +22,7 @@ version, and 1.0.0 will mark the point at which the language is considered stabl
 
 ## Where things stand
 
-The original finish line — **a readable systems language that compiles to a native
-binary** — has been reached. Cufet has two backends sharing one front end: a tree-walking
-interpreter and a compiler that emits C and invokes `gcc`. Every committed grammar feature
-works on both.
+Cufet has two backends sharing one front end: a tree-walking interpreter and a compiler that emits C and invokes `gcc`. Every committed grammar feature works on both.
 
 The interpreter is the **oracle**. The compiler's test suite compiles each program, runs the
 binary, and asserts its output equals the interpreter's. Where the two disagree, one of them
