@@ -14,8 +14,8 @@ deliberate differences are marked where they arise and summarised under
 
 ## Contents
 
-- [Cufet Language Reference](#cufet-language-reference)
-  - [Contents](#contents)
+- [Cufet Language Reference]
+  - [Contents]
   - [Part I. Basics](#part-i-basics)
     - [Statements](#statements)
       - [Explicit types](#explicit-types)
