@@ -2,9 +2,9 @@ State "=== work-queue re-drive / close-contention ===".
 State "workers-first ordering: w1+w2+w3 are genuinely blocked in DrainUntil when producer closes work".
 
 Pull a rabbit.
-    Define work    as a channel of number.
+    Define work as a channel of number.
     Define results as a channel of number.
-    Define n       as 30.
+    Define n as 30.
 
     Have rabbit start a task as worker-1:
         Define count-1 as 0.
