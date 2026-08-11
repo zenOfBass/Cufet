@@ -282,9 +282,16 @@ tests/
   Interpreter.Tests/
   Compiler.Tests/                     — oracle tests: compiled output vs. interpreted output
   fixtures/soundness/                 — region-model probe programs (see that folder's README)
-examples/                             — runnable programs; `shell.cufe` is a working
-                                        command shell in ~60 lines, `dijkstra.cufe` and
-                                        `nqueens.cufe` the algorithm end
+examples/                             — runnable programs, by category
+  basics/                             — the short ones to read first
+  algorithms/                         — dijkstra, n-queens, sudoku, huffman, life
+  structures/                         — trees, objects, unions
+  parsing/                            — json, a recursive-descent parser, config files
+  concurrency/                        — tasks and channels
+  systems/                            — `shell.cufe` is a working command shell in ~60 lines
+  language/                           — programs that showcase one feature
+  assets/                             — data files the programs read (paths are repo-root-relative)
+  expected/                           — pinned outputs, flat and keyed on the program's file name
 ```
 
 The lexer, parser, and type checker are **shared** by both backends, so a program

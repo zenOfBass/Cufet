@@ -119,7 +119,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    ```
 
    ★ **The use case has arrived, which is why this is numbered rather than deferred.**
-   `examples/huffmancoding.cufe` assigns each symbol a code of a different length, and a code is
+   `examples/algorithms/huffmancoding.cufe` assigns each symbol a code of a different length, and a code is
    useless without knowing how many bits it is. Since the width cannot be read back, the example
    carries it in a second field and keeps the two in step by hand — its own header comment says so.
    Any bit-packer, wire format, or fixed-width protocol hits the same wall.
@@ -328,7 +328,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-17. **A shell, written in Cufet.** `examples/shell.cufe` is the seed: it already reads, parses,
+17. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;

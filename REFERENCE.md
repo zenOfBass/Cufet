@@ -1416,7 +1416,7 @@ write = 0b010
 program can read that width back as a number — so a format whose field widths vary must carry
 them itself, in a second field. That is a known gap, and both halves of it are on the roadmap.
 
-See [`examples/permissions.cufe`](examples/permissions.cufe) for a worked Unix-permissions
+See [`examples/systems/permissions.cufe`](examples/systems/permissions.cufe) for a worked Unix-permissions
 program using all of this.
 
 ---
@@ -1785,7 +1785,7 @@ That is the whole rule. The indirection is what makes a recursive shape possible
 and a container is how Cufet spells indirection.
 
 **A worked tree**, evaluating `2 + 3 * 4` — this is
-[`examples/arbtree.cufe`](examples/arbtree.cufe):
+[`examples/structures/arbtree.cufe`](examples/structures/arbtree.cufe):
 
 ```
 Define object expr with (the text kind, the number value, the series of expr kids).
@@ -2620,7 +2620,7 @@ Failure categories, and the message each produces:
 - **It affects relative paths** for everything afterwards — file reads and writes, directory
   listings, and subprocesses launched with `run`, which inherit it.
 - **A failure is recoverable.** A bad path costs you a handled failure, not the program, which is
-  what lets [`examples/shell.cufe`](examples/shell.cufe) implement `cd` without a typo ending the
+  what lets [`examples/systems/shell.cufe`](examples/systems/shell.cufe) implement `cd` without a typo ending the
   session.
 - **Not allowed inside a task.** A process has exactly one working directory, so changing it from
   a task would race every other task resolving a relative path. The compiler refuses with an
