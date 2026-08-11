@@ -284,6 +284,57 @@ public class PipelineTopLevelDataTests : PipelineTestBase
     }
 
     [Fact]
+    public void ATopLevelLambda_IsCallableFromEveryDetachedBody()
+    {
+        // ★ The checker had always allowed this — every detached body imports anything FunctionType,
+        // because mutual recursion depends on it — but the compiler emitted a `Define`d lambda as a
+        // LOCAL OF MAIN. So it compiled when called from top-level code and refused with
+        // "'doubler': unresolved call" from a function or a method, while the interpreter ran all
+        // three. A name a method is allowed to call has to be a symbol a method can reach.
+        const string src = """
+            Define doubler as a function given (the number value): Return value * 2. Done.
+            Define alias-of-doubler as doubler.
+
+            Define object counter with (the number tally):
+                Bind number to doubled:
+                    Return cast doubler on (one's tally).
+                Done.
+            Done.
+
+            Bind number to twice-five:
+                Return cast alias-of-doubler on (5).
+            Done.
+
+            Define c as a new counter { the tally 21 }.
+            State cast doubler on (1).
+            State cast twice-five.
+            State cast c's doubled.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("2\n10\n42", Interpret(src));
+    }
+
+    [Fact]
+    public void ATopLevelLambda_MayReadASharedConstant()
+    {
+        const string src = """
+            Define factor as 3 permanently.
+            Define scaler as a function given (the number value): Return value * factor. Done.
+
+            Define object box with (the number width):
+                Bind number to scaled:
+                    Return cast scaler on (one's width).
+                Done.
+            Done.
+
+            Define b as a new box { the width 7 }.
+            State cast b's scaled.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("21", Interpret(src));
+    }
+
+    [Fact]
     public void ADestructor_CanReadASharedConstant()
     {
         const string src = """

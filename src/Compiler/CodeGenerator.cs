@@ -2168,10 +2168,31 @@ static void* cufet_pipe_stage(void* argp) {
         // first, so a function reading a constant needs its type already known — see
         // SeedSharedConstantTypes. Types are computed in source order and recorded into _varTypes as
         // they go, so a constant whose initialiser reads an earlier constant resolves.
-        foreach (var topLevelConst in program.Statements.OfType<DefineStatement>().Where(d => d.Permanent))
+        // ★ A function-VALUED top-level binding is hoisted for the same reason and by the same
+        // mechanism. `Define doubler as a function given (…): … Done.` was emitted as a LOCAL OF
+        // MAIN, so a method calling it got "unresolved call — not a known function or method"
+        // while the interpreter ran the program fine. The checker had always allowed it: every
+        // detached body imports anything FunctionType, because mutual recursion depends on that.
+        // A name a method is allowed to call has to be a symbol a method can reach.
+        // Source order, so `Define alias-of-doubler as doubler.` sees the binding it aliases.
+        foreach (var topLevelConst in program.Statements.OfType<DefineStatement>())
         {
+            // A `permanently` binding and a literal lambda MUST classify — they always could, and
+            // swallowing a failure here would turn a loud error into a silently broken program.
+            // Everything else is classified only to find function-VALUED bindings that are not
+            // literal lambdas (an alias, or any expression yielding one), and a type this pass
+            // cannot work out yet simply stays a local of main, exactly as it was before.
+            bool mustClassify = topLevelConst.Permanent || topLevelConst.Value is LambdaLiteral;
+            CufetType constType;
+            if (mustClassify)
+                constType = topLevelConst.DeclaredType ?? TypeOf(topLevelConst.Value);
+            else
+                try { constType = topLevelConst.DeclaredType ?? TypeOf(topLevelConst.Value); }
+                catch { continue; }
+
+            if (!topLevelConst.Permanent && constType is not FunctionType) continue;
+
             _sharedConstants.Add(topLevelConst);
-            var constType = topLevelConst.DeclaredType ?? TypeOf(topLevelConst.Value);
             _sharedConstTypes[topLevelConst.Name] = constType;
             _varTypes[topLevelConst.Name]         = constType;
         }
