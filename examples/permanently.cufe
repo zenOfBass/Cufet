@@ -1,0 +1,58 @@
+/* The rates are shared constants: every function and method reads them and
+   nothing can change them, so they live at the top level under permanently —
+   the one kind of top-level data functions may see. A traveler's name is set
+   at creation and never changes; crossings do. The mutable tally stays in
+   play, because mutable top-level data is still invisible to functions —
+   the example shows both halves of the rule. */
+
+Define base-fare as 2 permanently.
+Define per-weight as 1 permanently.
+Define member-discount as 1 permanently.
+Define storm-surge as 5 permanently.
+Define storm-day as false permanently.
+
+Define object traveler with (the text name permanently,
+                             the number weight,
+                             the fact member,
+                             the number crossings):
+    Bind number to fare:
+        Define raw as base-fare + one's weight * per-weight.
+        Define discounted as raw - member-discount when one's member, otherwise raw.
+        Define surcharge as storm-surge when storm-day, otherwise 0.
+        Return discounted + surcharge.
+    Done.
+
+    Bind number to cross:
+        One's crossings becomes one's crossings + 1.
+        Return cast one's fare.
+    Done.
+Done.
+
+Bind text to rate-card:
+    Define mood as "storm rates in effect" when storm-day, otherwise "calm rates".
+    Return "base {base-fare}, per-weight {per-weight}, member discount {member-discount}, surge {storm-surge} — {mood}".
+Done.
+
+Bind void to play:
+    State cast rate-card.
+    State "".
+
+    Define hopper as a new traveler { the name "Hopper", the weight 3, the member true, the crossings 0 }.
+    Define wolf as a new traveler { the name "Wolf", the weight 9, the member false, the crossings 0 }.
+    Define beaver as a new traveler { the name "Beaver", the weight 6, the member true, the crossings 0 }.
+
+    Define collected as 0.
+    The collected becomes collected + cast hopper's cross.
+    The collected becomes collected + cast hopper's cross.
+    The collected becomes collected + cast wolf's cross.
+    The collected becomes collected + cast beaver's cross.
+
+    For each who in a series of traveler with (hopper, wolf, beaver), repeat:
+        Define crossing-word as "crossing" when who's crossings is 1, otherwise "crossings".
+        State "{who's name}: {who's crossings} {crossing-word} at {cast who's fare} each".
+    Done.
+    State "".
+    State "collected: {collected}".
+Done.
+
+Cast play.
