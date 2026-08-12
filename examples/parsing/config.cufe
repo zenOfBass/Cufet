@@ -46,8 +46,8 @@ Bind atlas from text to (text or number or fact) to parse-config, given (the tex
                 Define val as cast parse-value on (val-raw).
                 In config, the entry for setting becomes val.
             Done.
-            In case of failure:
-                State "warning: skipping invalid line: {clean}".
+            In case of failure: 
+                State "warning: skipping invalid line: {clean}". 
             Done.
         Done.
     Done.
