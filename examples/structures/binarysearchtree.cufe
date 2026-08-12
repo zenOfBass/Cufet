@@ -112,9 +112,9 @@ Define object node with (the number rank permanently,
 Done.
 
 // A fresh leaf, so the three-empty-series literal is written once rather than at every insert.
-Bind node to leaf, given (the number value):
-    Return a new node { the rank value, the left a series of node, the right a series of node }.
-Done.
+Bind node to leaf, given (the number value), a new node { the rank value, 
+                                                          the left a series of node, 
+                                                          the right a series of node }.
 
 // A series cannot go into a text hole — a hole takes exactly what `converted to text` takes, and
 // a series is not on that list — so this is how one reaches a sentence.
