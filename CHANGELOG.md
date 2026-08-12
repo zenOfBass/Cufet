@@ -6,7 +6,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
-## [Unreleased]
+## [0.15.0] — 2026-08-12
 
 ### Changed
 
@@ -25,6 +25,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   are now reserved.
 
 ### Added
+
+- **★ A bits value's width is data.** Read it with `the width of p`; state one with
+  `<value> at <n> bits`.
+
+  ```
+  State the width of 0x0F.        → 8
+  State 0b0 at 3 bits.            → 0b000
+  State 0b101 at 8 bits.          → 0b00000101
+  ```
+
+  A width was always carried — it drives the leading zeros when a value prints — but nothing could
+  read it, and it was only ever raised to fit the value, so `0b0 shifted left by 2` stayed `0b0`.
+  Widening always works; narrowing is refused when it would drop a set bit, at check time when both
+  the value and the width are literal and at run time otherwise.
+
+  **No new reserved words.** `the width of p` already parsed as a named-field access and is resolved
+  in the type checker, so `width` is still a legal field name; `at` and `bits` are matched by lexeme
+  in that position, as `item at (r, c)` already is.
 
 - **★ `Increment` / `Decrement` — self-referential arithmetic that names the target once.**
 

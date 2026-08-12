@@ -91,6 +91,29 @@ as identifiers, but that is fine — they read as natural articles.
 | `where` | Where |
 | `descend` | Descend |
 
+### ★ A bits width is data — readable and statable
+
+```
+State the width of 0x0F.        → 8
+State 0b0 at 3 bits.            → 0b000
+Define p as 0b1 at n bits.      ← the width may be computed
+```
+
+A `bits` always carried a width — it is what pads the leading zeros — but a program could neither
+read it nor choose one, and it is only ever RAISED to fit the value: `0b0 shifted left by 2` is
+`0b0`, not `0b000`. Stating a width is the only way to ask for zeros no operand held, which is why
+`0b0 at 3 bits` is also how "three zero bits" is spelled. There is no separate literal form.
+
+**Widening always works. Narrowing is refused when it would drop a set bit** — at check time when
+the value and the width are both literal, at run time otherwise, in the class dividing by zero is
+in rather than as a `failure`. Narrowing that loses nothing is fine: `0b00000001 at 2 bits` is
+`0b01`. Mask with `and` if dropping bits is what you meant.
+
+⚠ **Neither `width`, `at` nor `bits` is reserved.** `the width of p` is resolved in the type
+checker, since only a bits value can reach it, so `width` remains a legal field name —
+`huffmancoding` had one. `at ... bits` is matched by lexeme in the postfix position, exactly as
+`item at (r, c)` is.
+
 ### ★ `Increment` / `Decrement` name the target once
 
 ```
@@ -143,6 +166,7 @@ meaning two different things.
 | setter | statement | `Set radius given (the number r), one's radius becomes r.` |
 | destructor | statement | `Bind unmaking a gate to close-gate, State "closing {one's id}".` |
 | `If`, `Judge` arm | statement | `If x is 1, State "one".` |
+| **task** | statement | `Have rabbit start a task as batch-1, return 1 + 2 + 3.` |
 
 An expression body's **`Return` is implicit** — dropping `Return` and `Done.` is the whole of what
 the form buys. A void body has no value to imply a return for, so it takes a statement.
@@ -154,6 +178,26 @@ loop's own header:
 For each n in items, repeat: State n. Done.     ← block
 For each n in items, State n.                   ← inline
 While i is less than 3, the i becomes i + 1.    ← inline
+```
+
+**The consumer loop is the exception to that exception.** `for each <name> from input` has no
+`in <series>` clause, so its header spends no comma and it uses the ordinary comma-versus-colon
+rule rather than `repeat:`:
+
+```
+for each s from input: output s. Done.          ← block
+for each s from input, output s.                ← inline
+```
+
+★ **A task takes a STATEMENT, and it is the only value-bearing body that must.** Every other body
+that can return states its type on the same line — `Bind number to …`, `Get area as number` — and
+that declaration is exactly what lets the inline form drop `Return`. A task's header declares
+nothing: it may hand back a result or merely send on a channel. So `return` stays written out, and
+what the form buys is the `Done.`:
+
+```
+Have rabbit start a task as batch-1, return 1 + 2 + 3 + 4 + 5.
+Have rabbit start a task as producer, send 7 through nums.
 ```
 
 **A function with no parameters uses the same comma**, and `given` is what tells the two apart:
