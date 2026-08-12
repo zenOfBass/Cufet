@@ -28,7 +28,7 @@ Pull a rabbit.
 
     // Built leaves-first, because a branch needs its children to exist before it can hold them.
     Define product as a new expr { the kind "mul", the value 0, the kids a series of expr with (three, four) }.
-    Define sum     as a new expr { the kind "add", the value 0, the kids a series of expr with (two, product) }.
+    Define sum as a new expr { the kind "add", the value 0, the kids a series of expr with (two, product) }.
 
     Define result as Cast eval on (sum).
     State "2 + 3 * 4 = {result}".
