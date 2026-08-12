@@ -1724,9 +1724,25 @@ public sealed class Parser
             name = Consume(TokenType.Identifier).Lexeme;
             SkipNoise();
         }
-        Consume(TokenType.Colon);
+        // ★ A task body is a STATEMENT body, not an expression one — and it is the only value-
+        // bearing body where that is forced. Every other body that can return declares its type on
+        // the same line (`Bind number to …`), which is what lets `Return` be implicit. A task
+        // declares nothing: it may hand back a result or merely send on a channel, and the header
+        // cannot say which. So `return 1 + 2 + 3.` stays written out — it is one statement, which
+        // is exactly what the comma form takes.
         _functionDepth++;
-        var body = ParsePullBody(); // consumes Done.
+        IReadOnlyList<IStatement> body;
+        if (Peek().Type == TokenType.Comma)
+        {
+            Advance();
+            SkipNoise();
+            body = new[] { ParseStatement() };
+        }
+        else
+        {
+            Consume(TokenType.Colon);
+            body = ParsePullBody(); // consumes Done.
+        }
         _functionDepth--;
         return new LaunchTaskStatement(name, body, line, col);
     }
