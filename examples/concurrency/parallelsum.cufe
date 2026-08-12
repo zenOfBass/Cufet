@@ -10,7 +10,7 @@ Pull a rabbit.
 Done.
 
 Define grand-total as 0.
-For each s in batch-results, repeat: increment grand-total by s. Done.
+For each s in batch-results, increment grand-total by s.
 State "Grand total (1..15): {grand-total converted to text}".
 
 Bind void to run-report, given (the series of number sums):
