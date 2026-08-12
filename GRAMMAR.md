@@ -91,6 +91,47 @@ as identifiers, but that is fine — they read as natural articles.
 | `where` | Where |
 | `descend` | Descend |
 
+### ★ Every block construct takes a comma and one thing, or a colon and a block
+
+One rule, not one per construct. A **comma** means *one thing, inline*; a **colon** means *a block,
+closed by `Done.`* The comma is the point and a colon would be wrong — Cufet already spells those
+two things that way, and using a colon for both would leave its only reliable structural signal
+meaning two different things.
+
+**What "one thing" is depends on whether the body must produce a value.**
+
+| Body | Inline form | |
+|---|---|---|
+| function with a return type | expression | `Bind number to double, given (the number amount), amount * 2.` |
+| getter | expression | `Get area as number, one's radius * one's radius * 3.` |
+| named constructor | expression | `Bind making a vec to square-vec, given (the number seed), a new vec { … }.` |
+| operator overload | expression | `Bind overloading +, given (the lhs is a vec, the rhs is a vec), a new vec { … }.` |
+| `void` function | statement | `Bind void to shout, given (the text word), State word in uppercase.` |
+| setter | statement | `Set radius given (the number r), one's radius becomes r.` |
+| destructor | statement | `Bind unmaking a gate to close-gate, State "closing {one's id}".` |
+| `If`, `Judge` arm | statement | `If x is 1, State "one".` |
+
+An expression body's **`Return` is implicit** — dropping `Return` and `Done.` is the whole of what
+the form buys. A void body has no value to imply a return for, so it takes a statement.
+
+**Loops are separated by `repeat:`, not by the comma**, because the comma is already spent on the
+loop's own header:
+
+```
+For each n in items, repeat: State n. Done.     ← block
+For each n in items, State n.                   ← inline
+While i is less than 3, the i becomes i + 1.    ← inline
+```
+
+**An inline body is an ordinary one-statement body.** Nothing downstream can tell the spellings
+apart — same AST, same type-checking, same output on both backends.
+
+**Three constructs are deliberately outside the rule.** `Try` — its body is rarely one statement
+and its handler is the part you least want compressed. `Pull a rabbit` — it has no header to hang a
+comma on. And a **lambda**, because it appears inside argument lists where the comma is already the
+separator: `cast apply on (10, a function given (the number x), x * 2)` could not be read. A lambda
+body is always `Done.`-terminated.
+
 **`Judge <subject>, where it is:` — coverage is total, by proof or by default.** Arms are bare
 cases (`A num-node`, `A number or a text`), taking the comma form for one statement or a colon and
 `Done.` for a block. The subject is evaluated **once** and bound to `it`, which is **narrowed**

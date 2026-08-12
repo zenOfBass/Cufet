@@ -10,6 +10,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **★ Inline forms for every block construct — one rule.** A **comma** takes one thing; a **colon**
+  takes a block closed by `Done.` `If` and `Judge` already worked this way; functions, getters,
+  setters, constructors, operator overloads, destructors and loops now do too.
+
+  ```
+  Bind number to double, given (the number amount), amount * 2.
+  Get area as number, one's radius * one's radius * 3.
+  Set radius given (the number r), one's radius becomes r.
+  For each n in items, State n.
+  ```
+
+  A body that returns a value takes an **expression**, with `Return` implicit; a void body takes a
+  **statement**. Loops are separated by `repeat:` rather than the comma, which their header already
+  uses. `Try`, `Pull a rabbit` and lambdas are outside the rule — a lambda sits in argument lists
+  where the comma is already the separator.
+
+  An inline body parses to an ordinary one-statement body, so the AST, both backends and every
+  existing program are unaffected.
+
 - **★ Shared constants — a top-level `permanently` binding is visible inside any function or
   method.**
 
