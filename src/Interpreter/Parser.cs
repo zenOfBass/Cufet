@@ -865,7 +865,8 @@ public sealed class Parser
         return new WhileStatement(condition, body);
     }
 
-    // Loop bodies always require Done. — no single-statement sugar.
+    // The BLOCK form of a loop body — reached only after `repeat:`, so it always ends in `Done.`
+    // The single-statement form is ParseLoopBodyOrInline's other branch.
     // A closer on the same line is fine: "While ...: x becomes x + 1. Done."
     private IReadOnlyList<IStatement> ParseLoopBody()
     {
@@ -3524,11 +3525,11 @@ public sealed class Parser
         // True for free functions, false for method bodies (nested or 'unto').
         _inFreeFunction = untoType == null && constructsTypeName == null && !savedInObjectDef;
 
-        Consume(TokenType.Colon);
+        // A function that declares a return type gets the EXPRESSION form, so `Return` is implicit;
+        // a void one gets the statement form, there being no value to imply a return for. Both are
+        // reached by the same comma — the difference is what one thing means for that body.
         _functionDepth++;
-        _nestDepth++;
-        var body = ParseFunctionBody();
-        _nestDepth--;
+        var body = returnType == null ? ParseVoidBodyOrBlock() : ParseValueBodyOrBlock();
         _functionDepth--;
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
@@ -3963,11 +3964,8 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.RParen);
         SkipNoise();
-        Consume(TokenType.Colon);
         _functionDepth++;
-        _nestDepth++;
-        var body = ParseFunctionBody();
-        _nestDepth--;
+        var body = ParseVoidBodyOrBlock();   // a setter is void, so its inline form is a statement
         _functionDepth--;
 
         _inObjectDef    = savedInObjectDef;
@@ -4007,12 +4005,9 @@ public sealed class Parser
             throw new ParseException(Peek(),
                 "— destructors take no parameters (omit 'given (...)' entirely)");
 
-        Consume(TokenType.Colon);
-        _nestDepth++;
         _functionDepth++;
-        var body = ParseLoopBody();
+        var body = ParseVoidBodyOrBlock();   // a destructor is void, so its inline form is a statement
         _functionDepth--;
-        _nestDepth--;
 
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
@@ -4083,12 +4078,9 @@ public sealed class Parser
             throw new ParseException(Peek(),
                 $"— both operands of an operator overload must be the same type (left is '{typeName}', right is '{rightTypeName}')");
 
-        Consume(TokenType.Colon);
-        _nestDepth++;
         _functionDepth++;
-        var body = ParseLoopBody();
+        var body = ParseValueBodyOrBlock();   // an overload always returns, so its inline form is an expression
         _functionDepth--;
-        _nestDepth--;
 
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
