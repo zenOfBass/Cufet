@@ -997,9 +997,10 @@ public sealed class Parser
             throw new ParseException(Peek(), "at least one statement in loop body");
         if (Peek().Type == TokenType.Eof && opener != null)
             throw new ParseException(opener.Line, opener.Column,
-                "this 'repeat:' opens a block, and the file ended before its 'Done.'. " +
-                "Either close it with 'Done.', or — if the body is a single statement — drop " +
-                "'repeat:' entirely and write the inline form: 'For each n in items, State n.'");
+                $"this '{opener.Lexeme}' opens a block, and the file ended before its 'Done.'. " +
+                "Either close it with 'Done.', or — if the body is a single statement — write the " +
+                "inline form instead, which takes a comma and no 'Done.': " +
+                "'For each n in items, State n.'");
         Consume(TokenType.Done);
         Consume(TokenType.Dot);
         return stmts;
@@ -1082,12 +1083,34 @@ public sealed class Parser
                 throw new ParseException(Peek(), "'input' (in 'for each ... from the input:')");
             Advance(); // consume 'input'
             SkipNoise();
-            Consume(TokenType.Colon);
+
+            // ★ The consumer loop takes the same choice as everything else. Its header spends no
+            // comma (there is no `in <series>` clause), so the discriminator is the plain
+            // comma-versus-colon rule rather than `repeat:`:
+            //     for each s from input, output s.
+            //     for each s from input: output s. Done.
+            IReadOnlyList<IStatement> consumerBody;
             _loopDepth++;
             _nestDepth++;
-            var consumerBody = ParseLoopBody();
-            _nestDepth--;
-            _loopDepth--;
+            try
+            {
+                if (Peek().Type == TokenType.Comma)
+                {
+                    Advance();
+                    SkipNoise();
+                    consumerBody = new[] { ParseStatement() };
+                }
+                else
+                {
+                    var opener = Consume(TokenType.Colon);
+                    consumerBody = ParseLoopBody(opener);
+                }
+            }
+            finally
+            {
+                _nestDepth--;
+                _loopDepth--;
+            }
             return new ForEachFromInputStatement(iterName ?? "it", consumerBody, forTok.Line, forTok.Column);
         }
 
