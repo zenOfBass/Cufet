@@ -123,6 +123,13 @@ For each n in items, State n.                   ← inline
 While i is less than 3, the i becomes i + 1.    ← inline
 ```
 
+**A function with no parameters uses the same comma**, and `given` is what tells the two apart:
+
+```
+Bind number to leg-pairs, one's legs / 2.        ← inline body, no parameters
+Bind number to double, given (the number n), n * 2.
+```
+
 **An inline body is an ordinary one-statement body.** Nothing downstream can tell the spellings
 apart — same AST, same type-checking, same output on both backends.
 
