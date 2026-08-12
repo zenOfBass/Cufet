@@ -415,4 +415,40 @@ public class SemanticTokenTests
             ],
             Classify(source).Select(Shape));
     }
+
+    // ★ A DESUGARED statement must carry the position of the real token it stands for, never
+    // the verb's. `Increment total-bits by w.` becomes `total-bits becomes total-bits + w`, and
+    // the walker paints Name.Length characters starting at the statement's own Line/Column — so a
+    // node built at the verb's position painted the first ten characters of the line, which is
+    // "Increment ", as a variable. The damage looked different on every line because the count
+    // was the length of the TARGET's name, and it beat the TextMate grammar because semantic
+    // tokens win over it.
+    [Fact]
+    public void Increment_PaintsItsTarget_NotTheVerb()
+    {
+        const string source =
+            "Define total-bits as 0.\n"
+          + "Define w as 5.\n"
+          + "Increment total-bits by w.";
+        var tokens = Classify(source);
+
+        // `Increment` is columns 1-9 on line 3; `total-bits` starts at 11, `w` at 25.
+        Assert.Contains((3, 11, 10, "variable", false), tokens.Select(Shape));
+        Assert.Contains((3, 25, 1, "variable", false), tokens.Select(Shape));
+        Assert.DoesNotContain(tokens, t => t.Line == 3 && t.Column <= 9);
+    }
+
+    [Fact]
+    public void IncrementOnAField_PaintsTheField_NotTheVerb()
+    {
+        const string source =
+            "Define object counter with (the number tally):\n"
+          + "    Bind void to bump, Increment one's tally by 3.\n"
+          + "Done.";
+        var tokens = Classify(source);
+
+        // `Increment` is columns 24-32 on line 2; `tally` starts at 40.
+        Assert.Contains((2, 40, 5, "property", false), tokens.Select(Shape));
+        Assert.DoesNotContain(tokens, t => t.Line == 2 && t.Column >= 24 && t.Column <= 32);
+    }
 }

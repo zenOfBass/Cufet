@@ -657,9 +657,10 @@ public sealed class Parser
         SkipNoise();
 
         string? member = null;
+        Token? possTok = null;
         if (Peek().Type == TokenType.Possessive)
         {
-            Advance();
+            possTok = Advance();
             SkipNoise();
             member = Advance().Lexeme;              // field name — any word token
             SkipNoise();
@@ -671,16 +672,23 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Dot);
 
-        int line = verb.Line, col = verb.Column;
         var op = up ? TokenType.Plus : TokenType.Minus;
 
+        // ★ Every desugared node carries the position of the REAL TOKEN it stands for, never the
+        // verb's. Downstream consumers read Line/Column as "where the name is": the semantic
+        // tokenizer paints `Name.Length` characters starting there, and the possessive cases scan
+        // forward from there for the member. Handing them the verb's position painted the first
+        // N letters of `Increment` as a variable — N being the length of the target's name, which
+        // is why the damage looked different on every line.
         if (member == null)
             return new BecomesStatement(nameText,
-                new BinaryExpression(target, op, amount, line, col), line, col);
+                new BinaryExpression(target, op, amount, nameTok.Line, nameTok.Column),
+                nameTok.Line, nameTok.Column);
 
-        var read = new PossessiveAccess(target, member, line, col);
+        var read = new PossessiveAccess(target, member, possTok!.Line, possTok.Column);
         return new PossessiveSetStatement(target, member,
-            new BinaryExpression(read, op, amount, line, col), line, col);
+            new BinaryExpression(read, op, amount, possTok.Line, possTok.Column),
+            possTok.Line, possTok.Column);
     }
 
     private PossessiveSetStatement ParsePossessiveSetStatement(IExpression baseExpr)
