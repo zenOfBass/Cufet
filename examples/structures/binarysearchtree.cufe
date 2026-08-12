@@ -93,8 +93,7 @@ Define object node with (the number rank permanently,
             The right-height becomes cast right-child's height.
         Done.
 
-        Define deeper as left-height when left-height is greater than right-height,
-                         otherwise right-height.
+        Define deeper as left-height when left-height is greater than right-height, otherwise right-height.
         Return deeper + 1.
     Done.
 
