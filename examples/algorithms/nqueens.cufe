@@ -24,7 +24,7 @@ Bind void to solve, given (the series of number board, the number n):
     Define column as 1.
     While column is less than n + 1, repeat:
         If cast is-safe on (board, column):
-            Add column to board.
+            Insert column into board.
             Cast solve on (board, n).
             Remove item (the number of board) from board.
         Done.

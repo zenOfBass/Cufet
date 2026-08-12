@@ -25,7 +25,7 @@ Pull a rabbit.
     For each pair in counts, repeat:
         Define k as the key of pair.
         Define v as the value of pair.
-        Add a record with (the word k, the count v) to entries.
+        Insert a record with (the word k, the count v) into entries.
     Done.
 
     Define top as entries sorted by the count in reverse.

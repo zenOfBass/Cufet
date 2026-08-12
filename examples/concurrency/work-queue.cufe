@@ -56,7 +56,7 @@ Pull a rabbit.
         Define received as a series of number.
         Define got as the delivery from results.
         While got is not void, repeat:
-            Add (got but void is 0) to received.
+            Insert (got but void is 0) into received.
             If (the number of received) is n, Stop.
             The got becomes the delivery from results.
         Done.

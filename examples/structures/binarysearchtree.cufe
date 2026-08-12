@@ -28,26 +28,26 @@ Define object node with (the number rank permanently,
 
     // Insertion walks down and attaches at the first empty link. Duplicates are dropped, which
     // is the choice that keeps `holds` an exact answer rather than a first-of-several.
-    Bind void to insert, given (the number value):
+    Bind void to insert-value, given (the number value):
         If value is one's rank, Return.
 
         If value is less than one's rank:
             If the number of one's left is 0:
-                Add (cast leaf on (value)) to one's left.
+                Insert (cast leaf on (value)) into one's left.
                 Return.
             Done.
             // A copy of the child, whose links are the child's own — see the header.
             Define child as item 1 of one's left.
-            Cast child's insert on (value).
+            Cast child's insert-value on (value).
             Return.
         Done.
 
         If the number of one's right is 0:
-            Add (cast leaf on (value)) to one's right.
+            Insert (cast leaf on (value)) into one's right.
             Return.
         Done.
         Define right-child as item 1 of one's right.
-        Cast right-child's insert on (value).
+        Cast right-child's insert-value on (value).
     Done.
 
     Bind fact to holds, given (the number value):
@@ -72,7 +72,7 @@ Define object node with (the number rank permanently,
             Cast child's collect-into on (out).
         Done.
 
-        Add one's rank to out.
+        Insert one's rank into out.
 
         If the number of one's right is greater than 0:
             Define right-child as item 1 of one's right.
@@ -146,7 +146,7 @@ Pull a rabbit.
     Define root as cast leaf on (item 1 of values).
     Define i as 2.
     While i is less than the number of values + 1, repeat:
-        Cast root's insert on (item i of values).
+        Cast root's insert-value on (item i of values).
         The i becomes i + 1.
     Done.
 

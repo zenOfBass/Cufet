@@ -5,10 +5,10 @@ Pull a rabbit.
     Have rabbit start a task as list-producer:
         Define inner as a series of number with (10, 20, 30).
         Define outer as a series of series of number.
-        Add inner to outer.
+        Insert inner into outer.
         Send outer through ch-list.
-        Add 999 to inner.
-        Add (a series of number with (7, 8, 9)) to outer.
+        Insert 999 into inner.
+        Insert (a series of number with (7, 8, 9)) into outer.
         Close ch-list.
     Done.
 
@@ -17,7 +17,7 @@ Pull a rabbit.
         Define data as a map from text to series of number.
         In data, the entry for "batch" becomes batch.
         Send data through ch-map.
-        Add 999 to batch.
+        Insert 999 into batch.
         Close ch-map.
     Done.
 

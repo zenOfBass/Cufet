@@ -10,7 +10,7 @@ Pull a rabbit.
     Define n3 as a series of number with (30).
     Define chain as a series of series of number with (n1, n2, n3).
 
-    Add 99 to n1.
+    Insert 99 into n1.
 
     Define first-node as item 1 of chain.
     Define alias-len as the number of first-node.

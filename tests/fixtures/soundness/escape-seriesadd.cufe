@@ -9,5 +9,5 @@
 Define outer as a series of series of number.
 Pull a rabbit.
     Define inner as a series of number with (1, 2, 3).
-    Add inner to outer.
+    Insert inner into outer.
 Done.

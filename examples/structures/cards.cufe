@@ -37,7 +37,7 @@ Bind making a deck to new-deck:
     Define cards as a series of card.
     For each suit in suits, repeat:
         For each rank in ranks, repeat:
-            Add a new card { the suit suit, the rank rank } to cards.
+            Insert a new card { the suit suit, the rank rank } into cards.
         Done.
     Done.
     Return a new deck { the cards cards }.

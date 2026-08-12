@@ -70,7 +70,7 @@ Bind parsed to parse-array, given (the text source, the number cursor):
     Define gathered as a series of jval.
     While cast char-at on (source, spot) is not "]", repeat:
         Define outcome as cast parse-value on (source, spot).
-        Add the value of outcome to gathered.
+        Insert the value of outcome into gathered.
         The spot becomes cast skip-spaces on (source, the cursor of outcome).
         If cast char-at on (source, spot) is ",", spot becomes cast skip-spaces on (source, spot + 1).
     Done.

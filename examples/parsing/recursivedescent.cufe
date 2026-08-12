@@ -25,7 +25,7 @@ Bind series of text to tokenize, given (the text src):
         Define ch as the characters from i to i of src.
         If ch is " ", i becomes i + 1.
         Otherwise if ch is "+" or ch is "*" or ch is "(" or ch is ")":
-            Add ch to tokens.
+            Insert ch into tokens.
             The i becomes i + 1.
         Done.
         Otherwise:
@@ -36,7 +36,7 @@ Bind series of text to tokenize, given (the text src):
                 Otherwise, stop.
             Done.
             Define num-text as the characters from num-start to i - 1 of src.
-            Add num-text to tokens.
+            Insert num-text into tokens.
         Done.
     Done.
     Return tokens.

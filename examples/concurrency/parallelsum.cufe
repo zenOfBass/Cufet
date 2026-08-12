@@ -13,9 +13,9 @@ Pull a rabbit.
         Return 11 + 12 + 13 + 14 + 15.
     Done.
 
-    Add (the awaited result of batch-1) to batch-results.
-    Add (the awaited result of batch-2) to batch-results.
-    Add (the awaited result of batch-3) to batch-results.
+    Insert (the awaited result of batch-1) into batch-results.
+    Insert (the awaited result of batch-2) into batch-results.
+    Insert (the awaited result of batch-3) into batch-results.
 Done.
 
 Define grand-total as 0.

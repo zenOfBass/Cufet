@@ -26,7 +26,7 @@ Bind map from text to series of text to transitions-of, given (the series of tex
         Define bigram as "{word} {second-word}".
         Define fresh as a series of text.
         Define bucket as the entry for bigram in transitions but void is fresh.
-        Add follower to bucket.
+        Insert follower into bucket.
         In transitions, the entry for bigram becomes bucket.
         The index becomes index + 1.
     Done.
@@ -91,7 +91,7 @@ Bind void to play:
     Define words as a series of text.
     For each token in corpus split by " ", repeat:
         Define word as token trimmed.
-        If the length of word is greater than 0, add word to words.
+        If the length of word is greater than 0, insert word into words.
     Done.
     Define transitions as cast transitions-of on (words).
     Define opening as a series of text with ("in", "the").

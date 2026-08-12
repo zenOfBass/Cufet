@@ -33,7 +33,7 @@ Bind series of hnode to leaves-from, given (the map from text to number counts):
     For each pair in counts, repeat:
         Define sym as the key of pair.
         Define n as the value of pair.
-        Add a new hnode { the symbol sym, the freq n, the children a series of hnode } to leaves.
+        Insert a new hnode { the symbol sym, the freq n, the children a series of hnode } into leaves.
     Done.
     Return leaves.
 Done.
@@ -48,7 +48,7 @@ Bind hnode to build-tree, given (the series of hnode leaves):
         Remove the first item from queue.
         Define merged as a new hnode { the symbol "", the freq least's freq + next-least's freq,
                                        the children a series of hnode with (least, next-least) }.
-        Add merged to queue.
+        Insert merged into queue.
         The queue becomes queue sorted by the freq.
         The count becomes the number of queue.
     Done.
@@ -102,7 +102,7 @@ Bind series of hcode to encode, given (the text source, the map from text to hco
             Otherwise:
                 Define need as fill + w.
                 If need is greater than 64:
-                    Add a new hcode { the pattern acc, the width fill } to chunks.
+                    Insert a new hcode { the pattern acc, the width fill } into chunks.
                     The acc becomes pat.
                     The fill becomes w.
                 Done.
@@ -114,7 +114,7 @@ Bind series of hcode to encode, given (the text source, the map from text to hco
         Done.
         The i becomes i + 1.
     Done.
-    If started is true, add a new hcode { the pattern acc, the width fill } to chunks.
+    If started is true, insert a new hcode { the pattern acc, the width fill } into chunks.
     Return chunks.
 Done.
 
