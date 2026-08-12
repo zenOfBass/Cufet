@@ -47,29 +47,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 1 — usable by someone other than the author
 
-1. **Increase / decrease — self-referential arithmetic without repeating the name.**
-
-   ```
-   Increase i by 1.
-   Decrease remaining by 1.
-   ```
-
-   ★ **Measured: 38 of 109 `becomes` statements in `examples/` (35%) are `X becomes X + …`**, 24 of
-   them exactly `+ 1`. The repetition is where a typo hides — and it hides *well*, because a line
-   that is genuinely not self-referential (`The next-w becomes w + 1.` in `huffmancoding.cufe`,
-   which is correct) is invisible among 37 that are. An increment form makes the odd one out
-   announce itself.
-
-   **Not `+=`.** Symbol soup in a language whose statements read as sentences, and worse after the
-   article — `The i += 1.` **Not `Add 1 to i.`** either: `Add <x> to <series>` already exists, and
-   overloading it would make the meaning depend on a type the reader cannot see.
-
-   Keep it numeric. One meaning, no text concatenation, no series.
-
-   **Settle before building:** the exact verbs, and whether the value may be an arbitrary
-   expression (`Increase total by item at (r, c) of board.`) or only a simple one.
-
-2. **A bits value's width, as data.** A `bits` carries a width and shows it — `0x0F` prints with
+1. **A bits value's width, as data.** A `bits` carries a width and shows it — `0x0F` prints with
    its leading zero — but a program cannot **read** that width or **ask for** one:
 
    ```
