@@ -116,6 +116,21 @@ deliberate differences are marked where they arise and summarised under
 | `Define name as expr.` | Declare a variable (error if already defined) |
 | `Define the <type> name as expr.` | Declare it with an explicit type |
 | `name becomes expr.` | Reassign a variable (error if not declared) |
+| `Increment name by expr.` | Add to it in place — `name becomes name + expr` |
+| `Decrement name by expr.` | Subtract from it in place |
+
+**`Increment` and `Decrement` name the target once**, which is the whole point —
+`X becomes X + 1` repeats the name, and that is where a typo hides:
+
+```
+Increment i by 1.                              ← the i becomes i + 1
+Decrement remaining by 1.
+Increment one's tally by 3.                    ← a field, from inside a method
+Increment total by item at (rr, cc) of board.  ← the amount is any expression
+```
+
+The target must be a plain name or a possessive chain, because the desugaring names
+it twice. Numeric only: growing a series is `Insert`, and the two never read alike.
 
 Articles (`a`, `an`, `the`) are noise everywhere — `Define the total as 0.` and
 `Define total as 0.` are identical.
@@ -263,8 +278,9 @@ changed at all, so it is safe to share. For anything mutable, pass it in as a pa
 **Shallow by construction:** `permanently` fixes the *binding*, not the
 *contents*. A permanent series or map can still add and remove elements; a
 permanent object can still mutate its fields — those operations go through
-`Add`/`Remove`/field-set, not `becomes`, so they are not touched by the
-constant rule. Only `becomes` on the name itself is locked.
+`Insert`/`Remove`/field-set, not `becomes`, so they are not touched by the
+constant rule. Only `becomes` on the name itself is locked — and `Increment`,
+which is `becomes` in disguise, is locked with it.
 
 ---
 

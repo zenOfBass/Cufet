@@ -26,6 +26,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **★ `Increment` / `Decrement` — self-referential arithmetic that names the target once.**
+
+  ```
+  Increment i by 1.
+  Decrement remaining by 1.
+  Increment one's tally by 3.
+  Increment total by item at (rr, cc) of board.
+  ```
+
+  35% of the `becomes` statements in `examples/` were `X becomes X + …`, which is where a typo
+  hides. Pure parser sugar for `X becomes X + <amount>`, so no backend changed. The amount is any
+  expression; the target must be a plain name or a possessive chain, since the desugaring names it
+  twice. Numeric only — growing a series is `Insert`. 41 statements in `examples/` now use it.
+
+  Not `Increase`/`Decrease`: every keyword is barred from being an identifier, and `increase` is an
+  everyday noun of the kind that already costs users names.
+
 - **★ Inline forms for every block construct — one rule.** A **comma** takes one thing; a **colon**
   takes a block closed by `Done.` `If` and `Judge` already worked this way; functions, getters,
   setters, constructors, operator overloads, destructors and loops now do too.

@@ -91,6 +91,39 @@ as identifiers, but that is fine — they read as natural articles.
 | `where` | Where |
 | `descend` | Descend |
 
+### ★ `Increment` / `Decrement` name the target once
+
+```
+Increment i by 1.
+Decrement remaining by 1.
+Increment one's tally by 3.
+Increment total by item at (rr, cc) of board.
+```
+
+Pure sugar: `Increment i by 1.` **is** `The i becomes i + 1.` — desugared in the parser, so no
+backend knows the form exists.
+
+**Why it earns a keyword.** 35% of the `becomes` statements in `examples/` were `X becomes X + …`,
+and that repetition is where a typo hides — it hides *well*, because a line that is genuinely not
+self-referential is invisible among thirty-seven that are. Naming the target once makes the odd one
+out announce itself: `huffmancoding.cufe` has exactly one `The next-w becomes w + 1.` left, and it
+is now the only statement of that shape in the file.
+
+**The amount is any expression.** The target is not: it must be a plain name or a possessive chain,
+because the desugaring names it twice and anything with a side effect would run twice.
+
+**Numeric only** — no text joining, no series growth. Growing a series is `Insert`, and the two
+never read alike: different verb, different preposition.
+
+  | | |
+  |---|---|
+  | `Increment total by 1.` | arithmetic |
+  | `Insert 1 into totals.` | insertion |
+
+**Not `Increase`/`Decrease`.** Every keyword is barred from being an identifier, and `increase` is
+an everyday noun — "a price increase" — of exactly the kind that already costs users names.
+`increment` is a programming term, so reserving it takes much less away.
+
 ### ★ Every block construct takes a comma and one thing, or a colon and a block
 
 One rule, not one per construct. A **comma** means *one thing, inline*; a **colon** means *a block,
@@ -187,6 +220,8 @@ yet accepted.
 | Word | Token | Notes |
 |---|---|---|
 | `series` | Series | Collection type and literal |
+| `increment` | Increment | Self-referential addition |
+| `decrement` | Decrement | Self-referential subtraction |
 | `insert` | Insert | Series insertion statement |
 | `into` | Into | Destination of an `Insert` — a distinct token from `in` |
 | `to` | To | Directional keyword (also field names — **cannot be a field name**) |
