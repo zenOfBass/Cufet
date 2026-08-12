@@ -152,6 +152,57 @@ public class PipelineInlineFormTests : PipelineTestBase
     }
 
     [Fact]
+    public void AFunctionWithNoParameters_ReachesItsInlineBodyThroughTheSameComma()
+    {
+        // ★ The comma after the name meant `, given (…)` unconditionally, so the inline form was
+        // unavailable to exactly the functions short enough to want it. `given` is the
+        // discriminator — the same one-token lookahead the interface-method parser already uses.
+        const string src = """
+            Define object animal with (the text species, the number legs):
+                Get loud-species as text, one's species in uppercase.
+                Bind number to leg-pairs, one's legs / 2.
+            Done.
+            Bind text to greeting, "hello".
+
+            Define rex as a new animal { the species "canine", the legs 4 }.
+            State rex's loud-species.
+            State cast rex's leg-pairs.
+            State cast greeting.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("CANINE\n2\nhello", Interpret(src));
+    }
+
+    [Fact]
+    public void InlineBodies_CombineWithTheRestOfTheLanguage()
+    {
+        // The combinations a parser change can quietly break: `Skip` inside an inline loop body
+        // (the helper has to raise _loopDepth for it), a conditional expression as an inline
+        // expression body, an inline `If` nested as the one statement of an inline body, and an
+        // expression body widening into a fallible return type.
+        const string src = """
+            Bind number to fee, given (the fact is-member), 0 when is-member, otherwise 25.
+            Bind void to report, given (the number n), If n is greater than 2, State "big".
+            Bind number or failure to halve, given (the number n), n / 2.
+
+            Define items as a series of number with (1, 2, 3, 4).
+            For each n in items, Skip.
+            For each n in items, If n is greater than 2, State n.
+            State cast fee on (true).
+            State cast fee on (false).
+            Cast report on (5).
+            Try to:
+                State cast halve on (10).
+            Done.
+            In case of failure:
+                State "the call failed".
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("3\n4\n0\n25\nbig\n5", Interpret(src));
+    }
+
+    [Fact]
     public void TheBlockFormsAllStillParse()
     {
         // The control. Every construct the inline rule touched, in its block spelling — because a

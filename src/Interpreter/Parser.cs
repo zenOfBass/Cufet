@@ -3498,7 +3498,11 @@ public sealed class Parser
         }
 
         var parameters = new List<(CufetType Type, string Name)>();
-        if (Peek().Type == TokenType.Comma)
+        // ★ A comma here means one of two things, and `given` is what tells them apart. A function
+        // that takes no parameters reaches its inline body through this same comma —
+        // `Bind number to leg-pairs, one's legs / 2.` — so consuming `given` unconditionally made
+        // the inline form unavailable to exactly the functions shortest enough to want it.
+        if (Peek().Type == TokenType.Comma && PeekPastNoiseIs(TokenType.Given))
         {
             Advance(); // consume ','
             SkipNoise();
@@ -4141,6 +4145,17 @@ public sealed class Parser
         Consume(TokenType.Done);
         // Trailing '.' is consumed by the enclosing context, not us.
         return stmts;
+    }
+
+    // One-token lookahead past the noise words, WITHOUT consuming anything — the discriminator for
+    // a comma that could open either a parameter list or an inline body. Scans the raw token list
+    // rather than calling SkipNoise, because SkipNoise advances and this must not.
+    private bool PeekPastNoiseIs(TokenType type)
+    {
+        int i = _pos;
+        if (i < _tokens.Count && _tokens[i].Type == TokenType.Comma) i++;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count && _tokens[i].Type == type;
     }
 
     private void SkipNoise()
