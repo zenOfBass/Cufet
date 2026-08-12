@@ -29,26 +29,24 @@ Define crosser as an interface for {
 Define announcer as an interface for the text function announce.
 
 Define object hopper with (the text name) and crosser and announcer:
-    Bind text to crossing-style: return "swims, then dances close to the fire". Done.
-    Bind number to crossing-cost, given (the number distance): return distance * 1. Done.
-    Bind text to announce: return "I can run and swim faster than the Weasels". Done.
+    Bind text to crossing-style, "swims, then dances close to the fire".
+    Bind number to crossing-cost, given (the number distance), distance * 1.
+    Bind text to announce, "I can run and swim faster than the Weasels".
 Done.
 
 Define object thunderbird with (the text name) and crosser:
-    Bind text to crossing-style: return "flies through the storm". Done.
+    Bind text to crossing-style, "flies through the storm".
 Done.
 
-Bind number to crossing-cost unto thunderbird, given (the number distance):
-    Return distance * 3.
-Done.
+Bind number to crossing-cost unto thunderbird, given (the number distance), distance * 3.
 
 Define object beaver with (the text name) and crosser:
-    Bind text to crossing-style: return "dams the water and walks across". Done.
-    Bind number to crossing-cost, given (the number distance): return distance * 2. Done.
+    Bind text to crossing-style, "dams the water and walks across".
+    Bind number to crossing-cost, given (the number distance), distance * 2.
 Done.
 
 Define object herald with (the text office) and announcer:
-    Bind text to announce: return one's office joined to ": the council is called". Done.
+    Bind text to announce, one's office joined to ": the council is called".
 Done.
 
 Bind text to report-crossing, given (the crosser who, the number distance):
@@ -57,7 +55,7 @@ Bind text to report-crossing, given (the crosser who, the number distance):
     Return style joined to " — " joined to cost converted to text.
 Done.
 
-Bind text to herald-line, given (announcer who): return "herald-line: {cast announce on (who)}". Done.
+Bind text to herald-line, given (announcer who), "herald-line: {cast announce on (who)}".
 
 Bind void to play:
     Define trickster as a new hopper { the name "Hopper" }.
