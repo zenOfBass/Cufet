@@ -132,8 +132,31 @@ Increment total by item at (rr, cc) of board.  ← the amount is any expression
 The target must be a plain name or a possessive chain, because the desugaring names
 it twice. Numeric only: growing a series is `Insert`, and the two never read alike.
 
-Articles (`a`, `an`, `the`) are noise everywhere — `Define the total as 0.` and
-`Define total as 0.` are identical.
+Articles (`a`, `an`, `the`) are noise **almost** everywhere — `Define the total as 0.`
+and `Define total as 0.` are identical, and so are `given (the number n)` and
+`given (number n)`.
+
+★ **The exception: `the` is the named-field marker.** Wherever a field could be
+*positional* instead, `the` is what says a name follows — and there it is required,
+not decoration:
+
+```
+Define object point with (text, number).            ← positional: type only
+Define object card  with (the text suit).           ← named: the + type + name
+
+Define p as a new point { "origin", 5 }.            ← positional values
+Define c as a new card  { the suit "hearts" }.      ← named values
+
+Define r as a record with ("hatchback", the make "Honda").   ← both at once
+```
+
+That last line is why it cannot be dropped: without `the`, `make "Honda"` is
+indistinguishable from two positional values. So `{ the suit suit }` is not a
+stutter — it is `the` (a name follows), `suit` (the field), `suit` (the variable),
+which only reads oddly because the two share a name.
+
+Everywhere a name is the *only* possibility — parameters, `Define`, `In m, entry
+for k becomes v` — the article stays pure noise.
 
 #### Explicit types
 
