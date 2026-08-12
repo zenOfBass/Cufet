@@ -1053,6 +1053,7 @@ public sealed partial class Interpreter
         RecordLiteral    rl   => (object)new RecordValue(
                                      rl.PositionalFields.Select(Evaluate).ToList(),
                                      rl.NamedFields.Select(f => (f.Name, Evaluate(f.Value))).ToList()),
+        BitsAtWidth baw => EvaluateBitsAtWidth(baw),
         RecordNamedAccess rna => EvaluateRecordNamedAccess(rna),
         ObjectLiteral    ol   => EvaluateObjectLiteral(ol),
         PossessiveAccess pa   => EvaluatePossessiveAccess(pa),
@@ -1249,8 +1250,32 @@ public sealed partial class Interpreter
         return list[ResolveIndex(sa.Index, list, sname, sa.Line)];
     }
 
+    // `<bits> at <n> bits`. Widening is free; narrowing is refused when a set bit would be lost.
+    private object EvaluateBitsAtWidth(BitsAtWidth baw)
+    {
+        if (Evaluate(baw.Target) is not BitsValue bv)
+            throw new RuntimeException($"'at ... bits' needs a bits value (line {baw.Line}).");
+        if (Evaluate(baw.Width) is not decimal wd || wd < 0 || wd != decimal.Truncate(wd))
+            throw new RuntimeException($"a stated width must be a whole, non-negative number of bits (line {baw.Line}).");
+
+        int stated = (int)wd;
+        int needed = 64;
+        while (needed > 0 && (bv.Value >> (needed - 1)) == 0) needed--;
+        if (stated < needed)
+            throw new RuntimeException(
+                $"{stated} bits cannot hold this value - it needs {needed} (line {baw.Line}). " +
+                "Widening is always fine; narrowing is refused when it would drop a set bit. " +
+                "Mask with 'and' if dropping them is what you meant.");
+        return bv with { Width = stated };
+    }
+
     private object EvaluateRecordNamedAccess(RecordNamedAccess rna)
     {
+        // The width a bits value already carries — see TypeChecker.Records for why this is not a
+        // keyword. Every bits value has one; it is what drives the leading zeros when it prints.
+        if (Evaluate(rna.Record) is BitsValue bw && rna.FieldName == "width")
+            return (decimal)bw.Width;
+
         var target = Evaluate(rna.Record);
 
         if (target is MappingValue mv)

@@ -2375,8 +2375,26 @@ public sealed class Parser
         while (Peek().Type == TokenType.Trimmed ||
                Peek().Type == TokenType.Sorted ||
                Peek().Type == TokenType.Shifted ||
+               IsWord("at") ||
                (Peek().Type == TokenType.In && PeekAfterCurrent() is TokenType.Uppercase or TokenType.Lowercase))
         {
+            // `<bits> at <n> bits`. Matched by LEXEME, exactly as `item at (r, c)` is, because
+            // neither `at` nor `bits` is reserved — both stay legal identifiers. The trailing
+            // `bits` is what makes the phrase unmistakable.
+            if (IsWord("at"))
+            {
+                var atTok = Advance();          // consume 'at'
+                SkipNoise();
+                var widthExpr = ParseUnary();
+                SkipNoise();
+                if (!IsWord("bits"))
+                    throw new ParseException(Peek().Line, Peek().Column,
+                        "expected 'bits' after a stated width \u2014 the phrase is '<value> at <n> bits', " +
+                        "as in '0b0 at 3 bits'.");
+                Advance();                      // consume 'bits'
+                baseExpr = new BitsAtWidth(baseExpr, widthExpr, atTok.Line, atTok.Column);
+                continue;
+            }
             if (Peek().Type == TokenType.Shifted)
             {
                 var lineTok = Advance();   // consume 'shifted'

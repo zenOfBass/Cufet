@@ -18,6 +18,17 @@ public sealed record BitsLiteral(ulong Value, char Base, int Width, int Line, in
 // which is a quantity, the way the 3 in "item 3 of s" is. Left shifts widen so nothing is lost;
 // right shifts discard the low bits, which is what a right shift IS rather than a failure of
 // representation.
+// `<bits> at <n> bits` — the same value carried at a STATED width.
+//
+// A width is otherwise only ever raised to fit the value, so leading zeros no operand held could
+// not be produced: `0b0 shifted left by 2` is `0b0`, not `0b000`. This is what makes a width a
+// thing a program can choose. `0b0 at 3 bits` is also how you spell "three zero bits" — no
+// separate literal form is needed.
+//
+// Widening always works. Narrowing is refused when it would drop a set bit, because a bit-packer
+// that silently loses its high bits writes a file that decodes to garbage.
+public sealed record BitsAtWidth(IExpression Target, IExpression Width, int Line, int Column) : IExpression;
+
 public sealed record BitsShift(IExpression Target, bool Left, IExpression Amount, int Line, int Column)  : IExpression;
 
 // <number> converted to hex|binary|octal. ToBase is 'x', 'b' or 'o'. The crossing from quantity

@@ -1320,6 +1320,49 @@ public sealed partial class TypeChecker
         return t is null ? null : ResolveParamType(t);
     }
 
+    // `<bits> at <n> bits`. The impossible case is caught at CHECK time when it is knowable: a
+    // literal value with a literal width that cannot hold it. Everything else is a runtime error,
+    // in the same class as dividing by zero -- not a `failure`, which would force a `Try` around an
+    // operation that is almost always fine.
+    private CufetType InferBitsAtWidth(BitsAtWidth baw)
+    {
+        var target = InferType(baw.Target);
+        if (target is not null and not BitsType)
+            throw TypeError(
+                $"'at ... bits' states the width of a bits value, but this is a {FormatType(target)}",
+                null, baw.Line, baw.Column,
+                "state a width on something that is not a bits value",
+                "Only a bits value carries a width, as in '0b0 at 3 bits'.");
+
+        var width = InferType(baw.Width);
+        if (width is not null and not NumberType)
+            throw TypeError(
+                $"a stated width must be a number, but this is a {FormatType(width)}",
+                null, baw.Line, baw.Column,
+                "state a width that is not a number",
+                "Write the count of bits, as in '0b0 at 3 bits'.");
+
+        if (baw.Target is BitsLiteral bl && baw.Width is NumberLiteral nl)
+        {
+            if (nl.Value < 0 || nl.Value != decimal.Truncate(nl.Value))
+                throw TypeError(
+                    $"a stated width must be a whole number of bits, not {nl.Value}",
+                    null, baw.Line, baw.Column, "state a fractional or negative width",
+                    "Write a whole count, as in '0b0 at 3 bits'.");
+            int needed = 64;
+            while (needed > 0 && (bl.Value >> (needed - 1)) == 0) needed--;
+            if ((int)nl.Value < needed)
+                throw TypeError(
+                    $"{(int)nl.Value} bits cannot hold this value - it needs {needed}",
+                    null, baw.Line, baw.Column,
+                    $"narrow a value to {(int)nl.Value} bits",
+                    "Widening is always fine; narrowing is refused when it would drop a set bit, " +
+                    "because a packer that loses its high bits writes data that decodes to garbage. " +
+                    "Mask with 'and' if dropping them is what you meant.");
+        }
+        return CufetType.Bits;
+    }
+
     // Top-level data names hidden from the detached body currently being checked. Empty everywhere
     // else. Set by ImportTopLevelVisible; see the note there for why an unresolved name was not
     // enough on its own.
@@ -1380,6 +1423,7 @@ public sealed partial class TypeChecker
     {
         NumberLiteral                                                                                    => CufetType.Number,
         BitsLiteral                                                                                     => CufetType.Bits,
+        BitsAtWidth baw                                                                                 => InferBitsAtWidth(baw),
         BitsShift bs                                                                                    => InferBitsShift(bs),
         StringLiteral                                                                                    => CufetType.Text,
         BooleanLiteral                                                                                   => CufetType.Fact,

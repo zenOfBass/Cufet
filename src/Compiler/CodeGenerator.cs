@@ -993,6 +993,31 @@ static CufetBits cufet_bits_shift(CufetBits a, CufetDec amount, int left, int li
     return cufet_bits_combine(a, by >= 64 ? 0ULL : (a.value << by));
 }
 
+/* `<bits> at <n> bits` - the same value carried at a STATED width.
+
+   A width is otherwise only ever raised to fit the value, so leading zeros no operand ever held
+   could not be produced: `0b0 shifted left by 2` is `0b0`, not `0b000`. This is what lets a
+   program choose one - and `0b0 at 3 bits` is how "three zero bits" is spelled.
+
+   Widening is free. Narrowing is refused when it would drop a set bit, because a packer that
+   silently loses its high bits writes a file that decodes to garbage. `cufet_bits_minwidth` is
+   the same count Interpreter.EvaluateBitsAtWidth computes, so both backends refuse identically. */
+static CufetBits cufet_bits_at_width(CufetBits x, CufetDec w, int line) {
+    char buf[64];
+    if (!cufet_bits_whole(w) || cufet_cmp(w, cufet_dec_from_ll(0)) < 0) {
+        cufet_format_number(buf, sizeof(buf), w);
+        cufet_raise(cufet_msgf("a stated width must be a whole, non-negative number of bits, not %s (line %d).", buf, line));
+    }
+    int stated = cufet_cmp(w, cufet_dec_from_ll(64)) > 0 ? 65 : cufet_to_int(w);
+    int needed = cufet_bits_minwidth(x.value);
+    if (stated < needed)
+        cufet_raise(cufet_msgf("%d bits cannot hold this value - it needs %d (line %d). "
+                               "Widening is always fine; narrowing is refused when it would drop a set bit. "
+                               "Mask with 'and' if dropping them is what you meant.", stated, needed, line));
+    x.width = stated;
+    return x;
+}
+
 static CufetBits cufet_bits_from_number(CufetDec d, char base_, int line) {
     char buf[64];
     if (!cufet_bits_whole(d)) {
@@ -5212,6 +5237,10 @@ static void* cufet_pipe_stage(void* argp) {
         RecordLiteral rl      => new RecordType(
                                      rl.PositionalFields.Select(TypeOf).ToList(),
                                      rl.NamedFields.Select(f => (f.Name, TypeOf(f.Value))).ToList()),
+        // `the width of <bits>` — a property of a type that has no fields, so it can never
+        // shadow a real one. See TypeChecker.Records for why this is not a keyword.
+        BitsAtWidth           => TBits,
+        RecordNamedAccess { FieldName: "width" } bw when TypeOf(bw.Record) is BitsType => TNumber,
         RecordNamedAccess rna => FieldType(TypeOf(rna.Record), rna.FieldName),
         ObjectLiteral ol      => ObjType(ol.TypeName),
         PossessiveAccess pa   => pa.Target is VariableReference bvr && _bookAliases.TryGetValue(bvr.Name, out var bn)
@@ -5783,6 +5812,9 @@ static void* cufet_pipe_stage(void* argp) {
         SeriesLength sl2      => $"cufet_dec_from_ll(({EmitExpr(sl2.Series)})->len)",
         SeriesAccess sa       => EmitSeriesAccess(sa),
         RecordLiteral rl      => EmitRecordLiteral(rl),
+        BitsAtWidth baw       => $"cufet_bits_at_width({EmitExpr(baw.Target)}, {EmitExpr(baw.Width)}, {baw.Line})",
+        RecordNamedAccess { FieldName: "width" } bwa when TypeOf(bwa.Record) is BitsType
+                              => $"cufet_dec_from_ll(({EmitExpr(bwa.Record)}).width)",
         RecordNamedAccess rna => EmitMemberAccess(rna.Record, rna.FieldName),
         ObjectLiteral ol      => EmitObjectLiteral(ol),
         PossessiveAccess pa   => EmitMemberAccess(pa.Target, pa.Member),

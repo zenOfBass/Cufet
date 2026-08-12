@@ -204,6 +204,13 @@ public sealed partial class TypeChecker
                     : $"'{ot.Name}' has no named fields or getters.");
         }
 
+    // ★ `the width of <bits>` — resolved HERE rather than by a keyword. `width` stays a legal
+    // field name (huffmancoding has one), because this only fires when the target is a bits and
+    // so could never have had a field at all. A reserved `width` would have cost every user a
+    // common noun to buy a property only one type has.
+    if (recordType is BitsType && rna.FieldName == "width")
+            return CufetType.Number;
+
         if (recordType is not RecordType rt)
             throw TypeError(
                 $"you're trying to access field '{rna.FieldName}' on something that isn't a record or object",
