@@ -1,13 +1,9 @@
 Define the object card with (the text suit, the text rank):
-    Get label as text:
-        Return "{one's rank} of {one's suit}".
-    Done.
+    Get label as text, "{one's rank} of {one's suit}".
 Done.
 
 Define the object deck with (the series of card cards):
-    Get count as number:
-        Return the number of one's cards.
-    Done.
+    Get count as number, the number of one's cards.
 
     Bind void to shuffle, given (the number start-seed):
         Define current-seed as start-seed.
@@ -36,9 +32,7 @@ Bind making a deck to new-deck:
     Define ranks as a series of text with ("Ace", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Jack", "Queen", "King").
     Define cards as a series of card.
     For each suit in suits, repeat:
-        For each rank in ranks, repeat:
-            Insert a new card { the suit suit, the rank rank } into cards.
-        Done.
+        For each rank in ranks, insert a new card { the suit suit, the rank rank } into cards.
     Done.
     Return a new deck { the cards cards }.
 Done.
