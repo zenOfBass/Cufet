@@ -44,7 +44,7 @@ public sealed partial class TypeChecker
         finally { ExitScope(); }
     }
 
-    private void CheckSeriesAdd(SeriesAddStatement add)
+    private void CheckSeriesAdd(SeriesInsertStatement add)
     {
         if (add.AfterIndex != null) CheckIndex(add.AfterIndex, add.Line, add.Column);
         var containerType = InferType(add.Series);
@@ -52,9 +52,9 @@ public sealed partial class TypeChecker
         if (containerType is not SeriesType seriesType)
             throw TypeError(
                 $"{FormatExpr(add.Series)} is not a series",
-                $"It evaluates to {FormatTypePlural(containerType)}, which can't be added to",
+                $"It evaluates to {FormatTypePlural(containerType)}, which can't be inserted into",
                 add.Line, add.Column,
-                "add to a non-series expression",
+                "insert into a non-series expression",
                 "Only a series (like 'my-list' or 'one's cards') can be the target of 'Add ... to'.");
 
         var valueType = InferType(add.Value);

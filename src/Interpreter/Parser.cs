@@ -69,7 +69,7 @@ public sealed class Parser
             TokenType.Stop       => ParseStopStatement(tok),
             TokenType.Skip       => ParseSkipStatement(tok),
             TokenType.Item       => ParseSeriesSetStatement(),
-            TokenType.Add        => ParseSeriesAddStatement(),
+            TokenType.Insert     => ParseSeriesInsertStatement(),
             TokenType.Remove     => ParseSeriesRemoveStatement(),
             TokenType.For        => ParseForEachStatement(),
             TokenType.Bind       => PeekAfterCurrent() == TokenType.UnmakingKw
@@ -1219,18 +1219,24 @@ public sealed class Parser
         return new MatrixSetStatement(matrix, row, col, value, itemTok.Line, itemTok.Column);
     }
 
-    private SeriesAddStatement ParseSeriesAddStatement()
+    // `Insert <value> into <series>.` / `into the start of <series>.` / `after <position> of …`
+    //
+    // ★ `into` rather than `to`, and a DISTINCT token from `in`. `in` is an expression operator
+    // (`in uppercase`), so a separator spelled `in` could not tell where the value ends —
+    // `Insert word in uppercase in words.` has no readable boundary. `into` does:
+    // `Insert word in uppercase into words.` parses exactly one way.
+    private SeriesInsertStatement ParseSeriesInsertStatement()
     {
-        var addTok = Consume(TokenType.Add);
+        var addTok = Consume(TokenType.Insert);
         int line = addTok.Line;
         int col = addTok.Column;
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
 
-        if (Peek().Type == TokenType.To)
+        if (Peek().Type == TokenType.Into)
         {
-            Consume(TokenType.To);
+            Consume(TokenType.Into);
             SkipNoise();
             if (Peek().Type == TokenType.Start)
             {
@@ -1241,14 +1247,14 @@ public sealed class Parser
                 var seriesExpr = ParseCorePrimary();
                 SkipNoise();
                 Consume(TokenType.Dot);
-                return new SeriesAddStatement(value, seriesExpr, null, true, line, col);
+                return new SeriesInsertStatement(value, seriesExpr, null, true, line, col);
             }
             else
             {
                 var seriesExpr = ParseCorePrimary();
                 SkipNoise();
                 Consume(TokenType.Dot);
-                return new SeriesAddStatement(value, seriesExpr, null, false, line, col);
+                return new SeriesInsertStatement(value, seriesExpr, null, false, line, col);
             }
         }
         else
@@ -1274,7 +1280,7 @@ public sealed class Parser
             var seriesExpr = ParseCorePrimary();
             SkipNoise();
             Consume(TokenType.Dot);
-            return new SeriesAddStatement(value, seriesExpr, afterIdx, false, line, col);
+            return new SeriesInsertStatement(value, seriesExpr, afterIdx, false, line, col);
         }
     }
 

@@ -61,8 +61,8 @@ public class PipelineEscapeTests : PipelineTestBase
         const string src = """
             Define object row with (the text label, the series of number cells).
             Define grid as a series of row with ().
-            Add a new row { the label "a", the cells a series of number with (1, 2, 3) } to grid.
-            Add a new row { the label "b", the cells a series of number with (4, 5) } to grid.
+            Insert a new row { the label "a", the cells a series of number with (1, 2, 3) } into grid.
+            Insert a new row { the label "b", the cells a series of number with (4, 5) } into grid.
             Pull a rabbit.
                 Have rabbit start a task as total:
                     Define t as 0.
@@ -119,7 +119,7 @@ public class PipelineEscapeTests : PipelineTestBase
             Define data as a series of number with (1, 2, 3).
             Pull a rabbit.
                 Have rabbit start a task:
-                    Add 99 to data.
+                    Insert 99 into data.
                 Done.
             Done.
             State data.
@@ -321,7 +321,7 @@ public class PipelineEscapeTests : PipelineTestBase
     {
         const string src = """
             Bind void to stuff, given (the series of number s):
-                Add 99 to s.
+                Insert 99 into s.
             Done.
 
             Define data as a series of number with (1, 2, 3).
@@ -353,7 +353,7 @@ public class PipelineEscapeTests : PipelineTestBase
             Pull a rabbit.
                 Define i as 0.
                 While i is less than 12, repeat:
-                    Add i to outer.
+                    Insert i into outer.
                     i becomes i + 1.
                 Done.
             Done.
@@ -370,7 +370,7 @@ public class PipelineEscapeTests : PipelineTestBase
             Pull a rabbit.
                 Define i as 0.
                 While i is less than 12, repeat:
-                    Add i to the start of s.
+                    Insert i into the start of s.
                     i becomes i + 1.
                 Done.
             Done.
@@ -620,7 +620,7 @@ public class PipelineEscapeTests : PipelineTestBase
 
             Define outer as a series of number with (1, 2).
             Define r as Cast passthru on (outer).
-            Add 9 to r.
+            Insert 9 into r.
             State outer.
             State r.
             """;
@@ -679,7 +679,7 @@ public class PipelineEscapeTests : PipelineTestBase
                     Define s as a series of number with ().
                     Define j as 0.
                     While j is less than 200, repeat:
-                        Add j to s.
+                        Insert j into s.
                         j becomes j + 1.
                     Done.
                     return the number of s.

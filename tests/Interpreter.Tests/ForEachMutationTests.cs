@@ -38,7 +38,7 @@ public class ForEachMutationTests
         var ex = SeriesFails("""
             Define items as a series of number with (1, 2, 3).
             For each x in items, repeat:
-                Add 4 to items.
+                Insert 4 into items.
             Done.
             """);
         Assert.Contains("items", ex.Message);
@@ -51,7 +51,7 @@ public class ForEachMutationTests
         var ex = SeriesFails("""
             Define items as a series of number with (1, 2, 3).
             For each x in items, repeat:
-                Add 4 to items.
+                Insert 4 into items.
             Done.
             """);
         Assert.Contains("collect", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -63,7 +63,7 @@ public class ForEachMutationTests
         var ex = SeriesFails("""
             Define items as a series of number with (1, 2, 3).
             For each x in items, repeat:
-                Add 4 to items.
+                Insert 4 into items.
             Done.
             """);
         Assert.Contains("While", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -117,7 +117,7 @@ public class ForEachMutationTests
             Define items as a series of number with (1, 2, 3).
             Define alias as items.
             For each x in items, repeat:
-                Add 4 to alias.
+                Insert 4 into alias.
             Done.
             """);
         Assert.Contains("modified", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -130,7 +130,7 @@ public class ForEachMutationTests
             Define items as a series of number with (1, 2, 3).
             Define alias as items.
             For each x in items, repeat:
-                Add 4 to alias.
+                Insert 4 into alias.
             Done.
             """);
         // Error names 'items' (the iterated variable), not 'alias'.
@@ -163,7 +163,7 @@ public class ForEachMutationTests
             Define items as a series of number with (1, 2, 3).
             Define collected as a series of number.
             For each x in items, repeat:
-                Add x to collected.
+                Insert x into collected.
             Done.
             State the number of collected.
             """);

@@ -18,8 +18,8 @@ public class PipelineUnionBreadthTests : PipelineTestBase
     {
         const string src = """
             Define items as a catalogue.
-            Add 1 to items.
-            Add "two" to items.
+            Insert 1 into items.
+            Insert "two" into items.
             State the number of items.
             For each i in items, repeat:
                 If i is a number, State "n".
@@ -48,7 +48,7 @@ public class PipelineUnionBreadthTests : PipelineTestBase
             Define flag as true.
             If flag is true:
                 Define items as a catalogue with (1, "two").
-                Add true to items.
+                Insert true into items.
                 For each i in items, repeat:
                     If i is a number, State "n".
                     Otherwise, If i is a text, State "t".
@@ -67,7 +67,7 @@ public class PipelineUnionBreadthTests : PipelineTestBase
             Judge subject, where it is:
                 A number:
                     Define items as a catalogue with (1, "two").
-                    Add true to items.
+                    Insert true into items.
                     For each i in items, repeat:
                         If i is a number, State "n".
                         Otherwise, If i is a text, State "t".
@@ -143,8 +143,8 @@ public class PipelineUnionBreadthTests : PipelineTestBase
                 Done.
             Done.
             Define items as a catalogue.
-            Add 1 to items.
-            Add true to items.
+            Insert 1 into items.
+            Insert true into items.
             Cast show on (items).
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
@@ -219,9 +219,9 @@ public class PipelineUnionBreadthTests : PipelineTestBase
             Define object tag with (the text name).
             Define cat as a catalogue of (number or series of text or tag) with (7).
             Define words as a series of text with ("a", "b").
-            Add words to cat.
+            Insert words into cat.
             Define mk as a new tag { the name "boom" }.
-            Add mk to cat.
+            Insert mk into cat.
             Define e1 as item 1 of cat.
             Define e2 as item 2 of cat.
             Define e3 as item 3 of cat.
@@ -371,11 +371,11 @@ public class PipelineUnionBreadthTests : PipelineTestBase
                     Define words as a series of text with ("p", "q").
                     Define holder as a new bag { the label "first", the body words }.
                     Define box as a catalogue of (number or bag) with (1).
-                    Add holder to box.
+                    Insert holder into box.
                     Define e as item 2 of box.
                     Send e through ch.
-                    Add "r" to words.
-                    Add "s" to words.
+                    Insert "r" into words.
+                    Insert "s" into words.
                     Define n as item 1 of box.
                     Send n through ch.
                 Done.
@@ -409,7 +409,7 @@ public class PipelineUnionBreadthTests : PipelineTestBase
                 Have rabbit start a task as pick:
                     Define cat as a catalogue of (number or series of text) with (5).
                     Define words as a series of text with ("x", "y", "z").
-                    Add words to cat.
+                    Insert words into cat.
                     Return item 2 of cat.
                 Done.
                 Have rabbit start a task as pod:
@@ -454,9 +454,9 @@ public class PipelineUnionBreadthTests : PipelineTestBase
                 Have rabbit start a task as grab:
                     Define loose as a catalogue.
                     Define words as a series of text with ("m", "n", "o").
-                    Add 4 to loose.
-                    Add words to loose.
-                    Add "tail" to loose.
+                    Insert 4 into loose.
+                    Insert words into loose.
+                    Insert "tail" into loose.
                     Return item 2 of loose.
                 Done.
                 Define r as the awaited result of grab.

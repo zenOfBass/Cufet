@@ -4519,7 +4519,7 @@ static void* cufet_pipe_stage(void* argp) {
                 break;
             }
 
-            case SeriesAddStatement sa:
+            case SeriesInsertStatement sa:
             {
                 string ser = SeriesStructOf(sa.Series);
                 // Coerce into the series' ELEMENT type so adding to a catalogue widens into the union.
@@ -6607,7 +6607,7 @@ static void* cufet_pipe_stage(void* argp) {
             case null: return false;
             // Rebinding the capture: the interpreter would rebind the ENCLOSING binding.
             case BecomesStatement b when b.Name == name: return true;
-            case SeriesAddStatement s          when Touches(s.Series):  return true;
+            case SeriesInsertStatement s          when Touches(s.Series):  return true;
             case SeriesRemoveAtStatement s     when Touches(s.Series):  return true;
             case SeriesRemoveValueStatement s  when Touches(s.Series):  return true;
             case SeriesSetStatement s          when Touches(s.Series):  return true;

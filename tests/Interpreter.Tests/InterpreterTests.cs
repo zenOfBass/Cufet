@@ -879,7 +879,7 @@ public class InterpreterTests
         // Add (a series of ...) to outer — series literal as Add value
         Assert.Equal("2", Run("""
             Define outer as a series of series of number with ().
-            Add (a series of number with (10, 20)) to outer.
+            Insert (a series of number with (10, 20)) into outer.
             State the number of (the first of outer).
             """));
     }
@@ -895,7 +895,7 @@ public class InterpreterTests
                 Close ch.
                 Define got as the delivery from ch.
                 Define r as (got but void is (a series of series of number with ())).
-                Add (a series of number with (1, 2, 3)) to r.
+                Insert (a series of number with (1, 2, 3)) into r.
                 State the number of (the first of r).
             Done.
             """));
@@ -978,7 +978,7 @@ public class InterpreterTests
     {
         Assert.Equal("4", Run(
             "Define s as a series with (1, 2, 3). " +
-            "Add 4 to s. " +
+            "Insert 4 into s. " +
             "State the number of s. State the last of s.").Split('\n')[0]);
     }
 
@@ -987,7 +987,7 @@ public class InterpreterTests
     {
         Assert.Equal("0", Run(
             "Define s as a series with (1, 2, 3). " +
-            "Add 0 to the start of s. " +
+            "Insert 0 into the start of s. " +
             "State the first of s."));
     }
 
@@ -997,7 +997,7 @@ public class InterpreterTests
         // Insert 99 after position 2 → (10, 20, 99, 30)
         Assert.Equal("10\n20\n99\n30", Run(
             "Define s as a series with (10, 20, 30). " +
-            "Add 99 after the second item of s. " +
+            "Insert 99 after the second item of s. " +
             "State item 1 of s. State item 2 of s. State item 3 of s. State item 4 of s."));
     }
 
@@ -1007,7 +1007,7 @@ public class InterpreterTests
         Assert.Equal("10\n99\n20\n30", Run(
             "Define s as a series with (10, 20, 30). " +
             "Define n as 1. " +
-            "Add 99 after item n of s. " +
+            "Insert 99 after item n of s. " +
             "State item 1 of s. State item 2 of s. State item 3 of s. State item 4 of s."));
     }
 
@@ -1249,7 +1249,7 @@ public class InterpreterTests
         Assert.Throws<RuntimeException>(() => Run(
             "Define s as a series with (1, 2, 3).\n" +
             "For each x in s, repeat:\n" +
-            "    Add 99 to s.\n" +
+            "    Insert 99 into s.\n" +
             "Done."));
     }
 
@@ -1789,7 +1789,7 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Define s as a series with (1, 2, 3).\n" +
-            "Add \"text\" to s."));
+            "Insert \"text\" into s."));
     }
 
     [Fact]
@@ -1797,7 +1797,7 @@ public class InterpreterTests
     {
         Assert.Equal("4", Run(
             "Define s as a series with (1, 2, 3).\n" +
-            "Add 99 to s.\n" +
+            "Insert 99 into s.\n" +
             "State the number of s."));
     }
 
@@ -2545,7 +2545,7 @@ public class InterpreterTests
             "Bind number to double, given (the number x): return x * 2. Done.\n" +
             "Bind number to triple, given (the number x): return x * 3. Done.\n" +
             "Define ops as a series of number function given (the number) with (double).\n" +
-            "Add triple to ops.\n" +
+            "Insert triple into ops.\n" +
             "State Cast the first of ops on (1).\n" +
             "State Cast the second of ops on (2)."));
     }
@@ -2576,7 +2576,7 @@ public class InterpreterTests
             "Bind number to double, given (the number x): return x * 2. Done.\n" +
             "Bind text to shout, given (the text s): return s. Done.\n" +
             "Define ops as a series of number function given (the number) with (double).\n" +
-            "Add shout to ops."));
+            "Insert shout into ops."));
         Assert.Contains("number function", ex.Message);
     }
 
@@ -3300,7 +3300,7 @@ public class InterpreterTests
     {
         Assert.Equal("Norman", Run(
             "Define party as a series of records like (the text name, the number age).\n" +
-            "Add a record with (the name \"Norman\", the age 30) to party.\n" +
+            "Insert a record with (the name \"Norman\", the age 30) into party.\n" +
             "State the name of the first of party."));
     }
 
@@ -3309,7 +3309,7 @@ public class InterpreterTests
     {
         Assert.Equal("42", Run(
             "Define scores as a series of records like (the number value).\n" +
-            "Add a record with (the value 42) to scores.\n" +
+            "Insert a record with (the value 42) into scores.\n" +
             "State the value of the first of scores."));
     }
 
@@ -3318,7 +3318,7 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Define party as a series of records like (the text name).\n" +
-            "Add a record with (the name 99) to party."));
+            "Insert a record with (the name 99) into party."));
     }
 
     [Fact]
@@ -3327,7 +3327,7 @@ public class InterpreterTests
         // Series expects (the text name); adding a record with a different field name → shape mismatch
         Assert.Throws<TypeException>(() => Run(
             "Define party as a series of records like (the text name).\n" +
-            "Add a record with (the score 99) to party."));
+            "Insert a record with (the score 99) into party."));
     }
 
     [Fact]
@@ -3335,8 +3335,8 @@ public class InterpreterTests
     {
         Assert.Equal("Alice\nBob", Run(
             "Define roster as a series of records like (the text name).\n" +
-            "Add a record with (the name \"Alice\") to roster.\n" +
-            "Add a record with (the name \"Bob\") to roster.\n" +
+            "Insert a record with (the name \"Alice\") into roster.\n" +
+            "Insert a record with (the name \"Bob\") into roster.\n" +
             "For each member in roster, repeat:\n" +
             "    State the name of member.\n" +
             "Done."));
@@ -3347,7 +3347,7 @@ public class InterpreterTests
     {
         Assert.Equal("5", Run(
             "Define pairs as a series of records like (number, text).\n" +
-            "Add a record with (5, \"five\") to pairs.\n" +
+            "Insert a record with (5, \"five\") into pairs.\n" +
             "State the first of the first of pairs."));
     }
 
@@ -5812,7 +5812,7 @@ public class InterpreterTests
             "Bind void to outer:\n" +
             "    Define shared as a series of numbers.\n" +
             "    Bind void to push, given (the number x):\n" +
-            "        Add x to shared.\n" +
+            "        Insert x into shared.\n" +
             "    Done.\n" +
             "    Cast push on (1).\n" +
             "    Cast push on (2).\n" +
@@ -5834,7 +5834,7 @@ public class InterpreterTests
             "Done.\n" +
             "Define ops as a series of number function given (the number).\n" +
             "For each n in range 1 to 3, repeat:\n" +
-            "    Add cast make-adder on (n) to ops.\n" +
+            "    Insert cast make-adder on (n) into ops.\n" +
             "Done.\n" +
             "State cast (the first of ops) on (10).\n" +
             "State cast (the second of ops) on (10).\n" +
@@ -6301,7 +6301,7 @@ public class InterpreterTests
     {
         Assert.Equal("90\n85\n70", Run(
             "Define scores as a series with (90, 85) permanently.\n" +
-            "Add 70 to scores.\n" +
+            "Insert 70 into scores.\n" +
             "For each s in scores, repeat:\n" +
             "    State s.\n" +
             "Done."));
@@ -8250,7 +8250,7 @@ public class InterpreterTests
             "Define outer as a series of series of number with ().\n" +
             "Pull a rabbit as warren.\n" +
             "    Define inner as a series of number with (1, 2, 3).\n" +
-            "    Add inner to outer.\n" +
+            "    Insert inner into outer.\n" +
             "Done."));
     }
 
@@ -8274,7 +8274,7 @@ public class InterpreterTests
             "Define outer as a series of number with ().\n" +
             "Pull a rabbit as warren.\n" +
             "    Define x as 42.\n" +
-            "    Add x to outer.\n" +
+            "    Insert x into outer.\n" +
             "Done.\n" +
             "State the first of outer."));
     }
@@ -8287,7 +8287,7 @@ public class InterpreterTests
             "Pull a rabbit as warren.\n" +
             "    Define xs as a series of number with (1, 2, 3).\n" +
             "    Define ys as a series of series of number with ().\n" +
-            "    Add xs to ys.\n" +
+            "    Insert xs into ys.\n" +
             "    State \"ok\".\n" +
             "Done."));
     }
@@ -8301,7 +8301,7 @@ public class InterpreterTests
             "    Define outer-ys as a series of series of number with ().\n" +
             "    Pull a rabbit as inner.\n" +
             "        Define inner-xs as a series of number with (1, 2).\n" +
-            "        Add inner-xs to outer-ys.\n" +
+            "        Insert inner-xs into outer-ys.\n" +
             "    Done.\n" +
             "Done."));
     }
@@ -8314,7 +8314,7 @@ public class InterpreterTests
             "Define outer as a series of series of number with ().\n" +
             "Pull a rabbit as warren.\n" +
             "    Define inner as range 1 to 3.\n" +
-            "    Add inner to outer.\n" +
+            "    Insert inner into outer.\n" +
             "Done."));
     }
 
@@ -8326,7 +8326,7 @@ public class InterpreterTests
             "Define outer as a series of text with ().\n" +
             "Pull a rabbit as warren.\n" +
             "    Define msg as \"hello\".\n" +
-            "    Add msg to outer.\n" +
+            "    Insert msg into outer.\n" +
             "Done.\n" +
             "State the first of outer."));
     }
@@ -8782,9 +8782,9 @@ public class InterpreterTests
     {
         Assert.Equal("1\n2\n3", Run(
             "Define entries as a series of records like (the number score).\n" +
-            "Add a record with (the score 3) to entries.\n" +
-            "Add a record with (the score 1) to entries.\n" +
-            "Add a record with (the score 2) to entries.\n" +
+            "Insert a record with (the score 3) into entries.\n" +
+            "Insert a record with (the score 1) into entries.\n" +
+            "Insert a record with (the score 2) into entries.\n" +
             "Define ranked as entries sorted by the score.\n" +
             "For each e in ranked, repeat:\n" +
             "    State the score of e.\n" +
@@ -8796,9 +8796,9 @@ public class InterpreterTests
     {
         Assert.Equal("3\n2\n1", Run(
             "Define entries as a series of records like (the number score).\n" +
-            "Add a record with (the score 1) to entries.\n" +
-            "Add a record with (the score 3) to entries.\n" +
-            "Add a record with (the score 2) to entries.\n" +
+            "Insert a record with (the score 1) into entries.\n" +
+            "Insert a record with (the score 3) into entries.\n" +
+            "Insert a record with (the score 2) into entries.\n" +
             "Define ranked as entries sorted by the score in reverse.\n" +
             "For each e in ranked, repeat:\n" +
             "    State the score of e.\n" +
@@ -8810,9 +8810,9 @@ public class InterpreterTests
     {
         Assert.Equal("alice\nbob\ncarol", Run(
             "Define people as a series of records like (the text name).\n" +
-            "Add a record with (the name \"carol\") to people.\n" +
-            "Add a record with (the name \"alice\") to people.\n" +
-            "Add a record with (the name \"bob\") to people.\n" +
+            "Insert a record with (the name \"carol\") into people.\n" +
+            "Insert a record with (the name \"alice\") into people.\n" +
+            "Insert a record with (the name \"bob\") into people.\n" +
             "Define sorted-people as people sorted by the name.\n" +
             "For each p in sorted-people, repeat:\n" +
             "    State the name of p.\n" +
@@ -8829,7 +8829,7 @@ public class InterpreterTests
             "For each pair in counts, repeat:\n" +
             "    Define k as the key of pair.\n" +
             "    Define v as the value of pair.\n" +
-            "    Add a record with (the word k, the count v) to entries.\n" +
+            "    Insert a record with (the word k, the count v) into entries.\n" +
             "Done.\n" +
             "Define top as entries sorted by the count in reverse.\n" +
             "For each e in top, repeat:\n" +
@@ -10388,7 +10388,7 @@ public class InterpreterTests
         // Assigning a value not in the closed union → type error
         Assert.Throws<TypeException>(() => Run(
             "Define items as a catalogue of (number or text) with (42, \"hi\").\n" +
-            "Add (1 = 1) to items."));
+            "Insert (1 = 1) into items."));
     }
 
     // ── Layer 2: Narrowing ──────────────────────────────────────────────────────
@@ -10501,7 +10501,7 @@ public class InterpreterTests
     {
         Assert.Equal("3", Run(
             "Define items as a catalogue of (number or text) with (42, \"hello\").\n" +
-            "Add 99 to items.\n" +
+            "Insert 99 into items.\n" +
             "State the number of items converted to text."));
     }
 
@@ -10510,7 +10510,7 @@ public class InterpreterTests
     {
         Assert.Equal("3", Run(
             "Define items as a catalogue of (number or text) with (42, \"hello\").\n" +
-            "Add \"world\" to items.\n" +
+            "Insert \"world\" into items.\n" +
             "State the number of items converted to text."));
     }
 
@@ -10519,7 +10519,7 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Define items as a catalogue of (number or text) with (42, \"hello\").\n" +
-            "Add (1 = 1) to items."));
+            "Insert (1 = 1) into items."));
     }
 
     [Fact]
@@ -10528,7 +10528,7 @@ public class InterpreterTests
         // Open catalogue accepts any type
         Assert.Equal("3", Run(
             "Define items as a catalogue with (42, \"hello\").\n" +
-            "Add (1 = 1) to items.\n" +
+            "Insert (1 = 1) into items.\n" +
             "State the number of items converted to text."));
     }
 
@@ -11863,7 +11863,7 @@ public class InterpreterTests
         // model, deliberate; it is the flip side of the record/object copy rule.
         Assert.Equal("(1, 2, 3, 4)", Run("""
             Bind void to grow, given (the series of number s):
-                Add 4 to s.
+                Insert 4 into s.
             Done.
             Define xs as a series of number with (1, 2, 3).
             Cast grow on (xs).

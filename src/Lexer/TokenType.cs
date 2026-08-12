@@ -107,7 +107,10 @@ public enum TokenType
     Item,     // "item" — parametric element access
     Of,       // "of" — connects element access / length to series name
     NumberKw, // "number" — in "the number of series"; distinct from Number (numeric literal)
-    Add,      // "add" — series mutation keyword
+    Insert,   // "insert" — series mutation keyword
+    Into,     // "into" — destination of an Insert; a DISTINCT token from `in`,
+              // which is an expression operator (`in uppercase`), so the value
+              // expression and the destination can never run together.
     To,       // "to" — in "add X to series" / "add X to the start of series"
     Start,    // "start" — in "add X to the start"
     After,    // "after" — in "add X after position"

@@ -57,7 +57,7 @@ public class ExhaustivenessTests
         var missing = AllCufetTypes().Where(t => !Instances.ContainsKey(t)).Select(t => t.Name).ToList();
         Assert.True(missing.Count == 0,
             $"New CufetType(s) with no entry in ExhaustivenessTests.Instances: {string.Join(", ", missing)}. " +
-            "Add one, then check every per-type switch names it — that omission is what shipped " +
+            "Insert one, then check every per-type switch names it — that omission is what shipped " +
             "'printing a value is not yet supported'.");
     }
 

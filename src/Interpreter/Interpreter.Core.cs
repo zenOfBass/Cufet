@@ -691,7 +691,7 @@ public sealed partial class Interpreter
             case SkipStatement:
                 throw new SkipException();
 
-            case SeriesAddStatement sa:
+            case SeriesInsertStatement sa:
             {
                 var saTarget = Evaluate(sa.Series);
                 if (saTarget is not List<object> list)

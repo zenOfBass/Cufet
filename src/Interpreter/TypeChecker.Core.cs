@@ -1019,7 +1019,7 @@ public sealed partial class TypeChecker
             case ForEachStatement forEach:
                 CheckForEach(forEach);
                 break;
-            case SeriesAddStatement add:
+            case SeriesInsertStatement add:
                 CheckSeriesAdd(add);
                 break;
             case SeriesRemoveValueStatement removeVal:

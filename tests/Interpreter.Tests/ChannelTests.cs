@@ -136,7 +136,7 @@ public class ChannelTests
                 Define ch as a channel of series of number.
                 Define original as a series of number with (10, 20, 30).
                 Send original through ch.
-                Add 99 to original.
+                Insert 99 into original.
                 Close ch.
                 Define delivered as the delivery from ch.
                 State the number of delivered.

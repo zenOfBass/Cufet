@@ -213,7 +213,7 @@ public class TaskSpawnTests
             Pull a rabbit.
                 Have rabbit start a task:
                     Define inner as a series of number with (1, 2).
-                    Add inner to outer.
+                    Insert inner into outer.
                 Done.
             Done.
             """));

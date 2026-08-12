@@ -84,7 +84,7 @@ public class PipelineRecordObjectTests : PipelineTestBase
                 Define team as a record with (the label "A", the scores a series of number with (10, 20, 30)).
                 State team.
                 State the first of the scores of team.
-                Add 40 to the scores of team.
+                Insert 40 into the scores of team.
                 State team.
             Done.
             """;
@@ -139,7 +139,7 @@ public class PipelineRecordObjectTests : PipelineTestBase
         const string src = """
             Define people as a series with (a record with (the name "Alice", the age 30), a record with (the name "Bob", the age 25)).
             State people.
-            Add a record with (the name "Carol", the age 40) to people.
+            Insert a record with (the name "Carol", the age 40) into people.
             State the number of people.
             For each p in people, repeat:
                 State the name of p.
@@ -194,7 +194,7 @@ public class PipelineRecordObjectTests : PipelineTestBase
         // function IS visible to the caller — compiled and interpreted agree on that too.
         const string src = """
             Bind void to grow, given (the series of number s):
-                Add 99 to s.
+                Insert 99 into s.
             Done.
             Pull a rabbit.
                 Define xs as a series of number with (1, 2, 3).

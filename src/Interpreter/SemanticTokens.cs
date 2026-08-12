@@ -401,7 +401,7 @@ public sealed class SemanticTokenizer
                 Walk(ret.Value);
                 break;
 
-            case SeriesAddStatement a2:
+            case SeriesInsertStatement a2:
                 Walk(a2.Value); Walk(a2.Series); Walk(a2.AfterIndex);
                 break;
 

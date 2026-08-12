@@ -187,7 +187,8 @@ yet accepted.
 | Word | Token | Notes |
 |---|---|---|
 | `series` | Series | Collection type and literal |
-| `add` | Add | Series add statement |
+| `insert` | Insert | Series insertion statement |
+| `into` | Into | Destination of an `Insert` — a distinct token from `in` |
 | `to` | To | Directional keyword (also field names — **cannot be a field name**) |
 | `start` | Start | Series prepend target |
 | `after` | After | Series insert-after position |
@@ -678,7 +679,7 @@ at both type-check and runtime.
 ```
 Define object stack with (the series of number items):
     Bind void to push, given (the number val):
-        Add val to one's items.
+        Insert val into one's items.
     Done.
 
     Bind number to pop:
@@ -704,12 +705,12 @@ evaluates to a series, including `one's field`, `alice's cards`, etc.
 The old pattern:
 ```
 Define my-items as one's items.    ← was required; now unnecessary
-Add val to my-items.
+Insert val into my-items.
 ```
 
 Is now simply:
 ```
-Add val to one's items.
+Insert val into one's items.
 ```
 
 Local aliases are still fine to write if you prefer them for clarity (e.g. when
@@ -725,7 +726,7 @@ In one's adjacency, the entry for n becomes fresh.          ← OK (map set)
 Define val as the entry for key in one's adjacency.         ← OK (map read)
 If one's cache has a key for key:                           ← OK (map check)
 
-Add card to one's cards.                                    ← OK (series add)
+Insert card into one's cards.                                    ← OK (series add)
 Remove first item from one's cards.                         ← OK (series remove)
 item i of one's cards becomes updated.                      ← OK (series set)
 the number of one's cards                                   ← OK (series length)
@@ -814,8 +815,8 @@ State the age of alice.    ← "30"  — bob is a deep copy; alice is unaffected
 ── Reference type (series, maps) ────────────────────────────────────────────────
 Define xs as a series of number with (1, 2, 3).
 Define ys as xs.
-Add 4 to ys.
-State the number of xs.    ← "4"   — ys aliases xs; Add mutated the shared list
+Insert 4 into ys.
+State the number of xs.    ← "4"   — ys aliases xs; Insert mutated the shared list
 ```
 
 The same rule applies when passing arguments to functions and returning values.
@@ -1039,7 +1040,7 @@ addressable target — a variable or field reference (`my-series`, `one's cards`
 (e.g. a number) is a **static type error**:
 
 ```
-Add 1 to (x + y).   ← TYPE ERROR: (x + y) is not a series
+Insert 1 into (x + y).   ← TYPE ERROR: (x + y) is not a series
 ```
 
 ### Map operations — all accept IExpression

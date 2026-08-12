@@ -291,7 +291,7 @@ public class PipelineChannelTests : PipelineTestBase
                 Have rabbit start a task as producer:
                     Define xs as a series of text with ("p", "q").
                     Send xs through ch.
-                    Add "MUT" to xs.
+                    Insert "MUT" into xs.
                     Close ch.
                 Done.
                 Have rabbit start a task as consumer:
@@ -323,7 +323,7 @@ public class PipelineChannelTests : PipelineTestBase
                     Define ns as a series of number with (1, 2, 3).
                     Define b as a new bundle { the label "first", the nums ns }.
                     Send b through ch.
-                    Add 999 to ns.
+                    Insert 999 into ns.
                     Close ch.
                 Done.
                 Have rabbit start a task as consumer:
@@ -410,10 +410,10 @@ public class PipelineChannelTests : PipelineTestBase
                 Have rabbit start a task as list-producer:
                     Define inner as a series of number with (10, 20, 30).
                     Define outer as a series of series of number with ().
-                    Add inner to outer.
+                    Insert inner into outer.
                     Send outer through ch-list.
-                    Add 999 to inner.
-                    Add (a series of number with (7, 8, 9)) to outer.
+                    Insert 999 into inner.
+                    Insert (a series of number with (7, 8, 9)) into outer.
                     Close ch-list.
                 Done.
                 Have rabbit start a task as map-producer:
@@ -421,7 +421,7 @@ public class PipelineChannelTests : PipelineTestBase
                     Define data as a map from text to series of number with ().
                     In data, the entry for "batch" becomes batch.
                     Send data through ch-map.
-                    Add 999 to batch.
+                    Insert 999 into batch.
                     Close ch-map.
                 Done.
                 Have rabbit start a task as list-consumer:
@@ -680,12 +680,12 @@ public class PipelineChannelTests : PipelineTestBase
         const string src = """
             Pull a rabbit.
                 Define xs as a series of number with (1, 2, 3).
-                Add 4 to xs.
+                Insert 4 into xs.
                 Pull a rabbit.
                     Define ys as a series of number with (10, 20).
-                    Add 30 to ys.
+                    Insert 30 into ys.
                     For each y in ys, repeat:
-                        Add y to xs.
+                        Insert y into xs.
                     Done.
                 Done.
                 For each x in xs, repeat:
@@ -833,17 +833,17 @@ public class PipelineChannelTests : PipelineTestBase
         const string src = """
             Pull a rabbit.
                 Define words as "alpha,beta,gamma,delta" split by ",".
-                Add "epsilon" to words.
+                Insert "epsilon" into words.
                 For each w in words, repeat:
                     State w in uppercase.
                 Done.
                 Define people as a series with (a record with (the name "Alice", the age 30)).
-                Add a record with (the name "Bob", the age 25) to people.
+                Insert a record with (the name "Bob", the age 25) into people.
                 For each p in people, repeat:
                     State the name of p.
                 Done.
                 Define grid as a series with (a series with (1, 2), a series with (3, 4, 5)).
-                Add a series with (6) to grid.
+                Insert a series with (6) into grid.
                 For each row in grid, repeat:
                     State the number of row.
                 Done.

@@ -92,7 +92,7 @@ public class PipelineClosureTests : PipelineTestBase
             Bind void to test:
                 Define xs as a series of number with (1, 2, 3).
                 Define f as a function given (the number x): Return x + the number of xs. Done.
-                Add 99 to xs.
+                Insert 99 into xs.
                 State cast f on (10).
             Done.
             Cast test.

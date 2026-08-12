@@ -19,7 +19,7 @@ public class PipelineSeriesTests : PipelineTestBase
         const string src = """
             Pull a rabbit.
                 Define xs as a series of number with (1, 2, 3).
-                Add 4 to xs.
+                Insert 4 into xs.
                 For each x in xs, repeat:
                     State x.
                 Done.
@@ -94,11 +94,11 @@ public class PipelineSeriesTests : PipelineTestBase
         const string src = """
             Pull a rabbit.
                 Define xs as a series of number with (1, 2, 3, 4).
-                Add 5 to xs.
-                Add 6 to xs.
-                Add 7 to xs.
-                Add 8 to xs.
-                Add 9 to xs.
+                Insert 5 into xs.
+                Insert 6 into xs.
+                Insert 7 into xs.
+                Insert 8 into xs.
+                Insert 9 into xs.
                 State the number of xs.
                 State the last of xs.
             Done.
@@ -112,7 +112,7 @@ public class PipelineSeriesTests : PipelineTestBase
         const string src = """
             Pull a rabbit.
                 Define xs as a series of number with (2, 3).
-                Add 1 to the start of xs.
+                Insert 1 into the start of xs.
                 For each x in xs, repeat:
                     State x.
                 Done.

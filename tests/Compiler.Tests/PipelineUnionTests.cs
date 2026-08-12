@@ -66,8 +66,8 @@ public class PipelineUnionTests : PipelineTestBase
         // op for free: Add, Add-to-start, the number of, ordinal access, Remove.
         const string src = """
             Define stuff as a catalogue of (number or text) with (1, "two").
-            Add 3 to stuff.
-            Add "four" to the start of stuff.
+            Insert 3 into stuff.
+            Insert "four" into the start of stuff.
             State the number of stuff.
             Define f as the first of stuff.
             If f is a text, State "first=" joined to f.
@@ -118,8 +118,8 @@ public class PipelineUnionTests : PipelineTestBase
     {
         const string src = """
             Define items as a catalogue of ((series of number) or (series of text)) with ().
-            Add a series of text with () to items.
-            Add a series of number with () to items.
+            Insert a series of text with () into items.
+            Insert a series of number with () into items.
             For each item in items, repeat:
                 If item is a series of number:
                     State "matched: series of number".
@@ -149,7 +149,7 @@ public class PipelineUnionTests : PipelineTestBase
     {
         string src = $"""
             Define items as a catalogue of ((series of number) or (series of text)) with ().
-            Add {expr} to items.
+            Insert {expr} into items.
             For each item in items, repeat:
                 If item is a series of number, State "number".
                 Otherwise, State "text".

@@ -251,7 +251,7 @@ public class SemanticTokenTests
             Done.
 
             Define pile as a series of card.
-            Add a new card { the rank "A" } to pile.
+            Insert a new card { the rank "A" } into pile.
             Define box as a new deck { the cards pile }.
             Define got as Cast top on (box).
             State got's rank.

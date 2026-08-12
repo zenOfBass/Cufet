@@ -59,10 +59,10 @@ public class PipelineLanguageTests : PipelineTestBase
             Bind overloading +, given (the lhs is a basket, the rhs is a basket):
                 Define merged as a series of text with ().
                 For each i in lhs's items, repeat:
-                    Add i to merged.
+                    Insert i into merged.
                 Done.
                 For each j in rhs's items, repeat:
-                    Add j to merged.
+                    Insert j into merged.
                 Done.
                 Return a new basket { the label lhs's label joined to "+" joined to rhs's label, the items merged }.
             Done.
@@ -663,7 +663,7 @@ public class PipelineLanguageTests : PipelineTestBase
         const string src = """
             Define collected as a series of number with ().
             For each n in range 5 to 1 counting by 2, repeat:
-                Add n to collected.
+                Insert n into collected.
             Done.
             State collected.
             State range 5 to 1 counting by 2.

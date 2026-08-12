@@ -69,9 +69,9 @@ public class PipelineBooksTests : PipelineTestBase
         // (Bob before Cy). A stable sort (not qsort) is required to match the interpreter's OrderBy.
         const string src = """
             Define party as a series of records like (the text name, the number age).
-            Add a record with (the name "Bob", the age 30) to party.
-            Add a record with (the name "Ann", the age 25) to party.
-            Add a record with (the name "Cy", the age 30) to party.
+            Insert a record with (the name "Bob", the age 30) into party.
+            Insert a record with (the name "Ann", the age 25) into party.
+            Insert a record with (the name "Cy", the age 30) into party.
             State party sorted by age.
             State party sorted by name in reverse.
             """;
@@ -213,10 +213,10 @@ public class PipelineBooksTests : PipelineTestBase
                 Define tq as a series of text with ("b", "a", "b", "c", "a").
                 State cast collections's unique of (tq).
                 Define party as a series of records like (the text name, the number age).
-                Add a record with (the name "Bob", the age 30) to party.
-                Add a record with (the name "Ann", the age 25) to party.
-                Add a record with (the name "Bob", the age 30) to party.
-                Add a record with (the name "Ann", the age 26) to party.
+                Insert a record with (the name "Bob", the age 30) into party.
+                Insert a record with (the name "Ann", the age 25) into party.
+                Insert a record with (the name "Bob", the age 30) into party.
+                Insert a record with (the name "Ann", the age 26) into party.
                 State cast collections's unique of (party).
             Done.
             """;

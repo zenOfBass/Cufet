@@ -305,8 +305,8 @@ public class PipelineTextFailureTests : PipelineTestBase
     {
         const string src = """
             Define words as a series with ("banana", "apple", "cherry").
-            Add "date" to words.
-            Add "acai" to the start of words.
+            Insert "date" into words.
+            Insert "acai" into the start of words.
             State words.
             State item 2 of words.
             State the number of words.
@@ -328,7 +328,7 @@ public class PipelineTextFailureTests : PipelineTestBase
             Define object point with (the number x, the number y).
             Define pts as a series with (a new point { the x 1, the y 2 }, a new point { the x 3, the y 4 }).
             State pts.
-            Add a new point { the x 5, the y 6 } to pts.
+            Insert a new point { the x 5, the y 6 } into pts.
             For each p in pts, repeat:
                 State the x of p.
             Done.
@@ -348,7 +348,7 @@ public class PipelineTextFailureTests : PipelineTestBase
         const string src = """
             Define grid as a series with (a series with (1, 2, 3), a series with (4, 5, 6)).
             State grid.
-            Add a series with (7, 8, 9) to grid.
+            Insert a series with (7, 8, 9) into grid.
             State the number of grid.
             For each row in grid, repeat:
                 State the number of row.

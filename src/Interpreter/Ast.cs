@@ -46,7 +46,7 @@ public sealed record SeriesLength(IExpression Series, int Line, int Column) : IE
 // Add X to series (append: AfterIndex=null, ToStart=false)
 // Add X to the start (prepend: AfterIndex=null, ToStart=true)
 // Add X after position (insert: AfterIndex=expr, ToStart=false)
-public sealed record SeriesAddStatement(
+public sealed record SeriesInsertStatement(
     IExpression Value,
     IExpression Series,
     IExpression? AfterIndex,

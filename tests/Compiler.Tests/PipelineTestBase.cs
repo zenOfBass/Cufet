@@ -291,18 +291,18 @@ public abstract class PipelineTestBase
             Seed the chance with 42.
             Define s1 as a series of number with ().
             For each n in the range 1 to 5, repeat:
-                Add (a random number from 1 to 1000000) to s1.
+                Insert (a random number from 1 to 1000000) into s1.
             Done.
             Seed the chance with 42.
             Define s2 as a series of number with ().
             For each n in the range 1 to 5, repeat:
-                Add (a random number from 1 to 1000000) to s2.
+                Insert (a random number from 1 to 1000000) into s2.
             Done.
             If s1 is s2, State "seed self-consistent PASS". Otherwise, State "seed self-consistent FAIL".
             Define party as a series of records like (the text name, the number age).
-            Add a record with (the name "Ann", the age 25) to party.
-            Add a record with (the name "Bob", the age 30) to party.
-            Add a record with (the name "Cy", the age 35) to party.
+            Insert a record with (the name "Ann", the age 25) into party.
+            Insert a record with (the name "Bob", the age 30) into party.
+            Insert a record with (the name "Cy", the age 35) into party.
             Define shp as randomly shuffled party.
             If (the number of shp) is 3, State "record-shuffle PASS". Otherwise, State "record-shuffle FAIL".
         Done.

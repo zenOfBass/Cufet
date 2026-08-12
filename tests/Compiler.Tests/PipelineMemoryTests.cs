@@ -55,7 +55,7 @@ public class PipelineMemoryTests : PipelineTestBase
         const string intoSeries = """
             Define bag as a series of text with ().
             Pull a rabbit.
-                Add ("a" joined to "b") to bag.
+                Insert ("a" joined to "b") into bag.
             Done.
             State bag.
             """;                       // also covers the CONTAINER's own growth realloc
@@ -72,7 +72,7 @@ public class PipelineMemoryTests : PipelineTestBase
         const string intoCatalogue = """
             Define keeper as a catalogue of (number or text) with (0).
             Pull a rabbit.
-                Add ("a" joined to "b") to keeper.
+                Insert ("a" joined to "b") into keeper.
             Done.
             For each k in keeper, repeat:
                 State k.
@@ -90,8 +90,8 @@ public class PipelineMemoryTests : PipelineTestBase
             Define keeper as a record with (the lines (a series of text with ("z")), the tag "outer").
             Pull a rabbit.
                 Define built as a series of text with ().
-                Add ("x" joined to "1") to built.
-                Add ("y" joined to "2") to built.
+                Insert ("x" joined to "1") into built.
+                Insert ("y" joined to "2") into built.
                 keeper becomes a record with (the lines built, the tag ("t" joined to "ag")).
             Done.
             State the tag of keeper.
@@ -239,7 +239,7 @@ public class PipelineMemoryTests : PipelineTestBase
             Bind number to make:
                 Define nums as a series of number with (1, 2, 3).
                 Define f as a function: Return the number of nums. Done.
-                Add 99 to nums.
+                Insert 99 into nums.
                 Return cast f on ().
             Done.
             State cast make.
