@@ -118,16 +118,45 @@ Ordered by what unblocks what, not by size. Two framings set the order:
     Until it lands, the limit is documented for readers in REFERENCE's text chapter, where a user
     who expects `é → É` on both backends will actually meet it.
 
+5. **The runtime as a compiled unit, not 1500 lines pasted into every file.** Today the C runtime
+   is emitted inline into each generated program. That is the direct cause of a recurring bug
+   class: a symbol emitted above its own declaration.
+
+   ★ **Measured on 2026-08-12 — three defects in one session, all the same shape.** A shared
+   constant of series type emitted `static cser_0* cv_suits;` two lines above
+   `typedef struct cser_0_s cser_0;`. `cufet_bits_at_width` was placed above `cufet_dec_to_dbl`,
+   which it calls. A top-level lambda had to be hoisted to file scope by hand so functions could
+   reach it. Each was found by gcc rather than by a test, and each was fixed by moving code rather
+   than by fixing a rule — which is the tell that the rule is missing.
+
+   **Emit the runtime as its own `.c`, compile it once, cache the `.o`.** Not a prebuilt
+   `libcufet.a`: shipping a binary would trade away the property that makes the toolchain simple —
+   *gcc is the only requirement* — and would break the arch-neutrality that makes `emit-c` useful
+   for cross-toolchain builds. The source stays the artifact; only the build is incremental.
+
+   **What it buys.** The ordering class disappears, because the emitted file no longer contains the
+   definitions it depends on. `emit-c` output becomes *the program* rather than the program plus a
+   runtime, which is most of what makes that command worth having. Every `cufet build` stops
+   recompiling the runtime. And it is the one piece of work any future backend change would need
+   anyway, so it buys optionality for free.
+
+   **Settle before building:** whether the `_usesX` gating survives (a program with no concurrency
+   currently emits no pthread code at all) or gives way to one runtime with dead-strip; and where
+   the cached object lives so that a clean checkout still builds with nothing but gcc.
+
+   Pairs with a **declaration prologue** for the program's own symbols, which closes the rest of
+   the class. Neither is a language change; both are the emitter learning to emit in two passes.
+
 ### Tier 2 — the design mountains
 
 All need a design session before they can be ordered against anything. They are here because
 they are large, not because they are waiting — except the formatter, which is genuinely
 blocked by the inline forms in Tier 1.
 
-5. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+6. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
-6. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
+7. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
    container holds one concrete type or fakes it with an open union.
 
    ★ **The syntax already exists.** `a series of number`, `a map from text to number` — a
@@ -136,7 +165,7 @@ blocked by the inline forms in Tier 1.
    chosen: monomorphization, the same technique interface parameters use today, with **interfaces as
    the constraint mechanism** rather than a new concept.
 
-   **Do it AFTER `unto` on interfaces** (item 4). Default methods may absorb enough of the pressure
+   **Do it AFTER `unto` on interfaces** (item 1). Default methods may absorb enough of the pressure
    that generics can be scoped smaller and aimed at cases that are known rather than guessed.
 
    ⚠ **The cost lands on the language's best asset.** Cufet's distinguishing feature is errors that
@@ -160,7 +189,7 @@ blocked by the inline forms in Tier 1.
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-7. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+8. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -198,7 +227,7 @@ blocked by the inline forms in Tier 1.
    suspend and resume need compiler and runtime support. (The naming is Turing's — the ACE design
    used *bury* and *unbury* for subroutine linkage.)
 
-8. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
+9. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
     briefly a linter rule and is not one. Both tools would need the same "how large is large"
     threshold, and one number owned in two places is one number that drifts. The severity settles
     it too: every other linter rule flags something a tool cannot fix for you — nesting you have to
@@ -224,14 +253,14 @@ blocked by the inline forms in Tier 1.
 
 ### Tier 3 — modules, strictly in this order
 
-9. **The `module` interface.** A named interface defining the contract for any loadable thing.
+10. **The `module` interface.** A named interface defining the contract for any loadable thing.
     It comes first because it is the stable seam everything else in this tier depends on, and it
     is buildable well before the loader — which means the loader can arrive later without
     churning what already uses a book.
-10. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+11. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-11. **What a book exports.** Every member of a book is public API, permanently, because there is
+12. **What a book exports.** Every member of a book is public API, permanently, because there is
     no way to mark one internal. It does not bite yet — the bundled three are built in and you
     cannot write a book — but the moment the loader below lands, a book author has no way to say
     *this is my helper, do not call it*.
@@ -245,7 +274,7 @@ blocked by the inline forms in Tier 1.
     the book, so the boundary is *what a book hands out* — the object question is a different and
     much weaker one, since within a file a visibility marker is a comment with ceremony attached.
 
-12. **A package manager for books.**
+13. **A package manager for books.**
 
 ### Tier 4 — Cufet in Cufet
 
@@ -255,7 +284,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-13. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+14. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -263,7 +292,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-14. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
+15. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
@@ -271,7 +300,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-15. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+16. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
@@ -391,6 +420,40 @@ indistinguishable from having forgotten.
   carefully. "Name your lookups" covers the need meanwhile.
 
 ### Types and objects
+
+- **★ Enums — DECLINED. A closed union already is one, and a stronger one.** The
+  property worth having is not the syntax, it is that the compiler proves every case is handled,
+  and `Judge` over a closed union proves exactly that: `Otherwise` becomes optional and a missing
+  case is a static error. Adding enums would be a second closed-set mechanism doing what the first
+  already does, and it would fork `Judge` — some closed sets unions, some enums, two stories about
+  exhaustiveness instead of one. This works today:
+
+  ```
+  Define object red with ().
+  Define object green with ().
+  Define object blue with ().
+
+  Bind text to name-of, given (the (red or green or blue) c):
+      Judge c, where it is:
+          A red, return "red".
+          A green, return "green".
+          A blue, return "blue".
+      Done.
+  Done.
+  ```
+
+  Three real gaps remain, and each is an addition to UNIONS rather than a reason for a new
+  construct. Recorded so the enum question does not have to be re-argued to reach them:
+
+  - **`Define object red.` is a parse error** — a case that carries nothing still needs
+    `with ()`, and `a new green` still needs `{ }`. This is the friction that would make someone
+    ask for enums in the first place, and it is a parser tweak rather than a feature. The
+    cheapest of the three by far.
+  - **A union cannot be asked for its members**, so there is no way to walk every case. Real,
+    occasionally missed. *Blocker:* what it would even return — the members are different types,
+    so a series of them is not a type the language can currently spell.
+  - **No ordinal or ordering.** Rarely what anyone actually wants from an enum, and easy to fake
+    with a method. Listed for completeness; would decline again.
 
 - **Reference-semantics opt-in.** Objects and map values are value-typed. An explicit way to
   ask for shared semantics has no syntax. *Blocker:* its own design session; it interacts with
