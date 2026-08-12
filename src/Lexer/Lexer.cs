@@ -143,6 +143,8 @@ public sealed class Lexer
             "item"      => TokenType.Item,
             "of"        => TokenType.Of,
             "number"    => TokenType.NumberKw,
+            "increment" => TokenType.Increment,
+            "decrement" => TokenType.Decrement,
             "insert"    => TokenType.Insert,
             "into"      => TokenType.Into,
             "to"        => TokenType.To,

@@ -70,6 +70,8 @@ public sealed class Parser
             TokenType.Skip       => ParseSkipStatement(tok),
             TokenType.Item       => ParseSeriesSetStatement(),
             TokenType.Insert     => ParseSeriesInsertStatement(),
+            TokenType.Increment  => ParseIncrementStatement(),
+            TokenType.Decrement  => ParseIncrementStatement(),
             TokenType.Remove     => ParseSeriesRemoveStatement(),
             TokenType.For        => ParseForEachStatement(),
             TokenType.Bind       => PeekAfterCurrent() == TokenType.UnmakingKw
@@ -623,6 +625,62 @@ public sealed class Parser
         var tok = Consume(TokenType.One);
         SkipNoise();
         return ParsePossessiveSetStatement(new VariableReference("one", tok.Line, tok.Column));
+    }
+
+    // `Increment <target> by <amount>.` / `Decrement <target> by <amount>.`
+    //
+    // ★ Pure SUGAR, desugared right here into the assignment it stands for — `i becomes i + 1`
+    // or `one's tally becomes one's tally + 1`. There is no AST node, so the type checker, the
+    // interpreter and the compiler never learn the form exists and all three get it for free.
+    //
+    // 35% of the `becomes` statements in examples/ were `X becomes X + …`, and that repetition is
+    // where a typo hides — it hides WELL, because a line that is genuinely not self-referential
+    // (`The next-w becomes w + 1.`) is invisible among thirty-seven that are. Naming the target
+    // once makes the odd one out announce itself.
+    //
+    // The amount is an ARBITRARY expression: the corpus already needed
+    // `The total becomes total + item at (rr, cc) of board.`
+    //
+    // ⚠ The target is named twice in the desugaring, so it must be side-effect free. A plain name
+    // and a possessive chain both are; that is why those are the only two forms accepted.
+    private IStatement ParseIncrementStatement()
+    {
+        var verb = Advance();                       // Increment | Decrement
+        bool up  = verb.Type == TokenType.Increment;
+        SkipNoise();
+
+        // `one` is its own token rather than an Identifier, exactly as the assignment parser
+        // treats it — `Increment one's tally by 1.` is the form a method reaches for first.
+        var nameTok  = Peek().Type == TokenType.One ? Advance() : Consume(TokenType.Identifier);
+        var nameText = nameTok.Type == TokenType.One ? "one" : nameTok.Lexeme;
+        var target   = new VariableReference(nameText, nameTok.Line, nameTok.Column);
+        SkipNoise();
+
+        string? member = null;
+        if (Peek().Type == TokenType.Possessive)
+        {
+            Advance();
+            SkipNoise();
+            member = Advance().Lexeme;              // field name — any word token
+            SkipNoise();
+        }
+
+        Consume(TokenType.By);
+        SkipNoise();
+        var amount = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+
+        int line = verb.Line, col = verb.Column;
+        var op = up ? TokenType.Plus : TokenType.Minus;
+
+        if (member == null)
+            return new BecomesStatement(nameText,
+                new BinaryExpression(target, op, amount, line, col), line, col);
+
+        var read = new PossessiveAccess(target, member, line, col);
+        return new PossessiveSetStatement(target, member,
+            new BinaryExpression(read, op, amount, line, col), line, col);
     }
 
     private PossessiveSetStatement ParsePossessiveSetStatement(IExpression baseExpr)
