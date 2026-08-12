@@ -1,10 +1,5 @@
 Define the digits as a series with (1, 2, 3, 4, 5, 6, 7, 8, 9, 10).
 Define evens as a series of numbers.
 
-For each digit in the digits, repeat:
-    If the digit % 2 is 0, if the digit is greater than 5, insert digit into evens.
-Done.
-
-For each even in the evens, repeat:
-    State the even.
-Done.
+For each digit in the digits, if digit % 2 is 0, if digit is greater than 5, insert digit into evens.
+For each even in the evens, repeat: state even. Done.
