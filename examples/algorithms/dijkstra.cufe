@@ -70,9 +70,7 @@ Cast add-edge on (adj, "D", "E", 2).
 
 State "Shortest distances from A (directed graph):".
 Define distances as cast dijkstra on (adj, "A").
-For each pair in distances, repeat:
-    State "{the key of pair} {the value of pair}".
-Done.
+For each pair in distances, state "{the key of pair} {the value of pair}".
 
 State "".
 Define da as (the entry for "A" in distances) but void is -1.
