@@ -786,6 +786,22 @@ public sealed class Parser
         {
             var comma = Advance();
             SkipNoise();
+
+            // ★ The two ways this goes wrong, both of which used to say only "expected expression".
+            // The rule is learnable; the failures were not, and a bare parser expectation teaches
+            // nobody which of the two forms they are actually in.
+            var opener = Peek();
+            if (opener.Type == TokenType.Return)
+                throw new ParseException(opener.Line, opener.Column,
+                    "an inline body gives its value back on its own, so 'Return' is not written here " +
+                    "— drop it, as in 'Bind number to double, given (the number n), n * 2.'. " +
+                    "Use the block form ': ... Done.' if the body needs more than one statement.");
+            if (IsStatementOpener(opener.Type))
+                throw new ParseException(opener.Line, opener.Column,
+                    $"'{opener.Lexeme}' opens a statement, but this body has to give a value back, " +
+                    "so its inline form is an EXPRESSION — the thing to return, with no 'Return'. " +
+                    "Use the block form ': ... Done.' to run statements.");
+
             _nestDepth++;
             var value = ParseExpression();
             _nestDepth--;
@@ -800,6 +816,17 @@ public sealed class Parser
         return body;
     }
 
+    // Tokens that unmistakably OPEN a statement. Used only to turn "expected expression" into a
+    // message that says which of the two inline forms the author is actually in. Deliberately not
+    // exhaustive: a word that is merely ambiguous belongs in the ordinary expression path, and a
+    // wrong guess here would replace a correct error with a confident wrong one.
+    private static bool IsStatementOpener(TokenType type) => type is
+        TokenType.State or TokenType.Insert or TokenType.Increment or TokenType.Decrement or
+        TokenType.Remove or TokenType.Replace or TokenType.Send or TokenType.Close or
+        TokenType.Write or TokenType.Append or TokenType.Open or TokenType.Define or
+        TokenType.Bind or TokenType.If or TokenType.While or TokenType.For or TokenType.Try or
+        TokenType.Judge or TokenType.Stop or TokenType.Skip or TokenType.GetKw or TokenType.SetKw;
+
     // A body that returns nothing (a void function, a setter, a destructor). The one thing is a
     // STATEMENT, because there is no value to imply a `Return` for.
     private IReadOnlyList<IStatement> ParseVoidBodyOrBlock()
@@ -809,9 +836,28 @@ public sealed class Parser
         {
             Advance();
             SkipNoise();
+            var opener = Peek();
             _nestDepth++;
-            var stmt = ParseStatement();
-            _nestDepth--;
+            IStatement stmt;
+            try
+            {
+                stmt = ParseStatement();
+            }
+            catch (ParseException ex) when (ex.Message.Contains("expected Becomes"))
+            {
+                // ★ An EXPRESSION where a statement belongs. Left alone this reported "expected
+                // Becomes", having decided the first word was an assignment target — an error that
+                // points at the wrong idea entirely.
+                throw new ParseException(opener.Line, opener.Column,
+                    "this body gives nothing back, so its inline form is a STATEMENT, not an " +
+                    "expression — something like 'State ...' or 'one's field becomes ...'. " +
+                    "A body that should return a value needs a return type: " +
+                    "'Bind number to ...' rather than 'Bind void to ...'.");
+            }
+            finally
+            {
+                _nestDepth--;
+            }
             return new[] { stmt };
         }
         Consume(TokenType.Colon);
@@ -834,10 +880,14 @@ public sealed class Parser
         {
             if (Peek().Type == TokenType.Repeat)
             {
-                Advance();
+                var repeatTok = Advance();
                 SkipNoise();
                 Consume(TokenType.Colon);
-                return ParseLoopBody();
+                // ★ Reported at the `repeat:` that opened the block, not at the end of the file.
+                // "expected Done, got Eof" pointed at the last line of the program, which is never
+                // where the mistake is — and the fix is usually to DROP `repeat:` rather than to
+                // add `Done.`, which the old message could not suggest.
+                return ParseLoopBody(repeatTok);
             }
             return new[] { ParseStatement() };
         }
@@ -934,7 +984,7 @@ public sealed class Parser
     // The BLOCK form of a loop body — reached only after `repeat:`, so it always ends in `Done.`
     // The single-statement form is ParseLoopBodyOrInline's other branch.
     // A closer on the same line is fine: "While ...: x becomes x + 1. Done."
-    private IReadOnlyList<IStatement> ParseLoopBody()
+    private IReadOnlyList<IStatement> ParseLoopBody(Token? opener = null)
     {
         var stmts = new List<IStatement>();
         while (true)
@@ -945,6 +995,11 @@ public sealed class Parser
         }
         if (stmts.Count == 0)
             throw new ParseException(Peek(), "at least one statement in loop body");
+        if (Peek().Type == TokenType.Eof && opener != null)
+            throw new ParseException(opener.Line, opener.Column,
+                "this 'repeat:' opens a block, and the file ended before its 'Done.'. " +
+                "Either close it with 'Done.', or — if the body is a single statement — drop " +
+                "'repeat:' entirely and write the inline form: 'For each n in items, State n.'");
         Consume(TokenType.Done);
         Consume(TokenType.Dot);
         return stmts;

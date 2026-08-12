@@ -240,4 +240,60 @@ public class PipelineInlineFormTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("6\n7\n10\n1\n2\ndone", Interpret(src));
     }
+
+    // ── The failures, which are where a form like this is actually judged ──
+    //
+    // ★ The rule is learnable; the errors were not. Every one of these used to be a bare parser
+    // expectation — "expected expression, got Return" — and one of them ("expected Becomes")
+    // pointed at the wrong idea entirely, having decided the first word was an assignment target.
+    // A teaching language does its teaching here.
+
+    [Fact]
+    public void WritingReturnInAnInlineBody_SaysToDropIt()
+    {
+        const string src = """
+            Bind number to double, given (the number n), Return n * 2.
+            State cast double on (4).
+            """;
+        var ex = Assert.ThrowsAny<Exception>(() => Interpret(src));
+        Assert.Contains("gives its value back on its own", ex.Message);
+    }
+
+    [Fact]
+    public void AStatementWhereAValueBelongs_SaysTheBodyIsAnExpression()
+    {
+        const string src = """
+            Bind number to double, given (the number n), State n.
+            State cast double on (4).
+            """;
+        var ex = Assert.ThrowsAny<Exception>(() => Interpret(src));
+        Assert.Contains("opens a statement", ex.Message);
+        Assert.Contains("EXPRESSION", ex.Message);
+    }
+
+    [Fact]
+    public void AnExpressionWhereAStatementBelongs_SaysTheBodyIsAStatement()
+    {
+        // Previously "expected Becomes" — the parser had decided `w` was an assignment target.
+        const string src = """
+            Bind void to shout, given (the text w), w in uppercase.
+            Cast shout on ("hi").
+            """;
+        var ex = Assert.ThrowsAny<Exception>(() => Interpret(src));
+        Assert.Contains("STATEMENT, not an", ex.Message);
+        Assert.DoesNotContain("expected Becomes", ex.Message);
+    }
+
+    [Fact]
+    public void ARepeatWithNoDone_ReportsAtTheRepeat_NotAtTheEndOfTheFile()
+    {
+        const string src = """
+            Define items as a series of number with (1, 2).
+            For each n in items, repeat: State n.
+            """;
+        var ex = Assert.ThrowsAny<Exception>(() => Interpret(src));
+        // Line 2 is the loop. The old message reported line 3, column 1 — the end of the file.
+        Assert.Contains("Line 2", ex.Message);
+        Assert.DoesNotContain("got Eof", ex.Message);
+    }
 }
