@@ -281,7 +281,7 @@
         {
           "comment": "Statement verbs — the words that open a statement and say what it does. ★ 'output' and 'seed' are deliberately NOT in this list: they lex as identifiers, so a program may name a variable either one, and matching them case-insensitively here would repaint that variable as language syntax. The CAPITALISED spelling is handled by the rule below, and the lowercase one by the semantic-token pass.",
           "name": "keyword.control.statement.cufet",
-          "match": "(?<![\\w-])(?i:state|add|remove|replace|send|close|acknowledge|write|append|read|run|open|cast|pull|have|start)(?![\\w-])"
+          "match": "(?<![\\w-])(?i:state|insert|increment|decrement|remove|replace|send|close|acknowledge|write|append|read|run|open|cast|pull|have|start)(?![\\w-])"
         },
         {
           "comment": "Words that introduce a definition.",
@@ -345,7 +345,7 @@
 
     "function-word": {
       "comment": "Articles and prepositions, matched WITH NO NAME so they are consumed and left unscoped. This rule earns its place by running before #identifier: without it the catch-all below would claim 'the' and 'of' as variables and light up every line, which is the exact outcome the no-scope-for-function-words rule exists to prevent. Words that also carry structural weight ('unto', 'but', 'not') are keywords and are claimed earlier.",
-      "match": "(?<![\\w-])(?i:an|a|the|of|to|as|with|on|by|from|in|at|for|after|through|than|each)(?![\\w-])"
+      "match": "(?<![\\w-])(?i:an|a|the|of|to|as|with|on|by|from|into|in|at|for|after|through|than|each)(?![\\w-])"
     },
 
     "identifier": {
