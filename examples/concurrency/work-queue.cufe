@@ -61,9 +61,7 @@ Pull a rabbit.
             The got becomes the delivery from results.
         Done.
         Define actual-sum as 0.
-        For each r in received, repeat:
-            Increment actual-sum by r.
-        Done.
+        For each r in received, increment actual-sum by r.
         Define expected-sum as n * (n + 1).
         State "collector: received {the number of received} results".
         State "expected sum: {expected-sum}".
