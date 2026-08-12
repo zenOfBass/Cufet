@@ -15,9 +15,7 @@ Done.
 Bind void to solve, given (the series of number board, the number n):
     If the number of board is n:
         Define out as "".
-        For each queen in board, repeat:
-            The out becomes "{out} {queen converted to text} ".
-        Done.
+        For each queen in board, out becomes "{out} {queen converted to text} ".
         State "Solution: {out}".
         Return.
     Done.
