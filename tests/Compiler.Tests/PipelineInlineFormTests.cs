@@ -296,4 +296,59 @@ public class PipelineInlineFormTests : PipelineTestBase
         Assert.Contains("Line 2", ex.Message);
         Assert.DoesNotContain("got Eof", ex.Message);
     }
+
+    // ── The two constructs the first sweep missed ──
+    //
+    // Both were parsed by branches nowhere near the other body parsers: the consumer loop lives
+    // inside ParseForEachStatement behind a `from` check, and a task has its own statement parser
+    // entirely. Neither is reachable from the code the rest of this rule went through, which is
+    // exactly why they were missed — and why they need tests rather than trust.
+    //
+    // ⚠ INTERPRETER ONLY. Tasks, channels and pipe stages need pthreads, which mingw does not
+    // have, so these programs are Windows-skipped for the compiler in ExampleOracleTests. Holding
+    // them to the front end and the interpreter is the honest maximum here.
+
+    [Fact]
+    public void AConsumerLoop_TakesAnInlineStatementBody()
+    {
+        // Its header spends no comma — there is no `in <series>` clause — so the discriminator is
+        // the plain comma-versus-colon rule, not `repeat:`.
+        const string inline = """
+            Bind void to run-report, given (the series of number sums):
+                Bind void to emit-sums, for each s in sums, output s.
+                Bind void to keep-large, for each s from input, if s is greater than 20, output s.
+                Bind void to shout, for each s from input, state "large: {s converted to text}".
+                emit-sums | keep-large | shout.
+            Done.
+            Cast run-report on (a series of number with (5, 30, 40)).
+            """;
+        Assert.Equal("large: 30\nlarge: 40", Interpret(inline));
+    }
+
+    [Fact]
+    public void ATask_TakesAnInlineStatementBody_BecauseItDeclaresNoReturnType()
+    {
+        // ★ The one value-bearing body that CANNOT take the expression form. Every other one
+        // states its return type on the same line, and that declaration is what lets `Return` be
+        // implicit. A task's header says nothing — it may hand back a result or merely send on a
+        // channel — so its inline body is a statement and `return …` stays written out.
+        const string returns = """
+            Pull a rabbit.
+                Have rabbit start a task as batch-1, return 1 + 2 + 3 + 4 + 5.
+                Have rabbit start a task as batch-2, return 6 + 7 + 8 + 9 + 10.
+                State (the awaited result of batch-1) + (the awaited result of batch-2).
+            Done.
+            """;
+        Assert.Equal("55", Interpret(returns));
+
+        const string sends = """
+            Pull a rabbit.
+                Define nums as a channel of number.
+                Have rabbit start a task as producer, send 7 through nums.
+                State (the delivery from nums) but void is 0.
+                Close nums.
+            Done.
+            """;
+        Assert.Equal("7", Interpret(sends));
+    }
 }
