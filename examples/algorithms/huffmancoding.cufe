@@ -179,8 +179,7 @@ Bind void to play:
     Done.
     Define chars as the length of message.
     Define raw-bits as chars * 8.
-    State "packed to {total-bits converted to text} bits, 
-           versus {raw-bits converted to text} at a byte per character".
+    State "packed to {total-bits converted to text} bits, versus {raw-bits converted to text} at a byte per character".
 
     Define round-trip as cast decode on (packed, root).
     State "".
