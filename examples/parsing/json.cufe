@@ -23,9 +23,7 @@ Done.
 
 Bind number to skip-spaces, given (the text source, the number cursor):
     Define spot as cursor.
-    While cast char-at on (source, spot) is " ", repeat:
-        Increment spot by 1.
-    Done.
+    While cast char-at on (source, spot) is " ", repeat: increment spot by 1. Done.
     Return spot.
 Done.
 
