@@ -32,9 +32,7 @@ Pull a book on collections.
    State "in binary:   {mode converted to number converted to binary converted to text}".
 
    /* Testing a bit is `and` — non-zero means the bit was set. */
-   Bind fact to allows, given (the bits m, the bits flag):
-      Return (m and flag) is not 0o000.
-   Done.
+   Bind fact to allows, given (the bits m, the bits flag), (m and flag) is not 0o000.
 
    State "".
    State "owner may write:  {cast allows on (mode, owner-write) converted to text}".
