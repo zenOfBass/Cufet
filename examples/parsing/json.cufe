@@ -24,7 +24,7 @@ Done.
 Bind number to skip-spaces, given (the text source, the number cursor):
     Define spot as cursor.
     While cast char-at on (source, spot) is " ", repeat:
-        The spot becomes spot + 1.
+        Increment spot by 1.
     Done.
     Return spot.
 Done.
@@ -45,7 +45,7 @@ Bind parsed to parse-text, given (the text source, the number cursor):
     Define gathered as "".
     While cast char-at on (source, spot) is not "\"", repeat:
         The gathered becomes "{gathered}{cast char-at on (source, spot)}".
-        The spot becomes spot + 1.
+        Increment spot by 1.
     Done.
     Return a new parsed { the value cast make-leaf on ("str", 0, gathered), the cursor spot + 1 }.
 Done.
@@ -55,11 +55,11 @@ Bind parsed to parse-number, given (the text source, the number cursor):
     Define gathered as "".
     If cast char-at on (source, spot) is "-":
         The gathered becomes "-".
-        The spot becomes spot + 1.
+        Increment spot by 1.
     Done.
     While cast is-digit on (cast char-at on (source, spot)), repeat:
         The gathered becomes "{gathered}{cast char-at on (source, spot)}".
-        The spot becomes spot + 1.
+        Increment spot by 1.
     Done.
     Define amount as gathered converted to number but void is 0.
     Return a new parsed { the value cast make-leaf on ("num", amount, ""), the cursor spot }.

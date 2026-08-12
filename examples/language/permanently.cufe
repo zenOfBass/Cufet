@@ -42,10 +42,10 @@ Bind void to play:
     Define beaver as a new traveler { the name "Beaver", the weight 6, the member true, the crossings 0 }.
 
     Define collected as 0.
-    The collected becomes collected + cast hopper's cross.
-    The collected becomes collected + cast hopper's cross.
-    The collected becomes collected + cast wolf's cross.
-    The collected becomes collected + cast beaver's cross.
+    Increment collected by cast hopper's cross.
+    Increment collected by cast hopper's cross.
+    Increment collected by cast wolf's cross.
+    Increment collected by cast beaver's cross.
 
     For each who in a series of traveler with (hopper, wolf, beaver), repeat:
         Define crossing-word as "crossing" when who's crossings is 1, otherwise "crossings".

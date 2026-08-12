@@ -124,7 +124,7 @@ Bind text to as-line, given (the series of number ns):
     While i is less than the number of ns + 1, repeat:
         If i is greater than 1, the out becomes out joined to separator.
         The out becomes out joined to "{item i of ns}".
-        The i becomes i + 1.
+        Increment i by 1.
     Done.
     Return out.
 Done.
@@ -147,7 +147,7 @@ Pull a rabbit.
     Define i as 2.
     While i is less than the number of values + 1, repeat:
         Cast root's insert-value on (item i of values).
-        The i becomes i + 1.
+        Increment i by 1.
     Done.
 
     Define walked as a series of number.

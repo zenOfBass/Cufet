@@ -14,7 +14,7 @@ Bind fact to placeable, given (the matrix board, the number r, the number c, the
     While i is not greater than 9, repeat:
         If item at (r, i) of board is v, return false.
         If item at (i, c) of board is v, return false.
-        The i becomes i + 1.
+        Increment i by 1.
     Done.
     Define box-top as 7 when r is greater than 6, otherwise 4 when r is greater than 3, otherwise 1.
     Define box-left as 7 when c is greater than 6, otherwise 4 when c is greater than 3, otherwise 1.
@@ -23,9 +23,9 @@ Bind fact to placeable, given (the matrix board, the number r, the number c, the
         Define dc as 0.
         While dc is less than 3, repeat:
             If item at (box-top + dr, box-left + dc) of board is v, return false.
-            The dc becomes dc + 1.
+            Increment dc by 1.
         Done.
-        The dr becomes dr + 1.
+        Increment dr by 1.
     Done.
     Return true.
 Done.
@@ -43,13 +43,13 @@ Bind fact to solve, given (the matrix board):
                         If cast solve on (board), return true.
                         The item at (r, c) of board becomes 0.
                     Done.
-                    The v becomes v + 1.
+                    Increment v by 1.
                 Done.
                 Return false.
             Done.
-            The c becomes c + 1.
+            Increment c by 1.
         Done.
-        The r becomes r + 1.
+        Increment r by 1.
     Done.
     Return true.
 Done.
@@ -65,9 +65,9 @@ Bind matrix to board-from, given (the series of text rows):
                 Define v as ch converted to number but void is 0.
                 The item at (r, c) of board becomes v.
             Done.
-            The c becomes c + 1.
+            Increment c by 1.
         Done.
-        The r becomes r + 1.
+        Increment r by 1.
     Done.
     Return board.
 Done.
@@ -82,10 +82,10 @@ Bind void to print-board, given (the matrix board):
             If c is 4 or c is 7, the line becomes line joined to "|".
             Define v as item at (r, c) of board.
             The line becomes line joined to v converted to text.
-            The c becomes c + 1.
+            Increment c by 1.
         Done.
         State line.
-        The r becomes r + 1.
+        Increment r by 1.
     Done.
 Done.
 

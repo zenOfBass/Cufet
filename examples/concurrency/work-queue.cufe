@@ -12,7 +12,7 @@ Pull a rabbit.
         While job is not void, repeat:
             Define v as (job but void is 0).
             Send (v * 2) through results.
-            The count-1 becomes count-1 + 1.
+            Increment count-1 by 1.
             The job becomes the delivery from work.
         Done.
         State "worker-1: processed {count-1} items".
@@ -24,7 +24,7 @@ Pull a rabbit.
         While job is not void, repeat:
             Define v as (job but void is 0).
             Send (v * 2) through results.
-            The count-2 becomes count-2 + 1.
+            Increment count-2 by 1.
             The job becomes the delivery from work.
         Done.
         State "worker-2: processed {count-2} items".
@@ -36,7 +36,7 @@ Pull a rabbit.
         While job is not void, repeat:
             Define v as (job but void is 0).
             Send (v * 2) through results.
-            The count-3 becomes count-3 + 1.
+            Increment count-3 by 1.
             The job becomes the delivery from work.
         Done.
         State "worker-3: processed {count-3} items".
@@ -62,7 +62,7 @@ Pull a rabbit.
         Done.
         Define actual-sum as 0.
         For each r in received, repeat:
-            The actual-sum becomes actual-sum + r.
+            Increment actual-sum by r.
         Done.
         Define expected-sum as n * (n + 1).
         State "collector: received {the number of received} results".

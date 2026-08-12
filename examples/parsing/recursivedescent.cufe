@@ -26,7 +26,7 @@ Bind series of text to tokenize, given (the text src):
         If ch is " ", i becomes i + 1.
         Otherwise if ch is "+" or ch is "*" or ch is "(" or ch is ")":
             Insert ch into tokens.
-            The i becomes i + 1.
+            Increment i by 1.
         Done.
         Otherwise:
             Define num-start as i.

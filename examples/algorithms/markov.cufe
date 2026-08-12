@@ -28,7 +28,7 @@ Bind map from text to series of text to transitions-of, given (the series of tex
         Define bucket as the entry for bigram in transitions but void is fresh.
         Insert follower into bucket.
         In transitions, the entry for bigram becomes bucket.
-        The index becomes index + 1.
+        Increment index by 1.
     Done.
     Return transitions.
 Done.
@@ -48,7 +48,7 @@ Bind text to babble, given (the map from text to series of text transitions,
         The out becomes "{out} {pick}".
         The prev becomes curr.
         The curr becomes pick.
-        The steps becomes steps + 1.
+        Increment steps by 1.
     Done.
     Return out.
 Done.

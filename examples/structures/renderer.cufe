@@ -35,7 +35,7 @@ Bind text to render-block, given (the (heading or paragraph or quote or code-blo
             Define i as 1.
             While i is not greater than it's level, repeat:
                 The marks becomes "{marks}#".
-                The i becomes i + 1.
+                Increment i by 1.
             Done.
             Return "{marks} {it's title}".
         Done.

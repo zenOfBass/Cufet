@@ -19,7 +19,7 @@ Define the object deck with (the series of card cards):
             Define card-j as item j of one's cards.
             Item i of one's cards becomes card-j.
             Item j of one's cards becomes temp.
-            The i becomes i - 1.
+            Decrement i by 1.
         Done.
     Done.
 
@@ -55,7 +55,7 @@ While i is less than 6, repeat:
     Define drawn as cast deal on d.
     Define got as drawn but void is dummy.
     State "  {got's label}".
-    The i becomes i + 1.
+    Increment i by 1.
 Done.
 
 State "Cards remaining: {the count of d converted to text}".

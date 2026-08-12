@@ -42,7 +42,7 @@ Bind number to count-neighbors, given (the matrix board, the number r, the numbe
             If dr is 0 and dc is 0, skip.
             Define rr as cast wrap-index on (r + dr, the rows of board).
             Define cc as cast wrap-index on (c + dc, the columns of board).
-            The total becomes total + item at (rr, cc) of board.
+            Increment total by item at (rr, cc) of board.
         Done.
     Done.
     Return total.
@@ -106,7 +106,7 @@ Bind void to play:
         Cast render on (board).
         State "".
         The board becomes cast next-board on (board).
-        The g becomes g + 1.
+        Increment g by 1.
     Done.
 Done.
 

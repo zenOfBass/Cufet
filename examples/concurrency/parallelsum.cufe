@@ -20,7 +20,7 @@ Done.
 
 Define grand-total as 0.
 For each s in batch-results, repeat:
-    The grand-total becomes grand-total + s.
+    Increment grand-total by s.
 Done.
 State "Grand total (1..15): {grand-total converted to text}".
 

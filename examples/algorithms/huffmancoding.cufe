@@ -23,7 +23,7 @@ Bind map from text to number to frequencies, given (the text source):
             In counts, the entry for ch becomes old + 1.
         Done.
         Otherwise, in counts, the entry for ch becomes 1.
-        The i becomes i + 1.
+        Increment i by 1.
     Done.
     Return counts.
 Done.
@@ -108,11 +108,11 @@ Bind series of hcode to encode, given (the text source, the map from text to hco
                 Done.
                 Otherwise:
                     The acc becomes (acc shifted left by w) or pat.
-                    The fill becomes fill + w.
+                    Increment fill by w.
                 Done.
             Done.
         Done.
-        The i becomes i + 1.
+        Increment i by 1.
     Done.
     If started is true, insert a new hcode { the pattern acc, the width fill } into chunks.
     Return chunks.
@@ -137,7 +137,7 @@ Bind text to decode, given (the series of hcode chunks, the hnode root):
                 The out becomes out joined to node's symbol.
                 The node becomes root.
             Done.
-            The pos becomes pos + 1.
+            Increment pos by 1.
         Done.
     Done.
     Return out.
@@ -174,7 +174,7 @@ Bind void to play:
         Define pat-text as chunk's pattern converted to text.
         Define w-text as chunk's width converted to text.
         Define w as chunk's width.
-        The total-bits becomes total-bits + w.
+        Increment total-bits by w.
         State "  {pat-text} ({w-text} bits)".
     Done.
     Define chars as the length of message.

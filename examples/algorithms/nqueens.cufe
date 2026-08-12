@@ -7,7 +7,7 @@ Bind fact to is-safe, given (the series of number board, the number column):
         If other-column is column, return 1 = 0.
         If column - other-column is difference, return 1 = 0.
         If other-column - column is difference, return 1 = 0.
-        The counter becomes counter + 1.
+        Increment counter by 1.
     Done.
     Return 1 = 1.
 Done.
@@ -28,7 +28,7 @@ Bind void to solve, given (the series of number board, the number n):
             Cast solve on (board, n).
             Remove item (the number of board) from board.
         Done.
-        The column becomes column + 1.
+        Increment column by 1.
     Done.
 Done.
 

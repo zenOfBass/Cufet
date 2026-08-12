@@ -18,7 +18,7 @@ Bind text to extract-min, given (the series of pq-entry pq):
             The min-dist becomes (item i of pq)'s pq-dist.
             The min-idx becomes i.
         Done.
-        The i becomes i + 1.
+        Increment i by 1.
     Done.
     Define min-name as (item min-idx of pq)'s pq-name.
     Remove item min-idx from pq.
