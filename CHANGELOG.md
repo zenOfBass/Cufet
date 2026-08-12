@@ -8,6 +8,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Changed
+
+- **★ `Add <x> to <series>` is now `Insert <x> into <series>`.** Breaking; there is no alias.
+
+  ```
+  Insert 100 into scores.
+  Insert 100 into the start of scores.
+  Insert 100 after the second item of scores.
+  ```
+
+  `Add 1 to tally.` read as arithmetic when the elements were numbers, and `insert` is the verb
+  that actually covers all four positional forms. `into` rather than `to` because `in` is an
+  expression operator (`in uppercase`) — with `in` as the separator, `Insert word in uppercase in
+  words.` would have no readable boundary. `add` is a free identifier again; `insert` and `into`
+  are now reserved.
+
 ### Added
 
 - **★ Inline forms for every block construct — one rule.** A **comma** takes one thing; a **colon**

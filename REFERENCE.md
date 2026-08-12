@@ -978,10 +978,10 @@ State the number of scores.
 
 **Mutation:**
 ```
-Add 100 to scores.                         ← append
-Add 100 to the start of scores.            ← prepend
-Add 100 after the second item of scores.   ← insert after position
-Add 100 after item n of scores.
+Insert 100 into scores.                       ← append
+Insert 100 into the start of scores.          ← prepend
+Insert 100 after the second item of scores.   ← insert after position
+Insert 100 after item n of scores.
 
 Remove the first item from scores.         ← by position
 Remove item n from scores.
@@ -1145,7 +1145,7 @@ Define fleet as a series with (
     A record with (the make "Toyota", the year 2019)).
 
 Define inventory as a series of records like (the text make, the number year).
-Add a record with (the make "Ford", the year 2022) to inventory.
+Insert a record with (the make "Ford", the year 2022) into inventory.
 ```
 
 A populated series infers its shape from the elements; an empty one declares it
@@ -1815,7 +1815,7 @@ Three things fall out of the shape:
   was given — not a link to it. So this prints `after` then `before`:
 
   ```
-  Add kid to the children of parent.
+  Insert kid into the children of parent.
   The kid's label becomes "after".
   State kid's label.                                    ← after
   State the label of item 1 of the children of parent.  ← before
@@ -2052,8 +2052,8 @@ sort by a field with `sorted by the <field>`:
 Define object person with (the text name, the number age).
 
 Define folks as a series of person.
-Add a new person { the name "Ada", the age 36 } to folks.
-Add a new person { the name "Bo", the age 24 } to folks.
+Insert a new person { the name "Ada", the age 36 } into folks.
+Insert a new person { the name "Bo", the age 24 } into folks.
 
 For each p in folks sorted by the age, repeat:
     State p's name.
@@ -2691,7 +2691,7 @@ Pull a rabbit.
     For each n in scratch, repeat:
         The sum becomes sum + n.
     Done.
-    Add sum to totals.
+    Insert sum into totals.
 Done.
 
 State totals.        ← (15)
@@ -2858,7 +2858,7 @@ Define data as a series of number with (1, 2, 3).
 Define tally as 0.
 Pull a rabbit.
     Have rabbit start a task:
-        Add 99 to data.        ← REJECTED when compiled
+        Insert 99 into data.        ← REJECTED when compiled
         The tally becomes tally + 1.   ← REJECTED too, for the same reason
     Done.
 Done.
