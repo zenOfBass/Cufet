@@ -6518,15 +6518,34 @@ public class InterpreterTests
         Assert.Contains("not a defined object type", ex.Message);
     }
 
+    // `unto <interface>` used to be a static error. It is now how an interface supplies a DEFAULT,
+    // so this asserts the opposite of what it once did: the body is legal, and a conformer that
+    // writes no `greet` of its own still has one. See InterfaceDefaults for why the whole feature
+    // is a parser expansion — after it runs, the default is an ordinary method on `person`.
     [Fact]
-    public void Unto_InterfaceTargetIsStaticError()
+    public void Unto_InterfaceTargetSuppliesADefault()
     {
-        var ex = Assert.Throws<TypeException>(() => Run(
+        Assert.Equal("hi from the default", Run(
             "Define greeter as an interface for the void function greet.\n" +
             "Bind void to greet unto greeter:\n" +
-            "    State \"hi\".\n" +
-            "Done."));
-        Assert.Contains("is an interface, not an object type", ex.Message);
+            "    State \"hi from the default\".\n" +
+            "Done.\n" +
+            "Define object person with (the text name) and greeter.\n" +
+            "Define alice as a new person { the name \"Alice\" }.\n" +
+            "Cast greet on alice."));
+    }
+
+    // ★ A default with no conformer anywhere is legal and does nothing — the same as a Rust trait
+    // whose default no type implements. It is a contract's fallback, not a program on its own.
+    [Fact]
+    public void Unto_InterfaceDefaultWithNoConformer_IsHarmless()
+    {
+        Assert.Equal("still here", Run(
+            "Define greeter as an interface for the void function greet.\n" +
+            "Bind void to greet unto greeter:\n" +
+            "    State \"never runs\".\n" +
+            "Done.\n" +
+            "State \"still here\"."));
     }
 
     [Fact]

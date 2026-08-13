@@ -24,7 +24,7 @@ public sealed class Parser
             if (Peek().Type == TokenType.Eof) break;
             stmts.Add(ParseStatement());
         }
-        return new Program(stmts);
+        return new Program(InterfaceDefaults.Expand(stmts));
     }
 
     // Where every statement began, in source order, and whether the word it began with is acting as
