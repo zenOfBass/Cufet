@@ -49,26 +49,8 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 1. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
-2. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
-   tree, linked structure or wrapper cannot be looped over at all:
 
-   ```
-   For each n in b, repeat:      ← b holds bag objects.
-                                   It evaluates to bag objects, not a series.
-   ```
-
-   The workaround is to flatten into a series first, which pays full materialisation for a walk
-   that may happen once. An interface contract — hand back the next one, or void when done — closes
-   it with machinery the language already has.
-
-   ★ **Deliberately EXTERNAL iteration, not generators.** A generator that yields and suspends is a
-   coroutine, and coroutines belong to *the rabbit as a control-flow primitive* below; building
-   them here would be a second suspend-and-resume mechanism competing with the one that item exists
-   to unify, and would inherit that item's unanswered "which restriction?" question. This is only
-   method dispatch: no suspension, so no arena question about where paused state lives, and nothing
-   the two backends could disagree about.
-
-3. **The runtime as a compiled unit, not 1500 lines pasted into every file.** Today the C runtime
+2. **The runtime as a compiled unit, not 1500 lines pasted into every file.** Today the C runtime
    is emitted inline into each generated program. That is the direct cause of a recurring bug
    class: a symbol emitted above its own declaration.
 
