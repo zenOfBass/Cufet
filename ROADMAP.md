@@ -421,7 +421,58 @@ indistinguishable from having forgotten.
 
 ### Types and objects
 
-- **★ Enums — DECLINED. A closed union already is one, and a stronger one.** The
+- **★ A mutable character buffer — DESIGNED 2026-08-12, unscheduled.** `text` is an immutable
+  value, so building one in a loop is quadratic — `The out becomes out joined to node's symbol.` in
+  `huffmancoding.cufe` rebuilds the whole string every pass. This is its mutable companion, and it
+  lives in the `collections` book.
+
+  **The split is EASE OF USE versus FULL CONTROL**, which is a different axis from Rust's. Rust
+  splits `String` from `&str` because it has no runtime and ownership must be visible; that split
+  is forced. This one is chosen, and a user can reason about it at the moment they pick: `text` for
+  the common case, the buffer when you need to edit in place.
+
+  ### What it is
+
+  - **A mutable REFERENCE type**, region-allocated like a series or a map, freed with its rabbit.
+    ★ **Mutability is the whole distinction** — not byte access. That difference alone earns the
+    type; byte access was only ever a side effect of one storage choice.
+  - **Elements are characters (code points), stored FIXED-WIDTH internally** — four bytes each,
+    UTF-32 in the buffer, converted to UTF-8 when it becomes `text`. That buys O(1) `item n of`
+    and O(1)-plus-shift insert, and means no variable-width hazard exists *inside* the buffer at
+    all. The cost is 4× memory on a thing you build and discard, which is where that trade is
+    cheapest.
+  - **It follows COLLECTION conventions, not text ones.** `Insert`, `Remove`, `item n of`,
+    `the number of`, `For each`. Treat it like an array.
+  - **It converts to `text` by an explicit COPY.** The buffer lives on, independent. Not a
+    consuming move (the language has no move semantics and should not grow them for this) and not
+    a view (a `text` that changed under you would break the one thing `text` promises). The copy is
+    once at the end, so O(n²) becomes O(n).
+
+  ### What it deliberately does NOT get
+
+  - **No parity with `text`.** No `trimmed`, no interpolation holes, no raw-string concerns. The
+    moment it grows a parallel copy of text's API the split stops meaning anything and the reader
+    is back to "which one am I holding." Uppercase/lowercase are the plausible exceptions.
+  - **No byte-level access.** `bits` already owns the binary world — wire formats, encoding work.
+    Handing that job to a text-adjacent type is what forces "byte 5 or character 5?", and refusing
+    it is what keeps the type honest.
+  - **No zero-copy views into it**, since a view would be UTF-32 while `text` is UTF-8. Whether
+    that matters depends on whether the scanning job wants slices or just positions — open.
+
+  ### Why it matters here specifically
+
+  Text manipulation is not peripheral in a language whose whole surface is English. Five of the
+  29 examples are text processors — `recursivedescent`, `json`, `config`, `markov`, `wordfreq` —
+  and each hand-rolls its own scanning. `huffmancoding` is the one paying the quadratic build.
+
+  **Settle before building:** whether `State buf.` prints it the way `State` prints a series
+  (probably yes, and it covers most of what interpolation would have been for); and whether
+  scanning wants a cursor rather than bare indexing. ⚠ If uppercase/lowercase are included, they
+  are not a character-for-character map — German `ß` uppercases to `SS`, so the buffer grows. That
+  is the same length-changing problem the compiled backend must solve for `text` casing (Tier 1),
+  so the two are worth solving together even though they ship separately.
+
+- **★ Enums — DECLINED.- **★ Enums — DECLINED. A closed union already is one, and a stronger one.** The
   property worth having is not the syntax, it is that the compiler proves every case is handled,
   and `Judge` over a closed union proves exactly that: `Otherwise` becomes optional and a missing
   case is a static error. Adding enums would be a second closed-set mechanism doing what the first
