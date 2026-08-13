@@ -1955,6 +1955,13 @@ That is not an omission — it is what makes interfaces free. The argument at ev
 stay direct. **No vtables, no type tags, no runtime dispatch.** Polymorphism that could be stored
 would need a representation that travels with the value, which is the cost this design declines.
 
+**A default method (`Bind <type> to <name> unto <interface>`) does not change any of this.** The
+body is expanded into one ordinary method per conforming type before the type checker runs, so a
+default has a concrete receiver every time it is called and specialises per conformer exactly like
+a hand-written method. `one` inside a default is the *conformer*, never the interface — there is no
+value of interface type for it to be. A type's own method beats the default; two interfaces
+supplying the same defaulted name to one type is refused.
+
 **Hold a mixed group as a closed union and narrow it back.** The union says which types exist; the
 interface says what they must be able to do:
 

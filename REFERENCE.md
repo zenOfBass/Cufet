@@ -1630,6 +1630,46 @@ Done.
 Conformance **is a flat compile-time check, not subtyping** — no variance is
 introduced; objects do not become subtypes of one another.
 
+**Default methods.** An interface can supply a body as well as a signature, with
+`unto <interface>`. Every conforming type gets it, and a type that writes its own
+version wins:
+
+```
+Define shape as an interface for {
+    The number function area,
+    The text function describe
+}.
+
+Bind text to describe unto shape:                  ← every conformer gets this
+    Return "area {(cast area on one) converted to text}".
+Done.
+
+Define object square with (the number side) and shape.
+Bind number to area unto square:
+    Return one's side * one's side.
+Done.
+
+State cast describe on (a new square { the side 5 }).   → "area 25"
+```
+
+`square` never writes a `describe` and still has one. Inside a default, `one` is
+the *conforming object*, not the interface — so a default reaches that type's own
+fields and methods, and specialises per conformer. Call a contract method with
+`cast area on one`; `one's area` yields the method rather than calling it.
+
+- **A default satisfies conformance** — an interface's method list is what a
+  conformer ends up with, not what it must write.
+- **A type's own method beats the default**, whether nested, `unto`, or promoted
+  through an embedded type.
+- **Two interfaces supplying the same defaulted name to one type is refused**,
+  unless the type writes its own — which beats both.
+- **Interfaces do not conform to interfaces.** No hierarchy, deliberately.
+
+> **Note:** the default's body lives in its own `Bind … unto` block, which is
+> hoisted and may sit anywhere in the file — so reading the interface's method
+> list does not tell you which methods already have bodies. Putting defaults
+> next to their interface is a strong suggestion, not a rule.
+
 #### Methods defined outside the object body (`unto`)
 
 A method can be declared *outside* its object's definition — attached with
@@ -1658,9 +1698,11 @@ Done.
   greet` — indistinguishable at the call site from a nested method.
 - **Hoisted, order-independent** — the `unto` method may appear before or
   after `Define object <type>` in the file.
-- **Your own object types only.** `unto` on an undefined name, or on
-  something that isn't an object type (e.g. an interface), is a static
-  error. This is not foreign-type extension and not overloading.
+- **Your own object types and interfaces only.** `unto` on an undefined name
+  is a static error. This is not foreign-type extension and not overloading.
+  `unto <interface>` means something different — it supplies a *default* for
+  every conformer, described under [Interfaces](#interfaces-polymorphism)
+  above, rather than attaching a method to one type.
 - **Method names are unique per type, regardless of where declared.** A name
   clash between a nested method and an `unto` method (or between two `unto`
   methods) on the *same* type is a static error. The same name `unto`
@@ -2163,7 +2205,9 @@ Cufet has a static type checker that runs before execution. It catches:
 - Declaring a name already declared in the same scope
 - Declaring a name that exists in an enclosing scope without the `shadow` keyword
 - Using `Define a shadow x` when no outer `x` exists
-- `unto` naming an undefined type, or a non-object type (e.g. an interface)
+- `unto` naming an undefined type (an interface is fine — it supplies a default)
+- Two interfaces supplying the same defaulted method name to one type, unless
+  that type writes its own
 - A method name clash between a nested method and an `unto` method (or
   between two `unto` methods) on the same object type
 - Reassigning a `permanently` binding with `becomes`

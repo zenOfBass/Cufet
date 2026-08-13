@@ -8,6 +8,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+- **★ An interface can supply a DEFAULT method** — most of what traits give, with no new keyword
+  and no new construct. `Bind <type> to <name> unto <interface>` was a static error; it now gives
+  every conforming type that method.
+
+  ```
+  Bind text to describe unto shape:
+      Return "area {(cast area on one) converted to text}".
+  Done.
+  ```
+
+  A conformer that writes no `describe` still has one. Inside a default, `one` is the *conforming
+  object* — so a default reaches that type's own fields, and specialises per conformer.
+
+  **A default satisfies conformance**, so an interface's method list is what a conformer ends up
+  with rather than what it must write. A type's own method beats the default, whether nested,
+  `unto`, or promoted through an embedded type. Two interfaces supplying the same defaulted name
+  to one type is refused unless that type writes its own. Interfaces still do not conform to
+  interfaces.
+
+  Monomorphization is untouched: the defaults are expanded into ordinary per-conformer methods in
+  the parser, so the type checker, interpreter and code generator never learn the feature exists —
+  no vtable, no type tag, nothing relaxed.
+
 ### Fixed
 
 - **★ `in uppercase` / `in lowercase` are full Unicode on both backends.** `"héllo" in uppercase`

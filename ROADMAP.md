@@ -47,39 +47,9 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 1 — leverage
 
-1. **`unto` targeting an INTERFACE — default methods, which is most of what traits give.**
-
-   ```
-   Bind text to describe unto shape:        ← every conformer gets it
-       Return "a {one's name} of area {one's area converted to text}".
-   Done.
-   ```
-
-   ★ **It fits the locked monomorphization design without touching it.** Interface polymorphism
-   lives at exactly one position — the function parameter — and the argument is always a concrete
-   conformer at the call site. So a default method has a concrete receiver every time it is called
-   and specialises per conformer. No vtable, no type tag, nothing to relax.
-
-   **It needs no new concepts.** `InterfaceDefinition` already carries full method signatures, so a
-   default can be written against the contract (`one's area`). `unto` already exists. The current
-   refusal even names the extension point: *"'X' is an interface, not an object type — methods
-   can't be attached to it with 'unto'."*
-
-   **Chosen over a separate `trait` construct**, and over mixins: no trait state, which is the line
-   Rust draws too, and no new keyword to learn.
-
-   **Settle before building:**
-   - **Specialisation** — a type's own method beats the interface's default.
-   - **Conflict** — two interfaces supplying the same method name to one type must be refused, not
-     silently resolved.
-   - **Does a default satisfy conformance?** If `shape` requires `describe` *and* supplies one, must
-     a conformer still define it? Rust says no. That is the useful answer, but it turns "interface"
-     from *contract* into *contract with fallbacks* — decide it deliberately.
-   - **Interfaces conforming to interfaces** — start with no. That is where trait systems get deep.
-
-2. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+1. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
-3. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
+2. **`For each` over a user-defined type.** Today it walks core collections only — a user-defined
    tree, linked structure or wrapper cannot be looped over at all:
 
    ```
@@ -98,7 +68,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    method dispatch: no suspension, so no arena question about where paused state lives, and nothing
    the two backends could disagree about.
 
-4. **The runtime as a compiled unit, not 1500 lines pasted into every file.** Today the C runtime
+3. **The runtime as a compiled unit, not 1500 lines pasted into every file.** Today the C runtime
    is emitted inline into each generated program. That is the direct cause of a recurring bug
    class: a symbol emitted above its own declaration.
 
@@ -133,10 +103,10 @@ All need a design session before they can be ordered against anything. They are 
 they are large, not because they are waiting — except the formatter, which is genuinely
 blocked by the inline forms in Tier 1.
 
-5. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+4. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
-6. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
+5. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
    container holds one concrete type or fakes it with an open union.
 
    ★ **The syntax already exists.** `a series of number`, `a map from text to number` — a
@@ -145,8 +115,9 @@ blocked by the inline forms in Tier 1.
    chosen: monomorphization, the same technique interface parameters use today, with **interfaces as
    the constraint mechanism** rather than a new concept.
 
-   **Do it AFTER `unto` on interfaces** (item 1). Default methods may absorb enough of the pressure
-   that generics can be scoped smaller and aimed at cases that are known rather than guessed.
+   **Interface defaults shipped first, deliberately.** Re-scope this against what they absorbed
+   before committing to a size — some of the pressure for generics was really pressure for shared
+   behaviour, and that half now has an answer.
 
    ⚠ **The cost lands on the language's best asset.** Cufet's distinguishing feature is errors that
    name the line, the violation and the fix. Generic type errors are the worst errors in every
@@ -169,7 +140,7 @@ blocked by the inline forms in Tier 1.
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-7. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+6. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -207,7 +178,7 @@ blocked by the inline forms in Tier 1.
    suspend and resume need compiler and runtime support. (The naming is Turing's — the ACE design
    used *bury* and *unbury* for subroutine linkage.)
 
-8. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
+7. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
     briefly a linter rule and is not one. Both tools would need the same "how large is large"
     threshold, and one number owned in two places is one number that drifts. The severity settles
     it too: every other linter rule flags something a tool cannot fix for you — nesting you have to
@@ -233,14 +204,14 @@ blocked by the inline forms in Tier 1.
 
 ### Tier 3 — modules, strictly in this order
 
-9. **The `module` interface.** A named interface defining the contract for any loadable thing.
+8. **The `module` interface.** A named interface defining the contract for any loadable thing.
    It comes first because it is the stable seam everything else in this tier depends on, and it
    is buildable well before the loader — which means the loader can arrive later without
    churning what already uses a book.
-10. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
-    open-union representation is sound *because* the whole program compiles at once. Either
-    feature forces revisiting it.
-11. **What a book exports.** Every member of a book is public API, permanently, because there is
+9. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+   open-union representation is sound *because* the whole program compiles at once. Either
+   feature forces revisiting it.
+10. **What a book exports.** Every member of a book is public API, permanently, because there is
     no way to mark one internal. It does not bite yet — the bundled three are built in and you
     cannot write a book — but the moment the loader below lands, a book author has no way to say
     *this is my helper, do not call it*.
@@ -254,7 +225,7 @@ blocked by the inline forms in Tier 1.
     the book, so the boundary is *what a book hands out* — the object question is a different and
     much weaker one, since within a file a visibility marker is a comment with ceremony attached.
 
-12. **A package manager for books.**
+11. **A package manager for books.**
 
 ### Tier 4 — Cufet in Cufet
 
@@ -264,7 +235,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-13. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+12. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -272,7 +243,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-14. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
+13. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
@@ -280,7 +251,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-15. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+14. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
