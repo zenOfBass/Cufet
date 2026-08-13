@@ -353,6 +353,10 @@ public sealed class CodeGenerator
     // Set when an exact-decimal math function (floor/ceiling/round/absolute value) is used, so the
     // math runtime is emitted (only then). pi/e are baked as decimal literals, not runtime funcs.
     private bool _usesMath;
+    // Set when the program cases text (`in uppercase`/`in lowercase`), so the Unicode case table is
+    // emitted (only then). Worth gating: the table is ~11 KB of the ~1500-line runtime that is
+    // pasted into every generated file, and most programs never case anything.
+    private bool _usesCase;
     // Set when the program uses matrices (the collections book's introduced type), so the matrix
     // runtime is emitted (only then). A matrix is an arena reference type like series/maps.
     private bool _usesMatrix;
@@ -1054,8 +1058,9 @@ typedef struct { const char* message; const char* category; } CufetFailure;
 """;
 
     // Text runtime. Text is `const char*` and immutable — every operation allocates a fresh
-    // result in the current arena (freed at Done.); literals stay static. Case/trim/parse are
-    // ASCII/invariant (matching the interpreter for ASCII input).
+    // result in the current arena (freed at Done.); literals stay static. Trim/parse are
+    // ASCII/invariant (matching the interpreter for ASCII input); CASING IS NOT HERE — it needs a
+    // Unicode table, so it lives in the gated CaseRuntime below and is emitted only when used.
     private const string TextRuntime =
 """
 static const char* cufet_str_concat(const char* a, const char* b) {
@@ -1123,16 +1128,6 @@ static const char* cufet_str_edge(const char* s, int count, int from_start) {
     if (from_start) return cufet_str_substr(s, 0, cufet_u8_offset(s, c));
     int from_b = cufet_u8_offset(s, len - c);
     return cufet_str_substr(s, from_b, (int)strlen(s) - from_b);
-}
-static const char* cufet_str_upper(const char* s) {
-    size_t n = strlen(s); char* r = (char*)cufet_arena_alloc(n + 1);
-    for (size_t i = 0; i < n; i++) r[i] = (char)toupper((unsigned char)s[i]);
-    r[n] = '\0'; return r;
-}
-static const char* cufet_str_lower(const char* s) {
-    size_t n = strlen(s); char* r = (char*)cufet_arena_alloc(n + 1);
-    for (size_t i = 0; i < n; i++) r[i] = (char)tolower((unsigned char)s[i]);
-    r[n] = '\0'; return r;
 }
 static const char* cufet_str_trim(const char* s) {
     const char* start = s;
@@ -1219,6 +1214,115 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
 }
 
 """;
+
+    // Unicode casing runtime — emitted only when a program actually cases text (_usesCase), because
+    // the table is ~11 KB of source and the runtime is pasted into every generated file.
+    //
+    // ★ The numbers come from CaseTableData, the SAME table the interpreter reads. That is the whole
+    // point: casing used to be implemented twice — ToUpperInvariant here, C's per-byte toupper()
+    // there — so `"héllo" in uppercase` was HÉLLO interpreted and HéLLO compiled. Emitting the
+    // interpreter's own table means the two cannot disagree, rather than being tested for agreeing.
+    private static readonly string CaseRuntime = BuildCaseRuntime();
+
+    private static string BuildCaseRuntime()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("""
+/* ── Unicode case mapping ────────────────────────────────────────────────────────────────────────
+   Generated from src/Interpreter/CaseTableData.cs, which both backends read — see CaseTable.cs.
+
+   Each run is start/count/stride/delta: the `count` code points starting at `start`, spaced
+   `stride` apart, each map to themselves plus `delta`. Runs are sorted by start and their spans
+   never overlap, so the last run beginning at or before a code point is the only candidate and a
+   plain binary search suffices. Stride 2 pays for itself on Latin Extended-A, where upper and
+   lower alternate (Ā ā Ă ă …) and each parity forms a run.
+
+   The mapping is 1:1 in CODE POINTS for every one of them — this is simple case mapping, so `ß`
+   stays `ß` and no character ever becomes two. In BYTES it can still grow, by at most one per
+   character (the worst case is U+023F, two bytes, uppercasing to U+2C7E, three), which is why the
+   output buffer is sized at twice the input. */
+""");
+
+        EmitCaseRuns(sb, "cufet_case_upper", CaseTableData.UpperRuns);
+        EmitCaseRuns(sb, "cufet_case_lower", CaseTableData.LowerRuns);
+
+        sb.Append("""
+static int cufet_case_map(const int* runs, int nruns, int cp) {
+    int lo = 0, hi = nruns - 1, found = -1;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        if (runs[mid * 4] <= cp) { found = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    if (found < 0) return cp;
+    int start = runs[found * 4], count = runs[found * 4 + 1];
+    int stride = runs[found * 4 + 2], delta = runs[found * 4 + 3];
+    int offset = cp - start;
+    if (offset > (count - 1) * stride || offset % stride != 0) return cp;
+    return cp + delta;
+}
+/* Map every character of a UTF-8 string. Bytes that are not a well-formed sequence are copied
+   through untouched rather than replaced or rejected: casing is not the place to start refusing
+   text that every other text operation in the language accepts. */
+static const char* cufet_str_case(const char* s, const int* runs, int nruns) {
+    const unsigned char* p = (const unsigned char*)s;
+    size_t n = strlen(s);
+    char* r = (char*)cufet_arena_alloc(n * 2 + 1);   /* +1 byte per character, worst case */
+    size_t i = 0, o = 0;
+    while (i < n) {
+        unsigned char b = p[i];
+        int cp, width;
+        if (b < 0x80)                      { cp = b;             width = 1; }
+        else if ((b & 0xE0) == 0xC0 && i + 1 < n && (p[i+1] & 0xC0) == 0x80)
+                                           { cp = ((b & 0x1F) << 6) | (p[i+1] & 0x3F); width = 2; }
+        else if ((b & 0xF0) == 0xE0 && i + 2 < n && (p[i+1] & 0xC0) == 0x80 && (p[i+2] & 0xC0) == 0x80)
+                                           { cp = ((b & 0x0F) << 12) | ((p[i+1] & 0x3F) << 6) | (p[i+2] & 0x3F); width = 3; }
+        else if ((b & 0xF8) == 0xF0 && i + 3 < n && (p[i+1] & 0xC0) == 0x80 && (p[i+2] & 0xC0) == 0x80 && (p[i+3] & 0xC0) == 0x80)
+                                           { cp = ((b & 0x07) << 18) | ((p[i+1] & 0x3F) << 12) | ((p[i+2] & 0x3F) << 6) | (p[i+3] & 0x3F); width = 4; }
+        else                               { r[o++] = (char)b; i++; continue; }   /* malformed: pass through */
+
+        cp = cufet_case_map(runs, nruns, cp);
+        i += (size_t)width;
+        if (cp < 0x80) { r[o++] = (char)cp; }
+        else if (cp < 0x800) {
+            r[o++] = (char)(0xC0 | (cp >> 6));
+            r[o++] = (char)(0x80 | (cp & 0x3F));
+        } else if (cp < 0x10000) {
+            r[o++] = (char)(0xE0 | (cp >> 12));
+            r[o++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+            r[o++] = (char)(0x80 | (cp & 0x3F));
+        } else {
+            r[o++] = (char)(0xF0 | (cp >> 18));
+            r[o++] = (char)(0x80 | ((cp >> 12) & 0x3F));
+            r[o++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+            r[o++] = (char)(0x80 | (cp & 0x3F));
+        }
+    }
+    r[o] = '\0';
+    return r;
+}
+static const char* cufet_str_upper(const char* s) {
+    return cufet_str_case(s, cufet_case_upper, (int)(sizeof(cufet_case_upper) / sizeof(int) / 4));
+}
+static const char* cufet_str_lower(const char* s) {
+    return cufet_str_case(s, cufet_case_lower, (int)(sizeof(cufet_case_lower) / sizeof(int) / 4));
+}
+
+""");
+        return sb.ToString();
+    }
+
+    private static void EmitCaseRuns(StringBuilder sb, string name, int[] runs)
+    {
+        sb.AppendLine($"static const int {name}[] = {{   /* {runs.Length / 4} runs */");
+        for (int i = 0; i < runs.Length; i += 16)
+        {
+            var line = new StringBuilder("   ");
+            for (int j = i; j < Math.Min(i + 16, runs.Length); j += 4)
+                line.Append($" {runs[j],7},{runs[j + 1],5},{runs[j + 2],2},{runs[j + 3],7},");
+            sb.AppendLine(line.ToString());
+        }
+        sb.AppendLine("};");
+    }
 
     // File I/O runtime (sub-slice A): whole-file read/write + path checks. Results are arena-
     // allocated (text buffers, line arrays) and freed at Done. OS errors (errno) become Cufet
@@ -2382,6 +2486,9 @@ static void* cufet_pipe_stage(void* argp) {
 
         // ── Channel-of-T deep-copy helpers (need the series/map/record/object structs above) ──
         EmitChannelDeepCopy(sb);
+
+        // ── Unicode case table (only when the program cases text) ──
+        if (_usesCase) sb.AppendLine(CaseRuntime);
 
         // ── Exact-decimal math runtime (only when a math total function is used) ──
         if (_usesMath) sb.AppendLine(MathRuntime);
@@ -5836,7 +5943,7 @@ static void* cufet_pipe_stage(void* argp) {
         TextSubstringRange r  => $"cufet_str_range({EmitExpr(r.Text)}, cufet_to_int({EmitExpr(r.From)}), {(r.To != null ? $"cufet_to_int({EmitExpr(r.To)})" : "-1")}, {r.Line})",
         TextSubstringEdge e   => $"cufet_str_edge({EmitExpr(e.Text)}, cufet_to_int({EmitExpr(e.Count)}), {(e.FromStart ? "1" : "0")})",
         TextReplace rp        => $"cufet_str_replace({EmitExpr(rp.Text)}, {EmitExpr(rp.Old)}, {EmitExpr(rp.New)}, {rp.Line})",
-        TextCase tcs          => tcs.Uppercase ? $"cufet_str_upper({EmitExpr(tcs.Text)})" : $"cufet_str_lower({EmitExpr(tcs.Text)})",
+        TextCase tcs          => EmitTextCase(tcs),
         TextTrim tt           => $"cufet_str_trim({EmitExpr(tt.Text)})",
         TextSplit ts          => EmitTextSplit(ts),
         FileReadExpression fr => EmitFileRead(fr),
@@ -7070,6 +7177,15 @@ static void* cufet_pipe_stage(void* argp) {
     private string RangeStepGuard(string stepVar, int line) =>
         $"if (cufet_cmp({stepVar}, cufet_dec_from_ll(0)) == 0) cufet_raise(cufet_msgf(\"'counting by 0' never makes progress (line {line}).\")); " +
         $"if (cufet_cmp({stepVar}, cufet_dec_from_ll(0)) < 0) cufet_raise(cufet_msgf(\"the step in 'counting by' must be positive (line {line}).\")); ";
+
+    // Casing is the one text operation that needs a table, so it is also the one that has to
+    // announce itself — CaseRuntime is emitted only for programs that reach here.
+    private string EmitTextCase(TextCase tcase)
+    {
+        _usesCase = true;
+        var text = EmitExpr(tcase.Text);
+        return tcase.Uppercase ? $"cufet_str_upper({text})" : $"cufet_str_lower({text})";
+    }
 
     private string EmitTextSplit(TextSplit ts)
     {

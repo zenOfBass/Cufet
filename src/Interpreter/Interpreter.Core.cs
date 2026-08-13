@@ -1422,7 +1422,9 @@ public sealed partial class Interpreter
     private object EvaluateTextCase(TextCase tcase)
     {
         var text = (string)Evaluate(tcase.Text);
-        return (object)(tcase.Uppercase ? text.ToUpperInvariant() : text.ToLowerInvariant());
+        // CaseTable, not ToUpperInvariant: the compiled backend emits this same table, and reading
+        // one table is what keeps the two from disagreeing about `"héllo" in uppercase`.
+        return (object)(tcase.Uppercase ? CaseTable.ToUpper(text) : CaseTable.ToLower(text));
     }
 
     private object EvaluateTextTrim(TextTrim trim)
