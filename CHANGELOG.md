@@ -6,6 +6,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **★ `in uppercase` / `in lowercase` are full Unicode on both backends.** `"héllo" in uppercase`
+  was `HÉLLO` interpreted and `HéLLO` compiled — the emitted C cased one byte at a time, so
+  everything outside `A–Z` passed through. This was the last known divergence.
+
+  Both backends now read **one** generated table (`src/Interpreter/CaseTableData.cs`, from
+  `tools/gen-case-table.cs`) rather than casing text twice. Generating the C table from .NET would
+  have made them agree only at generation time, since the interpreter would still ask ICU at run
+  time; sharing the table makes drift impossible instead of detectable, and pins casing to a stated
+  Unicode version rather than to whichever .NET is installed.
+
+  Full coverage rather than a documented subset: the mapping run-length-encodes into 380 runs, so
+  carrying all 2,877 mappings is cheaper than any boundary would have been. The table is emitted
+  only into programs that actually case text.
+
+  Note this is *simple* case mapping, and strictly 1:1 — `ß` stays `ß`, the `ﬁ` ligature stays
+  whole, and invariant rules leave the Turkish pair `ı`/`İ` alone rather than picking a locale.
+
 ## [0.15.0] — 2026-08-12
 
 ### Changed

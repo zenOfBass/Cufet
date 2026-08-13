@@ -15,8 +15,8 @@ behaviour is made precise on both sides or the compiler refuses outright. The de
 exceptions are called out inline where they arise, and there are two kinds:
 **concurrency scheduling** (interpreted tasks are cooperative, compiled tasks are real OS
 threads — so no interleaving is specified), and a few genuinely **platform-owned** results
-(`power` with a fractional exponent may differ in its last digit, filesystem enumeration
-order, ASCII-versus-locale casing).
+(`power` with a fractional exponent may differ in its last digit, and filesystem
+enumeration order).
 
 **Maintenance:** every feature slice that adds a keyword, syntactic form, or
 constraint must update this document. The reserved-keyword list in §1 especially.

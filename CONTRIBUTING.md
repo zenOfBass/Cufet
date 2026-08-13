@@ -244,13 +244,20 @@ there is no single right answer to converge on: last-ULP differences in `pow`
 (`Math.Pow` *is* the platform libm), and filesystem enumeration order. Two well-defined
 behaviors differing is never in that category.
 
-> **Casing used to be on that list and should not have been.** `"héllo" in uppercase` is
-> `HÉLLO` interpreted and `HéLLO` compiled, because the emitted C carries no case table —
-> but Unicode says exactly what uppercasing `é` is, so the clause above excludes it by its
-> own last sentence. It was an exception covering a missing implementation. It is now a
-> numbered roadmap item, and the limit is documented in REFERENCE until it closes. Worth
-> remembering when adding to this list: "the backends differ" is not evidence that a
-> behaviour is undefined.
+> **Casing used to be on that list and should not have been.** `"héllo" in uppercase` was
+> `HÉLLO` interpreted and `HéLLO` compiled, because the emitted C carried no case table —
+> but Unicode says exactly what uppercasing `é` is, so the clause above excluded it by its
+> own last sentence. It was an exception covering a missing implementation, and it is now
+> closed: both backends read one generated table (`CaseTableData`, from
+> `tools/gen-case-table.cs`), so they cannot disagree rather than being tested for
+> agreeing. Worth remembering when adding to this list: "the backends differ" is not
+> evidence that a behaviour is undefined.
+>
+> ★ And note the shape of the fix, because it generalises. Generating the C table from
+> .NET would have made the two agree *at generation time* while the interpreter still
+> asked ICU at run time — a newer Unicode arriving with a runtime upgrade would silently
+> reopen the gap, and a test would only report it after it was already true. **Prefer a
+> single source both backends read over two implementations plus a drift test.**
 
 Two consequences for contributors:
 

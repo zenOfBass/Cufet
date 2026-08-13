@@ -98,27 +98,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    method dispatch: no suspension, so no arena question about where paused state lives, and nothing
    the two backends could disagree about.
 
-4. **Unicode casing in the compiled backend.** `"héllo" in uppercase` is `HÉLLO` interpreted and
-    `HéLLO` compiled. The emitted C has no case table, so anything outside `A–Z` / `a–z` passes
-    through unchanged, and the two backends knowingly disagree.
-
-    ★ **This is a divergence, not an exception, and it was filed as one for a while.**
-    CONTRIBUTING listed "ASCII-vs-locale casing" beside `pow`'s last ULP and filesystem
-    enumeration order — genuinely platform-owned things where no single right answer exists. But
-    that same clause ends *"two well-defined behaviours differing is never in that category,"* and
-    uppercasing `é` is well defined: Unicode says exactly what it is. The exception was covering a
-    missing implementation rather than a genuine ambiguity. Found by pinning
-    `examples/expected/json.expected`, which put a non-ASCII round trip under test for the first time.
-
-    **Settle before building:** how much of the table to carry. Full Unicode case mapping is large
-    and has locale-sensitive corners (Turkish dotless ı, German ß → SS, and the one-to-many
-    mappings generally). Latin-1 plus the common European ranges may be the right first cut — but
-    it must be a stated boundary with a documented edge, not a second silent gap.
-
-    Until it lands, the limit is documented for readers in REFERENCE's text chapter, where a user
-    who expects `é → É` on both backends will actually meet it.
-
-5. **The runtime as a compiled unit, not 1500 lines pasted into every file.** Today the C runtime
+4. **The runtime as a compiled unit, not 1500 lines pasted into every file.** Today the C runtime
    is emitted inline into each generated program. That is the direct cause of a recurring bug
    class: a symbol emitted above its own declaration.
 
@@ -153,10 +133,10 @@ All need a design session before they can be ordered against anything. They are 
 they are large, not because they are waiting — except the formatter, which is genuinely
 blocked by the inline forms in Tier 1.
 
-6. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+5. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
-7. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
+6. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
    container holds one concrete type or fakes it with an open union.
 
    ★ **The syntax already exists.** `a series of number`, `a map from text to number` — a
@@ -189,7 +169,7 @@ blocked by the inline forms in Tier 1.
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-8. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+7. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -227,7 +207,7 @@ blocked by the inline forms in Tier 1.
    suspend and resume need compiler and runtime support. (The naming is Turing's — the ACE design
    used *bury* and *unbury* for subroutine linkage.)
 
-9. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
+8. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
     briefly a linter rule and is not one. Both tools would need the same "how large is large"
     threshold, and one number owned in two places is one number that drifts. The severity settles
     it too: every other linter rule flags something a tool cannot fix for you — nesting you have to
@@ -253,14 +233,14 @@ blocked by the inline forms in Tier 1.
 
 ### Tier 3 — modules, strictly in this order
 
-10. **The `module` interface.** A named interface defining the contract for any loadable thing.
-    It comes first because it is the stable seam everything else in this tier depends on, and it
-    is buildable well before the loader — which means the loader can arrive later without
-    churning what already uses a book.
-11. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+9. **The `module` interface.** A named interface defining the contract for any loadable thing.
+   It comes first because it is the stable seam everything else in this tier depends on, and it
+   is buildable well before the loader — which means the loader can arrive later without
+   churning what already uses a book.
+10. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
     open-union representation is sound *because* the whole program compiles at once. Either
     feature forces revisiting it.
-12. **What a book exports.** Every member of a book is public API, permanently, because there is
+11. **What a book exports.** Every member of a book is public API, permanently, because there is
     no way to mark one internal. It does not bite yet — the bundled three are built in and you
     cannot write a book — but the moment the loader below lands, a book author has no way to say
     *this is my helper, do not call it*.
@@ -274,7 +254,7 @@ blocked by the inline forms in Tier 1.
     the book, so the boundary is *what a book hands out* — the object question is a different and
     much weaker one, since within a file a visibility marker is a comment with ceremony attached.
 
-13. **A package manager for books.**
+12. **A package manager for books.**
 
 ### Tier 4 — Cufet in Cufet
 
@@ -284,7 +264,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-14. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+13. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -292,7 +272,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-15. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
+14. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
@@ -300,7 +280,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-16. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+15. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
@@ -408,7 +388,8 @@ indistinguishable from having forgotten.
 
 - **Text refinements.** The everyday toolkit is complete (join, measure, convert both ways,
   split, search, find, slice, replace, case, trim). What remains is fancier: locale-aware
-  casing (`in uppercase`/`in lowercase` are invariant-only today), title-case, leading-only or
+  casing and *full* case mapping (`in uppercase`/`in lowercase` are invariant and simple today,
+  so `ß` stays `ß` rather than becoming `SS`), title-case, leading-only or
   trailing-only trim, and a character-sequence type — `text` stays opaque, with no
   character-level indexing. *Blocker:* waiting on a real use case, deliberately.
 
@@ -467,12 +448,16 @@ indistinguishable from having forgotten.
 
   **Settle before building:** whether `State buf.` prints it the way `State` prints a series
   (probably yes, and it covers most of what interpolation would have been for); and whether
-  scanning wants a cursor rather than bare indexing. ⚠ If uppercase/lowercase are included, they
-  are not a character-for-character map — German `ß` uppercases to `SS`, so the buffer grows. That
-  is the same length-changing problem the compiled backend must solve for `text` casing (Tier 1),
-  so the two are worth solving together even though they ship separately.
+  scanning wants a cursor rather than bare indexing.
 
-- **★ Enums — DECLINED.- **★ Enums — DECLINED. A closed union already is one, and a stronger one.** The
+  ⚠ **Correction, 2026-08-13:** this entry used to warn that including uppercase/lowercase would
+  make the buffer grow, because German `ß` uppercases to `SS`. Measuring it while building the
+  shared case table showed otherwise — Cufet's casing is *simple* case mapping and is strictly 1:1
+  across all 1,114,112 code points, so `ß` stays `ß` and nothing ever changes length in characters.
+  Casing a buffer in place is therefore a plain per-element map, with no resize and no special
+  case. The growth problem is real only for *full* case mapping, which neither backend does.
+
+- **★ Enums — DECLINED. A closed union already is one, and a stronger one.** The
   property worth having is not the syntax, it is that the compiler proves every case is handled,
   and `Judge` over a closed union proves exactly that: `Otherwise` becomes optional and a missing
   case is a static error. Adding enums would be a second closed-set mechanism doing what the first

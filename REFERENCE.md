@@ -917,12 +917,21 @@ State "Hello" in lowercase.        → "hello"
 Uses default (invariant, culture-independent) case rules — not locale-sensitive.
 Only upper/lower this slice; title-case and capitalize-first are deferred.
 
-> ⚠ **Compiled, casing is ASCII-only — for now.** `"héllo" in uppercase` is `HÉLLO`
-> interpreted and `HéLLO` compiled: the emitted C has no Unicode case table, so anything
-> outside A–Z / a–z passes through unchanged. This is the one place the two backends
-> knowingly differ on a well-defined operation, and it is a **numbered roadmap item**
-> rather than a permanent limit. Everything else about the text is identical on both,
-> including code-point counts, positions, and every non-ASCII character you print.
+**Full Unicode, identically on both backends.** `"héllo" in uppercase` is `HÉLLO`
+whether you run it or build it: the two read one shared case table rather than
+casing text twice, so they cannot drift apart.
+
+```
+State "héllo" in uppercase.        → "HÉLLO"
+State "ΑΣΠΙΔΑ" in lowercase.       → "ασπιδα"
+State "МОСКВА" in lowercase.       → "москва"
+```
+
+> **Note:** this is *simple* case mapping, so one character always becomes exactly
+> one character. `ß` stays `ß` rather than becoming `SS`, the `ﬁ` ligature stays
+> whole, and the Turkish pair `ı`/`İ` is left alone rather than mapped to a side —
+> invariant rules do not pick a locale, and picking one silently would be worse
+> than leaving them. Casing never changes a text's length in characters.
 
 > **Note:** `in` is also used to lead the map-set statement (`In ages, the
 > entry for "x" becomes ...`) and inside `the entry for K in M` / `the
