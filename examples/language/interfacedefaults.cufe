@@ -24,50 +24,32 @@ Bind text to describe unto creature:
     Return "{cast name on one} walks on {legs-text} legs".
 Done.
 
-Bind text to greeting unto creature:
-    Return "...".
-Done.
+Bind text to greeting unto creature, "...".
 
 // A hare takes nothing but its own name, and takes the defaults as they are.
 Define object hare with (the text called) and creature.
 
-Bind text to name unto hare:
-    Return one's called.
-Done.
+Bind text to name unto hare, one's called.
 
-Bind number to legs unto hare:
-    Return 4.
-Done.
+Bind number to legs unto hare, 4.
 
 // A magpie overrides the greeting, and inherits `describe` unchanged.
 Define object magpie with (the text called, the number counted) and creature.
 
-Bind text to name unto magpie:
-    Return one's called.
-Done.
+Bind text to name unto magpie, one's called.
 
-Bind number to legs unto magpie:
-    Return 2.
-Done.
+Bind number to legs unto magpie, 2.
 
-Bind text to greeting unto magpie:
-    Return "chatter x{one's counted converted to text}".
-Done.
+Bind text to greeting unto magpie, "chatter x{one's counted converted to text}".
 
 // A beetle overrides `describe` instead, and reaches a field no other conformer has.
 Define object beetle with (the text called, the text shell) and creature.
 
-Bind text to name unto beetle:
-    Return one's called.
-Done.
+Bind text to name unto beetle, one's called.
 
-Bind number to legs unto beetle:
-    Return 6.
-Done.
+Bind number to legs unto beetle, 6.
 
-Bind text to describe unto beetle:
-    Return "{one's called} is {one's shell} and keeps its own counsel".
-Done.
+Bind text to describe unto beetle, "{one's called} is {one's shell} and keeps its own counsel".
 
 // The parameter is typed by the interface, so every call site passes a concrete conformer and each
 // one compiles to its own specialisation. No vtable, no type tag.
