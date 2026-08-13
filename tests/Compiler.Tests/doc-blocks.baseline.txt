@@ -35,8 +35,8 @@ abd4b2f7004e99d4	GRAMMAR.md:1697	Pull a rabbit.
 2454e3504d033399	GRAMMAR.md:1891	Define total as 42 permanently.
 91f2dd14a1ea164a	GRAMMAR.md:1903	Define total as 42.
 a9c798402601631a	GRAMMAR.md:1914	Define total as 42.
-ae03245e3345da69	GRAMMAR.md:2117	For each pair in m, repeat:
-64fb97affdbf4cd2	GRAMMAR.md:2263	Define xs as a series of number.             ← empty series
+ae03245e3345da69	GRAMMAR.md:2124	For each pair in m, repeat:
+64fb97affdbf4cd2	GRAMMAR.md:2270	Define xs as a series of number.             ← empty series
 3a75b8b35067f5a0	README.md:16	For each counter in the range 1 to 100, repeat:
 d117a5d36aa1baca	README.md:30	Define the scores as a series with (92, 85, 71, 88).
 415395fa7cac6f7d	README.md:43	Bind number to factorial, given (the number n):
@@ -133,51 +133,52 @@ fb2675259681fa80	REFERENCE.md:1348	State 0xFF and 0b1010.   // 0x0A
 86dcdf206df16b5e	REFERENCE.md:1577	State the name of customer.             ← reaches the embedded person's name
 4c5716798c6e8d09	REFERENCE.md:1604	Define driver as an interface for {
 cee0bbe27da3aef6	REFERENCE.md:1613	Define greeter as an interface for the void function greet, given (the text name).
-af7668b024c00824	REFERENCE.md:1641	Define object person with (the text name, the number age).
-aed5fdb76bab0f2a	REFERENCE.md:1678	Define object circle with (the number radius):
-eb7e72c2af5c6bda	REFERENCE.md:1697	Define object temp-sensor with (the number celsius):
-537eda43534df199	REFERENCE.md:1719	Define object temp-sensor with (the number celsius):
-bda87e335f242362	REFERENCE.md:1816	Define object node with (the text label, the voidable node next).
-e2f81e4efb404655	REFERENCE.md:1829	Define object node with (the text label, the series of node children).
-e03b8c1b5b83161b	REFERENCE.md:1839	Define object expr with (the text kind, the number value, the series of expr kids).
-586a45c8d05ce206	REFERENCE.md:1866	Insert kid into the children of parent.
-66062a31a4268f84	REFERENCE.md:1901	Define object vec2 with (the number x, the number y).
-8ee09086854b0a79	REFERENCE.md:1944	Bind number to plus, given (the number x, the number y):
-163c47b779df80a6	REFERENCE.md:1964	State cast plus on (3, 4).         ← in expression position
-c84ce032f7c46881	REFERENCE.md:1991	Bind number to apply, given (the number x, the number function f given (the number)):
-c7e5068e0838829e	REFERENCE.md:2006	Bind number function given (the number) to get-doubler:
-ab52ebb5343efaef	REFERENCE.md:2021	Define ops as a series of number function given (the number) with (double, triple).
-e4faecb3edbcba41	REFERENCE.md:2040	Bind number function given (the number) to make-adder, given (the number n):
-a1364c0154c8550d	REFERENCE.md:2064	Define double as a function given (the number x): Return x * 2. Done.
-5c295d0a0c2b7a7b	REFERENCE.md:2083	Define nums as a series of number with (5, 1, 4, 1, 3).
-59d31b17d35a6ec0	REFERENCE.md:2100	Define object person with (the text name, the number age).
-631db6455f35dac0	REFERENCE.md:2239	If maybe-score is not void, state maybe-score.  ← narrowed to a plain number here, safe to use directly
-6326699664483525	REFERENCE.md:2251	Bind number or failure to parse-age, given (the text raw):
-cef6becbe07034ad	REFERENCE.md:2299	If x is a number, state x + 1.
-570518d00733b149	REFERENCE.md:2313	Define the (number or text) x as 42.
-676d0414cc7ba94d	REFERENCE.md:2326	Define the (number or text or fact) x as 42.
-47fbf12c6d6d9db9	REFERENCE.md:2381	Bind number or failure to to-positive, given (the number n):
-bddb9c5a723f695f	REFERENCE.md:2473	Define line  as read a line from the input.      ← voidable text (void at EOF)
-ae4399e7a091e1f7	REFERENCE.md:2481	Repeat:
-2ac0116280fe497b	REFERENCE.md:2515	Write "hello\n" to the file "out.txt".      ← overwrite (create or truncate)
-12ca6332aa6afa94	REFERENCE.md:2528	With the file "data.txt" open for reading as src:
-5ae43a24cf29c4d6	REFERENCE.md:2543	With the file "out.txt" open for writing as log:
-73c8d4788634214b	REFERENCE.md:2563	With the file "lines.txt" open for reading as s:
-757f828247291afb	REFERENCE.md:2573	Bind void to process, given (the readable stream of text src):
-c9410b945999aea0	REFERENCE.md:2623	Define home as the environment variable "HOME".
-d957d9b2971bce3a	REFERENCE.md:2639	Define here as the current directory but void is "(unknown)".
-2d47345160c2e664	REFERENCE.md:2734	Define totals as a series of number.
-ca69cafea4243de4	REFERENCE.md:2754	Pull a rabbit as workspace.
-14855d526ccbeaa7	REFERENCE.md:2821	Pull a rabbit.
-06b42ba6814b6951	REFERENCE.md:2841	Pull a rabbit.
-4c3cf9a86eb5acd5	REFERENCE.md:2870	Pull a rabbit.
-204486ed85c97cc8	REFERENCE.md:2905	Define data as a series of number with (1, 2, 3).
-70a0971cb8e1eac3	REFERENCE.md:2924	Define step as 5.
-466df2ed2ccab270	REFERENCE.md:2967	Bind void to emit-numbers:
-c803a60649a13124	REFERENCE.md:3044	While 1 is 1, repeat:
-cdd2fbe102767a1b	REFERENCE.md:3124	Pull books on math, collections, and chance.
-a1592807a012652b	REFERENCE.md:3137	Pull books on math as m, and collections as c.
-1f4392920d5dcf77	REFERENCE.md:3146	Pull a book on math.
-b983f16097a83202	REFERENCE.md:3165	Pull a book on collections.
-871fdbce77b84b21	REFERENCE.md:3235	Pull a book on collections.
-8274b939488e058f	REFERENCE.md:3259	Pull a book on collections.
+562b35c2bb6467fd	REFERENCE.md:1638	Define shape as an interface for {
+af7668b024c00824	REFERENCE.md:1681	Define object person with (the text name, the number age).
+aed5fdb76bab0f2a	REFERENCE.md:1720	Define object circle with (the number radius):
+eb7e72c2af5c6bda	REFERENCE.md:1739	Define object temp-sensor with (the number celsius):
+537eda43534df199	REFERENCE.md:1761	Define object temp-sensor with (the number celsius):
+bda87e335f242362	REFERENCE.md:1858	Define object node with (the text label, the voidable node next).
+e2f81e4efb404655	REFERENCE.md:1871	Define object node with (the text label, the series of node children).
+e03b8c1b5b83161b	REFERENCE.md:1881	Define object expr with (the text kind, the number value, the series of expr kids).
+586a45c8d05ce206	REFERENCE.md:1908	Insert kid into the children of parent.
+66062a31a4268f84	REFERENCE.md:1943	Define object vec2 with (the number x, the number y).
+8ee09086854b0a79	REFERENCE.md:1986	Bind number to plus, given (the number x, the number y):
+163c47b779df80a6	REFERENCE.md:2006	State cast plus on (3, 4).         ← in expression position
+c84ce032f7c46881	REFERENCE.md:2033	Bind number to apply, given (the number x, the number function f given (the number)):
+c7e5068e0838829e	REFERENCE.md:2048	Bind number function given (the number) to get-doubler:
+ab52ebb5343efaef	REFERENCE.md:2063	Define ops as a series of number function given (the number) with (double, triple).
+e4faecb3edbcba41	REFERENCE.md:2082	Bind number function given (the number) to make-adder, given (the number n):
+a1364c0154c8550d	REFERENCE.md:2106	Define double as a function given (the number x): Return x * 2. Done.
+5c295d0a0c2b7a7b	REFERENCE.md:2125	Define nums as a series of number with (5, 1, 4, 1, 3).
+59d31b17d35a6ec0	REFERENCE.md:2142	Define object person with (the text name, the number age).
+631db6455f35dac0	REFERENCE.md:2283	If maybe-score is not void, state maybe-score.  ← narrowed to a plain number here, safe to use directly
+6326699664483525	REFERENCE.md:2295	Bind number or failure to parse-age, given (the text raw):
+cef6becbe07034ad	REFERENCE.md:2343	If x is a number, state x + 1.
+570518d00733b149	REFERENCE.md:2357	Define the (number or text) x as 42.
+676d0414cc7ba94d	REFERENCE.md:2370	Define the (number or text or fact) x as 42.
+47fbf12c6d6d9db9	REFERENCE.md:2425	Bind number or failure to to-positive, given (the number n):
+bddb9c5a723f695f	REFERENCE.md:2517	Define line  as read a line from the input.      ← voidable text (void at EOF)
+ae4399e7a091e1f7	REFERENCE.md:2525	Repeat:
+2ac0116280fe497b	REFERENCE.md:2559	Write "hello\n" to the file "out.txt".      ← overwrite (create or truncate)
+12ca6332aa6afa94	REFERENCE.md:2572	With the file "data.txt" open for reading as src:
+5ae43a24cf29c4d6	REFERENCE.md:2587	With the file "out.txt" open for writing as log:
+73c8d4788634214b	REFERENCE.md:2607	With the file "lines.txt" open for reading as s:
+757f828247291afb	REFERENCE.md:2617	Bind void to process, given (the readable stream of text src):
+c9410b945999aea0	REFERENCE.md:2667	Define home as the environment variable "HOME".
+d957d9b2971bce3a	REFERENCE.md:2683	Define here as the current directory but void is "(unknown)".
+2d47345160c2e664	REFERENCE.md:2778	Define totals as a series of number.
+ca69cafea4243de4	REFERENCE.md:2798	Pull a rabbit as workspace.
+14855d526ccbeaa7	REFERENCE.md:2865	Pull a rabbit.
+06b42ba6814b6951	REFERENCE.md:2885	Pull a rabbit.
+4c3cf9a86eb5acd5	REFERENCE.md:2914	Pull a rabbit.
+204486ed85c97cc8	REFERENCE.md:2949	Define data as a series of number with (1, 2, 3).
+70a0971cb8e1eac3	REFERENCE.md:2968	Define step as 5.
+466df2ed2ccab270	REFERENCE.md:3011	Bind void to emit-numbers:
+c803a60649a13124	REFERENCE.md:3088	While 1 is 1, repeat:
+cdd2fbe102767a1b	REFERENCE.md:3168	Pull books on math, collections, and chance.
+a1592807a012652b	REFERENCE.md:3181	Pull books on math as m, and collections as c.
+1f4392920d5dcf77	REFERENCE.md:3190	Pull a book on math.
+b983f16097a83202	REFERENCE.md:3209	Pull a book on collections.
+871fdbce77b84b21	REFERENCE.md:3279	Pull a book on collections.
+8274b939488e058f	REFERENCE.md:3303	Pull a book on collections.

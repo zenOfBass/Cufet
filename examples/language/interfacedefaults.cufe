@@ -1,0 +1,93 @@
+// Default methods on an interface.
+//
+// An interface is a contract. `Bind <type> to <name> unto <interface>` gives that contract a body
+// as well as a signature, so every conforming type gets the method without writing it. A type that
+// wants something different writes its own, and its own wins.
+//
+// The trick worth noticing: a default is written ONCE against the contract, but each conformer gets
+// its own specialised copy. `one` inside a default is the conforming object — a shelter, a bird —
+// never the interface, because no value is ever of interface type. That is what lets a default read
+// fields the interface never mentioned.
+
+Define creature as an interface for {
+    The text function name,
+    The number function legs,
+    The text function describe,
+    The text function greeting
+}.
+
+// Two defaults. `describe` is written against the contract and calls back into it, so it works for
+// anything that conforms. Note `cast name on one` rather than `one's name` — the possessive would
+// hand back the method itself instead of calling it.
+Bind text to describe unto creature:
+    Define legs-text as (cast legs on one) converted to text.
+    Return "{cast name on one} walks on {legs-text} legs".
+Done.
+
+Bind text to greeting unto creature:
+    Return "...".
+Done.
+
+// A hare takes nothing but its own name, and takes the defaults as they are.
+Define object hare with (the text called) and creature.
+
+Bind text to name unto hare:
+    Return one's called.
+Done.
+
+Bind number to legs unto hare:
+    Return 4.
+Done.
+
+// A magpie overrides the greeting, and inherits `describe` unchanged.
+Define object magpie with (the text called, the number counted) and creature.
+
+Bind text to name unto magpie:
+    Return one's called.
+Done.
+
+Bind number to legs unto magpie:
+    Return 2.
+Done.
+
+Bind text to greeting unto magpie:
+    Return "chatter x{one's counted converted to text}".
+Done.
+
+// A beetle overrides `describe` instead, and reaches a field no other conformer has.
+Define object beetle with (the text called, the text shell) and creature.
+
+Bind text to name unto beetle:
+    Return one's called.
+Done.
+
+Bind number to legs unto beetle:
+    Return 6.
+Done.
+
+Bind text to describe unto beetle:
+    Return "{one's called} is {one's shell} and keeps its own counsel".
+Done.
+
+// The parameter is typed by the interface, so every call site passes a concrete conformer and each
+// one compiles to its own specialisation. No vtable, no type tag.
+Bind void to introduce, given (the creature who):
+    State cast describe on who.
+    State "  it says: {cast greeting on who}".
+Done.
+
+Define hopper as a new hare { the called "Hopper" }.
+Define pica as a new magpie { the called "Pica", the counted 3 }.
+Define scarab as a new beetle { the called "Scarab", the shell "green" }.
+
+State "Three creatures, one contract:".
+State "".
+Cast introduce on hopper.
+Cast introduce on pica.
+Cast introduce on scarab.
+
+State "".
+State "Which came from a default:".
+State "  hare    describe: inherited   greeting: inherited".
+State "  magpie  describe: inherited   greeting: its own".
+State "  beetle  describe: its own     greeting: inherited".

@@ -1,0 +1,13 @@
+Three creatures, one contract:
+
+Hopper walks on 4 legs
+  it says: ...
+Pica walks on 2 legs
+  it says: chatter x3
+Scarab is green and keeps its own counsel
+  it says: ...
+
+Which came from a default:
+  hare    describe: inherited   greeting: inherited
+  magpie  describe: inherited   greeting: its own
+  beetle  describe: its own     greeting: inherited
