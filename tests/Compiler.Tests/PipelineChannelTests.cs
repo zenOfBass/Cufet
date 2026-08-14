@@ -216,7 +216,7 @@ public class PipelineChannelTests : PipelineTestBase
             Done.
             producer | consumer.
             """;
-        Assert.Equal(Interpret(src), CompileWithASan(src));
+        Assert.Equal(Interpret(src), CompileSanitized(src));
     }
 
     // ── channel-of-T: channels + task-pipe streams of any element type ──
@@ -448,7 +448,7 @@ public class PipelineChannelTests : PipelineTestBase
         // Two independent producer/consumer pairs → their interleaving is nondeterministic, but each
         // consumer's own lines are internally ordered; assert ASan-clean + the isolation invariant via
         // the compiled run alone (not bit-identical to the interpreter's serialized task ordering).
-        var outText = CompileWithASan(src);
+        var outText = CompileSanitized(src);
         Assert.Contains("outer-len=1", outText);
         Assert.Contains("inner-len=3", outText);
         Assert.Contains("batch-len=3", outText);
@@ -664,7 +664,7 @@ public class PipelineChannelTests : PipelineTestBase
             Done.
             """;
         string expected = Interpret(src);
-        string actual   = CompileWithASan(src);
+        string actual   = CompileSanitized(src);
         Assert.Equal(expected, actual);
     }
 
@@ -694,7 +694,7 @@ public class PipelineChannelTests : PipelineTestBase
             Done.
             """;
         string expected = Interpret(src);
-        string actual   = CompileWithASan(src);
+        string actual   = CompileSanitized(src);
         Assert.Equal(expected, actual);
     }
 
@@ -719,7 +719,7 @@ public class PipelineChannelTests : PipelineTestBase
             Done.
             """;
         string expected = Interpret(src);
-        string actual   = CompileWithASan(src);
+        string actual   = CompileSanitized(src);
         Assert.Equal(expected, actual);
     }
 
@@ -747,7 +747,7 @@ public class PipelineChannelTests : PipelineTestBase
             Done.
             """;
         string expected = Interpret(src);
-        string actual   = CompileWithASan(src);
+        string actual   = CompileSanitized(src);
         Assert.Equal(expected, actual);
     }
 
@@ -781,7 +781,7 @@ public class PipelineChannelTests : PipelineTestBase
         try
         {
             string expected = Interpret(src);
-            string actual   = CompileWithASan(src);
+            string actual   = CompileSanitized(src);
             Assert.Equal(expected, actual);
         }
         finally { try { File.Delete(path.Replace('/', Path.DirectorySeparatorChar)); } catch { } }
@@ -814,7 +814,7 @@ public class PipelineChannelTests : PipelineTestBase
         try
         {
             string expected = Interpret(src);
-            string actual   = CompileWithASan(src);
+            string actual   = CompileSanitized(src);
             Assert.Equal(expected, actual);
         }
         finally { try { File.Delete(path.Replace('/', Path.DirectorySeparatorChar)); } catch { } }
@@ -850,7 +850,7 @@ public class PipelineChannelTests : PipelineTestBase
             Done.
             """;
         string expected = Interpret(src);
-        string actual   = CompileWithASan(src);
+        string actual   = CompileSanitized(src);
         Assert.Equal(expected, actual);
     }
 

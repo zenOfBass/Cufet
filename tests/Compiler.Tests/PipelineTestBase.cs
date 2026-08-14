@@ -380,7 +380,7 @@ public abstract class PipelineTestBase
 
     // Compiles source with -fsanitize=address for memory-safety verification.
     // Skipped when not on Linux (ASan reliable only with Linux gcc).
-    protected static string CompileWithASan(string source)
+    protected static string CompileSanitized(string source)
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
@@ -396,7 +396,16 @@ public abstract class PipelineTestBase
         try
         {
             File.WriteAllText(cPath, cSource);
-            new GccInvoker().Compile(cPath, binPath, ["-fsanitize=address", "-g"]);
+
+            // ★ UNDEFINED as well as ADDRESS, and `-fno-sanitize-recover` so a finding ABORTS.
+            // UBSan's default is to print to stderr and carry on, which for a harness that compares
+            // stdout means undefined behaviour passes silently — the report scrolls past and the
+            // test goes green. Aborting turns it into a failure with the report attached.
+            //
+            // This matters more now that builds are optimized: -O2 is what turns latent UB into a
+            // wrong answer, where -O0 forgave it.
+            new GccInvoker().Compile(cPath, binPath,
+                ["-fsanitize=address,undefined", "-fno-sanitize-recover=undefined", "-g"]);
         }
         finally { try { File.Delete(cPath); } catch { } }
 

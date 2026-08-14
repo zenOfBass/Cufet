@@ -86,6 +86,20 @@ public sealed class GccInvoker
         psi.ArgumentList.Add("-pthread");
         // -lm: the math-book transcendentals (sqrt/log/pow) need libm on Linux; a no-op stub on mingw.
         psi.ArgumentList.Add("-lm");
+        // ★ Optimized ALWAYS, the Go answer rather than the Rust one. There is no debug build and no
+        // --release: "compiled Cufet is fast" should be unconditionally true rather than something a
+        // reader has to know a flag to obtain. The common failure of the opt-in design is someone
+        // benchmarking the default build, getting a bad number, and concluding the language is slow.
+        //
+        // Nothing is lost by having no opt-out, because `emit-c` already hands over the source — and
+        // anyone who wants -O0 (stepping through generated C in gdb, triaging a suspected
+        // miscompilation) needs that source anyway. A flag would be the weaker version of a
+        // capability that already ships.
+        //
+        // ⚠ This makes latent undefined behaviour dangerous where -O0 forgave it, which is why it
+        // ships together with the sanitizer sweep rather than on its own.
+        if (!extraFlags.Any(f => f.StartsWith("-O", StringComparison.Ordinal)))
+            psi.ArgumentList.Add("-O2");
         foreach (var flag in extraFlags)
             psi.ArgumentList.Add(flag);
 

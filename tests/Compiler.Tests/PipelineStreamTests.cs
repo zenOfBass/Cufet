@@ -279,7 +279,7 @@ public class PipelineStreamTests : PipelineTestBase
         // collector series, all under ASan/LSan. close-with-contention wakes every blocked worker
         // (broadcast → void → exit), the structured join reaps all five tasks, every channel/arena
         // frees. Zero leaks / UAF, and the aggregate invariant still holds.
-        Assert.Equal("420", CompileWithASan(FanOutWorkQueue));
+        Assert.Equal("420", CompileSanitized(FanOutWorkQueue));
     }
 
     // ── Arc 1A: book substrate + exact-decimal math + `sorted` ──

@@ -165,7 +165,7 @@ public class PipelineTaskTests : PipelineTestBase
             Done.
             State "done".
             """;
-        Assert.Equal(Interpret(src), CompileWithASan(src));
+        Assert.Equal(Interpret(src), CompileSanitized(src));
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public class PipelineTaskTests : PipelineTestBase
             Define s as nums sorted.
             State s.
             """;
-        Assert.Equal(Interpret(src), CompileWithASan(src));
+        Assert.Equal(Interpret(src), CompileSanitized(src));
     }
 
     // ── CONC.C: named tasks + `the awaited result of` (result crosses task → awaiter) ──
@@ -439,7 +439,7 @@ public class PipelineTaskTests : PipelineTestBase
                 Done.
             Done.
             """;
-        Assert.Equal(Interpret(src), CompileWithASan(src));
+        Assert.Equal(Interpret(src), CompileSanitized(src));
     }
 
     // ── Text/reference task results (channel-of-T follow-on: `the awaited result of` beyond num/fact) ──
@@ -594,6 +594,6 @@ public class PipelineTaskTests : PipelineTestBase
                 State "done".
             Done.
             """;
-        AssertSameLinesInAnyOrder(Interpret(src), CompileWithASan(src));
+        AssertSameLinesInAnyOrder(Interpret(src), CompileSanitized(src));
     }
 }

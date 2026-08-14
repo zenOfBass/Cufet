@@ -236,7 +236,7 @@ public class PipelineBooksTests : PipelineTestBase
                 State u.
             Done.
             """;
-        Assert.Equal(Interpret(src), CompileWithASan(src));
+        Assert.Equal(Interpret(src), CompileSanitized(src));
     }
 
     // ── Arc 1D: matrix (the new-type capstone of the collections book) ──
@@ -446,7 +446,7 @@ public class PipelineBooksTests : PipelineTestBase
                 State cast collections's transpose of (m).
             Done.
             """;
-        Assert.Equal(Interpret(src), CompileWithASan(src));
+        Assert.Equal(Interpret(src), CompileSanitized(src));
     }
 
     [Fact]
@@ -476,7 +476,7 @@ public class PipelineBooksTests : PipelineTestBase
                 If (the number of sh) is 8, State "ok". Otherwise, State "bad".
             Done.
             """;
-        Assert.Equal("ok", CompileWithASan(src));
+        Assert.Equal("ok", CompileSanitized(src));
     }
 
     // ── Cleanup slice: the misc smalls (env vars, is-a-type, voidable maps, directory contents) ──
@@ -598,7 +598,7 @@ public class PipelineBooksTests : PipelineTestBase
                     State "unexpected".
                 Done.
                 """;
-            Assert.Equal(Interpret(src), CompileWithASan(src));
+            Assert.Equal(Interpret(src), CompileSanitized(src));
         }
         finally { try { Directory.Delete(dir, recursive: true); } catch { } }
     }
