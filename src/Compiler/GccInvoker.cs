@@ -16,7 +16,59 @@ public sealed class GccInvoker
     public void Compile(string cSourcePath, string outputPath) =>
         Compile(cSourcePath, outputPath, []);
 
-    public void Compile(string cSourcePath, string outputPath, IReadOnlyList<string> extraFlags)
+    /// <summary>
+    /// Compiles one translation unit to an object file (`-c`), for the cached runtime.
+    /// </summary>
+    public void CompileObject(string cSourcePath, string objectPath, IReadOnlyList<string> extraFlags) =>
+        Compile(cSourcePath, objectPath, [.. extraFlags, "-c"]);
+
+    /// <summary>
+    /// Identifies this exact compiler, for the runtime cache key.
+    /// </summary>
+    /// <remarks>
+    /// ★ The PATH alone is not enough. Upgrading gcc in place leaves the path identical while the
+    /// object it produces changes, and a stale cached object surfaces as a mystery bug inside
+    /// generated code — the worst kind to debug. `gcc --version` moves when the compiler does.
+    /// </remarks>
+    public string Identification
+    {
+        get
+        {
+            if (_identification != null) return _identification;
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = _gcc,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                };
+                psi.ArgumentList.Add("--version");
+                using var proc = Process.Start(psi)!;
+                string first = proc.StandardOutput.ReadLine() ?? "";
+                proc.WaitForExit();
+                return _identification = $"{_gcc}|{first}";
+            }
+            catch
+            {
+                // Unknown version means "assume it changed" — a key nobody matches costs one
+                // recompile, where a key that wrongly matches costs a corrupt build.
+                return _identification = $"{_gcc}|unknown-{Guid.NewGuid():N}";
+            }
+        }
+    }
+
+    private string? _identification;
+
+    public void Compile(string cSourcePath, string outputPath, IReadOnlyList<string> extraFlags) =>
+        Compile([cSourcePath], outputPath, extraFlags);
+
+    /// <summary>
+    /// Compiles and links several inputs — the generated program plus either the cached runtime
+    /// object or the runtime source, depending on whether the cache was usable.
+    /// </summary>
+    public void Compile(IReadOnlyList<string> inputPaths, string outputPath, IReadOnlyList<string> extraFlags)
     {
         var psi = new ProcessStartInfo
         {
@@ -24,7 +76,9 @@ public sealed class GccInvoker
             RedirectStandardError = true,
             UseShellExecute = false,
         };
-        psi.ArgumentList.Add(cSourcePath);
+        foreach (var input in inputPaths)
+            psi.ArgumentList.Add(input);
+        string cSourcePath = inputPaths[0];
         psi.ArgumentList.Add("-o");
         psi.ArgumentList.Add(outputPath);
         // -pthread: harmless for non-threaded programs; required to link the concurrency runtime

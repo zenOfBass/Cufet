@@ -67,24 +67,35 @@ public abstract class PipelineTestBase
         var program = new Parser(tokens).Parse();
         new TypeChecker().Check(program);
 
-        var cSource = new CodeGenerator().Generate(program);
+        // ★ The SPLIT path, because that is what `cufet build` does. The combined single-file form
+        // still exists as the concatenation these two halves are cut from, but nothing ships it any
+        // more — testing it would be testing a shape no user receives, and would leave the derived
+        // header (which is what makes the split work at all) exercised by nothing.
+        var (header, runtimeSource, programSource) = new CodeGenerator().GenerateSplit(program);
 
         // A unique stem WITHOUT creating a file: GetTempFileName is unique only while its file exists,
         // and deleting it to reuse the stem releases the name for another thread to be handed.
 
         var tmp    = Path.Combine(Path.GetTempPath(), "cufet-" + Guid.NewGuid().ToString("N"));
-        var cPath  = tmp + ".c";
+        var work   = Directory.CreateDirectory(tmp);
+        var cPath  = Path.Combine(tmp, "program.c");
+        var rtPath = Path.Combine(tmp, RuntimeSplit.SourceFileName);
         var binExt = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "";
         var binPath = tmp + binExt;
 
         try
         {
-            File.WriteAllText(cPath, cSource);
-            new GccInvoker().Compile(cPath, binPath);
+            File.WriteAllText(Path.Combine(tmp, RuntimeSplit.HeaderFileName), header);
+            File.WriteAllText(cPath, programSource);
+
+            var gcc    = new GccInvoker();
+            var cached = new RuntimeCache().ObjectFor(runtimeSource, header, gcc, []);
+            if (cached == null) File.WriteAllText(rtPath, runtimeSource);
+            gcc.Compile([cPath, cached ?? rtPath], binPath, []);
         }
         finally
         {
-            try { File.Delete(cPath); } catch { }
+            try { work.Delete(recursive: true); } catch { }
         }
 
         try

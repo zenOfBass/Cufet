@@ -2108,6 +2108,13 @@ static void* cufet_pipe_stage(void* argp) {
         _program = program;
         var sb = new StringBuilder();
 
+        // ★ The FIXED runtime accumulates separately from everything generated. It is the same text
+        // in the same order either way — `runtime + sb + body` is byte-for-byte what one buffer
+        // produced — but keeping it apart is what lets `build` compile it once and cache the object,
+        // and what lets `emit-c` hand back a file containing the program rather than the program
+        // buried under 955 lines of prelude. See RuntimeSplit for both.
+        var runtime = new StringBuilder();
+
         // Concurrency is discovered up front (not during the body pass) because a rabbit's header
         // must emit its thread/channel tracking arrays before its body is walked.
         _usesConcurrency = ProgramUsesConcurrency(program.Statements);
@@ -2116,7 +2123,7 @@ static void* cufet_pipe_stage(void* argp) {
         _usesSignals = ProgramUsesSignals(program.Statements);
 
         // ── Runtime: includes + software decimal + print helpers ──────────
-        sb.AppendLine(RuntimePreamble);
+        runtime.AppendLine(RuntimePreamble);
 
         // ── Arena allocator ───────────────────────────────────────────────
         // Pull a rabbit → cufet_arena_push(); body; Done. → cufet_arena_pop().
@@ -2124,53 +2131,53 @@ static void* cufet_pipe_stage(void* argp) {
         // the pointer; cufet_arena_pop() frees all of them in one shot.
         // When a series data buffer grows, the old buffer stays in ptrs
         // (wasted but harmless — freed at pop). No use-after-free, no leak.
-        sb.AppendLine("#define CUFET_ARENA_MAX_DEPTH 64");
-        sb.AppendLine("typedef struct { void** ptrs; int len; int cap; } CufetArena;");
+        runtime.AppendLine("#define CUFET_ARENA_MAX_DEPTH 64");
+        runtime.AppendLine("typedef struct { void** ptrs; int len; int cap; } CufetArena;");
         // Thread-local: each pthread bump-allocates in its OWN arena stack (no cross-thread arena
         // contention — sound because nothing mutable is shared; values cross threads via heap copy).
-        sb.AppendLine("static _Thread_local CufetArena cufet_arenas[CUFET_ARENA_MAX_DEPTH];");
-        sb.AppendLine("static _Thread_local int cufet_arena_top = -1;");
-        sb.AppendLine();
-        sb.AppendLine("static void cufet_arena_push(void) {");
-        sb.AppendLine("    ++cufet_arena_top;");
-        sb.AppendLine("    cufet_arenas[cufet_arena_top].ptrs = NULL;");
-        sb.AppendLine("    cufet_arenas[cufet_arena_top].len  = 0;");
-        sb.AppendLine("    cufet_arenas[cufet_arena_top].cap  = 0;");
-        sb.AppendLine("}");
-        sb.AppendLine();
+        runtime.AppendLine("static _Thread_local CufetArena cufet_arenas[CUFET_ARENA_MAX_DEPTH];");
+        runtime.AppendLine("static _Thread_local int cufet_arena_top = -1;");
+        runtime.AppendLine();
+        runtime.AppendLine("static void cufet_arena_push(void) {");
+        runtime.AppendLine("    ++cufet_arena_top;");
+        runtime.AppendLine("    cufet_arenas[cufet_arena_top].ptrs = NULL;");
+        runtime.AppendLine("    cufet_arenas[cufet_arena_top].len  = 0;");
+        runtime.AppendLine("    cufet_arenas[cufet_arena_top].cap  = 0;");
+        runtime.AppendLine("}");
+        runtime.AppendLine();
         // Allocate into a SPECIFIC arena depth (not just the top). Used by cufet_raise to place an
         // exception message in the target handler's arena, so it outlives the pops the catch does.
-        sb.AppendLine("static void* cufet_arena_alloc_at(int depth, size_t size) {");
-        sb.AppendLine("    void* p = malloc(size);");
-        sb.AppendLine("    CufetArena* a = &cufet_arenas[depth];");
-        sb.AppendLine("    if (a->len == a->cap) {");
-        sb.AppendLine("        a->cap  = a->cap == 0 ? 8 : a->cap * 2;");
-        sb.AppendLine("        a->ptrs = (void**)realloc(a->ptrs, (size_t)a->cap * sizeof(void*));");
-        sb.AppendLine("    }");
-        sb.AppendLine("    a->ptrs[a->len++] = p;");
-        sb.AppendLine("    return p;");
-        sb.AppendLine("}");
-        sb.AppendLine();
+        runtime.AppendLine("static void* cufet_arena_alloc_at(int depth, size_t size) {");
+        runtime.AppendLine("    void* p = malloc(size);");
+        runtime.AppendLine("    CufetArena* a = &cufet_arenas[depth];");
+        runtime.AppendLine("    if (a->len == a->cap) {");
+        runtime.AppendLine("        a->cap  = a->cap == 0 ? 8 : a->cap * 2;");
+        runtime.AppendLine("        a->ptrs = (void**)realloc(a->ptrs, (size_t)a->cap * sizeof(void*));");
+        runtime.AppendLine("    }");
+        runtime.AppendLine("    a->ptrs[a->len++] = p;");
+        runtime.AppendLine("    return p;");
+        runtime.AppendLine("}");
+        runtime.AppendLine();
         // ESC.2 — an allocation OVERRIDE. Normally -1 (allocate at the top, as always). An escaping
         // store sets it to the destination's arena depth for the duration of the store, which
         // redirects BOTH the value's own allocations AND the destination container's growth
         // (cser/cmap `_ensure` reallocs) into the arena that outlives the store. Redirecting the
         // allocator itself is what makes this work with the existing runtime unchanged.
-        sb.AppendLine("static _Thread_local int cufet_alloc_override = -1;");
-        sb.AppendLine("static void* cufet_arena_alloc(size_t size) {");
-        sb.AppendLine("    return cufet_arena_alloc_at(cufet_alloc_override >= 0 ? cufet_alloc_override : cufet_arena_top, size);");
-        sb.AppendLine("}");
-        sb.AppendLine();
-        sb.AppendLine("static void cufet_arena_pop(void) {");
-        sb.AppendLine("    CufetArena* a = &cufet_arenas[cufet_arena_top];");
-        sb.AppendLine("    for (int i = 0; i < a->len; i++) free(a->ptrs[i]);");
-        sb.AppendLine("    free(a->ptrs);");
-        sb.AppendLine("    a->ptrs = NULL;");
-        sb.AppendLine("    a->len  = 0;");
-        sb.AppendLine("    a->cap  = 0;");
-        sb.AppendLine("    --cufet_arena_top;");
-        sb.AppendLine("}");
-        sb.AppendLine();
+        runtime.AppendLine("static _Thread_local int cufet_alloc_override = -1;");
+        runtime.AppendLine("static void* cufet_arena_alloc(size_t size) {");
+        runtime.AppendLine("    return cufet_arena_alloc_at(cufet_alloc_override >= 0 ? cufet_alloc_override : cufet_arena_top, size);");
+        runtime.AppendLine("}");
+        runtime.AppendLine();
+        runtime.AppendLine("static void cufet_arena_pop(void) {");
+        runtime.AppendLine("    CufetArena* a = &cufet_arenas[cufet_arena_top];");
+        runtime.AppendLine("    for (int i = 0; i < a->len; i++) free(a->ptrs[i]);");
+        runtime.AppendLine("    free(a->ptrs);");
+        runtime.AppendLine("    a->ptrs = NULL;");
+        runtime.AppendLine("    a->len  = 0;");
+        runtime.AppendLine("    a->cap  = 0;");
+        runtime.AppendLine("    --cufet_arena_top;");
+        runtime.AppendLine("}");
+        runtime.AppendLine();
         // ESC.3 — pop WITHOUT freeing: hand the top arena's blocks to its parent, then discard the
         // level. Used where a nonlocal exit leaves a rabbit carrying a value out (a `return`), so the
         // returned value cannot be freed here — but the LEVEL must still go, or cufet_arena_top
@@ -2178,36 +2185,36 @@ static void* cufet_pipe_stage(void* argp) {
         // Ownership moves outward; the blocks die at the destination's own pop. No copying, so a
         // returned value that ALIASES the caller's data stays the same pointer (measured: the
         // interpreter shares here, so copying would diverge).
-        sb.AppendLine("static void cufet_arena_merge_down(void) {");
-        sb.AppendLine("    if (cufet_arena_top < 1) { cufet_arena_pop(); return; }   /* no parent to merge into */");
-        sb.AppendLine("    CufetArena* a = &cufet_arenas[cufet_arena_top];");
-        sb.AppendLine("    CufetArena* p = &cufet_arenas[cufet_arena_top - 1];");
-        sb.AppendLine("    if (a->len > 0) {");
-        sb.AppendLine("        if (p->len + a->len > p->cap) {");
-        sb.AppendLine("            p->cap  = p->len + a->len;");
-        sb.AppendLine("            p->ptrs = (void**)realloc(p->ptrs, (size_t)p->cap * sizeof(void*));");
-        sb.AppendLine("        }");
-        sb.AppendLine("        for (int i = 0; i < a->len; i++) p->ptrs[p->len++] = a->ptrs[i];");
-        sb.AppendLine("    }");
-        sb.AppendLine("    free(a->ptrs);");
-        sb.AppendLine("    a->ptrs = NULL;");
-        sb.AppendLine("    a->len  = 0;");
-        sb.AppendLine("    a->cap  = 0;");
-        sb.AppendLine("    --cufet_arena_top;");
-        sb.AppendLine("}");
-        sb.AppendLine();
+        runtime.AppendLine("static void cufet_arena_merge_down(void) {");
+        runtime.AppendLine("    if (cufet_arena_top < 1) { cufet_arena_pop(); return; }   /* no parent to merge into */");
+        runtime.AppendLine("    CufetArena* a = &cufet_arenas[cufet_arena_top];");
+        runtime.AppendLine("    CufetArena* p = &cufet_arenas[cufet_arena_top - 1];");
+        runtime.AppendLine("    if (a->len > 0) {");
+        runtime.AppendLine("        if (p->len + a->len > p->cap) {");
+        runtime.AppendLine("            p->cap  = p->len + a->len;");
+        runtime.AppendLine("            p->ptrs = (void**)realloc(p->ptrs, (size_t)p->cap * sizeof(void*));");
+        runtime.AppendLine("        }");
+        runtime.AppendLine("        for (int i = 0; i < a->len; i++) p->ptrs[p->len++] = a->ptrs[i];");
+        runtime.AppendLine("    }");
+        runtime.AppendLine("    free(a->ptrs);");
+        runtime.AppendLine("    a->ptrs = NULL;");
+        runtime.AppendLine("    a->len  = 0;");
+        runtime.AppendLine("    a->cap  = 0;");
+        runtime.AppendLine("    --cufet_arena_top;");
+        runtime.AppendLine("}");
+        runtime.AppendLine();
         // ESC.3 — copy a string into a specific arena depth. A failure's message/category can be
         // arena-templated (the I/O error bridge builds them with cufet_arena_msg), so a nonlocal exit
         // that pops the arena they live in must move them outward first — the EXCMSG fix, applied to
         // the failure path. A static literal copied here is a small wasted allocation, not a bug.
-        sb.AppendLine("static const char* cufet_arena_str_at(int depth, const char* s) {");
-        sb.AppendLine("    if (!s) return 0;");
-        sb.AppendLine("    size_t n = strlen(s) + 1;");
-        sb.AppendLine("    char* b = (char*)cufet_arena_alloc_at(depth, n);");
-        sb.AppendLine("    memcpy(b, s, n);");
-        sb.AppendLine("    return b;");
-        sb.AppendLine("}");
-        sb.AppendLine();
+        runtime.AppendLine("static const char* cufet_arena_str_at(int depth, const char* s) {");
+        runtime.AppendLine("    if (!s) return 0;");
+        runtime.AppendLine("    size_t n = strlen(s) + 1;");
+        runtime.AppendLine("    char* b = (char*)cufet_arena_alloc_at(depth, n);");
+        runtime.AppendLine("    memcpy(b, s, n);");
+        runtime.AppendLine("    return b;");
+        runtime.AppendLine("}");
+        runtime.AppendLine();
 
         // ── Series runtime ────────────────────────────────────────────────
         // Generalized to per-element-type structs (cser_N) synthesized like maps: forward-declared
@@ -2216,8 +2223,8 @@ static void* cufet_pipe_stage(void* argp) {
         // number is just cser_<number>, one of many element types.
 
         // ── Text runtime (immutable strings; results arena-allocated) ─────
-        sb.AppendLine(TextRuntime);
-        sb.AppendLine(FileRuntime);
+        runtime.AppendLine(TextRuntime);
+        runtime.AppendLine(FileRuntime);
 
         // Object definitions are nominal types — collect them all up front (they may be
         // top-level or nested in Pull blocks) so literals and field access resolve.
@@ -2440,12 +2447,33 @@ static void* cufet_pipe_stage(void* argp) {
         // fixed point. Runs before the struct/forward-decl sections so their shapes are registered.
         DrainIfaceSpecializations(body);
 
+        // ── The OPTIONAL fixed runtime, all of it, before anything generated ─────────────────────
+        //
+        // ★ These used to be scattered — matrix here, then case/math/chance/process/signal/
+        // concurrency AFTER the struct, series and map sections. That interleaving is what made the
+        // emitter's ordering rules something to rediscover rather than state, and it is the direct
+        // cause of the recurring "symbol emitted above its own declaration" defect: every fix was a
+        // MOVE, which is the tell that a rule was missing rather than broken.
+        //
+        // Hoisting them is safe because the fixed runtime never names a generated type — no `cser_`,
+        // `cmap_`, `crec_`, `cobj_`, `cun_`, `cfn_` or `cenv_` appears anywhere in it. Nothing here
+        // can depend on anything below, so "runtime first, generated second" holds unconditionally
+        // and there is no longer a per-block placement question to get wrong.
+        //
+        // Their order RELATIVE TO EACH OTHER still matters and is preserved: the signal substrate
+        // supplies the interrupt flag the concurrency runtime's channel-wait checks, and the case
+        // table calls the decimal helpers in the preamble.
+        if (_usesMatrix) runtime.AppendLine(MatrixRuntime);
+        if (_usesCase) runtime.AppendLine(CaseRuntime);
+        if (_usesMath) runtime.AppendLine(MathRuntime);
+        if (_usesChance) runtime.AppendLine(ChanceRuntime);
+        if (_usesProcess) runtime.AppendLine(ProcessRuntime);
+        if (_usesSignals || _usesConcurrency) runtime.AppendLine(SignalRuntime);
+        if (_usesConcurrency) runtime.AppendLine(ConcurrencyRuntime);
+
         // ── Series + map struct forward declarations (so value structs can hold their pointers) ──
         EmitSeriesForwardDecls(sb);
         EmitMapForwardDecls(sb);
-
-        // ── Matrix runtime (before EmitStructs: failable/record/series structs may hold CufetMatrix*) ──
-        if (_usesMatrix) sb.AppendLine(MatrixRuntime);
 
         // ── Struct declarations (records + objects + voidables) + write/eq helpers ──
         EmitStructs(sb);
@@ -2487,29 +2515,6 @@ static void* cufet_pipe_stage(void* argp) {
         // ── Channel-of-T deep-copy helpers (need the series/map/record/object structs above) ──
         EmitChannelDeepCopy(sb);
 
-        // ── Unicode case table (only when the program cases text) ──
-        if (_usesCase) sb.AppendLine(CaseRuntime);
-
-        // ── Exact-decimal math runtime (only when a math total function is used) ──
-        if (_usesMath) sb.AppendLine(MathRuntime);
-
-        // ── Chance runtime (only when randomness is used) ──
-        if (_usesChance) sb.AppendLine(ChanceRuntime);
-
-        // ── Subprocess runtime (only when `run`/pipe is used; discovered during the body pass) ──
-        if (_usesProcess) sb.AppendLine(ProcessRuntime);
-
-        // ── SIGINT substrate (CONC.E) — before the concurrency runtime, which uses the interrupt flag
-        //    + checkpoint in its channel-wait. Emitted when interrupt constructs OR concurrency is used. ──
-        if (_usesSignals || _usesConcurrency)
-            sb.AppendLine(SignalRuntime);
-
-        // ── Concurrency RUNTIME (only when tasks/channels used) ──
-        // Must precede the forward declarations below: a function may take a `cufet_chan*` param,
-        // and `cufet_chan` is defined here.
-        if (_usesConcurrency)
-            sb.AppendLine(ConcurrencyRuntime);
-
         // ── Forward declarations: object methods/getters/setters, overloads, then free functions ──
         // These come BEFORE the generated task thread functions (below), which are BODIES — a task
         // body can call any of them. (Emitting the task bodies first made an overload call inside a
@@ -2550,7 +2555,33 @@ static void* cufet_pipe_stage(void* argp) {
         }
 
         sb.Append(body);
-        return sb.ToString();
+
+        _lastRuntime = runtime.ToString();
+        _lastProgram = sb.ToString();
+        return _lastRuntime + _lastProgram;
+    }
+
+    // The two halves of the most recent Generate, kept so a caller that wants them separately does
+    // not have to run the whole emitter twice — and so the combined form stays the concatenation of
+    // exactly what the split form compiles, rather than a second code path that can drift from it.
+    private string _lastRuntime = "";
+    private string _lastProgram = "";
+
+    /// <summary>
+    /// The program and the fixed runtime as separate translation units, plus the header that
+    /// declares the runtime to the program. Call after <see cref="Generate"/>.
+    /// </summary>
+    /// <remarks>
+    /// ★ Only the FIXED runtime moves out. Series, maps, structs, closures and channel deep-copy
+    /// helpers are generated per program — a `series of number` is a different C type from a
+    /// `series of text` — so they belong to the program and could never be shared. What leaves is
+    /// the part that is identical in every build, which measured at 50 KB and ~415 ms of gcc.
+    /// </remarks>
+    public (string Header, string Runtime, string Program) GenerateSplit(Program program)
+    {
+        Generate(program);
+        var (header, runtimeSource) = RuntimeSplit.Split(_lastRuntime);
+        return (header, runtimeSource, $"#include \"{RuntimeSplit.HeaderFileName}\"\n\n{_lastProgram}");
     }
 
     // Nominal C struct name for an object type.

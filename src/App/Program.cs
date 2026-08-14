@@ -51,6 +51,7 @@ static void Help()
           cufet tokens --json <file.cufe>      report what each name in the file IS
           cufet build <file.cufe>              compile to a native binary (needs gcc)
           cufet emit-c <file.cufe> [out.c]     write the generated C without compiling
+                                       (out.c plus cufet-runtime.c/.h beside it)
 
         check exits 0 when the program will run and 1 when it will not. An ERROR means it
         will not run; a WARNING means it will, and something about it is worth knowing, so
@@ -80,8 +81,21 @@ static void EmitC(string sourcePath, string outPath)
         var tokens  = new Lexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
         new TypeChecker().Check(program);
-        File.WriteAllText(outPath, new CodeGenerator().Generate(program));
+
+        // ★ Three files, not one. The point of `emit-c` is that a person can READ the C their
+        // program became, and that was buried under 955 lines of runtime — measured at 79% of a
+        // typical output and 98.9% of a small one. The runtime now sits beside it instead, so
+        // `<name>.c` is the program, and the pair still compiles anywhere with nothing but
+        // `gcc <name>.c cufet-runtime.c -o <name>`, which keeps the arch-neutral debugging path.
+        var (header, runtimeSource, programSource) = new CodeGenerator().GenerateSplit(program);
+        var outDir = Path.GetDirectoryName(Path.GetFullPath(outPath))!;
+        Directory.CreateDirectory(outDir);
+        File.WriteAllText(outPath, programSource);
+        File.WriteAllText(Path.Combine(outDir, RuntimeSplit.HeaderFileName), header);
+        File.WriteAllText(Path.Combine(outDir, RuntimeSplit.SourceFileName), runtimeSource);
         Console.WriteLine($"Emitted: {outPath}");
+        Console.WriteLine($"         {Path.Combine(outDir, RuntimeSplit.SourceFileName)}");
+        Console.WriteLine($"         {Path.Combine(outDir, RuntimeSplit.HeaderFileName)}");
     }
     catch (LexerException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
     catch (ParseException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
@@ -301,17 +315,39 @@ static void Build(string sourcePath)
     try
     {
         var generator = new CodeGenerator();
-        var cSource   = generator.Generate(program);
+        var (header, runtimeSource, programSource) = generator.GenerateSplit(program);
         WriteWarnings(sourcePath, generator.Diagnostics);
         var baseName = Path.GetFileNameWithoutExtension(sourcePath);
         var dir      = Path.GetDirectoryName(Path.GetFullPath(sourcePath))!;
-        var cPath    = Path.Combine(dir, baseName + ".c");
         var binExt   = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "";
         var binPath  = Path.Combine(dir, baseName + binExt);
 
-        File.WriteAllText(cPath, cSource);
-        try { new GccInvoker().Compile(cPath, binPath); }
-        finally { try { File.Delete(cPath); } catch { } }
+        // ★ The intermediate C goes to a temporary directory, not next to the source. It used to be
+        // written as `<name>.c` beside the .cufe and deleted afterwards, which silently destroyed a
+        // hand-written `<name>.c` if the author happened to have one.
+        var work = Directory.CreateTempSubdirectory("cufet-build-");
+        try
+        {
+            var cPath = Path.Combine(work.FullName, baseName + ".c");
+            File.WriteAllText(Path.Combine(work.FullName, RuntimeSplit.HeaderFileName), header);
+            File.WriteAllText(cPath, programSource);
+
+            var gcc    = new GccInvoker();
+            var cached = new RuntimeCache().ObjectFor(runtimeSource, header, gcc, []);
+
+            // A cache miss is not a failure — it just means paying for the runtime this once, which
+            // is what every build did before the cache existed.
+            string runtimeInput;
+            if (cached != null) runtimeInput = cached;
+            else
+            {
+                runtimeInput = Path.Combine(work.FullName, RuntimeSplit.SourceFileName);
+                File.WriteAllText(runtimeInput, runtimeSource);
+            }
+
+            gcc.Compile([cPath, runtimeInput], binPath, []);
+        }
+        finally { try { work.Delete(recursive: true); } catch { } }
 
         Console.WriteLine($"Built: {binPath}");
     }
