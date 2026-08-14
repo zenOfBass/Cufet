@@ -410,7 +410,10 @@ public class ExampleOracleTests
         var work    = Directory.CreateDirectory(tmp);
         var cPath   = Path.Combine(tmp, "program.c");
         var rtPath  = Path.Combine(tmp, RuntimeSplit.SourceFileName);
-        var binPath = tmp + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "");
+        // ⚠ `-bin`, not just `tmp` plus an extension — `tmp` is a directory now, and on Linux the
+        // extension is empty, so the two collided and ld reported "cannot open output file: Is a
+        // directory". See PipelineTestBase.CompileRaw for the same trap.
+        var binPath = tmp + "-bin" + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "");
 
         var sanitized = !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         string[] flags = sanitized

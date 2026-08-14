@@ -12,15 +12,29 @@ namespace Cufet.Interpreter.Tests;
 // top of: the mapping is 1:1, it is not contextual, and it grows text by at most a byte a character.
 public class CaseTableTests
 {
-    // ★ The drift detector, and the reason it is exhaustive rather than a sample. The table is
-    // generated from .NET's invariant casing and then FROZEN, which is the point — a program's
-    // meaning should not change because someone upgraded a runtime. But frozen is only defensible
-    // if we know when the world moved, so this holds the table against live .NET and fails loudly
-    // when a newer ICU disagrees. That failure is not a bug: it is the signal to run
-    // `dotnet run tools/gen-case-table.cs`, read the diff, and decide whether to adopt it.
+    // ★★ OPT-IN, and the reason why is the whole point of the design.
+    //
+    // .NET's invariant casing is NOT the same on every machine. It is ICU-backed, and ICU versions
+    // differ per platform: measured 2026-08-13, Arch's .NET 10.0.11 knows the Unicode 16 additions
+    // (Garay U+10D50.., the Latin Extended-D block U+A7CB.., U+019B gaining an uppercase) and
+    // Windows' .NET 10.0.8 does not. Twenty code points, same runtime major version, different
+    // answers. So "matches live .NET" is not a property that holds anywhere in particular, and a
+    // test asserting it is a test that fails depending on who runs it.
+    //
+    // ★ It is also not a property that MATTERS any more, which is the payoff of both backends
+    // reading one table. When .NET moves and the table does not, nothing breaks: the interpreter
+    // and the compiler still agree, because neither of them asks .NET. Drift is information about
+    // the outside world, not a defect — so it is worth being able to check deliberately, and wrong
+    // to fail a build over. (Had the C table been GENERATED from .NET at build time instead, this
+    // same measurement would have been a live divergence: a Linux interpreter casing one way and
+    // its own compiled binary casing another.)
+    //
+    // Run it when you want to know:  CUFET_CASE_DRIFT=1 dotnet test --filter CaseTableTests
     [Fact]
     public void TheTable_MatchesDotNetInvariantCasing_ForEveryCodePoint()
     {
+        if (Environment.GetEnvironmentVariable("CUFET_CASE_DRIFT") != "1") return;
+
         var drifted = new List<string>();
 
         for (int cp = 0; cp <= 0x10FFFF; cp++)
@@ -40,12 +54,14 @@ public class CaseTableTests
         }
 
         Assert.True(drifted.Count == 0,
-            $"The case table no longer matches this .NET's invariant casing (table generated from "
-            + $"{CaseTable.SourceRuntime}, running on {Environment.Version}). This is expected after a "
-            + $"runtime upgrade that carries a newer Unicode version, and it does NOT mean the two "
-            + $"backends disagree — they read the same table either way. Regenerate with "
-            + $"`dotnet run tools/gen-case-table.cs`, review the diff, and update the changelog if you "
-            + $"adopt it.\n  " + string.Join("\n  ", drifted));
+            $"The case table differs from THIS machine's .NET invariant casing (table generated from "
+            + $"{CaseTable.SourceRuntime}, running on {Environment.Version}).\n"
+            + $"This does NOT mean anything is broken: both backends read the table, so they still "
+            + $"agree with each other. It means this machine's ICU knows mappings the table was "
+            + $"generated before — or, less likely, fewer.\n"
+            + $"To adopt them: `dotnet run tools/gen-case-table.cs` ON THE MACHINE WITH THE NEWER "
+            + $"ICU, review the diff, and note the Unicode version in the changelog.\n  "
+            + string.Join("\n  ", drifted));
     }
 
     // ★ The property the whole design rests on. Simple case mapping is 1:1, so `ß` stays `ß` and no
@@ -64,29 +80,53 @@ public class CaseTableTests
         }
     }
 
-    // ★ Per-character agreement would not be enough on its own. A culture-aware caser can be
-    // CONTEXTUAL — Greek final sigma is the standard example, where Σ lowercases to ς only at the
-    // end of a word — and a contextual rule would make a table wrong for whole strings while every
-    // single character passed. Invariant culture is documented as non-contextual; this holds it to
-    // that, on the strings the table is actually used for.
+    // ★ The real gate, and it asserts LITERAL expected values rather than comparing to .NET — so it
+    // means the same thing on every machine, which the .NET comparisons above do not. These are all
+    // long-settled mappings; if one of them ever changes, that is a Unicode earthquake and we want
+    // to be told, not quietly re-baselined against whatever the local ICU thinks today.
+    [Fact]
+    public void TheTable_GetsTheSettledMappingsRight()
+    {
+        Assert.Equal("HÉLLO WÖRLD", CaseTable.ToUpper("héllo wörld"));
+        Assert.Equal("héllo wörld", CaseTable.ToLower("HÉLLO WÖRLD"));
+        Assert.Equal("ΑΣΠΙΔΑ", CaseTable.ToUpper("ασπιδα"));
+        Assert.Equal("МОСКВА", CaseTable.ToUpper("москва"));
+        Assert.Equal("москва", CaseTable.ToLower("МОСКВА"));
+        Assert.Equal("𐐀𐐁𐐂", CaseTable.ToUpper("𐐨𐐩𐐪"));          // above the BMP
+        Assert.Equal("", CaseTable.ToUpper(""));
+
+        // Simple case mapping: one character in, one character out, always.
+        Assert.Equal("STRAßE", CaseTable.ToUpper("straße"));      // NOT "STRASSE"
+        Assert.Equal("ﬁANCÉ", CaseTable.ToUpper("ﬁancé"));        // the ligature stays whole
+        Assert.Equal("ı AND İ", CaseTable.ToUpper("ı and İ"));    // invariant declines to pick a locale
+    }
+
+    // ★ A per-character table is only sufficient if casing is NOT CONTEXTUAL. Greek final sigma is
+    // the standard counter-example — in locale-aware casing Σ lowercases to ς at the end of a word
+    // and σ elsewhere, which no per-character map can express. Invariant casing does not do that,
+    // and this pins the consequence directly: every sigma lowercases to σ, wherever it sits.
     [Fact]
     public void CasingIsNotContextual_SoAPerCharacterTableIsEnough()
     {
-        foreach (var word in new[]
-        {
-            "ΟΔΥΣΣΕΥΣ", "ΑΣ", "Σ", "ΣΣΣ", "οδυσσευς", "ΑΣΠΙΔΑ ΣΤΟ ΤΕΛΟΣ",
-            "straße", "STRASSE", "İstanbul", "ırmak", "ǅungla", "Ǆ ǅ ǆ",
-            "héllo wörld", "𐐨𐐩𐐪 mixed 𐐀", "",
-        })
-        {
-            Assert.Equal(word.ToUpperInvariant(), CaseTable.ToUpper(word));
-            Assert.Equal(word.ToLowerInvariant(), CaseTable.ToLower(word));
-        }
+        Assert.Equal("οδυσσευσ", CaseTable.ToLower("ΟΔΥΣΣΕΥΣ"));   // final sigma would be ς
+        Assert.Equal("ασ", CaseTable.ToLower("ΑΣ"));
+        Assert.Equal("σ", CaseTable.ToLower("Σ"));
+        Assert.Equal("σσσ", CaseTable.ToLower("ΣΣΣ"));
+        Assert.DoesNotContain("ς", CaseTable.ToLower("ΑΣΠΙΔΑ ΣΤΟ ΤΕΛΟΣ"));
+
+        // A titlecase letter has different upper and lower forms, so it appears in both halves of
+        // the table with unequal deltas — the case a run-length encoder is most likely to get wrong.
+        Assert.Equal("Ǆ Ǆ Ǆ", CaseTable.ToUpper("Ǆ ǅ ǆ"));
+        Assert.Equal("ǆ ǆ ǆ", CaseTable.ToLower("Ǆ ǅ ǆ"));
     }
 
     [Fact]
     public void RandomMultiCharacterText_CasesLikeDotNet()
     {
+        // Opt-in for the same reason as the exhaustive check above — it compares against live .NET,
+        // which is ICU-dependent and therefore machine-dependent.
+        if (Environment.GetEnvironmentVariable("CUFET_CASE_DRIFT") != "1") return;
+
         // The fuzz behind the previous test: 20,000 strings drawn from the code points that actually
         // have mappings, so most characters exercise the table rather than the ASCII fast path.
         var alphabet = new List<int>();

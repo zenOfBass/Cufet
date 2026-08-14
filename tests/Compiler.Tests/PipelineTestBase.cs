@@ -80,8 +80,13 @@ public abstract class PipelineTestBase
         var work   = Directory.CreateDirectory(tmp);
         var cPath  = Path.Combine(tmp, "program.c");
         var rtPath = Path.Combine(tmp, RuntimeSplit.SourceFileName);
+        // ⚠ `-bin` and not just `tmp + binExt`. `tmp` is now a DIRECTORY (the split needs somewhere
+        // to put the header beside the source), and on Linux binExt is empty — so the binary path
+        // and the directory were the same path, and ld failed with "cannot open output file: Is a
+        // directory" for every compiled test. Windows could not see it: `.exe` made the two differ.
+        // It also has to live OUTSIDE that directory, which is deleted before the binary runs.
         var binExt = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "";
-        var binPath = tmp + binExt;
+        var binPath = tmp + "-bin" + binExt;
 
         try
         {
