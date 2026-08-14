@@ -3342,6 +3342,22 @@ self-contained, with no external libraries and no flags beyond `-pthread` and `-
 `emit-c` is the escape hatch for cross-toolchain builds and for reading what was
 generated.
 
+**The runtime is a separate translation unit.** `emit-c program.cufe out.c` writes
+three files — `out.c` (your program), plus `cufet-runtime.c` and `cufet-runtime.h`
+beside it. Compile them together anywhere:
+
+```
+gcc out.c cufet-runtime.c -o program -pthread -lm
+```
+
+Keeping the runtime out of `out.c` is what makes that file readable: it used to be
+about 950 lines of runtime before your program started. `build` compiles the runtime
+once and caches the object under your user cache directory (`%LOCALAPPDATA%\cufet` on
+Windows, `$XDG_CACHE_HOME/cufet` or `~/.cache/cufet` elsewhere; `CUFET_CACHE_DIR`
+overrides it), so later builds only compile your program. **The cache is never
+required** — if it cannot be written, the runtime is compiled alongside your program
+and the build succeeds anyway.
+
 The lexer, parser, and type checker are shared, so a program that type-checks does so
 identically either way, and every error message you have seen in this document is the
 same in both.

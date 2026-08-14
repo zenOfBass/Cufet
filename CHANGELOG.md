@@ -8,6 +8,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Changed
+
+- **★ The C runtime is its own translation unit, not 950 lines pasted into every file.** `emit-c`
+  now writes three files — your program, plus `cufet-runtime.c` and `cufet-runtime.h` beside it —
+  and they still compile anywhere with `gcc out.c cufet-runtime.c -o program`.
+
+  The point is readability and a missing rule, in that order. Emitted C was measured at **79% runtime
+  for a typical example and 98.9% for a small one** (`fibonacci`: 578 bytes of program in a 51 KB
+  file); `huffmancoding` went from 72 KB to 22 KB. And because a single file had to define every
+  runtime symbol above its first use, the emitter carried an ordering rule per block — the direct
+  cause of three "symbol emitted above its own declaration" defects in one session, each fixed by
+  moving code rather than by fixing a rule. The fixed runtime is now emitted before anything
+  generated, unconditionally, and that class is gone.
+
+  `build` compiles the runtime once and caches the object under the user cache directory
+  (`CUFET_CACHE_DIR` overrides; keyed by the runtime source, the gcc version and the flags, so a
+  compiler upgrade invalidates it). **The cache is never required** — if it cannot be written the
+  runtime is compiled alongside the program, so `gcc` remains the only thing anyone must install.
+  Measured saving is ~150 ms of gcc's ~500 ms; the remaining ~220 ms is link overhead that caching
+  cannot touch.
+
+  Also fixed in passing: `build` wrote its intermediate `<name>.c` beside the source and deleted it
+  afterwards, which destroyed a hand-written `<name>.c` if one existed. It uses a temporary
+  directory now.
+
 ### Added
 
 - **★ An interface can supply a DEFAULT method** — most of what traits give, with no new keyword
