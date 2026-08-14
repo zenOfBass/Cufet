@@ -30,6 +30,10 @@ public sealed partial class TypeChecker
                 "Only series and maps can be looped over. Define a series if that's what you need.");
 
         var iterKey2 = forEach.IteratorName ?? "it";
+        // What StashTransform needs to rewrite this loop into an indexed one: the source's type (to
+        // give its slot an element type) and the iterator's (it becomes a slot of its own).
+        _stashFacts.ForEachSources[(forEach.Line, forEach.Column)] = seriesType;
+        RecordStashLocal(iterKey2, ResolveParamType(seriesType.ElementType), forEach.Line, forEach.Column);
         // Iterator inherits the series's rabbit depth — elements of a rabbit-scoped
         // series live in the same region and carry the same lifetime constraint.
         int seriesDepth = forEach.Series is VariableReference vrSeries

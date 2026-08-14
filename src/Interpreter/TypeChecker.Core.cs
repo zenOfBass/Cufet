@@ -417,7 +417,10 @@ public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int Establi
 // Line/Column point at the violation — the position the message's "Here on line N" sentence
 // names. They are 0 only for the rare error with no AST node to blame; a diagnostic consumer
 // treats 0 as "no position" and falls back to the top of the file.
-public sealed class TypeException : Exception
+// Not sealed: StashUnsupportedException is one of these. A shape the state machine cannot lower is
+// a fact about the program, reported where and how every other such fact is, and every caller that
+// already handles a type error handles it with no change.
+public class TypeException : Exception
 {
     public int Line { get; }
     public int Column { get; }
@@ -451,37 +454,50 @@ public sealed partial class TypeChecker
     private readonly HashSet<string> _buryingFunctions = new(StringComparer.Ordinal);
 
     /// <summary>
+    /// The types StashTransform cannot work out for itself — every local's type, and every
+    /// for-each source's. Filled while checking a burying body; read once, after checking.
+    /// </summary>
+    private readonly StashFacts _stashFacts = new();
+
+    /// <summary>
+    /// The burying function whose body is being checked right now, or null. Set only for the
+    /// function's OWN body: a nested `Bind` or lambda clears it, because its locals belong to that
+    /// function and never reach the enclosing one's state machine.
+    /// </summary>
+    private string? _recordingStashFn;
+
+    /// <summary>
     /// Does this function's OWN body bury? Nested functions are excluded deliberately — a lambda or
     /// inner `Bind` that buries is its own stash-producer, and letting its `bury` leak outward would
     /// make the enclosing function a generator by accident.
     /// </summary>
-    private static bool BuriesValues(BindStatement bind) => BuriesInOwnBody(bind.Body);
+    /// <remarks>
+    /// The walk itself lives in StashTransform, which needs the identical boundary when it decides
+    /// whether a statement has to be linearised. One rule, stated once.
+    /// </remarks>
+    private static bool BuriesValues(BindStatement bind) => StashTransform.ContainsBury(bind.Body);
 
-    private static bool BuriesInOwnBody(object? node)
+    /// <summary>
+    /// Notes a local's type for the state machine, and refuses a name that means two things.
+    /// </summary>
+    /// <remarks>
+    /// ★ Linearising a body FLATTENS its scopes — a local declared inside a loop or an arm ends up a
+    /// function-wide slot — so two sibling blocks that each declare `x` at different types would
+    /// collide in one slot. Cufet already requires `a shadow` to reuse a name from an ENCLOSING
+    /// scope (refused outright below); this catches the sibling case, which is legal everywhere else.
+    /// </remarks>
+    private void RecordStashLocal(string name, CufetType type, int line, int column)
     {
-        switch (node)
-        {
-            case null or string or CufetType: return false;
-            // The boundary: a nested function's burys belong to IT.
-            case BindStatement or LambdaLiteral: return false;
-            case BuryStatement: return true;
-            case System.Runtime.CompilerServices.ITuple tup:
-                for (int i = 0; i < tup.Length; i++)
-                    if (BuriesInOwnBody(tup[i])) return true;
-                return false;
-            case System.Collections.IEnumerable en:
-                foreach (var item in en)
-                    if (BuriesInOwnBody(item)) return true;
-                return false;
-            default:
-                // ★ Keyed on the NAMESPACE, not on IExpression/IStatement — ConditionArm and JudgeArm
-                // implement neither, so matching the interfaces walks straight past the body of every
-                // `If` and every judgement. Same rule as AstSearch; see its note.
-                if (node.GetType().Namespace != typeof(Program).Namespace) return false;
-                foreach (var prop in node.GetType().GetProperties())
-                    if (BuriesInOwnBody(prop.GetValue(node))) return true;
-                return false;
-        }
+        if (_recordingStashFn == null) return;
+        var key = (_recordingStashFn, name);
+        if (_stashFacts.Locals.TryGetValue(key, out var already) && already != type)
+            throw TypeError(
+                $"'{name}' means a {FormatType(already)} in one part of '{_recordingStashFn}' and a {FormatType(type)} in another",
+                "A burying function keeps its locals in one place, so a name can only mean one type there",
+                line, column,
+                $"use '{name}' for two different types inside a burying function",
+                "Rename one of them.");
+        _stashFacts.Locals[key] = type;
     }
     // Active narrowings: variable name → narrowed type (set inside checked branches).
     private readonly Dictionary<string, CufetType>           _narrowedVars  = new();
@@ -658,7 +674,7 @@ public sealed partial class TypeChecker
         CheckBlock(program.Statements);
 
         if (_buryingFunctions.Count == 0) return program;
-        return new Program(StashTransform.Expand(program.Statements, _buryingFunctions));
+        return new Program(StashTransform.Expand(program.Statements, _buryingFunctions, _stashFacts));
     }
 
     // Resolves every placeholder ObjectType reference stored inside _objectDefs (field types,
@@ -1278,6 +1294,17 @@ public sealed partial class TypeChecker
                 $"define '{define.Name}' again in the same block",
                 "Each name can only be defined once per block. Use 'becomes' to reassign it, or choose a different name.");
 
+        // ★ Shadowing cannot survive linearisation. The state machine flattens every scope in the
+        // body into one, so an inner `x` and the outer `x` it deliberately hides would become the
+        // same slot — the shadow would silently clobber what it was written to protect.
+        if (define.Shadow && _recordingStashFn != null)
+            throw TypeError(
+                $"'{_recordingStashFn}' buries, so it can't shadow '{define.Name}'",
+                "A burying function is rewritten into one flat block of state, and a shadowed name would land on top of the name it hides",
+                define.Line, define.Column,
+                $"shadow '{define.Name}' inside a burying function",
+                "Give the inner one a different name.");
+
         if (TryLookupOuter(define.Name, out var outer))
         {
             if (!define.Shadow)
@@ -1308,6 +1335,7 @@ public sealed partial class TypeChecker
                 $"Give it a {FormatType(declared)}, or change the declared type to match the value.");
 
         Scope[define.Name] = new TypeInfo(declared ?? type, define.Value, define.Line, define.Permanent, _rabbitDepth);
+        RecordStashLocal(define.Name, declared ?? type, define.Line, define.Column);
     }
 
     private void CheckBecomes(BecomesStatement becomes)

@@ -240,6 +240,11 @@ public sealed partial class TypeChecker
         var prevFunctionLine      = _functionDeclarationLine;
         var prevRabbitDepth       = _rabbitDepth;
         var prevHidden            = _hiddenTopLevelData;
+        var prevRecordingStash    = _recordingStashFn;
+        // Only this body's own locals belong to this body's state machine. A nested Bind sets its
+        // own name here (or clears it), so its locals never leak into the enclosing slot table.
+        _recordingStashFn         = bind.UntoType == null && _buryingFunctions.Contains(bind.Name)
+                                        ? bind.Name : null;
         _inFunction               = true;
         _expectedReturnType       = bind.ReturnType;
         _functionDeclarationLine  = bind.Line;
@@ -270,6 +275,7 @@ public sealed partial class TypeChecker
             _functionDeclarationLine  = prevFunctionLine;
             _rabbitDepth              = prevRabbitDepth;
             _hiddenTopLevelData       = prevHidden;
+            _recordingStashFn         = prevRecordingStash;
             RestoreScopes(saved);
         }
 
@@ -320,6 +326,8 @@ public sealed partial class TypeChecker
         var prevRabbitDepth       = _rabbitDepth;
         var prevOverloadFallible  = _overloadBodyIsFallible;
         var prevHidden            = _hiddenTopLevelData;
+        var prevRecordingStash    = _recordingStashFn;
+        _recordingStashFn         = null; // a lambda's locals are its own, not the enclosing machine's
         _inFunction               = true;
         _expectedReturnType       = null; // set by first Return via CheckReturn
         _functionDeclarationLine  = lambda.Line;
@@ -342,6 +350,7 @@ public sealed partial class TypeChecker
             _rabbitDepth             = prevRabbitDepth;
             _overloadBodyIsFallible  = prevOverloadFallible;
             _hiddenTopLevelData      = prevHidden;
+            _recordingStashFn        = prevRecordingStash;
             RestoreScopes(saved);
         }
 

@@ -171,11 +171,14 @@ public class ExhaustivenessTests
         "CodeGenerator.cs: IsBoundSomewhere",
         "CodeGenerator.cs: CaptureWriteIsObservable",
         "CodeGenerator.cs: CollectRefsDefs",
-        // Proof it sees inside ConditionArm and JudgeArm: Interpreter.Tests/StashDetectionTests.
-        // Both arm tests were shown RED by keying the walk on IStatement/IExpression instead of the
-        // namespace. (The Otherwise test in that file stayed green under the same break and is
-        // labelled there as not discriminating — an `Otherwise` body is an ordinary property.)
-        "TypeChecker.Core.cs: BuriesInOwnBody",
+        // The one walk behind every question StashTransform asks — does this bury, does it return,
+        // does a `Stop` escape it, is this name mentioned — and the type checker's burying-function
+        // detection calls the same one. Proof it sees inside ConditionArm and JudgeArm:
+        // Interpreter.Tests/StashDetectionTests. Both arm tests were shown RED by keying the walk on
+        // IStatement/IExpression instead of the namespace. (The Otherwise test in that file stayed
+        // green under the same break and is labelled there as not discriminating — an `Otherwise`
+        // body is an ordinary property.)
+        "StashTransform.cs: Search",
     ];
 
     // A generic AST walk's fingerprint: it asks an unknown node for its properties.

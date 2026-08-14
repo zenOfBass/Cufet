@@ -22,24 +22,29 @@ namespace Cufet.Interpreter.Tests;
 /// checks, which is true only if the walk actually reached it.
 public class StashDetectionTests
 {
-    private static void Check(string source)
+    private static Program Check(string source)
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        return new TypeChecker().Check(program);
     }
 
     /// <summary>
-    /// Asserts the function was RECOGNISED as burying, by way of the transform refusing its shape.
+    /// Asserts the function was RECOGNISED as burying, by way of the state machine that only a
+    /// recognised one gets.
     /// </summary>
     /// <remarks>
-    /// ★ A StashUnsupportedException is only reachable for a function the detection walk identified
-    /// — an unrecognised one is never handed to the transform at all, and would sail through. So it
-    /// is a sharper detection probe than a clean check, not a weaker one. (The refusal itself is
-    /// this increment's limit: burys inside control flow need the body split into blocks.)
+    /// ★ Checking for the rewrite rather than for a clean check is what makes this discriminating.
+    /// An unrecognised burying function type-checks perfectly happily — its `bury` is simply left
+    /// where it sits, and the mistake surfaces far away as "'unbury' needs a stash". The resume
+    /// function only exists if the walk found the bury.
     /// </remarks>
-    private static void DetectedAsBurying(string source) =>
-        Assert.Throws<StashUnsupportedException>(() => Check(source));
+    private static void DetectedAsBurying(string source, string functionName)
+    {
+        var program = Check(source);
+        Assert.Contains(program.Statements,
+            s => s is BindStatement bind && bind.Name == "stash_resume_" + functionName);
+    }
 
     [Fact]
     public void ABuryInsideAnIfArm_StillMakesTheFunctionStashProducing()
@@ -54,7 +59,7 @@ public class StashDetectionTests
 
             Define s as cast picky on (true).
             State unbury s.
-            """);
+            """, "picky");
     }
 
     // ⚠ This one does NOT discriminate, and saying so matters more than the extra green tick.
@@ -77,13 +82,23 @@ public class StashDetectionTests
 
             Define s as cast picky on (false).
             State unbury s.
-            """);
+            """, "picky");
     }
 
+    /// <summary>
+    /// A judgement is the one arm-bearing form the machine still refuses — and the refusal is
+    /// itself the detection probe.
+    /// </summary>
+    /// <remarks>
+    /// ★ A StashUnsupportedException is only reachable for a function the walk identified; an
+    /// unrecognised one is never handed to the transform at all and would sail through clean. The
+    /// refusal is real and deliberate: a Judge arm's body runs under a NARROWING, and a step number
+    /// cannot restore one — the arm would be resumed with the subject back at its wide type.
+    /// </remarks>
     [Fact]
     public void ABuryInsideAJudgeArm_StillMakesTheFunctionStashProducing()
     {
-        DetectedAsBurying("""
+        Assert.Throws<StashUnsupportedException>(() => Check("""
             Bind number to sorter, given (the (number or text) thing):
                 Judge thing, where it is:
                     A number, bury 1.
@@ -93,7 +108,7 @@ public class StashDetectionTests
 
             Define s as cast sorter on (5).
             State unbury s.
-            """);
+            """));
     }
 
     [Fact]
