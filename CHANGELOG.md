@@ -20,11 +20,19 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   through generated C in a debugger, triaging a suspected miscompilation — needs that source
   anyway. Measured cost to the test suite: 17 seconds.
 
-  ⚠ `-O2` is what turns latent undefined behaviour into a wrong answer, so it ships with a
-  sanitizer sweep rather than on its own. The sanitized test harness now compiles with
-  `-fsanitize=address,undefined` and `-fno-sanitize-recover=undefined`, so a UBSan finding aborts
-  the program instead of printing to stderr and letting a stdout-comparing test pass. Every example
-  was also swept under both sanitizers at `-O2` on Linux gcc 16.1.1: **no findings**.
+  ⚠ `-O2` is what turns latent undefined behaviour into a wrong answer, so it ships with sanitizer
+  coverage rather than on its own:
+
+  - The sanitized test harness now compiles with `-fsanitize=address,undefined` and
+    `-fno-sanitize-recover=undefined`, so a UBSan finding **aborts** instead of printing to stderr
+    and letting a stdout-comparing test pass.
+  - **Every example now runs under ASan + UBSan + LeakSanitizer on Linux**, as part of the oracle
+    test that already built and ran them — so it costs no extra compiles. The examples are the only
+    realistic programs the suite has; the other sanitized tests are small and aimed at features
+    somebody already suspected.
+
+  Both were clean on first run (Linux gcc 16.1.1), including the three POSIX-only examples that
+  cannot build under mingw at all.
 
 - **★ The C runtime is its own translation unit, not 950 lines pasted into every file.** `emit-c`
   now writes three files — your program, plus `cufet-runtime.c` and `cufet-runtime.h` beside it —
