@@ -29,11 +29,23 @@ public class StashDetectionTests
         new TypeChecker().Check(program);
     }
 
+    /// <summary>
+    /// Asserts the function was RECOGNISED as burying, by way of the transform refusing its shape.
+    /// </summary>
+    /// <remarks>
+    /// ★ A StashUnsupportedException is only reachable for a function the detection walk identified
+    /// — an unrecognised one is never handed to the transform at all, and would sail through. So it
+    /// is a sharper detection probe than a clean check, not a weaker one. (The refusal itself is
+    /// this increment's limit: burys inside control flow need the body split into blocks.)
+    /// </remarks>
+    private static void DetectedAsBurying(string source) =>
+        Assert.Throws<StashUnsupportedException>(() => Check(source));
+
     [Fact]
     public void ABuryInsideAnIfArm_StillMakesTheFunctionStashProducing()
     {
         // The `bury` appears ONLY inside the arm body — nowhere a walk keyed on IStatement reaches.
-        Check("""
+        DetectedAsBurying("""
             Bind number to picky, given (the fact go):
                 If go:
                     Bury 1.
@@ -53,7 +65,7 @@ public class StashDetectionTests
     [Fact]
     public void ABuryInsideAnOtherwiseArm_StillMakesTheFunctionStashProducing()
     {
-        Check("""
+        DetectedAsBurying("""
             Bind number to picky, given (the fact go):
                 If go:
                     State "no".
@@ -71,7 +83,7 @@ public class StashDetectionTests
     [Fact]
     public void ABuryInsideAJudgeArm_StillMakesTheFunctionStashProducing()
     {
-        Check("""
+        DetectedAsBurying("""
             Bind number to sorter, given (the (number or text) thing):
                 Judge thing, where it is:
                     A number, bury 1.

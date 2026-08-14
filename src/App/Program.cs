@@ -80,7 +80,7 @@ static void EmitC(string sourcePath, string outPath)
     {
         var tokens  = new Lexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
 
         // ★ Three files, not one. The point of `emit-c` is that a person can READ the C their
         // program became, and that was buried under 955 lines of runtime — measured at 79% of a
@@ -304,7 +304,10 @@ static void Build(string sourcePath)
     {
         var tokens = new Lexer(source).Tokenize();
         program = new Parser(tokens).Parse();
-        checker.Check(program);
+        // The RETURNED program, not the one handed in: a burying function is rewritten
+        // into a closure factory by then. (`check` and `tokens` deliberately keep the
+        // original — a reader is shown what THEY wrote, not the lowering.)
+        program = checker.Check(program);
     }
     catch (LexerException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
     catch (ParseException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
@@ -380,7 +383,10 @@ static void Interpret(string[] args)
         var tokens  = new Lexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
         var checker = new TypeChecker();
-        checker.Check(program);
+        // The RETURNED program, not the one handed in: a burying function is rewritten
+        // into a closure factory by then. (`check` and `tokens` deliberately keep the
+        // original — a reader is shown what THEY wrote, not the lowering.)
+        program = checker.Check(program);
         // To stderr, and before the program starts, so a warning never lands in the middle of the
         // output and never gets mistaken for something the program printed.
         WriteWarnings(args.Length > 0 ? args[0] : "<stdin>", checker.Diagnostics);

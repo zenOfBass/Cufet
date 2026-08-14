@@ -1109,10 +1109,11 @@ public sealed partial class Interpreter
         DirectoryContentsExpression   dce => EvaluateDirectoryContents(dce),
         PathCheckExpression           pce => EvaluatePathCheck(pce),
         InterruptRequestedExpression      => (object)_interruptRequested,
-        // Same safety valve as BuryStatement above — see the note there.
-        UnburyExpression ub               => throw new RuntimeException(
-            $"Internal: an 'unbury' on line {ub.Line} reached the interpreter untransformed. "
-            + "Run the program returned by TypeChecker.Check, not the one handed to it."),
+        // ★ `unbury s` IS `cast s on ()`. A stash lowers to a closure, so resuming one is calling
+        // it — which means this needs no machinery of its own, just the call path every function
+        // value already uses. (Unlike BuryStatement above, an unbury legitimately survives the
+        // transform: only the burying FUNCTION is rewritten, never its call sites.)
+        UnburyExpression ub               => EvaluateCastExpr(new CastExpression(ub.Stash, [], ub.Line, ub.Column)),
         RandomNumber  rn                  => EvaluateRandomNumber(rn),
         RandomItem    ri                  => EvaluateRandomItem(ri),
         RandomlyShuffled rs               => EvaluateRandomlyShuffled(rs),

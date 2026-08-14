@@ -65,7 +65,7 @@ public abstract class PipelineTestBase
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
 
         // ★ The SPLIT path, because that is what `cufet build` does. The combined single-file form
         // still exists as the concatenation these two halves are cut from, but nothing ships it any
@@ -140,7 +140,7 @@ public abstract class PipelineTestBase
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         return new CodeGenerator().Generate(program);
     }
 
@@ -149,7 +149,7 @@ public abstract class PipelineTestBase
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         var sb = new StringWriter();
         var reader = stdin != null ? new StringReader(stdin) : null;
         new CufetInterpreter(sb, reader).Execute(program);
@@ -337,7 +337,7 @@ public abstract class PipelineTestBase
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         var cSource = new CodeGenerator().Generate(program);
 
         // A unique stem WITHOUT creating a file: GetTempFileName is unique only while its file exists,
@@ -389,7 +389,7 @@ public abstract class PipelineTestBase
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         var cSource = new CodeGenerator().Generate(program);
 
         // A unique stem WITHOUT creating a file: GetTempFileName is unique only while its file exists,

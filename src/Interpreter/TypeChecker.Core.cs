@@ -637,13 +637,28 @@ public sealed partial class TypeChecker
     // Stored separately from ObjectType.Getters (getters have no FunctionType wrapper).
     private readonly Dictionary<string, Dictionary<string, IReadOnlyList<int>>> _getterDepthSigs = new();
 
-    public void Check(Program program)
+    /// <summary>
+    /// Type-checks the program and returns the one to RUN, which is not always the one handed in.
+    /// </summary>
+    /// <remarks>
+    /// ★ Returning a program rather than nothing is what lets stashes exist. A burying function is
+    /// rewritten into a factory that hands back a closure (see StashTransform), and that rewrite
+    /// needs types, so it cannot be a parser pass the way interface defaults are. The signature
+    /// change is source-compatible — a caller that only wants validation still writes
+    /// `new TypeChecker().Check(program);` and ignores the result — and any caller that DOES need
+    /// to run or compile must use the returned program. Both backends refuse a stray `bury` loudly
+    /// rather than misbehaving, so forgetting fails at once instead of silently.
+    /// </remarks>
+    public Program Check(Program program)
     {
         _scopes[0]["input"] = BuiltinInput;
         Pass1Hoist(program);
         Pass2ResolveTypes();          // resolve all placeholder ObjectType refs in _objectDefs + global scope
         Pass2CheckOverloads(program); // body-check all overloads; populates _overloadReturnTypes
         CheckBlock(program.Statements);
+
+        if (_buryingFunctions.Count == 0) return program;
+        return new Program(StashTransform.Expand(program.Statements, _buryingFunctions));
     }
 
     // Resolves every placeholder ObjectType reference stored inside _objectDefs (field types,

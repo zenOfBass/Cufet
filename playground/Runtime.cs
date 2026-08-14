@@ -24,7 +24,7 @@ public static partial class Runtime
         {
             var tokens  = new CufetLexer(source).Tokenize();
             var program = new Parser(tokens).Parse();
-            new TypeChecker().Check(program);
+            program = new TypeChecker().Check(program);
             // All three streams are passed explicitly. Leaving any of them null falls back to
             // Console, and Console.In throws PlatformNotSupported in a browser — there is no
             // stdin to read. Error goes to the same buffer as output so nothing a program
@@ -49,7 +49,7 @@ public static partial class Runtime
         {
             var tokens  = new CufetLexer(source).Tokenize();
             var program = new Parser(tokens).Parse();
-            new TypeChecker().Check(program);
+            program = new TypeChecker().Check(program);
             return "";
         }
         catch (Exception e) when (e is LexerException or ParseException or TypeException)

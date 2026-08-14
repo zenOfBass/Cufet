@@ -207,7 +207,7 @@ public class ExampleOracleTests
 
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
 
         string compiled;
         try
@@ -320,7 +320,7 @@ public class ExampleOracleTests
 
         var source  = File.ReadAllText(Path.Combine(ExampleDir, file));
         var program = new Parser(new CufetLexer(source).Tokenize()).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
 
         Assert.NotEmpty(Interpret(program));
         Assert.NotEmpty(CompileAndRun(program));
