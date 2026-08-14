@@ -366,23 +366,70 @@ public class ExampleOracleTests
     }
 
     // The binary gets its working directory set directly, so no global state is touched.
+    /// <summary>
+    /// Builds and runs one example the way `cufet build` does — and, where the platform allows it,
+    /// under the sanitizers.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ★ The examples are the only realistic programs the suite has. The hand-written sanitized
+    /// tests are small and aimed at features somebody already suspected; these are whole programs
+    /// doing bit-packing, matrix work and string slicing in combinations nobody wrote a targeted
+    /// test for. Sanitizing them costs NO extra compiles — this method already built and ran every
+    /// one — it only makes the builds it was doing anyway instrumented.
+    /// </para>
+    /// <para>
+    /// It matters more now that builds are optimized: `-O2` is what turns latent undefined
+    /// behaviour into a wrong answer, where `-O0` forgave it. `-fno-sanitize-recover` makes a UBSan
+    /// finding ABORT rather than print to stderr and continue, because a harness that compares
+    /// stdout would otherwise let the report scroll past and go green.
+    /// </para>
+    /// <para>
+    /// ⚠ Linux only — mingw has no working sanitizers, which is the same reason 73 tests already
+    /// skip on Windows.
+    /// </para>
+    /// <para>
+    /// Leak detection is ON. It was going to be off, on the assumption that an arena which defers
+    /// frees and lets the OS reclaim at exit would make LeakSanitizer report the design rather than
+    /// a bug — but measured against all 30 examples it reports nothing, so switching it off would
+    /// have bought nothing and cost the coverage. Note what it does and does not prove: LSan does
+    /// not count still-REACHABLE memory as leaked, and the arena's pointer list is a global, so
+    /// anything parked there is reachable by construction. What it therefore catches is memory that
+    /// became unreachable without being freed — a channel or buffer whose last pointer was dropped.
+    /// </para>
+    /// </remarks>
     private static string CompileAndRun(Program program)
     {
-        var cSource = new CodeGenerator().Generate(program);
+        // The SPLIT path, because that is what `cufet build` does — see PipelineTestBase.CompileRaw.
+        var (header, runtimeSource, programSource) = new CodeGenerator().GenerateSplit(program);
 
         // A unique stem WITHOUT creating a file: GetTempFileName is unique only while its file exists,
         // and deleting it to reuse the stem releases the name for another thread to be handed.
 
-        var tmp = Path.Combine(Path.GetTempPath(), "cufet-" + Guid.NewGuid().ToString("N"));
-        var cPath   = tmp + ".c";
+        var tmp     = Path.Combine(Path.GetTempPath(), "cufet-" + Guid.NewGuid().ToString("N"));
+        var work    = Directory.CreateDirectory(tmp);
+        var cPath   = Path.Combine(tmp, "program.c");
+        var rtPath  = Path.Combine(tmp, RuntimeSplit.SourceFileName);
         var binPath = tmp + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "");
+
+        var sanitized = !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        string[] flags = sanitized
+            ? ["-fsanitize=address,undefined", "-fno-sanitize-recover=undefined", "-g"]
+            : [];
 
         try
         {
-            File.WriteAllText(cPath, cSource);
-            new GccInvoker().Compile(cPath, binPath);
+            File.WriteAllText(Path.Combine(tmp, RuntimeSplit.HeaderFileName), header);
+            File.WriteAllText(cPath, programSource);
+
+            var gcc = new GccInvoker();
+            // The cache key carries the flags, so a sanitized runtime object never collides with
+            // the ordinary one.
+            var cached = new RuntimeCache().ObjectFor(runtimeSource, header, gcc, flags);
+            if (cached == null) File.WriteAllText(rtPath, runtimeSource);
+            gcc.Compile([cPath, cached ?? rtPath], binPath, flags);
         }
-        finally { try { File.Delete(cPath); } catch { } }
+        finally { try { work.Delete(recursive: true); } catch { } }
 
         try
         {
@@ -395,12 +442,29 @@ public class ExampleOracleTests
                 // EOF, not the TEST HOST's stdin. See PipelineTestBase.CompileRaw for the full
                 // story — inheriting it wedges the run for hours under `dotnet test` on Linux.
                 RedirectStandardInput = true,
+                RedirectStandardError = true,
                 UseShellExecute = false,
             };
+            if (sanitized)
+            {
+                psi.Environment["ASAN_OPTIONS"] = "detect_leaks=1";
+                psi.Environment["UBSAN_OPTIONS"] = "print_stacktrace=1";
+            }
+
             using var proc = Process.Start(psi)!;
             proc.StandardInput.Close();
             var output = proc.StandardOutput.ReadToEnd();
+            var stderr = proc.StandardError.ReadToEnd();
             proc.WaitForExit();
+
+            if (sanitized && (stderr.Contains("runtime error:")
+                           || stderr.Contains("AddressSanitizer")
+                           || stderr.Contains("LeakSanitizer")))
+                throw new Xunit.Sdk.XunitException(
+                    "A sanitizer reported undefined or unsafe behaviour in the generated program.\n" +
+                    "This is a real defect in the emitted C or the runtime — it is not a flake, and\n" +
+                    "the report below names the file and line.\n\n" + stderr);
+
             return output;
         }
         finally { try { File.Delete(binPath); } catch { } }
