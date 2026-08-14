@@ -1,0 +1,74 @@
+// Stashes — a rabbit that stops mid-task and picks up where it left off.
+//
+// `Bury` hands one value out and pauses right there. `unbury` wakes it up again. A function that
+// buries anywhere in its body hands back a `stash of <what it buries>` instead of a plain value —
+// nothing marks the declaration, exactly as nothing marks a function fallible and `return a
+// failure` in the body decides it.
+//
+// A stash is not a collection. A series HAS its items; a stash PRODUCES them, one resumption at a
+// time, and cannot be counted, indexed or re-read. That is what lets a stash be endless.
+//
+// When there is nothing left to bury, `unbury` gives back void — so the type of `unbury s` is
+// `voidable T`, and asking "is it void?" is how you find out the stash is spent.
+
+// ── Endless is fine ─────────────────────────────────────────────────────────────────────────────
+//
+// Nothing here says how many. The loop never ends; it just stops running whenever it buries, and
+// only runs again if somebody asks for another one.
+
+Bind number to counting-up, given (the number first-value):
+    Define next as first-value.
+    Repeat:
+        Bury next.
+        The next becomes next + 1.
+    Until false.
+Done.
+
+State "Five, from three:".
+Define counter as cast counting-up on (3).
+Define taken as 0.
+While taken is less than 5, repeat:
+    State unbury counter.
+    The taken becomes taken + 1.
+Done.
+
+// ── Every stash has its own place to stand ──────────────────────────────────────────────────────
+//
+// Two casts of the same function make two stashes, and neither one knows about the other. The
+// state a rabbit keeps between resumptions is its own.
+
+State "".
+State "A second counter, started later:".
+Define other-counter as cast counting-up on (100).
+State unbury other-counter.
+State unbury counter.
+State unbury other-counter.
+State unbury counter.
+
+// ── A stash that runs out ───────────────────────────────────────────────────────────────────────
+//
+// `Skip` and `Stop` work inside a burying function the way they always do. This one walks a series,
+// passes over the short words, and finishes when the series does — after which it is spent, and
+// says so by handing back void.
+
+Bind text to long-words-in, given (the series of text words):
+    For each word in words, repeat:
+        If the length of word is less than 4:
+            Skip.
+        Done.
+        Bury word.
+    Done.
+Done.
+
+State "".
+State "The long words, then void:".
+Define found as cast long-words-in on (a series with ("a", "rabbit", "in", "the", "warren")).
+Repeat:
+    Define word as unbury found.
+    If word is void:
+        Stop.
+    Done.
+    State word.
+Until false.
+State unbury found.
+State unbury found.
