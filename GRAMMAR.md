@@ -2213,10 +2213,10 @@ outward store is rejected:
 ```
 Bind void to run-with, given (the series of number s):
     Define sink as a series of number.
-    Bind void to stash, given ():
+    Bind void to tuck, given ():
         The sink becomes s.              ← TYPE ERROR: captured parameter 's' treated as
     Done.                               maximally deep — caller may pass a rabbit value
-    Cast stash on ().
+    Cast tuck on ().
 Done.
 ```
 
