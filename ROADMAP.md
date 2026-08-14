@@ -47,54 +47,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 1 — leverage
 
-1. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
-   literally rather than nearly true.
-
-
-### Tier 2 — the design mountains
-
-All need a design session before they can be ordered against anything. They are here because
-they are large, not because they are waiting — except the formatter, which is genuinely
-blocked by the inline forms in Tier 1.
-
-2. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
-   it is not optional.
-
-3. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
-   container holds one concrete type or fakes it with an open union.
-
-   ★ **The syntax already exists.** `a series of number`, `a map from text to number` — a
-   user-defined `a stack of number` reads exactly like the built-ins, so there is nothing to invent
-   at the use site. Most languages have to bolt on `<>`. The implementation strategy is also already
-   chosen: monomorphization, the same technique interface parameters use today, with **interfaces as
-   the constraint mechanism** rather than a new concept.
-
-   **Interface defaults shipped first, deliberately.** Re-scope this against what they absorbed
-   before committing to a size — some of the pressure for generics was really pressure for shared
-   behaviour, and that half now has an answer.
-
-   ⚠ **The cost lands on the language's best asset.** Cufet's distinguishing feature is errors that
-   name the line, the violation and the fix. Generic type errors are the worst errors in every
-   language that has them, because the failure is a unification that went wrong three inferences
-   deep. Budget for that specifically.
-
-   **Two decisions to take deliberately, both against the grain of other languages:**
-   - **Require explicit type arguments; do not infer them.** Cufet already makes you write
-     `Define the text name as`. Inference is where generic errors become unreadable, and declining
-     it is in character rather than a limitation.
-   - **No variance.** Not covariance, not contravariance. It is the part nobody can explain to a
-     learner, and a teaching language that ships `IEnumerable<out T>` has lost the plot.
-
-   **The trigger:** the first time a container is written twice for two element types, or an open
-   union is used to fake one.
-
-   It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
-   `matrix * number` scalar scaling, which is deferred today for exactly that reason. (The
-   Hadamard product is *not* blocked — it is decided: if ever added it will be a named
-   `collections` function, never an operator, because `*` means matrix product and there is one
-   canonical way.)
-
-4. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
+1. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
    written about it says so, which is accurate but incomplete: **the arena is the substrate, and
    the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
    restoring execution state. A task that yields and resumes *is* a continuation; so are green
@@ -131,6 +84,52 @@ blocked by the inline forms in Tier 1.
    **A stash is saved execution state, not a stack data structure**, so it cannot be a library:
    suspend and resume need compiler and runtime support. (The naming is Turing's — the ACE design
    used *bury* and *unbury* for subroutine linkage.)
+
+2. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+   literally rather than nearly true.
+
+### Tier 2 — the design mountains
+
+All need a design session before they can be ordered against anything. They are here because
+they are large, not because they are waiting. The formatter used to be blocked by the inline
+forms; those shipped in 0.15.0, so it is unblocked and simply last.
+
+3. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
+   container holds one concrete type or fakes it with an open union.
+
+   ★ **The syntax already exists.** `a series of number`, `a map from text to number` — a
+   user-defined `a stack of number` reads exactly like the built-ins, so there is nothing to invent
+   at the use site. Most languages have to bolt on `<>`. The implementation strategy is also already
+   chosen: monomorphization, the same technique interface parameters use today, with **interfaces as
+   the constraint mechanism** rather than a new concept.
+
+   **Interface defaults shipped first, deliberately.** Re-scope this against what they absorbed
+   before committing to a size — some of the pressure for generics was really pressure for shared
+   behaviour, and that half now has an answer.
+
+   ⚠ **The cost lands on the language's best asset.** Cufet's distinguishing feature is errors that
+   name the line, the violation and the fix. Generic type errors are the worst errors in every
+   language that has them, because the failure is a unification that went wrong three inferences
+   deep. Budget for that specifically.
+
+   **Two decisions to take deliberately, both against the grain of other languages:**
+   - **Require explicit type arguments; do not infer them.** Cufet already makes you write
+     `Define the text name as`. Inference is where generic errors become unreadable, and declining
+     it is in character rather than a limitation.
+   - **No variance.** Not covariance, not contravariance. It is the part nobody can explain to a
+     learner, and a teaching language that ships `IEnumerable<out T>` has lost the plot.
+
+   **The trigger:** the first time a container is written twice for two element types, or an open
+   union is used to fake one.
+
+   It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
+   `matrix * number` scalar scaling, which is deferred today for exactly that reason. (The
+   Hadamard product is *not* blocked — it is decided: if ever added it will be a named
+   `collections` function, never an operator, because `*` means matrix product and there is one
+   canonical way.)
+
+4. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+   it is not optional.
 
 5. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
     briefly a linter rule and is not one. Both tools would need the same "how large is large"
