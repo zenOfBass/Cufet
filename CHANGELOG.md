@@ -10,6 +10,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **★ Compiled programs are optimized.** `build` passes `-O2`. Until now it passed no `-O` flag at
+  all, so "compiles to a native binary" was delivering an unoptimized one.
+
+  **Always on, with no opt-out** — the Go answer rather than the Rust one. There is no debug build
+  and no `--release`, because the common failure of the opt-in design is someone benchmarking the
+  default build, getting a bad number, and concluding the language is slow. Nothing is lost by
+  having no flag: `emit-c` already hands over the source, and anyone who wants `-O0` — stepping
+  through generated C in a debugger, triaging a suspected miscompilation — needs that source
+  anyway. Measured cost to the test suite: 17 seconds.
+
+  ⚠ `-O2` is what turns latent undefined behaviour into a wrong answer, so it ships with a
+  sanitizer sweep rather than on its own. The sanitized test harness now compiles with
+  `-fsanitize=address,undefined` and `-fno-sanitize-recover=undefined`, so a UBSan finding aborts
+  the program instead of printing to stderr and letting a stdout-comparing test pass. Every example
+  was also swept under both sanitizers at `-O2` on Linux gcc 16.1.1: **no findings**.
+
 - **★ The C runtime is its own translation unit, not 950 lines pasted into every file.** `emit-c`
   now writes three files — your program, plus `cufet-runtime.c` and `cufet-runtime.h` beside it —
   and they still compile anywhere with `gcc out.c cufet-runtime.c -o program`.

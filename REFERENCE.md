@@ -3338,7 +3338,13 @@ cufet emit-c program.cufe out.c     emit the C, without invoking gcc
 ```
 
 `build` requires **`gcc` on your `PATH`**. Nothing else — the generated C is
-self-contained, with no external libraries and no flags beyond `-pthread` and `-lm`.
+self-contained, with no external libraries and no flags beyond `-O2`, `-pthread`
+and `-lm`.
+
+**Builds are always optimized.** There is no debug build and no `--release`: a
+compiled Cufet program is the fast one, every time. If you need an unoptimized
+build — stepping through the generated C in a debugger, say — use `emit-c` and
+compile it yourself with whatever flags you want.
 `emit-c` is the escape hatch for cross-toolchain builds and for reading what was
 generated.
 
