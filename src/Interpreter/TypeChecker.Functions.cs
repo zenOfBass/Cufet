@@ -273,7 +273,11 @@ public sealed partial class TypeChecker
             RestoreScopes(saved);
         }
 
-        if (bind.ReturnType != null && !DefinitelyReturns(bind.Body))
+        // ★ A burying function is exempt, because reaching its end is exactly how it finishes. Its
+        // declared type is what it BURIES, not what it returns — the caller gets a stash, and the
+        // stash reports "spent" by handing back void. Requiring a terminal `Return` here would be
+        // demanding an answer to a question the form does not ask.
+        if (bind.ReturnType != null && !_buryingFunctions.Contains(bind.Name) && !DefinitelyReturns(bind.Body))
             throw TypeError(
                 $"'{bind.Name}' is declared to give back a {FormatType(bind.ReturnType)}, but it can reach its end without returning one",
                 null,

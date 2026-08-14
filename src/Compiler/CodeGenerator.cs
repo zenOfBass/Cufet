@@ -3861,6 +3861,7 @@ static void* cufet_pipe_stage(void* argp) {
     {
         NumberType => "number", TextType => "text", FactType => "fact", BitsType => "bits",
         SeriesType => "series", MapType => "map", RecordType => "record", MatrixType => "matrix",
+        StashType s     => $"stash of {FormatTypeName(s.ElementType)}",
         ObjectType o    => o.Name,
         VoidType        => "void",
         VoidableType v  => $"voidable {FormatTypeName(v.Inner)}",
@@ -4314,6 +4315,15 @@ static void* cufet_pipe_stage(void* argp) {
 
     private void EmitStatement(StringBuilder sb, IStatement stmt, string indent)
     {
+        // ★ A safety valve, not a refusal. StashTransform rewrites every burying function into an
+        // ordinary object with a `next` method before either backend sees it, so there is nothing
+        // here to lower. Reaching this means a caller generated from the PRE-transform program —
+        // `Check` returns the rewritten one; use its return value.
+        if (stmt is BuryStatement buried)
+            throw new CompilerException(
+                $"Internal: a 'bury' on line {buried.Line} reached the code generator untransformed. "
+                + "Generate from the program returned by TypeChecker.Check.");
+
         switch (stmt)
         {
             case StateStatement s:
@@ -6004,6 +6014,10 @@ static void* cufet_pipe_stage(void* argp) {
             PathCheckKind.IsFile      => $"cufet_path_is_file({EmitExpr(pc.Path)})",
             _ => throw new CompilerException($"unknown path check {pc.Kind}"),
         },
+        // Same safety valve as BuryStatement in EmitStatement — see the note there.
+        UnburyExpression ub   => throw new CompilerException(
+            $"Internal: an 'unbury' on line {ub.Line} reached the code generator untransformed. "
+            + "Generate from the program returned by TypeChecker.Check."),
         // A bare `void` only has meaning where a voidable is expected (return/becomes/args,
         // handled by EmitAsType) or as an `is void` operand (handled in EmitBinary).
         VoidLiteral           => throw new CompilerException("'void' is only valid where a voidable value is expected."),

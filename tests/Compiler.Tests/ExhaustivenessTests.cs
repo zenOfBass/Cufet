@@ -30,6 +30,7 @@ public class ExhaustivenessTests
         [typeof(FailureMarkerType)]   = new FailureMarkerType(),
         [typeof(ExceptionMarkerType)] = new ExceptionMarkerType(),
         [typeof(SeriesType)]          = new SeriesType(CufetType.Number),
+        [typeof(StashType)]           = new StashType(CufetType.Number),
         [typeof(VoidableType)]        = new VoidableType(CufetType.Number),
         [typeof(FailureType)]         = new FailureType(CufetType.Number),
         [typeof(ChannelType)]         = new ChannelType(CufetType.Number),
@@ -170,6 +171,11 @@ public class ExhaustivenessTests
         "CodeGenerator.cs: IsBoundSomewhere",
         "CodeGenerator.cs: CaptureWriteIsObservable",
         "CodeGenerator.cs: CollectRefsDefs",
+        // Proof it sees inside ConditionArm and JudgeArm: Interpreter.Tests/StashDetectionTests.
+        // Both arm tests were shown RED by keying the walk on IStatement/IExpression instead of the
+        // namespace. (The Otherwise test in that file stayed green under the same break and is
+        // labelled there as not discriminating — an `Otherwise` body is an ordinary property.)
+        "TypeChecker.Core.cs: BuriesInOwnBody",
     ];
 
     // A generic AST walk's fingerprint: it asks an unknown node for its properties.

@@ -81,6 +81,7 @@ public sealed class Parser
                                        : ParseBindStatement(),
             TokenType.Cast       => ParseCastStatementWrapper(),
             TokenType.Return     => ParseReturnStatement(),
+            TokenType.Bury       => ParseBuryStatement(),
             TokenType.Try        => ParseTryStatement(),
             TokenType.Suppress   => ParseSuppressStatement(),
             TokenType.In         => ParseMapSetStatement(),
@@ -451,6 +452,15 @@ public sealed class Parser
             Consume(TokenType.Of);
             SkipNoise();
             return new SeriesType(ParseTypeAnnotation());
+        }
+        // a stash of T — reads exactly like `a series of T`, which is the point: the shape is
+        // familiar even though a stash produces its elements rather than holding them.
+        if (tok.Type == TokenType.Stash)
+        {
+            Advance(); SkipNoise();   // consume "stash"
+            Consume(TokenType.Of);
+            SkipNoise();
+            return new StashType(ParseTypeAnnotation());
         }
         if (tok.Type == TokenType.Identifier &&
             tok.Lexeme.Equals("readable", StringComparison.OrdinalIgnoreCase))
@@ -2919,6 +2929,15 @@ public sealed class Parser
             case TokenType.Cast:
                 baseExpr = ParseCastExpression();
                 break;
+            case TokenType.Unbury:
+            {
+                // unbury <stash> — an EXPRESSION giving `voidable T`, so the spent case is narrowed
+                // like any other absent value rather than signalled out of band.
+                var unTok = Advance();
+                SkipNoise();
+                baseExpr = new UnburyExpression(ParseUnary(), unTok.Line, unTok.Column);
+                break;
+            }
             case TokenType.Series:
                 baseExpr = ParseSeriesLiteralExpr();
                 break;
@@ -4311,6 +4330,23 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Dot);
         return new ReturnStatement(value, line, col);
+    }
+
+    // Bury <value>.  — always takes a value, unlike `Return`, which has a bare form. A bare bury
+    // would mean "suspend and hand out nothing", and a stash's whole contract is that a resumption
+    // yields a value or reports it is spent; there is no third answer for a caller to narrow.
+    private BuryStatement ParseBuryStatement()
+    {
+        var lineTok = Consume(TokenType.Bury);
+        if (_functionDepth == 0)
+            throw new ParseException(lineTok.Line, lineTok.Column,
+                "'bury' is only meaningful inside a function — it is what makes that function hand "
+                + "back a stash. At the top level there is nothing to suspend.");
+        SkipNoise();
+        var value = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new BuryStatement(value, lineTok.Line, lineTok.Column);
     }
 
     // Lambda body: same as ParseFunctionBody but does NOT consume the trailing '.'

@@ -125,6 +125,16 @@ public enum TokenType
     Given,       // "given"    — introduces the parameter list in a Bind / function-type annotation
     Return,      // "return"   — returns a value (or exits early) from a function
     Void,        // "void"     — marks a function that returns no value
+
+    // ── Stashes (suspend and resume) ──────────────────────────────────────
+    // A function that contains `bury` is stash-producing, and the type checker infers that from
+    // the body — nothing marks the declaration. That is the same rule the language already uses
+    // for fallibility (`return a failure` in the body makes a function fallible), so a second
+    // marker would have been a second convention for one idea.
+    Bury,        // "bury"     — hand one value out of a stash body and suspend there
+    Unbury,      // "unbury"   — resume a stash and take its next value (voidable T)
+    Stash,       // "stash"    — the TYPE, as in `a stash of number`. Not a call form: a stash
+                 //              comes from `cast <burying-fn> on (...)` like any other call.
     On,          // "on"       — separates function name from argument list in Cast
     FunctionKw,  // "function" — type keyword in function-type parameter annotations
 

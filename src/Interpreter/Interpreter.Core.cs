@@ -557,6 +557,16 @@ public sealed partial class Interpreter
                 _out.WriteLine(Format(Evaluate(s.Value)));
                 break;
 
+            // ★ A safety valve, not a feature gap. `Bury` never survives type checking — StashTransform
+            // rewrites every burying function into an ordinary object with a `next` method, so neither
+            // backend has (or needs) suspension machinery. Reaching here means a caller ran the
+            // interpreter on the PRE-transform program, which would otherwise fail silently and
+            // strangely. `Check` returns the rewritten program; use its return value.
+            case BuryStatement bury:
+                throw new RuntimeException(
+                    $"Internal: a 'bury' on line {bury.Line} reached the interpreter untransformed. "
+                    + "Run the program returned by TypeChecker.Check, not the one handed to it.");
+
             case DefineStatement d:
                 if (Scope.ContainsKey(d.Name))
                     throw new RuntimeException($"'{d.Name}' is already defined on line {d.Line}.");
@@ -1099,6 +1109,10 @@ public sealed partial class Interpreter
         DirectoryContentsExpression   dce => EvaluateDirectoryContents(dce),
         PathCheckExpression           pce => EvaluatePathCheck(pce),
         InterruptRequestedExpression      => (object)_interruptRequested,
+        // Same safety valve as BuryStatement above — see the note there.
+        UnburyExpression ub               => throw new RuntimeException(
+            $"Internal: an 'unbury' on line {ub.Line} reached the interpreter untransformed. "
+            + "Run the program returned by TypeChecker.Check, not the one handed to it."),
         RandomNumber  rn                  => EvaluateRandomNumber(rn),
         RandomItem    ri                  => EvaluateRandomItem(ri),
         RandomlyShuffled rs               => EvaluateRandomlyShuffled(rs),

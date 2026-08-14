@@ -265,6 +265,21 @@ public sealed record CastStatement(
 // Value == null means bare return.
 public sealed record ReturnStatement(IExpression? Value, int Line, int Column) : IStatement;
 
+// Bury <value>.  — hand one value out of a stash body and suspend there.
+//
+// ★ Its PRESENCE is what makes the enclosing function stash-producing; nothing marks the
+// declaration. That is the rule the language already uses for fallibility (a body containing
+// `return a failure` makes a function fallible — see BindStatement above), so requiring a marker
+// here would have been a second convention for one idea.
+public sealed record BuryStatement(IExpression Value, int Line, int Column) : IStatement;
+
+// unbury <stash>  — resume a stash to its next `Bury` and take the value, or void once spent.
+// An expression, so the result is handled like any other voidable rather than through hidden state:
+// `Define x as unbury s.` The alternative sketched originally had the rabbit HOLD the value in a
+// temporary register until used, which is an invisible accumulator in a language that made
+// narrowing explicit.
+public sealed record UnburyExpression(IExpression Stash, int Line, int Column) : IExpression;
+
 // ── Objects ───────────────────────────────────────────────────────────────────
 
 // Define <name> as an interface for { <method-sig>, ... } / single method without {}

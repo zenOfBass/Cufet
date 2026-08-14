@@ -62,6 +62,28 @@ public sealed class SeriesType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(SeriesType), ElementType);
 }
 
+/// <summary>
+/// `a stash of T` — a suspended execution that hands out T values one at a time.
+/// </summary>
+/// <remarks>
+/// ★ Not a collection. A series HAS its elements; a stash PRODUCES them, one resumption at a time,
+/// and cannot be re-read, counted, or indexed. It exists because a value that is expensive or
+/// infinite to materialise can still be walked — which is the whole reason `For each` over a
+/// user-defined type was not worth building as external iteration.
+///
+/// ⚠ **One live resumption, resumed in order.** That restriction is what makes the whole feature a
+/// per-function transform rather than a whole-program CPS or a copied machine stack — see
+/// StashTransform. It is also what lets both backends run the same rewritten AST, so neither needs
+/// suspension machinery of its own.
+/// </remarks>
+public sealed class StashType : CufetType
+{
+    public CufetType ElementType { get; }
+    public StashType(CufetType elementType) => ElementType = elementType;
+    public override bool Equals(object? obj) => obj is StashType s && ElementType == s.ElementType;
+    public override int GetHashCode() => HashCode.Combine(typeof(StashType), ElementType);
+}
+
 public sealed class RecordType : CufetType
 {
     // Positional fields: order-sensitive (position is identity).
@@ -424,6 +446,43 @@ public sealed partial class TypeChecker
     private readonly List<Dictionary<string, CufetType>>     _typeScopes    = [new()];
     private readonly Dictionary<string, ObjectType>          _objectDefs    = new();
     private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new();
+
+    /// <summary>Free functions whose bodies contain a `bury`, so calling one yields a stash.</summary>
+    private readonly HashSet<string> _buryingFunctions = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Does this function's OWN body bury? Nested functions are excluded deliberately — a lambda or
+    /// inner `Bind` that buries is its own stash-producer, and letting its `bury` leak outward would
+    /// make the enclosing function a generator by accident.
+    /// </summary>
+    private static bool BuriesValues(BindStatement bind) => BuriesInOwnBody(bind.Body);
+
+    private static bool BuriesInOwnBody(object? node)
+    {
+        switch (node)
+        {
+            case null or string or CufetType: return false;
+            // The boundary: a nested function's burys belong to IT.
+            case BindStatement or LambdaLiteral: return false;
+            case BuryStatement: return true;
+            case System.Runtime.CompilerServices.ITuple tup:
+                for (int i = 0; i < tup.Length; i++)
+                    if (BuriesInOwnBody(tup[i])) return true;
+                return false;
+            case System.Collections.IEnumerable en:
+                foreach (var item in en)
+                    if (BuriesInOwnBody(item)) return true;
+                return false;
+            default:
+                // ★ Keyed on the NAMESPACE, not on IExpression/IStatement — ConditionArm and JudgeArm
+                // implement neither, so matching the interfaces walks straight past the body of every
+                // `If` and every judgement. Same rule as AstSearch; see its note.
+                if (node.GetType().Namespace != typeof(Program).Namespace) return false;
+                foreach (var prop in node.GetType().GetProperties())
+                    if (BuriesInOwnBody(prop.GetValue(node))) return true;
+                return false;
+        }
+    }
     // Active narrowings: variable name → narrowed type (set inside checked branches).
     private readonly Dictionary<string, CufetType>           _narrowedVars  = new();
 
@@ -759,8 +818,28 @@ public sealed partial class TypeChecker
             if (stmt is not BindStatement bind) continue;
             if (bind.UntoType != null) continue; // 'unto' methods are not free functions
             var paramTypes = bind.Parameters.Select(p => p.Type).ToList();
+
+            // ★ A burying function's CALL type is `stash of T`, not T. Recording it here rather than
+            // special-casing the cast site means `cast f on (…)` infers a stash with no change to
+            // call inference at all — the difference lives entirely in the signature, which is where
+            // the difference actually is.
+            if (BuriesValues(bind))
+            {
+                _buryingFunctions.Add(bind.Name);
+                if (bind.ReturnType == null)
+                    throw TypeError(
+                        $"'{bind.Name}' buries values, so it has to say what kind",
+                        null, bind.Line, bind.Column,
+                        $"declare '{bind.Name}' as void when it buries",
+                        $"A burying function's declared type is the type of what it buries: "
+                        + $"'Bind number to {bind.Name}' hands back a stash of number.");
+            }
+
             Scope[bind.Name] = new TypeInfo(
-                new FunctionType(paramTypes, bind.ReturnType),
+                new FunctionType(paramTypes,
+                    _buryingFunctions.Contains(bind.Name) && bind.ReturnType != null
+                        ? new StashType(bind.ReturnType)
+                        : bind.ReturnType),
                 new VariableReference(bind.Name, 0, 0),
                 bind.Line);
             _freeBinds[bind.Name] = bind;   // so a pipe can re-check this body with a known input type
@@ -1056,8 +1135,16 @@ public sealed partial class TypeChecker
                 if (!Scope.ContainsKey(bind.Name))
                 {
                     var paramTypes = bind.Parameters.Select(p => p.Type).ToList();
+                    // A NESTED function buries on exactly the same terms as a top-level one — see
+                    // Pass1Hoist, which does this for free functions. Registering it only there left
+                    // an inner generator unrecognised, so its missing terminal `Return` was reported
+                    // as an error in a function that was never going to return.
+                    if (BuriesValues(bind)) _buryingFunctions.Add(bind.Name);
                     Scope[bind.Name] = new TypeInfo(
-                        new FunctionType(paramTypes, bind.ReturnType),
+                        new FunctionType(paramTypes,
+                            _buryingFunctions.Contains(bind.Name) && bind.ReturnType != null
+                                ? new StashType(bind.ReturnType)
+                                : bind.ReturnType),
                         new VariableReference(bind.Name, 0, 0),
                         bind.Line);
                 }
@@ -1419,6 +1506,23 @@ public sealed partial class TypeChecker
     // Returns null for genuine inference gaps (undeclared variable, unhandled expression form).
     // Returns a concrete CufetType for anything we can type statically.
     // Throws TypeException for operand type mismatches.
+    // `unbury s` gives `voidable T` — the next value, or void once the stash is spent. A voidable
+    // rather than a separate "is it done" question, so the spent case is narrowed exactly like any
+    // other absent value and cannot be forgotten.
+    private CufetType? InferUnbury(UnburyExpression unbury)
+    {
+        var inner = InferType(unbury.Stash);
+        if (inner is StashType stash) return new VoidableType(stash.ElementType);
+
+        throw TypeError(
+            inner == null
+                ? "'unbury' needs a stash, and the type of what it was given can't be determined"
+                : $"'unbury' needs a stash, but this is {FormatType(inner)}",
+            null, unbury.Line, unbury.Column,
+            "unbury something that is not a stash",
+            "A stash comes from calling a function that buries: 'Define s as cast walk on (tree).'");
+    }
+
     private CufetType? InferTypeCore(IExpression expr) => expr switch
     {
         NumberLiteral                                                                                    => CufetType.Number,
@@ -1428,6 +1532,7 @@ public sealed partial class TypeChecker
         StringLiteral                                                                                    => CufetType.Text,
         BooleanLiteral                                                                                   => CufetType.Fact,
         VoidLiteral                                                                                      => CufetType.Void,
+        UnburyExpression unbury                                                                          => InferUnbury(unbury),
         UnaryExpression unary                                                                            => InferUnary(unary),
         BinaryExpression bin                                                                             => InferBinary(bin),
         VariableReference { Name: var n } when _narrowedVars.TryGetValue(n, out var narrowed)           => narrowed,
@@ -2000,6 +2105,7 @@ public sealed partial class TypeChecker
         VoidType                             => "void",
         VoidableType { Inner: var inner }    => $"voidable {FormatType(inner)}",
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
+        StashType { ElementType: var held }  => $"stash of {FormatTypePlural(held)}",
         FunctionType ft                      => FormatFunctionType(ft),
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => ot.Name,
