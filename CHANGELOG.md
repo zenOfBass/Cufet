@@ -59,6 +59,45 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **★★ Stashes — `Bury` and `unbury`.** A function can stop in the middle of what it is doing, hand
+  one value out, and pick up from that exact line when someone asks for the next one.
+
+  ```
+  Bind number to counting-up, given (the number first-value):
+      Define next as first-value.
+      Repeat:
+          Bury next.
+          The next becomes next + 1.
+      Until false.
+  Done.
+
+  Define counter as cast counting-up on (3).
+  State unbury counter.       // 3
+  State unbury counter.       // 4
+  ```
+
+  **Two words and a type name, and nothing marks the declaration.** A function becomes
+  stash-producing by *containing* a `bury`, exactly as a body containing `return a failure` makes it
+  fallible; `cast` still means invoke, and its result type becomes `stash of T`. `unbury s` gives
+  back `voidable T`, so a spent stash reports itself as void and there is no second way to ask.
+
+  A stash is not a collection. A series *has* its items; a stash *produces* them, one resumption at
+  a time, and cannot be counted, indexed or re-read — which is what lets `counting-up` above be
+  endless without being a mistake.
+
+  `If`, `While`, `Repeat until`, `For each` over a series, `Stop` and `Skip` all work inside a
+  burying body: it is rewritten into a state machine whose step number is the program counter, and
+  every local that outlives a resumption is stored beside it. Loop counters, iterators and
+  part-built series all survive.
+
+  ⚠ **Not yet:** a `stash of T` cannot be a parameter, a field or a series element (the compiler
+  says so); a bury inside a judgement, a `Try`, a rabbit block, a for-each over a map, or an `If`
+  that tests a type is refused at check time, with a message saying which and why. Each of those
+  carries something — a narrowing, a handler, a region — that a step number cannot restore, and a
+  refusal both backends share is the only answer the no-divergence rule allows.
+
+  The naming is Turing's: the ACE design used *bury* and *unbury* for subroutine linkage.
+
 - **★ An interface can supply a DEFAULT method** — most of what traits give, with no new keyword
   and no new construct. `Bind <type> to <name> unto <interface>` was a static error; it now gives
   every conforming type that method.

@@ -31,6 +31,8 @@ deliberate differences are marked where they arise and summarised under
     - [`Judge` — handling every case](#judge--handling-every-case)
     - [Loops](#loops)
       - [For-each loops](#for-each-loops)
+    - [Stashes (`Bury` and `unbury`)](#stashes-bury-and-unbury)
+      - [What a burying body cannot do yet](#what-a-burying-body-cannot-do-yet)
     - [Scope](#scope)
   - [Part III. Data](#part-iii-data)
     - [Text](#text)
@@ -608,6 +610,87 @@ Mutating the series being iterated is a runtime error. Use `While` with an index
 if you need to change the series as you go.
 
 `Stop.` and `Skip.` work the same as in `While` loops.
+
+---
+
+### Stashes (`Bury` and `unbury`)
+
+A function can stop in the middle of what it is doing, hand one value out, and
+carry on from that exact line when someone asks for the next one. `Bury` is the
+pause; `unbury` is the wake-up.
+
+```
+Bind number to counting-up, given (the number first-value):
+    Define next as first-value.
+    Repeat:
+        Bury next.
+        The next becomes next + 1.
+    Until false.
+Done.
+
+Define counter as cast counting-up on (3).
+State unbury counter.       // 3
+State unbury counter.       // 4
+State unbury counter.       // 5
+```
+
+**Nothing marks the declaration.** A function is stash-producing because its body
+*contains* a `bury` — the same way a body containing `return a failure` makes a
+function fallible. `cast` still means invoke; what changes is the result type.
+`Bind number to counting-up` therefore hands back a `stash of number`, and its
+declared type says what it **buries**, not what it returns. A burying function
+has no `Return`.
+
+`unbury <stash>` gives back a `voidable T`. When the function reaches its end
+there is nothing left to bury, so the answer is `void` — and stays `void` however
+often you ask.
+
+```
+Define found as cast long-words-in on (a series with ("a", "rabbit")).
+Repeat:
+    Define word as unbury found.
+    If word is void:
+        Stop.
+    Done.
+    State word.
+Until false.
+```
+
+**A stash is not a collection.** A series *has* its items; a stash *produces*
+them, one resumption at a time. You cannot count one, index one, or read one
+twice. That is exactly what lets `counting-up` above be endless without being a
+mistake — nothing in it says how many, and the loop only runs when somebody asks.
+
+Every cast makes a separate stash with its own place to stand:
+
+```
+Define one-counter   as cast counting-up on (1).
+Define other-counter as cast counting-up on (100).
+State unbury one-counter.     // 1
+State unbury other-counter.   // 100
+State unbury one-counter.     // 2
+```
+
+`If`, `While`, `Repeat until`, `For each` over a series, `Stop` and `Skip` all
+work inside a burying body, and every local survives a resumption — a loop
+counter, a for-each's place in its series, a series being built up item by item.
+
+#### What a burying body cannot do yet
+
+Each of these is refused when the program is checked, so both backends refuse the
+same programs.
+
+| Shape | Why |
+| --- | --- |
+| `Bury` inside a `Judge` | An arm's body runs under a **narrowing**; resuming into it would arrive with the value back at its declared type. |
+| `Bury` inside an `If` that tests a type | The same reason. |
+| `Bury` inside `Try to` or a rabbit block | A handler and a region are context a resumption cannot restore. |
+| `Bury` inside `For each` over a map | Resuming means counting back to where the loop was, and a map's entries have no position to count to. Loop over a series. |
+| `Define a shadow` anywhere in the body | The body is flattened into one set of state, so a shadow would land on the name it was written to hide. |
+| One name at two types in the body | Sibling blocks become one place to store it, and one place holds one type. |
+
+A `stash of T` can be held in a local, but not yet passed as a parameter, stored
+in a field, or put in a series. The compiler says so plainly.
 
 ---
 

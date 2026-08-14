@@ -72,6 +72,9 @@ as identifiers, but that is fine — they read as natural articles.
 | `return` | Return | Return from function |
 | `stop` | Stop | Break loop |
 | `skip` | Skip | Continue loop |
+| `bury` | Bury | Hand one value out of a burying body and suspend there |
+| `unbury` | Unbury | Resume a stash and take its next value — a `voidable T` |
+| `stash` | Stash | The TYPE, as in `a stash of number`. Never a call form |
 
 ### Control flow
 
@@ -1519,6 +1522,36 @@ Approach B, explicit type-annotation contexts, so the parser knows *from positio
 reading a type or an expression — is still open. Its precondition was a feature-complete parser
 syntax, so the hardening happens once against the final shape rather than repeatedly; that
 condition is met, and the work is unblocked. See ROADMAP under *Ongoing, no fixed slot*.
+
+### ★ What a burying body may contain
+
+A body holding a `bury` is rewritten into a state machine before either backend
+sees it: the block it stops in becomes a step number, and every local that
+outlives a resumption is stored beside it. That rewrite is what constrains the
+body, and everything below follows from it.
+
+**Allowed, and each keeps its state across a resumption:** straight-line
+statements, `If` / `Otherwise`, `While`, `Repeat until`, `For each` over a
+series, `Stop`, `Skip`, nested loops, a reassigned parameter, and a local of any
+type — including a series or a map being built up item by item.
+
+**Refused when the program is checked**, so both backends refuse identically:
+
+| Shape | Why |
+|---|---|
+| `Return` anywhere in the body | A burying function finishes by reaching its end; the stash reports that with `void`. Two ways to say "spent" is one too many. |
+| `Bury` inside `Judge` | An arm's body runs under a **narrowing**, and a step number cannot restore one — the arm would resume with the value back at its declared type. |
+| `Bury` inside an `If` that tests a type | Same reason. `If x is a text:` narrows; splitting the arm off loses it. |
+| `Bury` inside `Try to` or `Pull a rabbit` | A handler and a region are context a resumption cannot restore. |
+| `Bury` inside `For each` over a **map** | Resuming counts back to where the loop was, and a map's entries have no position to count to. Loop over a series, or use `While`. |
+| `Define a shadow` anywhere in the body | Every scope in the body flattens into one, so the shadow would land on the name it was written to hide. |
+| One name used at two types in the body | Sibling blocks become one place to store it, and one place holds one type. Legal everywhere else in the language. |
+
+⚠ **`stash of T` is a local-only type today.** It cannot be a parameter, an
+object field, or a series element yet — the compiler refuses with *"cannot
+represent a stash of T yet"*. Everything about the lowering is ready for it (a
+stash is a closure, and every `stash of T` is the same two-pointer shape), so
+this is a gap, not a design limit.
 
 ---
 

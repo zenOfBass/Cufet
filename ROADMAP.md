@@ -47,43 +47,32 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 1 — leverage
 
-1. **The rabbit as a control-flow primitive.** It shipped as a memory region and everything
-   written about it says so, which is accurate but incomplete: **the arena is the substrate, and
-   the purpose is control-flow machinery** — continuations, suspend and resume, capturing and
-   restoring execution state. A task that yields and resumes *is* a continuation; so are green
-   threads, coroutines, and the exception path. One primitive underneath all of them.
+1. **Finish the rabbit as a control-flow primitive.** Suspend and resume shipped: `Bury` and
+   `unbury` work on both backends, and a burying body is rewritten into a state machine whose step
+   number is the program counter. What is left is making the result **first class**, and then
+   putting the machinery it exposed to work for everything else that suspends.
 
-   **Generator-style iteration is one of them, and is not listed separately.** A generator that
-   yields mid-body is a coroutine wearing a different name, so it arrives with this and not before
-   it. (`For each` over a user-defined type is in Tier 2, and is deliberately the *external* kind —
-   dispatch, not suspension — precisely so it does not pre-empt this design.)
+   **The restriction is settled and is not a temporary one.** Save state, resume in order, one live
+   resumption — coroutine-shaped, not `call/cc`. Full first-class continuations need either
+   CPS-transforming the whole program (destroying the readable, self-contained C the compiler emits)
+   or copying the machine stack (nonportable, and in conflict with both the sanitizers and the
+   thread-local arenas). ★ **The no-divergence rule decides this independent of implementation
+   cost:** a tree-walking interpreter cannot faithfully offer `call/cc` either.
 
-   Not retrofitted reasoning. **Two restricted continuations already exist** — `In case of
-   exception` compiles to `setjmp`/`longjmp` (a one-shot escaping continuation) and tasks are the
-   parallel form — and the surface drifted toward the conception on its own: the recorded decision
-   was a standalone `Start a task:`, but what got built was `Have rabbit start a task:`, which
-   *requires* an enclosing rabbit, as do channels.
-
-   **The open questions, in the order they need answering:**
-   1. **Surface or implementation coupling?** The code and the recorded decision disagree, and
-      everything downstream — how `bury`, `unbury` and continuations read — inherits the answer.
-   2. **Which restriction?** This decides whether it is buildable at all. Full first-class
-      continuations need either CPS-transforming the whole program (destroying the readable,
-      self-contained C the compiler emits) or copying the machine stack (nonportable, and in
-      conflict with both the sanitizers and the thread-local arenas). Coroutine-shaped ones —
-      save state, resume in order, one live resumption — are very achievable and cover nearly all
-      the value. ★ **The no-divergence rule decides this independent of implementation cost:**
-      whatever ships must work identically on both backends, and a tree-walking interpreter
-      cannot faithfully offer `call/cc` either.
-   3. **No implicit accumulator.** The original sketch had the rabbit *hold* an unburied value in
-      temporary state until used — an invisible register, which cuts against a language that made
-      narrowing explicit and refuses any capture write something could see. `Define x as unbury
-      <stash>.` gets
-      the same feature with no hidden state.
-
-   **A stash is saved execution state, not a stack data structure**, so it cannot be a library:
-   suspend and resume need compiler and runtime support. (The naming is Turing's — the ACE design
-   used *bury* and *unbury* for subroutine linkage.)
+   **What remains, in order:**
+   1. **`stash of T` as a parameter, a field and a series element.** A stash already lowers to a
+      closure — one uniform two-pointer representation, so every `stash of T` is the same shape and
+      no vtable is implied — but the compiler still refuses the type anywhere but a local. This is
+      what makes delegation (one stash draining another) writable, and it is the difference between
+      a generator and a value.
+   2. **Lift the refusals that cost real programs.** A bury inside a judgement, or inside an `If`
+      that tests a type, is refused because splitting the arm into its own block leaves the
+      *narrowing* behind. The fix is to carry each block's guards and re-test them on entry — the
+      value is restored from its slot, so the test gives the same answer it gave the first time.
+   3. **One ownership story.** Exceptions (`setjmp`/`longjmp`), tasks and stashes are three
+      restricted continuations with three separate answers to region lifetime and cleanup. One
+      rabbit-context abstraction underneath all three.
+   4. **Pointers scoped to a rabbit**, which is what gates the C FFI below.
 
 2. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
