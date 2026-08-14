@@ -8,10 +8,10 @@
 
 Bind void to run-with, given (the series of number s):
     Define sink as a series of number.
-    Bind void to stash, given ():
+    Bind void to tuck, given ():
         sink becomes s.
     Done.
-    Cast stash on ().
+    Cast tuck on ().
 Done.
 
 Pull a rabbit.
