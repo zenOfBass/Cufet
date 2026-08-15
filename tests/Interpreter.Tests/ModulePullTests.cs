@@ -150,11 +150,53 @@ public class ModulePullTests
     [Fact]
     public void TheBuiltinBookFormStillWorks()
     {
-        // `math`, `collections` and `chance` read badly without the noun (`Pull a math.`), so the
-        // `book on <name>` spelling stays. Nothing about it changed.
+        // The `book on <name>` spelling stays — it reads better than `Pull a math.` — and nothing
+        // about it changed.
         Assert.Equal("3.14159265358979", Run("""
             Pull a book on math.
                 State math's pi.
+            Done.
+            """));
+    }
+
+    /// <summary>
+    /// ★★ A bundled book pulled by the GENERAL form — the second conformer, and the point of the
+    /// whole exercise.
+    /// </summary>
+    /// <remarks>
+    /// An interface with one conformer is a guess. This is the seam being pulled on from the other
+    /// direction: `math` is implemented natively and has no `Define object` to hang an `and module`
+    /// clause on, `greeting-kit` is an ordinary object written in Cufet, and `Pull` treats them the
+    /// same because the contract only ever asked "may this be pulled?".
+    /// </remarks>
+    [Fact]
+    public void ABookIsPulledByTheSameFormAsAModule()
+    {
+        Assert.Equal("3.14159265358979", Run("""
+            Pull math.
+                State math's pi.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ABookPulledByNameCanBeAliasedToo()
+    {
+        Assert.Equal("3.14159265358979", Run("""
+            Pull math as m.
+                State m's pi.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ABookPulledByNameStillIntroducesItsTypes()
+    {
+        // `collections` brings the `matrix` type name into the block. That is book-specific
+        // behaviour riding on the general form, which is what "the conformer's own business" means.
+        Assert.Equal("matrix((1, 3), (2, 4))", Run("""
+            Pull collections.
+                State cast collections's transpose on (a matrix with ((1, 2), (3, 4))).
             Done.
             """));
     }

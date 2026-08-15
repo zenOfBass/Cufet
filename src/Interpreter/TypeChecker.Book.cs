@@ -136,51 +136,69 @@ public sealed partial class TypeChecker
                 "Use a whole number as the seed (e.g. 'Seed the chance with 42.').");
     }
 
+    /// <summary>
+    /// What `Pull &lt;name&gt;` found, or a refusal saying why it found nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ ONE question, asked of everything: <em>is this a module?</em> That is the whole content of
+    /// the `module` interface, and asking it in one place is what stops the bundled books being a
+    /// privileged category. They are not special because the checker has a branch for them; they are
+    /// three modules that happen to ship in the box.
+    /// </para>
+    /// <para>
+    /// A book conforms BY CONSTRUCTION rather than by declaration — there is no `Define object math`
+    /// to hang an `and module` clause on, because a book's members are implemented natively rather
+    /// than in Cufet. That is a difference in how a conformer is BUILT, not in what the contract
+    /// asks, which is exactly the line the module design draws: the contract says "may be pulled",
+    /// and everything past that is the conformer's own business.
+    /// </para>
+    /// </remarks>
+    private CufetType ResolveModule(string name, PullStatement ps)
+    {
+        if (BuiltinBooks.TryGetValue(name, out var bookType))
+            return bookType;
+
+        if (_objectDefs.TryGetValue(name, out var moduleType))
+        {
+            // ★ The marker requires no methods, but it does require the CLAIM. Being pullable is
+            // something an author says, not something every object accidentally is — otherwise the
+            // interface would be decorative and `Pull` would take anything with a name.
+            if (!moduleType.ConformedInterfaces.Contains(ModuleInterface))
+                throw TypeError(
+                    $"'{name}' is not a module, so it can't be pulled",
+                    $"Pulling brings a module into scope, and '{name}' doesn't say it is one",
+                    ps.Line, ps.Column,
+                    $"pull '{name}'",
+                    $"Add 'and {ModuleInterface}' to its definition: "
+                  + $"'Define object {name} with (...) and {ModuleInterface}:'.");
+            return moduleType;
+        }
+
+        var available = string.Join(", ", BuiltinBooks.Keys.OrderBy(k => k).Select(k => $"'{k}'"));
+        throw TypeError(
+            $"there is nothing named '{name}' to pull",
+            null, ps.Line, ps.Column,
+            $"pull '{name}'",
+            $"Pull one of the bundled books ({available}), or define an object named "
+          + $"'{name}' as a module: 'Define object {name} with (...) and {ModuleInterface}:'.");
+    }
+
     private void CheckPullStatement(PullStatement ps)
     {
         EnterScope();
         try
         {
-            foreach (var (bookName, localName) in ps.Books)
+            foreach (var (moduleName, localName) in ps.Books)
             {
-                if (!BuiltinBooks.TryGetValue(bookName, out var bookType))
-                {
-                    // ★ Not a builtin — so it is a MODULE: an object type the writer defined. The
-                    // three bundled books are not a privileged category, they are the three that
-                    // happen to ship, and this is the branch that makes that true.
-                    if (_objectDefs.TryGetValue(bookName, out var moduleType))
-                    {
-                        // ★ Conformance is what makes `module` mean anything. The interface requires
-                        // no methods, but it does require SAYING SO — being pullable is a claim the
-                        // author makes, not a property every object accidentally has.
-                        if (!moduleType.ConformedInterfaces.Contains(ModuleInterface))
-                            throw TypeError(
-                                $"'{bookName}' is not a module, so it can't be pulled",
-                                $"Pulling brings a module into scope, and '{bookName}' doesn't say it is one",
-                                ps.Line, ps.Column,
-                                $"pull '{bookName}'",
-                                $"Add 'and {ModuleInterface}' to its definition: "
-                              + $"'Define object {bookName} with (...) and {ModuleInterface}:'.");
+                var pulled = ResolveModule(moduleName, ps);
+                Scope[localName] = new TypeInfo(pulled, new VariableReference(localName, ps.Line, ps.Column), ps.Line);
 
-                        Scope[localName] = new TypeInfo(
-                            moduleType, new VariableReference(localName, ps.Line, ps.Column), ps.Line);
-                        continue;
-                    }
-
-                    var available = string.Join(", ", BuiltinBooks.Keys.OrderBy(k => k).Select(k => $"'{k}'"));
-                    throw TypeError(
-                        $"there is nothing named '{bookName}' to pull",
-                        null, ps.Line, ps.Column,
-                        $"pull '{bookName}'",
-                        $"Pull one of the bundled books ({available}), or define an object named "
-                      + $"'{bookName}' to pull it as a module.");
-                }
-
-                Scope[localName] = new TypeInfo(bookType, new VariableReference(localName, ps.Line, ps.Column), ps.Line);
-
-                // Register any types the book introduces into the Pull...Done scope.
-                foreach (var (typeName, typeObj) in bookType.IntroducedTypes)
-                    RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
+                // A book may introduce a type name for the length of the block — `matrix` is the
+                // only one today. Nothing else that is pullable does, so this stays book-shaped.
+                if (pulled is BookType bookType)
+                    foreach (var (typeName, typeObj) in bookType.IntroducedTypes)
+                        RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
             }
 
             CheckBlock(ps.Body);
