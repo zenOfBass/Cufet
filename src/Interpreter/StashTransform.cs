@@ -60,8 +60,16 @@ public static class StashTransform
         IReadOnlySet<string> buryingFunctions,
         StashFacts facts)
     {
-        if (buryingFunctions.Count == 0) return statements;   // the common case: tree untouched
-        return Rewrite(statements, buryingFunctions, facts);
+        // Nothing buries ⇒ nothing can ever PRODUCE a stash, so any `stash of T` written in this
+        // program is a type no value can inhabit. Leaving it alone keeps the walk below off the
+        // path of every ordinary program, which is all of them.
+        if (buryingFunctions.Count == 0) return statements;
+
+        // ★ Two halves of one job. The rewrite turns burying BODIES into state machines; the
+        // substitution turns written `stash of T` ANNOTATIONS into the closure type those machines
+        // hand back. Both are needed: rewriting bodies alone leaves a `stash of number` parameter
+        // spelled as a type the back end has never heard of.
+        return StashTypeSubstitution.Apply(Rewrite(statements, buryingFunctions, facts));
     }
 
     private static List<IStatement> Rewrite(

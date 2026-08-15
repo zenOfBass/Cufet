@@ -141,13 +141,19 @@ static void Check(string[] rest)
 
     var checker = new TypeChecker();
     Cufet.Interpreter.Program program;
+    // ⚠ Not the same tree. `program` is what the reader WROTE, and everything shown back to them is
+    // judged on it; `lowered` is what actually runs, with every burying function rewritten into a
+    // state machine. Only the code generator wants the second one — it is a back end, and a `bury`
+    // never reaches a back end intact. Handing it `program` had `check --native` reporting
+    // "a 'bury' reached the code generator untransformed" on every correct stash program.
+    Cufet.Interpreter.Program lowered;
     IReadOnlyList<Diagnostic> style;
     try
     {
         var tokens = new Lexer(source).Tokenize();
         var parser = new Parser(tokens);
         program = parser.Parse();
-        checker.Check(program);
+        lowered  = checker.Check(program);
         // Style is judged on a program that parses and type-checks. Advising someone on how a line
         // reads while it is still wrong would bury the thing they actually need to fix.
         style = Linter.Lint(tokens, parser.StatementStarts, program);
@@ -168,7 +174,7 @@ static void Check(string[] rest)
     if (native)
     {
         var generator = new CodeGenerator();
-        try { generator.Generate(program); }
+        try { generator.Generate(lowered); }
         catch (CompilerException e)
         {
             var (line, column) = PositionOf(e);

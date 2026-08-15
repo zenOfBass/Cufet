@@ -673,8 +673,9 @@ public sealed partial class TypeChecker
         Pass2CheckOverloads(program); // body-check all overloads; populates _overloadReturnTypes
         CheckBlock(program.Statements);
 
-        if (_buryingFunctions.Count == 0) return program;
-        return new Program(StashTransform.Expand(program.Statements, _buryingFunctions, _stashFacts));
+        // Expand hands back the very same list when there was nothing to do, which is the usual case.
+        var lowered = StashTransform.Expand(program.Statements, _buryingFunctions, _stashFacts);
+        return ReferenceEquals(lowered, program.Statements) ? program : new Program(lowered);
     }
 
     // Resolves every placeholder ObjectType reference stored inside _objectDefs (field types,

@@ -2884,7 +2884,12 @@ static void* cufet_pipe_stage(void* argp) {
     // name to match the interpreter's canonical print order). Records are C VALUE
     // structs — assignment copies, which reproduces the interpreter's value semantics
     // exactly (nested records/objects copy deeply; series fields are shared pointers).
-    private string TypeSig(CufetType t) => t switch
+    // ★ Stashes are normalised away on the way in, so no arm below — and nothing that reads a
+    // signature — ever sees one. See NoStashes for why the front end keeps the distinction and the
+    // back end must not.
+    private string TypeSig(CufetType t) => TypeSigRaw(NoStashes(t));
+
+    private string TypeSigRaw(CufetType t) => t switch
     {
         NumberType => "N",
         BitsType   => "B",
@@ -2907,6 +2912,31 @@ static void* cufet_pipe_stage(void* argp) {
         UnionType u => u.Cases == null ? "U(*)" : "U(" + string.Join(",", FlatCases(u.Cases).Select(TypeSig)) + ")",
         _ => throw new CompilerException(
                  $"the compiler cannot represent a {FormatTypeName(t)} yet.")
+    };
+
+    /// <summary>Rewrites `stash of T` to its closure form, however deeply it is buried.</summary>
+    /// <remarks>
+    /// ★★ A stash is not a new runtime thing. StashTransform rewrites every burying function into a
+    /// factory handing back a CLOSURE that takes nothing and gives back `voidable T`, and that
+    /// closure is the only value a stash ever is. The front end keeps the two spellings APART on
+    /// purpose — it is what makes `stash of number` say "stash of number" in an error, and what
+    /// stops a stash being called directly instead of unburied — but the back end must not, because
+    /// a `stash of T` parameter has to accept exactly what a `cast` of a burying function produces,
+    /// and a slot holding one is an ordinary `series of` that closure.
+    ///
+    /// It RECURSES, and that is the part worth keeping: the stash that broke first was not a bare
+    /// one but the element type of a hoisted local's slot, three layers down.
+    /// </remarks>
+    private static CufetType NoStashes(CufetType type) => type switch
+    {
+        StashType stash       => new FunctionType([], new VoidableType(NoStashes(stash.ElementType))),
+        SeriesType series     => new SeriesType(NoStashes(series.ElementType)),
+        VoidableType voidable => new VoidableType(NoStashes(voidable.Inner)),
+        MapType map           => new MapType(NoStashes(map.KeyType), NoStashes(map.ValueType)),
+        FunctionType fn       => new FunctionType(
+                                     [.. fn.ParameterTypes.Select(NoStashes)],
+                                     fn.ReturnType == null ? null : NoStashes(fn.ReturnType)),
+        _ => type,
     };
 
     // A union whose case is ITSELF a union (`(number or (text or fact))` — the front-end parses and
@@ -5337,10 +5367,23 @@ static void* cufet_pipe_stage(void* argp) {
         _preEmits.Clear();
     }
 
-    // Full static type of an expression. The program already type-checked, so this is
-    // a straightforward re-derivation (no error handling) used to pick C declaration
-    // types, print helpers, comparison strategy, and to discover record shapes.
-    private CufetType TypeOf(IExpression expr) => expr switch
+    /// <summary>
+    /// Full static type of an expression, with every stash already read as the closure it is.
+    /// </summary>
+    /// <remarks>
+    /// ★ The normalisation is here, at the one funnel, rather than at each of the places that go on
+    /// to ask what a type IS. A `stash of T` reaches the back end by two routes — a written
+    /// annotation on a parameter or a field, and the closure `cast` of a burying function produces —
+    /// and everything downstream (assignment, calls, which C struct a series holds) compares the two
+    /// for equality. Normalising once means none of that code learns the word "stash"; normalising
+    /// at the use sites would mean remembering to, every time, forever.
+    /// </remarks>
+    private CufetType TypeOf(IExpression expr) => NoStashes(TypeOfRaw(expr));
+
+    // The re-derivation itself. The program already type-checked, so this is a straightforward
+    // walk (no error handling) used to pick C declaration types, print helpers, comparison
+    // strategy, and to discover record shapes. Call TypeOf, never this.
+    private CufetType TypeOfRaw(IExpression expr) => expr switch
     {
         NumberLiteral         => TNumber,
         BitsLiteral           => TBits,
@@ -7621,7 +7664,8 @@ static void* cufet_pipe_stage(void* argp) {
             }
 
             // A function-VALUED variable (Define f as …) → an indirect call through the {fn, env} value.
-            if (_varTypes.TryGetValue(vr.Name, out var vt) && vt is FunctionType)
+            // NoStashes because a `stash of T` parameter is one of these — see its note.
+            if (_varTypes.TryGetValue(vr.Name, out var vt) && NoStashes(vt) is FunctionType)
                 return EmitIndirectCall(funcExpr, args);
 
             // Method dispatch: args[0] is the receiver, the rest are method params.
@@ -8172,7 +8216,9 @@ static void* cufet_pipe_stage(void* argp) {
     // Maps a Cufet type to its C type. Records are value structs (synthesized per shape);
     // text is an immutable const char*; series/maps are arena pointers. Objects/maps are
     // not yet lowered (later slices) — the default arm defers cleanly.
-    private string EmitCType(CufetType? type) => type switch
+    private string EmitCType(CufetType? type) => EmitCTypeRaw(type == null ? null : NoStashes(type));
+
+    private string EmitCTypeRaw(CufetType? type) => type switch
     {
         null       => "void",
         NumberType => "CufetDec",

@@ -224,6 +224,90 @@ public class StashMachineTests
             """));
     }
 
+    // ── A stash is a value ─────────────────────────────────────────────────
+    //
+    // ★ These pass through StashTypeSubstitution, and each one would have been a "the compiler
+    // cannot represent a stash of number yet" before it existed. They are asserted here on the
+    // interpreter because that is where behaviour is pinned; that the COMPILER agrees is the
+    // oracle test's job, on examples/language/stashes.cufe.
+
+    private const string CountingUp = """
+        Bind number to counting-up, given (the number first-value):
+            Define next as first-value.
+            Repeat:
+                Bury next.
+                The next becomes next + 1.
+            Until false.
+        Done.
+
+        """;
+
+    [Fact]
+    public void AStash_CanBePassedToAFunction()
+    {
+        Assert.Equal("7\n8", Run(CountingUp + """
+            Bind void to take-two, given (the stash of number source):
+                State (unbury source but void is 0).
+                State (unbury source but void is 0).
+            Done.
+
+            Cast take-two on (cast counting-up on (7)).
+            """));
+    }
+
+    [Fact]
+    public void StashesInASeries_EachKeepTheirOwnPlace()
+    {
+        // The second pass is the assertion. If a series held a COPY, or if the closures shared
+        // state, the two rounds would not read 1,10 then 2,11.
+        Assert.Equal("1\n10\n2\n11", Run(CountingUp + """
+            Define many as a series of stash of number.
+            Insert (cast counting-up on (1)) into many.
+            Insert (cast counting-up on (10)) into many.
+            For each one-stash in many, repeat:
+                State (unbury one-stash but void is 0).
+            Done.
+            For each one-stash in many, repeat:
+                State (unbury one-stash but void is 0).
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AStash_CanDrainAnotherStash()
+    {
+        // ★ Delegation, which is the reason first-class mattered: `inner` is a `stash of number`
+        // held as a local INSIDE a burying function, so it has to survive that function's own
+        // resumptions as well as produce values of its own.
+        Assert.Equal("1\n4\n9\n1\n8\n27", Run("""
+            Bind number to squares, given (the number upto):
+                Define side as 1.
+                While side is not greater than upto, repeat:
+                    Bury side * side.
+                    The side becomes side + 1.
+                Done.
+            Done.
+
+            Bind number to squares-and-cubes, given (the number upto):
+                Define inner as cast squares on (upto).
+                Repeat:
+                    Define value as unbury inner.
+                    If value is void:
+                        Stop.
+                    Done.
+                    Bury value.
+                Until false.
+                Define side as 1.
+                While side is not greater than upto, repeat:
+                    Bury side * side * side.
+                    The side becomes side + 1.
+                Done.
+            Done.
+
+            Define source as cast squares-and-cubes on (3).
+            """ + DrainNumbers));
+    }
+
     // ── The refusals ───────────────────────────────────────────────────────
     //
     // Each of these is a shape whose meaning a step number cannot carry, and every one of them is
