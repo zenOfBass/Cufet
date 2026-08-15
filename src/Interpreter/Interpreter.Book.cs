@@ -106,9 +106,18 @@ public sealed partial class Interpreter
         {
             foreach (var (bookName, localName) in ps.Books)
             {
-                if (!BuiltinBookValues.TryGetValue(bookName, out var bookValue))
-                    throw new RuntimeException($"No book named '{bookName}' (line {ps.Line}).");
-                Scope[localName] = bookValue;
+                if (BuiltinBookValues.TryGetValue(bookName, out var bookValue))
+                {
+                    Scope[localName] = bookValue;
+                    continue;
+                }
+
+                // ★ A MODULE: pulling INSTANTIATES it, the same way `Pull a rabbit as den.` makes a
+                // region rather than naming a shared one. That is what keeps a book's singleton-ness
+                // a property of books rather than of the mechanism.
+                if (!_objectDefs.TryGetValue(bookName, out var moduleDef))
+                    throw new RuntimeException($"Nothing named '{bookName}' to pull (line {ps.Line}).");
+                Scope[localName] = InstantiateModule(moduleDef, ps.Line);
             }
             foreach (var s in ps.Body)
                 Execute(s);
@@ -117,6 +126,25 @@ public sealed partial class Interpreter
         {
             ExitScope();
         }
+    }
+
+    /// <summary>
+    /// Builds the instance a `Pull &lt;module&gt;.` binds.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Fields have no values to give, because a pull site has nowhere to put them — `Pull
+    /// greeting-kit.` names a module, not a construction. So a module is an object with no fields
+    /// for now, and one with fields is refused here rather than being silently built half-empty.
+    /// If a real need for pull-time arguments arises, that is the requirement that earns a change;
+    /// it is not one to invent ahead of time.
+    /// </remarks>
+    private object InstantiateModule(ObjectDefinition def, int line)
+    {
+        if (def.PositionalTypes.Count > 0 || def.NamedFields.Count > 0)
+            throw new RuntimeException(
+                $"'{def.Name}' has fields, so it can't be pulled as a module — a pull has nowhere to "
+              + $"put their values (line {line}). Build it with 'a new {def.Name} {{ ... }}' instead.");
+        return BuildObjectValue(def, [], [], line);
     }
 
     private object? DispatchBookFunction(BookValue bv, string memberName, IReadOnlyList<IExpression> args, int line)

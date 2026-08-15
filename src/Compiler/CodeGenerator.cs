@@ -4709,12 +4709,24 @@ static void* cufet_pipe_stage(void* argp) {
                 // emit the body in a C block (scopes body-locals like the interpreter's EnterScope), then
                 // unregister. No arena push (books allocate nothing), no runtime book value, no linking.
                 var added = new List<string>();
+                sb.AppendLine($"{indent}{{");
                 foreach (var (bookName, localName) in ps.Books)
                 {
+                    // ★ A MODULE — an object type the writer defined — rather than a bundled book.
+                    // Pulling INSTANTIATES it and binds the name, after which `name's member` is
+                    // ordinary method dispatch and needs nothing from the book routing below. The
+                    // three builtins are not a category; they are the three that ship.
+                    if (_objectDefs.TryGetValue(bookName, out var moduleDef))
+                    {
+                        var moduleType = ObjType(moduleDef.Name);
+                        _varTypes[localName] = moduleType;
+                        sb.AppendLine($"{indent}    {EmitCType(moduleType)} {MangleName(localName)} = "
+                                    + $"({EmitCType(moduleType)}){{0}};");
+                        continue;
+                    }
                     _bookAliases[localName] = bookName.ToLowerInvariant();
                     added.Add(localName);
                 }
-                sb.AppendLine($"{indent}{{");
                 // Binds in the body were HOISTED to free functions at Generate time — skip them here.
                 EmitScopedBlock(sb, ps.Body.Where(s => s is not BindStatement).ToList(), indent + "    ");
                 sb.AppendLine($"{indent}}}");

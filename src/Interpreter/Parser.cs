@@ -1681,6 +1681,24 @@ public sealed class Parser
             return new PullStatement(books, pluralBody, line, col);
         }
 
+        // ★ The GENERAL form: Pull <module> [as <local>]. ... Done.
+        //
+        // A module is an object conforming to `module`, and this is how you bring one into scope.
+        // It is not new syntax — `Pull a rabbit.` above is already this shape, and the article is
+        // noise, so `Pull rabbit.` and `Pull greeting-kit as kit.` are the same form with different
+        // names in it. The `book on <name>` spelling below is the special case being shed; it stays
+        // because `math`, `collections` and `chance` read badly without the noun in front.
+        //
+        // Placed before the Book branch and gated on Identifier, so no existing spelling changes:
+        // `book`, `books` and `rabbit` all lex as their own tokens and never reach here.
+        if (Peek().Type == TokenType.Identifier)
+        {
+            var moduleEntry = ParsePullBookEntry();
+            Consume(TokenType.Dot);
+            var moduleBody = ParsePullBody();
+            return new PullStatement([moduleEntry], moduleBody, line, col);
+        }
+
         // Singular: Pull a book on <name> [as <local>]. ... Done.
         Consume(TokenType.Book); // consume 'book'
         SkipNoise();

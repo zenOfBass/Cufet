@@ -145,12 +145,23 @@ public sealed partial class TypeChecker
             {
                 if (!BuiltinBooks.TryGetValue(bookName, out var bookType))
                 {
+                    // ★ Not a builtin — so it is a MODULE: an object type the writer defined. The
+                    // three bundled books are not a privileged category, they are the three that
+                    // happen to ship, and this is the branch that makes that true.
+                    if (_objectDefs.TryGetValue(bookName, out var moduleType))
+                    {
+                        Scope[localName] = new TypeInfo(
+                            moduleType, new VariableReference(localName, ps.Line, ps.Column), ps.Line);
+                        continue;
+                    }
+
                     var available = string.Join(", ", BuiltinBooks.Keys.OrderBy(k => k).Select(k => $"'{k}'"));
                     throw TypeError(
-                        $"there is no book named '{bookName}'",
+                        $"there is nothing named '{bookName}' to pull",
                         null, ps.Line, ps.Column,
-                        $"pull a book named '{bookName}'",
-                        $"Available books: {available}.");
+                        $"pull '{bookName}'",
+                        $"Pull one of the bundled books ({available}), or define an object named "
+                      + $"'{bookName}' to pull it as a module.");
                 }
 
                 Scope[localName] = new TypeInfo(bookType, new VariableReference(localName, ps.Line, ps.Column), ps.Line);
