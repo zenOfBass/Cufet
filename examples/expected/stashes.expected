@@ -11,6 +11,25 @@ A second counter, started later:
 101
 9
 
+Handed to a function:
+seven: 7
+seven: 8
+seven: 9
+
+Three of them in a series, walked twice:
+1
+10
+100
+2
+11
+101
+
+One stash draining another:
+2
+4
+6
+8
+
 The long words, then void:
 rabbit
 warren

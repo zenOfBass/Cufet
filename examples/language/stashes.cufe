@@ -60,6 +60,63 @@ Bind text to long-words-in, given (the series of text words):
     Done.
 Done.
 
+// ── A stash is a value ──────────────────────────────────────────────────────────────────────────
+//
+// It goes wherever a value goes: a parameter, an element of a series, a local inside another
+// burying function. That last one is what lets a stash DELEGATE — hold another one and pass its
+// values along — which is the difference between a generator and something you can build with.
+
+Bind void to take-three, given (the stash of number source, the text label):
+    Define taken as 0.
+    While taken is less than 3, repeat:
+        State label joined to ": " joined to ((unbury source but void is 0) converted to text).
+        The taken becomes taken + 1.
+    Done.
+Done.
+
+State "".
+State "Handed to a function:".
+Cast take-three on (cast counting-up on (7), "seven").
+
+State "".
+State "Three of them in a series, walked twice:".
+Define many as a series of stash of number.
+Insert (cast counting-up on (1)) into many.
+Insert (cast counting-up on (10)) into many.
+Insert (cast counting-up on (100)) into many.
+For each one-stash in many, repeat:
+    State unbury one-stash.
+Done.
+For each one-stash in many, repeat:
+    State unbury one-stash.
+Done.
+
+// One stash draining another. `evens` holds a `stash of number` as an ordinary local, and that
+// local has to survive `evens`' own resumptions as well as produce values of its own.
+Bind number to evens-of-counting-up:
+    Define inner as cast counting-up on (1).
+    Repeat:
+        Define value as unbury inner but void is 0.
+        If value is greater than 8:
+            Stop.
+        Done.
+        If value % 2 is 0:
+            Bury value.
+        Done.
+    Until false.
+Done.
+
+State "".
+State "One stash draining another:".
+Define evens as cast evens-of-counting-up on ().
+Repeat:
+    Define value as unbury evens.
+    If value is void:
+        Stop.
+    Done.
+    State value.
+Until false.
+
 State "".
 State "The long words, then void:".
 Define found as cast long-words-in on (a series with ("a", "rabbit", "in", "the", "warren")).
