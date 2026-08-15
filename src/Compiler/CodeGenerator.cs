@@ -462,7 +462,13 @@ public sealed class CodeGenerator
     // specialized copy of each interface-taking callable per conformer actually passed. Inside a
     // specialization the parameter has its concrete type, so method calls fall back to the existing
     // direct dispatch and `s is a dog` folds via StaticKindMatches. No type tags. No vtables.
-    private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new();
+    // Seeded with `module`, the built-in marker that says a type may be pulled. It is declared
+    // nowhere in the program, so conformance validation below would otherwise reject every module.
+    // See TypeChecker.ModuleInterface for why it requires nothing.
+    private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new()
+    {
+        [TypeChecker.ModuleInterface] = new InterfaceDefinition(TypeChecker.ModuleInterface, [], 0, 0),
+    };
     // Interface-taking callables are NEVER emitted unspecialized (their param has no concrete C type).
     private readonly Dictionary<string, BindStatement> _ifaceFuncs = new();
     private readonly Dictionary<(string Owner, string Method), BindStatement> _ifaceMethods = new();

@@ -150,6 +150,18 @@ public sealed partial class TypeChecker
                     // happen to ship, and this is the branch that makes that true.
                     if (_objectDefs.TryGetValue(bookName, out var moduleType))
                     {
+                        // ★ Conformance is what makes `module` mean anything. The interface requires
+                        // no methods, but it does require SAYING SO — being pullable is a claim the
+                        // author makes, not a property every object accidentally has.
+                        if (!moduleType.ConformedInterfaces.Contains(ModuleInterface))
+                            throw TypeError(
+                                $"'{bookName}' is not a module, so it can't be pulled",
+                                $"Pulling brings a module into scope, and '{bookName}' doesn't say it is one",
+                                ps.Line, ps.Column,
+                                $"pull '{bookName}'",
+                                $"Add 'and {ModuleInterface}' to its definition: "
+                              + $"'Define object {bookName} with (...) and {ModuleInterface}:'.");
+
                         Scope[localName] = new TypeInfo(
                             moduleType, new VariableReference(localName, ps.Line, ps.Column), ps.Line);
                         continue;

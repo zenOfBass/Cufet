@@ -448,7 +448,27 @@ public sealed partial class TypeChecker
     // when a type-introducing book is pulled. Same push/pop pattern as _scopes.
     private readonly List<Dictionary<string, CufetType>>     _typeScopes    = [new()];
     private readonly Dictionary<string, ObjectType>          _objectDefs    = new();
-    private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new();
+
+    /// <summary>
+    /// The interface that says "this can be pulled" — and says nothing else.
+    /// </summary>
+    /// <remarks>
+    /// ★★ A MARKER, deliberately, and it is expected to stay one until something real asks
+    /// otherwise. Inventing a method for it now would mean guessing at a contract no conformer has
+    /// asked for, and a contract is the hardest thing in a language to loosen once things depend on
+    /// it. `module` is what makes a book, a rabbit and a writer's own object the same kind of thing;
+    /// requiring anything of them beyond "you may be pulled" is a separate decision that has to earn
+    /// itself.
+    ///
+    /// Built in rather than written, because every program would otherwise have to declare it — and
+    /// because an interface with an empty body does not currently parse.
+    /// </remarks>
+    public const string ModuleInterface = "module";
+
+    private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new()
+    {
+        [ModuleInterface] = new InterfaceDefinition(ModuleInterface, [], 0, 0),
+    };
 
     /// <summary>Free functions whose bodies contain a `bury`, so calling one yields a stash.</summary>
     private readonly HashSet<string> _buryingFunctions = new(StringComparer.Ordinal);
