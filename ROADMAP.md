@@ -57,13 +57,27 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    separate hard problem (Tier 3), and it is one conformer's business rather than the contract's.
    Keeping them apart is what makes this buildable now.
 
-   Two conformers on day one is the point, not a bonus. An interface with one conformer is a guess;
-   `book` and `rabbit` pull on the seam from genuinely different directions, so the contract is
-   tested as it is written.
+   **▶ BUILT 2026-08-15.** `Pull <module> [as <alias>]` works on both backends for a writer's object
+   conforming to `module`, and the bundled books answer to the same form (`Pull math.`,
+   `Pull collections as c.`). One question is asked of everything at the pull site — *is this a
+   module?* — in `ResolveModule`. A book conforms **by construction** (its members are native, so
+   there is no `Define object` to carry an `and module` clause); a writer's object conforms **by
+   declaration**. That is a difference in how a conformer is built, not in what the contract asks.
 
-   **What it unlocks immediately:** rabbits become objects, which is where `bury` and `unbury` were
-   always meant to live — as methods on the rabbit that owns the buried state. Today they are free
-   statements, which is why a stash carries a type but no ownership.
+   **What is left, and it is the whole point:**
+   - ⚠ **A book and a rabbit are refused as module VALUES.** `given (the module m)` type-checks, and
+     a writer's object satisfies it, but passing `math` or a rabbit is rejected. **This is not a
+     design boundary — it is that books and rabbits are not objects yet.** A module is an object; an
+     object is first class; so a module is first class by inheritance, not by a separate decision.
+     Do not resolve this by narrowing what `module` means.
+   - **Rabbits become objects**, which is where `bury` and `unbury` were always meant to live — as
+     methods on the rabbit that owns the buried state. Today they are free statements, which is why
+     a stash carries a type but no ownership.
+   - **The bundled books get written in Cufet**, at which point they are ordinary objects and their
+     passability stops being a question. Blocked on item 2 for `collections` (see there) and on
+     item 4 for `math`'s native members; `chance` needs neither. Delivery is the open piece — either
+     the Tier 3 loader or a **prelude** (bundle the `.cufe` source, parse it, prepend its
+     statements), and the prelude is far cheaper and needs nothing that does not exist.
 
    ★ **`module` starts as a MARKER — it requires nothing.** An interface that says only "this is
    pullable" is the honest starting point, because no requirement has arisen yet. Inventing one now
@@ -79,53 +93,19 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    module makes one and binds it. That keeps a book's singleton-ness a property of books rather than
    of the mechanism, which is what the module notes in DESIGN already say.
 
-   ⚠ `Pull a book` is compile-time-resolved today (static tables, no runtime value), so accepting a
-   user-written object is a real change and not a syntax alias. That is the work.
+   ⚠ **A module with fields is refused** — a pull site has nowhere to put their values. Use
+   `a new <type> { … }`. If pull-time arguments are ever genuinely needed, that is a requirement
+   that *arose*, which is the standard for changing any of this.
 
-   **Verified already working** (measured 2026-08-14, so the arc is smaller than the warning above
-   suggests): an object with no fields is definable and constructible (`a new greeting-kit { }`), and
-   **`cast kit's greet on ("world")` already parses and runs** — identical in shape to
-   `cast math's power on (2, 3)`. So the member-ACCESS half of the unification needs no work; what is
-   missing is only that `Pull` cannot find anything but the three builtins.
-
-2. **Finish the rabbit as a control-flow primitive.** Suspend and resume shipped: `Bury` and
-   `unbury` work on both backends, and a burying body is rewritten into a state machine whose step
-   number is the program counter. What is left is making the result **first class**, and then
-   putting the machinery it exposed to work for everything else that suspends.
-
-   **The restriction is settled and is not a temporary one.** Save state, resume in order, one live
-   resumption — coroutine-shaped, not `call/cc`. Full first-class continuations need either
-   CPS-transforming the whole program (destroying the readable, self-contained C the compiler emits)
-   or copying the machine stack (nonportable, and in conflict with both the sanitizers and the
-   thread-local arenas). ★ **The no-divergence rule decides this independent of implementation
-   cost:** a tree-walking interpreter cannot faithfully offer `call/cc` either.
-
-   **What remains, in order:**
-   1. **A closure-typed object FIELD.** The last place a `stash of T` interprets but will not
-      compile, and it is not really about stashes: the emitted C declares object structs before
-      closure structs, and the two can refer to each other (a closure can give back an object that
-      holds a closure), so it needs forward declarations that are not emitted. Fixing it also buys
-      an ordinary function-valued field, which the parser does not accept today either.
-   2. **Lift the refusals that cost real programs.** A bury inside a judgement, or inside an `If`
-      that tests a type, is refused because splitting the arm into its own block leaves the
-      *narrowing* behind. The fix is to carry each block's guards and re-test them on entry — the
-      value is restored from its slot, so the test gives the same answer it gave the first time.
-   3. **One ownership story.** Exceptions (`setjmp`/`longjmp`), tasks and stashes are three
-      restricted continuations with three separate answers to region lifetime and cleanup. One
-      rabbit-context abstraction underneath all three.
-   4. **Pointers scoped to a rabbit**, which is what gates the C FFI below.
-
-3. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
-   literally rather than nearly true.
-
-### Tier 2 — the design mountains
-
-All need a design session before they can be ordered against anything. They are here because
-they are large, not because they are waiting. The formatter used to be blocked by the inline
-forms; those shipped in 0.15.0, so it is unblocked and simply last.
-
-4. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
+2. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
    container holds one concrete type or fakes it with an open union.
+
+   ★★ **MOVED UP 2026-08-15 — it blocks writing the standard library in Cufet.** The `collections`
+   book's `unique` is element-type-preserving (`series of T` → `series of T`), and `minimum` and
+   `maximum` have the same shape. None of them can be written in Cufet today, so a Cufet-written
+   `collections` cannot reproduce the C# one, and item 1's direction — books are just objects
+   written in Cufet — stalls at the first book worth migrating. This is exactly the trigger stated
+   below, met by the standard library itself rather than by a user's container.
 
    ★ **The syntax already exists.** `a series of number`, `a map from text to number` — a
    user-defined `a stack of number` reads exactly like the built-ins, so there is nothing to invent
@@ -158,6 +138,42 @@ forms; those shipped in 0.15.0, so it is unblocked and simply last.
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
+3. **Finish the rabbit as a control-flow primitive.** Suspend and resume shipped: `Bury` and
+   `unbury` work on both backends, and a burying body is rewritten into a state machine whose step
+   number is the program counter. What is left is making the result **first class**, and then
+   putting the machinery it exposed to work for everything else that suspends.
+
+   **The restriction is settled and is not a temporary one.** Save state, resume in order, one live
+   resumption — coroutine-shaped, not `call/cc`. Full first-class continuations need either
+   CPS-transforming the whole program (destroying the readable, self-contained C the compiler emits)
+   or copying the machine stack (nonportable, and in conflict with both the sanitizers and the
+   thread-local arenas). ★ **The no-divergence rule decides this independent of implementation
+   cost:** a tree-walking interpreter cannot faithfully offer `call/cc` either.
+
+   **What remains, in order:**
+   1. **A closure-typed object FIELD.** The last place a `stash of T` interprets but will not
+      compile, and it is not really about stashes: the emitted C declares object structs before
+      closure structs, and the two can refer to each other (a closure can give back an object that
+      holds a closure), so it needs forward declarations that are not emitted. Fixing it also buys
+      an ordinary function-valued field, which the parser does not accept today either.
+   2. **Lift the refusals that cost real programs.** A bury inside a judgement, or inside an `If`
+      that tests a type, is refused because splitting the arm into its own block leaves the
+      *narrowing* behind. The fix is to carry each block's guards and re-test them on entry — the
+      value is restored from its slot, so the test gives the same answer it gave the first time.
+   3. **One ownership story.** Exceptions (`setjmp`/`longjmp`), tasks and stashes are three
+      restricted continuations with three separate answers to region lifetime and cleanup. One
+      rabbit-context abstraction underneath all three.
+   4. **Pointers scoped to a rabbit**, which is what gates the C FFI below.
+
+4. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+   literally rather than nearly true.
+
+### Tier 2 — the design mountains
+
+All need a design session before they can be ordered against anything. They are here because
+they are large, not because they are waiting. The formatter used to be blocked by the inline
+forms; those shipped in 0.15.0, so it is unblocked and simply last.
+
 5. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
@@ -168,8 +184,8 @@ forms; those shipped in 0.15.0, so it is unblocked and simply last.
     rename your way out of, an ordering you have to rethink, a capital you have to type. Layout is
     pure mechanism, so a warning about it is noise next to a tool that simply does it.
 
-    **Blocked twice over.** It must come after the inline forms in Tier 1, or it would be taught
-    layout rules for constructs whose spelling is about to change. And doing it properly means
+    **One blocker left.** The inline forms it used to wait on shipped in 0.15.0. What remains is
+    that doing it properly means
     teaching the **lexer to carry comments as trivia** first — comments are skipped today and
     never reach the AST, so a printer built from the AST would silently delete all 241 comment
     lines in `examples/`, including the 34-line header on `binarysearchtree.cufe`. That is a
@@ -194,18 +210,29 @@ separate hard problem and is nobody's contract.
 7. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
    open-union representation is sound *because* the whole program compiles at once. Either
    feature forces revisiting it.
-8. **What a book exports.** Every member of a book is public API, permanently, because there is
-   no way to mark one internal. It does not bite yet — the bundled three are built in and you
-   cannot write a book — but the moment the loader below lands, a book author has no way to say
-   *this is my helper, do not call it*.
+8. **What a module exports.** Every member is public API, permanently, because there is no way to
+   mark one internal. A module author has no way to say *this is my helper, do not call it*.
 
    ★ **The default is the part that cannot wait.** Enforcement can ship with the loader; the
-   default cannot be changed after it. Once books are published and depended on, "everything is
+   default cannot be changed after it. Once modules are published and depended on, "everything is
    public" is permanent, and every internal becomes someone's dependency. Deciding now that a
-   book exports a **stated surface** costs nothing and cannot be retrofitted.
+   module exports a **stated surface** costs nothing and cannot be retrofitted.
 
-   Deliberately book-level, not per-member `private` on objects. Cufet's encapsulation unit is
-   the book, so the boundary is *what a book hands out* — the object question is a different and
+   ⚠⚠ **RESHAPED 2026-08-15, and it is now more urgent than its tier suggests.** This was written
+   when a book was a builtin category. A module is an object conforming to an interface, which
+   suggests a far better answer than a new visibility system: **a module's public surface is the
+   interface it conforms to.** No new concept — that is what interfaces already are.
+
+   But that collides with item 1's decision that `module` is a bare marker. A marker requires
+   nothing, so a module's surface today is *all of its methods* — which is exactly the
+   "everything is public" default this item says cannot be retrofitted. It does not bite while
+   nothing is distributable, and the two ideas are separable ("require nothing to be pullable" and
+   "declare what you export" need not be the same interface). **But the choice has to be made
+   before a module can be shared, not after** — which is sooner than Tier 3, because item 1 already
+   shipped the mechanism.
+
+   Deliberately module-level, not per-member `private` on objects. Cufet's encapsulation unit is
+   the module, so the boundary is *what it hands out* — the object question is a different and
    much weaker one, since within a file a visibility marker is a comment with ceremony attached.
 
 9. **A package manager for books.**
@@ -229,7 +256,7 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
 11. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
-    ⚠ **Blocked on the C FFI (Tier 2).** Job control needs process groups and signalling a child;
+    ⚠ **Blocked on the C FFI (Tier 1).** Job control needs process groups and signalling a child;
     completion needs raw terminal mode. Neither is in the language and neither should become a
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
