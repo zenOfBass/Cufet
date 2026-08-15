@@ -1266,6 +1266,22 @@ Pull books on math as m, collections as c, and chance.
 Done.
 ```
 
+**Module — the general form:**
+```
+Pull greeting-kit.
+Pull greeting-kit as kit.
+```
+Any object conforming to `module` (`Define object greeting-kit with () and module:`). The
+article is noise, so `Pull a greeting-kit.` is the same statement.
+
+★ **This is not a fourth form — it is the form the others are special cases of.** `Pull a
+rabbit.` was always `Pull <name>`, and `book on <name>` is the one spelling that inserts a
+noun, kept because `math`, `collections` and `chance` read badly without it.
+
+`module` is a **marker interface**: it requires no methods, only the claim. An object that
+does not conform is refused at the pull site. Pulling **instantiates**, so a module with
+fields is refused — a pull has nowhere to put their values; use `a new <type> { … }`.
+
 **Rabbit (singular only):**
 ```
 Pull a rabbit as den.

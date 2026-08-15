@@ -100,6 +100,7 @@ deliberate differences are marked where they arise and summarised under
     - [Signal handling](#signal-handling)
       - [How far an interrupt reaches](#how-far-an-interrupt-reaches)
   - [Part VIII. The standard library](#part-viii-the-standard-library)
+    - [Modules (`Pull`)](#modules-pull)
     - [Books (the standard library)](#books-the-standard-library)
     - [Matrix](#matrix)
   - [Part IX. Compiling](#part-ix-compiling)
@@ -3317,11 +3318,56 @@ Cufet exception. See the error-handling section.
 
 ## Part VIII. The standard library
 
+### Modules (`Pull`)
+
+**A module is an object that says it is one, and `Pull` brings it into scope.** That is the
+whole idea. A book is a module that ships with the language; there is no privileged
+category.
+
+An object declares itself pullable by conforming to `module`:
+
+```
+Define object greeting-kit with () and module:
+    Bind text to greet, given (the text who):
+        Return "hello, " joined to who.
+    Done.
+Done.
+
+Pull greeting-kit.
+    State cast greeting-kit's greet on ("world").
+Done.
+```
+
+`module` is a **marker** — it requires no methods at all. It exists so that being pullable
+is something an author *claims* rather than something every object turns out to have. An
+object that does not conform is refused at the pull site, and the message names the fix.
+
+**Articles are noise**, so `Pull greeting-kit.` and `Pull a greeting-kit.` are the same
+statement, and the name can be aliased exactly as a rabbit's can:
+
+```
+Pull greeting-kit as kit.
+    State cast kit's greet on ("aliased").
+Done.
+```
+
+This is not new syntax. `Pull a rabbit.` was always this form; what changed is that the
+name in it no longer has to be one the language shipped.
+
+**Pulling instantiates.** `Pull a rabbit as den.` makes a region rather than naming a shared
+one, and a module is the same — so a module with fields is refused, because a pull site has
+nowhere to put their values. Build one of those with `a new <type> { … }` instead.
+
+A pull is a **scope**: the binding is gone after `Done.`
+
 ### Books (the standard library)
 
-Capability that most programs do not need lives in a **book**, brought into scope for a
-block with `Pull a book on <name>. … Done.` Members are reached with the possessive:
-`math's square root of (144)`.
+Capability that most programs do not need lives in a **book** — a module that comes in the
+box. Brought into scope for a block with `Pull a book on <name>. … Done.`, with members
+reached by the possessive: `math's square root of (144)`.
+
+The `book on <name>` spelling stays because the bundled names read badly without the noun —
+"Pull a math." — but a book is a module and nothing about the mechanism is special to it.
 
 Books are resolved at compile time. There is no dynamic loading, and no external loader
 yet — the bundled books are `math`, `collections`, and `chance`.

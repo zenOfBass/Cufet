@@ -59,6 +59,40 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **★★ Modules — a writer's own object can be `Pull`ed.** A module is an object that says it is
+  one, and `Pull` brings it into scope. A book is a module that ships with the language; there is
+  no privileged category any more.
+
+  ```
+  Define object greeting-kit with () and module:
+      Bind text to greet, given (the text who):
+          Return "hello, " joined to who.
+      Done.
+  Done.
+
+  Pull greeting-kit.
+      State cast greeting-kit's greet on ("world").
+  Done.
+  ```
+
+  **It is not new syntax.** `Pull a rabbit.` was always `Pull <name>`, and articles are noise, so
+  `Pull greeting-kit.`, `Pull a greeting-kit.` and `Pull greeting-kit as kit.` are one form. What
+  changed is that the name no longer has to be one the language shipped. `Pull a book on <name>`
+  stays for the bundled three, whose names read badly without the noun.
+
+  `module` is a **marker interface** — it requires no methods, only the claim, so that being
+  pullable is something an author declares rather than something every object accidentally has. An
+  object that does not conform is refused at the pull site, and the message names the fix. No
+  requirement will be added to it until a real one arises; a contract is the hardest thing to
+  loosen once things depend on it.
+
+  Pulling **instantiates**, matching `Pull a rabbit as den.`, which keeps a book's singleton-ness a
+  property of books rather than of the mechanism. A module with fields is refused — a pull site has
+  nowhere to put their values.
+
+  ⚠ **Books and rabbits are not yet conformers.** They still travel their own branches, so the
+  contract has one real conformer so far. Making them go through it is what proves the seam.
+
 - **★★ Stashes — `Bury` and `unbury`.** A function can stop in the middle of what it is doing, hand
   one value out, and pick up from that exact line when someone asks for the next one.
 
