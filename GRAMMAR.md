@@ -1547,11 +1547,24 @@ type — including a series or a map being built up item by item.
 | `Define a shadow` anywhere in the body | Every scope in the body flattens into one, so the shadow would land on the name it was written to hide. |
 | One name used at two types in the body | Sibling blocks become one place to store it, and one place holds one type. Legal everywhere else in the language. |
 
-⚠ **`stash of T` is a local-only type today.** It cannot be a parameter, an
-object field, or a series element yet — the compiler refuses with *"cannot
-represent a stash of T yet"*. Everything about the lowering is ready for it (a
-stash is a closure, and every `stash of T` is the same two-pointer shape), so
-this is a gap, not a design limit.
+### ★ `stash of T` is an ordinary value type
+
+A stash goes where any value goes — a local, a parameter, an element of a series
+— because it lowers to a CLOSURE, and every `stash of T` is therefore the same
+two-pointer shape. No vtable is implied and no narrowing is needed.
+
+The front end keeps `stash of T` and `voidable T function given ()` as separate
+spellings on purpose: it is what makes an error say *"stash of number"*, and what
+stops a stash being `cast` directly instead of unburied. The back end must not,
+because a `stash of T` parameter has to accept exactly what `cast`ing a burying
+function produces — so the front end substitutes one for the other on the way
+out, and no `StashType` survives into either backend.
+
+⚠ **An object FIELD is the exception, and only when compiling.** `the stash of
+number source` as a field interprets correctly; `build` refuses it. The generated
+C declares object structs before closure structs, and the two can refer to each
+other, so it needs forward declarations that are not emitted yet. A gap in the
+emitter, not a limit on stashes.
 
 ---
 

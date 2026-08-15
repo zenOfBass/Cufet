@@ -60,11 +60,11 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    cost:** a tree-walking interpreter cannot faithfully offer `call/cc` either.
 
    **What remains, in order:**
-   1. **`stash of T` as a parameter, a field and a series element.** A stash already lowers to a
-      closure — one uniform two-pointer representation, so every `stash of T` is the same shape and
-      no vtable is implied — but the compiler still refuses the type anywhere but a local. This is
-      what makes delegation (one stash draining another) writable, and it is the difference between
-      a generator and a value.
+   1. **A closure-typed object FIELD.** The last place a `stash of T` interprets but will not
+      compile, and it is not really about stashes: the emitted C declares object structs before
+      closure structs, and the two can refer to each other (a closure can give back an object that
+      holds a closure), so it needs forward declarations that are not emitted. Fixing it also buys
+      an ordinary function-valued field, which the parser does not accept today either.
    2. **Lift the refusals that cost real programs.** A bury inside a judgement, or inside an `If`
       that tests a type, is refused because splitting the arm into its own block leaves the
       *narrowing* behind. The fix is to carry each block's guards and re-test them on entry — the

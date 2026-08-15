@@ -90,11 +90,29 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   every local that outlives a resumption is stored beside it. Loop counters, iterators and
   part-built series all survive.
 
-  ⚠ **Not yet:** a `stash of T` cannot be a parameter, a field or a series element (the compiler
-  says so); a bury inside a judgement, a `Try`, a rabbit block, a for-each over a map, or an `If`
-  that tests a type is refused at check time, with a message saying which and why. Each of those
-  carries something — a narrowing, a handler, a region — that a step number cannot restore, and a
-  refusal both backends share is the only answer the no-divergence rule allows.
+  **A stash is a VALUE, not a special form.** It goes wherever a value goes — a local, a parameter,
+  an element of a series — and that is what lets one stash *delegate* to another:
+
+  ```
+  Bind void to take-three, given (the stash of number source, the text label): … Done.
+
+  Define many as a series of stash of number.
+  Insert (cast counting-up on (1)) into many.
+  ```
+
+  No vtable is implied, because a stash lowers to a **closure** — two pointers, one uniform shape,
+  so every `stash of T` is the same size. The front end keeps `stash of T` and its closure type as
+  distinct spellings (it is what makes an error say "stash of number", and what stops a stash being
+  `cast` directly rather than unburied) and substitutes one for the other on the way out, so no
+  `StashType` reaches either backend.
+
+  ⚠ **Not yet:** a `stash of T` as an object FIELD interprets but does not compile — the generated
+  C declares object structs before closure structs and the two can refer to each other, so it needs
+  forward declarations that are not emitted. And a bury inside a judgement, a `Try`, a rabbit block,
+  a for-each over a map, or an `If` that tests a type is refused at check time, with a message
+  saying which and why: each carries something — a narrowing, a handler, a region — that a step
+  number cannot restore, and a refusal both backends share is the only answer the no-divergence
+  rule allows.
 
   The naming is Turing's: the ACE design used *bury* and *unbury* for subroutine linkage.
 
@@ -122,6 +140,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   no vtable, no type tag, nothing relaxed.
 
 ### Fixed
+
+- **`check --native` handed the code generator the wrong program.** It ran the generator on the tree
+  as WRITTEN rather than the one that runs, so every correct stash program came back with an
+  internal "a 'bury' reached the code generator untransformed". The linter still reads the original
+  — style advice is about what you wrote — and only the back end gets the lowering.
 
 - **★ `in uppercase` / `in lowercase` are full Unicode on both backends.** `"héllo" in uppercase`
   was `HÉLLO` interpreted and `HéLLO` compiled — the emitted C cased one byte at a time, so

@@ -33,6 +33,7 @@ deliberate differences are marked where they arise and summarised under
       - [For-each loops](#for-each-loops)
     - [Stashes (`Bury` and `unbury`)](#stashes-bury-and-unbury)
       - [What a burying body cannot do yet](#what-a-burying-body-cannot-do-yet)
+      - [A stash is a value](#a-stash-is-a-value)
     - [Scope](#scope)
   - [Part III. Data](#part-iii-data)
     - [Text](#text)
@@ -689,8 +690,55 @@ same programs.
 | `Define a shadow` anywhere in the body | The body is flattened into one set of state, so a shadow would land on the name it was written to hide. |
 | One name at two types in the body | Sibling blocks become one place to store it, and one place holds one type. |
 
-A `stash of T` can be held in a local, but not yet passed as a parameter, stored
-in a field, or put in a series. The compiler says so plainly.
+#### A stash is a value
+
+A `stash of T` goes wherever a value goes: a local, a parameter, an element of a
+series. It is one thing you can hold, hand over, and keep a collection of.
+
+```
+Bind void to take-three, given (the stash of number source, the text label):
+    Define taken as 0.
+    While taken is less than 3, repeat:
+        State label joined to ": " joined to ((unbury source but void is 0) converted to text).
+        The taken becomes taken + 1.
+    Done.
+Done.
+
+Define counter as cast counting-up on (7).
+Cast take-three on (counter, "seven").
+```
+
+A series of them works, and each keeps its own place:
+
+```
+Define many as a series of stash of number.
+Insert (cast counting-up on (1))   into many.
+Insert (cast counting-up on (10))  into many.
+For each one-stash in many, repeat: State unbury one-stash. Done.   // 1, 10
+For each one-stash in many, repeat: State unbury one-stash. Done.   // 2, 11
+```
+
+That is also what lets one stash **delegate** to another — hold it and pass its
+values along:
+
+```
+Bind number to squares-and-cubes, given (the number upto):
+    Define inner as cast squares on (upto).
+    Repeat:
+        Define value as unbury inner.
+        If value is void:
+            Stop.
+        Done.
+        Bury value.
+    Until false.
+    ...
+Done.
+```
+
+⚠ **An object FIELD is the one place a stash does not compile yet.** It
+interprets, so the program runs; `build` refuses it. That is a gap in how the
+generated C orders its type declarations — a closure struct can give back an
+object that holds a closure — and not a limit on stashes.
 
 ---
 
