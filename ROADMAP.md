@@ -65,8 +65,28 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    always meant to live — as methods on the rabbit that owns the buried state. Today they are free
    statements, which is why a stash carries a type but no ownership.
 
+   ★ **`module` starts as a MARKER — it requires nothing.** An interface that says only "this is
+   pullable" is the honest starting point, because no requirement has arisen yet. Inventing one now
+   means guessing at a contract two conformers have not asked for, and a contract is the single
+   hardest thing to loosen later. Let a real requirement earn its way in.
+
+   **Surface: `Pull <module-name> [as <alias>].`** The article is noise, so `Pull math.`,
+   `Pull rabbit.`, `Pull greeting-kit as kit.` It is not new syntax — `Pull a rabbit.` is already
+   this form, and `Pull a book on <name>` is the special case being shed. Keep the `book on` form
+   working for the three builtins; their names read badly without it.
+
+   **Pulling INSTANTIATES.** `Pull a rabbit as den.` makes a region and binds it, so pulling a
+   module makes one and binds it. That keeps a book's singleton-ness a property of books rather than
+   of the mechanism, which is what the module notes in DESIGN already say.
+
    ⚠ `Pull a book` is compile-time-resolved today (static tables, no runtime value), so accepting a
    user-written object is a real change and not a syntax alias. That is the work.
+
+   **Verified already working** (measured 2026-08-14, so the arc is smaller than the warning above
+   suggests): an object with no fields is definable and constructible (`a new greeting-kit { }`), and
+   **`cast kit's greet on ("world")` already parses and runs** — identical in shape to
+   `cast math's power on (2, 3)`. So the member-ACCESS half of the unification needs no work; what is
+   missing is only that `Pull` cannot find anything but the three builtins.
 
 2. **Finish the rabbit as a control-flow primitive.** Suspend and resume shipped: `Bury` and
    `unbury` work on both backends, and a burying body is rewritten into a state machine whose step
