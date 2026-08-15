@@ -34,6 +34,7 @@ deliberate differences are marked where they arise and summarised under
     - [Stashes (`Bury` and `unbury`)](#stashes-bury-and-unbury)
       - [What a burying body cannot do yet](#what-a-burying-body-cannot-do-yet)
       - [A stash is a value](#a-stash-is-a-value)
+      - [Where a stash is buried](#where-a-stash-is-buried)
     - [Scope](#scope)
   - [Part III. Data](#part-iii-data)
     - [Text](#text)
@@ -739,6 +740,39 @@ Done.
 interprets, so the program runs; `build` refuses it. That is a gap in how the
 generated C orders its type declarations — a closure struct can give back an
 object that holds a closure — and not a limit on stashes.
+
+#### Where a stash is buried
+
+**A stash lives in the region it was made in, and dies with it.** That is one
+rule, not a special case: a `Pull a rabbit` block is ground with an early death,
+and the top level is ground that lasts as long as the program. Nothing about
+`bury` requires a rabbit — it requires a *place*, and there is always a place.
+
+So a stash made inside a burrow is usable for as long as you stay in it:
+
+```
+Pull a rabbit as den.
+    Define counter as cast counting-up on (1).
+    State unbury counter.                  // 1
+    Cast take-two on (counter, "passed").  // handed inward — fine
+
+    Define many as a series of stash of number.
+    Insert (cast counting-up on (100)) into many.
+    For each one-stash in many, repeat: State unbury one-stash. Done.
+Done.
+```
+
+⚠ **What you bury in a burrow does not come out of it.** Once the block ends the
+ground is gone, and so is everything buried in it — carrying the stash out and
+unburying it later is refused, the same way any closure over rabbit-scoped state
+is. That is not a restriction bolted onto stashes; it is what burying somewhere
+*means*.
+
+The name is Turing's, and so is the lesson. He converted his savings to silver,
+buried it in the woods near Bletchley, and wrote down enciphered directions —
+then never found it again. The note travelled; the silver did not. A stash is the
+same shape: the value you hold is the note, and what it points at stays in the
+ground you buried it in.
 
 ---
 

@@ -47,7 +47,28 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 
 ### Tier 1 — leverage
 
-1. **Finish the rabbit as a control-flow primitive.** Suspend and resume shipped: `Bury` and
+1. **Modules: an object that conforms to an interface, brought into scope with `Pull`.**
+
+   The writer builds an object, conforms it to an interface, and pulls it. That is the whole idea,
+   and it is deliberately not more than that — **a book is a module, a rabbit is a module, and a
+   writer's own object is a module on exactly the same terms.** No privileged builtin category.
+
+   ★ **The loader is not part of this.** Fetching code that is not already in the program is a
+   separate hard problem (Tier 3), and it is one conformer's business rather than the contract's.
+   Keeping them apart is what makes this buildable now.
+
+   Two conformers on day one is the point, not a bonus. An interface with one conformer is a guess;
+   `book` and `rabbit` pull on the seam from genuinely different directions, so the contract is
+   tested as it is written.
+
+   **What it unlocks immediately:** rabbits become objects, which is where `bury` and `unbury` were
+   always meant to live — as methods on the rabbit that owns the buried state. Today they are free
+   statements, which is why a stash carries a type but no ownership.
+
+   ⚠ `Pull a book` is compile-time-resolved today (static tables, no runtime value), so accepting a
+   user-written object is a real change and not a syntax alias. That is the work.
+
+2. **Finish the rabbit as a control-flow primitive.** Suspend and resume shipped: `Bury` and
    `unbury` work on both backends, and a burying body is rewritten into a state machine whose step
    number is the program counter. What is left is making the result **first class**, and then
    putting the machinery it exposed to work for everything else that suspends.
@@ -74,7 +95,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
       rabbit-context abstraction underneath all three.
    4. **Pointers scoped to a rabbit**, which is what gates the C FFI below.
 
-2. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+3. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
 
 ### Tier 2 — the design mountains
@@ -83,7 +104,7 @@ All need a design session before they can be ordered against anything. They are 
 they are large, not because they are waiting. The formatter used to be blocked by the inline
 forms; those shipped in 0.15.0, so it is unblocked and simply last.
 
-3. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
+4. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
    container holds one concrete type or fakes it with an open union.
 
    ★ **The syntax already exists.** `a series of number`, `a map from text to number` — a
@@ -117,10 +138,10 @@ forms; those shipped in 0.15.0, so it is unblocked and simply last.
    `collections` function, never an operator, because `*` means matrix product and there is one
    canonical way.)
 
-4. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+5. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
-5. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
+6. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
     briefly a linter rule and is not one. Both tools would need the same "how large is large"
     threshold, and one number owned in two places is one number that drifts. The severity settles
     it too: every other linter rule flags something a tool cannot fix for you — nesting you have to
@@ -144,12 +165,12 @@ forms; those shipped in 0.15.0, so it is unblocked and simply last.
     to a fixed indent; and the width that makes a shape "large" — the corpus median is 43 and p90
     is 82, so 90–100 leaves nearly everything alone.
 
-### Tier 3 — modules, strictly in this order
+### Tier 3 — shipping a book, strictly in this order
 
-6. **The `module` interface.** A named interface defining the contract for any loadable thing.
-   It comes first because it is the stable seam everything else in this tier depends on, and it
-   is buildable well before the loader — which means the loader can arrive later without
-   churning what already uses a book.
+The `module` interface itself is Tier 1 item 1 — it is the language seam and is buildable now.
+What is left here is everything about code that is **not already in the program**, which is a
+separate hard problem and is nobody's contract.
+
 7. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
    open-union representation is sound *because* the whole program compiles at once. Either
    feature forces revisiting it.
