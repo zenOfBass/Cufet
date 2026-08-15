@@ -274,9 +274,9 @@
     "keyword": {
       "patterns": [
         {
-          "comment": "Flow.",
+          "comment": "Flow. ★ 'bury' and 'unbury' sit here rather than being split between a statement verb and an operator, because they are one construct with two halves — bury suspends, unbury resumes — and colouring them differently reads as though they were unrelated. 'bury' is this language's 'yield', which is in this same list. Fenced as always, so the 'bury' inside 'unbury' cannot match on its own.",
           "name": "keyword.control.flow.cufet",
-          "match": "(?<![\\w-])(?i:if|otherwise|when|done|while|repeat|until|stop|skip|return|try|case|pass|off|suppress|yield|but|judge|where|descend)(?![\\w-])"
+          "match": "(?<![\\w-])(?i:if|otherwise|when|done|while|repeat|until|stop|skip|return|try|case|pass|off|suppress|yield|unbury|bury|but|judge|where|descend)(?![\\w-])"
         },
         {
           "comment": "Statement verbs — the words that open a statement and say what it does. ★ 'output' and 'seed' are deliberately NOT in this list: they lex as identifiers, so a program may name a variable either one, and matching them case-insensitively here would repaint that variable as language syntax. The CAPITALISED spelling is handled by the rule below, and the lowercase one by the semantic-token pass.",
@@ -300,7 +300,7 @@
         {
           "comment": "Type names. 'text', 'fact' and 'bits' are contextual rather than reserved — the lexer has no token for any of them — but they are types to anyone reading the code, so they are coloured as types.",
           "name": "support.type.cufet",
-          "match": "(?<![\\w-])(?i:number|text|fact|bits|series|record|map|channel|rabbit|task|stream|function|voidable|void|catalogue|atlas|failure|exception|books|book)(?![\\w-])"
+          "match": "(?<![\\w-])(?i:number|text|fact|bits|series|stash|record|map|channel|rabbit|task|stream|function|voidable|void|catalogue|atlas|failure|exception|books|book)(?![\\w-])"
         },
         {
           "comment": "Word-form operators.",
