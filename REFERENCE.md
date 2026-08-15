@@ -3354,6 +3354,24 @@ Done.
 This is not new syntax. `Pull a rabbit.` was always this form; what changed is that the
 name in it no longer has to be one the language shipped.
 
+**The bundled books answer to it too**, which is what makes "a book is a module" a fact
+about the language rather than a turn of phrase:
+
+```
+Pull math.
+    State math's pi.
+Done.
+
+Pull collections.
+    State cast collections's transpose on (a matrix with ((1, 2), (3, 4))).
+Done.
+```
+
+A book conforms *by construction* rather than by declaration — there is no `Define object
+math` to attach `and module` to, because a book's members are implemented natively rather
+than in Cufet. That is a difference in how a module is **built**, not in what `Pull` asks of
+it.
+
 **Pulling instantiates.** `Pull a rabbit as den.` makes a region rather than naming a shared
 one, and a module is the same — so a module with fields is refused, because a pull site has
 nowhere to put their values. Build one of those with `a new <type> { … }` instead.

@@ -1275,8 +1275,18 @@ Any object conforming to `module` (`Define object greeting-kit with () and modul
 article is noise, so `Pull a greeting-kit.` is the same statement.
 
 ★ **This is not a fourth form — it is the form the others are special cases of.** `Pull a
-rabbit.` was always `Pull <name>`, and `book on <name>` is the one spelling that inserts a
-noun, kept because `math`, `collections` and `chance` read badly without it.
+rabbit.` was always `Pull <name>`, and the bundled books answer to it as well:
+
+```
+Pull math.
+Pull collections.
+Pull math as m.
+```
+
+`book on <name>` is kept because `Pull a math.` reads worse than `Pull a book on math.`, not
+because books are a separate mechanism. A book conforms by CONSTRUCTION (its members are
+native, so there is no `Define object` to carry `and module`); a writer's object conforms by
+DECLARATION. Same question at the pull site, different ways of being built.
 
 `module` is a **marker interface**: it requires no methods, only the claim. An object that
 does not conform is refused at the pull site. Pulling **instantiates**, so a module with

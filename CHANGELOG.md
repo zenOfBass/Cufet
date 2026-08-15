@@ -90,8 +90,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   property of books rather than of the mechanism. A module with fields is refused — a pull site has
   nowhere to put their values.
 
-  ⚠ **Books and rabbits are not yet conformers.** They still travel their own branches, so the
-  contract has one real conformer so far. Making them go through it is what proves the seam.
+  **The bundled books answer to the same form** — `Pull math.`, `Pull collections as c.` — which is
+  what makes "a book is a module" a fact rather than a turn of phrase. One question is asked of
+  everything at the pull site: *is this a module?* A book conforms by CONSTRUCTION (its members are
+  native, so there is no `Define object` to carry an `and module` clause); a writer's object
+  conforms by DECLARATION. That is a difference in how a conformer is built, not in what the
+  contract asks.
+
+  ⚠ **Rabbits are not a conformer yet.** `Pull a rabbit` still travels its own branch, because a
+  rabbit is not an object — which is the next piece, and the one that puts `bury` and `unbury`
+  where they belong.
 
 - **★★ Stashes — `Bury` and `unbury`.** A function can stop in the middle of what it is doing, hand
   one value out, and pick up from that exact line when someone asks for the next one.
