@@ -45,6 +45,7 @@ public class StashMachineTests
             Done.
             State value.
         Until false.
+        Done.
         """;
 
     // ── The shapes that have to linearise ──────────────────────────────────
@@ -55,15 +56,16 @@ public class StashMachineTests
         // The simplest thing that cannot work without a slot: `step-value` is written after the
         // bury and read before it, so a resumption that started the body over would print 1 forever.
         Assert.Equal("1\n2\n3", Run("""
-            Bind number to upto-three:
+            Bind number to upto-three, given (the rabbit helper):
                 Define step-value as 1.
                 While step-value is not greater than 3, repeat:
-                    Bury step-value.
+                    Have helper bury step-value.
                     The step-value becomes step-value + 1.
                 Done.
             Done.
 
-            Define source as cast upto-three on ().
+            Pull a rabbit as den.
+            Define source as cast upto-three on (den).
             """ + DrainNumbers));
     }
 
@@ -71,13 +73,14 @@ public class StashMachineTests
     public void AForEach_ResumesAtTheNextItem()
     {
         Assert.Equal("10\n20\n30", Run("""
-            Bind number to tenfold, given (the series of number values):
+            Bind number to tenfold, given (the rabbit helper, the series of number values):
                 For each value in values, repeat:
-                    Bury value * 10.
+                    Have helper bury value * 10.
                 Done.
             Done.
 
-            Define source as cast tenfold on (a series with (1, 2, 3)).
+            Pull a rabbit as den.
+            Define source as cast tenfold on (den, a series with (1, 2, 3)).
             """ + DrainNumbers));
     }
 
@@ -85,16 +88,17 @@ public class StashMachineTests
     public void ASkip_PassesOverAnItemWithoutEndingTheLoop()
     {
         Assert.Equal("2\n4\n6", Run("""
-            Bind number to evens-only, given (the series of number values):
+            Bind number to evens-only, given (the rabbit helper, the series of number values):
                 For each value in values, repeat:
                     If value % 2 is not 0:
                         Skip.
                     Done.
-                    Bury value.
+                    Have helper bury value.
                 Done.
             Done.
 
-            Define source as cast evens-only on (a series with (1, 2, 3, 4, 5, 6)).
+            Pull a rabbit as den.
+            Define source as cast evens-only on (den, a series with (1, 2, 3, 4, 5, 6)).
             """ + DrainNumbers));
     }
 
@@ -102,17 +106,18 @@ public class StashMachineTests
     public void AStop_EndsTheLoopAndTheRestOfTheBodyStillRuns()
     {
         Assert.Equal("1\n2\n99", Run("""
-            Bind number to upto-two-then-marker, given (the series of number values):
+            Bind number to upto-two-then-marker, given (the rabbit helper, the series of number values):
                 For each value in values, repeat:
                     If value is greater than 2:
                         Stop.
                     Done.
-                    Bury value.
+                    Have helper bury value.
                 Done.
-                Bury 99.
+                Have helper bury 99.
             Done.
 
-            Define source as cast upto-two-then-marker on (a series with (1, 2, 3, 4)).
+            Pull a rabbit as den.
+            Define source as cast upto-two-then-marker on (den, a series with (1, 2, 3, 4)).
             """ + DrainNumbers));
     }
 
@@ -120,14 +125,15 @@ public class StashMachineTests
     public void ARepeatUntil_TestsAfterTheBody()
     {
         Assert.Equal("2\n1\n0", Run("""
-            Bind number to countdown, given (the number origin):
+            Bind number to countdown, given (the rabbit helper, the number origin):
                 Repeat:
                     The origin becomes origin - 1.
-                    Bury origin.
+                    Have helper bury origin.
                 Until origin is 0.
             Done.
 
-            Define source as cast countdown on (3).
+            Pull a rabbit as den.
+            Define source as cast countdown on (den, 3).
             """ + DrainNumbers));
     }
 
@@ -137,19 +143,20 @@ public class StashMachineTests
         // ★ Two counters in flight at once, and the inner one is re-declared on every outer pass.
         // A single shared slot, or an inner counter that failed to reset, both show up here.
         Assert.Equal("11\n12\n21\n22", Run("""
-            Bind number to grid:
+            Bind number to grid, given (the rabbit helper):
                 Define row as 1.
                 While row is not greater than 2, repeat:
                     Define column as 1.
                     While column is not greater than 2, repeat:
-                        Bury row * 10 + column.
+                        Have helper bury row * 10 + column.
                         The column becomes column + 1.
                     Done.
                     The row becomes row + 1.
                 Done.
             Done.
 
-            Define source as cast grid on ().
+            Pull a rabbit as den.
+            Define source as cast grid on (den).
             """ + DrainNumbers));
     }
 
@@ -159,14 +166,15 @@ public class StashMachineTests
         // A parameter is handed to the machine afresh on every resumption, so one that the body
         // WRITES needs a slot like any local — otherwise every resumption starts from the argument.
         Assert.Equal("9\n8\n7\n6", Run("""
-            Bind number to downward, given (the number counter):
+            Bind number to downward, given (the rabbit helper, the number counter):
                 While counter is greater than 6, repeat:
                     The counter becomes counter - 1.
-                    Bury counter.
+                    Have helper bury counter.
                 Done.
             Done.
 
-            Define source as cast downward on (10).
+            Pull a rabbit as den.
+            Define source as cast downward on (den, 10).
             """ + DrainNumbers));
     }
 
@@ -176,16 +184,17 @@ public class StashMachineTests
         // A series is shared, not snapshotted — so what was inserted before a bury is still there
         // after it. If the slot round-tripped a COPY this would print 1, 1, 1.
         Assert.Equal("1\n2\n3", Run("""
-            Bind number to running-total, given (the series of number values):
+            Bind number to running-total, given (the rabbit helper, the series of number values):
                 Define collected as a series of number.
                 For each value in values, repeat:
                     Insert value into collected.
                     Define tally as the number of collected.
-                    Bury tally.
+                    Have helper bury tally.
                 Done.
             Done.
 
-            Define source as cast running-total on (a series with (5, 6, 7)).
+            Pull a rabbit as den.
+            Define source as cast running-total on (den, a series with (5, 6, 7)).
             """ + DrainNumbers));
     }
 
@@ -195,14 +204,16 @@ public class StashMachineTests
     public void AStashStaysSpent_HoweverOftenItIsAsked()
     {
         Assert.Equal("1\nvoid\nvoid", Run("""
-            Bind number to just-one:
-                Bury 1.
+            Bind number to just-one, given (the rabbit helper):
+                Have helper bury 1.
             Done.
 
-            Define source as cast just-one on ().
+            Pull a rabbit as den.
+            Define source as cast just-one on (den).
             State unbury source.
             State unbury source.
             State unbury source.
+            Done.
             """));
     }
 
@@ -210,17 +221,19 @@ public class StashMachineTests
     public void TwoStashesFromOneFunction_DoNotShareState()
     {
         Assert.Equal("1\n1\n2\n2", Run("""
-            Bind number to pair:
-                Bury 1.
-                Bury 2.
+            Bind number to pair, given (the rabbit helper):
+                Have helper bury 1.
+                Have helper bury 2.
             Done.
 
-            Define one-stash as cast pair on ().
-            Define other-stash as cast pair on ().
+            Pull a rabbit as den.
+            Define one-stash as cast pair on (den).
+            Define other-stash as cast pair on (den).
             State unbury one-stash.
             State unbury other-stash.
             State unbury one-stash.
             State unbury other-stash.
+            Done.
             """));
     }
 
@@ -232,10 +245,10 @@ public class StashMachineTests
     // oracle test's job, on examples/language/stashes.cufe.
 
     private const string CountingUp = """
-        Bind number to counting-up, given (the number first-value):
+        Bind number to counting-up, given (the rabbit helper, the number first-value):
             Define next as first-value.
             Repeat:
-                Bury next.
+                Have helper bury next.
                 The next becomes next + 1.
             Until false.
         Done.
@@ -251,7 +264,9 @@ public class StashMachineTests
                 State (unbury source but void is 0).
             Done.
 
-            Cast take-two on (cast counting-up on (7)).
+            Pull a rabbit as den.
+                Cast take-two on (cast counting-up on (den, 7)).
+            Done.
             """));
     }
 
@@ -261,14 +276,16 @@ public class StashMachineTests
         // The second pass is the assertion. If a series held a COPY, or if the closures shared
         // state, the two rounds would not read 1,10 then 2,11.
         Assert.Equal("1\n10\n2\n11", Run(CountingUp + """
-            Define many as a series of stash of number.
-            Insert (cast counting-up on (1)) into many.
-            Insert (cast counting-up on (10)) into many.
-            For each one-stash in many, repeat:
-                State (unbury one-stash but void is 0).
-            Done.
-            For each one-stash in many, repeat:
-                State (unbury one-stash but void is 0).
+            Pull a rabbit as den.
+                Define many as a series of stash of number.
+                Insert (cast counting-up on (den, 1)) into many.
+                Insert (cast counting-up on (den, 10)) into many.
+                For each one-stash in many, repeat:
+                    State (unbury one-stash but void is 0).
+                Done.
+                For each one-stash in many, repeat:
+                    State (unbury one-stash but void is 0).
+                Done.
             Done.
             """));
     }
@@ -280,31 +297,32 @@ public class StashMachineTests
         // held as a local INSIDE a burying function, so it has to survive that function's own
         // resumptions as well as produce values of its own.
         Assert.Equal("1\n4\n9\n1\n8\n27", Run("""
-            Bind number to squares, given (the number upto):
+            Bind number to squares, given (the rabbit helper, the number upto):
                 Define side as 1.
                 While side is not greater than upto, repeat:
-                    Bury side * side.
+                    Have helper bury side * side.
                     The side becomes side + 1.
                 Done.
             Done.
 
-            Bind number to squares-and-cubes, given (the number upto):
-                Define inner as cast squares on (upto).
+            Bind number to squares-and-cubes, given (the rabbit helper, the number upto):
+                Define inner as cast squares on (helper, upto).
                 Repeat:
                     Define value as unbury inner.
                     If value is void:
                         Stop.
                     Done.
-                    Bury value.
+                    Have helper bury value.
                 Until false.
                 Define side as 1.
                 While side is not greater than upto, repeat:
-                    Bury side * side * side.
+                    Have helper bury side * side * side.
                     The side becomes side + 1.
                 Done.
             Done.
 
-            Define source as cast squares-and-cubes on (3).
+            Pull a rabbit as den.
+            Define source as cast squares-and-cubes on (den, 3).
             """ + DrainNumbers));
     }
 
@@ -329,15 +347,16 @@ public class StashMachineTests
     public void ABuryInsideATypeTest_KeepsTheNarrowing()
     {
         Assert.Equal("two\nfour", Run("""
-            Bind text to texts-only, given (the series of (number or text) things):
+            Bind text to texts-only, given (the rabbit helper, the series of (number or text) things):
                 For each thing in things, repeat:
                     If thing is a text:
-                        Bury thing.
+                        Have helper bury thing.
                     Done.
                 Done.
             Done.
 
-            Define source as cast texts-only on (a series of (number or text) with (1, "two", 3, "four")).
+            Pull a rabbit as den.
+            Define source as cast texts-only on (den, a series of (number or text) with (1, "two", 3, "four")).
             Repeat:
                 Define found as unbury source.
                 If found is void:
@@ -345,6 +364,7 @@ public class StashMachineTests
                 Done.
                 State found.
             Until false.
+            Done.
             """));
     }
 
@@ -353,15 +373,16 @@ public class StashMachineTests
     {
         // The other direction: the arm narrows to `number`, and arithmetic on it has to type-check.
         Assert.Equal("2\n6", Run("""
-            Bind number to doubled, given (the series of (number or text) things):
+            Bind number to doubled, given (the rabbit helper, the series of (number or text) things):
                 For each thing in things, repeat:
                     If thing is a number:
-                        Bury thing * 2.
+                        Have helper bury thing * 2.
                     Done.
                 Done.
             Done.
 
-            Define source as cast doubled on (a series of (number or text) with (1, "two", 3)).
+            Pull a rabbit as den.
+            Define source as cast doubled on (den, a series of (number or text) with (1, "two", 3)).
             """ + DrainNumbers));
     }
 
@@ -380,18 +401,19 @@ public class StashMachineTests
     public void TheOtherwiseOfATypeTest_NarrowsByElimination()
     {
         Assert.Equal("number: 1\ntext: two\nnumber: 3", Run("""
-            Bind text to describe-all, given (the series of (number or text) things):
+            Bind text to describe-all, given (the rabbit helper, the series of (number or text) things):
                 For each thing in things, repeat:
                     If thing is a text:
-                        Bury "text: " joined to thing.
+                        Have helper bury "text: " joined to thing.
                     Done.
                     Otherwise:
-                        Bury "number: " joined to (thing converted to text).
+                        Have helper bury "number: " joined to (thing converted to text).
                     Done.
                 Done.
             Done.
 
-            Define source as cast describe-all on (a series of (number or text) with (1, "two", 3)).
+            Pull a rabbit as den.
+            Define source as cast describe-all on (den, a series of (number or text) with (1, "two", 3)).
             Repeat:
                 Define line as unbury source.
                 If line is void:
@@ -399,6 +421,7 @@ public class StashMachineTests
                 Done.
                 State line.
             Until false.
+            Done.
             """));
     }
 
@@ -406,15 +429,17 @@ public class StashMachineTests
     public void ABuryInsideAJudgement_IsRefused()
     {
         Assert.Contains("judgement", Refused("""
-            Bind number to sorter, given (the (number or text) thing):
+            Bind number to sorter, given (the rabbit helper, the (number or text) thing):
                 Judge thing, where it is:
-                    A number, bury 1.
-                    A text, bury 2.
+                    A number, have helper bury 1.
+                    A text, have helper bury 2.
                 Done.
             Done.
 
-            Define source as cast sorter on (5).
-            State unbury source.
+            Pull a rabbit as den.
+                Define source as cast sorter on (den, 5).
+                State unbury source.
+            Done.
             """).Message);
     }
 
@@ -422,13 +447,15 @@ public class StashMachineTests
     public void AReturnInsideABuryingFunction_IsRefused()
     {
         Assert.Contains("can't also return", Refused("""
-            Bind number to confused:
-                Bury 1.
+            Bind number to confused, given (the rabbit helper):
+                Have helper bury 1.
                 Return 2.
             Done.
 
-            Define source as cast confused on ().
+            Pull a rabbit as den.
+            Define source as cast confused on (den).
             State unbury source.
+            Done.
             """).Message);
     }
 
@@ -438,14 +465,16 @@ public class StashMachineTests
         // A resumption counts back to where the loop was, and a map's entries have no position to
         // count to.
         Assert.Contains("not a series", Refused("""
-            Bind text to keys-of, given (the map from text to number ages):
+            Bind text to keys-of, given (the rabbit helper, the map from text to number ages):
                 For each pair in ages, repeat:
-                    Bury pair's key.
+                    Have helper bury the key of pair.
                 Done.
             Done.
 
-            Define source as cast keys-of on (a map from text to number).
+            Pull a rabbit as den.
+            Define source as cast keys-of on (den, a map from text to number).
             State unbury source.
+            Done.
             """).Message);
     }
 
@@ -455,17 +484,19 @@ public class StashMachineTests
         // Linearising flattens every scope in the body into one, so the shadow would land on top of
         // the very name it was written to protect.
         Assert.Contains("can't shadow", Assert.Throws<TypeException>(() => Run("""
-            Bind number to shadowy:
+            Bind number to shadowy, given (the rabbit helper):
                 Define depth as 1.
                 While depth is less than 2, repeat:
                     Define a shadow depth as 9.
-                    Bury depth.
+                    Have helper bury depth.
                     The depth becomes depth + 1.
                 Done.
             Done.
 
-            Define source as cast shadowy on ().
+            Pull a rabbit as den.
+            Define source as cast shadowy on (den).
             State unbury source.
+            Done.
             """)).Message);
     }
 
@@ -475,19 +506,21 @@ public class StashMachineTests
         // Sibling scopes may each declare `label` anywhere else in the language; here they become
         // one slot, and a slot holds one type.
         Assert.Contains("in another", Assert.Throws<TypeException>(() => Run("""
-            Bind number to two-minded, given (the fact go):
+            Bind number to two-minded, given (the rabbit helper, the fact go):
                 If go:
                     Define label as 1.
-                    Bury label.
+                    Have helper bury label.
                 Done.
                 Otherwise:
                     Define label as "one".
-                    Bury the length of label.
+                    Have helper bury the length of label.
                 Done.
             Done.
 
-            Define source as cast two-minded on (true).
+            Pull a rabbit as den.
+            Define source as cast two-minded on (den, true).
             State unbury source.
+            Done.
             """)).Message);
     }
 }

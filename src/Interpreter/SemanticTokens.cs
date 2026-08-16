@@ -133,7 +133,7 @@ public sealed class SemanticTokenizer
     // at `math` would repaint the name and leave the marker behind in the grammar's colour, which
     // is exactly the half-coloured word that rule exists to prevent.
     private void Emit(int line, int column, int length, SemanticTokenKind kind,
-                      SemanticTokenModifier modifiers = SemanticTokenModifier.None)
+                    SemanticTokenModifier modifiers = SemanticTokenModifier.None)
     {
         if (line <= 0 || column <= 0 || length <= 0) return;
         if (_possessiveStarts.Contains((line, column + length))) length += 2;
@@ -150,7 +150,7 @@ public sealed class SemanticTokenizer
 
     // Emits at the position the cursor finds for `name`, and advances the cursor past it.
     private void EmitFound(Cursor cursor, string? name, SemanticTokenKind kind,
-                           SemanticTokenModifier modifiers = SemanticTokenModifier.None)
+                            SemanticTokenModifier modifiers = SemanticTokenModifier.None)
     {
         if (name is null || KeywordBound.Contains(name)) return;
         if (cursor.Next(name) is not { } found) return;
@@ -268,7 +268,7 @@ public sealed class SemanticTokenizer
             case DefineStatement d:
                 Walk(d.Value);
                 EmitFound(Cursor.At(_tokens, d.Line, d.Column), d.Name,
-                          SemanticTokenKind.Variable, SemanticTokenModifier.Declaration);
+                        SemanticTokenKind.Variable, SemanticTokenModifier.Declaration);
                 Bind(d.Name, SemanticTokenKind.Variable);
                 break;
 
@@ -386,7 +386,7 @@ public sealed class SemanticTokenizer
             case ForEachFromInputStatement fi:
                 EnterScope();
                 EmitFound(Cursor.At(_tokens, fi.Line, fi.Column), fi.IteratorName,
-                          SemanticTokenKind.Variable, SemanticTokenModifier.Declaration);
+                        SemanticTokenKind.Variable, SemanticTokenModifier.Declaration);
                 Bind(fi.IteratorName, SemanticTokenKind.Variable);
                 WalkBlock(fi.Body);
                 ExitScope();
@@ -454,7 +454,7 @@ public sealed class SemanticTokenizer
                 Walk(wo.Path);
                 EnterScope();
                 EmitFound(Cursor.At(_tokens, wo.Line, wo.Column), wo.BindingName,
-                          SemanticTokenKind.Variable, SemanticTokenModifier.Declaration);
+                        SemanticTokenKind.Variable, SemanticTokenModifier.Declaration);
                 Bind(wo.BindingName, SemanticTokenKind.Variable);
                 WalkBlock(wo.Body);
                 ExitScope();
@@ -467,7 +467,7 @@ public sealed class SemanticTokenizer
             case PullRabbitStatement pr:
                 EnterScope();
                 EmitFound(Cursor.At(_tokens, pr.Line, pr.Column), pr.Name,
-                          SemanticTokenKind.Variable, SemanticTokenModifier.Declaration);
+                        SemanticTokenKind.Variable, SemanticTokenModifier.Declaration);
                 Bind(pr.Name, SemanticTokenKind.Variable);
                 WalkBlock(pr.Body);
                 ExitScope();
@@ -477,7 +477,7 @@ public sealed class SemanticTokenizer
                 // The task's name is bound in the ENCLOSING scope, not the task body — that is
                 // where 'the awaited result of <name>' reads it.
                 EmitFound(Cursor.At(_tokens, lt.Line, lt.Column), lt.Name,
-                          SemanticTokenKind.Variable, SemanticTokenModifier.Declaration);
+                        SemanticTokenKind.Variable, SemanticTokenModifier.Declaration);
                 Bind(lt.Name, SemanticTokenKind.Variable);
                 WalkNested(lt.Body);
                 break;

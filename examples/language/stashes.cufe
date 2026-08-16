@@ -1,9 +1,13 @@
-// Stashes — a rabbit that stops mid-task and picks up where it left off.
+// Stashes — work a rabbit stops in the middle of and picks up again later.
 //
-// `Bury` hands one value out and pauses right there. `unbury` wakes it up again. A function that
-// buries anywhere in its body hands back a `stash of <what it buries>` instead of a plain value —
-// nothing marks the declaration, exactly as nothing marks a function fallible and `return a
-// failure` in the body decides it.
+// A rabbit is an agent you summon to do memory work for you. Burying is memory work, so you tell a
+// rabbit to do it: `Have <rabbit> bury <value>.` hands one value out and pauses right there, and
+// `unbury` wakes the work up again.
+//
+// A function that buries anywhere in its body hands back a `stash of <what it buries>` instead of a
+// plain value — nothing marks the declaration, exactly as nothing marks a function fallible and
+// `return a failure` in the body decides it. What it does need is a rabbit to do the burying, so it
+// takes one as a parameter and the caller hands it over.
 //
 // A stash is not a collection. A series HAS its items; a stash PRODUCES them, one resumption at a
 // time, and cannot be counted, indexed or re-read. That is what lets a stash be endless.
@@ -16,34 +20,36 @@
 // Nothing here says how many. The loop never ends; it just stops running whenever it buries, and
 // only runs again if somebody asks for another one.
 
-Bind number to counting-up, given (the number first-value):
+Bind number to counting-up, given (the rabbit helper, the number first-value):
     Define next as first-value.
     Repeat:
-        Bury next.
+        Have helper bury next.
         The next becomes next + 1.
     Until false.
 Done.
 
-State "Five, from three:".
-Define counter as cast counting-up on (3).
-Define taken as 0.
-While taken is less than 5, repeat:
+Pull a rabbit as den.
+    State "Five, from three:".
+    Define counter as cast counting-up on (den, 3).
+    Define taken as 0.
+    While taken is less than 5, repeat:
+        State unbury counter.
+        The taken becomes taken + 1.
+    Done.
+
+    // ── Every stash has its own place to stand ──────────────────────────────────────────────────
+    //
+    // Two casts of the same function make two stashes, and neither one knows about the other. The
+    // state a rabbit keeps between resumptions belongs to that piece of work, not to the rabbit.
+
+    State "".
+    State "A second counter, started later:".
+    Define other-counter as cast counting-up on (den, 100).
+    State unbury other-counter.
     State unbury counter.
-    The taken becomes taken + 1.
+    State unbury other-counter.
+    State unbury counter.
 Done.
-
-// ── Every stash has its own place to stand ──────────────────────────────────────────────────────
-//
-// Two casts of the same function make two stashes, and neither one knows about the other. The
-// state a rabbit keeps between resumptions is its own.
-
-State "".
-State "A second counter, started later:".
-Define other-counter as cast counting-up on (100).
-State unbury other-counter.
-State unbury counter.
-State unbury other-counter.
-State unbury counter.
 
 // ── A stash that runs out ───────────────────────────────────────────────────────────────────────
 //
@@ -51,20 +57,20 @@ State unbury counter.
 // passes over the short words, and finishes when the series does — after which it is spent, and
 // says so by handing back void.
 
-Bind text to long-words-in, given (the series of text words):
+Bind text to long-words-in, given (the rabbit helper, the series of text words):
     For each word in words, repeat:
         If the length of word is less than 4:
             Skip.
         Done.
-        Bury word.
+        Have helper bury word.
     Done.
 Done.
 
 // ── A stash is a value ──────────────────────────────────────────────────────────────────────────
 //
-// It goes wherever a value goes: a parameter, an element of a series, a local inside another
-// burying function. That last one is what lets a stash DELEGATE — hold another one and pass its
-// values along — which is the difference between a generator and something you can build with.
+// It goes wherever a value goes: a parameter, an element of a series, a field, a local inside
+// another burying function. That last one is what lets a stash DELEGATE — hold another one and pass
+// its values along — which is the difference between a generator and something you can build with.
 
 Bind void to take-three, given (the stash of number source, the text label):
     Define taken as 0.
@@ -74,58 +80,61 @@ Bind void to take-three, given (the stash of number source, the text label):
     Done.
 Done.
 
-State "".
-State "Handed to a function:".
-Cast take-three on (cast counting-up on (7), "seven").
-
-State "".
-State "Three of them in a series, walked twice:".
-Define many as a series of stash of number.
-Insert (cast counting-up on (1)) into many.
-Insert (cast counting-up on (10)) into many.
-Insert (cast counting-up on (100)) into many.
-For each one-stash in many, repeat:
-    State unbury one-stash.
-Done.
-For each one-stash in many, repeat:
-    State unbury one-stash.
-Done.
-
-// One stash draining another. `evens` holds a `stash of number` as an ordinary local, and that
-// local has to survive `evens`' own resumptions as well as produce values of its own.
-Bind number to evens-of-counting-up:
-    Define inner as cast counting-up on (1).
+// One stash draining another. `inner` is an ordinary local holding a `stash of number`, and it has
+// to survive this function's own resumptions as well as produce values of its own. The rabbit this
+// function was handed is the one it gives the inner work to as well.
+Bind number to evens-of-counting-up, given (the rabbit helper):
+    Define inner as cast counting-up on (helper, 1).
     Repeat:
         Define value as unbury inner but void is 0.
         If value is greater than 8:
             Stop.
         Done.
         If value % 2 is 0:
-            Bury value.
+            Have helper bury value.
         Done.
     Until false.
 Done.
 
-State "".
-State "One stash draining another:".
-Define evens as cast evens-of-counting-up on ().
-Repeat:
-    Define value as unbury evens.
-    If value is void:
-        Stop.
-    Done.
-    State value.
-Until false.
+Pull a rabbit as warren.
+    State "".
+    State "Handed to a function:".
+    Cast take-three on (cast counting-up on (warren, 7), "seven").
 
-State "".
-State "The long words, then void:".
-Define found as cast long-words-in on (a series with ("a", "rabbit", "in", "the", "warren")).
-Repeat:
-    Define word as unbury found.
-    If word is void:
-        Stop.
+    State "".
+    State "Three of them in a series, walked twice:".
+    Define many as a series of stash of number.
+    Insert (cast counting-up on (warren, 1))   into many.
+    Insert (cast counting-up on (warren, 10))  into many.
+    Insert (cast counting-up on (warren, 100)) into many.
+    For each one-stash in many, repeat:
+        State unbury one-stash.
     Done.
-    State word.
-Until false.
-State unbury found.
-State unbury found.
+    For each one-stash in many, repeat:
+        State unbury one-stash.
+    Done.
+
+    State "".
+    State "One stash draining another:".
+    Define evens as cast evens-of-counting-up on (warren).
+    Repeat:
+        Define value as unbury evens.
+        If value is void:
+            Stop.
+        Done.
+        State value.
+    Until false.
+
+    State "".
+    State "The long words, then void:".
+    Define found as cast long-words-in on (warren, a series with ("a", "rabbit", "in", "the", "warren")).
+    Repeat:
+        Define word as unbury found.
+        If word is void:
+            Stop.
+        Done.
+        State word.
+    Until false.
+    State unbury found.
+    State unbury found.
+Done.

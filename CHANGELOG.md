@@ -183,6 +183,36 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★★ BREAKING — burying is commanded: `Have <rabbit> bury <value>.`** There is no bare `Bury x.`
+  any more. A rabbit is the agent you summon to do memory work, burying *is* memory work, so a
+  rabbit does it and a burying function takes one as a parameter.
+
+  ```
+  Bind number to counting-up, given (the rabbit helper, the number first-value):
+      Define next as first-value.
+      Repeat:
+          Have helper bury next.
+          The next becomes next + 1.
+      Until false.
+  Done.
+
+  Pull a rabbit as den.
+      Define counter as cast counting-up on (den, 3).
+      State unbury counter.       // 3
+  Done.
+  ```
+
+  **The point is where the ownership lives.** A stash's state has to sit in some region, and it
+  always did — the region simply happened to be whichever one was current. Now the agent that owns
+  it is named at the call site, so "this stash belongs to that rabbit and dies when it does" is
+  something you can read rather than something you have to know.
+
+  `unbury` does NOT take a rabbit: `unbury s` already names the stash, and the stash knows its own
+  ground. `bury` and `unbury` also do not match in shape — one is a statement, the other an
+  expression (`Define x as unbury s.`) — which is honest about their being different kinds of thing.
+
+  ⚠ The bare `Bury` spelling is kept in the parser for one purpose: to say what to write instead.
+
 - **★ A rabbit is a value the compiler can represent.** `State den.` and `given (the rabbit r)`
   type-checked and interpreted, and had **no C representation at all** — `RabbitType` appeared once
   in the whole code generator, in the function that formats type names for error messages. Nothing

@@ -171,7 +171,7 @@ public sealed partial class TypeChecker
                     ps.Line, ps.Column,
                     $"pull '{name}'",
                     $"Add 'and {ModuleInterface}' to its definition: "
-                  + $"'Define object {name} with (...) and {ModuleInterface}:'.");
+                    + $"'Define object {name} with (...) and {ModuleInterface}:'.");
             return moduleType;
         }
 
@@ -181,7 +181,7 @@ public sealed partial class TypeChecker
             null, ps.Line, ps.Column,
             $"pull '{name}'",
             $"Pull one of the bundled books ({available}), or define an object named "
-          + $"'{name}' as a module: 'Define object {name} with (...) and {ModuleInterface}:'.");
+            + $"'{name}' as a module: 'Define object {name} with (...) and {ModuleInterface}:'.");
     }
 
     private void CheckPullStatement(PullStatement ps)

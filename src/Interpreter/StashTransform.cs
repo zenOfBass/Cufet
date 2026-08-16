@@ -234,8 +234,8 @@ public static class StashTransform
                     [new ReturnStatement(
                         new CastExpression(Var(resumeName),
                             [Var(FrameName),
-                             .. slotNames.Select(Var),
-                             .. passed.Select(p => (IExpression)Var(p.Name))],
+                            .. slotNames.Select(Var),
+                            .. passed.Select(p => (IExpression)Var(p.Name))],
                             _line, _col),
                         _line, _col)],
                     _line, _col),
@@ -262,8 +262,8 @@ public static class StashTransform
                 // loop the writer meant — so anything holding one that belongs to a flattened loop
                 // has to be flattened too, bury or no bury.
                 bool mustSplit = ContainsBury(stmt)
-                              || stmt is StopStatement or SkipStatement
-                              || (loop != null && HasFreeLoopExit(stmt));
+                            || stmt is StopStatement or SkipStatement
+                            || (loop != null && HasFreeLoopExit(stmt));
                 if (mustSplit) cur = EmitControl(stmt, cur, loop);
                 else           _blocks[cur].Body.Add(stmt);
             }
@@ -394,7 +394,7 @@ public static class StashTransform
                     $"'{_bind.Name}' buries inside a for-each over something that is not a series",
                     "bury while looping over a map",
                     "Resuming a loop means counting back to where it was, and a map's entries have "
-                  + "no position to count to. Loop over a series, or use a While.", (fe.Line, fe.Column));
+                    + "no position to count to. Loop over a series, or use a While.", (fe.Line, fe.Column));
 
             string source = $"stash_source_{_fresh}", index = $"stash_index_{_fresh}";
             _fresh++;
@@ -459,7 +459,7 @@ public static class StashTransform
                 $"'{_bind.Name}' buries, and the type of '{define.Name}' could not be worked out",
                 $"keep '{define.Name}' across a bury",
                 "Everything that survives a resumption is stored, and storing it needs its type. "
-              + "Give it a starting value whose type is clear.", (define.Line, define.Column));
+                + "Give it a starting value whose type is clear.", (define.Line, define.Column));
         }
 
         /// <summary>The offending statement's own position, or the function's if it has none.</summary>
@@ -653,7 +653,7 @@ public static class StashTransform
     /// <summary>A `Stop` or `Skip` that would leave this statement and land on an enclosing loop.</summary>
     private static bool HasFreeLoopExit(object? node) =>
         Search(node, n => n is StopStatement or SkipStatement,
-                     n => Nested(n) || n is WhileStatement or RepeatUntilStatement or ForEachStatement);
+                    n => Nested(n) || n is WhileStatement or RepeatUntilStatement or ForEachStatement);
 
     /// <summary>Does this condition narrow the type of what it tests?</summary>
     private static bool NarrowsAType(object? node) =>
@@ -731,6 +731,6 @@ public sealed class StashUnsupportedException : TypeException
 {
     public StashUnsupportedException(string context, string action, string fix, int line, int column)
         : base($"That doesn't work: {context}.\nHere on line {line}, you're trying to {action}.\n\n{fix}",
-               line, column)
+                line, column)
     { }
 }

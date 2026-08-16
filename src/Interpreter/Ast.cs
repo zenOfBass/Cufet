@@ -5,14 +5,14 @@ namespace Cufet.Interpreter;
 public interface IExpression { }
 public interface IStatement  { }
 
-public sealed record NumberLiteral(decimal Value)                                        : IExpression;
+public sealed record NumberLiteral(decimal Value) : IExpression;
 
 // A bit pattern, deliberately not a quantity: 0o755 is three permission triples, not "seven
 // hundred fifty-five". Base is the display base ('x', 'b' or 'o') — a bits value shows itself
 // in the base it was written in. Width is how many bits the literal's digits spelled out, so
 // 0x0F is 8 bits where 0xF is 4; that is what lets `not 0xFF` be 0x00 with no signed reading
 // and no negative numbers anywhere.
-public sealed record BitsLiteral(ulong Value, char Base, int Width, int Line, int Column)             : IExpression;
+public sealed record BitsLiteral(ulong Value, char Base, int Width, int Line, int Column) : IExpression;
 
 // <bits> shifted left|right by <number>. The Amount is a NUMBER, not bits: it counts positions,
 // which is a quantity, the way the 3 in "item 3 of s" is. Left shifts widen so nothing is lost;
@@ -29,18 +29,18 @@ public sealed record BitsLiteral(ulong Value, char Base, int Width, int Line, in
 // that silently loses its high bits writes a file that decodes to garbage.
 public sealed record BitsAtWidth(IExpression Target, IExpression Width, int Line, int Column) : IExpression;
 
-public sealed record BitsShift(IExpression Target, bool Left, IExpression Amount, int Line, int Column)  : IExpression;
+public sealed record BitsShift(IExpression Target, bool Left, IExpression Amount, int Line, int Column) : IExpression;
 
 // <number> converted to hex|binary|octal. ToBase is 'x', 'b' or 'o'. The crossing from quantity
 // to pattern is explicit in both directions — there is no implicit conversion — and this is
 // also what gives back the expressiveness a display-only transform would have had: a COMPUTED
 // value can be shown in hex, not just a literal.
-public sealed record BitsConvert(IExpression Target, char ToBase, int Line, int Column)                  : IExpression;
+public sealed record BitsConvert(IExpression Target, char ToBase, int Line, int Column) : IExpression;
 
-public sealed record StringLiteral(string Value)                                         : IExpression;
-public sealed record BooleanLiteral(bool Value, int Line, int Column)                                : IExpression;
-public sealed record VariableReference(string Name, int Line, int Column)                            : IExpression;
-public sealed record UnaryExpression(TokenType Op, IExpression Operand, int Line, int Column)                  : IExpression;
+public sealed record StringLiteral(string Value) : IExpression;
+public sealed record BooleanLiteral(bool Value, int Line, int Column) : IExpression;
+public sealed record VariableReference(string Name, int Line, int Column) : IExpression;
+public sealed record UnaryExpression(TokenType Op, IExpression Operand, int Line, int Column) : IExpression;
 public sealed record BinaryExpression(IExpression Left, TokenType Op, IExpression Right, int Line, int Column) : IExpression;
 
 // Annotation == null → infer element type from elements; must have elements.
@@ -116,7 +116,7 @@ public sealed record RecordNamedSetStatement(
     public int? EscapeToDepth { get; set; }
 }
 
-public sealed record StateStatement(IExpression Value)                        : IStatement;
+public sealed record StateStatement(IExpression Value) : IStatement;
 // Permanent: true when declared with the trailing 'permanently' adverb — the binding
 // (not its contents) can never be reassigned with 'becomes'.
 // Shadow: true when declared with the leading 'a shadow' modifier — explicitly shadows an
@@ -271,7 +271,11 @@ public sealed record ReturnStatement(IExpression? Value, int Line, int Column) :
 // declaration. That is the rule the language already uses for fallibility (a body containing
 // `return a failure` makes a function fallible — see BindStatement above), so requiring a marker
 // here would have been a second convention for one idea.
-public sealed record BuryStatement(IExpression Value, int Line, int Column) : IStatement;
+// Have <rabbit> bury <value>.
+// RabbitName is the agent doing the burying, and is always present: burying is memory work, and a
+// rabbit is who does memory work. Inside a burying function it is normally a parameter — the agent
+// is handed IN, which is what puts the ownership at the call site instead of leaving it ambient.
+public sealed record BuryStatement(IExpression Value, int Line, int Column, string? RabbitName = null) : IStatement;
 
 // unbury <stash>  — resume a stash to its next `Bury` and take the value, or void once spent.
 // An expression, so the result is handled like any other voidable rather than through hidden state:

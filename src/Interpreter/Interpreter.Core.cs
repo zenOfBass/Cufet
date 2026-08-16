@@ -1049,8 +1049,8 @@ public sealed partial class Interpreter
         StringLiteral    s    => s.Value,
         BooleanLiteral   b    => (object)b.Value,
         VariableReference r   => TryLookupValue(r.Name, out var val)
-                                     ? val
-                                     : throw new RuntimeException(UndefinedVariableMessage(r.Name, r.Line)),
+                                    ? val
+                                    : throw new RuntimeException(UndefinedVariableMessage(r.Name, r.Line)),
         UnaryExpression  u    => EvaluateUnary(u),
         BinaryExpression b    => EvaluateBinary(b),
         // ISA.2d — the literal's Annotation is the declared element type, and it is REQUIRED for an
@@ -1058,11 +1058,11 @@ public sealed partial class Interpreter
         SeriesLiteral    sl   => Series(sl.Elements.Select(e => BindCopy(Evaluate(e))), sl.Annotation),
         SeriesAccess     sa   => EvaluateSeriesAccess(sa),
         SeriesLength     sl   => Evaluate(sl.Series) is List<object> slList
-                                     ? (decimal)slList.Count
-                                     : throw new RuntimeException($"Expected a series for 'the number of' on line {sl.Line}."),
+                                    ? (decimal)slList.Count
+                                    : throw new RuntimeException($"Expected a series for 'the number of' on line {sl.Line}."),
         RecordLiteral    rl   => (object)new RecordValue(
-                                     rl.PositionalFields.Select(Evaluate).ToList(),
-                                     rl.NamedFields.Select(f => (f.Name, Evaluate(f.Value))).ToList()),
+                                    rl.PositionalFields.Select(Evaluate).ToList(),
+                                    rl.NamedFields.Select(f => (f.Name, Evaluate(f.Value))).ToList()),
         BitsAtWidth baw => EvaluateBitsAtWidth(baw),
         RecordNamedAccess rna => EvaluateRecordNamedAccess(rna),
         ObjectLiteral    ol   => EvaluateObjectLiteral(ol),
@@ -1715,7 +1715,7 @@ public sealed partial class Interpreter
         // try to read a BitsValue as a decimal.
         if (lv2 is BitsValue lbv && rv2 is BitsValue rbv
             && b.Op is TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash
-                     or TokenType.Percent or TokenType.Lt or TokenType.Gt or TokenType.Lte or TokenType.Gte)
+                    or TokenType.Percent or TokenType.Lt or TokenType.Gt or TokenType.Lte or TokenType.Gte)
             return EvaluateBitsArithmetic(b.Op, lbv, rbv, b.Line);
 
         return b.Op switch
@@ -1724,11 +1724,11 @@ public sealed partial class Interpreter
             TokenType.Minus    => (object)(ToNumber(lv2, "-") - ToNumber(rv2, "-")),
             TokenType.Star     => (object)(ToNumber(lv2, "*") * ToNumber(rv2, "*")),
             TokenType.Slash    => ToNumber(rv2, "/") == 0
-                                      ? throw new RuntimeException($"Division by zero on line {b.Line}.")
-                                      : (object)(ToNumber(lv2, "/") / ToNumber(rv2, "/")),
+                                    ? throw new RuntimeException($"Division by zero on line {b.Line}.")
+                                    : (object)(ToNumber(lv2, "/") / ToNumber(rv2, "/")),
             TokenType.Percent  => ToNumber(rv2, "%") == 0
-                                      ? throw new RuntimeException($"Modulo by zero on line {b.Line}.")
-                                      : (object)(ToNumber(lv2, "%") % ToNumber(rv2, "%")),
+                                    ? throw new RuntimeException($"Modulo by zero on line {b.Line}.")
+                                    : (object)(ToNumber(lv2, "%") % ToNumber(rv2, "%")),
             TokenType.Equal    => (object)ValuesEqual(lv2, rv2),
             TokenType.NotEqual => (object)!ValuesEqual(lv2, rv2),
             TokenType.Lt       => (object)(ToNumber(lv2, "<")  < ToNumber(rv2, "<")),
@@ -1860,13 +1860,13 @@ public sealed partial class Interpreter
 
         if (_hiddenTopLevelData != null && _hiddenTopLevelData.ContainsKey(name))
             return $"'{name}' is a top-level value, but function and method bodies can't see top-level data{located}.\n\n" +
-                   $"They see other functions (for mutual recursion) and top-level `permanently` constants, but not top-level data that can change.\n" +
-                   $"This keeps data flow explicit and prevents hidden mutations — the same principle behind Cufet's message-passing model.\n\n" +
-                   $"Fix: declare it a shared constant if it never changes:\n" +
-                   $"    Define {name} as <value> permanently.\n" +
-                   $"Or pass '{name}' as a parameter:\n" +
-                   $"    Bind void to your-function, given (the <type> {name}): ...\n" +
-                   $"Or define your function inside a scope where '{name}' is already bound, so it captures '{name}' as a closure.";
+                    $"They see other functions (for mutual recursion) and top-level `permanently` constants, but not top-level data that can change.\n" +
+                    $"This keeps data flow explicit and prevents hidden mutations — the same principle behind Cufet's message-passing model.\n\n" +
+                    $"Fix: declare it a shared constant if it never changes:\n" +
+                    $"    Define {name} as <value> permanently.\n" +
+                    $"Or pass '{name}' as a parameter:\n" +
+                    $"    Bind void to your-function, given (the <type> {name}): ...\n" +
+                    $"Or define your function inside a scope where '{name}' is already bound, so it captures '{name}' as a closure.";
 
         var suggestion = FindSuggestion(name);
         var msg = $"'{name}' isn't defined{located} — it was never given a value with Define.";
@@ -2053,17 +2053,17 @@ public sealed partial class Interpreter
         // element to ask, so it answers from the type it was created with; only a container that
         // reached here without a carrier falls back to the old vacuously-true answer.
         SeriesType st   => value is List<object> sl
-                           && (sl.Count > 0
-                                 ? sl.All(e => RuntimeIsType(e, st.ElementType))
-                                 : ElementTypeOf(sl) is not { } de || StaticMatch(de, st.ElementType)),
+                            && (sl.Count > 0
+                                ? sl.All(e => RuntimeIsType(e, st.ElementType))
+                                : ElementTypeOf(sl) is not { } de || StaticMatch(de, st.ElementType)),
         MatrixType      => value is MatrixValue,
         MapType mt      => value is Dictionary<object, object> md
-                           && (md.Count > 0
-                                 ? md.All(kv => RuntimeIsType(kv.Key, mt.KeyType)
-                                             && RuntimeIsType(kv.Value, mt.ValueType))
-                                 : md is not CufetMap cm || cm.DeclaredKey is not { } dk
-                                     || cm.DeclaredValue is not { } dv
-                                     || (StaticMatch(dk, mt.KeyType) && StaticMatch(dv, mt.ValueType))),
+                            && (md.Count > 0
+                                ? md.All(kv => RuntimeIsType(kv.Key, mt.KeyType)
+                                            && RuntimeIsType(kv.Value, mt.ValueType))
+                                : md is not CufetMap cm || cm.DeclaredKey is not { } dk
+                                    || cm.DeclaredValue is not { } dv
+                                    || (StaticMatch(dk, mt.KeyType) && StaticMatch(dv, mt.ValueType))),
         RecordType      => value is RecordValue,
         ObjectType ot   => value is ObjectValue ov && ov.TypeName == ot.Name,
         InterfaceType   => false, // interfaces have no runtime representation to check

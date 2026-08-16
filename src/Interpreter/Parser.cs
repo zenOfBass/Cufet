@@ -89,7 +89,7 @@ public sealed class Parser
             TokenType.Append     => ParseFileWriteStatement(),
             TokenType.With       => ParseWithOpenStatement(),
             TokenType.Pull       => ParsePullStatement(),
-            TokenType.HaveKw     => ParseLaunchTaskStatement(),
+            TokenType.HaveKw     => ParseHaveStatement(),
             TokenType.Send       => ParseSendStatement(),
             TokenType.Close      => ParseCloseStatement(),
             TokenType.AcknowledgeKw => ParseAcknowledgeInterruptStatement(),
@@ -1730,19 +1730,27 @@ public sealed class Parser
     // "Have rabbit start a task [as <name>]: ... Done."
     // Requires an active Pull a rabbit. ... Done. scope (_rabbitDepth > 0).
     // Name is optional — binds identity for slice-4 result-await; inert in slice 2.
-    private LaunchTaskStatement ParseLaunchTaskStatement()
+    // `Have <rabbit> …` — the two things you can hand a rabbit. Both name the agent first, because
+    // both are work given to it rather than something done to it.
+    private IStatement ParseHaveStatement()
     {
-        var tok = Peek();
-        if (_rabbitDepth == 0)
-            throw new ParseException(tok,
-                "'Have rabbit start a task' requires an active rabbit — wrap it in 'Pull a rabbit. ... Done.'");
         var lineTok = Consume(TokenType.HaveKw);
-        var line = lineTok.Line;
-        var col = lineTok.Column;
-        // `Have rabbit start …` addresses the enclosing one; `Have den start …` names the agent.
+        int line = lineTok.Line, col = lineTok.Column;
+
+        // `Have rabbit …` addresses the enclosing one; `Have den …` names the agent.
         string? rabbitName = null;
         if (Peek().Type == TokenType.Rabbit) Advance();
         else rabbitName = Consume(TokenType.Identifier).Lexeme;
+
+        if (Peek().Type == TokenType.Bury) return ParseHaveBuryStatement(rabbitName, line, col);
+        return ParseLaunchTaskStatement(rabbitName, line, col);
+    }
+
+    private LaunchTaskStatement ParseLaunchTaskStatement(string? rabbitName, int line, int col)
+    {
+        if (_rabbitDepth == 0)
+            throw new ParseException(line, col,
+                "'Have rabbit start a task' requires an active rabbit — wrap it in 'Pull a rabbit. ... Done.'");
         Consume(TokenType.Start);
         SkipNoise();                // eats 'a'
         Consume(TokenType.TaskKw);
@@ -4356,18 +4364,31 @@ public sealed class Parser
     // Bury <value>.  — always takes a value, unlike `Return`, which has a bare form. A bare bury
     // would mean "suspend and hand out nothing", and a stash's whole contract is that a resumption
     // yields a value or reports it is spent; there is no third answer for a caller to narrow.
+    // ★ A bare `Bury x.` no longer exists. Burying is memory work and a rabbit is who does memory
+    // work, so it is always commanded: `Have <rabbit> bury <value>.` This arm survives only to say
+    // so — "expected statement keyword" would send the reader hunting for a typo.
     private BuryStatement ParseBuryStatement()
     {
         var lineTok = Consume(TokenType.Bury);
+        throw new ParseException(lineTok.Line, lineTok.Column,
+            "a bury needs a rabbit to do it — write 'Have <rabbit> bury <value>.' A rabbit is the "
+          + "agent that does memory work, and burying is memory work; inside a burying function the "
+          + "rabbit is normally a parameter: 'given (the rabbit helper, ...)'.");
+    }
+
+    // `Have <rabbit> bury <value>.` — the agent is named where the work is handed over.
+    private BuryStatement ParseHaveBuryStatement(string? rabbitName, int line, int col)
+    {
         if (_functionDepth == 0)
-            throw new ParseException(lineTok.Line, lineTok.Column,
+            throw new ParseException(line, col,
                 "'bury' is only meaningful inside a function — it is what makes that function hand "
                 + "back a stash. At the top level there is nothing to suspend.");
+        Consume(TokenType.Bury);
         SkipNoise();
         var value = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new BuryStatement(value, lineTok.Line, lineTok.Column);
+        return new BuryStatement(value, line, col, rabbitName);
     }
 
     // Lambda body: same as ParseFunctionBody but does NOT consume the trailing '.'

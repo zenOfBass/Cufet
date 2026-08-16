@@ -433,10 +433,10 @@ public class PipelineClosureTests : PipelineTestBase
     public void AnObjectFieldHoldingAStash_Compiles()
     {
         const string src = """
-            Bind number to counting-up, given (the number first-value):
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
                 Define next as first-value.
                 Repeat:
-                    Bury next.
+                    Have helper bury next.
                     The next becomes next + 1.
                 Until false.
             Done.
@@ -448,9 +448,11 @@ public class PipelineClosureTests : PipelineTestBase
                 Done.
             Done.
 
-            Define first-ticker as a new ticker { the source (cast counting-up on (50)), the name "fifty" }.
-            Cast report on first-ticker.
-            Cast report on first-ticker.
+            Pull a rabbit as den.
+                Define first-ticker as a new ticker { the source (cast counting-up on (den, 50)), the name "fifty" }.
+                Cast report on first-ticker.
+                Cast report on first-ticker.
+            Done.
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
@@ -519,22 +521,24 @@ public class PipelineClosureTests : PipelineTestBase
     public void ABuryInsideATypeTest_CompilesWithTheNarrowingIntact()
     {
         const string src = """
-            Bind text to texts-only, given (the series of (number or text) things):
+            Bind text to texts-only, given (the rabbit helper, the series of (number or text) things):
                 For each thing in things, repeat:
                     If thing is a text:
-                        Bury thing.
+                        Have helper bury thing.
                     Done.
                 Done.
             Done.
 
-            Define source as cast texts-only on (a series of (number or text) with (1, "two", 3, "four")).
-            Repeat:
-                Define found as unbury source.
-                If found is void:
-                    Stop.
-                Done.
-                State found.
-            Until false.
+            Pull a rabbit as den.
+                Define source as cast texts-only on (den, a series of (number or text) with (1, "two", 3, "four")).
+                Repeat:
+                    Define found as unbury source.
+                    If found is void:
+                        Stop.
+                    Done.
+                    State found.
+                Until false.
+            Done.
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
@@ -545,22 +549,24 @@ public class PipelineClosureTests : PipelineTestBase
         // The arm narrows to `number` and then does arithmetic on it — a different payload slot
         // from the text case, so it exercises the other half of the union.
         const string src = """
-            Bind number to doubled, given (the series of (number or text) things):
+            Bind number to doubled, given (the rabbit helper, the series of (number or text) things):
                 For each thing in things, repeat:
                     If thing is a number:
-                        Bury thing * 2.
+                        Have helper bury thing * 2.
                     Done.
                 Done.
             Done.
 
-            Define source as cast doubled on (a series of (number or text) with (1, "two", 3)).
-            Repeat:
-                Define value as unbury source.
-                If value is void:
-                    Stop.
-                Done.
-                State value.
-            Until false.
+            Pull a rabbit as den.
+                Define source as cast doubled on (den, a series of (number or text) with (1, "two", 3)).
+                Repeat:
+                    Define value as unbury source.
+                    If value is void:
+                        Stop.
+                    Done.
+                    State value.
+                Until false.
+            Done.
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
@@ -570,10 +576,10 @@ public class PipelineClosureTests : PipelineTestBase
     {
         // Each field holds its own closure, so the two tickers must not share a place to stand.
         const string src = """
-            Bind number to counting-up, given (the number first-value):
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
                 Define next as first-value.
                 Repeat:
-                    Bury next.
+                    Have helper bury next.
                     The next becomes next + 1.
                 Until false.
             Done.
@@ -585,12 +591,14 @@ public class PipelineClosureTests : PipelineTestBase
                 Done.
             Done.
 
-            Define low as a new ticker { the source (cast counting-up on (1)), the name "low" }.
-            Define high as a new ticker { the source (cast counting-up on (100)), the name "high" }.
-            Cast report on low.
-            Cast report on high.
-            Cast report on low.
-            Cast report on high.
+            Pull a rabbit as den.
+                Define low as a new ticker { the source (cast counting-up on (den, 1)), the name "low" }.
+                Define high as a new ticker { the source (cast counting-up on (den, 100)), the name "high" }.
+                Cast report on low.
+                Cast report on high.
+                Cast report on low.
+                Cast report on high.
+            Done.
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }

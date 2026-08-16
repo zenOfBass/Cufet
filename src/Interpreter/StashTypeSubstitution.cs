@@ -85,7 +85,7 @@ internal static class StashTypeSubstitution
                 var positional = record.PositionalTypes.Select(Substitute).ToList();
                 var named      = record.NamedFields.Select(f => (f.Name, Type: Substitute(f.Type))).ToList();
                 bool unchanged = positional.Zip(record.PositionalTypes).All(p => ReferenceEquals(p.First, p.Second))
-                              && named.Zip(record.NamedFields).All(p => ReferenceEquals(p.First.Type, p.Second.Type));
+                            && named.Zip(record.NamedFields).All(p => ReferenceEquals(p.First.Type, p.Second.Type));
                 return unchanged ? record : new RecordType(positional, named);
             }
 
@@ -101,7 +101,7 @@ internal static class StashTypeSubstitution
                 var parameters = function.ParameterTypes.Select(Substitute).ToList();
                 var returned   = function.ReturnType == null ? null : Substitute(function.ReturnType);
                 bool unchanged = parameters.Zip(function.ParameterTypes).All(p => ReferenceEquals(p.First, p.Second))
-                              && ReferenceEquals(returned, function.ReturnType);
+                            && ReferenceEquals(returned, function.ReturnType);
                 if (unchanged) return function;
                 // ⚠ Carried, not dropped. The checker writes this to propagate rabbit depth through
                 // a call, and a rebuilt FunctionType without it would silently claim depth 0.
@@ -200,7 +200,7 @@ internal static class StashTypeSubstitution
                     var property = type.GetProperty(parameters[i].Name!)
                         ?? throw new InvalidOperationException(
                             $"{type.Name}.{parameters[i].Name} has no matching property — "
-                          + "StashTypeSubstitution can only rebuild positional records.");
+                            + "StashTypeSubstitution can only rebuild positional records.");
                     changed |= TryRebuild(property.GetValue(node), out arguments[i]);
                 }
                 if (!changed) return false;

@@ -634,34 +634,34 @@ public sealed partial class TypeChecker
         MapType mt              => new MapType(ResolveParamType(mt.KeyType), ResolveParamType(mt.ValueType)),
         MappingType mt          => new MappingType(ResolveParamType(mt.KeyType), ResolveParamType(mt.ValueType)),
         FunctionType ft         => new FunctionType(
-                                       ft.ParameterTypes.Select(ResolveParamType).ToList(),
-                                       ft.ReturnType is null ? null : ResolveParamType(ft.ReturnType)),
+                                    ft.ParameterTypes.Select(ResolveParamType).ToList(),
+                                    ft.ReturnType is null ? null : ResolveParamType(ft.ReturnType)),
         ReadableStreamType rst  => new ReadableStreamType(ResolveParamType(rst.ElementType)),
         WritableStreamType wst  => new WritableStreamType(ResolveParamType(wst.ElementType)),
         UnionType { Cases: { } cases } => new UnionType(cases.Select(ResolveParamType).ToList()),
         RecordType rt           => new RecordType(
-                                       rt.PositionalTypes.Select(ResolveParamType).ToList(),
-                                       rt.NamedFields.Select(f => (f.Name, ResolveParamType(f.Type))).ToList()),
+                                    rt.PositionalTypes.Select(ResolveParamType).ToList(),
+                                    rt.NamedFields.Select(f => (f.Name, ResolveParamType(f.Type))).ToList()),
 
         // ── ObjectType shell resolution ───────────────────────────────────────
         ObjectType { PositionalTypes.Count: 0, NamedFields.Count: 0, Methods.Count: 0,
-                     EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
+                    EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
             when _interfaceDefs.ContainsKey(ot.Name) => new InterfaceType(ot.Name),
         ObjectType { PositionalTypes.Count: 0, NamedFields.Count: 0, Methods.Count: 0,
-                     EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
+                    EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
             when _objectDefs.ContainsKey(ot.Name) => _objectDefs[ot.Name],
         // Book-introduced types (e.g. matrix) found in the current type scope:
         ObjectType { PositionalTypes.Count: 0, NamedFields.Count: 0, Methods.Count: 0,
-                     EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
+                    EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
             when TryLookupScopedType(ot.Name, out var scopedType) => scopedType,
         // Known book-introduced type name but not yet in scope (e.g. matrix before Pull):
         // leave as-is so the inference pass can surface the correct "Pull first" error.
         ObjectType { PositionalTypes.Count: 0, NamedFields.Count: 0, Methods.Count: 0,
-                     EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
+                    EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
             when BuiltinBooks.Values.Any(b => b.IntroducedTypes.ContainsKey(ot.Name)) => type,
         // Genuinely unknown type name — not defined, not an interface, not a book type:
         ObjectType { PositionalTypes.Count: 0, NamedFields.Count: 0, Methods.Count: 0,
-                     EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
+                    EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
             => throw new TypeException(
                 $"That doesn't work: '{ot.Name}' is not a defined type.\n\n" +
                 $"Define 'object {ot.Name}' before using it as a type name, or check the spelling."),

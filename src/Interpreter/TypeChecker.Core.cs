@@ -1217,6 +1217,34 @@ public sealed partial class TypeChecker
                 }
                 break;
             }
+            // ★ `Have <rabbit> bury <value>.` — the rabbit must be NAMED, and the bare `rabbit`
+            // keyword cannot serve. A function body starts outside any region (CheckBind resets the
+            // rabbit depth), so there is no enclosing rabbit for the keyword to mean — which is
+            // exactly right: the agent doing the burying is handed IN, normally as a parameter, and
+            // that is what puts the ownership at the call site rather than leaving it ambient.
+            case BuryStatement bury:
+            {
+                _ = InferType(bury.Value);
+                if (bury.RabbitName is not { } agent)
+                    throw TypeError(
+                        "a bury has to name the rabbit doing it",
+                        "'rabbit' means the enclosing one, and a function body is not inside one",
+                        bury.Line, bury.Column,
+                        "bury with the bare 'rabbit' keyword inside a function",
+                        "Take a rabbit as a parameter and name it: "
+                        + "'given (the rabbit helper, ...)' then 'Have helper bury <value>.'");
+
+                if (!TryLookup(agent, out var agentInfo) || agentInfo!.Type is not RabbitType)
+                    throw TypeError(
+                        $"'{agent}' is not a rabbit",
+                        "Only a rabbit can be told to bury something",
+                        bury.Line, bury.Column,
+                        $"have '{agent}' bury a value",
+                        $"Declare it as one — 'given (the rabbit {agent}, ...)' — or pull one with "
+                        + $"'Pull a rabbit as {agent}.'");
+                break;
+            }
+
             case ReturnStatement ret:
                 CheckReturn(ret);
                 break;
@@ -1408,8 +1436,8 @@ public sealed partial class TypeChecker
             // For fallible overload bodies, wrap the inferred success type immediately so
             // subsequent failure returns validate against FailureType(T) rather than T.
             _expectedReturnType    = _overloadBodyIsFallible && retType != null
-                                         ? new FailureType(retType)
-                                         : retType;
+                                        ? new FailureType(retType)
+                                        : retType;
             _inferringLambdaReturn = false;
             return;
         }
@@ -1741,10 +1769,10 @@ public sealed partial class TypeChecker
                 $"negate a {FormatType(operand)} value",
                 operand == CufetType.Number
                     ? "A number is a quantity, and has no bits to flip. Write the value as a " +
-                      "bit pattern (0xFF, 0b1010, 0o755) if that is what you meant, or use " +
-                      "unary minus if you wanted to negate the quantity."
+                    "bit pattern (0xFF, 0b1010, 0o755) if that is what you meant, or use " +
+                    "unary minus if you wanted to negate the quantity."
                     : "Make sure the value you're negating is a fact (a true or false value) " +
-                      "or a bits value. Write a comparison like 'x is 5' if you need one.");
+                    "or a bits value. Write a comparison like 'x is 5' if you need one.");
         }
         // unary minus
         if (operand == CufetType.Number) return CufetType.Number;
@@ -1755,7 +1783,7 @@ public sealed partial class TypeChecker
             $"negate a {FormatType(operand)} value",
             operand == CufetType.Bits
                 ? "Bits are unsigned — a bit pattern has no negative. Did you mean 'not', " +
-                  "which flips every bit within the value's width?"
+                "which flips every bit within the value's width?"
                 : "Make sure the value you're negating is a number.");
     }
 

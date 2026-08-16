@@ -143,7 +143,7 @@ public sealed partial class Interpreter
         if (def.PositionalTypes.Count > 0 || def.NamedFields.Count > 0)
             throw new RuntimeException(
                 $"'{def.Name}' has fields, so it can't be pulled as a module — a pull has nowhere to "
-              + $"put their values (line {line}). Build it with 'a new {def.Name} {{ ... }}' instead.");
+                + $"put their values (line {line}). Build it with 'a new {def.Name} {{ ... }}' instead.");
         return BuildObjectValue(def, [], [], line);
     }
 

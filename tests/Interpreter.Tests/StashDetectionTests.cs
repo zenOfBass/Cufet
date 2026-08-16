@@ -18,8 +18,7 @@ namespace Cufet.Interpreter.Tests;
 ///
 /// The probe is deliberately indirect for the reason that file warns about — a first attempt at one
 /// of these captured the Judge's `Subject`, which is an ordinary property, and passed with the bug
-/// reverted. Here the ONLY `bury` is inside an arm body, and the assertion is that `unbury` type-
-/// checks, which is true only if the walk actually reached it.
+/// reverted. Here the ONLY `bury` is inside an arm body.
 public class StashDetectionTests
 {
     private static Program Check(string source)
@@ -51,14 +50,16 @@ public class StashDetectionTests
     {
         // The `bury` appears ONLY inside the arm body — nowhere a walk keyed on IStatement reaches.
         DetectedAsBurying("""
-            Bind number to picky, given (the fact go):
+            Bind number to picky, given (the rabbit helper, the fact go):
                 If go:
-                    Bury 1.
+                    Have helper bury 1.
                 Done.
             Done.
 
-            Define s as cast picky on (true).
-            State unbury s.
+            Pull a rabbit as den.
+                Define s as cast picky on (den, true).
+                State unbury s.
+            Done.
             """, "picky");
     }
 
@@ -71,17 +72,19 @@ public class StashDetectionTests
     public void ABuryInsideAnOtherwiseArm_StillMakesTheFunctionStashProducing()
     {
         DetectedAsBurying("""
-            Bind number to picky, given (the fact go):
+            Bind number to picky, given (the rabbit helper, the fact go):
                 If go:
                     State "no".
                 Done.
                 Otherwise:
-                    Bury 2.
+                    Have helper bury 2.
                 Done.
             Done.
 
-            Define s as cast picky on (false).
-            State unbury s.
+            Pull a rabbit as den.
+                Define s as cast picky on (den, false).
+                State unbury s.
+            Done.
             """, "picky");
     }
 
@@ -92,22 +95,24 @@ public class StashDetectionTests
     /// <remarks>
     /// ★ A StashUnsupportedException is only reachable for a function the walk identified; an
     /// unrecognised one is never handed to the transform at all and would sail through clean. The
-    /// refusal is real and deliberate: a Judge arm's body runs under a NARROWING, and a step number
-    /// cannot restore one — the arm would be resumed with the subject back at its wide type.
+    /// refusal is real and deliberate: a Judge arm's body runs under a NARROWING and binds `it`, and
+    /// a step number can restore neither.
     /// </remarks>
     [Fact]
     public void ABuryInsideAJudgeArm_StillMakesTheFunctionStashProducing()
     {
         Assert.Throws<StashUnsupportedException>(() => Check("""
-            Bind number to sorter, given (the (number or text) thing):
+            Bind number to sorter, given (the rabbit helper, the (number or text) thing):
                 Judge thing, where it is:
-                    A number, bury 1.
-                    A text, bury 2.
+                    A number, have helper bury 1.
+                    A text, have helper bury 2.
                 Done.
             Done.
 
-            Define s as cast sorter on (5).
-            State unbury s.
+            Pull a rabbit as den.
+                Define s as cast sorter on (den, 5).
+                State unbury s.
+            Done.
             """));
     }
 
@@ -118,14 +123,16 @@ public class StashDetectionTests
         // producer; if its `bury` counted for the enclosing function, `outer` would silently become
         // a generator and its ordinary `Return` would stop making sense.
         Check("""
-            Bind number to outer, given (the number n):
-                Bind number to inner:
-                    Bury n.
+            Bind number to outer, given (the rabbit helper, the number n):
+                Bind number to inner, given (the rabbit digger):
+                    Have digger bury n.
                 Done.
                 Return n + 1.
             Done.
 
-            State cast outer on (1).
+            Pull a rabbit as den.
+                State cast outer on (den, 1).
+            Done.
             """);
     }
 }

@@ -72,7 +72,7 @@ as identifiers, but that is fine — they read as natural articles.
 | `return` | Return | Return from function |
 | `stop` | Stop | Break loop |
 | `skip` | Skip | Continue loop |
-| `bury` | Bury | Hand one value out of a burying body and suspend there |
+| `bury` | Bury | `Have <rabbit> bury <v>.` — hand one value out and suspend there. Never bare: a rabbit always does it |
 | `unbury` | Unbury | Resume a stash and take its next value — a `voidable T` |
 | `stash` | Stash | The TYPE, as in `a stash of number`. Never a call form |
 
@@ -1595,13 +1595,14 @@ because a `stash of T` parameter has to accept exactly what `cast`ing a burying
 function produces — so the front end substitutes one for the other on the way
 out, and no `StashType` survives into either backend.
 
-**A stash lives in the region it was made in, and dies with it.** One rule, no
-special case: `Pull a rabbit` is ground with an early death, the top level is
-ground that lasts as long as the program, and `bury` requires a *place* rather
-than a rabbit. Inside a burrow a stash does everything it does anywhere — bury,
-unbury, be handed to a function, sit in a series. Carrying one OUT and unburying
-it later is refused, by the same rule that refuses any closure over rabbit-scoped
-state, because that is what burying somewhere means.
+**A stash lives in the region whose rabbit buried it, and dies with that region.**
+A rabbit is REQUIRED — `Have <rabbit> bury <v>.`, never a bare `Bury v.` — because
+burying is memory work and a rabbit is the agent that does memory work. A burying
+function takes one as a parameter, so the ownership arrives with the job instead of
+being ambient. Inside a burrow a stash does everything it does anywhere: be
+unburied, handed to a function, put in a series, held in a field. Carrying one OUT
+and unburying it later is refused, by the same rule that refuses any closure over
+rabbit-scoped state, because that is what burying somewhere means.
 
 ⚠ Today that refusal is the COMPILER's, not the checker's, so the escaping
 program still interprets — `check --native` reports it as a warning. Under the

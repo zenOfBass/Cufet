@@ -113,7 +113,7 @@ public sealed partial class Interpreter
                 currentInput = stdoutTask.Result;
             }
             catch (Exception ex) when (ex is Win32Exception or FileNotFoundException
-                                           or DirectoryNotFoundException or UnauthorizedAccessException)
+                                        or DirectoryNotFoundException or UnauthorizedAccessException)
             {
                 throw LaunchFailure(program, ex);
             }
@@ -193,7 +193,7 @@ public sealed partial class Interpreter
                 currentInput = stdoutTask.Result;
             }
             catch (Exception ex) when (ex is Win32Exception or FileNotFoundException
-                                           or DirectoryNotFoundException or UnauthorizedAccessException)
+                                        or DirectoryNotFoundException or UnauthorizedAccessException)
             {
                 throw LaunchFailure(program, ex);
             }

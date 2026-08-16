@@ -619,23 +619,33 @@ if you need to change the series as you go.
 ### Stashes (`Bury` and `unbury`)
 
 A function can stop in the middle of what it is doing, hand one value out, and
-carry on from that exact line when someone asks for the next one. `Bury` is the
-pause; `unbury` is the wake-up.
+carry on from that exact line when someone asks for the next one.
+
+Burying is memory work, and a **rabbit** is the agent that does memory work — so
+you tell one to do it. `Have <rabbit> bury <value>.` is the pause; `unbury` is the
+wake-up. A burying function takes the rabbit as a parameter, and the caller hands
+one over:
 
 ```
-Bind number to counting-up, given (the number first-value):
+Bind number to counting-up, given (the rabbit helper, the number first-value):
     Define next as first-value.
     Repeat:
-        Bury next.
+        Have helper bury next.
         The next becomes next + 1.
     Until false.
 Done.
 
-Define counter as cast counting-up on (3).
-State unbury counter.       // 3
-State unbury counter.       // 4
-State unbury counter.       // 5
+Pull a rabbit as den.
+    Define counter as cast counting-up on (den, 3).
+    State unbury counter.       // 3
+    State unbury counter.       // 4
+    State unbury counter.       // 5
+Done.
 ```
+
+⚠ There is no bare `Bury x.` A rabbit is always the one doing it, which is what
+puts the ownership of the buried state somewhere you can see rather than leaving
+it ambient.
 
 **Nothing marks the declaration.** A function is stash-producing because its body
 *contains* a `bury` — the same way a body containing `return a failure` makes a
@@ -649,7 +659,7 @@ there is nothing left to bury, so the answer is `void` — and stays `void` howe
 often you ask.
 
 ```
-Define found as cast long-words-in on (a series with ("a", "rabbit")).
+Define found as cast long-words-in on (den, a series with ("a", "rabbit")).
 Repeat:
     Define word as unbury found.
     If word is void:
@@ -667,8 +677,8 @@ mistake — nothing in it says how many, and the loop only runs when somebody as
 Every cast makes a separate stash with its own place to stand:
 
 ```
-Define one-counter   as cast counting-up on (1).
-Define other-counter as cast counting-up on (100).
+Define one-counter   as cast counting-up on (den, 1).
+Define other-counter as cast counting-up on (den, 100).
 State unbury one-counter.     // 1
 State unbury other-counter.   // 100
 State unbury one-counter.     // 2
@@ -705,7 +715,7 @@ Bind void to take-three, given (the stash of number source, the text label):
     Done.
 Done.
 
-Define counter as cast counting-up on (7).
+Define counter as cast counting-up on (den, 7).
 Cast take-three on (counter, "seven").
 ```
 
@@ -713,8 +723,8 @@ A series of them works, and each keeps its own place:
 
 ```
 Define many as a series of stash of number.
-Insert (cast counting-up on (1))   into many.
-Insert (cast counting-up on (10))  into many.
+Insert (cast counting-up on (den, 1))   into many.
+Insert (cast counting-up on (den, 10))  into many.
 For each one-stash in many, repeat: State unbury one-stash. Done.   // 1, 10
 For each one-stash in many, repeat: State unbury one-stash. Done.   // 2, 11
 ```
@@ -723,14 +733,14 @@ That is also what lets one stash **delegate** to another — hold it and pass it
 values along:
 
 ```
-Bind number to squares-and-cubes, given (the number upto):
-    Define inner as cast squares on (upto).
+Bind number to squares-and-cubes, given (the rabbit helper, the number upto):
+    Define inner as cast squares on (helper, upto).
     Repeat:
         Define value as unbury inner.
         If value is void:
             Stop.
         Done.
-        Bury value.
+        Have helper bury value.
     Until false.
     ...
 Done.
@@ -742,7 +752,7 @@ Done.
 Bind text to texts-only, given (the series of (number or text) things):
     For each thing in things, repeat:
         If thing is a text:
-            Bury thing.        // `thing` is a text here, as it would be anywhere else
+            Have helper bury thing.        // `thing` is a text here, as it would be anywhere else
         Done.
     Done.
 Done.
@@ -765,21 +775,21 @@ Done.
 
 #### Where a stash is buried
 
-**A stash lives in the region it was made in, and dies with it.** That is one
-rule, not a special case: a `Pull a rabbit` block is ground with an early death,
-and the top level is ground that lasts as long as the program. Nothing about
-`bury` requires a rabbit — it requires a *place*, and there is always a place.
+**A stash lives in the region whose rabbit buried it, and dies with that region.**
+The rabbit is not decoration: it is the agent doing the work, and the ground it
+stands on is the ground the buried state sits in. That is why a burying function
+takes one — the ownership arrives with the job.
 
-So a stash made inside a burrow is usable for as long as you stay in it:
+A stash is usable for as long as you stay in the burrow:
 
 ```
 Pull a rabbit as den.
-    Define counter as cast counting-up on (1).
+    Define counter as cast counting-up on (den, 1).
     State unbury counter.                  // 1
     Cast take-two on (counter, "passed").  // handed inward — fine
 
     Define many as a series of stash of number.
-    Insert (cast counting-up on (100)) into many.
+    Insert (cast counting-up on (den, 100)) into many.
     For each one-stash in many, repeat: State unbury one-stash. Done.
 Done.
 ```
