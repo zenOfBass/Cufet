@@ -183,6 +183,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★ `is not a <type>` narrows in the compiled backend.** A divergence in ordinary code, with no
+  stash, module or closure involved:
+
+  ```
+  Define things as a series of (number or text) with (1, "two").
+  For each thing in things, repeat:
+      If thing is not a text:
+          State "number: " joined to (thing converted to text).
+      Done.
+  Done.
+  ```
+
+  The checker narrows that arm, so the program interprets. The compiler did not, so it read `thing`
+  at the full union type and the generated C would not build. A negated test is elimination applied
+  to the *then* branch, which is the mirror of the else-arm narrowing already there — so it now uses
+  the same reachable-case set and the same payload access.
+
+  ⚠ The `Otherwise` of a negated test still does not narrow, and that one is a FRONT-END asymmetry:
+  the checker narrows `is not a <type>` in the then-branch only, so such a program is rejected
+  before either backend sees it.
+
 - **★ A `Bury` inside a type test keeps its narrowing.** `If thing is a text: Bury thing. Done.`
   inside a burying function was refused; it now works on both backends.
 
@@ -193,12 +214,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   held when the arm was chosen and the condition gives exactly the answer it gave then. It is a
   restatement for the type checker and the code generator, not a decision.
 
-  ⚠ The `Otherwise` of a type test is still refused when it uses the tested name, and the reason is
-  not about stashes: that arm narrows **by elimination**, and the obvious guard — the negated test —
-  restores nothing, because the compiler does not narrow on `is not a <type>` at all. Measured with
-  no stash in sight: `If thing is not a text: State thing converted to text.` fails to compile in
-  ordinary code. The refusal is precise — an `Otherwise` that ignores the subject is fine — and it
-  names the fix: test the other type in a second arm.
+  The `Otherwise` of a type test works too, guarded by the negated test — which is only possible
+  because of the compiler fix above. It was refused until that landed, and then lifted with **no
+  stash-specific code at all**: a refusal whose stated reason lives in another component is one that
+  disappears when that component is fixed.
 
 - **★ A closure — and so a stash — can be an object FIELD.** It interpreted correctly and refused to
   compile, with gcc reporting `unknown type name 'cfn_0'` under a "this is a bug in the Cufet

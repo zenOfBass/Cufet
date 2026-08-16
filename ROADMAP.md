@@ -164,16 +164,18 @@ Ordered by what unblocks what, not by size. Two framings set the order:
       rejected in an object field header, so an ordinary function-valued field cannot be written
       even though the emitter would now handle it. `the stash of number source` parses because
       `stash of T` goes through a different branch of the type parser.
-   2. **Lift the remaining narrowing refusals.** ▶ **The `If` half is DONE (2026-08-15)** — a block
-      records the conditions it was entered under and re-tests them on entry, which hands the
-      narrowing back. Two cases are left, and they are different problems:
-      - **`Judge`.** Its arms bind `it` as well as narrowing. A condition can be restated on
-        resumption; a binding cannot, so the guard trick does not reach it.
-      - **The `Otherwise` of a type test.** It narrows by ELIMINATION, and there is no condition to
-        restate. ⚠ The negated test is not a substitute, and this is the real blocker: **the
-        compiler does not narrow on `is not a <type>` at all**, with or without a stash —
-        `If thing is not a text: State thing converted to text.` fails to compile in ordinary code.
-        Fixing that is a compiler job in its own right, and it would lift this for free.
+   2. **Lift the remaining narrowing refusals.** ▶ **`If` is DONE (2026-08-15), arm and `Otherwise`
+      alike** — a block records the conditions it was entered under and re-tests them on entry,
+      which hands the narrowing back. The `Otherwise` needed the compiler taught to narrow on
+      `is not a <type>` first; that was a plain divergence in ordinary code, and fixing it lifted
+      this case with no stash-specific work.
+
+      **`Judge` is what is left, and it is a different problem.** Its arms bind `it` as well as
+      narrowing, and a binding is not a condition that can be restated on resumption. It also needs
+      the front end to grow something the compiler fix did not supply: **the checker narrows
+      `is not a <type>` in the then-branch only**, so a negated test's `Otherwise` is rejected before
+      either backend sees it. Worth doing together — both are about carrying a narrowing that no
+      single condition states.
    3. **One ownership story.** Exceptions (`setjmp`/`longjmp`), tasks and stashes are three
       restricted continuations with three separate answers to region lifetime and cleanup. One
       rabbit-context abstraction underneath all three.

@@ -686,7 +686,6 @@ same programs.
 | Shape | Why |
 | --- | --- |
 | `Bury` inside a `Judge` | An arm's body runs under a **narrowing**; resuming into it would arrive with the value back at its declared type. An `If` that tests a type works — see below — but a judgement's arms bind `it`, which is more than a condition can restate. |
-| `Bury` in the `Otherwise` of a type test, where the `Otherwise` uses the tested name | That arm narrows *by elimination*, and there is no condition to restate. Test the other type explicitly in a second arm instead. |
 | `Bury` inside `Try to` or a rabbit block | A handler and a region are context a resumption cannot restore. |
 | `Bury` inside `For each` over a map | Resuming means counting back to where the loop was, and a map's entries have no position to count to. Loop over a series. |
 | `Define a shadow` anywhere in the body | The body is flattened into one set of state, so a shadow would land on the name it was written to hide. |
