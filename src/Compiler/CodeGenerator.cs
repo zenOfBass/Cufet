@@ -6117,14 +6117,14 @@ static void* cufet_pipe_stage(void* argp) {
         // `the failure` (in a handler) → the caught CufetFailure; `one` (in a method) → the
         // deref'd receiver; a flow-narrowed voidable var reads as its inner value (`.val`).
         VariableReference v   => v.Name == "the failure" && _currentFailVar != null ? _currentFailVar
-                               : v.Name == "one" && _methodReceiverType != null ? "(*cv_one)"
-                               : v.Name == "input" ? "stdin"   // `the input` = the stdin stream
-                               : _narrowedVars.TryGetValue(v.Name, out var nacc) ? $"({MangleName(v.Name)}){nacc.Access}"
+                                : v.Name == "one" && _methodReceiverType != null ? "(*cv_one)"
+                                : v.Name == "input" ? "stdin"   // `the input` = the stdin stream
+                                : _narrowedVars.TryGetValue(v.Name, out var nacc) ? $"({MangleName(v.Name)}){nacc.Access}"
                                // A recursive nested Bind's own name as a VALUE → its closure over the current env.
-                               : _closureSelf is { } cse && v.Name == cse.Name ? $"({RegisterFuncStruct(cse.Type)}){{ .fn = {cse.ClosFn}, .env = cf_envp }}"
+                                : _closureSelf is { } cse && v.Name == cse.Name ? $"({RegisterFuncStruct(cse.Type)}){{ .fn = {cse.ClosFn}, .env = cf_envp }}"
                                // A bare named function used as a VALUE → the {fn, NULL} closure value.
-                               : _funcTypes.ContainsKey(v.Name) && !_varTypes.ContainsKey(v.Name) ? EmitNamedFunctionValue(v.Name)
-                               : MangleName(v.Name),
+                                : _funcTypes.ContainsKey(v.Name) && !_varTypes.ContainsKey(v.Name) ? EmitNamedFunctionValue(v.Name)
+                                : MangleName(v.Name),
         CastExpression cast   => EmitCastExpr(cast),
         LambdaLiteral lam     => EmitLambda(lam),
         SeriesLiteral sl      => EmitSeriesLiteral(sl),
@@ -6134,7 +6134,7 @@ static void* cufet_pipe_stage(void* argp) {
         RecordLiteral rl      => EmitRecordLiteral(rl),
         BitsAtWidth baw       => $"cufet_bits_at_width({EmitExpr(baw.Target)}, {EmitExpr(baw.Width)}, {baw.Line})",
         RecordNamedAccess { FieldName: "width" } bwa when TypeOf(bwa.Record) is BitsType
-                              => $"cufet_dec_from_ll(({EmitExpr(bwa.Record)}).width)",
+                                => $"cufet_dec_from_ll(({EmitExpr(bwa.Record)}).width)",
         RecordNamedAccess rna => EmitMemberAccess(rna.Record, rna.FieldName),
         ObjectLiteral ol      => EmitObjectLiteral(ol),
         PossessiveAccess pa   => EmitMemberAccess(pa.Target, pa.Member),
@@ -6196,7 +6196,7 @@ static void* cufet_pipe_stage(void* argp) {
         // A failure literal only has meaning where a T-or-failure is expected (return/coercion).
         FailureLiteral        => throw new CompilerException("'a failure' is only valid where a 'T or failure' is expected (e.g. a return)."),
         _ => throw new CompilerException(
-                 $"'{NodeName(expr)}' expressions are not yet supported by the compiler.")
+                $"'{NodeName(expr)}' expressions are not yet supported by the compiler.")
     };
 
     // Coerces `expr` to `target`, performing the language's one implicit coercion: widening
@@ -6667,8 +6667,8 @@ static void* cufet_pipe_stage(void* argp) {
     private bool ProgramUsesConcurrency(IEnumerable<IStatement> stmts) =>
         AstSearch.Contains(stmts, n =>
             n is LaunchTaskStatement or SendStatement or CloseStatement
-              or OutputStatement or ForEachFromInputStatement
-              or ChannelCreation or DeliveryExpression
+            or OutputStatement or ForEachFromInputStatement
+            or ChannelCreation or DeliveryExpression
             // A pipe needs the substrate unless every stage is a subprocess run — those lower to
             // plain sequential calls with no channel between them.
             || (n is PipeExpression pe && !FlattenPipeAll(pe).TrueForAll(x => x is RunExpression)));
@@ -7212,8 +7212,8 @@ static void* cufet_pipe_stage(void* argp) {
         // interrupted awaiter stops waiting; both surface as NULL. There is no sensible value to
         // await then, and the interrupt is meant for this thread too, so check in.
         _preEmits.Add($"{rc} cf_ares{aid}; {{ void* cf_ar = cufet_rbox_await({box}); " +
-                      $"if (cf_ar) cf_ares{aid} = {ChanArenaCopy(resultType)}(cf_ar); " +
-                      $"else {{ cufet_checkpoint(); memset(&cf_ares{aid}, 0, sizeof cf_ares{aid}); }} }}");
+                    $"if (cf_ar) cf_ares{aid} = {ChanArenaCopy(resultType)}(cf_ar); " +
+                    $"else {{ cufet_checkpoint(); memset(&cf_ares{aid}, 0, sizeof cf_ares{aid}); }} }}");
         return $"cf_ares{aid}";
     }
 
@@ -7333,7 +7333,7 @@ static void* cufet_pipe_stage(void* argp) {
     {
         int id = _freshId++;
         _preEmits.Add($"char* cf_bt{id} = (char*)cufet_arena_alloc(80); " +
-                      $"cufet_format_bits(cf_bt{id}, 80, {EmitExpr(tc.Value)});");
+                    $"cufet_format_bits(cf_bt{id}, 80, {EmitExpr(tc.Value)});");
         return $"cf_bt{id}";
     }
 
@@ -7376,7 +7376,7 @@ static void* cufet_pipe_stage(void* argp) {
         string stepExpr  = range.Step != null ? EmitExpr(range.Step) : "cufet_dec_from_ll(1)";
         int id = _freshId++;
         string tmp = $"cs_{id}", s = $"cf_rs{id}", e = $"cf_re{id}",
-               st = $"cf_rt{id}", d = $"cf_rd{id}", it = $"cf_ri{id}";
+                st = $"cf_rt{id}", d = $"cf_rd{id}", it = $"cf_ri{id}";
         _preEmits.Add($"{name}* {tmp} = {name}_new();");
         _preEmits.Add(
             $"{{ CufetDec {s} = {startExpr}; CufetDec {e} = {endExpr}; CufetDec {st} = {stepExpr}; " +
@@ -7877,7 +7877,7 @@ static void* cufet_pipe_stage(void* argp) {
     // `input` (it lowers to the `stdin` global — nothing to capture). `the failure` isn't a _varTypes
     // entry (it's the enclosing Try's CufetFailure C var) so it's reported separately via `capturesFailure`.
     private List<string> ClosureFreeVars(IReadOnlyList<(CufetType Type, string Name)> parameters,
-                                         IReadOnlyList<IStatement> body, out bool capturesFailure)
+                                        IReadOnlyList<IStatement> body, out bool capturesFailure)
     {
         var refs = new HashSet<string>(); var defs = new HashSet<string>();
         foreach (var s in body) CollectRefsDefs(s, refs, defs);
@@ -7886,7 +7886,7 @@ static void* cufet_pipe_stage(void* argp) {
         return refs.Where(r => !defs.Contains(r) && !pnames.Contains(r)
                             && r != "input" && r != "the failure"
                             && _varTypes.ContainsKey(r))
-                   .OrderBy(x => x).ToList();
+                            .OrderBy(x => x).ToList();
     }
 
     // A lambda / nested-Bind body's inferred return type (first value-returning path; void if none).
@@ -7949,7 +7949,7 @@ static void* cufet_pipe_stage(void* argp) {
     // fn reusing the current env (recursion by-name; the recursive closure has the same captures), so
     // the name is NOT captured (no self-referential env). Matches the interpreter's in-scope-name recursion.
     private string EmitClosure(IReadOnlyList<(CufetType Type, string Name)> parameters,
-                               IReadOnlyList<IStatement> body, int line, string? selfName)
+                            IReadOnlyList<IStatement> body, int line, string? selfName)
     {
         int id = _closureCounter++;
         string clos = $"cv_clos{id}";
@@ -8365,7 +8365,7 @@ static void* cufet_pipe_stage(void* argp) {
         UnionType ut => RegisterUnionStruct(ut),               // a closed union is a {tag, payload} value struct
 
         _ => throw new CompilerException(
-                 $"the compiler cannot represent a {FormatTypeName(type!)} yet.")
+                $"the compiler cannot represent a {FormatTypeName(type!)} yet.")
     };
 
     // Emits a number literal as a CufetDec constructor, decomposing the C# decimal
