@@ -213,27 +213,42 @@ separate hard problem and is nobody's contract.
 8. **What a module exports.** Every member is public API, permanently, because there is no way to
    mark one internal. A module author has no way to say *this is my helper, do not call it*.
 
-   ★ **The default is the part that cannot wait.** Enforcement can ship with the loader; the
-   default cannot be changed after it. Once modules are published and depended on, "everything is
-   public" is permanent, and every internal becomes someone's dependency. Deciding now that a
-   module exports a **stated surface** costs nothing and cannot be retrofitted.
+   ★ **It bites when a module can be DEPENDED ON, and not before.** Nothing is distributable —
+   there is no loader (item 7) and no package manager (item 9) — so no one can rely on your
+   helper yet. This item belongs here, next to the things that make distribution real.
 
-   ⚠⚠ **RESHAPED 2026-08-15, and it is now more urgent than its tier suggests.** This was written
-   when a book was a builtin category. A module is an object conforming to an interface, which
-   suggests a far better answer than a new visibility system: **a module's public surface is the
-   interface it conforms to.** No new concept — that is what interfaces already are.
+   ⚠ **Corrected 2026-08-15.** An earlier version of this entry claimed the decision could not wait
+   and had to be made before a module could be shared. That was wrong twice over, and the reasoning
+   is worth keeping so it is not repeated:
+   - **The urgency was borrowed from a world that does not exist yet.** "Everything is public
+     becomes permanent" is true of a published package, not of a program you can only run.
+   - **The obvious fix would undo the unification.** An object exposes all its methods; a module IS
+     an object; so a module exposing all its methods is not an accidental default, it is the
+     consistent behaviour. Requiring modules to declare an export surface would make them behave
+     differently from ordinary objects — the special-casing item 1 exists to delete. It also cuts
+     against the language's temper: you *should* keep your helpers to yourself, and we do not make
+     you, the same way we do not stop you writing a magic number.
 
-   But that collides with item 1's decision that `module` is a bare marker. A marker requires
-   nothing, so a module's surface today is *all of its methods* — which is exactly the
-   "everything is public" default this item says cannot be retrofitted. It does not bite while
-   nothing is distributable, and the two ideas are separable ("require nothing to be pullable" and
-   "declare what you export" need not be the same interface). **But the choice has to be made
-   before a module can be shared, not after** — which is sooner than Tier 3, because item 1 already
-   shipped the mechanism.
+   ★ **When it is time, no new concept is needed — and this is the part worth keeping.** Measured
+   2026-08-15: **an interface already restricts what is reachable.** Calling a method that is not on
+   the interface, through the interface, is refused with *"interface 'greeter' has no method named
+   'helper'. Available methods: 'greet'."* So export control is: bind the pulled name at a declared
+   interface instead of at the object type.
 
-   Deliberately module-level, not per-member `private` on objects. Cufet's encapsulation unit is
-   the module, so the boundary is *what it hands out* — the object question is a different and
-   much weaker one, since within a file a visibility marker is a comment with ceremony attached.
+   ```
+   Define greeter as an interface for { The text function greet }.
+   Define object greeting-kit with () and greeter and module: ... Done.
+
+   Pull greeting-kit.
+       State cast greeting-kit's greet on ().    ← in `greeter`, so reachable
+       State cast greeting-kit's helper on ().   ← refused, by machinery that exists today
+   Done.
+   ```
+
+   No `private` keyword, no visibility modifiers, no per-member markers — a positive declaration of
+   what you hand out, which is how Cufet says things elsewhere (`a shadow` announces rather than
+   hides). Whether a module with no declared surface then exports everything or nothing is the one
+   real decision, and it is due when distribution is, not now.
 
 9. **A package manager for books.**
 
