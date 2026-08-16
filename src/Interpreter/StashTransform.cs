@@ -335,6 +335,60 @@ public static class StashTransform
                     return after;
                 }
 
+                case JudgeStatement judge:
+                {
+                    // ★ A judgement arm carries TWO things across a split, where an `If` arm carries
+                    // one. The NARROWING is a guard, exactly as it is for an `If`. The BINDING is
+                    // handled by making `it` an ordinary local: it earns a hoisting slot like any
+                    // other name, so the subject is evaluated ONCE here and every later block
+                    // restores `it` from its slot instead of re-evaluating a subject that may have
+                    // moved on — which is what "a binding is not a condition" really costs.
+                    //
+                    // ⚠ SINGLE-CASE arms only. A grouped arm narrows to a residue that no single
+                    // type test states, and a guard restoring nothing is worse than a refusal: it
+                    // would compile to C reading the subject at its declared type.
+                    foreach (var arm in judge.Arms)
+                        if (arm.Cases.Count != 1)
+                            throw Refuse(
+                                $"'{_bind.Name}' buries inside a judgement arm that names more than one type",
+                                "bury from inside a grouped judgement arm",
+                                "An arm matching several types leaves the subject at none of them in "
+                              + "particular, and a resumption has to be told exactly what it is holding. "
+                              + "Give the arm one type, or move the bury out of the judgement.", Where(arm));
+
+                    // The `Otherwise` narrows BY ELIMINATION, and only a lone arm makes that
+                    // statable — the same rule the `If` case follows, for the same reason.
+                    if (judge.OtherwiseBody != null && judge.Arms.Count != 1)
+                        throw Refuse(
+                            $"'{_bind.Name}' buries inside a judgement whose 'Otherwise' follows several arms",
+                            "bury from inside that 'Otherwise'",
+                            "After several arms the leftover is a mixture that no single test names, so a "
+                          + "resumption cannot be told what it is holding. Cover the cases with arms and "
+                          + "drop the 'Otherwise', or move the bury out of the judgement.", Where(judge));
+
+                    _blocks[cur].Body.Add(Define(ItName, judge.Subject));
+
+                    int after = NewBlock();
+                    var entries = judge.Arms.Select(_ => NewBlock()).ToList();
+                    int otherwise = NewBlock();
+
+                    IExpression Matches(JudgeArm arm, bool negated) =>
+                        new IsTypeCheck(Var(ItName), arm.Cases[0], negated, arm.Line, arm.Column);
+
+                    SetExit(cur, [new IfStatement(
+                        [.. judge.Arms.Select((arm, i) =>
+                            new ConditionArm(Matches(arm, false), [SetStep(entries[i])]))],
+                        [SetStep(otherwise)])]);
+
+                    for (int i = 0; i < judge.Arms.Count; i++)
+                        SetExit(EmitGuarded(judge.Arms[i].Body, entries[i], loop, Matches(judge.Arms[i], false)),
+                                [SetStep(after)]);
+
+                    var elseGuard = judge.Arms.Count == 1 ? Matches(judge.Arms[0], true) : null;
+                    SetExit(EmitGuarded(judge.OtherwiseBody ?? [], otherwise, loop, elseGuard), [SetStep(after)]);
+                    return after;
+                }
+
                 case WhileStatement w:
                 {
                     int header = NewBlock(), body = NewBlock(), after = NewBlock();
@@ -376,9 +430,9 @@ public static class StashTransform
                     throw Refuse(
                         $"'{_bind.Name}' buries inside a {Describe(stmt)}, which can't be split into steps",
                         $"bury from inside a {Describe(stmt)}",
-                        "A judgement, a Try block and a rabbit block each carry something — a "
-                      + "narrowing, a handler, a region — that a resumption cannot restore. Move the "
-                      + "bury out of it, or use an If or a While.", Where(stmt));
+                        "A Try block, a rabbit block, a task and a file block each carry something — a "
+                      + "handler, a region, a thread, an open file — that a resumption cannot restore. "
+                      + "Move the bury out of it, or use an If, a While or a judgement.", Where(stmt));
             }
         }
 
@@ -400,7 +454,7 @@ public static class StashTransform
             _fresh++;
             _invented[source] = sourceType;
             _invented[index]  = CufetType.Number;
-            string iterator = fe.IteratorName ?? "it";
+            string iterator = fe.IteratorName ?? ItName;
 
             _blocks[cur].Body.Add(Define(source, fe.Series));
             _blocks[cur].Body.Add(Define(index, Num(1)));
@@ -478,7 +532,6 @@ public static class StashTransform
 
         private static string Describe(IStatement stmt) => stmt switch
         {
-            JudgeStatement       => "judgement",
             TryStatement         => "Try block",
             PullRabbitStatement  => "rabbit block",
             LaunchTaskStatement  => "task",
@@ -629,6 +682,10 @@ public static class StashTransform
     private const string StepName     = "stash_step";
     private const string SlotPrefix   = "stash_slot_";
     private const string ResumePrefix = "stash_resume_";
+
+    // ⚠ The one name here a user CAN write, and deliberately so: `it` is the language's own name
+    // for a judgement's subject and a for-each's iterator, so the machine has to use exactly it.
+    private const string ItName = "it";
 
     // NumberLiteral is one of the position-less nodes — it carries no line or column.
     private static NumberLiteral Num(int n) => new(n);

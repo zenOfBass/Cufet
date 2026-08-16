@@ -5153,6 +5153,23 @@ static void* cufet_pipe_stage(void* argp) {
     // remains, x reads at that case's concrete type (mirroring the front-end's residual-union narrowing).
     private (string Name, CufetType Inner, string Access)? ElseNarrow(IfStatement ifStmt)
     {
+        // ★ A single NEGATED arm inverts the rule. The else of `x is not a <case>` is reached
+        // exactly when x IS that case, so it names the survivor outright rather than eliminating
+        // down to one — and it narrows whatever the union's size, where the positive path below
+        // needs everything but one case excluded. Matches the checker, which narrows the same else.
+        if (ifStmt.Arms.Count == 1
+            && ifStmt.Arms[0].Condition is IsTypeCheck { Negated: true, Target: VariableReference nvr } ntc
+            && TypeOf(nvr) is UnionType negUnion)
+        {
+            var negCases = UnionCases(negUnion);
+            int negK = MatchCaseInList(negCases, ntc.Type);
+            if (negK < 0) return null;
+            // Reachability still applies: inside a grouped Judge arm the case may already be out.
+            if (_armCases.TryGetValue(nvr.Name, out var negReach) && !negReach.Contains(negK))
+                return null;
+            return (nvr.Name, negCases[negK], $".val.c{negK}");
+        }
+
         string? name = null; UnionType? ut = null;
         var excluded = new HashSet<int>();
         foreach (var arm in ifStmt.Arms)

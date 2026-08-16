@@ -523,13 +523,6 @@ public class PipelineClosureTests : PipelineTestBase
     /// <summary>
     /// The narrowed value can be USED as its narrowed type, not merely printed.
     /// </summary>
-    /// <remarks>
-    /// ⚠ Note what is NOT tested here: the `Otherwise` of a NEGATED test. The checker narrows the
-    /// then-branch of `is not a &lt;type&gt;` but not its else, so
-    /// `If x is not a text: … Done. Otherwise: State "t: " joined to x. Done.` does not type-check
-    /// at all — a front-end asymmetry, not a compiler one, and there is nothing for an oracle test
-    /// to compare while the program is rejected before either backend sees it.
-    /// </remarks>
     [Fact]
     public void ANegativelyNarrowedValue_CanBeComputedWith()
     {
@@ -542,6 +535,78 @@ public class PipelineClosureTests : PipelineTestBase
                 Done.
             Done.
             State total.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    /// <summary>
+    /// The `Otherwise` of a NEGATED test narrows too — reaching it means the value IS that case.
+    /// </summary>
+    /// <remarks>
+    /// ★ The mirror image of the then-branch fix above, and it had to land in BOTH front ends at
+    /// once. The checker narrowed a negated test's then-branch only, so this program was rejected
+    /// before either backend saw it; the compiler's `ElseNarrow` additionally required every arm to
+    /// be un-negated, so fixing the checker alone would have emitted C that read the subject at its
+    /// full union type.
+    ///
+    /// It narrows for a LONE arm only. With several arms, reaching the else no longer implies this
+    /// test was the one that failed — an earlier arm may have taken the value first.
+    /// </remarks>
+    [Fact]
+    public void TheOtherwiseOfANegatedTypeCheck_Narrows()
+    {
+        const string src = """
+            Bind void to show, given (the (number or text) v):
+                If v is not a text:
+                    State v + 1.
+                Done.
+                Otherwise:
+                    State the length of v.
+                Done.
+            Done.
+
+            Cast show on (42).
+            Cast show on ("hello").
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    /// <summary>
+    /// A bury inside a judgement arm — the binding of `it` and its narrowing both survive.
+    /// </summary>
+    /// <remarks>
+    /// ★ An oracle test for the usual reason: this always ran interpreted, because the interpreter
+    /// is dynamically typed and never needed the narrowing. What could fail is the generated C,
+    /// where splitting an arm into its own block leaves `it` at the subject's declared union type.
+    ///
+    /// `it` is not restated as a condition — it becomes an ordinary hoisted local, so the subject
+    /// is evaluated ONCE and restored from its slot on every re-entry. `it + 100` and
+    /// `the length of it` then only compile if the guard handed the narrowing back.
+    /// </remarks>
+    [Fact]
+    public void ABuryInsideAJudgementArm_CompilesWithTheNarrowingIntact()
+    {
+        const string src = """
+            Bind number to walk, given (the rabbit helper, the series of (number or text) items):
+                For each thing in items, repeat:
+                    Judge thing, where it is:
+                        A number, have helper bury it + 100.
+                        A text, have helper bury the length of it.
+                    Done.
+                Done.
+            Done.
+
+            Pull a rabbit as den.
+                Define things as a series of (number or text) with (1, "hello", 7, "hi").
+                Define source as cast walk on (den, things).
+                Repeat:
+                    Define next as unbury source.
+                    If next is void:
+                        Stop.
+                    Done.
+                    State next.
+                Until false.
+            Done.
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }

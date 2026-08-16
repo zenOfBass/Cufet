@@ -991,6 +991,12 @@ public sealed partial class TypeChecker
             {
                 var subjectType = InferType(judge.Subject);
 
+                // ★ What StashTransform needs to split this judgement into steps: `it` becomes an
+                // ordinary hoisted local there, and its slot has to hold the subject at its WIDEST
+                // — every arm narrows it, so an arm's type would be too small to store.
+                if (subjectType != null)
+                    RecordStashLocal("it", subjectType, judge.Line, judge.Column);
+
                 // What is still unaccounted for. Each arm removes its cases; RemoveFromUnion
                 // returns null once nothing is left. For a subject that is NOT a union it
                 // returns the type unchanged, which is exactly what makes `Otherwise` mandatory
@@ -1051,6 +1057,13 @@ public sealed partial class TypeChecker
                 CufetType? remainingUnionType = null;
                 bool canExhaustNarrow = true;
 
+                // ★ The else of a NEGATED test narrows the other way round. `If x is not a text`
+                // reaches its Otherwise exactly when x IS a text, so the else names its type
+                // outright instead of eliminating down to a residue. Tracked separately because the
+                // exhaustion machinery above is about what arms REMOVE, and this removes nothing.
+                string? negatedElseVar = null;
+                CufetType? negatedElseType = null;
+
                 foreach (var arm in ifStmt.Arms)
                 {
                     _ = InferType(arm.Condition);
@@ -1092,6 +1105,17 @@ public sealed partial class TypeChecker
                             TryLookup(tcTarget!, out var tinfo);
                             narrowedTo = RemoveFromUnion(tinfo?.Type, tcType!);
                             canExhaustNarrow = false;
+
+                            // ⚠ A LONE arm only. With several arms an earlier one may have taken
+                            // the value already, so reaching the else no longer implies this test
+                            // was the one that failed.
+                            if (ifStmt.Arms.Count == 1
+                                && tinfo?.Type is UnionType { Cases: { } negCases }
+                                && negCases.Any(c => c.Equals(tcType)))
+                            {
+                                negatedElseVar  = tcTarget;
+                                negatedElseType = tcType;
+                            }
                         }
                     }
                     else
@@ -1123,6 +1147,12 @@ public sealed partial class TypeChecker
                         elseNarrowedVar = unionVar;
                         _narrowedVars.TryGetValue(unionVar, out elseNarrowedSaved);
                         _narrowedVars[unionVar] = remainingUnionType;
+                    }
+                    else if (negatedElseVar != null && negatedElseType != null)
+                    {
+                        elseNarrowedVar = negatedElseVar;
+                        _narrowedVars.TryGetValue(negatedElseVar, out elseNarrowedSaved);
+                        _narrowedVars[negatedElseVar] = negatedElseType;
                     }
                     EnterScope();
                     CheckBlock(ifStmt.ElseBody);

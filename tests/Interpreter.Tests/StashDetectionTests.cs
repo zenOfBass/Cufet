@@ -89,19 +89,19 @@ public class StashDetectionTests
     }
 
     /// <summary>
-    /// A judgement is the one arm-bearing form the machine still refuses — and the refusal is
-    /// itself the detection probe.
+    /// A `bury` hiding in a judgement ARM body is found by the walk.
     /// </summary>
     /// <remarks>
-    /// ★ A StashUnsupportedException is only reachable for a function the walk identified; an
-    /// unrecognised one is never handed to the transform at all and would sail through clean. The
-    /// refusal is real and deliberate: a Judge arm's body runs under a NARROWING and binds `it`, and
-    /// a step number can restore neither.
+    /// ★ `JudgeArm` implements neither `IExpression` nor `IStatement`, so a walk keyed on those
+    /// interfaces reads straight past every arm body. The only `bury` here is inside an arm, which
+    /// is what makes this discriminating — and the assertion is the REWRITE rather than a clean
+    /// check, because an unrecognised burying function type-checks perfectly happily and only
+    /// misbehaves far away, at the `unbury`.
     /// </remarks>
     [Fact]
     public void ABuryInsideAJudgeArm_StillMakesTheFunctionStashProducing()
     {
-        Assert.Throws<StashUnsupportedException>(() => Check("""
+        DetectedAsBurying("""
             Bind number to sorter, given (the rabbit helper, the (number or text) thing):
                 Judge thing, where it is:
                     A number, have helper bury 1.
@@ -111,9 +111,9 @@ public class StashDetectionTests
 
             Pull a rabbit as den.
                 Define s as cast sorter on (den, 5).
-                State unbury s.
+                State unbury s but void is 0.
             Done.
-            """));
+            """, "sorter");
     }
 
     [Fact]
