@@ -1298,7 +1298,11 @@ Pull a rabbit as den.
     ...
 Done.
 ```
-Anonymous form (`Pull a rabbit.`) omits the name. Rabbits stay singular — multiple arenas
+Anonymous form (`Pull a rabbit.`) omits the name. A NAMED rabbit can be given work by name —
+`Have den start a task as job:` — as well as through the bare `rabbit` keyword, which means the
+enclosing one. Naming a rabbit pulled further out is refused: a task is joined by its rabbit's
+`Done.`, so it would have to outlive the block it is written in.
+ Rabbits stay singular — multiple arenas
 usually want independent lifetimes (nest two `Pull a rabbit` blocks with separate `Done.`s).
 
 **Nesting** — any `Pull ... Done.` scope can nest inside another:

@@ -3045,6 +3045,14 @@ though the interpreter would forgive breaking it.
 rabbit, and **the rabbit's `Done.` waits for every task it started**. A task therefore
 cannot outlive the region that launched it.
 
+**You can name the rabbit you are giving work to** — `Have den start a task: … Done.` —
+which is what a rabbit's name is for: a rabbit is an agent you summon and hand a job.
+The bare `rabbit` keyword still means the enclosing one, and the two forms mix freely.
+
+⚠ Naming a rabbit pulled *further out* is refused. The task would be joined by that
+rabbit's `Done.`, so it would have to outlive the block it was written in. Give the work
+to the rabbit pulled in this block, or move the work out to where that rabbit lives.
+
 Name a task with `as <name>` and it can `return` a value, which you collect with
 `the awaited result of <name>`:
 

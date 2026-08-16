@@ -183,6 +183,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★ A rabbit can be given work BY NAME.** `Have den start a task as job: … Done.` — previously
+  only the bare `rabbit` keyword was accepted, which made `Pull a rabbit as den.` half-wired: the
+  name bound a value you could print and pass, but not the one form that actually takes a rabbit.
+
+  A rabbit is an agent you summon and hand a job to, so naming one where you give it work is what
+  the name is for. The keyword still means "the enclosing one" and the two forms mix freely.
+
+  ⚠ Naming a rabbit pulled further out is refused, and that is a lifetime rule rather than a
+  spelling one: a task is joined by its rabbit's `Done.`, so an outer rabbit's task would have to
+  outlive the block it was written in. That is a real feature and not one to acquire by accident
+  while adding a name.
+
 - **★ `is not a <type>` narrows in the compiled backend.** A divergence in ordinary code, with no
   stash, module or closure involved:
 
