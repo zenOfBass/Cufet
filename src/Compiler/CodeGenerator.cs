@@ -2484,9 +2484,9 @@ static void* cufet_pipe_stage(void* argp) {
         // ── Struct declarations (records + objects + voidables) + write/eq helpers ──
         EmitStructs(sb);
 
-        // ── Closure-value structs (cfn_N {fn, env}) — after records (fn params by value), BEFORE
-        //    the series/map runtime so a series/map OF functions can hold a cfn by value ──
-        EmitClosureStructs(sb);
+        // Closure-value structs (cfn_N {fn, env}) are emitted BY EmitStructs above, in the same
+        // topological order as records and objects — the dependency runs both ways, so they cannot
+        // be a phase of their own. See the note there.
 
         // ── Closure env structs (cenv_N; captured free vars) — after cfn (may capture a fn value) ──
         if (_closureEnvs.Length > 0)
@@ -3275,7 +3275,16 @@ static void* cufet_pipe_stage(void* argp) {
         // The ONE open union: its case set was DISCOVERED (bounded whole-program), not declared.
         bool openEmpty = _usesOpenUnion && _openUnionCases.Count == 0;
         if (_usesOpenUnion && !openEmpty) unions[OpenUnionStruct] = new UnionType(_openUnionCases);
-        if (specs.Count == 0 && voidables.Count == 0 && failables.Count == 0 && unions.Count == 0 && !openEmpty) return;
+        // ★ Closure structs are sorted HERE, with everything else, rather than in a phase of their
+        // own afterwards. They used to come after objects, which meant an object holding a closure
+        // referenced `cfn_0` before it existed — gcc: "unknown type name 'cfn_0'". The dependency
+        // genuinely runs both ways (a closure's parameter may be a record; a record's field may be a
+        // closure), so two fixed phases cannot express it and one topological order must. A forward
+        // declaration is not an option: a by-value struct member needs a complete type.
+        var funcs = new Dictionary<string, FunctionType>();
+        foreach (var (name, ft) in _funcStructs) funcs[name] = ft;
+        if (specs.Count == 0 && voidables.Count == 0 && failables.Count == 0 && unions.Count == 0
+            && funcs.Count == 0 && !openEmpty) return;
 
         string? DepName(CufetType t) => t switch
         {
@@ -3284,9 +3293,15 @@ static void* cufet_pipe_stage(void* argp) {
             VoidableType vt => RegisterVoidableStruct(vt),
             FailureType ft  => RegisterFailableStruct(ft),
             UnionType ut when ut.Cases != null => RegisterUnionStruct(ut),
+            // Looked up rather than registered: registering here would append to _funcStructs while
+            // `funcs` is being walked, and everything reachable was already registered when the
+            // bodies were emitted.
+            FunctionType ft when _funcStructSig2Name.TryGetValue(TypeSig(ft), out var fn) => fn,
             _ => null
         };
-        bool Known(string? d) => d != null && (specs.ContainsKey(d) || voidables.ContainsKey(d) || failables.ContainsKey(d) || unions.ContainsKey(d));
+        bool Known(string? d) => d != null && (specs.ContainsKey(d) || voidables.ContainsKey(d)
+                                            || failables.ContainsKey(d) || unions.ContainsKey(d)
+                                            || funcs.ContainsKey(d));
 
         var emitted = new HashSet<string>();
         var order   = new List<string>();
@@ -3296,6 +3311,13 @@ static void* cufet_pipe_stage(void* argp) {
             if (voidables.TryGetValue(cname, out var vInner))       { if (Known(DepName(vInner))) Visit(DepName(vInner)!); }
             else if (failables.TryGetValue(cname, out var fInner))  { if (Known(DepName(fInner))) Visit(DepName(fInner)!); }
             else if (unions.TryGetValue(cname, out var uT))         { foreach (var c in uT.Cases!) if (Known(DepName(c))) Visit(DepName(c)!); }
+            // A closure's parameters and return travel by value in its function pointer, so every
+            // shape they mention has to be complete first — including another closure.
+            else if (funcs.TryGetValue(cname, out var fnT))
+            {
+                foreach (var p in fnT.ParameterTypes) if (Known(DepName(p))) Visit(DepName(p)!);
+                if (fnT.ReturnType is { } rt2 && Known(DepName(rt2))) Visit(DepName(rt2)!);
+            }
             else
                 foreach (var fs in specs[cname].Fields)
                 {
@@ -3304,7 +3326,8 @@ static void* cufet_pipe_stage(void* argp) {
                 }
             order.Add(cname);
         }
-        foreach (var cname in specs.Keys.Concat(voidables.Keys).Concat(failables.Keys).Concat(unions.Keys).ToList()) Visit(cname);
+        foreach (var cname in specs.Keys.Concat(voidables.Keys).Concat(failables.Keys)
+                                        .Concat(unions.Keys).Concat(funcs.Keys).ToList()) Visit(cname);
 
         sb.AppendLine("// ── Record / object / voidable shapes (value structs) ──");
         if (openEmpty)
@@ -3333,6 +3356,15 @@ static void* cufet_pipe_stage(void* argp) {
                 sb.AppendLine($"typedef struct {{ int tag; union {{ {payload} }} val; }} {cname};");
                 continue;
             }
+            if (funcs.TryGetValue(cname, out var fnDef))
+            {
+                // Uniform two pointers — fits a fixed slot and copies by value, sharing the env.
+                string fnRet = fnDef.ReturnType == null ? "void" : EmitCType(fnDef.ReturnType);
+                var fnPs = new[] { "void* env" }
+                    .Concat(fnDef.ParameterTypes.Select((p, i) => $"{EmitCType(p)} p{i}"));
+                sb.AppendLine($"typedef struct {{ {fnRet} (*fn)({string.Join(", ", fnPs)}); void* env; }} {cname};");
+                continue;
+            }
             sb.AppendLine("typedef struct {");
             foreach (var fs in specs[cname].Fields)
                 sb.AppendLine($"    {EmitCType(fs.Type)} {fs.CField};");
@@ -3343,6 +3375,9 @@ static void* cufet_pipe_stage(void* argp) {
         foreach (var cname in order)
         {
             if (failables.ContainsKey(cname)) continue;   // fallible values are never printed
+            // A closure has no write/eq of its own: printing one is refused, and comparing two is
+            // pointer equality emitted inline by EqCall. It only shares the ORDERING pass above.
+            if (funcs.ContainsKey(cname)) continue;
             if (voidables.TryGetValue(cname, out var inner))
             {
                 sb.AppendLine($"static void {cname}_write({cname} v) {{ if (v.has) {WriteCall("v.val", inner)}; else printf(\"void\"); }}");
@@ -3376,6 +3411,7 @@ static void* cufet_pipe_stage(void* argp) {
         foreach (var cname in order)
         {
             if (failables.ContainsKey(cname)) continue;   // fallible values are never compared
+            if (funcs.ContainsKey(cname)) continue;       // closures compare inline — see EqCall
             if (voidables.TryGetValue(cname, out var inner))
             {
                 sb.AppendLine($"static int {cname}_eq({cname} a, {cname} b) {{ if (a.has != b.has) return 0; if (!a.has) return 1; return {EqCall("a.val", "b.val", inner)}; }}");

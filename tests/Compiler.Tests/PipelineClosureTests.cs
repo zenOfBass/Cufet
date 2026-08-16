@@ -415,4 +415,73 @@ public class PipelineClosureTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ── A closure held in an object FIELD ──
+    //
+    // ★ An oracle test and NOT an interpreter one, deliberately: this shape always interpreted
+    // correctly. It was the COMPILER that could not emit it — object structs were written in one
+    // phase and closure structs in a later one, so an object holding a closure named `cfn_0` before
+    // it existed and gcc rejected the generated C. Only `Interpret == Compile` can see that class of
+    // bug; a test that ran the interpreter alone would have passed throughout.
+    //
+    // The dependency runs BOTH ways — a closure's parameter may be a record, a record's field may be
+    // a closure — so the fix was to put closures into the one topological sort in EmitStructs rather
+    // than to reorder two phases. A forward declaration cannot substitute: a by-value struct member
+    // needs a complete type.
+
+    [Fact]
+    public void AnObjectFieldHoldingAStash_Compiles()
+    {
+        const string src = """
+            Bind number to counting-up, given (the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Define object ticker with (the stash of number source, the text name):
+                Bind void to report:
+                    Define held as one's source.
+                    State one's name joined to ": " joined to ((unbury held but void is 0) converted to text).
+                Done.
+            Done.
+
+            Define first-ticker as a new ticker { the source (cast counting-up on (50)), the name "fifty" }.
+            Cast report on first-ticker.
+            Cast report on first-ticker.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void TwoObjectsEachHoldingAStash_KeepSeparateState()
+    {
+        // Each field holds its own closure, so the two tickers must not share a place to stand.
+        const string src = """
+            Bind number to counting-up, given (the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Define object ticker with (the stash of number source, the text name):
+                Bind void to report:
+                    Define held as one's source.
+                    State one's name joined to ": " joined to ((unbury held but void is 0) converted to text).
+                Done.
+            Done.
+
+            Define low as a new ticker { the source (cast counting-up on (1)), the name "low" }.
+            Define high as a new ticker { the source (cast counting-up on (100)), the name "high" }.
+            Cast report on low.
+            Cast report on high.
+            Cast report on low.
+            Cast report on high.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }
