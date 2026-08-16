@@ -314,13 +314,21 @@ public class StashMachineTests
     // refused during the check — so both backends refuse identically and nothing can interpret one
     // way and compile another.
 
+    /// <summary>
+    /// ★ A bury inside a type test works — the arm's condition is carried into its block and
+    /// re-tested there, which hands the narrowing back.
+    /// </summary>
+    /// <remarks>
+    /// The re-test is not a real branch. Every hoisted local is restored from its slot before the
+    /// guard runs, so the subject holds exactly what it held when the arm was chosen and the
+    /// condition gives exactly the answer it gave then. It exists so the compiler can see which
+    /// case of the union is in hand; without it the block resumes at the declared type and the
+    /// generated C will not build.
+    /// </remarks>
     [Fact]
-    public void ABuryInsideATypeTest_IsRefusedRatherThanMisLowered()
+    public void ABuryInsideATypeTest_KeepsTheNarrowing()
     {
-        // ★ The arm body would be resumed as its own block, with the subject back at its declared
-        // type. The interpreter would not notice; the compiler would fail on generated C. Refusing
-        // is what keeps the two backends saying the same thing.
-        var ex = Refused("""
+        Assert.Equal("two\nfour", Run("""
             Bind text to texts-only, given (the series of (number or text) things):
                 For each thing in things, repeat:
                     If thing is a text:
@@ -329,11 +337,94 @@ public class StashMachineTests
                 Done.
             Done.
 
-            Define source as cast texts-only on (a series of (number or text) with (1, "two")).
+            Define source as cast texts-only on (a series of (number or text) with (1, "two", 3, "four")).
+            Repeat:
+                Define found as unbury source.
+                If found is void:
+                    Stop.
+                Done.
+                State found.
+            Until false.
+            """));
+    }
+
+    [Fact]
+    public void ATypeTestNarrowingToNumber_AlsoSurvives()
+    {
+        // The other direction: the arm narrows to `number`, and arithmetic on it has to type-check.
+        Assert.Equal("2\n6", Run("""
+            Bind number to doubled, given (the series of (number or text) things):
+                For each thing in things, repeat:
+                    If thing is a number:
+                        Bury thing * 2.
+                    Done.
+                Done.
+            Done.
+
+            Define source as cast doubled on (a series of (number or text) with (1, "two", 3)).
+            """ + DrainNumbers));
+    }
+
+    /// <summary>
+    /// The `Otherwise` of a type test is still refused, and for a reason that is not about stashes.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ An else arm narrows BY ELIMINATION, and the obvious guard — the negated test — restores
+    /// nothing, because **the compiler does not narrow on a negated type check at all**. Measured
+    /// with no stash in sight: `If thing is not a text: State thing converted to text.` fails to
+    /// compile in ordinary code. So there is no condition to restate, and refusing precisely beats
+    /// emitting something that reaches gcc as "a bug in the Cufet compiler".
+    ///
+    /// Refused only when the else body MENTIONS the tested name — an `Otherwise` that ignores the
+    /// subject cannot need the narrowing and splits perfectly well.
+    /// </remarks>
+    [Fact]
+    public void TheOtherwiseOfATypeTest_IsRefusedWhenItUsesTheSubject()
+    {
+        var ex = Refused("""
+            Bind text to describe-all, given (the series of (number or text) things):
+                For each thing in things, repeat:
+                    If thing is a text:
+                        Bury "text: " joined to thing.
+                    Done.
+                    Otherwise:
+                        Bury "number: " joined to (thing converted to text).
+                    Done.
+                Done.
+            Done.
+
+            Define source as cast describe-all on (a series of (number or text) with (1, "two")).
             State unbury source.
             """);
-        Assert.Contains("tests a type", ex.Message);
+        Assert.Contains("'Otherwise' uses 'thing'", ex.Message);
         Assert.Equal(3, ex.Line);   // the condition, not the function
+    }
+
+    [Fact]
+    public void AnOtherwiseThatIgnoresTheSubject_IsFine()
+    {
+        // Nothing in the else arm needs the narrowing, so there is nothing to refuse.
+        Assert.Equal("two\nskipped", Run("""
+            Bind text to texts-or-note, given (the series of (number or text) things):
+                For each thing in things, repeat:
+                    If thing is a text:
+                        Bury thing.
+                    Done.
+                    Otherwise:
+                        Bury "skipped".
+                    Done.
+                Done.
+            Done.
+
+            Define source as cast texts-or-note on (a series of (number or text) with ("two", 3)).
+            Repeat:
+                Define found as unbury source.
+                If found is void:
+                    Stop.
+                Done.
+                State found.
+            Until false.
+            """));
     }
 
     [Fact]

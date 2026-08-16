@@ -455,6 +455,64 @@ public class PipelineClosureTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── A bury inside a type test ──
+    //
+    // ★ Oracle tests, and they have to be. This shape ALWAYS ran interpreted — the interpreter is
+    // dynamically typed and never needed the narrowing. What failed was the generated C, because
+    // splitting the arm into its own block left the subject at its declared union type. The fix
+    // carries the arm's condition into the block and re-tests it on entry; only `Interpret ==
+    // Compile` can tell whether that actually restored anything.
+
+    [Fact]
+    public void ABuryInsideATypeTest_CompilesWithTheNarrowingIntact()
+    {
+        const string src = """
+            Bind text to texts-only, given (the series of (number or text) things):
+                For each thing in things, repeat:
+                    If thing is a text:
+                        Bury thing.
+                    Done.
+                Done.
+            Done.
+
+            Define source as cast texts-only on (a series of (number or text) with (1, "two", 3, "four")).
+            Repeat:
+                Define found as unbury source.
+                If found is void:
+                    Stop.
+                Done.
+                State found.
+            Until false.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void ATypeTestNarrowingToNumber_CompilesToo()
+    {
+        // The arm narrows to `number` and then does arithmetic on it — a different payload slot
+        // from the text case, so it exercises the other half of the union.
+        const string src = """
+            Bind number to doubled, given (the series of (number or text) things):
+                For each thing in things, repeat:
+                    If thing is a number:
+                        Bury thing * 2.
+                    Done.
+                Done.
+            Done.
+
+            Define source as cast doubled on (a series of (number or text) with (1, "two", 3)).
+            Repeat:
+                Define value as unbury source.
+                If value is void:
+                    Stop.
+                Done.
+                State value.
+            Until false.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     [Fact]
     public void TwoObjectsEachHoldingAStash_KeepSeparateState()
     {

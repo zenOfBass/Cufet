@@ -133,6 +133,23 @@ public static class StashTransform
             // The step assignment (and, at a bury, the return) that ends the block. Kept apart from
             // the body because the write-back of every hoisted local has to slot in between them.
             public List<IStatement>? Exit;
+
+            /// <summary>
+            /// The conditions that were true on the way in, outermost first.
+            /// </summary>
+            /// <remarks>
+            /// ★★ This is what lets a bury live inside a type test. Splitting an `If` arm into its
+            /// own block leaves the NARROWING behind — the block is re-entered with the subject back
+            /// at its declared type, and the compiler then cannot see which case of a union it is
+            /// holding. Recording the arm's condition here, and re-testing it when the block is
+            /// assembled, hands that narrowing back.
+            ///
+            /// ⚠ The re-test is not a real branch. Every hoisted local is restored from its slot
+            /// first, so the subject holds exactly what it held when the arm was chosen, and the
+            /// condition gives exactly the answer it gave then. It is a restatement for the type
+            /// checker and the code generator, not a decision.
+            /// </remarks>
+            public IReadOnlyList<IExpression> Guards = [];
         }
 
         private readonly record struct LoopContext(int Continue, int Break);
@@ -145,6 +162,8 @@ public static class StashTransform
         private readonly Dictionary<string, CufetType> _invented = new(StringComparer.Ordinal);
         private readonly int _line, _col;
         private int _fresh;
+        // Conditions in force at the point a block is created — see Block.Guards.
+        private readonly List<IExpression> _guards = [];
 
         public Machine(BindStatement bind, StashFacts facts)
         {
@@ -251,6 +270,24 @@ public static class StashTransform
             return cur;
         }
 
+        /// <summary>
+        /// Emits an arm's body with <paramref name="guard"/> in force for every block it creates.
+        /// </summary>
+        /// <remarks>
+        /// ⚠ The guard is pushed BEFORE the entry block is handed on, but that block was created by
+        /// the caller and already snapshotted its guards — so it is applied here, to the block the
+        /// arm actually starts in, as well as to everything created inside.
+        /// </remarks>
+        private int EmitGuarded(IReadOnlyList<IStatement> body, int entry, LoopContext? loop, IExpression? guard)
+        {
+            if (guard == null) return EmitStatements(body, entry, loop);
+
+            _blocks[entry].Guards = [.. _blocks[entry].Guards, guard];
+            _guards.Add(guard);
+            try     { return EmitStatements(body, entry, loop); }
+            finally { _guards.RemoveAt(_guards.Count - 1); }
+        }
+
         private int EmitControl(IStatement stmt, int cur, LoopContext? loop)
         {
             switch (stmt)
@@ -264,20 +301,11 @@ public static class StashTransform
 
                 case IfStatement ifs:
                 {
-                    // ★ Same refusal as a judgement, for the same reason. An arm body runs under a
-                    // NARROWING, and splitting the arm into its own block leaves that narrowing
-                    // behind — the block is re-entered with the subject back at its declared type.
-                    // The interpreter would not notice; the compiler would fail on generated C. So
-                    // it is refused here, where the message can say what actually happened.
-                    // `If` itself carries no position, so the offending condition supplies one.
-                    if (ifs.Arms.FirstOrDefault(arm => NarrowsAType(arm.Condition)) is { } narrowing)
-                        throw Refuse(
-                            $"'{_bind.Name}' buries inside an 'If' that tests a type",
-                            "bury from inside a type test",
-                            "The arm would be picked up again with the value back at its wider type. "
-                          + "Bury outside the test, or collect what you want into a series first and "
-                          + "bury from that.", Where(narrowing.Condition));
-
+                    // ★ An arm that TESTS A TYPE is carried into its own block as a guard and
+                    // re-tested there, so the narrowing survives the split. Only narrowing
+                    // conditions are worth carrying — an ordinary comparison tells the compiler
+                    // nothing it did not already know, and re-testing it would be noise in the
+                    // generated code.
                     int after = NewBlock();
                     var entries = ifs.Arms.Select(_ => NewBlock()).ToList();
                     int otherwise = NewBlock();
@@ -287,7 +315,35 @@ public static class StashTransform
                         [SetStep(otherwise)])]);
 
                     for (int i = 0; i < ifs.Arms.Count; i++)
-                        SetExit(EmitStatements(ifs.Arms[i].Body, entries[i], loop), [SetStep(after)]);
+                    {
+                        var armGuard = NarrowsAType(ifs.Arms[i].Condition) ? ifs.Arms[i].Condition : null;
+                        SetExit(EmitGuarded(ifs.Arms[i].Body, entries[i], loop, armGuard), [SetStep(after)]);
+                    }
+
+                    // ⚠ The else arm narrows BY ELIMINATION — after `If x is a text`, the
+                    // `Otherwise` is where x is known not to be a text — and that cannot be carried
+                    // the same way. The obvious guard is the negated test, but **the compiler does
+                    // not narrow on a negated type check at all**, with or without a stash:
+                    // `If thing is not a text: State thing converted to text.` fails to compile in
+                    // ordinary code. So there is no condition to re-test that would restore it.
+                    //
+                    // Refused precisely rather than broadly: only when the else body actually
+                    // MENTIONS the tested name, since that is the only way it can need the
+                    // narrowing. An `Otherwise` that ignores the subject splits perfectly well.
+                    if (ifs.Arms.Count > 0 && ifs.Arms[0].Condition is IsTypeCheck tested
+                        && tested.Target is VariableReference subject
+                        && ifs.ElseBody is { Count: > 0 } elseBody
+                        && Mentions(elseBody, subject.Name))
+                        throw Refuse(
+                            $"'{_bind.Name}' buries in an 'If' that tests a type, and its 'Otherwise' "
+                          + $"uses '{subject.Name}'",
+                            $"rely on '{subject.Name}' being narrowed in the 'Otherwise'",
+                            "The arm that tests the type works — it is re-tested when the stash "
+                          + "resumes. The 'Otherwise' cannot be, because narrowing by elimination "
+                          + "has no condition to restate. Test the other type explicitly in a second "
+                          + $"arm, or use '{subject.Name}' only inside the arms that name a type.",
+                            Where(tested));
+
                     SetExit(EmitStatements(ifs.ElseBody ?? [], otherwise, loop), [SetStep(after)]);
                     return after;
                 }
@@ -458,13 +514,29 @@ public static class StashTransform
                 if (NeedsLoad(block, name))
                     result.Add(Define(name, new SeriesAccess(Slot(name), Num(1), _line, _col)));
 
-            result.AddRange(block.Body);
+            var inner = new List<IStatement>();
+            inner.AddRange(block.Body);
 
             foreach (var (name, _) in hoisted)
                 if (Changes(block, name))
-                    result.Add(Store(name));
+                    inner.Add(Store(name));
 
-            result.AddRange(block.Exit ?? []);
+            inner.AddRange(block.Exit ?? []);
+
+            // ★ Guards wrap everything AFTER the loads and INCLUDING the exit. After the loads,
+            // because the guard reads a local that has to be restored first; including the exit,
+            // because a narrowed value may well be what the block buries.
+            //
+            // ⚠ Each guard gets an `Otherwise` that leaves. The guard cannot be false — the value
+            // was just restored from the slot that made it true — but a fall-through would skip the
+            // step assignment and leave the dispatch loop spinning on the same block forever.
+            // Returning void turns an impossibility into a spent stash rather than a hang.
+            for (int i = block.Guards.Count - 1; i >= 0; i--)
+                inner = [new IfStatement(
+                    [new ConditionArm(block.Guards[i], inner)],
+                    [new ReturnStatement(new VoidLiteral(_line, _col), _line, _col)])];
+
+            result.AddRange(inner);
             return result;
         }
 
@@ -479,6 +551,10 @@ public static class StashTransform
         /// </remarks>
         private static bool NeedsLoad(Block block, string name)
         {
+            // ⚠ A guard is re-tested before anything else runs, so a name it mentions must already
+            // be loaded — checked FIRST, ahead of the body, because the guard comes first in time.
+            if (Mentions(block.Guards, name)) return true;
+
             foreach (var stmt in block.Body)
             {
                 if (!Mentions(stmt, name)) continue;
@@ -534,7 +610,9 @@ public static class StashTransform
 
         private int NewBlock()
         {
-            _blocks.Add(new Block());
+            // Snapshotted, not shared: blocks created deeper inside an arm inherit the guards in
+            // force at their creation, and are unaffected by what is pushed or popped afterwards.
+            _blocks.Add(new Block { Guards = [.. _guards] });
             return _blocks.Count - 1;
         }
 
