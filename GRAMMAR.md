@@ -1561,13 +1561,18 @@ statements, `If` / `Otherwise`, `While`, `Repeat until`, `For each` over a
 series, `Stop`, `Skip`, nested loops, a reassigned parameter, and a local of any
 type — including a series or a map being built up item by item.
 
+An `If` that **tests a type** is allowed and keeps its narrowing: the arm's
+condition is carried into the resumed block and re-tested on entry. That is not a
+branch — every local is restored from its slot first, so the test gives the answer
+it gave the first time. It exists so the type is known again.
+
 **Refused when the program is checked**, so both backends refuse identically:
 
 | Shape | Why |
 |---|---|
 | `Return` anywhere in the body | A burying function finishes by reaching its end; the stash reports that with `void`. Two ways to say "spent" is one too many. |
-| `Bury` inside `Judge` | An arm's body runs under a **narrowing**, and a step number cannot restore one — the arm would resume with the value back at its declared type. |
-| `Bury` inside an `If` that tests a type | Same reason. `If x is a text:` narrows; splitting the arm off loses it. |
+| `Bury` inside `Judge` | An arm's body runs under a **narrowing** and binds `it`. A condition can be restated on resumption; a binding cannot. |
+| `Bury` in the `Otherwise` of a type test, when that arm uses the tested name | It narrows **by elimination**, so there is no condition to restate. ⚠ The negated test is no substitute — the compiler does not narrow on `is not a <type>` at all, with or without a stash. Test the other type in a second arm. |
 | `Bury` inside `Try to` or `Pull a rabbit` | A handler and a region are context a resumption cannot restore. |
 | `Bury` inside `For each` over a **map** | Resuming counts back to where the loop was, and a map's entries have no position to count to. Loop over a series, or use `While`. |
 | `Define a shadow` anywhere in the body | Every scope in the body flattens into one, so the shadow would land on the name it was written to hide. |

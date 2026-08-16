@@ -164,10 +164,16 @@ Ordered by what unblocks what, not by size. Two framings set the order:
       rejected in an object field header, so an ordinary function-valued field cannot be written
       even though the emitter would now handle it. `the stash of number source` parses because
       `stash of T` goes through a different branch of the type parser.
-   2. **Lift the refusals that cost real programs.** A bury inside a judgement, or inside an `If`
-      that tests a type, is refused because splitting the arm into its own block leaves the
-      *narrowing* behind. The fix is to carry each block's guards and re-test them on entry — the
-      value is restored from its slot, so the test gives the same answer it gave the first time.
+   2. **Lift the remaining narrowing refusals.** ▶ **The `If` half is DONE (2026-08-15)** — a block
+      records the conditions it was entered under and re-tests them on entry, which hands the
+      narrowing back. Two cases are left, and they are different problems:
+      - **`Judge`.** Its arms bind `it` as well as narrowing. A condition can be restated on
+        resumption; a binding cannot, so the guard trick does not reach it.
+      - **The `Otherwise` of a type test.** It narrows by ELIMINATION, and there is no condition to
+        restate. ⚠ The negated test is not a substitute, and this is the real blocker: **the
+        compiler does not narrow on `is not a <type>` at all**, with or without a stash —
+        `If thing is not a text: State thing converted to text.` fails to compile in ordinary code.
+        Fixing that is a compiler job in its own right, and it would lift this for free.
    3. **One ownership story.** Exceptions (`setjmp`/`longjmp`), tasks and stashes are three
       restricted continuations with three separate answers to region lifetime and cleanup. One
       rabbit-context abstraction underneath all three.

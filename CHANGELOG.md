@@ -183,6 +183,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★ A `Bury` inside a type test keeps its narrowing.** `If thing is a text: Bury thing. Done.`
+  inside a burying function was refused; it now works on both backends.
+
+  Splitting an `If` arm into its own resumable block left the narrowing behind — the block resumed
+  with the subject back at its declared union type, and the generated C would not build. Each block
+  now records the conditions it was entered under and **re-tests them on entry**. That is not a real
+  branch: every hoisted local is restored from its slot first, so the subject holds exactly what it
+  held when the arm was chosen and the condition gives exactly the answer it gave then. It is a
+  restatement for the type checker and the code generator, not a decision.
+
+  ⚠ The `Otherwise` of a type test is still refused when it uses the tested name, and the reason is
+  not about stashes: that arm narrows **by elimination**, and the obvious guard — the negated test —
+  restores nothing, because the compiler does not narrow on `is not a <type>` at all. Measured with
+  no stash in sight: `If thing is not a text: State thing converted to text.` fails to compile in
+  ordinary code. The refusal is precise — an `Otherwise` that ignores the subject is fine — and it
+  names the fix: test the other type in a second arm.
+
 - **★ A closure — and so a stash — can be an object FIELD.** It interpreted correctly and refused to
   compile, with gcc reporting `unknown type name 'cfn_0'` under a "this is a bug in the Cufet
   compiler" banner.
