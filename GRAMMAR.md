@@ -1612,9 +1612,10 @@ ground that no longer exists.
 An object **field** may hold one too — `Define object ticker with (the stash of
 number source, the text name):` — on both backends.
 
-⚠ An ordinary function-valued field (`the number function maker`) is still
-rejected by the parser. `stash of T` parses in a field header because it goes
-through a different branch of the type parser; the emitter handles both.
+An ordinary function-valued field works the same way — `the number function twice
+given (a number)`. ⚠ The field NAME sits between `function` and `given`, the same
+order a function-typed parameter uses; `void` is legal there only as the return
+type (`the void function log`), never as a field type on its own.
 
 ---
 

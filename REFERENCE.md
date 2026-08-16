@@ -1701,6 +1701,22 @@ State the make of car.          ← named: "Honda"
 State the first of car.         ← positional: "Honda"
 ```
 
+**Function-valued fields** — a field may hold a function, written the way a function-typed
+parameter is: the return type, `function`, the field name, then an optional `given (…)`:
+```
+Define object box with (the number function twice given (a number), the void function log).
+
+Define b as a new box {
+    the twice a function given (the number x): Return x * 2. Done,
+    the log   a function: State "logged". Done
+}.
+
+Define t as the twice of b.
+State cast t on (6).                    → 12
+```
+The name sits between `function` and `given`. `void` is available there as the return type
+(`the void function log`) but is not a field type on its own.
+
 **Read-only fields** — `permanently` after the field name, the same place it goes on a `Define`:
 ```
 Define object user with (the text id permanently, the text name).

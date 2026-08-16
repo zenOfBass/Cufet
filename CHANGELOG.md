@@ -59,6 +59,28 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **A function-valued object field.** `the number function twice given (a number)` now writes in an
+  object or record-shape header, on both backends:
+
+  ```
+  Define object box with (the number function twice given (a number), the void function log).
+
+  Define b as a new box {
+      the twice a function given (the number x): Return x * 2. Done,
+      the log   a function: State "logged". Done
+  }.
+
+  Define t as the twice of b.
+  State cast t on (6).
+  ```
+
+  The emitter already handled this — a `stash of T` field, which shipped earlier, normalises to the
+  same `FunctionType` — so the missing half was purely the parser. The postfix `function` is not
+  part of `ParseTypeAnnotation` (a bare `void` is not a type), so each position that admits a
+  function type consumes it itself, and the field header was the one that never did. The field NAME
+  sits between `function` and `given (…)`, the same order a function-typed parameter uses, so the
+  type cannot be completed before the name is read. `void` is accepted there only as a return type.
+
 - **★★ Modules — a writer's own object can be `Pull`ed.** A module is an object that says it is
   one, and `Pull` brings it into scope. A book is a module that ships with the language; there is
   no privileged category any more.

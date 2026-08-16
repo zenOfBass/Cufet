@@ -151,7 +151,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    cost:** a tree-walking interpreter cannot faithfully offer `call/cc` either.
 
    **What remains, in order:**
-   1. ~~**A closure-typed object FIELD.**~~ **DONE 2026-08-15 (the emitter half).** A `stash of T`
+   1. ~~**A closure-typed object FIELD.**~~ **DONE 2026-08-16.** A `stash of T`
       as an object field now compiles and matches the interpreter. The cause was ordering, not
       representation: object structs were emitted in one phase and closure structs in a later one,
       so an object holding a closure referenced `cfn_0` before it existed. The dependency genuinely
@@ -160,10 +160,10 @@ Ordered by what unblocks what, not by size. Two framings set the order:
       member needs a complete type). Closures now join records, objects, voidables, failables and
       unions in the **one topological sort** in `EmitStructs`.
 
-      ⚠ **What is left is a PARSER gap, and it is separate.** `the number function maker` is still
-      rejected in an object field header, so an ordinary function-valued field cannot be written
-      even though the emitter would now handle it. `the stash of number source` parses because
-      `stash of T` goes through a different branch of the type parser.
+      An ordinary function-valued field — `the number function twice given (a number)` — writes and
+      runs too. That half was a parser gap rather than an emitter one: the postfix `function`
+      belongs to the caller of `ParseTypeAnnotation`, and the field header was the one position
+      that never consumed it.
    2. **Lift the remaining narrowing refusals.** ▶ **`If` is DONE (2026-08-15), arm and `Otherwise`
       alike** — a block records the conditions it was entered under and re-tests them on entry,
       which hands the narrowing back. The `Otherwise` needed the compiler taught to narrow on
