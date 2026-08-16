@@ -59,6 +59,29 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **A `bury` inside a judgement arm.** When each arm names one type, a burying body may `Judge`:
+
+  ```
+  Bind number to sizes, given (the rabbit helper, the series of (number or text) items):
+      For each thing in items, repeat:
+          Judge thing, where it is:
+              A number, have helper bury it + 100.
+              A text, have helper bury the length of it.
+          Done.
+      Done.
+  Done.
+  ```
+
+  An arm carries two things across a resumption where an `If` arm carries one. The narrowing is a
+  guard, as it already was for `If`. The **binding** is what made this different — `it` is not a
+  condition that can be restated — so `it` becomes an ordinary local: it earns a hoisting slot, the
+  subject is evaluated once, and every re-entry restores `it` from its slot rather than
+  re-evaluating a subject that may have moved on.
+
+  Two shapes stay refused, both for the same reason — a residue is not a type a resumption can be
+  told it holds: a **grouped** arm (`A number or a fact`), and an `Otherwise` following **several**
+  arms. A lone arm's `Otherwise` is fine; it guards on that arm's negated test.
+
 - **A function-valued object field.** `the number function twice given (a number)` now writes in an
   object or record-shape header, on both backends:
 
@@ -204,6 +227,26 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   no vtable, no type tag, nothing relaxed.
 
 ### Fixed
+
+- **The `Otherwise` of a negated type test now narrows.** `If x is not a text: … Otherwise: …`
+  reaches its `Otherwise` exactly when x IS a text, and both front ends now say so:
+
+  ```
+  Bind void to show, given (the (number or text) v):
+      If v is not a text:
+          State v + 1.
+      Done.
+      Otherwise:
+          State the length of v.
+      Done.
+  Done.
+  ```
+
+  This had to land in both at once. The checker narrowed a negated test's then-branch only, so the
+  program was rejected before either backend saw it; the compiler's else-arm narrowing additionally
+  required every arm to be un-negated, so fixing the checker alone would have emitted C reading the
+  subject at its full union type. It narrows for a **lone** arm only — with several arms, reaching
+  the else no longer implies this test was the one that failed.
 
 - **★★ BREAKING — burying is commanded: `Have <rabbit> bury <value>.`** There is no bare `Bury x.`
   any more. A rabbit is the agent you summon to do memory work, burying *is* memory work, so a

@@ -695,7 +695,8 @@ same programs.
 
 | Shape | Why |
 | --- | --- |
-| `Bury` inside a `Judge` | An arm's body runs under a **narrowing**; resuming into it would arrive with the value back at its declared type. An `If` that tests a type works — see below — but a judgement's arms bind `it`, which is more than a condition can restate. |
+| `Bury` inside a **grouped** judgement arm (`A number or a fact`) | A grouped arm narrows to a residue that no single test names, so resuming into it would arrive with the value back at its declared type. Give the arm one type. A single-case arm works — see below. |
+| `Bury` inside an `Otherwise` that follows **several** arms | Same reason: after two arms what is left is a mixture, not a case. A lone arm's `Otherwise` is fine. |
 | `Bury` inside `Try to` or a rabbit block | A handler and a region are context a resumption cannot restore. |
 | `Bury` inside `For each` over a map | Resuming means counting back to where the loop was, and a map's entries have no position to count to. Loop over a series. |
 | `Define a shadow` anywhere in the body | The body is flattened into one set of state, so a shadow would land on the name it was written to hide. |
@@ -761,6 +762,23 @@ Done.
 The arm's condition is carried into the resumed block and re-tested there. That is
 not a real branch — every local is restored before it runs, so the test gives the
 answer it gave the first time; it exists so the type is known again.
+
+**A judgement works the same way, when each arm names one type:**
+
+```
+Bind number to sizes, given (the rabbit helper, the series of (number or text) items):
+    For each thing in items, repeat:
+        Judge thing, where it is:
+            A number, have helper bury it + 100.
+            A text, have helper bury the length of it.
+        Done.
+    Done.
+Done.
+```
+
+`it` is kept the way any other local is kept, so the subject is evaluated once and
+restored on each resumption rather than worked out again. A **grouped** arm is
+refused, because a residue is not a type a resumption can be told it holds.
 
 A stash can also be an object **field**:
 

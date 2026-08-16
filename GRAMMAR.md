@@ -1571,12 +1571,18 @@ re-tested on entry (the `Otherwise` uses the negated form). That is not a branch
 every local is restored from its slot first, so the test gives the answer it gave
 the first time. It exists so the type is known again.
 
+A `Judge` with **single-case arms** is allowed too, and keeps both the narrowing
+and the binding. `it` becomes an ordinary local, so the subject is evaluated once
+and `it` is restored from its slot on every re-entry rather than re-evaluated; the
+arm's case then guards the block exactly as an `If` arm's condition does.
+
 **Refused when the program is checked**, so both backends refuse identically:
 
 | Shape | Why |
 |---|---|
 | `Return` anywhere in the body | A burying function finishes by reaching its end; the stash reports that with `void`. Two ways to say "spent" is one too many. |
-| `Bury` inside `Judge` | An arm's body runs under a **narrowing** and binds `it`. A condition can be restated on resumption; a binding cannot. |
+| `Bury` inside a **grouped** `Judge` arm (`A number or a fact`) | The arm narrows to a residue that no single type test states, so there is no condition to re-enter the block under. Give the arm one type. |
+| `Bury` inside an `Otherwise` that follows **several** arms | Same reason — after two arms the leftover is a mixture, not a case. A lone arm's `Otherwise` is fine; it negates that arm's test. |
 | `Bury` inside `Try to` or `Pull a rabbit` | A handler and a region are context a resumption cannot restore. |
 | `Bury` inside `For each` over a **map** | Resuming counts back to where the loop was, and a map's entries have no position to count to. Loop over a series, or use `While`. |
 | `Define a shadow` anywhere in the body | Every scope in the body flattens into one, so the shadow would land on the name it was written to hide. |

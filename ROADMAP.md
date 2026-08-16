@@ -152,23 +152,18 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    cost:** a tree-walking interpreter cannot faithfully offer `call/cc` either.
 
    **What remains, in order:**
-   1. **A bury inside a `Judge`.** `If` carries its narrowing across a resumption — the block
-      records the conditions it was entered under and re-tests them on entry — but a `Judge` arm
-      binds `it` as well as narrowing, and a binding is not a condition that can be restated.
+   1. **A bury inside a GROUPED judgement arm.** Single-case arms landed: `it` is made an ordinary
+      local, so it earns a hoisting slot and is restored at block entry instead of the subject being
+      re-evaluated, and `it is a <case>` guards the block exactly as an `If` arm's condition does.
 
-      **A single-case arm is reachable with what exists**: `it` is an ordinary local, so it already
-      earns a hoisting slot and is restored at block entry without re-evaluating the subject, and
-      `it is a <case>` then guards the block exactly as an `If` arm's condition does. A **grouped**
-      arm (`An add-node or a mul-node`) is not: the surviving type is a residue no single condition
-      states, so the compiler must first narrow on a disjunction of type tests — the same shape of
-      gap that `is not a <type>` was.
+      What is left is the **grouped** arm (`An add-node or a mul-node`), and the `Otherwise` that
+      follows several arms. Both narrow to a residue that no single type test states, so there is no
+      condition to re-enter the block under. Lifting them means teaching the compiler to narrow on a
+      **disjunction of type tests** — the same shape of gap that `is not a <type>` was, and worth
+      doing for ordinary code rather than for stashes.
 
-      ⚠ **The checker has the matching asymmetry and should be fixed alongside**: it narrows a
-      negated test in the then-branch only (`canExhaustNarrow = false`), so the `Otherwise` of
-      `is not a <type>` is rejected before either backend sees it.
-
-      The other refusals in that arm — `Try`, rabbit block, task, file block — are permanent. Each
-      carries a handler, a region, a thread or an open handle that a resumption cannot restore.
+      The other refusals — `Try`, rabbit block, task, file block — are permanent. Each carries a
+      handler, a region, a thread or an open handle that a resumption cannot restore.
    2. **One ownership story — really one, exceptions.** The rabbit is already the single boundary
       for arenas, pthreads, channels and result boxes: it pushes an arena, registers what is created
       inside it, and joins every task and frees every channel at `Done.` before the pop.
