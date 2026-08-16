@@ -457,6 +457,43 @@ public class PipelineClosureTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── An ORDINARY function held in an object FIELD ──
+    //
+    // The emitter half above was the whole fix for `stash of T`; a plain `number function` field was
+    // still rejected by the PARSER, so the shape the topological sort had just been taught to handle
+    // could not be written except through a stash. `stash of T` normalises to a FunctionType
+    // (CodeGenerator.NoStashes), so this is the same lowered thing under its own spelling — which is
+    // why no emitter work was needed and why an oracle test is still the right guard.
+
+    [Fact]
+    public void AnObjectFieldHoldingAPlainFunction_Compiles()
+    {
+        const string src = """
+            Define object box with (
+                the void function log,
+                the number function zero,
+                the number function twice given (a number) permanently,
+                the text label
+            ).
+
+            Define b as a new box {
+                the log a function: State "logged". Done,
+                the zero a function: Return 7. Done,
+                the twice a function given (the number x): Return x * 2. Done,
+                the label "box"
+            }.
+
+            Define l as the log of b.
+            Cast l on ().
+            Define z as the zero of b.
+            State cast z on ().
+            Define t as the twice of b.
+            State cast t on (6).
+            State the label of b.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     /// <summary>
     /// `x is NOT a &lt;case&gt;` narrows the THEN branch, by elimination.
     /// </summary>

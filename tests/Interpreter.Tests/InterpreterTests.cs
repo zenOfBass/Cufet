@@ -3388,6 +3388,41 @@ public class InterpreterTests
             "State the first of alice."));
     }
 
+    // ── A FUNCTION-VALUED field ───────────────────────────────────────────────
+    //
+    // `the stash of number source` always parsed, because `stash of T` is consumed inside
+    // ParseTypeAnnotation. An ordinary function type is not: the postfix `function` belongs to the
+    // caller, so every position that admits one consumes it itself.
+
+    [Fact]
+    public void Object_FunctionValuedField()
+    {
+        // ★ The field NAME sits between `function` and `given (...)`, so the type cannot be
+        // completed before the name is read — and `permanently` still trails the whole thing.
+        Assert.Equal("12", Run(
+            "Define object box with (the number function twice given (a number) permanently).\n" +
+            "Define b as a new box { the twice a function given (the number x): Return x * 2. Done }.\n" +
+            "Define t as the twice of b.\n" +
+            "State cast t on (6)."));
+    }
+
+    [Fact]
+    public void Object_VoidFunctionValuedField()
+    {
+        Assert.Equal("logged", Run(
+            "Define object box with (the void function log).\n" +
+            "Define b as a new box { the log a function: State \"logged\". Done }.\n" +
+            "Define l as the log of b.\n" +
+            "Cast l on ()."));
+    }
+
+    [Fact]
+    public void Object_VoidFieldWithoutFunctionThrows()
+    {
+        // `void` is a function RETURN type and never a field type on its own.
+        Assert.Throws<ParseException>(() => Run("Define object bad with (the void x)."));
+    }
+
     [Fact]
     public void Object_StateFormatsCorrectly()
     {

@@ -585,8 +585,33 @@ public sealed class Parser
         if (Peek().Type == TokenType.Article) // named: the <type> <name> [permanently]
         {
             Advance(); SkipNoise();
-            var fieldType = ParseTypeAnnotation(); SkipNoise();
+
+            // `the number function maker given (a number)` — a function-valued field. The postfix
+            // `function` is not part of ParseTypeAnnotation (a bare `void` is not a type at all), so
+            // every position that admits a function type consumes it itself; this is the same shape
+            // ParseFunctionParamType uses for a parameter and ParseReturnType uses for a return.
+            // ★ The NAME sits between `function` and `given (...)`, so the type cannot be finished
+            // before the name is read — which is why this is not a wrapper around the plain path.
+            bool voidReturn = Peek().Type == TokenType.Void;
+            if (voidReturn) { Advance(); SkipNoise(); }
+            CufetType? returnType = voidReturn ? null : ParseTypeAnnotation();
+            if (!voidReturn) SkipNoise();
+
+            bool isFunction = Peek().Type == TokenType.FunctionKw;
+            if (voidReturn && !isFunction)
+                throw new ParseException(Peek(),
+                    "field — 'void' can only appear as a function return type");
+            if (isFunction) { Advance(); SkipNoise(); }
+
             var fieldName = Consume(TokenType.Identifier).Lexeme;
+            CufetType fieldType;
+            if (isFunction)
+            {
+                SkipNoise();
+                fieldType = new FunctionType(ParseFunctionParamTypeList(), returnType);
+            }
+            else fieldType = returnType!;
+
             seenNamed = true;
             namedFields.Add((fieldName, fieldType));
 
