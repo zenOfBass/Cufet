@@ -151,11 +151,19 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    cost:** a tree-walking interpreter cannot faithfully offer `call/cc` either.
 
    **What remains, in order:**
-   1. **A closure-typed object FIELD.** The last place a `stash of T` interprets but will not
-      compile, and it is not really about stashes: the emitted C declares object structs before
-      closure structs, and the two can refer to each other (a closure can give back an object that
-      holds a closure), so it needs forward declarations that are not emitted. Fixing it also buys
-      an ordinary function-valued field, which the parser does not accept today either.
+   1. ~~**A closure-typed object FIELD.**~~ **DONE 2026-08-15 (the emitter half).** A `stash of T`
+      as an object field now compiles and matches the interpreter. The cause was ordering, not
+      representation: object structs were emitted in one phase and closure structs in a later one,
+      so an object holding a closure referenced `cfn_0` before it existed. The dependency genuinely
+      runs both ways — a closure's parameter may be a record, a record's field may be a closure — so
+      two fixed phases cannot express it and a forward declaration cannot help (a by-value struct
+      member needs a complete type). Closures now join records, objects, voidables, failables and
+      unions in the **one topological sort** in `EmitStructs`.
+
+      ⚠ **What is left is a PARSER gap, and it is separate.** `the number function maker` is still
+      rejected in an object field header, so an ordinary function-valued field cannot be written
+      even though the emitter would now handle it. `the stash of number source` parses because
+      `stash of T` goes through a different branch of the type parser.
    2. **Lift the refusals that cost real programs.** A bury inside a judgement, or inside an `If`
       that tests a type, is refused because splitting the arm into its own block leaves the
       *narrowing* behind. The fix is to carry each block's guards and re-test them on entry — the

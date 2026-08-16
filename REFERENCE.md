@@ -737,10 +737,16 @@ Bind number to squares-and-cubes, given (the number upto):
 Done.
 ```
 
-⚠ **An object FIELD is the one place a stash does not compile yet.** It
-interprets, so the program runs; `build` refuses it. That is a gap in how the
-generated C orders its type declarations — a closure struct can give back an
-object that holds a closure — and not a limit on stashes.
+A stash can also be an object **field**:
+
+```
+Define object ticker with (the stash of number source, the text name):
+    Bind void to report:
+        Define held as one's source.
+        State one's name joined to ": " joined to ((unbury held but void is 0) converted to text).
+    Done.
+Done.
+```
 
 #### Where a stash is buried
 

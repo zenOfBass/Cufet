@@ -183,6 +183,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★ A closure — and so a stash — can be an object FIELD.** It interpreted correctly and refused to
+  compile, with gcc reporting `unknown type name 'cfn_0'` under a "this is a bug in the Cufet
+  compiler" banner.
+
+  The cause was emission ORDER, not representation. Object structs were written in one phase and
+  closure structs in a later one, so an object holding a closure named a type that did not exist
+  yet. The dependency runs both ways — a closure's parameter may be a record, a record's field may
+  be a closure — so two fixed phases cannot express it, and a forward declaration cannot help
+  either, because a by-value struct member needs a complete type. Closures now take part in the
+  **same topological sort** as records, objects, voidables, failables and unions.
+
+  ⚠ Still not writable: an ordinary function-valued field (`the number function maker`) is rejected
+  by the parser, which is a separate gap from the one fixed here.
+
 - **`check --native` handed the code generator the wrong program.** It ran the generator on the tree
   as WRITTEN rather than the one that runs, so every correct stash program came back with an
   internal "a 'bury' reached the code generator untransformed". The linter still reads the original

@@ -1599,11 +1599,12 @@ program still interprets — `check --native` reports it as a warning. Under the
 rule above the interpreted behaviour is the wrong one: it digs silver out of
 ground that no longer exists.
 
-⚠ **An object FIELD is the exception, and only when compiling.** `the stash of
-number source` as a field interprets correctly; `build` refuses it. The generated
-C declares object structs before closure structs, and the two can refer to each
-other, so it needs forward declarations that are not emitted yet. A gap in the
-emitter, not a limit on stashes.
+An object **field** may hold one too — `Define object ticker with (the stash of
+number source, the text name):` — on both backends.
+
+⚠ An ordinary function-valued field (`the number function maker`) is still
+rejected by the parser. `stash of T` parses in a field header because it goes
+through a different branch of the type parser; the emitter handles both.
 
 ---
 
