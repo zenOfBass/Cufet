@@ -366,22 +366,20 @@ public class StashMachineTests
     }
 
     /// <summary>
-    /// The `Otherwise` of a type test is still refused, and for a reason that is not about stashes.
+    /// The `Otherwise` of a type test narrows too — by elimination — and survives the split.
     /// </summary>
     /// <remarks>
-    /// ⚠ An else arm narrows BY ELIMINATION, and the obvious guard — the negated test — restores
-    /// nothing, because **the compiler does not narrow on a negated type check at all**. Measured
-    /// with no stash in sight: `If thing is not a text: State thing converted to text.` fails to
-    /// compile in ordinary code. So there is no condition to restate, and refusing precisely beats
-    /// emitting something that reaches gcc as "a bug in the Cufet compiler".
-    ///
-    /// Refused only when the else body MENTIONS the tested name — an `Otherwise` that ignores the
-    /// subject cannot need the narrowing and splits perfectly well.
+    /// ★ This one was refused for an hour, and the refusal was correct at the time: the guard for an
+    /// else arm is the NEGATED test, and the compiler did not narrow on `is not a &lt;type&gt;` at
+    /// all. Fixing that — a plain divergence in ordinary code, nothing to do with stashes — lifted
+    /// this case with no stash-specific code at all. Worth remembering as a shape: a refusal whose
+    /// stated reason lives in another component is a refusal that disappears when that component is
+    /// fixed, not one to design around.
     /// </remarks>
     [Fact]
-    public void TheOtherwiseOfATypeTest_IsRefusedWhenItUsesTheSubject()
+    public void TheOtherwiseOfATypeTest_NarrowsByElimination()
     {
-        var ex = Refused("""
+        Assert.Equal("number: 1\ntext: two\nnumber: 3", Run("""
             Bind text to describe-all, given (the series of (number or text) things):
                 For each thing in things, repeat:
                     If thing is a text:
@@ -393,36 +391,13 @@ public class StashMachineTests
                 Done.
             Done.
 
-            Define source as cast describe-all on (a series of (number or text) with (1, "two")).
-            State unbury source.
-            """);
-        Assert.Contains("'Otherwise' uses 'thing'", ex.Message);
-        Assert.Equal(3, ex.Line);   // the condition, not the function
-    }
-
-    [Fact]
-    public void AnOtherwiseThatIgnoresTheSubject_IsFine()
-    {
-        // Nothing in the else arm needs the narrowing, so there is nothing to refuse.
-        Assert.Equal("two\nskipped", Run("""
-            Bind text to texts-or-note, given (the series of (number or text) things):
-                For each thing in things, repeat:
-                    If thing is a text:
-                        Bury thing.
-                    Done.
-                    Otherwise:
-                        Bury "skipped".
-                    Done.
-                Done.
-            Done.
-
-            Define source as cast texts-or-note on (a series of (number or text) with ("two", 3)).
+            Define source as cast describe-all on (a series of (number or text) with (1, "two", 3)).
             Repeat:
-                Define found as unbury source.
-                If found is void:
+                Define line as unbury source.
+                If line is void:
                     Stop.
                 Done.
-                State found.
+                State line.
             Until false.
             """));
     }

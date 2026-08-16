@@ -320,31 +320,18 @@ public static class StashTransform
                         SetExit(EmitGuarded(ifs.Arms[i].Body, entries[i], loop, armGuard), [SetStep(after)]);
                     }
 
-                    // ⚠ The else arm narrows BY ELIMINATION — after `If x is a text`, the
-                    // `Otherwise` is where x is known not to be a text — and that cannot be carried
-                    // the same way. The obvious guard is the negated test, but **the compiler does
-                    // not narrow on a negated type check at all**, with or without a stash:
-                    // `If thing is not a text: State thing converted to text.` fails to compile in
-                    // ordinary code. So there is no condition to re-test that would restore it.
+                    // ★ The else arm narrows BY ELIMINATION — after `If x is a text`, the
+                    // `Otherwise` is where x is known NOT to be a text — and the negated test states
+                    // exactly that, so it guards the block like any other condition. This only works
+                    // because the compiler now narrows on `is not a <type>`; until it did, the guard
+                    // was a condition that restored nothing and the case had to be refused.
                     //
-                    // Refused precisely rather than broadly: only when the else body actually
-                    // MENTIONS the tested name, since that is the only way it can need the
-                    // narrowing. An `Otherwise` that ignores the subject splits perfectly well.
-                    if (ifs.Arms.Count > 0 && ifs.Arms[0].Condition is IsTypeCheck tested
-                        && tested.Target is VariableReference subject
-                        && ifs.ElseBody is { Count: > 0 } elseBody
-                        && Mentions(elseBody, subject.Name))
-                        throw Refuse(
-                            $"'{_bind.Name}' buries in an 'If' that tests a type, and its 'Otherwise' "
-                          + $"uses '{subject.Name}'",
-                            $"rely on '{subject.Name}' being narrowed in the 'Otherwise'",
-                            "The arm that tests the type works — it is re-tested when the stash "
-                          + "resumes. The 'Otherwise' cannot be, because narrowing by elimination "
-                          + "has no condition to restate. Test the other type explicitly in a second "
-                          + $"arm, or use '{subject.Name}' only inside the arms that name a type.",
-                            Where(tested));
-
-                    SetExit(EmitStatements(ifs.ElseBody ?? [], otherwise, loop), [SetStep(after)]);
+                    // Expressible only with exactly one arm: with several, the surviving type is a
+                    // residue that no single condition states.
+                    var elseGuard = ifs.Arms.Count == 1 && ifs.Arms[0].Condition is IsTypeCheck only
+                        ? new IsTypeCheck(only.Target, only.Type, !only.Negated, only.Line, only.Column)
+                        : null;
+                    SetExit(EmitGuarded(ifs.ElseBody ?? [], otherwise, loop, elseGuard), [SetStep(after)]);
                     return after;
                 }
 

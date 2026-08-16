@@ -455,6 +455,58 @@ public class PipelineClosureTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    /// <summary>
+    /// `x is NOT a &lt;case&gt;` narrows the THEN branch, by elimination.
+    /// </summary>
+    /// <remarks>
+    /// ★ A plain divergence, found sideways. The checker narrows this arm, so the program
+    /// interprets; the compiler did not, so the arm read x at its full union type and the generated
+    /// C would not build. No stash, no module, no closure — just an `If` with a negated type test.
+    ///
+    /// It surfaced only because the negated test was tried as a guard for resuming a stash into an
+    /// `Otherwise`. Fixing it here lifted that restriction with no stash-specific code, which is the
+    /// tell that the refusal had been sitting in front of somebody else's bug.
+    /// </remarks>
+    [Fact]
+    public void NegatedTypeCheck_NarrowsTheThenBranch()
+    {
+        const string src = """
+            Define things as a series of (number or text) with (1, "two", 3).
+            For each thing in things, repeat:
+                If thing is not a text:
+                    State "number: " joined to (thing converted to text).
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    /// <summary>
+    /// The narrowed value can be USED as its narrowed type, not merely printed.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Note what is NOT tested here: the `Otherwise` of a NEGATED test. The checker narrows the
+    /// then-branch of `is not a &lt;type&gt;` but not its else, so
+    /// `If x is not a text: … Done. Otherwise: State "t: " joined to x. Done.` does not type-check
+    /// at all — a front-end asymmetry, not a compiler one, and there is nothing for an oracle test
+    /// to compare while the program is rejected before either backend sees it.
+    /// </remarks>
+    [Fact]
+    public void ANegativelyNarrowedValue_CanBeComputedWith()
+    {
+        const string src = """
+            Define things as a series of (number or text) with (1, "two", 3).
+            Define total as 0.
+            For each thing in things, repeat:
+                If thing is not a text:
+                    The total becomes total + thing.
+                Done.
+            Done.
+            State total.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     // ── A bury inside a type test ──
     //
     // ★ Oracle tests, and they have to be. This shape ALWAYS ran interpreted — the interpreter is

@@ -5184,6 +5184,29 @@ static void* cufet_pipe_stage(void* argp) {
             if (k >= 0) return (uvr.Name, ucases[k], $".val.c{k}");
             return null;
         }
+        // ★ `x is NOT a <case>` narrows the THEN branch by elimination — the mirror of ElseNarrow,
+        // which does the same for the else of a positive test. Without this the arm read x at its
+        // full union type: `If thing is not a text: State thing converted to text.` interpreted
+        // correctly (the checker DOES narrow it) and would not compile, in ordinary code with no
+        // stash in sight. The front end and the back end disagreeing about the same arm is the
+        // divergence this closes.
+        if (cond is IsTypeCheck { Negated: true, Target: VariableReference nvr } ntc
+            && TypeOf(nvr) is UnionType nut)
+        {
+            var ncases = UnionCases(nut);
+            int excluded = MatchCaseInList(ncases, ntc.Type);
+            if (excluded < 0) return null;
+            // Eliminate from what is REACHABLE here, not from the whole union — inside a grouped
+            // Judge arm those differ. Same reasoning as ElseNarrow, and the same source of truth.
+            var reachable = _armCases.TryGetValue(nvr.Name, out var restricted)
+                ? restricted
+                : Enumerable.Range(0, ncases.Count).ToList();
+            var remaining = reachable.Where(i => i != excluded).ToList();
+            if (remaining.Count != 1) return null;   // 2+ left ⇒ still a union, nothing to reach through
+            int j = remaining[0];
+            return (nvr.Name, ncases[j], $".val.c{j}");
+        }
+
         if (cond is IsTypeCheck { Negated: false, Target: VariableReference tvr } tc
             && TypeOf(tvr) is VoidableType tvt && StaticKindMatches(tvt.Inner, tc.Type))
             return (tvr.Name, tvt.Inner, ".val");
