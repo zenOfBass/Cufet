@@ -139,9 +139,10 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    canonical way.)
 
 3. **Finish the rabbit as a control-flow primitive.** Suspend and resume shipped: `Bury` and
-   `unbury` work on both backends, and a burying body is rewritten into a state machine whose step
-   number is the program counter. What is left is making the result **first class**, and then
-   putting the machinery it exposed to work for everything else that suspends.
+   `unbury` work on both backends, a burying body is rewritten into a state machine whose step
+   number is the program counter, and a stash is first class — it passes as a parameter, sits in a
+   series, and holds an object field. What is left is carrying a narrowing across a resumption,
+   unifying the bookkeeping the machinery exposed, and the pointer surface that gates the FFI.
 
    **The restriction is settled and is not a temporary one.** Save state, resume in order, one live
    resumption — coroutine-shaped, not `call/cc`. Full first-class continuations need either
@@ -151,35 +152,35 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    cost:** a tree-walking interpreter cannot faithfully offer `call/cc` either.
 
    **What remains, in order:**
-   1. ~~**A closure-typed object FIELD.**~~ **DONE 2026-08-16.** A `stash of T`
-      as an object field now compiles and matches the interpreter. The cause was ordering, not
-      representation: object structs were emitted in one phase and closure structs in a later one,
-      so an object holding a closure referenced `cfn_0` before it existed. The dependency genuinely
-      runs both ways — a closure's parameter may be a record, a record's field may be a closure — so
-      two fixed phases cannot express it and a forward declaration cannot help (a by-value struct
-      member needs a complete type). Closures now join records, objects, voidables, failables and
-      unions in the **one topological sort** in `EmitStructs`.
+   1. **A bury inside a `Judge`.** `If` carries its narrowing across a resumption — the block
+      records the conditions it was entered under and re-tests them on entry — but a `Judge` arm
+      binds `it` as well as narrowing, and a binding is not a condition that can be restated.
 
-      An ordinary function-valued field — `the number function twice given (a number)` — writes and
-      runs too. That half was a parser gap rather than an emitter one: the postfix `function`
-      belongs to the caller of `ParseTypeAnnotation`, and the field header was the one position
-      that never consumed it.
-   2. **Lift the remaining narrowing refusals.** ▶ **`If` is DONE (2026-08-15), arm and `Otherwise`
-      alike** — a block records the conditions it was entered under and re-tests them on entry,
-      which hands the narrowing back. The `Otherwise` needed the compiler taught to narrow on
-      `is not a <type>` first; that was a plain divergence in ordinary code, and fixing it lifted
-      this case with no stash-specific work.
+      **A single-case arm is reachable with what exists**: `it` is an ordinary local, so it already
+      earns a hoisting slot and is restored at block entry without re-evaluating the subject, and
+      `it is a <case>` then guards the block exactly as an `If` arm's condition does. A **grouped**
+      arm (`An add-node or a mul-node`) is not: the surviving type is a residue no single condition
+      states, so the compiler must first narrow on a disjunction of type tests — the same shape of
+      gap that `is not a <type>` was.
 
-      **`Judge` is what is left, and it is a different problem.** Its arms bind `it` as well as
-      narrowing, and a binding is not a condition that can be restated on resumption. It also needs
-      the front end to grow something the compiler fix did not supply: **the checker narrows
-      `is not a <type>` in the then-branch only**, so a negated test's `Otherwise` is rejected before
-      either backend sees it. Worth doing together — both are about carrying a narrowing that no
-      single condition states.
-   3. **One ownership story.** Exceptions (`setjmp`/`longjmp`), tasks and stashes are three
-      restricted continuations with three separate answers to region lifetime and cleanup. One
-      rabbit-context abstraction underneath all three.
-   4. **Pointers scoped to a rabbit**, which is what gates the C FFI below.
+      ⚠ **The checker has the matching asymmetry and should be fixed alongside**: it narrows a
+      negated test in the then-branch only (`canExhaustNarrow = false`), so the `Otherwise` of
+      `is not a <type>` is rejected before either backend sees it.
+
+      The other refusals in that arm — `Try`, rabbit block, task, file block — are permanent. Each
+      carries a handler, a region, a thread or an open handle that a resumption cannot restore.
+   2. **One ownership story — really one, exceptions.** The rabbit is already the single boundary
+      for arenas, pthreads, channels and result boxes: it pushes an arena, registers what is created
+      inside it, and joins every task and frees every channel at `Done.` before the pop.
+
+      What is not folded in is **exception bookkeeping**. `_rabbitDepth`, `_excOpen` and `_openFiles`
+      are three parallel depth stacks, each with its own unwind helper and its own per-loop list
+      (`_loopRabbitDepths`, `_loopExcDepths`, `_loopFileDepths`), and every nonlocal exit has to
+      unwind all three in the right order. The tell is `_currentTryHandler`, which carries
+      `FileDepth`, `ExcDepth` and `RabbitDepth` as separate fields. Collapsing them into one context
+      record is a refactor against a sharp invariant, not a feature.
+   3. **Pointers scoped to a rabbit**, which is what gates the C FFI below. ⚠ Nothing exists yet —
+      no surface, no design session. This is the item that sets the real distance to "done".
 
 4. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true.
