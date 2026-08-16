@@ -183,6 +183,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★★ Tasks and channels compile and run on Windows.** They had been POSIX-only since the
+  concurrency arc shipped, and the recorded reason — "mingw has no pthreads" — was simply not true:
+  **mingw-w64 ships winpthreads**, and the bundled gcc compiles and runs a pthreads program fine.
+
+  What actually blocked it was in our own emitted C. The threading runtime was fenced to
+  `__unix__ || __APPLE__`, so on Windows none of it was emitted while the generator still produced
+  task code referring to `pthread_t`; and that runtime leans on the interrupt landing pad, which
+  existed only in the POSIX branch. Widening the fence and giving the mingw branch a plain `setjmp`
+  pad (behind one `CUFET_SETJMP` macro) was the whole fix.
+
+  Windows keeps its documented interrupt behaviour: no POSIX signals, so the pad is never jumped to,
+  `setjmp` returns 0, the body runs, and Ctrl-C stays default-terminate.
+
+  `parallelsum` and `channel-deepcopy` now match the interpreter exactly on Windows; `work-queue`
+  differs only in how work splits across workers, which is the non-determinism already documented
+  for Linux (real threads share out, a cooperative scheduler does not) with identical totals. All
+  three came off the Windows skip list, which now holds only `fork`/`exec` programs — genuinely
+  POSIX, with no mingw equivalent to reach for.
+
 - **★ A rabbit can be given work BY NAME.** `Have den start a task as job: … Done.` — previously
   only the bare `rabbit` keyword was accepted, which made `Pull a rabbit as den.` half-wired: the
   name bound a value you could print and pass, but not the one form that actually takes a rabbit.
