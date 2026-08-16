@@ -334,4 +334,39 @@ public class PipelineControlFlowTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    /// <summary>
+    /// A rabbit is a VALUE — printable, and passable to a function that takes one.
+    /// </summary>
+    /// <remarks>
+    /// ★ Another divergence found sideways. `given (the rabbit r)` type-checks and interprets, and
+    /// had no C representation at all — `RabbitType` appeared exactly once in the code generator, in
+    /// the function that formats type names for error messages. Nothing noticed because nothing had
+    /// ever passed one. It surfaced only when burying was going to require a rabbit parameter, which
+    /// would have made EVERY burying function uncompilable.
+    ///
+    /// The representation matches the interpreter's exactly: a rabbit is its NAME and nothing else
+    /// (`RabbitValue`), printing as `&lt;rabbit den&gt;`. A region is a scope the compiler already
+    /// tracks statically, so there is nothing to carry at run time — until rabbit-scoped pointers
+    /// need the depth, and that is where it goes.
+    /// </remarks>
+    [Fact]
+    public void ARabbitIsAValue_PrintableAndPassable()
+    {
+        const string src = """
+            Bind void to inspect, given (the rabbit r):
+                State "got a rabbit".
+                State r.
+            Done.
+
+            Pull a rabbit as den.
+                State den.
+                Cast inspect on (den).
+                Pull a rabbit as inner.
+                    State inner.
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

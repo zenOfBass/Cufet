@@ -2157,6 +2157,15 @@ static void* cufet_pipe_stage(void* argp) {
         runtime.AppendLine("static _Thread_local CufetArena cufet_arenas[CUFET_ARENA_MAX_DEPTH];");
         runtime.AppendLine("static _Thread_local int cufet_arena_top = -1;");
         runtime.AppendLine();
+        // ★ A rabbit VALUE. The interpreter's is a name and nothing else (`RabbitValue`), printing
+        // as `<rabbit den>`, so this matches it exactly rather than inventing state the oracle does
+        // not have. A rabbit is a region, and a region is a scope the compiler already tracks
+        // statically — there is nothing to carry at run time yet. When something needs the depth
+        // (rabbit-scoped pointers), this is where it goes.
+        runtime.AppendLine("typedef struct { const char* name; } cufet_rabbit;");
+        runtime.AppendLine("static void cufet_rabbit_write(cufet_rabbit r) { printf(\"<rabbit %s>\", r.name); }");
+        runtime.AppendLine("static int cufet_rabbit_eq(cufet_rabbit a, cufet_rabbit b) { return strcmp(a.name, b.name) == 0; }");
+        runtime.AppendLine();
         runtime.AppendLine("static void cufet_arena_push(void) {");
         runtime.AppendLine("    ++cufet_arena_top;");
         runtime.AppendLine("    cufet_arenas[cufet_arena_top].ptrs = NULL;");
@@ -2922,6 +2931,7 @@ static void* cufet_pipe_stage(void* argp) {
         MapType m => "M(" + TypeSig(m.KeyType) + "," + TypeSig(m.ValueType) + ")",
         FailureType f => "F(" + TypeSig(f.Inner) + ")",
         MatrixType => "MX",   // one fixed runtime struct (CufetMatrix*) — identity is the type itself
+        RabbitType => "RB",
         FunctionType fn => "Fn(" + string.Join(",", fn.ParameterTypes.Select(TypeSig)) + "->" +
                            (fn.ReturnType == null ? "v" : TypeSig(fn.ReturnType)) + ")",
         // Closed union: cases in DECLARATION order (the front-end's UnionType.Equals is order-sensitive,
@@ -4213,6 +4223,7 @@ static void* cufet_pipe_stage(void* argp) {
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_eq({a}, {b})",
         MapType => $"({a} == {b})",   // maps: reference (pointer) equality, like the interpreter
         MatrixType => $"({a} == {b})",   // matrices: reference equality (interpreter ValuesEqual fallthrough)
+        RabbitType => $"cufet_rabbit_eq({a}, {b})",
         FunctionType => $"(({a}).fn == ({b}).fn && ({a}).env == ({b}).env)",   // function values: reference equality
         UnionType uqo when uqo.Cases == null => $"{OpenUnionStruct}_eq({a}, {b})",
         UnionType uq when uq.Cases != null => $"{RegisterUnionStruct(uq)}_eq({a}, {b})",   // tag + payload
@@ -4227,6 +4238,7 @@ static void* cufet_pipe_stage(void* argp) {
         BitsType   => $"cufet_write_bits({valExpr})",
         FactType   => $"cufet_write_fact({valExpr})",
         TextType   => $"cufet_write_text({valExpr})",
+        RabbitType => $"cufet_rabbit_write({valExpr})",
         SeriesType st => $"{RegisterSeriesStruct(st)}_write({valExpr})",
         RecordType rt => $"{RegisterRecordStruct(rt)}_write({valExpr})",
         ObjectType ot => $"{ObjStructName(ot.Name)}_write({valExpr})",
@@ -4428,6 +4440,7 @@ static void* cufet_pipe_stage(void* argp) {
                     VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr}); cufet_nl()",
                     MapType mt      => $"{RegisterMapStruct(mt)}_write({valExpr}); cufet_nl()",
                     MatrixType      => $"cufet_mat_write({valExpr}); cufet_nl()",
+                    RabbitType      => $"cufet_rabbit_write({valExpr}); cufet_nl()",
                     // A union prints as its underlying value (tag dispatch) — the same _write the
                     // synthesized container helpers call, so a bare `State <union>` matches an
                     // element printed inside a catalogue.
@@ -4676,9 +4689,29 @@ static void* cufet_pipe_stage(void* argp) {
                     sb.AppendLine($"{inner}(void)cf_thr{n}; (void)cf_chan{n}; (void)cf_rbox{n};");
                     _rabbitCtx.Add(n);
                 }
+                // ★ A NAMED rabbit is a value in its block, matching the interpreter, which binds a
+                // `RabbitValue` under the same name. Without this the name existed to the checker
+                // and to nothing else, so `State den.` or `given (the rabbit r)` type-checked, ran
+                // interpreted, and had no C to emit.
+                CufetType? savedRabbitVar = null;
+                bool hadRabbitVar = false;
+                if (prs.Name is { } rabbitName)
+                {
+                    sb.AppendLine($"{inner}cufet_rabbit {MangleName(rabbitName)} = {{ \"{rabbitName}\" }};");
+                    sb.AppendLine($"{inner}(void){MangleName(rabbitName)};");
+                    hadRabbitVar = _varTypes.TryGetValue(rabbitName, out savedRabbitVar);
+                    _varTypes[rabbitName] = RabbitType.Instance;
+                }
+
                 _rabbitDepth++;   // this rabbit pops its arena at Done. (independent of concurrency) —
                 EmitScopedBlock(sb, prs.Body, inner);   // so a region-capturing closure created here can dangle
                 _rabbitDepth--;
+
+                if (prs.Name is { } boundRabbit)
+                {
+                    if (hadRabbitVar) _varTypes[boundRabbit] = savedRabbitVar!;
+                    else _varTypes.Remove(boundRabbit);
+                }
                 if (_usesConcurrency)
                 {
                     _rabbitCtx.RemoveAt(_rabbitCtx.Count - 1);
@@ -8323,6 +8356,7 @@ static void* cufet_pipe_stage(void* argp) {
         FailureType ft => RegisterFailableStruct(ft),
         FailureMarkerType => "CufetFailure",         // a caught / bare failure (message + category)
         ReadableStreamType or WritableStreamType => "FILE*",   // a stream is an open FILE* (or stdin)
+        RabbitType => "cufet_rabbit",                          // a rabbit is its name, as in the interpreter
         ChannelType => "cufet_chan*",                          // a channel is a shared mutex/condvar queue
         MatrixType => MatrixCType(),                           // a matrix is an arena pointer (reference type)
         FunctionType ft => RegisterFuncStruct(ft),             // a function value is a {fn, env} value struct
