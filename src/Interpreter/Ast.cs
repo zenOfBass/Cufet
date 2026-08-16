@@ -648,11 +648,17 @@ public sealed record PullRabbitStatement(
 //     existing region depth/CheckRegionStore covers outward escapes).
 //   • Name (optional): binds an identity for slice-4 result-await; inert in slice 2.
 // Requires an active rabbit in scope (enforced by parser + type checker).
+// Have <rabbit|name> start a task [as <name>]: ... Done.
+// RabbitName == null → the bare `rabbit` keyword, meaning the enclosing one.
+// RabbitName != null → a rabbit addressed BY NAME. A rabbit is an agent you summon and give a job
+// to, so naming one at the point you give it work is the whole reason names exist; requiring the
+// keyword made every name decorative.
 public sealed record LaunchTaskStatement(
     string? Name,
     IReadOnlyList<IStatement> Body,
     int Line,
-    int Column
+    int Column,
+    string? RabbitName = null
 ) : IStatement;
 
 // a matrix with ((r1e1, r1e2, ...), (r2e1, r2e2, ...), ...)

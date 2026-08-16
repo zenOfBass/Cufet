@@ -244,4 +244,72 @@ public class TaskSpawnTests
             """);
         Assert.Equal("42", result);
     }
+
+    // ── Giving work to a rabbit BY NAME ──
+    //
+    // ★ A rabbit is an agent you summon and give a job to, so naming one at the point you hand it
+    // work is the reason names exist at all. Until now only the bare keyword was accepted, which
+    // made `Pull a rabbit as den.` decorative: the name bound a value you could print and pass, but
+    // never the one form that takes a rabbit.
+
+    [Fact]
+    public void ARabbitCanBeGivenWorkByName()
+    {
+        Assert.Equal("3", Run("""
+            Pull a rabbit as den.
+                Have den start a task as work: return 1 + 2. Done.
+                State the awaited result of work.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void TheKeywordAndTheNameCanBeMixed()
+    {
+        // `rabbit` still means "the enclosing one", and naming it is the same rabbit either way.
+        Assert.Equal("3\n10", Run("""
+            Pull a rabbit as den.
+                Have den start a task as work: return 1 + 2. Done.
+                Have rabbit start a task as other: return 10. Done.
+                State the awaited result of work.
+                State the awaited result of other.
+            Done.
+            """));
+    }
+
+    /// <summary>
+    /// Naming a rabbit pulled FURTHER OUT is refused.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Not a spelling restriction — a lifetime one. A task is joined by its rabbit's `Done.`, so
+    /// giving work to an outer rabbit would mean a task outliving the block it was written in.
+    /// That is a real feature (a task that survives an inner scope) and not one to acquire by
+    /// accident while adding a name, so it is refused until it is designed.
+    /// </remarks>
+    [Fact]
+    public void AnOuterRabbitCannotBeGivenWorkFromAnInnerBlock()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Pull a rabbit as outer.
+                Pull a rabbit as inner.
+                    Have outer start a task as work: return 1. Done.
+                    State the awaited result of work.
+                Done.
+            Done.
+            """));
+        Assert.Contains("not the rabbit this block belongs to", ex.Message);
+    }
+
+    [Fact]
+    public void SomethingThatIsNotARabbitCannotBeGivenWork()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define notarabbit as 5.
+            Pull a rabbit as den.
+                Have notarabbit start a task as work: return 1. Done.
+                State the awaited result of work.
+            Done.
+            """));
+        Assert.Contains("is not a rabbit", ex.Message);
+    }
 }

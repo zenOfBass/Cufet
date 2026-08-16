@@ -47,6 +47,32 @@ public sealed partial class TypeChecker
                 "spawning a task outside any rabbit scope",
                 "Wrap the task spawn in 'Pull a rabbit. ... Done.'");
 
+        // ★ A named rabbit has to BE one, and has to be the one that will join the task. A task is
+        // joined by its rabbit's `Done.`, so naming an OUTER rabbit from an inner block would mean a
+        // task outliving the block it was written in — a lifetime extension, not a spelling.
+        // Refused for now rather than half-built; the rule the user set is that agents sharing work
+        // share a block, and this keeps the structured-join guarantee exactly as it was.
+        if (lts.RabbitName is { } named)
+        {
+            if (!TryLookup(named, out var info) || info!.Type is not RabbitType)
+                throw TypeError(
+                    $"'{named}' is not a rabbit",
+                    "Only a rabbit can be given a task",
+                    lts.Line, lts.Column,
+                    $"give a task to '{named}'",
+                    $"Name a rabbit pulled with 'Pull a rabbit as {named}.', or write "
+                  + "'Have rabbit start a task' for the enclosing one.");
+
+            if (info.RabbitDepth != _rabbitDepth)
+                throw TypeError(
+                    $"'{named}' is not the rabbit this block belongs to",
+                    $"A task is joined by its rabbit's 'Done.', so '{named}' would have to outlive this block",
+                    lts.Line, lts.Column,
+                    $"give work to a rabbit pulled further out",
+                    "Give the task to the rabbit pulled in this block, or move the work out to where "
+                  + $"'{named}' was pulled.");
+        }
+
         bool bodyIsFallible = HasDirectFailureReturn(lts.Body);
 
         var prevInFunction       = _inFunction;

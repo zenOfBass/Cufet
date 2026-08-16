@@ -1739,7 +1739,10 @@ public sealed class Parser
         var lineTok = Consume(TokenType.HaveKw);
         var line = lineTok.Line;
         var col = lineTok.Column;
-        Consume(TokenType.Rabbit);
+        // `Have rabbit start …` addresses the enclosing one; `Have den start …` names the agent.
+        string? rabbitName = null;
+        if (Peek().Type == TokenType.Rabbit) Advance();
+        else rabbitName = Consume(TokenType.Identifier).Lexeme;
         Consume(TokenType.Start);
         SkipNoise();                // eats 'a'
         Consume(TokenType.TaskKw);
@@ -1772,7 +1775,7 @@ public sealed class Parser
             body = ParsePullBody(); // consumes Done.
         }
         _functionDepth--;
-        return new LaunchTaskStatement(name, body, line, col);
+        return new LaunchTaskStatement(name, body, line, col, rabbitName);
     }
 
     // Body parser for Pull...Done. scopes. Allows zero statements (unlike ParseLoopBody).
