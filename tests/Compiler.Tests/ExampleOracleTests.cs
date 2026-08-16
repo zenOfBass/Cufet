@@ -50,18 +50,24 @@ public class ExampleOracleTests
     private static string Norm(string s) => s.Replace("\r\n", "\n").TrimEnd('\n');
 
     /// <summary>
-    /// Examples the COMPILER cannot build on this platform, with the reason. Concurrency and
-    /// subprocess programs need pthreads, sigaction and fork — POSIX, guarded in the emitted C, and
-    /// unavailable under mingw. They are not skipped silently: SkippedExamples_StillTypeCheck holds
-    /// them to the front end, so a skip hides the backend and nothing else.
+    /// Examples the COMPILER cannot build on this platform, with the reason. They are not skipped
+    /// silently: SkippedExamples_StillTypeCheck holds them to the front end, so a skip hides the
+    /// backend and nothing else.
     /// </summary>
+    /// <remarks>
+    /// ★ **Concurrency came off this list on 2026-08-15, and the reason it was ever on it was
+    /// wrong.** The entries said "pthreads", but mingw-w64 ships winpthreads and the local gcc
+    /// compiles and runs a pthreads program fine. What actually blocked it was the emitted runtime
+    /// fencing its threading to `__unix__ || __APPLE__`, and the interrupt landing pad it depends on
+    /// existing only in the POSIX branch. Widening the fence and giving the mingw branch a plain
+    /// `setjmp` pad was the whole fix.
+    ///
+    /// What remains here is genuinely POSIX: fork/exec has no mingw equivalent to reach for.
+    /// </remarks>
     private static readonly Dictionary<string, string> WindowsOnlySkips = new()
     {
-        ["channel-deepcopy.cufe"] = "channels — pthreads",
-        ["parallelsum.cufe"]      = "tasks + channels — pthreads",
         ["shell.cufe"]            = "subprocess — fork/exec",
         ["subprocess-pipes.cufe"] = "subprocess pipes — fork/exec",
-        ["work-queue.cufe"]       = "tasks + channels — pthreads",
     };
 
     /// <summary>

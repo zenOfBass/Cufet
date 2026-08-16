@@ -1905,6 +1905,10 @@ static CufetDec cufet_random_number(CufetDec low, CufetDec high, int line) {
 #if defined(__unix__) || defined(__APPLE__)
 #include <signal.h>
 #include <setjmp.h>
+/* The landing pad is established the same way everywhere; only the FLAVOUR of setjmp differs.
+   sigsetjmp/siglongjmp save and restore the signal mask, which is what makes the unwind safe from
+   a signal-interrupted checkpoint — and which mingw has no notion of. */
+#define CUFET_SETJMP(b) sigsetjmp((b), 1)
 static volatile sig_atomic_t cufet_interrupted = 0;
 static _Thread_local sigjmp_buf cufet_thread_top;   /* this thread's interrupt landing pad */
 static _Thread_local int cufet_pad_set = 0;          /* 1 once this thread has established its pad */
@@ -1920,7 +1924,16 @@ static void cufet_checkpoint(void) {
     if (cufet_interrupted && cufet_pad_set) siglongjmp(cufet_thread_top, 1);
 }
 #else
+/* mingw: no sigaction and no signal mask, so Ctrl-C keeps its default (terminate) and the
+   checkpoint never unwinds — `cufet_interrupted` is never set. The landing pad still EXISTS,
+   because the task and pipe machinery establishes one unconditionally; here setjmp always returns
+   0 and the body simply runs. Declaring it is what lets threads compile on a platform that has
+   pthreads (mingw-w64 ships winpthreads) but not POSIX signals. */
+#include <setjmp.h>
+#define CUFET_SETJMP(b) setjmp(b)
 static volatile int cufet_interrupted = 0;
+static _Thread_local jmp_buf cufet_thread_top;
+static _Thread_local int cufet_pad_set = 0;
 static void cufet_install_sigint(void) {}
 static void cufet_checkpoint(void) {}
 #endif
@@ -1937,7 +1950,7 @@ static void cufet_checkpoint(void) {}
     // and leak-free by the same construction as the number-only A+B channel, for arbitrary T.
     private const string ConcurrencyRuntime =
 """
-#if defined(__unix__) || defined(__APPLE__)
+#if defined(__unix__) || defined(__APPLE__) || defined(__MINGW32__)
 #include <pthread.h>
 #include <time.h>
 #define CUFET_TASK_MAX 4096
@@ -2092,7 +2105,7 @@ static void* cufet_pipe_stage(void* argp) {
     cufet_arena_push();
     /* Interrupt landing pad (CONC.E): if a blocked recv inside the stage is interrupted, it unwinds
        to here and the stage tears down normally (arena pop + close output + reaped by the pipe join). */
-    if (sigsetjmp(cufet_thread_top, 1) == 0) { cufet_pad_set = 1; a->fn(a->env); }
+    if (CUFET_SETJMP(cufet_thread_top) == 0) { cufet_pad_set = 1; a->fn(a->env); }
     /* INT.1: run this thread's pending unmakers + close its open files before tearing down. Both
        registries are _Thread_local, so this touches only the stage's own. On the interrupt path
        these would otherwise be skipped entirely (destructors never fire, buffered writes lost). */
@@ -2399,7 +2412,7 @@ static void* cufet_pipe_stage(void* argp) {
             {
                 body.AppendLine("#if defined(__unix__) || defined(__APPLE__)");
                 body.AppendLine("    cufet_install_sigint();");
-                body.AppendLine("    if (sigsetjmp(cufet_thread_top, 1)) {");
+                body.AppendLine("    if (CUFET_SETJMP(cufet_thread_top)) {");
                 body.AppendLine("        cufet_close_files_from(0);   /* flush+close open files (E's file gap, closed by the E-prime registry) */");
                 body.AppendLine("        while (cufet_arena_top >= 0) cufet_arena_pop();");
                 if (_usesConcurrency)
@@ -6813,7 +6826,7 @@ static void* cufet_pipe_stage(void* argp) {
         if (pad)
         {
             _taskFns.AppendLine($"#if defined(__unix__) || defined(__APPLE__)");
-            _taskFns.AppendLine($"    if (sigsetjmp(cufet_thread_top, 1) == 0) {{ cufet_pad_set = 1;");
+            _taskFns.AppendLine($"    if (CUFET_SETJMP(cufet_thread_top) == 0) {{ cufet_pad_set = 1;");
             _taskFns.AppendLine($"#endif");
             bodyIndent = "        ";
         }
