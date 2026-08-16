@@ -183,6 +183,29 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★ A rabbit is a value the compiler can represent.** `State den.` and `given (the rabbit r)`
+  type-checked and interpreted, and had **no C representation at all** — `RabbitType` appeared once
+  in the whole code generator, in the function that formats type names for error messages. Nothing
+  had noticed, because nothing had ever passed a rabbit anywhere.
+
+  ```
+  Bind void to inspect, given (the rabbit r):
+      State r.
+  Done.
+
+  Pull a rabbit as den.
+      Cast inspect on (den).       // <rabbit den>
+  Done.
+  ```
+
+  The representation matches the interpreter rather than improving on it: a rabbit is its **name and
+  nothing else**, exactly as `RabbitValue` is. Giving it the arena depth was tempting — the compiler
+  identifies regions by depth, and rabbit-scoped pointers will want it — but inventing state the
+  oracle does not have is how two backends drift. It goes in when something reads it.
+
+  Also fixed at the same time: a named rabbit's name was known to the checker and to nothing else,
+  so the pull site now binds it.
+
 - **★★ Tasks and channels compile and run on Windows.** They had been POSIX-only since the
   concurrency arc shipped, and the recorded reason — "mingw has no pthreads" — was simply not true:
   **mingw-w64 ships winpthreads**, and the bundled gcc compiles and runs a pthreads program fine.
