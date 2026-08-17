@@ -1571,18 +1571,23 @@ re-tested on entry (the `Otherwise` uses the negated form). That is not a branch
 every local is restored from its slot first, so the test gives the answer it gave
 the first time. It exists so the type is known again.
 
-A `Judge` with **single-case arms** is allowed too, and keeps both the narrowing
-and the binding. `it` becomes an ordinary local, so the subject is evaluated once
-and `it` is restored from its slot on every re-entry rather than re-evaluated; the
-arm's case then guards the block exactly as an `If` arm's condition does.
+A `Judge` is allowed too, and keeps both the narrowing and the binding. `it`
+becomes an ordinary local, so the subject is evaluated once and `it` is restored
+from its slot on every re-entry rather than re-evaluated; the arm's cases then
+guard the block the way an `If` arm's condition does. A **grouped** arm states
+itself as a disjunction (`it is a number or it is a fact`), and an `Otherwise`
+states the cases the arms left over the same way.
+
+⚠ **A nested `Judge` inside a burying body rebinds `it` at a narrower type**, and
+one name may hold one type in a burying function — so it is refused, by that rule
+rather than a judgement-specific one. Bind the inner subject to a name of its own.
 
 **Refused when the program is checked**, so both backends refuse identically:
 
 | Shape | Why |
 |---|---|
 | `Return` anywhere in the body | A burying function finishes by reaching its end; the stash reports that with `void`. Two ways to say "spent" is one too many. |
-| `Bury` inside a **grouped** `Judge` arm (`A number or a fact`) | The arm narrows to a residue that no single type test states, so there is no condition to re-enter the block under. Give the arm one type. |
-| `Bury` inside an `Otherwise` that follows **several** arms | Same reason — after two arms the leftover is a mixture, not a case. A lone arm's `Otherwise` is fine; it negates that arm's test. |
+| `Bury` inside the `Otherwise` of a judgement on a **non-union** subject | The leftover cases have to be named to resume into them, and only a closed union lists what they are. |
 | `Bury` inside `Try to` or `Pull a rabbit` | A handler and a region are context a resumption cannot restore. |
 | `Bury` inside `For each` over a **map** | Resuming counts back to where the loop was, and a map's entries have no position to count to. Loop over a series, or use `While`. |
 | `Define a shadow` anywhere in the body | Every scope in the body flattens into one, so the shadow would land on the name it was written to hide. |

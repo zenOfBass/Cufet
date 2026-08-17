@@ -141,8 +141,9 @@ Ordered by what unblocks what, not by size. Two framings set the order:
 3. **Finish the rabbit as a control-flow primitive.** Suspend and resume shipped: `Bury` and
    `unbury` work on both backends, a burying body is rewritten into a state machine whose step
    number is the program counter, and a stash is first class — it passes as a parameter, sits in a
-   series, and holds an object field. What is left is carrying a narrowing across a resumption,
-   unifying the bookkeeping the machinery exposed, and the pointer surface that gates the FFI.
+   series, and holds an object field. Narrowings survive a resumption now, `If` and `Judge` alike.
+   What is left is unifying the bookkeeping the machinery exposed, and the pointer surface that
+   gates the FFI.
 
    **The restriction is settled and is not a temporary one.** Save state, resume in order, one live
    resumption — coroutine-shaped, not `call/cc`. Full first-class continuations need either
@@ -152,19 +153,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    cost:** a tree-walking interpreter cannot faithfully offer `call/cc` either.
 
    **What remains, in order:**
-   1. **A bury inside a GROUPED judgement arm.** Single-case arms landed: `it` is made an ordinary
-      local, so it earns a hoisting slot and is restored at block entry instead of the subject being
-      re-evaluated, and `it is a <case>` guards the block exactly as an `If` arm's condition does.
-
-      What is left is the **grouped** arm (`An add-node or a mul-node`), and the `Otherwise` that
-      follows several arms. Both narrow to a residue that no single type test states, so there is no
-      condition to re-enter the block under. Lifting them means teaching the compiler to narrow on a
-      **disjunction of type tests** — the same shape of gap that `is not a <type>` was, and worth
-      doing for ordinary code rather than for stashes.
-
-      The other refusals — `Try`, rabbit block, task, file block — are permanent. Each carries a
-      handler, a region, a thread or an open handle that a resumption cannot restore.
-   2. **One ownership story — really one, exceptions.** The rabbit is already the single boundary
+   1. **One ownership story — really one, exceptions.** The rabbit is already the single boundary
       for arenas, pthreads, channels and result boxes: it pushes an arena, registers what is created
       inside it, and joins every task and frees every channel at `Done.` before the pop.
 
@@ -174,7 +163,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
       unwind all three in the right order. The tell is `_currentTryHandler`, which carries
       `FileDepth`, `ExcDepth` and `RabbitDepth` as separate fields. Collapsing them into one context
       record is a refactor against a sharp invariant, not a feature.
-   3. **Pointers scoped to a rabbit**, which is what gates the C FFI below. ⚠ Nothing exists yet —
+   2. **Pointers scoped to a rabbit**, which is what gates the C FFI below. ⚠ Nothing exists yet —
       no surface, no design session. This is the item that sets the real distance to "done".
 
 4. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"

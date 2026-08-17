@@ -59,7 +59,28 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **A `bury` inside a judgement arm.** When each arm names one type, a burying body may `Judge`:
+- **A group of type tests narrows to the sub-union.** `x is a A or x is a B` now narrows `x` to
+  `(A or B)` in the branch, and the `Otherwise` eliminates through it to whatever is left:
+
+  ```
+  If x is a number or x is a fact:
+      Judge x, where it is:            ← no Otherwise needed: text is ruled out
+          A number, state "n".
+          A fact, state "f".
+      Done.
+  Done.
+  Otherwise:
+      State the length of x.           ← x is a text here
+  Done.
+  ```
+
+  Every operand must be a positive test on the same name; a mixed disjunction narrows nothing. The
+  two front ends keep the answer in different shapes and have to agree: the checker narrows to the
+  sub-union type, while the compiler keeps a **set of indices** into the representation union —
+  a sub-union's own case order need not match the subject's, so substituting a narrower type there
+  would make every emitted member access index the wrong case.
+
+- **A `bury` inside a judgement arm**, grouped arms and `Otherwise` included:
 
   ```
   Bind number to sizes, given (the rabbit helper, the series of (number or text) items):
@@ -78,9 +99,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   subject is evaluated once, and every re-entry restores `it` from its slot rather than
   re-evaluating a subject that may have moved on.
 
-  Two shapes stay refused, both for the same reason — a residue is not a type a resumption can be
-  told it holds: a **grouped** arm (`A number or a fact`), and an `Otherwise` following **several**
-  arms. A lone arm's `Otherwise` is fine; it guards on that arm's negated test.
+  A **grouped** arm states itself as a disjunction, and an `Otherwise` names whichever cases the
+  arms left — so both rest on the narrowing above rather than on anything stash-specific.
+
+  Two shapes are refused. A judgement on a **non-union** subject cannot have a burying `Otherwise`,
+  because the leftover cases have to be named and only a closed union lists them. And a **nested**
+  `Judge` rebinds `it` at a narrower type, which the existing one-name-one-type rule for burying
+  bodies already refuses — bind the inner subject to a name of its own.
 
 - **A function-valued object field.** `the number function twice given (a number)` now writes in an
   object or record-shape header, on both backends:

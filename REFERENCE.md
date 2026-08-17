@@ -554,8 +554,9 @@ Judge thing, where it is:
 Done.
 ```
 
-A **grouped** arm does not narrow — an arm covering two cases cannot know which one
-arrived, so `it` stays the union and must be tested again before type-specific use.
+A **grouped** arm narrows only as far as the group: an arm covering two cases cannot
+know which one arrived, so `it` is the sub-union it names and must be tested again
+before type-specific use.
 
 > **The subject may be an expression.** Narrowing is variable-level, so `If` cannot
 > narrow a value produced by an expression — you have to name it first. `Judge` names
@@ -695,8 +696,8 @@ same programs.
 
 | Shape | Why |
 | --- | --- |
-| `Bury` inside a **grouped** judgement arm (`A number or a fact`) | A grouped arm narrows to a residue that no single test names, so resuming into it would arrive with the value back at its declared type. Give the arm one type. A single-case arm works — see below. |
-| `Bury` inside an `Otherwise` that follows **several** arms | Same reason: after two arms what is left is a mixture, not a case. A lone arm's `Otherwise` is fine. |
+| `Bury` inside the `Otherwise` of a judgement on a **non-union** subject | The leftover cases have to be named to resume into them, and only a closed union says what they are. |
+| A nested `Judge` inside a burying body | The inner one rebinds `it` at a narrower type, and one name holds one type here. Bind the inner subject to a name of its own. |
 | `Bury` inside `Try to` or a rabbit block | A handler and a region are context a resumption cannot restore. |
 | `Bury` inside `For each` over a map | Resuming means counting back to where the loop was, and a map's entries have no position to count to. Loop over a series. |
 | `Define a shadow` anywhere in the body | The body is flattened into one set of state, so a shadow would land on the name it was written to hide. |
@@ -777,8 +778,9 @@ Done.
 ```
 
 `it` is kept the way any other local is kept, so the subject is evaluated once and
-restored on each resumption rather than worked out again. A **grouped** arm is
-refused, because a residue is not a type a resumption can be told it holds.
+restored on each resumption rather than worked out again. A **grouped** arm works
+the same way — it states itself as `it is a number or it is a fact` — and so does
+an `Otherwise`, which names whichever cases the arms left.
 
 A stash can also be an object **field**:
 
@@ -2607,7 +2609,30 @@ Otherwise, state x converted to text.    ← x is a fact here
 
 **`is not a <type>`** narrows the true branch to the complement — for a
 `(number or text)` union, `if x is not a number` narrows `x` to `text` in the
-true branch.
+true branch. Its `Otherwise` narrows the other way, to the type that was tested:
+reaching it means `x` **is** a number. That holds for a lone arm only — after
+several arms, reaching the `Otherwise` no longer says which test failed.
+
+**A group of tests on one value** narrows to the sub-union it names, and the
+`Otherwise` gets whatever is left:
+
+```
+Define the (number or text or fact) x as 42.
+
+If x is a number or x is a fact:
+    Judge x, where it is:                ← no Otherwise needed: text is ruled out
+        A number, state "n".
+        A fact, state "f".
+    Done.
+Done.
+Otherwise:
+    State the length of x.               ← x is a text here
+Done.
+```
+
+Every operand has to be a positive test on the **same** name. A mixed
+disjunction narrows nothing, because reaching the arm would not imply any one of
+its parts.
 
 **Open unions** — `Otherwise` after an open union check is *not* narrowable;
 only agnostic operations are legal there. Open is sound (narrowing still
