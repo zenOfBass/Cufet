@@ -723,6 +723,23 @@ public sealed partial class TypeChecker
         Pass2CheckOverloads(program); // body-check all overloads; populates _overloadReturnTypes
         CheckBlock(program.Statements);
 
+        // ★★ No filled SHELL may survive the front end, the same way no `stash of T` does. A shell
+        // reaches a backend wherever a type was merely WRITTEN rather than resolved — an annotation
+        // like `a series of box of number` never passes through ResolveParamType — and the backend
+        // then meets one type under two spellings: the resolved `box of number` in one place and an
+        // unresolved `box` in another, which register as two different series element types with
+        // only one of them emitted. Substituting once here makes every written position correct at
+        // a stroke, which is the same reasoning StashTypeSubstitution records.
+        //
+        // ⚠ BEFORE the splice check below, not after: resolving a shell may fill a template nothing
+        // else did, and that filling still has to reach the program.
+        // No template declared ⇒ no shell can exist, so the walk stays off the path of every
+        // ordinary program — the same gate StashTransform.Expand uses for the same reason.
+        if (_genericObjectDefs.Count > 0)
+            program = new Program(AstRebuilder.Apply(program.Statements,
+                t => AstRebuilder.SubstituteDeep(t,
+                    inner => inner is ObjectType { TypeArguments.Count: > 0 } ? ResolveParamType(inner) : inner)));
+
         // ★ A filled-in template became an ordinary definition, but only in this checker's tables —
         // and the COMPILER emits from the program's statements. Splice them in and check once more
         // on a clean checker, which then meets them as the ordinary objects they now are.

@@ -110,6 +110,9 @@ public sealed class CodeGenerator
         // them too — clear the requests/emitted-set so the real pass emits each exactly once.
         _ifaceSpecReq.Clear(); _ifaceSpecDone.Clear(); _ifaceSpecSigs.Clear();
         _loopUnmakerSnaps.Clear(); _scopeDepth = 0; _frameUnmakerBase = null;
+        // Registration is per-pass: the discovery iteration and the real one each build their own
+        // struct lists, so "already registered" has to be forgotten between them.
+        _objectFieldsDone.Clear();
     }
 
     // Top-level `permanently` bindings, by reference — the shared constants that must live at C
@@ -3102,8 +3105,34 @@ static void* cufet_pipe_stage(void* argp) {
             // A union nested in a record/object field (CAT.3). Open unions need no registration —
             // the ONE `cun_open` is emitted from the ProgramUsesOpenUnion gate, not per-site.
             case UnionType ut when ut.Cases != null: RegisterUnionStruct(ut); break;
+            // ★ An OBJECT's own field types. A record recurses into its fields (above); an object
+            // did not, so `series of holder` registered the outer series and never the
+            // `series of number` inside holder.
+            //
+            // ⚠ It hid because the DISCOVERY pass usually registers the inner series anyway — the
+            // body touches it. A field the program never reads is declared in the struct and
+            // registered nowhere, and by the time struct emission asks for its C type the list it
+            // would join is already being written. Measured, with no generics involved:
+            // `Define object holder with (the series of number items).` used as `a series of
+            // holder` emitted a struct referencing an undeclared `cser_1`.
+            case ObjectType ot: RegisterObjectFields(ot); break;
         }
     }
+
+    /// <summary>Registers the structs an object's own fields need.</summary>
+    /// <remarks>
+    /// ⚠ The visited set is what makes this terminate. An object may hold itself — a `node` with a
+    /// `series of node` — and registration is idempotent by name, so seeing it once is enough.
+    /// </remarks>
+    private void RegisterObjectFields(ObjectType ot)
+    {
+        if (!_objectFieldsDone.Add(ot.Name)) return;
+        if (!_objectDefs.TryGetValue(ot.Name, out var def)) return;
+        foreach (var t in def.PositionalTypes) RegisterNestedRecords(t);
+        foreach (var (_, t) in def.NamedFields) RegisterNestedRecords(t);
+    }
+
+    private readonly HashSet<string> _objectFieldsDone = new(StringComparer.Ordinal);
 
     // Ensures a series container struct exists for `series of T` (and T's nested structs).
     // Returns the C struct name. Series is a reference type (arena pointer, shared on assign).

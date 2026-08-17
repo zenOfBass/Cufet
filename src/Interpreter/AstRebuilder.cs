@@ -127,6 +127,17 @@ internal static class AstRebuilder
             case null or string:
                 return false;
 
+            // ⚠ An ENUM lives in this namespace too — ReadForm, FileReadForm, PathCheckKind,
+            // OpenMode — and has no constructor to rebuild it with, so the default arm below threw
+            // "Sequence contains no elements" on it. There is nothing inside one to substitute
+            // anyway.
+            //
+            // ★ Latent since the walk was written, and NOT only a new-caller problem: any burying
+            // program that also opened a file would have hit it. It stayed hidden because the walk
+            // ran only for programs containing a `bury`, and no test combined the two.
+            case Enum:
+                return false;
+
             case CufetType type:
             {
                 var substituted = substitute(type);

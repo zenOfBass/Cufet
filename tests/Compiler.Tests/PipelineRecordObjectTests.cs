@@ -13,6 +13,31 @@ namespace Cufet.Compiler.Tests;
 public class PipelineRecordObjectTests : PipelineTestBase
 {
 
+    /// <summary>
+    /// An object used as a series ELEMENT brings its own field types with it.
+    /// </summary>
+    /// <remarks>
+    /// ★ A plain divergence, found sideways — it interprets and would not compile, with no generics
+    /// involved at all. `RegisterNestedRecords` recursed into a record's fields but had no case for
+    /// an object, so registering `series of holder` never registered the `series of number` inside
+    /// holder, and the emitted struct referenced an undeclared `cser_1`.
+    ///
+    /// ⚠ What hid it: the DISCOVERY pass registers the inner series whenever the body touches it,
+    /// which nearly every program does. It takes a field the program never READS — declared in the
+    /// struct, reached by nothing else — before the gap is visible. It surfaced while probing
+    /// generics, because a filled template happens to have exactly that shape.
+    /// </remarks>
+    [Fact]
+    public void AnObjectWithAnUnreadSeriesField_AsASeriesElement_Compiles()
+    {
+        const string src = """
+            Define object holder with (the series of number items).
+            Define many as a series of holder.
+            State the number of many.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     // ── A definition that leaves a blank ──
     //
     // ★★ Filling happens in the FRONT END: `a stack of number` becomes an ordinary definition named

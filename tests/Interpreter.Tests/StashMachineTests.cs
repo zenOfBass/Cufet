@@ -577,6 +577,40 @@ public class StashMachineTests
             """));
     }
 
+    /// <summary>
+    /// A burying program may also do I/O — the type substitution walks an ENUM without choking.
+    /// </summary>
+    /// <remarks>
+    /// ★ Latent since the substitution walk was written, and it crashed the type checker rather
+    /// than mis-compiling: `Cufet.Interpreter` holds four enums (ReadForm, FileReadForm,
+    /// PathCheckKind, OpenMode), an enum has no constructor, and the walk's rebuild arm called
+    /// `GetConstructors().First()` on one — "Sequence contains no elements".
+    ///
+    /// ⚠ It hid because the walk runs only for a program containing a `bury`, and nothing combined
+    /// a bury with file I/O or `the input`. Two features, each covered, never crossed. It surfaced
+    /// only when a second caller started running the same walk on ordinary programs.
+    /// </remarks>
+    [Fact]
+    public void ABuryingProgram_MayAlsoReadTheInput()
+    {
+        Assert.Equal("none\n1", Run("""
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Pull a rabbit as den.
+                Define line as read a line from the input but void is "none".
+                State line.
+                Define source as cast counting-up on (den, 1).
+                State unbury source but void is 0.
+            Done.
+            """));
+    }
+
     [Fact]
     public void ABuryInsideAJudgementsOtherwise_NeedsAClosedUnion()
     {
