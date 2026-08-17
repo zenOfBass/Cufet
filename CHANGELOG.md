@@ -285,6 +285,30 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **An object used as a series element brings its own field types.** This interprets and would not
+  compile — no generics involved:
+
+  ```
+  Define object holder with (the series of number items).
+  Define many as a series of holder.
+  State the number of many.
+  ```
+
+  `RegisterNestedRecords` recursed into a **record's** field types but had no case for an object, so
+  registering `series of holder` never registered the `series of number` inside it, and the emitted
+  struct referenced an undeclared one. What hid it: the discovery pass registers the inner series
+  whenever the body touches it, which nearly every program does — it takes a field the program never
+  *reads* for the gap to show. Found while probing generic objects, which have that shape.
+
+- **The type-substitution walk no longer chokes on an enum.** Four enums live in the AST's namespace
+  (`ReadForm`, `FileReadForm`, `PathCheckKind`, `OpenMode`), an enum has no constructor, and the
+  walk's rebuild called `GetConstructors().First()` on one — so the type checker threw *"Sequence
+  contains no elements"* instead of checking the program.
+
+  ⚠ Reachable before this release: the walk runs for any program containing a `bury`, so a burying
+  program that also opened a file or read `the input` would have crashed. It survived because those
+  two features were each well covered and never crossed in one test.
+
 - **The `Otherwise` of a negated type test now narrows.** `If x is not a text: … Otherwise: …`
   reaches its `Otherwise` exactly when x IS a text, and both front ends now say so:
 
