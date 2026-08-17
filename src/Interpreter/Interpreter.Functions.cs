@@ -11,6 +11,16 @@ public sealed partial class Interpreter
     //   Cast steer on (racer, 90)      → VarRef not in env → DispatchMethod(steer, racer, [90])
     //   Cast greet on alice            → VarRef not in env → DispatchMethod(greet, alice, [])
     //   Cast add on (3, 4)             → VarRef in env as FunctionValue → ExecuteCall
+    /// <summary>The function a cast actually reaches, once a filled-in name is known.</summary>
+    /// <remarks>
+    /// ★ A function that left blanks in its signature is checked and emitted once PER FILLING, under
+    /// a name naming that filling (`first-two of number`). The name written at the call site is the
+    /// template's, and no body answers to it — the template is dropped before either backend runs.
+    /// The checker records which filling this call reached; this is where that is honoured.
+    /// </remarks>
+    private static IExpression CalledFunction(IExpression written, string? resolved, int line, int column) =>
+        resolved is null ? written : new VariableReference(resolved, line, column);
+
     private object? ExecuteCallExpr(IExpression funcExpr, IReadOnlyList<IExpression> args, int line)
     {
         if (funcExpr is PossessiveAccess pa)

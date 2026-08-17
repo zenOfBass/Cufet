@@ -317,7 +317,8 @@ public sealed partial class Interpreter
 
     private object EvaluateCastExpr(CastExpression cast)
     {
-        var result = ExecuteCallExpr(cast.Function, cast.Args, cast.Line)
+        var result = ExecuteCallExpr(CalledFunction(cast.Function, cast.ResolvedFunctionName, cast.Line, cast.Column),
+                                     cast.Args, cast.Line)
             ?? throw new RuntimeException(
                 $"{FuncDisplayName(cast.Function)} gives nothing back — it can't be used as a value (line {cast.Line}).");
         if (result is FailureValue fv)

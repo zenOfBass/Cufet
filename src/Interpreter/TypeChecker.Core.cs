@@ -504,6 +504,13 @@ public sealed partial class TypeChecker
     /// <summary>Instantiations already built, keyed by their filled-in name (`stack of number`).</summary>
     private readonly Dictionary<string, ObjectDefinition> _instantiated = new(StringComparer.Ordinal);
 
+    /// <summary>Functions leaving a blank, by name, with the blanks their signature named.</summary>
+    private readonly Dictionary<string, (BindStatement Bind, List<string> Blanks)> _genericFunctions =
+        new(StringComparer.Ordinal);
+
+    /// <summary>Filled-in functions already built, keyed by their filled-in name (`unique of text`).</summary>
+    private readonly Dictionary<string, BindStatement> _instantiatedFunctions = new(StringComparer.Ordinal);
+
     // How many times the check has been re-run to splice in filled-in definitions. One re-run is
     // the normal case; the cap turns an endlessly self-filling template into a clean refusal.
     private int _instantiationDepth;
@@ -747,7 +754,7 @@ public sealed partial class TypeChecker
         // It terminates: the second pass finds each filling already registered under its own name,
         // so it instantiates nothing new and the recursion stops one level down. A template that
         // fills itself endlessly is caught by the depth guard rather than by running out of stack.
-        if (_instantiated.Count > 0)
+        if (_instantiated.Count > 0 || _instantiatedFunctions.Count > 0)
         {
             if (_instantiationDepth >= MaxInstantiationDepth)
                 throw new TypeException(
@@ -759,7 +766,8 @@ public sealed partial class TypeChecker
             // type, so a backend meeting one would try to emit a struct for `stack` whose field is
             // an undefined `element` — the same rule that lets no `StashType` survive the front end.
             var spliced = new List<IStatement>(_instantiated.Values);
-            spliced.AddRange(WithoutTemplates(program.Statements));
+            spliced.AddRange(_instantiatedFunctions.Values);
+            spliced.AddRange(WithoutTemplates(program.Statements, _genericFunctions.Keys.ToHashSet(StringComparer.Ordinal)));
             return new TypeChecker { _instantiationDepth = _instantiationDepth + 1 }
                 .Check(new Program(spliced));
         }
@@ -769,8 +777,45 @@ public sealed partial class TypeChecker
         return ReferenceEquals(lowered, program.Statements) ? program : new Program(lowered);
     }
 
-    /// <summary>Drops template definitions, reaching through `Pull` bodies the way hoisting does.</summary>
-    private static IReadOnlyList<IStatement> WithoutTemplates(IReadOnlyList<IStatement> statements)
+    /// <summary>
+    /// The blanks a function's signature leaves — unknown type names used more than once.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ The twice rule is the whole safety argument, so it is applied to the SIGNATURE only. A
+    /// body mentioning the same misspelling twice must not conjure a blank, and a body cannot be
+    /// read for this anyway: it is checked per filling, not once.
+    /// </remarks>
+    private List<string> SignatureBlanks(BindStatement bind)
+    {
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        void Count(CufetType? type)
+        {
+            if (type == null) return;
+            AstRebuilder.SubstituteDeep(type, leaf =>
+            {
+                if (leaf is ObjectType { TypeArguments.Count: 0 } shell && !IsKnownTypeName(shell.Name))
+                    counts[shell.Name] = counts.GetValueOrDefault(shell.Name) + 1;
+                return leaf;   // counting only; nothing is replaced
+            });
+        }
+
+        foreach (var (type, _) in bind.Parameters) Count(type);
+        Count(bind.ReturnType);
+
+        return counts.Where(c => c.Value >= 2).Select(c => c.Key).OrderBy(n => n, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>Does this name already mean a type — object, template, interface or book-introduced?</summary>
+    private bool IsKnownTypeName(string name) =>
+        _objectDefs.ContainsKey(name)
+        || _genericObjectDefs.ContainsKey(name)
+        || _interfaceDefs.ContainsKey(name)
+        || BuiltinBooks.Values.Any(b => b.IntroducedTypes.ContainsKey(name));
+
+    /// <summary>Drops templates — object and function alike — reaching through `Pull` bodies.</summary>
+    private static IReadOnlyList<IStatement> WithoutTemplates(
+        IReadOnlyList<IStatement> statements, HashSet<string> genericFunctions)
     {
         var kept = new List<IStatement>(statements.Count);
         foreach (var stmt in statements)
@@ -779,8 +824,10 @@ public sealed partial class TypeChecker
             {
                 case ObjectDefinition { TypeParameters.Count: > 0 }:
                     continue;
+                case BindStatement bind when genericFunctions.Contains(bind.Name):
+                    continue;
                 case PullStatement pull:
-                    kept.Add(pull with { Body = WithoutTemplates(pull.Body) });
+                    kept.Add(pull with { Body = WithoutTemplates(pull.Body, genericFunctions) });
                     continue;
                 default:
                     kept.Add(stmt);
@@ -987,6 +1034,20 @@ public sealed partial class TypeChecker
                         $"declare '{bind.Name}' as void when it buries",
                         $"A burying function's declared type is the type of what it buries: "
                         + $"'Bind number to {bind.Name}' hands back a stash of number.");
+            }
+
+            // ★ A function may leave a BLANK too — `Bind series of element to unique, given (the
+            // series of element xs)`. It has no slot to declare one in the way an object does, so
+            // the signature introduces it: a type name that names nothing, appearing at least
+            // TWICE. Twice is what keeps a typo a typo — `given (the nubmer n)` mentions its
+            // mistake once, so it stays an unknown type rather than quietly turning the function
+            // generic. Every real case uses its blank twice by nature, because the whole point is
+            // that two positions agree.
+            var blanks = SignatureBlanks(bind);
+            if (blanks.Count > 0)
+            {
+                _genericFunctions[bind.Name] = (bind, blanks);
+                continue;   // not an ordinary function: its signature names no types yet
             }
 
             Scope[bind.Name] = new TypeInfo(
@@ -1338,6 +1399,13 @@ public sealed partial class TypeChecker
             case BindStatement { ConstructsTypeName: { } } ctor:
                 CheckConstructor(ctor);
                 break;
+            // A function that left blanks cannot have its body checked: its signature names types
+            // that do not exist yet. Each FILLING is checked instead, as the ordinary function it
+            // becomes — so one nothing calls is never checked, exactly like an unused template.
+            case BindStatement templateBind
+                when _genericFunctions.TryGetValue(templateBind.Name, out var held)
+                     && ReferenceEquals(held.Bind, templateBind):
+                break;
             case BindStatement bind:
                 // Top-level Bind: already in Scope (= global scope) from Pass1Hoist — skip.
                 // Non-top-level Bind (inside a function or block): register in current scope
@@ -1362,7 +1430,11 @@ public sealed partial class TypeChecker
                 break;
             case CastStatement cs:
             {
-                var (funcType, displayName, declLine, argsToValidate) = ResolveForCast(cs.Function, cs.Args, cs.Line, cs.Column);
+                if (cs.Function is VariableReference gcv && _genericFunctions.ContainsKey(gcv.Name))
+                    cs.ResolvedFunctionName = InstantiateFunction(gcv.Name, cs.Args, cs.Line, cs.Column);
+
+                var (funcType, displayName, declLine, argsToValidate) =
+                    ResolveForCast(cs.Function, cs.Args, cs.Line, cs.Column, cs.ResolvedFunctionName);
                 if (funcType != null)
                 {
                     ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cs.Line, cs.Column);

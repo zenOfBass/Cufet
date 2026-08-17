@@ -38,6 +38,41 @@ public class PipelineRecordObjectTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    /// <summary>A FUNCTION that leaves a blank — one body, two fillings, in the generated C.</summary>
+    /// <remarks>
+    /// ★ The filling is read off the argument, then the function is emitted once per filling under
+    /// a name naming it (`first-two of number`) and the template is dropped. Only `Interpret ==
+    /// Compile` shows whether the call site reached the right one of the two bodies — the checker
+    /// alone would be happy either way.
+    /// </remarks>
+    [Fact]
+    public void GenericFunction_TwoFillings_MatchInterpreter()
+    {
+        const string src = """
+            Bind series of element to first-two, given (the series of element xs):
+                Define out as a series of element.
+                Insert the first of xs into out.
+                Insert item 2 of xs into out.
+                Return out.
+            Done.
+
+            Bind voidable element to first-or-none, given (the series of element xs):
+                If the number of xs is 0:
+                    Return void.
+                Done.
+                Return the first of xs.
+            Done.
+
+            Define nums as a series of number with (1, 2, 3).
+            Define words as a series of text with ("a", "b", "c").
+            State the number of (cast first-two on (nums)).
+            State the first of (cast first-two on (words)).
+            State (cast first-or-none on (nums)) but void is 0.
+            State (cast first-or-none on (words)) but void is "none".
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     // ── A definition that leaves a blank ──
     //
     // ★★ Filling happens in the FRONT END: `a stack of number` becomes an ordinary definition named

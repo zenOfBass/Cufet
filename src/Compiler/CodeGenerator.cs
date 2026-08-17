@@ -4622,7 +4622,7 @@ static void* cufet_pipe_stage(void* argp) {
             case CastStatement cs:
             {
                 // Void free-function call or void method dispatch (statement position).
-                string call = EmitCall(cs.Function, cs.Args);
+                string call = EmitCall(CalledFunction(cs.Function, cs.ResolvedFunctionName, cs.Line, cs.Column), cs.Args);
                 FlushPreEmits(sb, indent);
                 sb.AppendLine($"{indent}{call};");
                 break;
@@ -5787,7 +5787,8 @@ static void* cufet_pipe_stage(void* argp) {
 
     private CufetType RawCastReturnType(CastExpression c)
     {
-        if (c.Function is VariableReference vr)
+        // The filling decides the return type — `first-two of text` gives back a series of text.
+        if (CalledFunction(c.Function, c.ResolvedFunctionName, c.Line, c.Column) is VariableReference vr)
         {
             if (_closureSelf is { } self && vr.Name == self.Name)                          // recursive self-call
                 return self.Type.ReturnType ?? TNumber;
@@ -7819,12 +7820,23 @@ static void* cufet_pipe_stage(void* argp) {
 
     private string EmitCastExpr(CastExpression cast)
     {
+        var fn = CalledFunction(cast.Function, cast.ResolvedFunctionName, cast.Line, cast.Column);
         // A BARE fallible call (not wrapped by but-on-failure / propagate) is only valid inside
         // a Try: on failure, record the failure and jump to the handler; otherwise yield the T.
         if (FallibleReturnType(cast) is { } ft)
-            return EmitFallibleCheckGoto(EmitCall(cast.Function, cast.Args), RegisterFailableStruct(ft));
-        return EmitCall(cast.Function, cast.Args);
+            return EmitFallibleCheckGoto(EmitCall(fn, cast.Args), RegisterFailableStruct(ft));
+        return EmitCall(fn, cast.Args);
     }
+
+    /// <summary>The function a cast actually reaches, once a filled-in name is known.</summary>
+    /// <remarks>
+    /// ★ A function that left blanks is emitted once PER FILLING, under a name naming that filling
+    /// (`first-two of number`). The name at the call site is the template's, and no body answers to
+    /// it — the template is dropped before either backend runs. The checker records which filling
+    /// this call reached; this honours it, and the interpreter has the identical helper.
+    /// </remarks>
+    private static IExpression CalledFunction(IExpression written, string? resolved, int line, int column) =>
+        resolved is null ? written : new VariableReference(resolved, line, column);
 
     // Binds the raw fallible result to a temp; if it failed, records it into the current Try's
     // caught-failure var and gotos the handler; the expression value is the success `.val`.
@@ -8446,8 +8458,9 @@ static void* cufet_pipe_stage(void* argp) {
     }
 
     // cv_ prefix avoids C keyword collisions (e.g. Cufet "double" → cv_double).
-    // Hyphens replaced by underscores; Cufet identifiers never contain underscores, so no collision.
-    private static string MangleName(string name) => "cv_" + name.Replace('-', '_');
+    // Hyphens (and the spaces in a filled-in name) become underscores; Cufet identifiers never
+    // contain underscores, so no collision. See CIdent — one flattening rule, used everywhere.
+    private static string MangleName(string name) => "cv_" + CIdent(name);
 
     // Maps a Cufet type to its C type. Records are value structs (synthesized per shape);
     // text is an immutable const char*; series/maps are arena pointers. Objects/maps are

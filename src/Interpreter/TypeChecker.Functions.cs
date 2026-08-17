@@ -426,7 +426,13 @@ public sealed partial class TypeChecker
         if (IsCollectionsAggregateCast(cast))
             return InferCollectionsAggregateCast(cast);
 
-        var (funcType, displayName, declLine, argsToValidate) = ResolveForCast(cast.Function, cast.Args, cast.Line, cast.Column);
+        // A function that left blanks is filled from THIS call's arguments before anything is
+        // resolved — the filling is what decides which body the call reaches.
+        if (cast.Function is VariableReference gvr && _genericFunctions.ContainsKey(gvr.Name))
+            cast.ResolvedFunctionName = InstantiateFunction(gvr.Name, cast.Args, cast.Line, cast.Column);
+
+        var (funcType, displayName, declLine, argsToValidate) =
+            ResolveForCast(cast.Function, cast.Args, cast.Line, cast.Column, cast.ResolvedFunctionName);
         if (funcType == null) return null;
 
         ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cast.Line, cast.Column);
@@ -511,12 +517,16 @@ public sealed partial class TypeChecker
     // Returns (null, ...) if the type is unknown at compile time — runtime catches it.
     // Throws TypeException for known-bad: non-function type, or method/free-function ambiguity.
     private (FunctionType? funcType, string displayName, int declLine, IReadOnlyList<IExpression> argsToValidate)
-        ResolveForCast(IExpression funcExpr, IReadOnlyList<IExpression> args, int callLine, int callCol)
+        ResolveForCast(IExpression funcExpr, IReadOnlyList<IExpression> args, int callLine, int callCol,
+                       string? resolvedName = null)
     {
         if (funcExpr is VariableReference vr)
         {
-            var md    = TryMethodDispatch(vr.Name, args, callLine, callCol);
-            bool inEnv = TryLookup(vr.Name, out var info);
+            // A filled-in function is registered under its filling (`unique of text`); the name
+            // written at the call site is the template's, which names no single body.
+            string called = resolvedName ?? vr.Name;
+            var md    = TryMethodDispatch(called, args, callLine, callCol);
+            bool inEnv = TryLookup(called, out var info);
 
             if (md.HasValue && inEnv && info!.Type is FunctionType)
                 throw TypeError(
@@ -625,6 +635,106 @@ public sealed partial class TypeChecker
     //   - Genuinely unknown type names → TypeException with a clear message (TR.3)
     // Called both from Pass2ResolveTypes (eager, no _typeScopes) and from InferType (at inference
     // time, when _typeScopes may contain pulled book types).
+    /// <summary>
+    /// Works out what a call fills a function's blanks with, and builds that filling.
+    /// </summary>
+    /// <remarks>
+    /// ★★ The first real INFERENCE in the language, and the reason the ROADMAP warns about generic
+    /// error quality: an object states its filling outright (`a stack of number`) while a function's
+    /// is read off its arguments. It is kept as shallow as inference can be — one structural match
+    /// per argument, no unification variables, no ordering, no backtracking. A blank either matches
+    /// the same type everywhere it appears or the call is refused by name.
+    /// </remarks>
+    private string InstantiateFunction(
+        string name, IReadOnlyList<IExpression> args, int line, int column)
+    {
+        var (template, blankNames) = _genericFunctions[name];
+        var blanks = new HashSet<string>(blankNames, StringComparer.Ordinal);
+        var found  = new Dictionary<string, CufetType>(StringComparer.Ordinal);
+
+        int shared = Math.Min(args.Count, template.Parameters.Count);
+        for (int i = 0; i < shared; i++)
+        {
+            var actual = InferType(args[i]);
+            if (actual != null && !Unify(template.Parameters[i].Type, actual, blanks, found))
+                throw TypeError(
+                    $"'{name}' can't take both a {FormatType(found[Disagreeing(template.Parameters[i].Type, blanks)!])} " +
+                    $"and a {FormatType(actual)} for the same blank",
+                    $"'{name}' uses one name in more than one place in its signature, so those places have to agree",
+                    line, column,
+                    $"call '{name}' with arguments that disagree",
+                    "Pass values whose types line up, or write a separate function for the other shape.");
+        }
+
+        var missing = blankNames.Where(b => !found.ContainsKey(b)).ToList();
+        if (missing.Count > 0)
+            throw TypeError(
+                $"'{name}' can't tell what '{missing[0]}' is here",
+                $"'{missing[0]}' is a blank in '{name}', and nothing passed in says what fills it",
+                line, column,
+                $"call '{name}' without saying what '{missing[0]}' is",
+                "The blank is worked out from the arguments, so it has to appear in one of them.");
+
+        string filled = name + string.Concat(blankNames.Select(b => " of " + FormatType(found[b])));
+        if (_instantiatedFunctions.ContainsKey(filled) || Scope.ContainsKey(filled)) return filled;
+
+        var concrete = GenericInstantiation.FillFunction(template, filled, found);
+        _instantiatedFunctions[filled] = concrete;
+        _freeBinds[filled] = concrete;
+        Scope[filled] = new TypeInfo(
+            new FunctionType(concrete.Parameters.Select(p => ResolveParamType(p.Type)).ToList(),
+                             concrete.ReturnType is null ? null : ResolveParamType(concrete.ReturnType)),
+            new VariableReference(filled, line, column),
+            concrete.Line);
+        return filled;
+    }
+
+    /// <summary>Which blank in <paramref name="pattern"/> already has a value — for the message.</summary>
+    private static string? Disagreeing(CufetType pattern, HashSet<string> blanks)
+    {
+        string? hit = null;
+        AstRebuilder.SubstituteDeep(pattern, leaf =>
+        {
+            if (hit == null && leaf is ObjectType { TypeArguments.Count: 0 } shell && blanks.Contains(shell.Name))
+                hit = shell.Name;
+            return leaf;
+        });
+        return hit;
+    }
+
+    /// <summary>
+    /// Matches a signature shape against an actual type, learning what each blank stands for.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Answers TRUE for shapes it does not understand rather than guessing. A blank can only be
+    /// learned where the two shapes line up; everywhere else the ordinary argument check is already
+    /// the authority, and a second opinion here would only produce a worse-worded version of the
+    /// same error.
+    /// </remarks>
+    private static bool Unify(
+        CufetType pattern, CufetType actual, HashSet<string> blanks, Dictionary<string, CufetType> found)
+    {
+        if (pattern is ObjectType { TypeArguments.Count: 0 } shell && blanks.Contains(shell.Name))
+        {
+            if (found.TryGetValue(shell.Name, out var already)) return already.Equals(actual);
+            found[shell.Name] = actual;
+            return true;
+        }
+
+        return (pattern, actual) switch
+        {
+            (SeriesType p, SeriesType a)                 => Unify(p.ElementType, a.ElementType, blanks, found),
+            (VoidableType p, VoidableType a)             => Unify(p.Inner, a.Inner, blanks, found),
+            (FailureType p, FailureType a)               => Unify(p.Inner, a.Inner, blanks, found),
+            (ChannelType p, ChannelType a)               => Unify(p.ElementType, a.ElementType, blanks, found),
+            (ReadableStreamType p, ReadableStreamType a) => Unify(p.ElementType, a.ElementType, blanks, found),
+            (WritableStreamType p, WritableStreamType a) => Unify(p.ElementType, a.ElementType, blanks, found),
+            (MapType p, MapType a)                       => Unify(p.KeyType, a.KeyType, blanks, found)
+                                                          & Unify(p.ValueType, a.ValueType, blanks, found),
+            _ => true
+        };
+    }
+
     /// <summary>
     /// Fills a template's blanks on demand, once per distinct filling.
     /// </summary>

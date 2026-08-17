@@ -851,7 +851,8 @@ public sealed partial class Interpreter
                 break;
 
             case CastStatement cs:
-                ExecuteCallExpr(cs.Function, cs.Args, cs.Line);
+                ExecuteCallExpr(CalledFunction(cs.Function, cs.ResolvedFunctionName, cs.Line, cs.Column),
+                                cs.Args, cs.Line);
                 break;
 
             case ReturnStatement ret:

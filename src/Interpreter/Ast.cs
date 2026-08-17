@@ -251,7 +251,14 @@ public sealed record CastExpression(
     IReadOnlyList<IExpression> Args,
     int Line,
     int Column
-) : IExpression;
+) : IExpression
+{
+    // The filled-in function this call actually reaches — `unique of text` for `cast unique on
+    // (names)` where names is a series of text. A side channel written by the checker, the same way
+    // ObjectLiteral.ResolvedTypeName is, because both backends resolve a named call BY NAME and a
+    // function with a blank in its signature has no single body to reach. Null for ordinary calls.
+    public string? ResolvedFunctionName { get; set; }
+}
 
 // Cast as a statement (void call, or discarded return value).
 public sealed record CastStatement(
@@ -259,7 +266,11 @@ public sealed record CastStatement(
     IReadOnlyList<IExpression> Args,
     int Line,
     int Column
-) : IStatement;
+) : IStatement
+{
+    /// <inheritdoc cref="CastExpression.ResolvedFunctionName"/>
+    public string? ResolvedFunctionName { get; set; }
+}
 
 // return <value>.  or  return.  (bare, for void early exit)
 // Value == null means bare return.

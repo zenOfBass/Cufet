@@ -53,4 +53,21 @@ internal static class GenericInstantiation
         // and the other has to be EMPTIED or the result would look like a template again.
         return filled with { Name = filledName, TypeParameters = [] };
     }
+
+    /// <summary>The same filling, for a function that left blanks in its signature.</summary>
+    /// <remarks>
+    /// ★ A function needs no blank list emptied: it never carried one. Its blanks were READ from
+    /// the signature rather than declared, so once they are filled the signature names only real
+    /// types and nothing marks it as a template any more.
+    /// </remarks>
+    public static BindStatement FillFunction(
+        BindStatement template, string filledName, IReadOnlyDictionary<string, CufetType> blanks)
+    {
+        CufetType Substitute(CufetType type) => AstRebuilder.SubstituteDeep(type, leaf =>
+            leaf is ObjectType { TypeArguments.Count: 0 } shell && blanks.TryGetValue(shell.Name, out var filling)
+                ? filling
+                : leaf);
+
+        return AstRebuilder.Rebuild(template, Substitute) with { Name = filledName };
+    }
 }
