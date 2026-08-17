@@ -338,16 +338,27 @@ public sealed record ObjectDefinition(
     // after. Carried as a name set beside NamedFields rather than folded into that tuple: the
     // tuple is read in 98 places across 14 files, and a name-keyed set cannot fall out of step
     // with the field list the way a parallel positional list could.
-    IReadOnlyList<string>? PermanentFields = null
+    IReadOnlyList<string>? PermanentFields = null,
+    // The BLANKS this definition leaves to be filled — `Define object stack of element` names one
+    // `element`. Empty for an ordinary object, which is every object written so far.
+    //
+    // ★ The name is the writer's to choose, and `of` is what marks it: the slot after the type's
+    // own name is a declaration by position, so nothing has to be inferred and a mistyped type
+    // name elsewhere stays an error rather than quietly becoming a blank.
+    IReadOnlyList<string>? TypeParameters = null
 ) : IStatement;
 
-// a new <TypeName> {<fields>}
+// a new <TypeName> [of <type> ...] {<fields>}
+// TypeArguments fill the blanks of a parameterised definition — `a new stack of number { … }`.
+// Empty for an ordinary object. The checker resolves the pair to one concrete definition; the
+// parser does not name it, because naming a type is the checker's job and it owns the rendering.
 public sealed record ObjectLiteral(
     string TypeName,
     IReadOnlyList<IExpression> PositionalValues,
     IReadOnlyList<(string Name, IExpression Value)> NamedValues,
     int Line,
-    int Column
+    int Column,
+    IReadOnlyList<CufetType>? TypeArguments = null
 ) : IExpression;
 
 // alice's greet  /  one's name  — possessive field or method reference

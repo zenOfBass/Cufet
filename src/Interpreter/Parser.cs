@@ -158,6 +158,18 @@ public sealed class Parser
         SkipNoise();
         var name = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
+
+        // `Define object stack of element with (...)` — the slot after `of` NAMES a blank this
+        // definition leaves to be filled. Declaration by position: no keyword, and nothing to
+        // infer, so a mistyped type name anywhere else is still an error.
+        var typeParameters = new List<string>();
+        while (Peek().Type == TokenType.Of)
+        {
+            Advance(); SkipNoise();
+            typeParameters.Add(Consume(TokenType.Identifier).Lexeme);
+            SkipNoise();
+        }
+
         var shape = ParseRecordShapeAnnotation(out var permanentFields); // consumes "with (...)"
         SkipNoise();
 
@@ -215,7 +227,7 @@ public sealed class Parser
             Consume(TokenType.Dot);
         }
 
-        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, getters, setters, embeddedTypeName, conformedInterfaces, line, col, permanentFields);
+        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, getters, setters, embeddedTypeName, conformedInterfaces, line, col, permanentFields, typeParameters);
     }
 
     // Define <name> as an interface for { <method-sigs> } / single method without {}
@@ -527,7 +539,17 @@ public sealed class Parser
         if (tok.Type == TokenType.Identifier)
         {
             Advance();
-            return new ObjectType(tok.Lexeme, [], [], []);
+            // `a stack of number` — the blanks filled in, reading exactly like `a series of number`.
+            // Only a NAMED type can take them, so an identifier followed by `of` is unambiguous
+            // here: every built-in that uses `of` leads with its own keyword.
+            var typeArguments = new List<CufetType>();
+            while (Peek().Type == TokenType.Of)
+            {
+                Advance(); SkipNoise();
+                typeArguments.Add(ParseTypeAnnotation());
+                SkipNoise();
+            }
+            return new ObjectType(tok.Lexeme, [], [], [], typeArguments: typeArguments);
         }
         throw new ParseException(tok, "type name (number, text, fact, series of ..., or a defined type name)");
     }
@@ -3007,6 +3029,14 @@ public sealed class Parser
                 // "a new TypeName { fields }" — object literal
                 var typeName = Consume(TokenType.Identifier).Lexeme;
                 SkipNoise();
+                // `a new stack of number { … }` — the blanks filled, same spelling as the annotation.
+                var newTypeArgs = new List<CufetType>();
+                while (Peek().Type == TokenType.Of)
+                {
+                    Advance(); SkipNoise();
+                    newTypeArgs.Add(ParseTypeAnnotation());
+                    SkipNoise();
+                }
                 Consume(TokenType.LBrace);
                 var positionals2 = new List<IExpression>();
                 var namedFields2 = new List<(string Name, IExpression Value)>();
@@ -3023,7 +3053,7 @@ public sealed class Parser
                     }
                 }
                 Consume(TokenType.RBrace);
-                baseExpr = new ObjectLiteral(typeName, positionals2, namedFields2, newLine, newCol);
+                baseExpr = new ObjectLiteral(typeName, positionals2, namedFields2, newLine, newCol, newTypeArgs);
                 break;
             }
             case TokenType.CatalogueKw:

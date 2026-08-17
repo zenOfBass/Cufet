@@ -181,6 +181,17 @@ public sealed class ObjectType : CufetType
     // declaration that named the type.
     public IReadOnlySet<string> PermanentFields { get; }
 
+    /// <summary>The blanks FILLED at a use site — `a stack of number` carries one.</summary>
+    /// <remarks>
+    /// ★ Transient. The checker resolves a parameterised shell into a concrete definition named for
+    /// its filling (`stack of number`), so by the time either backend sees a type there are no
+    /// arguments left to carry — monomorphization in the front end, the way stashes lower before
+    /// the backends and interface parameters specialise per conformer. They ARE part of equality
+    /// even so: two unresolved shells that differ only in their filling are different types, and
+    /// nominal-by-name alone would call them the same.
+    /// </remarks>
+    public IReadOnlyList<CufetType> TypeArguments { get; }
+
     public ObjectType(
         string name,
         IReadOnlyList<CufetType> positionalTypes,
@@ -192,8 +203,10 @@ public sealed class ObjectType : CufetType
         IReadOnlyList<string>? conformedInterfaces = null,
         IReadOnlyList<string>? constructors = null,
         string? unmaker = null,
-        IReadOnlyList<string>? permanentFields = null)
+        IReadOnlyList<string>? permanentFields = null,
+        IReadOnlyList<CufetType>? typeArguments = null)
     {
+        TypeArguments      = typeArguments ?? [];
         Name               = name;
         PermanentFields    = permanentFields is null ? [] : new HashSet<string>(permanentFields, StringComparer.Ordinal);
         PositionalTypes    = positionalTypes;
