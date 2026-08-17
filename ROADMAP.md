@@ -36,7 +36,16 @@ That rule is the reason this list is short on soundness work and long on reach.
 
 ## What's next
 
-Ordered by what unblocks what, not by size. Two framings set the order:
+Ordered by what unblocks what, not by size.
+
+⚠ **A "blocked on" claim names the missing THING, never a tier number, and has to be checkable.**
+"Blocked on item 4" cannot be tested, so nobody tests it, so it rots and then drives decisions —
+`collections` carried "blocked on the C FFI" for weeks and was never blocked at all; the claim was
+true of `math` and got copied. Write "needs `square root`, which is a C call" instead, check it when
+you write it, and check it again before ordering work off it. A dependency you cannot state
+precisely enough to test does not belong in this file.
+
+Two framings set the order:
 
 - **Sockets, POSIX and Windows APIs, and threading primitives are not separate items.** They
   are all "call a C function", so a **C FFI** collapses them into one item and turns each of
@@ -74,10 +83,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
      methods on the rabbit that owns the buried state. Today they are free statements, which is why
      a stash carries a type but no ownership.
    - **The bundled books get written in Cufet**, at which point they are ordinary objects and their
-     passability stops being a question. Blocked on item 2 for `collections` (see there) and on
-     item 4 for `math`'s native members; `chance` needs neither. Delivery is the open piece — either
-     the Tier 3 loader or a **prelude** (bundle the `.cufe` source, parse it, prepend its
-     statements), and the prelude is far cheaper and needs nothing that does not exist.
+     passability stops being a question. See item 2 for what each one still needs.
 
    ★ **`module` starts as a MARKER — it requires nothing.** An interface that says only "this is
    pullable" is the honest starting point, because no requirement has arisen yet. Inventing one now
@@ -97,18 +103,31 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    `a new <type> { … }`. If pull-time arguments are ever genuinely needed, that is a requirement
    that *arose*, which is the standard for changing any of this.
 
-2. **Write the bundled books in Cufet.** Blanks landed for objects and functions alike, so
-   `collections`' shapes are now expressible: `unique` is `series of element` → `series of element`,
-   and `minimum` and `maximum` are `series of element` → `voidable element`. Nothing about the
-   language is in the way any more.
+2. **Write the bundled books in Cufet.** A book written in Cufet is a module object with generic
+   methods, and every piece of that now exists: blanks on objects, on functions and on methods, and
+   a **prelude** hook in `TypeChecker.Check` that parses bundled source and prepends it (empty
+   today). ★ This is what item 1 waits on — once a book is an ordinary object, its passability as a
+   module value stops being a question.
 
-   What is left is **delivery** — code that is not already in the program. Either the Tier 3 loader
-   or a **prelude** (bundle the `.cufe` source, parse it, prepend its statements); the prelude is
-   far cheaper and needs nothing that does not exist. `math`'s members still need the C FFI (item
-   4); `chance` needs neither and is native surface syntax rather than members.
+   **`collections` — nothing missing.** Measured 2026-08-17, not inferred:
+   - `unique`, `minimum`, `maximum`, `average` are `series of element` → `series of element` or
+     `voidable element`, and both shapes run on both backends today.
+   - `transpose` needs only what `matrix` already exposes to Cufet: `a matrix with R by C`,
+     `the rows of m` / `the columns of m`, and `the item at (r, c) of m` for read and write. A
+     Cufet `transpose` was written and its output compared to the native one — identical.
+     ⚠ Bind the dimensions to names first; `a matrix with (the columns of m) by …` does not parse,
+     the sized form wants a simpler expression there.
 
-   ★ This is what item 1 waits on: once a book is an ordinary object, its passability as a module
-   stops being a question.
+   **`math` — needs the C FFI (item 4), and only for three members.** `square root`, `log` and
+   `power` are C library calls with no Cufet expression. `floor`, `ceiling`, `round` and
+   `absolute value` are arithmetic and could move now; `pi` and `e` are constants.
+
+   **`chance` — nothing to move.** Its surface is `a random number from … to …` and friends, which
+   are AST nodes rather than members; its member list is empty.
+
+   ⚠ **The one real obstacle is NAME RESOLUTION, not the Cufet.** `ResolveModule` checks
+   `BuiltinBooks` before `_objectDefs`, so a Cufet `collections` is shadowed by the native book of
+   the same name. Whatever moves first has to settle how a half-migrated book resolves.
 
    **No variance**, if blanks are ever extended. Not covariance, not contravariance. It is the part
    nobody can explain to a learner, and a teaching language that ships `IEnumerable<out T>` has lost
