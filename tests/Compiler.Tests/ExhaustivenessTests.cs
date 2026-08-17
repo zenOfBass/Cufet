@@ -406,7 +406,13 @@ public class ExhaustivenessTests
                 // one and must not be dragged in.
                 if (!lines[i].Contains("new ProcessStartInfo(binPath)")) continue;
 
-                var window = string.Join("\n", lines.Skip(i).Take(20));
+                // ⚠ The window is how far below the launch to look, and it is sized to the code
+                // rather than to the rule — it was 20 and the close sat on the 19th line, so the
+                // next honest addition to the ProcessStartInfo (redirecting stderr) pushed a
+                // correct launcher out of view and failed this. Keep it comfortably ahead of the
+                // block it has to span; keying on `binPath` is what keeps it from reaching into
+                // an unrelated launch, not the tightness of this number.
+                var window = string.Join("\n", lines.Skip(i).Take(40));
                 if (!window.Contains("RedirectStandardInput"))
                     offenders.Add($"{rel}:{i + 1} does not set RedirectStandardInput");
                 else if (!window.Contains("StandardInput.Close()"))

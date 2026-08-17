@@ -117,6 +117,12 @@ public abstract class PipelineTestBase
                 // pipe_read having used zero CPU. On Windows the inherited handle gives EOF, so it
                 // never showed, and a run redirected from /dev/null hides it too.
                 RedirectStandardInput  = true,
+                // ★ stderr redirected and READ, not left to the console. Without it a binary that
+                // DIED said nothing here: the harness compared whatever stdout it had flushed
+                // against the interpreter's full output, so a crash surfaced as a plain string
+                // difference with no hint that the program had not finished.
+                RedirectStandardError  = true,
+                StandardErrorEncoding  = System.Text.Encoding.UTF8,
                 UseShellExecute = false,
             };
             using var proc = Process.Start(psi)!;
@@ -124,8 +130,26 @@ public abstract class PipelineTestBase
             // and EOF is what the interpreter side gives a program when its reader is null.
             if (stdin != null) proc.StandardInput.Write(stdin);
             proc.StandardInput.Close();
-            var output = proc.StandardOutput.ReadToEnd();
+            // ⚠ Both pipes read CONCURRENTLY. Draining one to the end and then the other deadlocks
+            // as soon as the second fills its buffer while nobody is reading it.
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+            var stderrTask = proc.StandardError.ReadToEndAsync();
+            var output = stdoutTask.GetAwaiter().GetResult();
+            var errors = stderrTask.GetAwaiter().GetResult();
             proc.WaitForExit();
+
+            // A CRASH is never a legitimate outcome for one of these programs — a Cufet runtime
+            // error exits cleanly with a message. Negative codes (POSIX signals as .NET reports
+            // them) and the 0xC0000000 range (Windows structured exceptions: access violation,
+            // stack overflow) mean the process died, so say so instead of letting the difference
+            // surface as a mismatched string.
+            uint raw = unchecked((uint)proc.ExitCode);
+            if (proc.ExitCode < 0 || raw >= 0xC0000000u)
+                throw new Xunit.Sdk.XunitException(
+                    $"The compiled binary died rather than finishing: exit code {proc.ExitCode} (0x{raw:X8}).\n" +
+                    $"stdout so far:\n{output}\n" +
+                    $"stderr:\n{(errors.Length == 0 ? "(nothing)" : errors)}");
+
             return output;
         }
         finally
