@@ -59,6 +59,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **★★ A METHOD can leave a blank, so a book can be written in Cufet.** A module's members are
+  methods, so generic free functions were not enough on their own:
+
+  ```
+  Define object kit with () and module:
+      Bind series of element to unique, given (the series of element xs):
+          …
+      Done.
+  Done.
+
+  Pull kit.
+      State cast kit's unique on (a series of number with (1, 2, 2, 3, 1)).   → (1, 2, 3)
+      State cast kit's unique on (a series of text with ("a", "b", "a")).     → (a, b)
+  Done.
+  ```
+
+  Each filling becomes a real member under its filled name and is spliced onto the definition, so
+  both backends emit it as an ordinary method. ⚠ Blanks on methods are detected only once every
+  type NAME is registered — scanning earlier consults a half-built table, and a method taking a
+  type defined further down the file would read as a blank rather than as the type it is.
+
 - **★★ A FUNCTION can leave a blank too.** The signature introduces it, and the call fills it from
   the arguments:
 
