@@ -2075,6 +2075,25 @@ error instead of quietly becoming a blank.
   dropped. Same rule that lets no `stash of T` survive the front end. The name has
   spaces in it on purpose — a writer cannot type one, so it cannot collide.
 
+### ★ A function's blanks come from its SIGNATURE, used twice
+
+A function has no slot to declare a blank in the way `object stack of element` does,
+so its signature introduces them: a type name that names nothing, appearing at
+least **twice** across the parameters and the return type.
+
+- ⚠ **Twice is the guard, and it is applied to the SIGNATURE only.** Used once, a
+  name is a spelling mistake and stays an unknown type — `given (the nubmer n)` is
+  an error, not a generic function. A body is never read for this: it is checked
+  per filling, not once.
+- **The filling is read off the arguments**, so a blank has to appear in a
+  parameter. One living only in the return type is refused — nothing says what it is.
+- **A blank means one type per call.** `cast pick on (1, "two")` against
+  `given (the element left, the element right)` is refused by name.
+- **Matching reaches inside**, so `voidable element` and `series of element` both
+  work — that is `minimum`'s shape and `unique`'s.
+- **Each filling is emitted separately**, named for it (`first-two of number`), and
+  the template is dropped before either backend runs.
+
 ### ★ An interface is a PARAMETER type and nothing else
 
 An interface may be the declared type of a function parameter. It may **not** be the element type

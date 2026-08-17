@@ -1754,6 +1754,28 @@ Define p as a new pair of number of text { the one-side 7, the other-side "seven
 A definition with a blank is not itself a type — `a stack` on its own is refused, because it does
 not say what it holds.
 
+**A function can leave a blank too.** There is no slot to name it in, so the signature introduces
+it: a type name that names nothing, used at least **twice**. The call works out what fills it:
+
+```
+Bind series of element to first-two, given (the series of element xs):
+    Define out as a series of element.
+    Insert the first of xs into out.
+    Insert item 2 of xs into out.
+    Return out.
+Done.
+
+Define nums as a series of number with (1, 2, 3).
+Define words as a series of text with ("a", "b", "c").
+
+State the number of (cast first-two on (nums)).      → 2
+State the first of (cast first-two on (words)).      → "a"
+```
+
+Used **once**, a name is a spelling mistake rather than a blank — `given (the nubmer n)` is an
+unknown type, as it should be. A blank must also appear in something you pass in, since that is
+where its filling is read from; and it has to mean the same type everywhere it appears in one call.
+
 **Function-valued fields** — a field may hold a function, written the way a function-typed
 parameter is: the return type, `function`, the field name, then an optional `given (…)`:
 ```

@@ -59,6 +59,34 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **★★ A FUNCTION can leave a blank too.** The signature introduces it, and the call fills it from
+  the arguments:
+
+  ```
+  Bind series of element to first-two, given (the series of element xs):
+      Define out as a series of element.
+      Insert the first of xs into out.
+      Insert item 2 of xs into out.
+      Return out.
+  Done.
+
+  State the number of (cast first-two on (nums)).     ← nums is a series of number
+  State the first of (cast first-two on (words)).     ← words is a series of text
+  ```
+
+  A function has no slot to declare a blank in the way an object does, so its **signature** does it:
+  a type name that names nothing, appearing at least **twice**. ⚠ Twice is the whole safety
+  argument — a typo mentions its mistake once, so `given (the nubmer n)` stays an unknown type
+  instead of quietly turning the function generic. Every real case uses its blank twice by nature,
+  because the point is that two positions agree. `voidable element` works too, which is `minimum`'s
+  and `maximum`'s shape.
+
+  **This is the language's first real inference**, and it is deliberately the shallowest kind: one
+  structural match per argument, no unification variables, no ordering, no backtracking. A blank
+  either means the same type everywhere it appears or the call is refused by name — *"'pick' can't
+  take both a number and a text for the same blank"*. A blank no argument mentions is refused too,
+  since there is nothing to read it from.
+
 - **★★ A definition can leave a blank — `Define object stack of element`.** The writer names the
   blank, and `of` marks it: the slot after the type's own name.
 

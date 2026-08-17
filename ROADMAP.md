@@ -89,7 +89,7 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    this form, and `Pull a book on <name>` is the special case being shed. Keep the `book on` form
    working for the three builtins; their names read badly without it.
 
-   **Pulling INSTANTIATES.** `Pull a rabbit as den.` makes a region and binds it, so pulling a
+   **Pulling INSTANTIATES.** `Pull a rabbit as hopper.` makes a region and binds it, so pulling a
    module makes one and binds it. That keeps a book's singleton-ness a property of books rather than
    of the mechanism, which is what the module notes in DESIGN already say.
 
@@ -97,30 +97,24 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    `a new <type> { … }`. If pull-time arguments are ever genuinely needed, that is a requirement
    that *arose*, which is the standard for changing any of this.
 
-2. **Generic FUNCTIONS.** A user-defined container is done — `Define object stack of element`
-   leaves a blank the writer names, `of` marks it, and each filling becomes its own type. What is
-   left is a function that does the same: `unique` is `series of <element>` → `series of <element>`,
-   and `minimum` and `maximum` have that shape too.
+2. **Write the bundled books in Cufet.** Blanks landed for objects and functions alike, so
+   `collections`' shapes are now expressible: `unique` is `series of element` → `series of element`,
+   and `minimum` and `maximum` are `series of element` → `voidable element`. Nothing about the
+   language is in the way any more.
 
-   ⚠ **The declaring position is the open question.** An object has one — the slot after its own
-   name — so nothing had to be invented. A function has no such slot: the blank appears first in the
-   return type, before anything introduces it. Either a signature introduces its blanks on first
-   appearance (no new word, but a mistyped type name becomes a blank instead of an error), or
-   something marks them. That trade is the whole decision.
+   What is left is **delivery** — code that is not already in the program. Either the Tier 3 loader
+   or a **prelude** (bundle the `.cufe` source, parse it, prepend its statements); the prelude is
+   far cheaper and needs nothing that does not exist. `math`'s members still need the C FFI (item
+   4); `chance` needs neither and is native surface syntax rather than members.
 
-   ★ This is what actually blocks the standard library, and through it the books-as-objects work in
-   item 1. The container half was the smaller, better-specified end of it.
+   ★ This is what item 1 waits on: once a book is an ordinary object, its passability as a module
+   stops being a question.
 
-   ⚠ **The cost lands on the language's best asset.** Cufet's distinguishing feature is errors that
-   name the line, the violation and the fix. Generic type errors are the worst errors in every
-   language that has them, because the failure is a unification that went wrong three inferences
-   deep. The container half avoided this by substituting rather than unifying; a function's blank,
-   read off its argument, is the first place a real inference could go wrong. Budget for that.
+   **No variance**, if blanks are ever extended. Not covariance, not contravariance. It is the part
+   nobody can explain to a learner, and a teaching language that ships `IEnumerable<out T>` has lost
+   the plot.
 
-   **No variance.** Not covariance, not contravariance. It is the part nobody can explain to a
-   learner, and a teaching language that ships `IEnumerable<out T>` has lost the plot.
-
-   It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
+   Blanks also unlock something concrete and small: **mixed-type operator dispatch**, and with it
    `matrix * number` scalar scaling, which is deferred today for exactly that reason. (The
    Hadamard product is *not* blocked — it is decided: if ever added it will be a named
    `collections` function, never an operator, because `*` means matrix product and there is one
