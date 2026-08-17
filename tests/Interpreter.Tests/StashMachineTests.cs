@@ -497,36 +497,96 @@ public class StashMachineTests
             """));
     }
 
+    /// <summary>
+    /// A GROUPED arm keeps its narrowing too — it states itself as a disjunction.
+    /// </summary>
+    /// <remarks>
+    /// ★ `it is a A or it is a B` is the only way to say "one of these, not the others": a single
+    /// test names one case, elimination names all but one, and a group is neither. Both front ends
+    /// narrow that condition to the sub-union, so the guard restores exactly what the arm had.
+    ///
+    /// `the length of it` in the second arm is the load-bearing half — it only compiles if the
+    /// grouped arm's guard left the OTHER arm's narrowing intact rather than widening everything.
+    /// </remarks>
     [Fact]
-    public void ABuryInsideAGroupedJudgementArm_IsRefused()
+    public void ABuryInsideAGroupedJudgementArm_KeepsTheNarrowing()
     {
-        // An arm naming several types narrows to a residue no single test states, so there is no
-        // guard to re-enter the block under.
-        Assert.Contains("more than one type", Refused("""
-            Bind number to sorter, given (the rabbit helper, the (number or text or fact) thing):
-                Judge thing, where it is:
-                    A number or a fact, have helper bury 1.
-                    A text, have helper bury 2.
+        Assert.Equal("1\n5\n1", Run("""
+            Bind number to sorter, given (the rabbit helper, the series of (number or text or fact) things):
+                For each thing in things, repeat:
+                    Judge thing, where it is:
+                        A number or a fact, have helper bury 1.
+                        A text, have helper bury the length of it.
+                    Done.
                 Done.
             Done.
 
             Pull a rabbit as den.
-                Define source as cast sorter on (den, 5).
-                State unbury source but void is 0.
+                Define source as cast sorter on (den,
+                    a series of (number or text or fact) with (7, "hello", true)).
+                Repeat:
+                    Define next as unbury source.
+                    If next is void:
+                        Stop.
+                    Done.
+                    State next.
+                Until false.
             Done.
-            """).Message);
+            """));
+    }
+
+    /// <summary>
+    /// An `Otherwise` after SEVERAL arms narrows to the residue, named as a disjunction.
+    /// </summary>
+    /// <remarks>
+    /// `If it` is what proves it: a fact is the only thing that may be a condition on its own, so
+    /// the guard must have narrowed `(number or text or fact)` down to the one case the arms left.
+    /// </remarks>
+    [Fact]
+    public void ABuryInsideAnOtherwiseAfterSeveralArms_NarrowsToTheResidue()
+    {
+        Assert.Equal("107\n5\n999\n0", Run("""
+            Bind number to sorter, given (the rabbit helper, the series of (number or text or fact) things):
+                For each thing in things, repeat:
+                    Judge thing, where it is:
+                        A number, have helper bury it + 100.
+                        A text, have helper bury the length of it.
+                        Otherwise:
+                            If it:
+                                Have helper bury 999.
+                            Done.
+                            Otherwise:
+                                Have helper bury 0.
+                            Done.
+                        Done.
+                    Done.
+                Done.
+            Done.
+
+            Pull a rabbit as den.
+                Define source as cast sorter on (den,
+                    a series of (number or text or fact) with (7, "hello", true, false)).
+                Repeat:
+                    Define next as unbury source.
+                    If next is void:
+                        Stop.
+                    Done.
+                    State next.
+                Until false.
+            Done.
+            """));
     }
 
     [Fact]
-    public void ABuryInsideAnOtherwiseAfterSeveralArms_IsRefused()
+    public void ABuryInsideAJudgementsOtherwise_NeedsAClosedUnion()
     {
-        // Same reason as the grouped arm: after two arms the leftover is a mixture, not a case.
-        Assert.Contains("several arms", Refused("""
-            Bind number to sorter, given (the rabbit helper, the (number or text or fact) thing):
+        // The leftover cases have to be NAMED to resume into them, and only a closed union says
+        // what they are.
+        Assert.Contains("closed union", Refused("""
+            Bind number to sorter, given (the rabbit helper, the number thing):
                 Judge thing, where it is:
                     A number, have helper bury 1.
-                    A text, have helper bury 2.
-                    Otherwise, have helper bury 3.
+                    Otherwise, have helper bury 2.
                 Done.
             Done.
 

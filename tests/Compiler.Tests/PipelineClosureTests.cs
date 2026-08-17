@@ -611,6 +611,96 @@ public class PipelineClosureTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    /// <summary>
+    /// `x is a A or x is a B` narrows to the sub-union — in the arm, and by residue in the else.
+    /// </summary>
+    /// <remarks>
+    /// ★ Ordinary code, no stash: the two front ends keep the answer in DIFFERENT shapes and have to
+    /// agree anyway. The checker narrows to the sub-union type `(number or fact)`; the compiler keeps
+    /// a SET OF INDICES into the representation union, because a sub-union's own case order need not
+    /// match the subject's and substituting a narrower type would make every `.val.c&lt;k&gt;` index the
+    /// wrong member.
+    ///
+    /// The inner judgement is the probe for the arm: it needs no `Otherwise`, which is only true if
+    /// `text` was ruled out. `the length of v` is the probe for the else.
+    /// </remarks>
+    [Fact]
+    public void ADisjunctionOfTypeTests_NarrowsToTheSubUnion()
+    {
+        const string src = """
+            Bind void to show, given (the (number or text or fact) v):
+                If v is a number or v is a fact:
+                    Judge v, where it is:
+                        A number, state "n".
+                        A fact, state "f".
+                    Done.
+                Done.
+                Otherwise:
+                    State the length of v.
+                Done.
+            Done.
+
+            Cast show on (1).
+            Cast show on (true).
+            Cast show on ("hello").
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    /// <summary>
+    /// A bury inside a GROUPED judgement arm, and inside an `Otherwise` following several arms.
+    /// </summary>
+    /// <remarks>
+    /// ★ Both were refused until a disjunction narrowed, and both lifted together — a residue is
+    /// just the group of cases the arms did not take.
+    ///
+    /// ⚠ The bodies are shaped to REACH that narrowing, and a first version of this test did not.
+    /// `have helper bury 1` in a grouped arm never mentions `it`, and a residue of one case is a
+    /// plain type test rather than a disjunction — so the test passed with the feature disabled on
+    /// BOTH sides. What forces it is an inner `If it is a <case>` whose `Otherwise` narrows by
+    /// elimination: that only reaches one survivor if the group restricted the reachable set first,
+    /// and `If it` is legal only once the survivor is known to be a fact.
+    /// </remarks>
+    [Fact]
+    public void ABuryInsideAGroupedArmAndAResidueOtherwise_Compiles()
+    {
+        const string src = """
+            Bind number to walk, given (the rabbit helper, the series of (number or text or fact) items):
+                For each thing in items, repeat:
+                    Judge thing, where it is:
+                        A number or a fact:
+                            If it is a number:
+                                Have helper bury it + 1.
+                            Done.
+                            Otherwise:
+                                If it:
+                                    Have helper bury 999.
+                                Done.
+                                Otherwise:
+                                    Have helper bury 0.
+                                Done.
+                            Done.
+                        Done.
+                        A text, have helper bury the length of it.
+                    Done.
+                Done.
+            Done.
+
+            Pull a rabbit as den.
+                Define things as a series of (number or text or fact) with (7, "hello", true, false).
+                Define grouped as cast walk on (den, things).
+                Repeat:
+                    Define next as unbury grouped.
+                    If next is void:
+                        Stop.
+                    Done.
+                    State next.
+                Until false.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     // ── A bury inside a type test ──
     //
     // ★ Oracle tests, and they have to be. This shape ALWAYS ran interpreted — the interpreter is

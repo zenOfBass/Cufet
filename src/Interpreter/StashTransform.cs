@@ -344,47 +344,60 @@ public static class StashTransform
                     // restores `it` from its slot instead of re-evaluating a subject that may have
                     // moved on — which is what "a binding is not a condition" really costs.
                     //
-                    // ⚠ SINGLE-CASE arms only. A grouped arm narrows to a residue that no single
-                    // type test states, and a guard restoring nothing is worse than a refusal: it
-                    // would compile to C reading the subject at its declared type.
-                    foreach (var arm in judge.Arms)
-                        if (arm.Cases.Count != 1)
-                            throw Refuse(
-                                $"'{_bind.Name}' buries inside a judgement arm that names more than one type",
-                                "bury from inside a grouped judgement arm",
-                                "An arm matching several types leaves the subject at none of them in "
-                              + "particular, and a resumption has to be told exactly what it is holding. "
-                              + "Give the arm one type, or move the bury out of the judgement.", Where(arm));
-
-                    // The `Otherwise` narrows BY ELIMINATION, and only a lone arm makes that
-                    // statable — the same rule the `If` case follows, for the same reason.
-                    if (judge.OtherwiseBody != null && judge.Arms.Count != 1)
-                        throw Refuse(
-                            $"'{_bind.Name}' buries inside a judgement whose 'Otherwise' follows several arms",
-                            "bury from inside that 'Otherwise'",
-                            "After several arms the leftover is a mixture that no single test names, so a "
-                          + "resumption cannot be told what it is holding. Cover the cases with arms and "
-                          + "drop the 'Otherwise', or move the bury out of the judgement.", Where(judge));
-
+                    // ★ A GROUPED arm states itself as a disjunction — `it is a A or it is a B` —
+                    // which both front ends narrow to the sub-union. That is the only way to say
+                    // "one of these, not the others": a single test names one case and elimination
+                    // names all but one, and a group is neither.
                     _blocks[cur].Body.Add(Define(ItName, judge.Subject));
 
                     int after = NewBlock();
                     var entries = judge.Arms.Select(_ => NewBlock()).ToList();
                     int otherwise = NewBlock();
 
-                    IExpression Matches(JudgeArm arm, bool negated) =>
-                        new IsTypeCheck(Var(ItName), arm.Cases[0], negated, arm.Line, arm.Column);
+                    IExpression AnyOf(IReadOnlyList<CufetType> cases, JudgeArm? at)
+                    {
+                        int line = at?.Line ?? judge.Line, col = at?.Column ?? judge.Column;
+                        IExpression test = new IsTypeCheck(Var(ItName), cases[0], false, line, col);
+                        for (int i = 1; i < cases.Count; i++)
+                            test = new BinaryExpression(test, TokenType.Or,
+                                new IsTypeCheck(Var(ItName), cases[i], false, line, col), line, col);
+                        return test;
+                    }
+
+                    // The `Otherwise` is reached for whatever the arms did not take, and that
+                    // leftover is statable the same way — as a disjunction of the cases still
+                    // standing. It needs the subject's own case list, which is why the checker
+                    // records `it` at its WIDEST type.
+                    IExpression? elseGuard = null;
+                    if (judge.OtherwiseBody != null)
+                    {
+                        _facts.Locals.TryGetValue((_bind.Name, ItName), out var subjectType);
+                        if (subjectType is not UnionType { Cases: { } subjectCases })
+                            throw Refuse(
+                                $"'{_bind.Name}' buries inside the 'Otherwise' of a judgement on something "
+                              + "that is not a closed union",
+                                "bury from inside that 'Otherwise'",
+                                "The leftover cases have to be named to resume into them, and only a closed "
+                              + "union lists what they are. Judge a closed union, or move the bury out of "
+                              + "the judgement.", Where(judge));
+
+                        var taken = judge.Arms.SelectMany(a => a.Cases).ToList();
+                        var residue = subjectCases.Where(c => !taken.Any(t => t.Equals(c))).ToList();
+                        // Nothing left ⇒ the arms already cover it and the block is unreachable, so
+                        // there is no narrowing to restore and no guard to write.
+                        if (residue.Count > 0) elseGuard = AnyOf(residue, null);
+                    }
 
                     SetExit(cur, [new IfStatement(
                         [.. judge.Arms.Select((arm, i) =>
-                            new ConditionArm(Matches(arm, false), [SetStep(entries[i])]))],
+                            new ConditionArm(AnyOf(arm.Cases, arm), [SetStep(entries[i])]))],
                         [SetStep(otherwise)])]);
 
                     for (int i = 0; i < judge.Arms.Count; i++)
-                        SetExit(EmitGuarded(judge.Arms[i].Body, entries[i], loop, Matches(judge.Arms[i], false)),
+                        SetExit(EmitGuarded(judge.Arms[i].Body, entries[i], loop,
+                                            AnyOf(judge.Arms[i].Cases, judge.Arms[i])),
                                 [SetStep(after)]);
 
-                    var elseGuard = judge.Arms.Count == 1 ? Matches(judge.Arms[0], true) : null;
                     SetExit(EmitGuarded(judge.OtherwiseBody ?? [], otherwise, loop, elseGuard), [SetStep(after)]);
                     return after;
                 }

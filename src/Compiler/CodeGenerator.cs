@@ -5121,7 +5121,8 @@ static void* cufet_pipe_stage(void* argp) {
         string cond0 = EmitExpr(first.Condition);
         FlushPreEmits(sb, indent);
         sb.AppendLine($"{indent}if ({cond0}) {{");
-        EmitNarrowedBlock(sb, NotVoidNarrow(first.Condition), first.Body, inner);
+        EmitNarrowedBlock(sb, NotVoidNarrow(first.Condition), first.Body, inner,
+                          DisjunctionCases(first.Condition));
 
         for (int i = 1; i < ifStmt.Arms.Count; i++)
         {
@@ -5132,7 +5133,8 @@ static void* cufet_pipe_stage(void* argp) {
                 // be hoisted (they may be effectful). Bind the value to a variable before the If.
                 throw new CompilerException("this condition form in an 'Otherwise if' arm needs a preliminary step — Define the value before the If and test the variable.");
             sb.AppendLine($"{indent}}} else if ({condN}) {{");
-            EmitNarrowedBlock(sb, NotVoidNarrow(arm.Condition), arm.Body, inner);
+            EmitNarrowedBlock(sb, NotVoidNarrow(arm.Condition), arm.Body, inner,
+                              DisjunctionCases(arm.Condition));
         }
 
         if (ifStmt.ElseBody != null)
@@ -5174,6 +5176,15 @@ static void* cufet_pipe_stage(void* argp) {
         var excluded = new HashSet<int>();
         foreach (var arm in ifStmt.Arms)
         {
+            // A GROUPED arm excludes every case it names — it is a single test that removes several,
+            // and the checker eliminates through it the same way, so the two must agree here.
+            if (DisjunctionGroup(arm.Condition) is { } group)
+            {
+                if (name == null) { name = group.Name; ut = group.Union; }
+                else if (name != group.Name) return null;
+                foreach (int gk in group.Cases) excluded.Add(gk);
+                continue;
+            }
             if (arm.Condition is not IsTypeCheck { Negated: false, Target: VariableReference vr } tc) return null;
             if (TypeOf(vr) is not UnionType u) return null;
             if (name == null) { name = vr.Name; ut = u; }
@@ -5195,6 +5206,50 @@ static void* cufet_pipe_stage(void* argp) {
         int j = remaining[0];
         return (name, allCases[j], $".val.c{j}");
     }
+
+    // `x is a A or x is a B or …` on ONE union variable → the set of cases still reachable in the
+    // then-branch. The checker narrows the same condition to the sub-union `(A or B)`; here it stays
+    // a SET OF INDICES into the representation union, for the reason _armCases exists — a sub-union's
+    // own case order need not match the subject's, so substituting a narrower type would make every
+    // emitted `.val.c<k>` index the wrong member.
+    private (string Name, UnionType Union, List<int> Cases)? DisjunctionGroup(IExpression condition)
+    {
+        if (condition is not BinaryExpression { Op: TokenType.Or }) return null;
+
+        string? name = null;
+        UnionType? ut = null;
+        var picked = new List<int>();
+
+        bool Walk(IExpression e)
+        {
+            if (e is BinaryExpression { Op: TokenType.Or } both)
+                return Walk(both.Left) && Walk(both.Right);
+            if (e is not IsTypeCheck { Negated: false, Target: VariableReference vr } tc) return false;
+            if (TypeOf(vr) is not UnionType u) return false;
+            if (name == null) { name = vr.Name; ut = u; }
+            else if (name != vr.Name) return false;
+            int k = MatchCaseInList(UnionCases(ut!), tc.Type);
+            if (k < 0) return false;
+            if (!picked.Contains(k)) picked.Add(k);
+            return true;
+        }
+
+        if (!Walk(condition) || name == null || picked.Count < 2) return null;
+
+        // Intersect with what is REACHABLE here — inside a grouped arm the two differ, and the same
+        // source of truth is used by ElseNarrow and NotVoidNarrow.
+        if (_armCases.TryGetValue(name, out var restricted))
+        {
+            picked = picked.Where(restricted.Contains).ToList();
+            if (picked.Count == 0) return null;
+        }
+        picked.Sort();
+        return (name, ut!, picked);
+    }
+
+    // The same group, shaped for EmitNarrowedBlock's arm-set parameter.
+    private (string Name, List<int> Cases)? DisjunctionCases(IExpression condition) =>
+        DisjunctionGroup(condition) is { } g ? (g.Name, g.Cases) : null;
 
     // Emits a block with an optional voidable variable narrowed to its inner type inside it, and
     // an optional restriction on which union cases are still reachable there (see _armCases).

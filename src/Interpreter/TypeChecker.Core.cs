@@ -1118,6 +1118,32 @@ public sealed partial class TypeChecker
                             }
                         }
                     }
+                    else if (TryGetDisjunctionNarrowing(arm.Condition, out var djTarget, out var djTypes))
+                    {
+                        // ★ A group narrows to the sub-union it names, and for exhaustion it is
+                        // simply an arm that removes SEVERAL cases at once — so the `Otherwise`
+                        // keeps eliminating through it exactly as it does through a single test.
+                        narrowedVar = djTarget;
+                        narrowedTo  = new UnionType(djTypes!);
+                        if (canExhaustNarrow)
+                        {
+                            if (unionVar == null)
+                            {
+                                unionVar = djTarget;
+                                TryLookup(djTarget!, out var djInfo);
+                                remainingUnionType = djInfo?.Type;
+                            }
+                            else if (unionVar != djTarget) canExhaustNarrow = false;
+
+                            if (canExhaustNarrow)
+                                foreach (var one in djTypes!)
+                                {
+                                    if (remainingUnionType is not null && remainingUnionType.Equals(one))
+                                        remainingUnionType = null;
+                                    else remainingUnionType = RemoveFromUnion(remainingUnionType, one);
+                                }
+                        }
+                    }
                     else
                     {
                         canExhaustNarrow = false;
@@ -2072,6 +2098,43 @@ public sealed partial class TypeChecker
         varName = vr.Name;
         type    = tc.Type;
         negated = tc.Negated;
+        return true;
+    }
+
+    /// <summary>
+    /// `x is a A or x is a B or …` — every operand a POSITIVE type test on the SAME variable.
+    /// </summary>
+    /// <remarks>
+    /// ★ This is what a grouped judgement arm means, said as a condition. It is the only way to
+    /// state "one of these, but not the others", which is why a residue could not be carried across
+    /// a resumption until it existed: a single test names one case and elimination names all but
+    /// one, and a group is neither.
+    ///
+    /// ⚠ A mixed disjunction (`x is a A or y is a B`, or one negated operand) narrows NOTHING and
+    /// must return false rather than a partial answer — reaching the arm would not imply any of it.
+    /// </remarks>
+    private static bool TryGetDisjunctionNarrowing(
+        IExpression condition, out string? varName, out List<CufetType>? types)
+    {
+        varName = null; types = null;
+        if (condition is not BinaryExpression { Op: TokenType.Or }) return false;
+
+        string? name = null;
+        var collected = new List<CufetType>();
+
+        bool Walk(IExpression e)
+        {
+            if (e is BinaryExpression { Op: TokenType.Or } both)
+                return Walk(both.Left) && Walk(both.Right);
+            if (e is not IsTypeCheck { Negated: false, Target: VariableReference vr } tc) return false;
+            if (name == null) name = vr.Name;
+            else if (name != vr.Name) return false;
+            collected.Add(tc.Type);
+            return true;
+        }
+
+        if (!Walk(condition) || name == null || collected.Count < 2) return false;
+        varName = name; types = collected;
         return true;
     }
 
