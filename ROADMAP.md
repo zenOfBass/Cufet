@@ -97,40 +97,28 @@ Ordered by what unblocks what, not by size. Two framings set the order:
    `a new <type> { … }`. If pull-time arguments are ever genuinely needed, that is a requirement
    that *arose*, which is the standard for changing any of this.
 
-2. **User-defined generics.** A `stack of number`, a `tree of text` — today a user-defined
-   container holds one concrete type or fakes it with an open union.
+2. **Generic FUNCTIONS.** A user-defined container is done — `Define object stack of element`
+   leaves a blank the writer names, `of` marks it, and each filling becomes its own type. What is
+   left is a function that does the same: `unique` is `series of <element>` → `series of <element>`,
+   and `minimum` and `maximum` have that shape too.
 
-   ★★ **MOVED UP 2026-08-15 — it blocks writing the standard library in Cufet.** The `collections`
-   book's `unique` is element-type-preserving (`series of T` → `series of T`), and `minimum` and
-   `maximum` have the same shape. None of them can be written in Cufet today, so a Cufet-written
-   `collections` cannot reproduce the C# one, and item 1's direction — books are just objects
-   written in Cufet — stalls at the first book worth migrating. This is exactly the trigger stated
-   below, met by the standard library itself rather than by a user's container.
+   ⚠ **The declaring position is the open question.** An object has one — the slot after its own
+   name — so nothing had to be invented. A function has no such slot: the blank appears first in the
+   return type, before anything introduces it. Either a signature introduces its blanks on first
+   appearance (no new word, but a mistyped type name becomes a blank instead of an error), or
+   something marks them. That trade is the whole decision.
 
-   ★ **The syntax already exists.** `a series of number`, `a map from text to number` — a
-   user-defined `a stack of number` reads exactly like the built-ins, so there is nothing to invent
-   at the use site. Most languages have to bolt on `<>`. The implementation strategy is also already
-   chosen: monomorphization, the same technique interface parameters use today, with **interfaces as
-   the constraint mechanism** rather than a new concept.
-
-   **Interface defaults shipped first, deliberately.** Re-scope this against what they absorbed
-   before committing to a size — some of the pressure for generics was really pressure for shared
-   behaviour, and that half now has an answer.
+   ★ This is what actually blocks the standard library, and through it the books-as-objects work in
+   item 1. The container half was the smaller, better-specified end of it.
 
    ⚠ **The cost lands on the language's best asset.** Cufet's distinguishing feature is errors that
    name the line, the violation and the fix. Generic type errors are the worst errors in every
    language that has them, because the failure is a unification that went wrong three inferences
-   deep. Budget for that specifically.
+   deep. The container half avoided this by substituting rather than unifying; a function's blank,
+   read off its argument, is the first place a real inference could go wrong. Budget for that.
 
-   **Two decisions to take deliberately, both against the grain of other languages:**
-   - **Require explicit type arguments; do not infer them.** Cufet already makes you write
-     `Define the text name as`. Inference is where generic errors become unreadable, and declining
-     it is in character rather than a limitation.
-   - **No variance.** Not covariance, not contravariance. It is the part nobody can explain to a
-     learner, and a teaching language that ships `IEnumerable<out T>` has lost the plot.
-
-   **The trigger:** the first time a container is written twice for two element types, or an open
-   union is used to fake one.
+   **No variance.** Not covariance, not contravariance. It is the part nobody can explain to a
+   learner, and a teaching language that ships `IEnumerable<out T>` has lost the plot.
 
    It also unlocks something concrete and small: **mixed-type operator dispatch**, and with it
    `matrix * number` scalar scaling, which is deferred today for exactly that reason. (The

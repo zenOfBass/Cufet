@@ -59,6 +59,38 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **★★ A definition can leave a blank — `Define object stack of element`.** The writer names the
+  blank, and `of` marks it: the slot after the type's own name.
+
+  ```
+  Define object stack of element with (the series of element items):
+      Bind void to push, given (the element value):
+          Insert value into one's items.
+      Done.
+  Done.
+
+  Define counts as a new stack of number { the items a series of number }.
+  Define names  as a new stack of text   { the items a series of text }.
+  ```
+
+  The use site needed nothing invented — `a stack of number` already reads like `a series of
+  number`. Marking the blank by POSITION rather than by a keyword is what keeps a mistyped type name
+  an error instead of quietly becoming a blank.
+
+  **Filling happens in the front end.** `stack of number` becomes an ordinary definition named for
+  its filling, spliced into the program, and the template is dropped before either backend runs —
+  the same rule that lets no `stash of T` survive. So the interpreter sees an object and the
+  compiler emits a struct, and the topological sort, the deep-copy family and the escape analysis
+  all keep working untouched. Two fillings are two types, each with its own methods and its own
+  element type, which is the point of monomorphizing rather than boxing.
+
+  The filled-in name contains spaces (`stack of number`) deliberately: a writer cannot type one, so
+  it cannot collide with anything they write.
+
+  **More than one blank works**, since the writer names each: `Define object pair of left-thing of
+  right-thing`, written `a pair of number of text`. Naming them is what makes that possible — a
+  single fixed placeholder word could only ever have marked one.
+
 - **A group of type tests narrows to the sub-union.** `x is a A or x is a B` now narrows `x` to
   `(A or B)` in the branch, and the `Otherwise` eliminates through it to whatever is left:
 

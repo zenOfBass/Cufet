@@ -1721,6 +1721,39 @@ State the make of car.          ← named: "Honda"
 State the first of car.         ← positional: "Honda"
 ```
 
+**Leaving a blank** — a definition can leave the type of something to be said later. The blank is
+a name you choose, and `of` marks it:
+
+```
+Define object stack of element with (the series of element items):
+    Bind void to push, given (the element value):
+        Insert value into one's items.
+    Done.
+Done.
+
+Define counts as a new stack of number { the items a series of number }.
+Define names  as a new stack of text   { the items a series of text }.
+
+Cast push on (counts, 5).
+Cast push on (names, "alice").
+State the first of names's items.        → "alice"
+```
+
+`a stack of number` reads like `a series of number` because it is the same shape. Each filling is
+its own type: `counts` holds numbers and `names` holds text, and neither can take the other's.
+
+More than one blank works, since you name each:
+
+```
+Define object pair of left-thing of right-thing with (
+    the left-thing one-side, the right-thing other-side).
+
+Define p as a new pair of number of text { the one-side 7, the other-side "seven" }.
+```
+
+A definition with a blank is not itself a type — `a stack` on its own is refused, because it does
+not say what it holds.
+
 **Function-valued fields** — a field may hold a function, written the way a function-typed
 parameter is: the return type, `function`, the field name, then an optional `given (…)`:
 ```

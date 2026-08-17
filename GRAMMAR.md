@@ -2052,6 +2052,29 @@ call happens; the compiler refuses with a message saying so. Self-recursion nest
 block is fine, and so is mutual recursion at the top level. **Declare mutually recursive
 functions at the top level** and both backends agree.
 
+### ★ A definition with a blank is not a type
+
+`Define object stack of element with (…)` leaves a blank. The blank is a name **you**
+choose, and `of` marks it — the slot after the type's own name, so it is declared by
+POSITION and nothing has to be inferred. That is what keeps a mistyped type name an
+error instead of quietly becoming a blank.
+
+- **`a stack` alone is refused.** Only `a stack of number` names a type. The refusal
+  says the blank needs filling and shows the shape, rather than claiming `stack` is
+  undefined — it is defined, it just names nothing on its own.
+- **Each filling is its own type.** `stack of number` and `stack of text` share no
+  values and no methods; filling happens by copying the definition, not by boxing.
+- **More than one blank works** — `object pair of left-thing of right-thing`, written
+  `a pair of number of text`. Naming them is what makes that possible.
+- ⚠ **A template's body is not checked until it is filled.** `element` is a blank, not
+  a type, so there is nothing to check it against. A template nothing fills is never
+  checked at all — a mistake inside one surfaces at the first use, not at its
+  definition.
+- **Neither backend ever sees a template.** A filling becomes an ordinary definition
+  named for it (`stack of number`) and is spliced into the program; the template is
+  dropped. Same rule that lets no `stash of T` survive the front end. The name has
+  spaces in it on purpose — a writer cannot type one, so it cannot collide.
+
 ### ★ An interface is a PARAMETER type and nothing else
 
 An interface may be the declared type of a function parameter. It may **not** be the element type
