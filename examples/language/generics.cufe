@@ -1,0 +1,85 @@
+// Leaving a blank.
+//
+// A definition can leave the type of something to be said later. The blank is a name YOU choose —
+// there are no single-letter conventions here, and nothing to import. For an object, `of` marks it:
+// the slot after the type's own name. For a function there is no such slot, so its signature
+// introduces the blank instead — a name that names no type, used at least twice.
+//
+// The thing worth noticing: a filling is not a box. `a stack of number` and `a stack of text` are
+// two separate types with two separate bodies, worked out before the program runs. That is why
+// `the first of names's items` below is a text, and why nothing has to be unwrapped or checked at
+// runtime to get it.
+
+// ── An object with one blank ──────────────────────────────────────────────────────────────────
+
+Define object stack of element with (the series of element items):
+    Bind void to push, given (the element value):
+        Insert value into one's items.
+    Done.
+
+    Bind number to how-many:
+        Return the number of one's items.
+    Done.
+Done.
+
+Define counts as a new stack of number { the items a series of number }.
+Cast push on (counts, 5).
+Cast push on (counts, 7).
+
+Define names as a new stack of text { the items a series of text }.
+Cast push on (names, "Ada").
+Cast push on (names, "Grace").
+
+State "Two fillings of one definition:".
+State "  stack of number holds {cast how-many on counts} — first is {(the first of counts's items) converted to text}".
+State "  stack of text   holds {cast how-many on names} — first is {the first of names's items}".
+
+// ── An object with two blanks, because you name each ───────────────────────────────────────────
+
+Define object pair of left-thing of right-thing with (
+    the left-thing one-side,
+    the right-thing other-side
+).
+
+Define labelled as a new pair of number of text { the one-side 7, the other-side "seven" }.
+
+State "".
+State "Two blanks, filled in order:".
+State "  {labelled's one-side converted to text} is spelled {labelled's other-side}".
+
+// ── A function with a blank ────────────────────────────────────────────────────────────────────
+//
+// Nothing declares `element` here. The signature uses it twice — once in what goes in, once in what
+// comes out — and that is what makes it a blank rather than a misspelled type. Used only once it
+// would stay an error, which is the point: a typo should not quietly become a generic function.
+
+Bind series of element to first-two, given (the series of element xs):
+    Define out as a series of element.
+    Insert the first of xs into out.
+    Insert item 2 of xs into out.
+    Return out.
+Done.
+
+// The blank may sit inside another type — this is the shape `minimum` and `maximum` have.
+Bind voidable element to first-or-none, given (the series of element xs):
+    If the number of xs is 0:
+        Return void.
+    Done.
+    Return the first of xs.
+Done.
+
+Define numbers as a series of number with (3, 6, 9).
+Define words as a series of text with ("red", "green", "blue").
+Define nothing-here as a series of text.
+
+State "".
+State "One function, filled from whatever it is handed:".
+State "  first two numbers: {the number of (cast first-two on (numbers)) converted to text} of them, starting {(the first of (cast first-two on (numbers))) converted to text}".
+State "  first two words:   {the first of (cast first-two on (words))}, {item 2 of (cast first-two on (words))}".
+
+State "".
+State "A blank inside a voidable:".
+Define found as (cast first-or-none on (numbers)) but void is 0.
+Define missing as (cast first-or-none on (nothing-here)) but void is "(empty)".
+State "  first of numbers: {found converted to text}".
+State "  first of nothing: {missing}".

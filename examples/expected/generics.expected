@@ -1,0 +1,14 @@
+Two fillings of one definition:
+  stack of number holds 2 — first is 5
+  stack of text   holds 2 — first is Ada
+
+Two blanks, filled in order:
+  7 is spelled seven
+
+One function, filled from whatever it is handed:
+  first two numbers: 2 of them, starting 3
+  first two words:   red, green
+
+A blank inside a voidable:
+  first of numbers: 3
+  first of nothing: (empty)
