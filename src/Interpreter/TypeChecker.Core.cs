@@ -725,6 +725,7 @@ public sealed partial class TypeChecker
     public Program Check(Program program)
     {
         _scopes[0]["input"] = BuiltinInput;
+        program = WithPrelude(program);
         Pass1Hoist(program);
         Pass2ResolveTypes();          // resolve all placeholder ObjectType refs in _objectDefs + global scope
         Pass2CheckOverloads(program); // body-check all overloads; populates _overloadReturnTypes
@@ -812,6 +813,42 @@ public sealed partial class TypeChecker
         || _genericObjectDefs.ContainsKey(name)
         || _interfaceDefs.ContainsKey(name)
         || BuiltinBooks.Values.Any(b => b.IntroducedTypes.ContainsKey(name));
+
+    /// <summary>
+    /// Cufet source that every program is checked as though it began with.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ This is how a book gets WRITTEN IN CUFET rather than built into the compiler: its source
+    /// is bundled, parsed, and prepended. It stays inside the locked decision that books are
+    /// compile-time-resolved and not dynamically linked — nothing is fetched, nothing is a runtime
+    /// value, and there is no import machinery. The whole program still compiles at once, which is
+    /// what the bounded open-union representation depends on.
+    /// </para>
+    /// <para>
+    /// ⚠ It is prepended HERE, in Check, and not at each of the places that parse a program. There
+    /// are four in the CLI alone plus the test harness and the playground, and a rule copied into
+    /// six callers is a rule five of them will eventually not have — the shape this codebase has
+    /// been bitten by repeatedly. Check is the one gate they all pass through, and it is already
+    /// where instantiated definitions are spliced in.
+    /// </para>
+    /// </remarks>
+    private const string Prelude = "";
+
+    /// <summary>Prepends the prelude's statements, once.</summary>
+    /// <remarks>
+    /// ⚠ Only at depth 0. Check re-enters itself to splice in filled-in templates, and that inner
+    /// program ALREADY carries the prelude — prepending again would redefine every name in it.
+    /// </remarks>
+    private Program WithPrelude(Program program)
+    {
+        if (_instantiationDepth > 0 || Prelude.Length == 0) return program;
+
+        var statements = new List<IStatement>(
+            new Parser(new Lexer.Lexer(Prelude).Tokenize()).Parse().Statements);
+        statements.AddRange(program.Statements);
+        return new Program(statements);
+    }
 
     /// <summary>Drops templates — object and function alike — reaching through `Pull` bodies.</summary>
     private static IReadOnlyList<IStatement> WithoutTemplates(
