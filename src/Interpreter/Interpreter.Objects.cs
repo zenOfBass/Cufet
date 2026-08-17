@@ -207,9 +207,12 @@ public sealed partial class Interpreter
 
     private object EvaluateObjectLiteral(ObjectLiteral ol)
     {
-        if (!_objectDefs.TryGetValue(ol.TypeName, out var def))
+        // ResolvedTypeName is set when the literal filled a template's blanks — `a new stack of
+        // number` makes a `stack of number`, which is the definition that exists.
+        string wanted = ol.ResolvedTypeName ?? ol.TypeName;
+        if (!_objectDefs.TryGetValue(wanted, out var def))
             throw new RuntimeException(
-                $"'{ol.TypeName}' is not a defined object type (line {ol.Line}).");
+                $"'{wanted}' is not a defined object type (line {ol.Line}).");
         return BuildObjectValue(def, ol.PositionalValues, ol.NamedValues, ol.Line);
     }
 

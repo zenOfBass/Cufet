@@ -625,6 +625,67 @@ public sealed partial class TypeChecker
     //   - Genuinely unknown type names → TypeException with a clear message (TR.3)
     // Called both from Pass2ResolveTypes (eager, no _typeScopes) and from InferType (at inference
     // time, when _typeScopes may contain pulled book types).
+    /// <summary>
+    /// Fills a template's blanks on demand, once per distinct filling.
+    /// </summary>
+    /// <remarks>
+    /// ★ The result is registered as an ORDINARY object under its filled-in name, so everything
+    /// downstream — inference, the interpreter, the emitter — meets a concrete type and needs to
+    /// know nothing about templates. The definition itself is also collected, because the compiler
+    /// emits from the program's STATEMENTS rather than from the checker's tables; see Check.
+    /// </remarks>
+    private CufetType Instantiate(ObjectType filled)
+    {
+        var arguments = filled.TypeArguments.Select(ResolveParamType).ToList();
+        string name   = GenericInstantiation.NameFor(filled.Name, arguments);
+
+        if (_objectDefs.TryGetValue(name, out var already)) return already;
+
+        if (!_genericObjectDefs.TryGetValue(filled.Name, out var template))
+            throw new TypeException(
+                $"That doesn't work: '{filled.Name}' does not take a filling.\n\n" +
+                (_objectDefs.ContainsKey(filled.Name)
+                    ? $"'{filled.Name}' is an ordinary type, so write it on its own — '{filled.Name}', not '{name}'."
+                    : $"Define 'object {filled.Name} of <name>' before filling it in, or check the spelling."));
+
+        var blanks = template.TypeParameters!;
+        if (blanks.Count != arguments.Count)
+            throw new TypeException(
+                $"That doesn't work: '{filled.Name}' leaves {blanks.Count} blank(s) to fill, " +
+                $"and {arguments.Count} were given.\n\n" +
+                $"It is written 'object {filled.Name} {string.Join(" ", blanks.Select(b => "of " + b))}'.");
+
+        var concrete = GenericInstantiation.Fill(
+            template, name,
+            blanks.Zip(arguments).ToDictionary(p => p.First, p => p.Second, StringComparer.Ordinal));
+
+        // Registered BEFORE its own field types are resolved, so a template that mentions itself
+        // (`the voidable stack of number next`) finds the entry instead of filling forever.
+        _instantiated[name] = concrete;
+        _objectDefs[name] = new ObjectType(
+            name, concrete.PositionalTypes, concrete.NamedFields,
+            concrete.Methods.Select(m => (m.Name,
+                new FunctionType(m.Parameters.Select(p => p.Type).ToList(), m.ReturnType))).ToList(),
+            concrete.Getters.Select(g => (g.Name, g.ReturnType)).ToList(),
+            concrete.Setters.Select(s => (s.Name, s.ParamType, s.ParamName)).ToList(),
+            concrete.EmbeddedTypeName, concrete.ConformedInterfaces,
+            permanentFields: concrete.PermanentFields);
+
+        // Now resolve the filled-in field and signature types, which may fill further templates.
+        var positionals = concrete.PositionalTypes.Select(ResolveParamType).ToList();
+        var named       = concrete.NamedFields.Select(f => (f.FieldName, ResolveParamType(f.FieldType))).ToList();
+        var registered  = _objectDefs[name];
+        _objectDefs[name] = new ObjectType(
+            name, positionals, named,
+            registered.Methods.Select(m => (m.MethodName, (FunctionType)ResolveParamType(m.Signature))).ToList(),
+            registered.Getters.Select(g => (g.GetterName, ResolveParamType(g.ReturnType))).ToList(),
+            registered.Setters.Select(s => (s.SetterName, ResolveParamType(s.ParamType), s.ParamName)).ToList(),
+            registered.EmbeddedTypeName, registered.ConformedInterfaces,
+            permanentFields: registered.PermanentFields.ToList());
+
+        return _objectDefs[name];
+    }
+
     private CufetType ResolveParamType(CufetType type) => type switch
     {
         // ── Compound types: recurse into inner types ──────────────────────────
@@ -642,6 +703,11 @@ public sealed partial class TypeChecker
         RecordType rt           => new RecordType(
                                     rt.PositionalTypes.Select(ResolveParamType).ToList(),
                                     rt.NamedFields.Select(f => (f.Name, ResolveParamType(f.Type))).ToList()),
+
+        // ── A FILLED template — `a stack of number` ───────────────────────────
+        // Ahead of the shell cases below, which do not inspect the filling and would otherwise
+        // resolve `stack of number` to the unsubstituted template.
+        ObjectType { TypeArguments.Count: > 0 } filled => Instantiate(filled),
 
         // ── ObjectType shell resolution ───────────────────────────────────────
         ObjectType { PositionalTypes.Count: 0, NamedFields.Count: 0, Methods.Count: 0,

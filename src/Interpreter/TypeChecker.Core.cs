@@ -492,6 +492,23 @@ public sealed partial class TypeChecker
     /// </summary>
     private readonly StashFacts _stashFacts = new();
 
+    /// <summary>Parameterised definitions, by name — templates awaiting a filling.</summary>
+    /// <remarks>
+    /// ★ Held apart from <c>_objectDefs</c> deliberately: a template is not a type. `stack` alone
+    /// names nothing a value can have, and only `stack of number` does — so the template never
+    /// reaches type resolution, and asking for `a stack` without a filling is an ordinary
+    /// unknown-type error rather than a half-formed type leaking into inference.
+    /// </remarks>
+    private readonly Dictionary<string, ObjectDefinition> _genericObjectDefs = new(StringComparer.Ordinal);
+
+    /// <summary>Instantiations already built, keyed by their filled-in name (`stack of number`).</summary>
+    private readonly Dictionary<string, ObjectDefinition> _instantiated = new(StringComparer.Ordinal);
+
+    // How many times the check has been re-run to splice in filled-in definitions. One re-run is
+    // the normal case; the cap turns an endlessly self-filling template into a clean refusal.
+    private int _instantiationDepth;
+    private const int MaxInstantiationDepth = 16;
+
     /// <summary>
     /// The burying function whose body is being checked right now, or null. Set only for the
     /// function's OWN body: a nested `Bind` or lambda clears it, because its locals belong to that
@@ -706,9 +723,54 @@ public sealed partial class TypeChecker
         Pass2CheckOverloads(program); // body-check all overloads; populates _overloadReturnTypes
         CheckBlock(program.Statements);
 
+        // ★ A filled-in template became an ordinary definition, but only in this checker's tables —
+        // and the COMPILER emits from the program's statements. Splice them in and check once more
+        // on a clean checker, which then meets them as the ordinary objects they now are.
+        //
+        // It terminates: the second pass finds each filling already registered under its own name,
+        // so it instantiates nothing new and the recursion stops one level down. A template that
+        // fills itself endlessly is caught by the depth guard rather than by running out of stack.
+        if (_instantiated.Count > 0)
+        {
+            if (_instantiationDepth >= MaxInstantiationDepth)
+                throw new TypeException(
+                    "That doesn't work: filling in these types never finishes.\n\n" +
+                    "A type that fills itself in — directly or through another — has no end. " +
+                    "Break the cycle, or hold the inner one behind a 'voidable'.");
+
+            // ★ The templates themselves are DROPPED here, not just added to. A template is not a
+            // type, so a backend meeting one would try to emit a struct for `stack` whose field is
+            // an undefined `element` — the same rule that lets no `StashType` survive the front end.
+            var spliced = new List<IStatement>(_instantiated.Values);
+            spliced.AddRange(WithoutTemplates(program.Statements));
+            return new TypeChecker { _instantiationDepth = _instantiationDepth + 1 }
+                .Check(new Program(spliced));
+        }
+
         // Expand hands back the very same list when there was nothing to do, which is the usual case.
         var lowered = StashTransform.Expand(program.Statements, _buryingFunctions, _stashFacts);
         return ReferenceEquals(lowered, program.Statements) ? program : new Program(lowered);
+    }
+
+    /// <summary>Drops template definitions, reaching through `Pull` bodies the way hoisting does.</summary>
+    private static IReadOnlyList<IStatement> WithoutTemplates(IReadOnlyList<IStatement> statements)
+    {
+        var kept = new List<IStatement>(statements.Count);
+        foreach (var stmt in statements)
+        {
+            switch (stmt)
+            {
+                case ObjectDefinition { TypeParameters.Count: > 0 }:
+                    continue;
+                case PullStatement pull:
+                    kept.Add(pull with { Body = WithoutTemplates(pull.Body) });
+                    continue;
+                default:
+                    kept.Add(stmt);
+                    continue;
+            }
+        }
+        return kept;
     }
 
     // Resolves every placeholder ObjectType reference stored inside _objectDefs (field types,
@@ -845,6 +907,16 @@ public sealed partial class TypeChecker
                             "Setter names must be unique per type. Rename one of them.");
                     setterSigs.Add((us.Name, us.ParamType, us.ParamName));
                 }
+            }
+
+            // ★ A parameterised definition is a TEMPLATE, not a type. Registering it as one would
+            // send Pass2ResolveTypes hunting for a type named `element`, which is the writer's
+            // blank rather than anything defined — so it is held aside and instantiated on demand,
+            // once per filling, the way an interface-taking function is specialised per conformer.
+            if (od.TypeParameters is { Count: > 0 })
+            {
+                _genericObjectDefs[od.Name] = od;
+                continue;
             }
 
             _objectDefs[od.Name] = new ObjectType(
@@ -1354,6 +1426,11 @@ public sealed partial class TypeChecker
                 break;
             case WriteToStreamStatement wts:
                 CheckWriteToStream(wts);
+                break;
+            case ObjectDefinition { TypeParameters.Count: > 0 }:
+                // A template's own body cannot be checked: `element` is a blank, not a type. Each
+                // FILLING is checked instead, as the ordinary definition it becomes — so a template
+                // used nowhere is never checked at all, exactly like an unused generic elsewhere.
                 break;
             case ObjectDefinition od:
                 CheckObjectDefinition(od);
@@ -2294,7 +2371,9 @@ public sealed partial class TypeChecker
             violationColumn);
     }
 
-    private static string FormatType(CufetType type) => type switch
+    // internal, not private: GenericInstantiation names a filling with it, and one renderer is the
+    // point — an instantiated type's name is what an error message shows.
+    internal static string FormatType(CufetType type) => type switch
     {
         NumberType                           => "number",
         BitsType                             => "bits",

@@ -2612,8 +2612,18 @@ static void* cufet_pipe_stage(void* argp) {
         return (header, runtimeSource, $"#include \"{RuntimeSplit.HeaderFileName}\"\n\n{_lastProgram}");
     }
 
+    /// <summary>A Cufet nominal name flattened into something C will accept as an identifier.</summary>
+    /// <remarks>
+    /// ⚠ Spaces as well as hyphens. A filled-in template is named for its filling
+    /// (`stack of number`), and that name is deliberately un-typeable by a writer — which is exactly
+    /// what makes it collision-proof, and exactly what makes it illegal C. One helper because the
+    /// rule is used by the struct name, the method name, the getter and the setter, and four copies
+    /// of it is four chances for the next name shape to be flattened in only three of them.
+    /// </remarks>
+    private static string CIdent(string name) => name.Replace('-', '_').Replace(' ', '_');
+
     // Nominal C struct name for an object type.
-    private static string ObjStructName(string objectName) => "cd_" + objectName.Replace('-', '_');
+    private static string ObjStructName(string objectName) => "cd_" + CIdent(objectName);
 
     // ── Interfaces: monomorphization (Arc 3, DD.1) ────────────────────────────
 
@@ -5628,7 +5638,7 @@ static void* cufet_pipe_stage(void* argp) {
         BitsAtWidth           => TBits,
         RecordNamedAccess { FieldName: "width" } bw when TypeOf(bw.Record) is BitsType => TNumber,
         RecordNamedAccess rna => FieldType(TypeOf(rna.Record), rna.FieldName),
-        ObjectLiteral ol      => ObjType(ol.TypeName),
+        ObjectLiteral ol      => ObjType(ol.ResolvedTypeName ?? ol.TypeName),
         PossessiveAccess pa   => pa.Target is VariableReference bvr && _bookAliases.TryGetValue(bvr.Name, out var bn)
                                      ? BookConstantType(bn, pa.Member)                    // math's pi / e
                                      : FieldType(TypeOf(pa.Target), pa.Member),
@@ -5954,11 +5964,11 @@ static void* cufet_pipe_stage(void* argp) {
 
     // C function names: methods cm_, getters cg_, setters cst_ (cst_ avoids the cs_ series-temp prefix).
     private static string MethodCName(string objName, string methodName) =>
-        "cm_" + objName.Replace('-', '_') + "_" + methodName.Replace('-', '_');
+        "cm_" + CIdent(objName) + "_" + CIdent(methodName);
     private static string GetterCName(string objName, string name) =>
-        "cg_" + objName.Replace('-', '_') + "_" + name.Replace('-', '_');
+        "cg_" + CIdent(objName) + "_" + CIdent(name);
     private static string SetterCName(string objName, string name) =>
-        "cst_" + objName.Replace('-', '_') + "_" + name.Replace('-', '_');
+        "cst_" + CIdent(objName) + "_" + CIdent(name);
 
     private GetterDeclaration? GetterFor(string objName, string member) =>
         _objectDefs.TryGetValue(objName, out var d) ? d.Getters.FirstOrDefault(g => g.Name == member) : null;
@@ -7690,8 +7700,10 @@ static void* cufet_pipe_stage(void* argp) {
     // An object literal → a C compound literal (value struct). With embedding, the flat
     // field list is routed to the right level (own vs embedded), recursively — mirroring
     // the interpreter's BuildObjectValue.
+    // ResolvedTypeName is set when the literal filled a template's blanks — the definition that
+    // exists is `stack of number`, and `stack` alone names nothing.
     private string EmitObjectLiteral(ObjectLiteral ol) =>
-        BuildObjectValue(ol.TypeName, ol.PositionalValues, ol.NamedValues);
+        BuildObjectValue(ol.ResolvedTypeName ?? ol.TypeName, ol.PositionalValues, ol.NamedValues);
 
     private string BuildObjectValue(string objName, IReadOnlyList<IExpression> positionals,
                                     IReadOnlyList<(string Name, IExpression Value)> named)

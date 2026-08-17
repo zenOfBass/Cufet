@@ -606,12 +606,34 @@ public sealed partial class TypeChecker
 
     private ObjectType InferObjectLiteral(ObjectLiteral lit)
     {
-        if (!_objectDefs.TryGetValue(lit.TypeName, out var objType))
-            throw TypeError(
-                $"'{lit.TypeName}' is not a defined object type",
-                null, lit.Line, lit.Column,
-                $"create a new {lit.TypeName} object",
-                $"Define the object type first: Define object {lit.TypeName} with (...).");
+        // `a new stack of number { … }` — fill the blanks first, so everything below reads a
+        // concrete definition and knows nothing about templates. The resolved name is recorded on
+        // the node because both backends look their definition up BY NAME, and the template's own
+        // name names no type.
+        ObjectType objType;
+        if (lit.TypeArguments is { Count: > 0 } filling)
+        {
+            objType = (ObjectType)ResolveParamType(
+                new ObjectType(lit.TypeName, [], [], [], typeArguments: filling));
+            lit.ResolvedTypeName = objType.Name;
+        }
+        else if (!_objectDefs.TryGetValue(lit.TypeName, out objType!))
+            throw _genericObjectDefs.TryGetValue(lit.TypeName, out var template)
+                // ⚠ It IS defined — it just names nothing on its own. Saying "not a defined object
+                // type" here sends the reader off to define something they already have.
+                ? TypeError(
+                    $"'{lit.TypeName}' needs its blank filled in",
+                    $"'{lit.TypeName}' is written 'object {lit.TypeName} " +
+                    string.Join(" ", template.TypeParameters!.Select(b => "of " + b)) + "'",
+                    lit.Line, lit.Column,
+                    $"create a new {lit.TypeName} without saying what it holds",
+                    $"Say what fills it: 'a new {lit.TypeName} " +
+                    string.Join(" ", template.TypeParameters!.Select(_ => "of <type>")) + " { ... }'.")
+                : TypeError(
+                    $"'{lit.TypeName}' is not a defined object type",
+                    null, lit.Line, lit.Column,
+                    $"create a new {lit.TypeName} object",
+                    $"Define the object type first: Define object {lit.TypeName} with (...).");
 
         // Flat construction: positionals = own + embedded (all levels), in order.
         var allPositionals = GetAllPositionalTypes(objType);

@@ -13,6 +13,46 @@ namespace Cufet.Compiler.Tests;
 public class PipelineRecordObjectTests : PipelineTestBase
 {
 
+    // ── A definition that leaves a blank ──
+    //
+    // ★★ Filling happens in the FRONT END: `a stack of number` becomes an ordinary definition named
+    // `stack of number`, spliced into the program, and the template itself is DROPPED before either
+    // backend runs — the same rule that lets no `StashType` survive. So the compiler never learns
+    // what a template is, and this test is really asking whether that stayed true.
+    //
+    // ⚠ It caught two things a checker-only test could not. The filled-in name contains spaces
+    // (`stack of number`), which is what makes it impossible for a writer to collide with and
+    // equally impossible for C to accept — the struct, method, getter and setter names all had to
+    // learn to flatten it. And the template leaking through emitted a struct for `stack` whose
+    // field type was an undefined `element`.
+
+    [Fact]
+    public void GenericObject_TwoFillings_MatchInterpreter()
+    {
+        const string src = """
+            Define object stack of element with (the series of element items):
+                Bind void to push, given (the element value):
+                    Insert value into one's items.
+                Done.
+                Bind number to how-many:
+                    Return the number of one's items.
+                Done.
+            Done.
+
+            Define counts as a new stack of number { the items a series of number }.
+            Cast push on (counts, 5).
+            Cast push on (counts, 7).
+
+            Define names as a new stack of text { the items a series of text }.
+            Cast push on (names, "alice").
+
+            State cast how-many on (counts).
+            State cast how-many on (names).
+            State the first of names's items.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     [Fact]
     public void Record_PositionalAccess_MatchesInterpreter()
     {

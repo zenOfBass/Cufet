@@ -359,7 +359,14 @@ public sealed record ObjectLiteral(
     int Line,
     int Column,
     IReadOnlyList<CufetType>? TypeArguments = null
-) : IExpression;
+) : IExpression
+{
+    // The filled-in definition this literal actually makes — `stack of number` for
+    // `a new stack of number { … }`. A side channel written by the checker, the same way
+    // IsTypeCheck.StaticTargetType is, because both backends look the definition up BY NAME and the
+    // template's own name names no type. Null for an ordinary object, which is nearly all of them.
+    public string? ResolvedTypeName { get; set; }
+}
 
 // alice's greet  /  one's name  — possessive field or method reference
 public sealed record PossessiveAccess(IExpression Target, string Member, int Line, int Column) : IExpression;

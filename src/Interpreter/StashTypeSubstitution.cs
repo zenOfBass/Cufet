@@ -34,10 +34,12 @@ namespace Cufet.Interpreter;
 internal static class StashTypeSubstitution
 {
     /// <summary>Substitutes throughout, returning the ORIGINAL list when nothing mentioned a stash.</summary>
+    /// <remarks>
+    /// The tree walk itself lives in <see cref="AstRebuilder"/> — generic instantiation performs the
+    /// same walk with a different substitution, and one copy of it is the point.
+    /// </remarks>
     public static IReadOnlyList<IStatement> Apply(IReadOnlyList<IStatement> statements) =>
-        TryRebuild(statements, out var rebuilt)
-            ? (IReadOnlyList<IStatement>)rebuilt!
-            : statements;
+        AstRebuilder.Apply(statements, Substitute);
 
     // ── Types ──────────────────────────────────────────────────────────────────────────────────
 
@@ -118,140 +120,5 @@ internal static class StashTypeSubstitution
     {
         substituted = Substitute(original);
         return ReferenceEquals(substituted, original);
-    }
-
-    // ── The tree ───────────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Rebuilds <paramref name="node"/> if anything under it changed; answers false to mean
-    /// "untouched, keep what you had".
-    /// </summary>
-    /// <remarks>
-    /// ★ Reflective rather than a node-by-node rewrite, and for the reason the reflection-walk
-    /// registry states: a hand-written list of the ~15 node types that carry a type is a list that
-    /// falls behind the next feature, silently. Records make the generic version safe — every AST
-    /// node here is positional, so its constructor parameters and its properties are the same names
-    /// in the same order.
-    /// </remarks>
-    private static bool TryRebuild(object? node, out object? result)
-    {
-        result = node;
-        switch (node)
-        {
-            case null or string:
-                return false;
-
-            case CufetType type:
-            {
-                var substituted = Substitute(type);
-                if (ReferenceEquals(substituted, type)) return false;
-                result = substituted;
-                return true;
-            }
-
-            // Parameter lists and field lists are tuples, and a tuple is not in our namespace.
-            case ITuple tuple:
-            {
-                var items   = new object?[tuple.Length];
-                bool changed = false;
-                for (int i = 0; i < tuple.Length; i++)
-                    changed |= TryRebuild(tuple[i], out items[i]);
-                if (!changed) return false;
-                result = Activator.CreateInstance(node.GetType(), items);
-                return true;
-            }
-
-            case IEnumerable sequence:
-            {
-                var elementType = ElementTypeOf(node.GetType());
-                if (elementType == null) return false;
-
-                var rebuilt = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType))!;
-                bool changed = false;
-                foreach (var item in sequence)
-                {
-                    changed |= TryRebuild(item, out var replacement);
-                    rebuilt.Add(replacement);
-                }
-                if (!changed) return false;
-                result = rebuilt;
-                return true;
-            }
-
-            default:
-            {
-                var type = node.GetType();
-                if (type.Namespace != typeof(Program).Namespace) return false;
-
-                var constructor = type.GetConstructors()
-                    .OrderByDescending(c => c.GetParameters().Length).First();
-                var parameters = constructor.GetParameters();
-                var arguments  = new object?[parameters.Length];
-                bool changed   = false;
-
-                for (int i = 0; i < parameters.Length; i++)
-                {
-                    // ⚠ Loudly, not quietly. Answering "unchanged" here would ALSO discard the
-                    // substitutions already made to earlier parameters, and report success while
-                    // doing it — the same silent-no-op shape as the init-setter bug above, which
-                    // took an hour to see precisely because it looked like it had worked. Every AST
-                    // node is a positional record, so this cannot fire; if a future one is not, the
-                    // pass says so instead of mis-lowering the program.
-                    var property = type.GetProperty(parameters[i].Name!)
-                        ?? throw new InvalidOperationException(
-                            $"{type.Name}.{parameters[i].Name} has no matching property — "
-                            + "StashTypeSubstitution can only rebuild positional records.");
-                    changed |= TryRebuild(property.GetValue(node), out arguments[i]);
-                }
-                if (!changed) return false;
-
-                var replacement = constructor.Invoke(arguments);
-                CarryWritableProperties(type, node, replacement,
-                    parameters.Select(p => p.Name!).ToHashSet(StringComparer.Ordinal));
-                result = replacement;
-                return true;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Copies the properties the checker WRITES onto a node after constructing it.
-    /// </summary>
-    /// <remarks>
-    /// ⚠ Not optional, and not cosmetic. Eight AST properties are side channels filled in by the
-    /// type checker — five `EscapeToDepth`s, a `KeyEscapeToDepth`, and `IsTypeCheck.StaticTargetType`
-    /// — and `EscapeToDepth` is the one that tells the compiler to COPY a value into an outer
-    /// arena. A rebuilt node without it reads as "no escape", so the copy never happens and the
-    /// program keeps a pointer into a region that has been freed. Losing it would be silent, and
-    /// would look like memory corruption rather than like a dropped field.
-    ///
-    /// ⚠⚠ <paramref name="fromConstructor"/> is what makes this safe, and leaving it out cost an
-    /// hour. A positional record's properties are `init`-only, and an `init` setter is a PUBLIC
-    /// setter as far as reflection can tell — so copying "everything writable" copied every
-    /// substituted value straight back to what it had been. The rebuild reported success and the
-    /// tree came out unchanged. Only the properties the constructor did NOT set are side channels.
-    /// </remarks>
-    private static void CarryWritableProperties(
-        Type type, object original, object replacement, HashSet<string> fromConstructor)
-    {
-        foreach (var property in type.GetProperties())
-        {
-            if (fromConstructor.Contains(property.Name)) continue;
-            if (property.SetMethod is not { IsPublic: true } || property.GetIndexParameters().Length > 0)
-                continue;
-            var value = property.GetValue(original);
-            // A carried type gets substituted too — StaticTargetType is one of these.
-            if (value is CufetType carried) value = Substitute(carried);
-            property.SetValue(replacement, value);
-        }
-    }
-
-    private static Type? ElementTypeOf(Type collection)
-    {
-        if (collection.IsArray) return collection.GetElementType();
-        foreach (var contract in collection.GetInterfaces())
-            if (contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                return contract.GetGenericArguments()[0];
-        return null;
     }
 }
