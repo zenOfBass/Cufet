@@ -19,7 +19,9 @@ public sealed partial class Interpreter
     /// The checker records which filling this call reached; this is where that is honoured.
     /// </remarks>
     private static IExpression CalledFunction(IExpression written, string? resolved, int line, int column) =>
-        resolved is null ? written : new VariableReference(resolved, line, column);
+        resolved is null                   ? written
+        : written is PossessiveAccess pa   ? new PossessiveAccess(pa.Target, resolved, line, column)
+        :                                    new VariableReference(resolved, line, column);
 
     private object? ExecuteCallExpr(IExpression funcExpr, IReadOnlyList<IExpression> args, int line)
     {

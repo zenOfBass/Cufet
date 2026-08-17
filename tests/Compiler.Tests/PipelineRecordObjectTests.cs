@@ -38,6 +38,43 @@ public class PipelineRecordObjectTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    /// <summary>A generic METHOD on a module — the shape a book written in Cufet has.</summary>
+    /// <remarks>
+    /// ★ The compiler resolves a method by looking the member up on its type, and a filling is a
+    /// member under its filled name (`unique of number`). Every place that does that lookup had to
+    /// agree — the emitter AND the return-type inference, which was still reading the written name
+    /// and failed with "'kit' has no method 'unique'" long after the interpreter was happy.
+    /// </remarks>
+    [Fact]
+    public void GenericMethodOnAModule_MatchesInterpreter()
+    {
+        const string src = """
+            Define object kit with () and module:
+                Bind series of element to unique, given (the series of element xs):
+                    Define out as a series of element.
+                    For each x in xs, repeat:
+                        Define seen as false.
+                        For each y in out, repeat:
+                            If y is x:
+                                The seen becomes true.
+                            Done.
+                        Done.
+                        If seen is false:
+                            Insert x into out.
+                        Done.
+                    Done.
+                    Return out.
+                Done.
+            Done.
+
+            Pull kit.
+                State cast kit's unique on (a series of number with (1, 2, 2, 3, 1)).
+                State cast kit's unique on (a series of text with ("a", "b", "a")).
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     /// <summary>A FUNCTION that leaves a blank — one body, two fillings, in the generated C.</summary>
     /// <remarks>
     /// ★ The filling is read off the argument, then the function is emitted once per filling under

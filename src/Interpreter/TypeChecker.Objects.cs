@@ -137,10 +137,17 @@ public sealed partial class TypeChecker
     // Finds a method signature in ot or its embed chain (promotion).
     private FunctionType? FindMethodInOtOrPromoted(ObjectType ot, string methodName)
     {
-        var own = ot.Methods.FirstOrDefault(m => m.MethodName == methodName);
+        // ⚠ Through _objectDefs, not the instance handed in. An ObjectType is nominal and its
+        // members can GROW after a binding captured it — filling a generic method adds one — so a
+        // value bound by `Pull` or a `Define` holds a snapshot from before the filling existed.
+        // The table is the type; the captured instance is only a copy of how it once looked.
+        var canonical = _objectDefs.TryGetValue(ot.Name, out var current) ? current : ot;
+
+        var own = canonical.Methods.FirstOrDefault(m => m.MethodName == methodName);
         if (own != default) return own.Signature;
 
-        if (ot.EmbeddedTypeName != null && _objectDefs.TryGetValue(ot.EmbeddedTypeName, out var embed))
+        if (canonical.EmbeddedTypeName != null
+            && _objectDefs.TryGetValue(canonical.EmbeddedTypeName, out var embed))
             return FindMethodInOtOrPromoted(embed, methodName);
 
         return null;
@@ -363,7 +370,13 @@ public sealed partial class TypeChecker
         ValidateGetterSetterNames(od, objType);
 
         foreach (var method in od.Methods)
+        {
+            // A method that left a blank cannot have its body checked — its signature names types
+            // that do not exist yet. Each FILLING is checked instead, as the ordinary method it
+            // becomes, so one nothing calls is never checked at all.
+            if (_genericMethods.ContainsKey((od.Name, method.Name))) continue;
             CheckMethodBody(method, objType, od.Line);
+        }
         foreach (var getter in od.Getters)
             CheckGetterBody(getter, objType, od.Line);
         foreach (var setter in od.Setters)

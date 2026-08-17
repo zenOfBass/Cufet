@@ -430,6 +430,13 @@ public sealed partial class TypeChecker
         // resolved — the filling is what decides which body the call reaches.
         if (cast.Function is VariableReference gvr && _genericFunctions.ContainsKey(gvr.Name))
             cast.ResolvedFunctionName = InstantiateFunction(gvr.Name, cast.Args, cast.Line, cast.Column);
+        // ⚠ Never overwritten once set. Check re-enters itself on a spliced program where the
+        // template is GONE and the fillings are ordinary methods, so this returns null there — and
+        // assigning that would wipe the answer the first pass worked out. The side channel is the
+        // only thing carrying `unique of number` across the two passes.
+        else if (cast.ResolvedFunctionName is null
+                 && cast.Function is PossessiveAccess gpa && InferType(gpa.Target) is ObjectType gowner)
+            cast.ResolvedFunctionName = InstantiateMethod(gowner, gpa.Member, cast.Args, cast.Line, cast.Column);
 
         var (funcType, displayName, declLine, argsToValidate) =
             ResolveForCast(cast.Function, cast.Args, cast.Line, cast.Column, cast.ResolvedFunctionName);
@@ -586,7 +593,12 @@ public sealed partial class TypeChecker
         }
 
         // General path: PossessiveAccess → FunctionType for method ref, etc.
-        var exprType = InferType(funcExpr);
+        // A filled-in METHOD is registered on its type under the filling (`unique of number`), so
+        // the member looked up here is that one and not the template's name.
+        var lookedUp = resolvedName is not null && funcExpr is PossessiveAccess mpa
+            ? new PossessiveAccess(mpa.Target, resolvedName, mpa.Line, mpa.Column)
+            : funcExpr;
+        var exprType = InferType(lookedUp);
         if (exprType == null) return (null, "this function", callLine, args);
         if (exprType is not FunctionType funcType)
             throw TypeError(
@@ -686,6 +698,66 @@ public sealed partial class TypeChecker
                              concrete.ReturnType is null ? null : ResolveParamType(concrete.ReturnType)),
             new VariableReference(filled, line, column),
             concrete.Line);
+        return filled;
+    }
+
+    /// <summary>
+    /// Fills a METHOD's blanks from the call, and registers the filling on its owning type.
+    /// </summary>
+    /// <remarks>
+    /// ★ Same shape as a free function's, with one addition: the filling has to become a real
+    /// member of the owning ObjectType and a real method on its ObjectDefinition, because both
+    /// backends dispatch by looking the member up on the type.
+    ///
+    /// Returns the filled-in MEMBER name (`unique of number`), or null when the member is not one
+    /// that left a blank — in which case ordinary dispatch handles it.
+    /// </remarks>
+    private string? InstantiateMethod(
+        ObjectType owner, string member, IReadOnlyList<IExpression> args, int line, int column)
+    {
+        if (!_genericMethods.TryGetValue((owner.Name, member), out var held)) return null;
+
+        var (template, blankNames) = held;
+        var blanks = new HashSet<string>(blankNames, StringComparer.Ordinal);
+        var found  = new Dictionary<string, CufetType>(StringComparer.Ordinal);
+
+        int shared = Math.Min(args.Count, template.Parameters.Count);
+        for (int i = 0; i < shared; i++)
+        {
+            var actual = InferType(args[i]);
+            if (actual != null && !Unify(template.Parameters[i].Type, actual, blanks, found))
+                throw TypeError(
+                    $"'{member}' can't take two different types for the same blank",
+                    $"'{member}' uses one name in more than one place in its signature, so those places have to agree",
+                    line, column,
+                    $"call '{member}' with arguments that disagree",
+                    "Pass values whose types line up, or write a separate method for the other shape.");
+        }
+
+        var missing = blankNames.Where(b => !found.ContainsKey(b)).ToList();
+        if (missing.Count > 0)
+            throw TypeError(
+                $"'{member}' can't tell what '{missing[0]}' is here",
+                $"'{missing[0]}' is a blank in '{member}', and nothing passed in says what fills it",
+                line, column,
+                $"call '{member}' without saying what '{missing[0]}' is",
+                "The blank is worked out from the arguments, so it has to appear in one of them.");
+
+        string filled = member + string.Concat(blankNames.Select(b => " of " + FormatType(found[b])));
+        if (owner.Methods.Any(m => m.MethodName == filled)) return filled;
+
+        var concrete = GenericInstantiation.FillFunction(template, filled, found);
+
+        if (!_instantiatedMethods.TryGetValue(owner.Name, out var built))
+            _instantiatedMethods[owner.Name] = built = new Dictionary<string, BindStatement>(StringComparer.Ordinal);
+        built[filled] = concrete;
+
+        var signature = new FunctionType(
+            concrete.Parameters.Select(p => ResolveParamType(p.Type)).ToList(),
+            concrete.ReturnType is null ? null : ResolveParamType(concrete.ReturnType));
+        _objectDefs[owner.Name] = WithMethods(_objectDefs[owner.Name],
+            [.. _objectDefs[owner.Name].Methods, (filled, signature)]);
+
         return filled;
     }
 

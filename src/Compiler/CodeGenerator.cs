@@ -5801,7 +5801,10 @@ static void* cufet_pipe_stage(void* argp) {
         if (c.Function is PossessiveAccess bpa && bpa.Target is VariableReference bref
             && _bookAliases.TryGetValue(bref.Name, out var bookName))                      // book member call
             return BookMemberReturnType(bookName, bpa.Member, c.Args);
-        if (c.Function is PossessiveAccess pa && TypeOf(pa.Target) is ObjectType pot)
+        // ⚠ The RESOLVED member, not the written one — a filled-in method is a member under its
+        // filling (`unique of number`), and the template's name is a member of nothing.
+        if (CalledFunction(c.Function, c.ResolvedFunctionName, c.Line, c.Column) is PossessiveAccess pa
+            && TypeOf(pa.Target) is ObjectType pot)
             return MethodReturnType(pot.Name, pa.Member);
         // Fallback: any other expression that yields a function value (function-valued call). Kept
         // LAST so a possessive method call (racer's age-in) resolves as a method, not a field access.
@@ -7836,7 +7839,9 @@ static void* cufet_pipe_stage(void* argp) {
     /// this call reached; this honours it, and the interpreter has the identical helper.
     /// </remarks>
     private static IExpression CalledFunction(IExpression written, string? resolved, int line, int column) =>
-        resolved is null ? written : new VariableReference(resolved, line, column);
+        resolved is null                   ? written
+        : written is PossessiveAccess pa   ? new PossessiveAccess(pa.Target, resolved, line, column)
+        :                                    new VariableReference(resolved, line, column);
 
     // Binds the raw fallible result to a temp; if it failed, records it into the current Try's
     // caught-failure var and gotos the handler; the expression value is the success `.val`.

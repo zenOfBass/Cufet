@@ -101,6 +101,78 @@ public class GenericFunctionTests
             """).Message);
     }
 
+    /// <summary>
+    /// A METHOD may leave a blank too — which is what a book written in Cufet needs.
+    /// </summary>
+    /// <remarks>
+    /// ★ A book-as-module is an object whose members are methods, so `unique` being generic at the
+    /// top level is not enough: it has to be generic as a member. Three things had to hold at once,
+    /// and each was a real bug first:
+    ///
+    /// ⚠ Detection runs AFTER every type name is registered. Scanning inside the loop that
+    /// populates the type table consults a half-built one, so a method taking a type defined later
+    /// in the file reads as a blank — and under the twice rule a method with two such parameters
+    /// turns generic instead of erroring.
+    ///
+    /// ⚠ Method lookup goes through the type TABLE, not a captured instance. `Pull` binds the
+    /// ObjectType as it was at pull time, and filling a method adds a member afterwards.
+    ///
+    /// ⚠ The resolved-name side channel is never overwritten. Check re-enters itself on a spliced
+    /// program where the template is gone, so instantiation returns null there; assigning that
+    /// wipes the answer the first pass worked out.
+    /// </remarks>
+    [Fact]
+    public void AGenericMethodOnAModule_ServesTwoFillings()
+    {
+        Assert.Equal("(1, 2, 3)\n(a, b)", Run("""
+            Define object kit with () and module:
+                Bind series of element to unique, given (the series of element xs):
+                    Define out as a series of element.
+                    For each x in xs, repeat:
+                        Define seen as false.
+                        For each y in out, repeat:
+                            If y is x:
+                                The seen becomes true.
+                            Done.
+                        Done.
+                        If seen is false:
+                            Insert x into out.
+                        Done.
+                    Done.
+                    Return out.
+                Done.
+            Done.
+
+            Pull kit.
+                State cast kit's unique on (a series of number with (1, 2, 2, 3, 1)).
+                State cast kit's unique on (a series of text with ("a", "b", "a")).
+            Done.
+            """));
+    }
+
+    /// <summary>A method taking a type defined LATER in the file is not a blank.</summary>
+    /// <remarks>
+    /// ⚠ The regression guard for the detection-ordering bug. `holder` is declared after `user`, so
+    /// scanning `user`'s methods before every name is registered reads `holder` as an unknown type —
+    /// and it appears twice, which is exactly what would tip it into being treated as a blank.
+    /// </remarks>
+    [Fact]
+    public void AMethodTakingATypeDefinedLater_IsNotABlank()
+    {
+        Assert.Equal("7", Run("""
+            Define object user with ():
+                Bind number to sum-of, given (the holder left, the holder right):
+                    Return left's n + right's n.
+                Done.
+            Done.
+
+            Define object holder with (the number n).
+
+            Define u as a new user { }.
+            State cast sum-of on (u, a new holder { the n 3 }, a new holder { the n 4 }).
+            """));
+    }
+
     [Fact]
     public void ArgumentsThatDisagreeAboutABlank_AreRefused()
     {

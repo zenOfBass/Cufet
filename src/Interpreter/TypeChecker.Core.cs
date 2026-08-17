@@ -511,6 +511,22 @@ public sealed partial class TypeChecker
     /// <summary>Filled-in functions already built, keyed by their filled-in name (`unique of text`).</summary>
     private readonly Dictionary<string, BindStatement> _instantiatedFunctions = new(StringComparer.Ordinal);
 
+    /// <summary>The same object type with a different method list — ObjectType is immutable.</summary>
+    private static ObjectType WithMethods(
+        ObjectType ot, IReadOnlyList<(string MethodName, FunctionType Signature)> methods) =>
+        new(ot.Name, ot.PositionalTypes, ot.NamedFields, methods,
+            ot.Getters.ToList(), ot.Setters.ToList(),
+            ot.EmbeddedTypeName, ot.ConformedInterfaces, ot.Constructors, ot.Unmaker,
+            ot.PermanentFields.ToList());
+
+    /// <summary>Methods leaving a blank, keyed by (owning type, method name).</summary>
+    private readonly Dictionary<(string Owner, string Method), (BindStatement Bind, List<string> Blanks)>
+        _genericMethods = new();
+
+    /// <summary>Filled-in methods, by owning type — spliced back onto its definition.</summary>
+    private readonly Dictionary<string, Dictionary<string, BindStatement>> _instantiatedMethods =
+        new(StringComparer.Ordinal);
+
     // How many times the check has been re-run to splice in filled-in definitions. One re-run is
     // the normal case; the cap turns an endlessly self-filling template into a clean refusal.
     private int _instantiationDepth;
@@ -755,7 +771,7 @@ public sealed partial class TypeChecker
         // It terminates: the second pass finds each filling already registered under its own name,
         // so it instantiates nothing new and the recursion stops one level down. A template that
         // fills itself endlessly is caught by the depth guard rather than by running out of stack.
-        if (_instantiated.Count > 0 || _instantiatedFunctions.Count > 0)
+        if (_instantiated.Count > 0 || _instantiatedFunctions.Count > 0 || _instantiatedMethods.Count > 0)
         {
             if (_instantiationDepth >= MaxInstantiationDepth)
                 throw new TypeException(
@@ -768,7 +784,8 @@ public sealed partial class TypeChecker
             // an undefined `element` — the same rule that lets no `StashType` survive the front end.
             var spliced = new List<IStatement>(_instantiated.Values);
             spliced.AddRange(_instantiatedFunctions.Values);
-            spliced.AddRange(WithoutTemplates(program.Statements, _genericFunctions.Keys.ToHashSet(StringComparer.Ordinal)));
+            spliced.AddRange(WithFilledMethods(
+                WithoutTemplates(program.Statements, _genericFunctions.Keys.ToHashSet(StringComparer.Ordinal))));
             return new TypeChecker { _instantiationDepth = _instantiationDepth + 1 }
                 .Check(new Program(spliced));
         }
@@ -811,6 +828,7 @@ public sealed partial class TypeChecker
     private bool IsKnownTypeName(string name) =>
         _objectDefs.ContainsKey(name)
         || _genericObjectDefs.ContainsKey(name)
+        || _genericObjectDefs.ContainsKey(name)
         || _interfaceDefs.ContainsKey(name)
         || BuiltinBooks.Values.Any(b => b.IntroducedTypes.ContainsKey(name));
 
@@ -848,6 +866,47 @@ public sealed partial class TypeChecker
             new Parser(new Lexer.Lexer(Prelude).Tokenize()).Parse().Statements);
         statements.AddRange(program.Statements);
         return new Program(statements);
+    }
+
+    /// <summary>
+    /// Puts each filled-in method onto its owning definition, and drops the template it came from.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Both backends emit an object's methods from its ObjectDefinition, not from the checker's
+    /// tables — so a filling that exists only in `_objectDefs` is a member the type checker can see
+    /// and neither backend can call.
+    /// </remarks>
+    private IReadOnlyList<IStatement> WithFilledMethods(IReadOnlyList<IStatement> statements)
+    {
+        if (_instantiatedMethods.Count == 0 && _genericMethods.Count == 0) return statements;
+
+        var rebuilt = new List<IStatement>(statements.Count);
+        foreach (var stmt in statements)
+        {
+            switch (stmt)
+            {
+                case PullStatement pull:
+                    rebuilt.Add(pull with { Body = WithFilledMethods(pull.Body) });
+                    continue;
+
+                case ObjectDefinition od
+                    when od.Methods.Any(m => _genericMethods.ContainsKey((od.Name, m.Name))):
+                {
+                    var kept = od.Methods
+                        .Where(m => !_genericMethods.ContainsKey((od.Name, m.Name)))
+                        .ToList();
+                    if (_instantiatedMethods.TryGetValue(od.Name, out var filled))
+                        kept.AddRange(filled.Values);
+                    rebuilt.Add(od with { Methods = kept });
+                    continue;
+                }
+
+                default:
+                    rebuilt.Add(stmt);
+                    continue;
+            }
+        }
+        return rebuilt;
     }
 
     /// <summary>Drops templates — object and function alike — reaching through `Pull` bodies.</summary>
@@ -1025,6 +1084,33 @@ public sealed partial class TypeChecker
                 getterSigs, setterSigs,
                 od.EmbeddedTypeName, od.ConformedInterfaces,
                 permanentFields: od.PermanentFields);
+        }
+
+        // ★ Blanks on METHODS, which is what a book written in Cufet needs — its members are
+        // methods on a module object, and `unique` is `series of element` → `series of element`
+        // there just as it is at the top level.
+        //
+        // ⚠ A SEPARATE pass, after every type NAME is registered, and the ordering is the
+        // correctness. Asking IsKnownTypeName inside the loop above consults a half-built table, so
+        // a method taking a type defined further down the file reads as a blank — and under the
+        // twice rule a method with two such parameters would quietly turn generic instead of
+        // erroring, which is precisely what that rule exists to prevent.
+        foreach (var stmt in FlattenHoistable(program.Statements))
+        {
+            if (stmt is not ObjectDefinition od || od.TypeParameters is { Count: > 0 }) continue;
+            if (!_objectDefs.TryGetValue(od.Name, out var ot)) continue;
+
+            foreach (var method in od.Methods)
+            {
+                var blanks = SignatureBlanks(method);
+                if (blanks.Count > 0) _genericMethods[(od.Name, method.Name)] = (method, blanks);
+            }
+
+            // A held-aside method is not a member yet: its signature names no types. Each FILLING
+            // is registered instead, when a call says what fills it.
+            if (od.Methods.Any(m => _genericMethods.ContainsKey((od.Name, m.Name))))
+                _objectDefs[od.Name] = WithMethods(ot,
+                    ot.Methods.Where(m => !_genericMethods.ContainsKey((od.Name, m.MethodName))).ToList());
         }
 
         // Anything left in unto* dictionaries targets a name that isn't a defined object type.
@@ -1469,6 +1555,10 @@ public sealed partial class TypeChecker
             {
                 if (cs.Function is VariableReference gcv && _genericFunctions.ContainsKey(gcv.Name))
                     cs.ResolvedFunctionName = InstantiateFunction(gcv.Name, cs.Args, cs.Line, cs.Column);
+                // ⚠ Never overwritten once set — see the matching note in InferCastExpr.
+                else if (cs.ResolvedFunctionName is null
+                         && cs.Function is PossessiveAccess gcp && InferType(gcp.Target) is ObjectType gcOwner)
+                    cs.ResolvedFunctionName = InstantiateMethod(gcOwner, gcp.Member, cs.Args, cs.Line, cs.Column);
 
                 var (funcType, displayName, declLine, argsToValidate) =
                     ResolveForCast(cs.Function, cs.Args, cs.Line, cs.Column, cs.ResolvedFunctionName);
