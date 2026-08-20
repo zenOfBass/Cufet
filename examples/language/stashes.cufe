@@ -28,9 +28,9 @@ Bind number to counting-up, given (the rabbit helper, the number first-value):
     Until false.
 Done.
 
-Pull a rabbit as den.
+Pull a rabbit as hopper.
     State "Five, from three:".
-    Define counter as cast counting-up on (den, 3).
+    Define counter as cast counting-up on (hopper, 3).
     Define taken as 0.
     While taken is less than 5, repeat:
         State unbury counter.
@@ -44,7 +44,7 @@ Pull a rabbit as den.
 
     State "".
     State "A second counter, started later:".
-    Define other-counter as cast counting-up on (den, 100).
+    Define other-counter as cast counting-up on (hopper, 100).
     State unbury other-counter.
     State unbury counter.
     State unbury other-counter.

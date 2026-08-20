@@ -1,0 +1,24 @@
+// The collections book, written in Cufet.
+//
+// This file is bundled into the checker (see TypeChecker.WithPrelude): every program is checked
+// and compiled as though it began with these statements. The object below shares its name with
+// the native collections book, and the two resolve as ONE module — a member defined here is the
+// only implementation of that member, and anything not defined here (transpose, minimum,
+// maximum, average, and the matrix type) is still the native book's, reached through the same
+// pulled name.
+
+Define object collections with () and module:
+    // First-occurrence dedup, element-type-preserving: works on a series of anything `is` can
+    // compare, and hands back a new series — the one given is untouched.
+    Bind series of element to unique, given (the series of element xs):
+        Define kept as a series of element.
+        For each candidate in xs, repeat:
+            Define already as false.
+            For each existing in kept, repeat:
+                If existing is candidate, already becomes true.
+            Done.
+            If already is false, insert candidate into kept.
+        Done.
+        Return kept.
+    Done.
+Done.
