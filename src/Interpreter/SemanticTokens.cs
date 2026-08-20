@@ -823,7 +823,7 @@ public sealed class SemanticTokenizer
 
         // The position and width of the next unclaimed occurrence of `name` in this construct's
         // header, or null when the header holds none. Multi-word names (a book member like
-        // "absolute value") span the consecutive tokens that spell them.
+        // "absolute-value") span the consecutive tokens that spell them.
         public (int Line, int Column, int Length)? Next(string name) =>
             Scan(name, _index) ?? Scan(name, _anchor);
 

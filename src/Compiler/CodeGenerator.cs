@@ -373,7 +373,7 @@ public sealed class CodeGenerator
         _objectDefs.TryGetValue(bookName, out var layerDef)
             ? layerDef.Getters.FirstOrDefault(g => g.Name == member)
             : null;
-    // Set when an exact-decimal math function (floor/ceiling/round/absolute value) is used, so the
+    // Set when an exact-decimal math function (floor/ceiling/round/absolute-value) is used, so the
     // math runtime is emitted (only then). pi/e are baked as decimal literals, not runtime funcs.
     private bool _usesMath;
     // Set when the program cases text (`in uppercase`/`in lowercase`), so the Unicode case table is
@@ -1682,35 +1682,14 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
 
 """;
 
-    // Exact-decimal math (Arc 1A — the `math` book's total functions). floor/ceiling/round/abs
-    // operate DIRECTLY on CufetDec (no double) — bit-identical to the interpreter's decimal overloads
-    // (Math.Floor/Ceiling/Round(AwayFromZero)/Abs on `decimal`). CufetDec = (-1)^sign · coef · 10^-scale.
-    // Transcendentals (sqrt/log/power) are double-backed and live in a later slice (1B).
+    // The decimal↔double bridge for `math`'s three remaining native members (sqrt/log/power).
+    //
+    // ★ The exact-decimal totals that used to live here — floor/ceiling/round/abs, ~25 lines of
+    // CufetDec digit arithmetic — are GONE, because those members are written in Cufet now
+    // (Prelude/math.cufe) and emit as ordinary method calls. They were dead the moment the
+    // members migrated; deleting them is part of finishing the move, not a separate cleanup.
     private const string MathRuntime =
 """
-static CufetDec cufet_math_abs(CufetDec x) { x.sign = 0; return x; }
-static CufetDec cufet_math_floor(CufetDec x) {
-    if (x.scale == 0) return x;                                  /* already an integer */
-    unsigned __int128 p = 1; for (int s = 0; s < x.scale; s++) p *= 10;
-    unsigned __int128 ip = x.coef / p, rem = x.coef % p;
-    if (x.sign && rem != 0) ip += 1;                             /* negative non-integer floors more negative */
-    CufetDec r; r.coef = ip; r.scale = 0; r.sign = (ip == 0) ? 0 : x.sign; return r;
-}
-static CufetDec cufet_math_ceiling(CufetDec x) {
-    if (x.scale == 0) return x;
-    unsigned __int128 p = 1; for (int s = 0; s < x.scale; s++) p *= 10;
-    unsigned __int128 ip = x.coef / p, rem = x.coef % p;
-    if (!x.sign && rem != 0) ip += 1;                            /* positive non-integer ceils up */
-    CufetDec r; r.coef = ip; r.scale = 0; r.sign = (ip == 0) ? 0 : x.sign; return r;
-}
-static CufetDec cufet_math_round(CufetDec x) {                    /* half away-from-zero (NOT banker's) */
-    if (x.scale == 0) return x;
-    unsigned __int128 p = 1; for (int s = 0; s < x.scale; s++) p *= 10;
-    unsigned __int128 ip = x.coef / p, rem = x.coef % p;
-    if (rem * 2 >= p) ip += 1;                                   /* tie or above → away from zero */
-    CufetDec r; r.coef = ip; r.scale = 0; r.sign = (ip == 0) ? 0 : x.sign; return r;
-}
-
 /* ── The decimal↔double bridge (1B) — bit-identical replicas of .NET 10's DecCalc conversions.
    The oracle (the interpreter) computes transcendentals as (decimal)Math.Sqrt((double)(decimal)x),
    so BOTH conversions must match .NET exactly — including .NET's 15-significant-digit rounding
@@ -5783,8 +5762,7 @@ static void* cufet_pipe_stage(void* argp) {
     private CufetType BookMemberReturnType(string bookName, string member, IReadOnlyList<IExpression> args)
     {
         string m = member.ToLowerInvariant();
-        if (bookName == "math" && m == "absolute value") return TNumber;
-        if (bookName == "math" && m is "square root" or "log" or "power") return new VoidableType(TNumber);
+        if (bookName == "math" && m is "square-root" or "log" or "power") return new VoidableType(TNumber);
         return TNumber;   // conservative default (unresolved books surface at emit)
     }
 
@@ -8277,18 +8255,13 @@ static void* cufet_pipe_stage(void* argp) {
         return ret;
     }
 
-    // Routes a book function to its C emission. 1A: the `math` book's EXACT-decimal total functions
-    // (floor/ceiling/round/absolute value); transcendentals (square root/log/power → 1B). The
-    // collections book routes nothing here any more — its members are Cufet (the book's layer).
+    // Routes a book function to its C emission. All that reaches here now are `math`'s three
+    // double-backed transcendentals (square-root/log/power → 1B); everything else in both books
+    // is Cufet, in the book's own layer, and emits as ordinary method dispatch.
     private string EmitBookFunction(string bookName, string member, IReadOnlyList<IExpression> args)
     {
         string m = member.ToLowerInvariant();
-        if (bookName == "math" && m == "absolute value")
-        {
-            _usesMath = true;
-            return $"cufet_math_abs({EmitExpr(args[0])})";
-        }
-        if (bookName == "math" && m is "square root" or "log" or "power")
+        if (bookName == "math" && m is "square-root" or "log" or "power")
         {
             // Double-backed transcendental (1B) → voidable number: non-finite / decimal-overflow →
             // void (MathPartial). The raw call returns 1+*out or 0=void; wrap into the cvd inline,
@@ -8298,7 +8271,7 @@ static void* cufet_pipe_stage(void* argp) {
             int id = _freshId++;
             string call = m switch
             {
-                "square root" => $"cufet_math_sqrt({EmitExpr(args[0])}, &cf_mv{id})",
+                "square-root" => $"cufet_math_sqrt({EmitExpr(args[0])}, &cf_mv{id})",
                 "log"         => $"cufet_math_log({EmitExpr(args[0])}, &cf_mv{id})",
                 _             => $"cufet_math_power({EmitExpr(args[0])}, {EmitExpr(args[1])}, &cf_mv{id})",
             };

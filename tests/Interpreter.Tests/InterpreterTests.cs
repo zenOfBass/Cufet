@@ -9006,7 +9006,7 @@ public class InterpreterTests
     {
         Assert.Equal("5", Run(
             "Pull a book on math.\n" +
-            "State math's absolute value of 5.\n" +
+            "State math's absolute-value of 5.\n" +
             "Done."));
     }
 
@@ -9015,7 +9015,7 @@ public class InterpreterTests
     {
         Assert.Equal("7", Run(
             "Pull a book on math.\n" +
-            "State math's absolute value of -7.\n" +
+            "State math's absolute-value of -7.\n" +
             "Done."));
     }
 
@@ -9024,7 +9024,7 @@ public class InterpreterTests
     {
         Assert.Equal("3", Run(
             "Pull a book on math.\n" +
-            "Define r as math's square root of 9.\n" +
+            "Define r as math's square-root of 9.\n" +
             "State (r but void is 0) converted to text.\n" +
             "Done."));
     }
@@ -9034,7 +9034,7 @@ public class InterpreterTests
     {
         Assert.Equal("void", Run(
             "Pull a book on math.\n" +
-            "Define r as math's square root of -1.\n" +
+            "Define r as math's square-root of -1.\n" +
             "If r is void, state \"void\". Otherwise, state \"not void\".\n" +
             "Done."));
     }
@@ -9113,7 +9113,7 @@ public class InterpreterTests
         // floor(sqrt(9)) = floor(3) = 3
         Assert.Equal("3", Run(
             "Pull a book on math.\n" +
-            "Define r as math's square root of 9.\n" +
+            "Define r as math's square-root of 9.\n" +
             "State (math's floor of (r but void is 0)) converted to text.\n" +
             "Done."));
     }
@@ -10139,7 +10139,7 @@ public class InterpreterTests
         Assert.Equal("4", Run(
             "Pull a book on math.\n" +
             "    Bind number to root-of, given (the number n):\n" +
-            "        Return math's square root of (n) but void is 0.\n" +
+            "        Return math's square-root of (n) but void is 0.\n" +
             "    Done.\n" +
             "    State cast root-of on (16) converted to text.\n" +
             "Done."));
@@ -10248,7 +10248,7 @@ public class InterpreterTests
         Assert.Equal("4", Run(
             "Pull a book on math as m.\n" +
             "    Bind number to root-of, given (the number n):\n" +
-            "        Return m's square root of (n) but void is 0.\n" +
+            "        Return m's square-root of (n) but void is 0.\n" +
             "    Done.\n" +
             "    State cast root-of on (16) converted to text.\n" +
             "Done."));
@@ -10535,7 +10535,7 @@ public class InterpreterTests
         // Existing voidable narrowing: is not void narrows to the inner type
         Assert.Equal("2", Run(
             "Pull a book on math.\n" +
-            "Define r as math's square root of (4).\n" +
+            "Define r as math's square-root of (4).\n" +
             "If r is not void:\n" +
             "    State r converted to text.\n" +
             "Done.\n" +
@@ -10662,7 +10662,7 @@ public class InterpreterTests
         // (T or void) normalizes to voidable T — same behavior as voidable
         Assert.Equal("5", Run(
             "Pull a book on math.\n" +
-            "Define r as math's square root of (25).\n" +
+            "Define r as math's square-root of (25).\n" +
             "If r is not void:\n" +
             "    State r converted to text.\n" +
             "Done.\n" +

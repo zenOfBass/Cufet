@@ -13,15 +13,13 @@ public sealed partial class TypeChecker
         var books = new Dictionary<string, BookType>(StringComparer.OrdinalIgnoreCase);
 
         // math book — the native remainder under the Cufet layer (Prelude/math.cufe, which owns
-        // floor/ceiling/round and the constants). Partial operations (undefined for some inputs)
-        // return voidable number. `absolute value` waits on multi-word method names; the three
-        // transcendentals are the arc's remaining pure-decimal numerics work.
+        // everything else). Partial operations (undefined for some inputs) return voidable
+        // number. These three are the arc's remaining pure-decimal numerics work.
         var mathMembers = new List<(string, CufetType)>
         {
-            ("absolute value", new FunctionType([CufetType.Number], CufetType.Number)),
-            ("square root",    new FunctionType([CufetType.Number], new VoidableType(CufetType.Number))),
-            ("log",            new FunctionType([CufetType.Number], new VoidableType(CufetType.Number))),
-            ("power",          new FunctionType([CufetType.Number, CufetType.Number], new VoidableType(CufetType.Number))),
+            ("square-root", new FunctionType([CufetType.Number], new VoidableType(CufetType.Number))),
+            ("log",         new FunctionType([CufetType.Number], new VoidableType(CufetType.Number))),
+            ("power",       new FunctionType([CufetType.Number, CufetType.Number], new VoidableType(CufetType.Number))),
         };
         books["math"] = new BookType("math", mathMembers);
 

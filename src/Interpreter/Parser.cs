@@ -3522,28 +3522,22 @@ public sealed class Parser
                 throw new ParseException(tok, "expression");
         }
 
-        // Possessive postfix: alice's name, one's field, alice's friend's name, math's absolute value
+        // Possessive postfix: alice's name, one's field, alice's friend's name, math's absolute-value
         SkipNoise();
         while (Peek().Type == TokenType.Possessive)
         {
             var possTok = Advance(); // consume "'s"
-            // Multi-word member names for book members (e.g. "absolute value", "square root").
-            // Skip leading articles, then accumulate consecutive identifier tokens.
-            // Single-word members (object fields, methods) collect exactly one token.
-            // Non-identifier first token: consume it as-is (keyword-named field fallback).
+            // ★ ONE token — a member name is an identifier, the same for a book as for anything
+            // else. This used to accumulate CONSECUTIVE identifiers, because two `math` members
+            // were spelled with a space (`square root`, `absolute value`); both are hyphenated
+            // now, so a book can no longer name a member a writer could not name. That deletes a
+            // greedy lookahead of exactly the kind the parser-hardening note warns about: it
+            // decided how much to swallow by scanning ahead, so `alice's name` followed by any
+            // identifier read as a two-word member.
+            // Articles are skipped first; a non-identifier token is consumed as-is (the
+            // keyword-named field fallback).
             while (Peek().Type == TokenType.Article) Advance();
-            var parts = new List<string>();
-            if (Peek().Type == TokenType.Identifier)
-            {
-                parts.Add(Advance().Lexeme);
-                while (Peek().Type == TokenType.Identifier)
-                    parts.Add(Advance().Lexeme);
-            }
-            else
-            {
-                parts.Add(Advance().Lexeme);
-            }
-            baseExpr = new PossessiveAccess(baseExpr, string.Join(" ", parts), possTok.Line, possTok.Column);
+            baseExpr = new PossessiveAccess(baseExpr, Advance().Lexeme, possTok.Line, possTok.Column);
             SkipNoise();
         }
 

@@ -634,7 +634,7 @@ public sealed partial class TypeChecker
     // ★ And the BOOK BINDINGS survive with them, for the same reason and a second one. A pulled
     // book is a lexical capability, not a local — `Pull a book on math.` is in scope for everything
     // written in that block. Clearing it made every book unusable inside any function declared in
-    // the pull: `math's square root` reported "'math' isn't defined", and `a random number` reported
+    // the pull: `math's square-root` reported "'math' isn't defined", and `a random number` reported
     // "the chance book is not in scope" while sitting inside the pull that opened it. That left
     // books good for little but top-level code, which is not what a standard library is for.
     private (List<Dictionary<string, TypeInfo>> V, List<Dictionary<string, CufetType>> T) SaveScopes()

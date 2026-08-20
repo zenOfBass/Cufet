@@ -299,7 +299,7 @@ public class PipelineStreamTests : PipelineTestBase
                 State math's round of 2.5.
                 State math's round of -2.5.
                 State math's round of 2.4.
-                State math's absolute value of -7.
+                State math's absolute-value of -7.
             Done.
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));

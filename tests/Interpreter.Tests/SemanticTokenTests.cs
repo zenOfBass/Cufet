@@ -98,7 +98,7 @@ public class SemanticTokenTests
             State here's y.
 
             Pull a book on math as m.
-                State m's square root of (144).
+                State m's square-root of (144).
             Done.
             """;
 
@@ -123,7 +123,7 @@ public class SemanticTokenTests
                 (10, 14, 1,  "property",  false),  // here's y
                 (12, 16, 4,  "namespace", true),   // Pull a book on math — no marker, no widening
                 (12, 24, 1,  "namespace", true),   // ... as m
-                (13, 11, 3,  "namespace", false),  // m's square root — owner + marker
+                (13, 11, 3,  "namespace", false),  // m's square-root — owner + marker
                 (13, 15, 11, "function",  false),  // the book member, spanning both its words
             ],
             Classify(source).Select(Shape));

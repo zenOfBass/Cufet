@@ -96,10 +96,10 @@ public class PipelineBooksTests : PipelineTestBase
         const string src = """
             Pull a book on math.
                 For each n in the range 1 to 60, repeat:
-                    State (math's square root of n) but void is -1.
-                    State (math's square root of (n / 7)) but void is -1.
+                    State (math's square-root of n) but void is -1.
+                    State (math's square-root of (n / 7)) but void is -1.
                 Done.
-                State (math's square root of 2) but void is -1.
+                State (math's square-root of 2) but void is -1.
             Done.
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
@@ -145,14 +145,14 @@ public class PipelineBooksTests : PipelineTestBase
         // that overflows decimal in the conversion — the exp>96 path). All flow as voidable number.
         const string src = """
             Pull a book on math.
-                State (math's square root of -1) but void is -999.
+                State (math's square-root of -1) but void is -999.
                 State (math's log of 0) but void is -999.
                 State (math's log of -1) but void is -999.
                 State (math's power of (-1, 0.5)) but void is -999.
                 State (math's power of (10, 1000)) but void is -999.
                 State (math's power of (10, 30)) but void is -999.
                 State (math's power of (10, 28)) but void is -999.
-                Define r as math's square root of 16.
+                Define r as math's square-root of 16.
                 If r is not void, State "sixteen has a root".
             Done.
             """;

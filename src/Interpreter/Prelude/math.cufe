@@ -1,9 +1,9 @@
 // The math book, written in Cufet.
 //
 // Same arrangement as collections.cufe: bundled, checked before every program, resolving with
-// the native book as one module. Still native, deliberately: `square root`, `log` and `power`
-// (the arc's remaining pure-decimal numerics work) and `absolute value` (a multi-word member
-// name, which a Cufet method cannot yet carry).
+// the native book as one module. Still native, deliberately: `square-root`, `log` and `power`
+// — the arc's remaining pure-decimal numerics work, and the only members left that are not
+// written here.
 
 Define object math with () and module:
     // π and e at decimal precision — 28 fractional digits, correctly rounded. More precise than
@@ -29,5 +29,11 @@ Define object math with () and module:
     Bind number to round, given (the number x):
         If x is less than 0, return cast one's ceiling on (x - 0.5).
         Return cast one's floor on (x + 0.5).
+    Done.
+
+    // Distance from zero.
+    Bind number to absolute-value, given (the number x):
+        If x is less than 0, return 0 - x.
+        Return x.
     Done.
 Done.

@@ -14,13 +14,11 @@ public sealed partial class Interpreter
         // and the constants; their native copies are DELETED, per the migration rule).
         var mathFunctions = new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase)
         {
-            // Total function: the decimal overload directly — no double conversion needed.
-            ["absolute value"] = args => (object)Math.Abs((decimal)args[0]),
             // Partial functions: decimal→double for the call, !IsFinite check, double→decimal back.
             // Math.Log(0) returns NegativeInfinity, not NaN — must use !IsFinite, not IsNaN.
-            ["square root"]    = args => MathPartial(Math.Sqrt((double)(decimal)args[0])),
-            ["log"]            = args => MathPartial(Math.Log((double)(decimal)args[0])),
-            ["power"]          = args => MathPartial(Math.Pow((double)(decimal)args[0], (double)(decimal)args[1])),
+            ["square-root"] = args => MathPartial(Math.Sqrt((double)(decimal)args[0])),
+            ["log"]         = args => MathPartial(Math.Log((double)(decimal)args[0])),
+            ["power"]       = args => MathPartial(Math.Pow((double)(decimal)args[0], (double)(decimal)args[1])),
         };
 
         books["math"] = new BookValue("math", mathFunctions,
