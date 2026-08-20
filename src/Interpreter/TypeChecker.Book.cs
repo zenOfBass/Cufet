@@ -39,11 +39,14 @@ public sealed partial class TypeChecker
     // under any local alias. Used to validate all chance-book expressions.
     private bool IsChancePulled()
     {
+        // ⚠ By NAME, over either shape. A pulled book binds at its Cufet layer (an ObjectType)
+        // now, so looking only for a BookType found nothing and every `a random number` refused
+        // itself. The BookType arm stays for a book with no layer, which is a state the prelude
+        // no longer produces but the checker should not depend on.
         for (int i = _scopes.Count - 1; i >= 0; i--)
             foreach (var info in _scopes[i].Values)
-                if (info.Type is BookType { Name: var n } &&
-                    n.Equals("chance", StringComparison.OrdinalIgnoreCase))
-                    return true;
+                if (info.Type is BookType { Name: var bookName } && IsChanceName(bookName)) return true;
+                else if (info.Type is ObjectType { Name: var objName } && IsChanceName(objName)) return true;
         return false;
     }
 
@@ -204,6 +207,9 @@ public sealed partial class TypeChecker
 
     public const string RabbitModuleName = "rabbit";
 
+    private static bool IsChanceName(string name) =>
+        string.Equals(name, "chance", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Is this the rabbit's type — the prelude-defined object, not a legacy marker?</summary>
     /// <remarks>
     /// ★ A rabbit is an ordinary ObjectType now (`Prelude/rabbit.cufe`), so it is first class and
@@ -238,11 +244,22 @@ public sealed partial class TypeChecker
             foreach (var (moduleName, localName) in ps.Books)
             {
                 var pulled = ResolveModule(moduleName, ps);
-                Scope[localName] = new TypeInfo(pulled, new VariableReference(localName, ps.Line, ps.Column), ps.Line);
+
+                // ★★ A book BINDS AT ITS CUFET LAYER — an ordinary ObjectType — rather than at
+                // BookType. Every book member is written in Cufet now, so the layer IS the book;
+                // binding it is what makes a book pass as a `module` VALUE, and it passes by
+                // INHERITANCE rather than by a decision made about books. A module is an object,
+                // an object is first class, so a module is first class. Nothing here asks what
+                // kind of module it is, which is the whole point of the arc.
+                var bound = MemberOwnerType(pulled) ?? pulled;
+                Scope[localName] = new TypeInfo(
+                    bound, new VariableReference(localName, ps.Line, ps.Column), ps.Line,
+                    IsPulledModule: true);
 
                 // A book may introduce a type name for the length of the block — `matrix` is the
-                // only one today. Nothing else that is pullable does, so this stays book-shaped.
-                if (pulled is BookType bookType)
+                // only one. Looked up BY NAME rather than off the bound type, which is no longer
+                // a BookType once the layer is what gets bound.
+                if (BuiltinBooks.TryGetValue(moduleName, out var bookType))
                     foreach (var (typeName, typeObj) in bookType.IntroducedTypes)
                         RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
             }

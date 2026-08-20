@@ -298,6 +298,33 @@ public class ModulePullTests
     }
 
     /// <summary>
+    /// ★★ The arc's finish line: a writer's object, a rabbit and a book are all `module` VALUES.
+    /// </summary>
+    /// <remarks>
+    /// They pass by INHERITANCE rather than by any decision made about them: a module is an
+    /// object, an object is first class, so a module is first class. Nothing in the checker asks
+    /// which KIND of module arrived — which is the whole of what the 0.16.0 arc was for.
+    /// ⚠ A book reaching here at all took binding the pulled name at its Cufet LAYER instead of
+    /// at `BookType`; a BookType is not an object, so conformance had nothing to inherit from.
+    /// </remarks>
+    [Fact]
+    public void EveryKindOfModulePassesAsAModuleValue()
+    {
+        Assert.Equal("kit\nrabbit\nbook", Run(Kit + """
+            Bind text to which, given (the module m, the text label): Return label. Done.
+            Pull greeting-kit as kit.
+                State cast which on (kit, "kit").
+            Done.
+            Pull a rabbit as hopper.
+                State cast which on (hopper, "rabbit").
+            Done.
+            Pull a book on math.
+                State cast which on (math, "book").
+            Done.
+            """));
+    }
+
+    /// <summary>
     /// `rabbit` is a module's NAME, not a reserved word — so a writer may use it for their own.
     /// </summary>
     /// <remarks>

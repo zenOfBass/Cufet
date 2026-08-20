@@ -1,0 +1,12 @@
+// The chance book, written in Cufet — or as much of it as there is to write.
+//
+// `chance` has no members and never had any: its whole surface is statement and expression
+// syntax (`a random number from 1 to 6`, `randomly shuffled`, `a random guess`, `Seed the
+// chance with 42.`), which the language parses directly rather than dispatching through the
+// book. Pulling it is what licenses those forms.
+//
+// So this definition carries nothing, and that is the honest shape of it. What it does is make
+// `chance` an OBJECT like every other module, so it is pulled, printed and passed on the same
+// terms as `math`, a rabbit, or a writer's own.
+
+Define object chance with () and module.

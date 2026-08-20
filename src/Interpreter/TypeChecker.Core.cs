@@ -425,7 +425,12 @@ public sealed class UnionType : CufetType
     }
 }
 
-public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false, int RabbitDepth = 0, bool IsParameter = false);
+// ★ IsPulledModule marks a binding made by `Pull`. A pulled module is a lexical CAPABILITY, not
+// a local — it is in scope for everything written in that block, functions included — so it
+// survives into a detached body where ordinary data does not. This used to be answered by
+// "is its type a BookType", which meant BOOKS survived and a writer's own module did not; the
+// two are the same thing now, and the flag says what was actually meant.
+public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false, int RabbitDepth = 0, bool IsParameter = false, bool IsPulledModule = false);
 
 // Line/Column point at the violation — the position the message's "Here on line N" sentence
 // names. They are 0 only for the rare error with no AST node to blame; a diagnostic consumer
@@ -646,7 +651,7 @@ public sealed partial class TypeChecker
         // Innermost-last so a nearer pull wins, matching ordinary lookup.
         foreach (var scope in savedV)
             foreach (var (name, info) in scope)
-                if (info.Type is BookType) fresh[name] = info;
+                if (info.IsPulledModule || info.Type is BookType) fresh[name] = info;
 
         _scopes.Clear();
         _scopes.Add(fresh);

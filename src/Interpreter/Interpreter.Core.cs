@@ -196,9 +196,14 @@ public sealed partial class Interpreter
 
         var fresh = new Dictionary<string, object> { ["input"] = new ReadableStreamValue(_in) };
         // Outermost-first so a nearer pull's alias wins, matching ordinary lookup.
+        //
+        // ★ Any PULLED module, not just a book. A pulled module is a lexical capability rather
+        // than a local, so it reaches into a function written in its block — and a writer's own
+        // module is one on exactly the same terms. Asking `is BookValue` carried books and left a
+        // writer's module behind, which the checker used to hide by refusing it outright.
         foreach (var scope in saved.Item1)
             foreach (var (name, value) in scope)
-                if (value is BookValue) fresh[name] = value;
+                if (value is BookValue || _pulledModuleNames.Contains(name)) fresh[name] = value;
 
         _scopes.Clear();
         _scopes.Add(fresh);

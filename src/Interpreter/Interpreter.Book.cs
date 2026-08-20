@@ -39,13 +39,18 @@ public sealed partial class Interpreter
         return books;
     }
 
+    // Names bound by a `Pull` that is still open — see the note in SaveScopes for what it is for.
+    private readonly HashSet<string> _pulledModuleNames = new(StringComparer.Ordinal);
+
     private void ExecutePullStatement(PullStatement ps)
     {
         EnterScope();
+        var pulledHere = new List<string>();
         try
         {
             foreach (var (bookName, localName) in ps.Books)
             {
+                if (_pulledModuleNames.Add(localName)) pulledHere.Add(localName);
                 if (BuiltinBookValues.TryGetValue(bookName, out var bookValue))
                 {
                     // ★ A book with a Cufet layer — the prelude defines a module object under the
@@ -72,6 +77,9 @@ public sealed partial class Interpreter
         }
         finally
         {
+            // Only the names THIS pull introduced — an inner pull reusing an outer's alias must
+            // not un-mark it on the way out.
+            foreach (var name in pulledHere) _pulledModuleNames.Remove(name);
             ExitScope();
         }
     }
