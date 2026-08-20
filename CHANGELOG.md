@@ -108,6 +108,32 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **★★★ The arc's finish line: a writer's object, a rabbit and a book are all `module` VALUES.**
+  `given (the module m)` accepts all three on identical terms, on both backends — and they pass
+  by **inheritance**, not by any decision made about them. A module is an object, an object is
+  first class, so a module is first class. Nothing in the checker asks which *kind* of module
+  arrived, which is the whole of what this arc was for.
+
+  A book reaching that point took one change with a long run-up: **a pulled book binds at its
+  Cufet layer** — an ordinary object — rather than at `BookType`. That is only honest because
+  slices 1–3 moved every book member into Cufet first, so the layer *is* the book; a `BookType`
+  is not an object, so conformance had nothing to inherit from. `chance` gained a layer of its
+  own (`Prelude/chance.cufe`, carrying nothing, because its whole surface is syntax rather than
+  members) so that no book is left outside the rule.
+
+  ⚠ One thing this quietly fixed: `IsChancePulled` looked for a `BookType` in scope, so once the
+  layer was what got bound it found nothing and every `a random number` would have refused
+  itself. It asks by name over either shape now.
+
+- **★ A writer's own module reaches inside a function written in its pull, as a book always
+  could.** A pulled module is a lexical *capability*, not a local — it is in scope for everything
+  written in that block. Both backends decided that by asking "is this a book", so a book
+  survived into a detached body and a writer's module was dropped: interpreted it failed with
+  *'kit' isn't defined*, and the checker refused it before anyone noticed the backends disagreed.
+
+  They ask whether the binding came from a `Pull` now, which is what was meant all along. The
+  asymmetry had been invisible because the only modules anyone wrote were bundled books.
+
 - **★★ A rabbit is an object, defined in Cufet — and a rabbit now passes as a `module` value.**
   Slice 4 of the 0.16.0 arc, which carried slice 5's headline with it: `given (the module m)`
   accepts a rabbit, a book, and a writer's own object on identical terms, on both backends. That

@@ -45,106 +45,36 @@ true of `math` and got copied. Write "needs `square root`, which is a C call" in
 you write it, and check it again before ordering work off it. A dependency you cannot state
 precisely enough to test does not belong in this file.
 
-### The arc in progress — 0.16.0: everything pullable is an object
+### ▶ 0.16.0 — everything pullable is an object — SHIPPED 2026-08-19
 
-**Agreed 2026-08-19. One arc, five slices, one principle: no part of the module system lives
-outside Cufet.** A book is a module, a rabbit is a module, and a writer's own object is a module
-on exactly the same terms — no privileged builtin category. So the books get written in Cufet,
-the rabbit becomes an object, and passing any of them as a `module` value stops being a
-question.
+**All five slices done; the detail is in [CHANGELOG.md](CHANGELOG.md) and the rules are in
+[GRAMMAR.md](GRAMMAR.md).** The principle held: a book is a module, a rabbit is a module, and a
+writer's own object is a module on exactly the same terms — no privileged builtin category left.
 
-The language's **floor** — control flow, arithmetic, `bury`'s transform — stays
-compiler-implemented until the compiler itself is written in Cufet (the Cufet-in-Cufet tier
-below owns that promise). This arc does not borrow it: `bury` is classed with `If`, never with
-`unique`.
+What that meant in the end, kept here only because the reasoning outlives the work:
 
-What already exists, measured: `Pull <module> [as <alias>]` works on both backends for a
-writer's object conforming to `module`, and the bundled books answer to the same form; blanks
-work on objects, functions and methods; the prelude hook in `TypeChecker.Check` parses bundled
-source and prepends it (empty today). Two things are settled and do not change in this arc:
-★ **`module` stays a MARKER — it requires nothing** until a real requirement earns its way in,
-and **pulling INSTANTIATES**. ★ **The loader is still not part of any of this** — fetching code
-that is not already in the program is a separate hard problem (*Shipping a book*, below), and it
-is one conformer's business rather than the contract's.
+- **Both bundled books are written in Cufet**, transcendentals included, and neither has a native
+  member left. Nothing in either touches a `double`, so the two backends agree **by construction**
+  rather than by sharing a platform library — which retired the documented libm caveat.
+- **A rabbit is an object**, defined in one line of Cufet, and `Pull` is its only constructor —
+  load-bearing rather than tidy, because pulling is what opens its region.
+- **A module VALUE is first class by INHERITANCE.** `given (the module m)` takes all three kinds
+  and never asks which. That took binding a pulled book at its Cufet layer rather than at
+  `BookType`, which was only honest once every member had moved.
+- **No module's name is reserved** — `rabbit`, `book` and `books` were freed — because a future
+  external module's name cannot be reserved in advance. That rule was forced, not chosen.
 
-**Slice 1 — resolution — ▶ SHIPPED 2026-08-19** (see CHANGELOG): the merge rule, the prelude as
-   embedded `.cufe` files, `unique` in Cufet with the native copy deleted, and a bundled book's
-   name walled off (`Define object`, `a new`, and `unto` all refused — `Pull` is the only
-   constructor). **Half-migrated is a supported state** — the machinery every later slice rides.
-
-**Slice 2 — `collections` written in Cufet — ▶ SHIPPED 2026-08-19** (see CHANGELOG): all four
-   remaining members moved, native copies and the pre-blanks aggregate dispatch path deleted.
-   The native side of `collections` now introduces the `matrix` type and nothing else.
-
-**Slice 3 — `math` written in Cufet: pure decimal, no FFI.** ▶ **All but the transcendentals
-   shipped 2026-08-19** (see CHANGELOG): `floor`, `ceiling`, `round` and `absolute-value` are
-   Cufet; `pi` and `e` are decimal-precise layer getters. The multi-word member question was
-   settled by **hyphenating the names** (`square-root`, `absolute-value`) rather than by a
-   mapping rule — a book may not name a member a writer could not name, which also let the
-   parser's greedy possessive lookahead be deleted.
-
-   The transcendentals followed the same day: `square-root`, `log`, `exp` and `power` are
-   computed on the decimal itself, so **neither bundled book has a native member left** and
-   nothing in either touches a double. **The libm last-ULP caveat is retired** — the backends
-   agree by construction rather than by sharing a platform library, and the fractional-exponent
-   family that caveat made untestable is now asserted.
-
-   **Accuracy is measured, not claimed:** `square-root` and `exp` came out correctly rounded on
-   every value checked, and a whole-number `power` is exact (repeated squaring); `log` is within
-   about two units in the last place at 28 digits. The guarantee that is absolute — and that was
-   the point of the slice — is that both backends give the same answer.
-
-**Slice 4 — the rabbit becomes an object.**
-
-   ⚠⚠ **MEASURED 2026-08-19: the definition CANNOT live in the prelude.** `rabbit` is a reserved
-   keyword (`TokenType.Rabbit`), so `Define object rabbit with () and module.` does not lex, let
-   alone parse. Un-reserving it is not a small change — `Pull a rabbit`, `given (the rabbit r)`
-   and `Have rabbit start a task` all read that keyword, and the bare form in the last one means
-   *the enclosing rabbit*, which has no other spelling. So the rabbit's definition is registered
-   by the checker rather than written in Cufet, and the arc's "no part of the module system
-   lives outside Cufet" is **not** fully met for the rabbit. ★ The cost is smaller than it
-   sounds: `bury` is compiler-provided by settled decision, so the Cufet definition would be a
-   contentless shell — `with () and module` and nothing else — carrying no information the
-   registration does not.
-
-   Its definition — an object conforming to `module`,
-   its methods named — otherwise stands. The surface is frozen:
-   `Pull a rabbit as hopper.`, `Have hopper bury next.`, `unbury s` — nothing changes at a use
-   site. `bury` becomes a method on the rabbit that owns the buried state, which is where it was
-   always meant to live, and a stash finally has an owner.
-
-   - **`bury`'s implementation is compiler-provided with a NAMED EXPIRY**, exactly like `If`'s:
-     suspension is a check-time rewrite of the containing function, so its body cannot be an
-     ordinary Cufet function until the compiler itself is written in Cufet — the Cufet-in-Cufet
-     tier, which owns that promise. Do not write "intrinsic" anywhere; that word reads as
-     *forever* and it is not.
-   - **A stash IS a continuation — the one-shot DELIMITED kind.** It captures the rest of one
-     function, the rabbit's ground is the delimiter, one live resumption. That names the design
-     and settles the question permanently. `call/cc` — undelimited, multi-shot — stays rejected
-     on the recorded reasoning: CPS-transforming the program destroys the readable emitted C,
-     stack copying is nonportable and fights the sanitizers and the thread-local arenas, and the
-     no-divergence rule decides it independent of cost because the tree-walking interpreter
-     cannot faithfully capture its host stack.
-   - **Nothing new is exposed**: no public fields, no name accessor, and embedding `rabbit` in a
-     writer's object is refused. A requirement earns its way in, as everywhere.
-   - **`Pull a rabbit as hopper.` stays the only constructor** — no `a new rabbit { }`, because
-     pulling is what creates the ground, and a rabbit without ground is not a rabbit.
-
-**Slice 5 — a book and a rabbit pass as `module` VALUES.** The arc's finish line:
-   `given (the module m)` accepts a writer's object, a book, and a rabbit on the same terms — a
-   module is an object, an object is first class, so a module is first class by inheritance
-   rather than by a separate decision. `module` stays a marker, so a module-typed parameter
-   offers no callable members; declare a narrower interface when you want calls, which is
-   machinery that already exists. Printing and equality follow object rules; the exact text is
-   measured and pinned during the slice, not invented in advance.
-
-The arc ships as **0.16.0**.
+★ **The arc's own lesson, worth more than the feature:** writing the books in Cufet is what found
+the bugs. Five real divergences and a latent asymmetry surfaced only because someone finally
+*used* the module system from the inside. See the note under *What a module exports* for the one
+place that changed a deferral.
 
 Notes that outlive the arc:
 
-- **`chance` has nothing to move.** Its surface is `a random number from … to …` and friends,
-  which are AST nodes rather than members; its member list is empty. It is already exactly what
-  the arc makes the others.
+- **`chance` has no members and never had any.** Its surface is `a random number from … to …`
+  and friends, which the language parses directly rather than dispatching through the book —
+  pulling it is what licenses those forms. It still got a layer of its own, carrying nothing, so
+  that no book sits outside the rule.
 - **No variance**, if blanks are ever extended. Not covariance, not contravariance. It is the
   part nobody can explain to a learner, and a teaching language that ships `IEnumerable<out T>`
   has lost the plot.
