@@ -383,8 +383,6 @@ therefore a character-wise match.
 | `environment` | EnvironmentKw |
 | `interrupt` | InterruptKw |
 | `acknowledge` | AcknowledgeKw |
-| `book` | Book |
-| `books` | Books |
 | `catalogue` | CatalogueKw |
 | `atlas` | AtlasKw |
 
@@ -1284,12 +1282,16 @@ Pull math as m.
 Pull rabbit.
 ```
 
-★ **No module's NAME is reserved**, the rabbit's included since 2026-08-19. `math`,
-`collections`, `chance` and `rabbit` are ordinary identifiers, and a writer may use any of them
-for their own names. What the books reserve is *grammar* — `book`, `books`, `on` — never
-identity, and the rabbit was the one module whose own name had been a keyword. The parser still
-recognises `rabbit` where it must (pulling one opens a region; `Have rabbit …` addresses the
-enclosing one), because recognising a name is not reserving a word.
+★ **No module's NAME is reserved, and neither is `book` or `books`** (both freed 2026-08-19).
+`math`, `collections`, `chance`, `rabbit`, `book` and `books` are all ordinary identifiers, so
+`For each book in books, repeat:` reads, and a writer may even define a module named `book` and
+reach it with `Pull book.`
+
+The rule this settles, and it has to hold for modules that do not exist yet: **a module's name
+can never be reserved**, because nobody can reserve `inventory` or `parser` in advance. The
+parser still *recognises* these words where they do a job — pulling a rabbit opens a region,
+`Have rabbit …` addresses the enclosing one, and `book`/`books` open the `… on <name>` spelling
+when `on` follows — because recognising a word is not reserving it.
 
 `book on <name>` is kept because `Pull a math.` reads worse than `Pull a book on math.`, not
 because books are a separate mechanism. A book conforms by CONSTRUCTION (its members are

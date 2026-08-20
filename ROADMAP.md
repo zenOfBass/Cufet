@@ -231,7 +231,20 @@ problem and is nobody's contract.
 
    ★ **It bites when a module can be DEPENDED ON, and not before.** Nothing is distributable —
    there is no loader and no package manager (the items either side of this one) — so no one can
-   rely on your helper yet. This item belongs here, next to the things that make distribution real.
+   rely on your helper yet.
+
+   ⚠⚠ **AMENDED 2026-08-19: that precondition is now PARTLY MET, and it arrived from an
+   unexpected direction.** Writing the bundled books in Cufet (the 0.16.0 arc) made the prelude
+   ship with the language and travel into every program, so **the books are modules that really
+   are depended on — by everyone, permanently, with no distribution mechanism needed.** A helper
+   added to `math` is in every Cufet program forever.
+
+   It bit once while `power` was being written: an overflow-guarded multiply was wanted in two
+   places, and factoring it out would have made `guarded-times` a permanent member of `math`, so
+   **it was inlined twice instead** — the magic constant with it. That is the predicted failure
+   exactly: not "could not be done", but "written worse to avoid the API". One duplicated guard
+   does not justify reordering this item, and the fix here is still the right one — but the next
+   person writing a bundled book will meet the same wall, and should know it was expected. This item belongs here, next to the things that make distribution real.
 
    ⚠ **Corrected 2026-08-15.** An earlier version of this entry claimed the decision could not wait
    and had to be made before a module could be shared. That was wrong twice over, and the reasoning

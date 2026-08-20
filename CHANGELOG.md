@@ -108,6 +108,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **★★ `book` and `books` are no longer reserved words either.** `For each book in books,
+  repeat:` is a line this language could not write — in a program about a library, which is the
+  first thing anyone would try. Both words are ordinary identifiers now, and a writer may even
+  define a module named `book` and pull it with `Pull book.`
+
+  They appear in exactly **one** spelling, `Pull a book on <name>.`, and a word spent on a
+  single construct is a name every writer loses forever. The `on` is what makes them decidable
+  without reserving anything: `Pull a book on math.` and `Pull book.` differ in their *second*
+  token, so one look settles which is meant. Both book spellings still read exactly as before.
+
+  ⚠ The two book branches had to move **ahead of** the general `Pull <module>` form in the
+  parser. That branch is gated on an identifier, and `book` is one now — it would otherwise
+  swallow the word as a module's name and then meet `on` where it wanted a `.`
+
 - **★★ `rabbit` is no longer a reserved word.** It is a module's *name*, and no other module's
   name is reserved — `math`, `collections` and `chance` are ordinary identifiers and always
   were. What the books reserve is grammar (`book`, `books`, `on`), never identity; the rabbit
