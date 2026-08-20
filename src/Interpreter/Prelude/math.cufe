@@ -36,4 +36,195 @@ Define object math with () and module:
         If x is less than 0, return 0 - x.
         Return x.
     Done.
+
+    // The square root, by Newton–Raphson on the decimal itself — no double anywhere, so both
+    // backends compute it with the same arithmetic and agree by construction rather than by
+    // sharing a platform library. A negative number has no root here, so the answer is void.
+    Bind voidable number to square-root, given (the number x):
+        If x is less than 0, return void.
+        If x is 0, return 0.
+
+        // Scale into [1, 100) by EVEN powers of ten. The root of an even power of ten is an
+        // exact power of ten, so the scaling costs no accuracy at all, and it hands the
+        // iteration a narrow range to start from instead of the whole number line.
+        Define value as x.
+        Define factor as 1.
+        While value is not less than 100, repeat:
+            The value becomes value / 100.
+            The factor becomes factor * 10.
+        Done.
+        While value is less than 1, repeat:
+            The value becomes value * 100.
+            The factor becomes factor / 10.
+        Done.
+
+        // From any positive start the next iterate lands at or above the root, and the sequence
+        // then falls monotonically toward it — so "it stopped going down" is an exact stopping
+        // rule with no epsilon to choose, and it cannot run forever because a strictly
+        // decreasing run of decimals must end.
+        Define estimate as (value + 1) / 2.
+        Define refined as (estimate + value / estimate) / 2.
+        While refined is less than estimate, repeat:
+            The estimate becomes refined.
+            The refined becomes (estimate + value / estimate) / 2.
+        Done.
+
+        Return estimate * factor.
+    Done.
+
+    // The natural logarithm. Zero and negatives have none, so the answer is void.
+    Bind voidable number to log, given (the number x):
+        If x is 0 or x is less than 0, return void.
+
+        // Two reductions, because the series below only converges quickly near 1. First by
+        // powers of ten, which is cheap and covers the whole range; then by powers of two,
+        // which lands the value in [0.8, 1.25]. Each factor taken out is added back at the end
+        // as a multiple of its own logarithm.
+        Define value as x.
+        Define tens as 0.
+        While value is not less than 10, repeat:
+            The value becomes value / 10.
+            Increment tens by 1.
+        Done.
+        While value is less than 1, repeat:
+            The value becomes value * 10.
+            Decrement tens by 1.
+        Done.
+
+        Define twos as 0.
+        While value is greater than 1.25, repeat:
+            The value becomes value / 2.
+            Increment twos by 1.
+        Done.
+        While value is less than 0.8, repeat:
+            The value becomes value * 2.
+            Decrement twos by 1.
+        Done.
+
+        // log(value) = 2 * (r + r^3/3 + r^5/5 + ...) where r = (value - 1) / (value + 1). The
+        // terms fall by r^2 — about a hundredth each time over this range — so the run ends in
+        // roughly fifteen passes, when a term is too small for the number to hold at all.
+        Define ratio as (value - 1) / (value + 1).
+        Define ratio-squared as ratio * ratio.
+        Define term as ratio.
+        Define total as ratio.
+        Define divisor as 1.
+        While term is not 0, repeat:
+            The term becomes term * ratio-squared.
+            The divisor becomes divisor + 2.
+            The total becomes total + term / divisor.
+        Done.
+
+        Return 2 * total
+             + tens * 2.3025850929940456840179914547
+             + twos * 0.6931471805599453094172321215.
+    Done.
+
+    // The number e raised to a power. Too large to hold is void; too small is zero, which is
+    // what the smallest number this language keeps rounds to anyway.
+    Bind voidable number to exp, given (the number z):
+        If z is greater than 100, return void.
+        If z is less than -100, return 0.
+
+        // z = doublings * log 2 + rest, so what the series has to handle is at most half a
+        // log 2 — and the rest of the answer is a power of two, which is exact.
+        Define doublings as cast one's round on (z / 0.6931471805599453094172321215).
+        Define rest as z - doublings * 0.6931471805599453094172321215.
+
+        // exp(rest) = 1 + rest + rest^2/2 + rest^3/6 + ..., each term the one before it times
+        // rest over the next whole number.
+        Define term as 1.
+        Define total as 1.
+        Define step as 1.
+        While term is not 0, repeat:
+            The term becomes term * rest / step.
+            The total becomes total + term.
+            Increment step by 1.
+        Done.
+
+        // Fold in the doublings one at a time rather than building the power of two first: the
+        // running value only ever grows toward the answer, so anything that fits at the end fit
+        // all the way there, and the check below is exact rather than a guess at a limit.
+        Define result as total.
+        If doublings is greater than 0:
+            Define count as doublings.
+            While count is greater than 0, repeat:
+                If result is greater than 39614081257132168796771975167, return void.
+                The result becomes result * 2.
+                Decrement count by 1.
+            Done.
+        Done.
+        If doublings is less than 0:
+            Define count as 0 - doublings.
+            While count is greater than 0, repeat:
+                The result becomes result / 2.
+                Decrement count by 1.
+            Done.
+        Done.
+
+        Return result.
+    Done.
+
+    // One number raised to another.
+    Bind voidable number to power, given (the number base-value, the number exponent):
+        If exponent is 0, return 1.
+        If base-value is 0:
+            If exponent is less than 0, return void.
+            Return 0.
+        Done.
+
+        // A whole-number exponent is done exactly, by repeated squaring — no series, no
+        // logarithm, and it is the one path a negative base can take.
+        If exponent % 1 is 0:
+            Define remaining as cast one's absolute-value on (exponent).
+            Define result as 1.
+            Define factor as base-value.
+            While remaining is greater than 0, repeat:
+                If remaining % 2 is 1:
+                    Define result-size as cast one's absolute-value on (result).
+                    Define factor-size as cast one's absolute-value on (factor).
+                    If result-size is greater than 1 and factor-size is greater than 1
+                       and result-size is greater than (79228162514264337593543950335 / factor-size),
+                        return void.
+                    The result becomes result * factor.
+                Done.
+                The remaining becomes cast one's floor on (remaining / 2).
+                If remaining is greater than 0:
+                    Define base-size as cast one's absolute-value on (factor).
+                    If base-size is greater than 1
+                       and base-size is greater than (79228162514264337593543950335 / base-size),
+                        return void.
+                    The factor becomes factor * factor.
+                Done.
+            Done.
+            If exponent is less than 0:
+                If result is 0, return void.
+                Return 1 / result.
+            Done.
+            Return result.
+        Done.
+
+        // Past here the exponent has a fraction in it, and a negative base has no real answer.
+        If base-value is less than 0, return void.
+        If exponent is 0.5, return cast one's square-root on (base-value).
+
+        Define logarithm as (cast one's log on (base-value)) but void is 0.
+        If logarithm is 0, return 1.
+
+        // Keep the multiplication below inside what a number can hold. Either side alone can be
+        // enormous, so the size of one is compared against room left by the other rather than
+        // multiplied out first.
+        Define magnitude as cast one's absolute-value on (logarithm).
+        Define reach as cast one's absolute-value on (exponent).
+        Define beyond as false.
+        If magnitude is greater than 1 and reach is greater than (100 / magnitude), the beyond becomes true.
+        If magnitude is not greater than 1 and reach * magnitude is greater than 100, the beyond becomes true.
+        If beyond is true:
+            If exponent is greater than 0 and logarithm is greater than 0, return void.
+            If exponent is less than 0 and logarithm is less than 0, return void.
+            Return 0.
+        Done.
+
+        Return cast one's exp on (exponent * logarithm).
+    Done.
 Done.

@@ -12,16 +12,11 @@ public sealed partial class TypeChecker
     {
         var books = new Dictionary<string, BookType>(StringComparer.OrdinalIgnoreCase);
 
-        // math book — the native remainder under the Cufet layer (Prelude/math.cufe, which owns
-        // everything else). Partial operations (undefined for some inputs) return voidable
-        // number. These three are the arc's remaining pure-decimal numerics work.
-        var mathMembers = new List<(string, CufetType)>
-        {
-            ("square-root", new FunctionType([CufetType.Number], new VoidableType(CufetType.Number))),
-            ("log",         new FunctionType([CufetType.Number], new VoidableType(CufetType.Number))),
-            ("power",       new FunctionType([CufetType.Number, CufetType.Number], new VoidableType(CufetType.Number))),
-        };
-        books["math"] = new BookType("math", mathMembers);
+        // math book — ★ nothing native left. Every member is written in Cufet
+        // (Prelude/math.cufe), including the transcendentals, which are computed on the decimal
+        // itself rather than through a double. The book still exists as a NAME so that `Pull
+        // math.` resolves and its Cufet layer is found under it.
+        books["math"] = new BookType("math", []);
 
         // collections book — its members all live in the Cufet layer (Prelude/collections.cufe)
         // now; the native side introduces the `matrix` TYPE and nothing else.
@@ -149,7 +144,14 @@ public sealed partial class TypeChecker
     private CufetType ResolveModule(string name, PullStatement ps)
     {
         if (BuiltinBooks.TryGetValue(name, out var bookType))
+        {
+            // ★ Recorded so the book's Cufet layer can be DROPPED from the program when nothing
+            // pulls it — see DropUnpulledLayers. A layer's members are reachable only through a
+            // pull, so the pull sites are the whole reachability question, and the checker
+            // already visits every one of them. No AST walk of our own, which is the point.
+            _pulledBooks.Add(name);
             return bookType;
+        }
 
         if (_objectDefs.TryGetValue(name, out var moduleType))
         {

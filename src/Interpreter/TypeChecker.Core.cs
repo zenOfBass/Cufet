@@ -801,7 +801,8 @@ public sealed partial class TypeChecker
                 WithoutTemplates(program.Statements, _genericFunctions.Keys.ToHashSet(StringComparer.Ordinal))));
 
         // Expand hands back the very same list when there was nothing to do, which is the usual case.
-        var lowered = StashTransform.Expand(program.Statements, _buryingFunctions, _stashFacts);
+        var lowered = StashTransform.Expand(
+            DropUnpulledLayers(program.Statements), _buryingFunctions, _stashFacts);
         return ReferenceEquals(lowered, program.Statements) ? program : new Program(lowered);
     }
 
@@ -884,6 +885,47 @@ public sealed partial class TypeChecker
     // Filled by WithPrelude at depth 0; deliberately left empty on the re-entrant pass, where the
     // guard is off (everything there was already admitted once).
     private readonly HashSet<IStatement> _preludeStatements = new(ReferenceEqualityComparer.Instance);
+
+    // Bundled books this program actually pulls, filled by ResolveModule as it resolves each
+    // pull site. What it is for is DropUnpulledLayers, below.
+    private readonly HashSet<string> _pulledBooks = new(StringComparer.OrdinalIgnoreCase);
+
+    // Set while a bundled book's Cufet layer is being checked, so its bodies do not import the
+    // writer's top-level names. See the note in CheckMethodBody.
+    private bool _checkingBookLayer;
+
+    /// <summary>
+    /// Drops the Cufet layer of every bundled book the program never pulls.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ★ The prelude is prepended to EVERY program, so without this a one-line `State "hi".`
+    /// carries all of `math` and `collections` into the emitted C — measured at 20 KB of program
+    /// against 54 KB of runtime, which is exactly the ratio the runtime split was built to fix.
+    /// A layer's members can only be reached through a pull, so a book nobody pulls is
+    /// unreachable in its entirety and the whole definition goes.
+    /// </para>
+    /// <para>
+    /// ⚠ It assumes no layer reaches into ANOTHER book's layer. That is true today (each calls
+    /// only its own members, through `one`) and it is what keeps this a one-step drop rather
+    /// than a reachability closure. A layer that pulls another book would need this to iterate.
+    /// </para>
+    /// </remarks>
+    private IReadOnlyList<IStatement> DropUnpulledLayers(IReadOnlyList<IStatement> statements)
+    {
+        if (_pulledBooks.Count == BuiltinBooks.Count) return statements;
+
+        var kept = new List<IStatement>(statements.Count);
+        foreach (var statement in statements)
+        {
+            if (statement is ObjectDefinition od
+                && BuiltinBooks.ContainsKey(od.Name)
+                && !_pulledBooks.Contains(od.Name))
+                continue;
+            kept.Add(statement);
+        }
+        return kept.Count == statements.Count ? statements : kept;
+    }
 
     /// <summary>
     /// Check the program AS the prelude: its own top-level statements get the prelude's standing

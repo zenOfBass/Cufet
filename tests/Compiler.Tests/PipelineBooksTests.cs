@@ -78,15 +78,15 @@ public class PipelineBooksTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    // ── Arc 1B: math transcendentals — the decimal↔double bridge ──
-    // sqrt/log/power are double-backed (the settled fork — the interpreter is Math.Sqrt-backed).
-    // The bridge replicates .NET 10's DecCalc conversions bit-for-bit: VarR8FromDec on the way in,
-    // VarDecFromR8 (15 significant digits, half-even at the 15th) on the way out. sqrt is IEEE-
-    // correctly-rounded (C sqrt == .NET Math.Sqrt everywhere); log matched a 300-input corpus.
-    // CAVEAT (measured, documented): `power` with fractional exponents is last-ULP libm-dependent —
-    // .NET's own Math.Pow IS the platform libm, so 2/240 corpus inputs (e.g. 2^2.65) differ by ±1
-    // in the 15th significant digit between ucrt (.NET-on-Windows) and glibc/mingw. These tests use
-    // the corpus-verified-matching pow families; the divergence family is documented, not asserted.
+    // ── math's transcendentals — written in Cufet, computed on the decimal ──
+    // ★★ THE libm CAVEAT IS RETIRED. These used to be double-backed, which meant `power` with a
+    // fractional exponent was last-ULP platform-dependent: .NET's Math.Pow IS the platform libm,
+    // so inputs like 2^2.65 differed by ±1 in the 15th significant digit between ucrt
+    // (.NET-on-Windows) and glibc/mingw, and that family could be documented but never asserted.
+    // square-root/log/exp/power are now Cufet in the math book's own layer, computed on CufetDec
+    // itself — so both backends run the SAME algorithm on the SAME arithmetic and agree by
+    // construction rather than by sharing a library. The formerly-divergent family is asserted
+    // below, which is the whole proof.
 
     [Fact]
     public void Book_Math_Sqrt_BridgeOracleMatch()
@@ -131,6 +131,23 @@ public class PipelineBooksTests : PipelineTestBase
                 For each n in the range 1 to 40, repeat:
                     State (math's power of (n / 10, 3)) but void is -1.
                     State (math's power of (n, 0.5)) but void is -1.
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Book_Math_Power_FormerlyLibmDivergentFamily()
+    {
+        // ★ These are the inputs the double-backed implementation could not assert: a fractional
+        // exponent went through the platform's own pow, so the answer's last digit belonged to
+        // whichever libm was linked. Nothing here touches a double any more.
+        const string src = """
+            Pull a book on math.
+                State (math's power of (2, 2.65)) but void is -1.
+                For each n in the range 1 to 30, repeat:
+                    State (math's power of (2, n / 10)) but void is -1.
                 Done.
             Done.
             """;

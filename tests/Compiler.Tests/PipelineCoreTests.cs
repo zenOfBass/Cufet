@@ -236,4 +236,25 @@ public class PipelineCoreTests : PipelineTestBase
         const string src = "Define x as 5. If x is 5, state x. Otherwise, state 0.";
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    /// <summary>
+    /// A quotient must come back in MINIMAL form, the way .NET leaves one.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ The tell is invisible: `11 / 10` printed `1.1` on both backends, but the compiled value
+    /// carried it as 1.1000…0 at scale 28, because the division reduced to scale 28 and never
+    /// stripped the zeros — and printing strips trailing zeros too, so nothing showed. It only
+    /// surfaced when a LATER operation on that value overflowed at one scale and not the other.
+    /// Dividing the largest number by the quotient is the smallest thing that makes it visible.
+    /// </remarks>
+    [Fact]
+    public void Division_LeavesQuotientInMinimalForm()
+    {
+        const string src = """
+            Define ratio as 11 / 10.
+            State ratio.
+            State 79228162514264337593543950335 / ratio.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

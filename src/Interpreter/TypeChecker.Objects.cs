@@ -370,9 +370,11 @@ public sealed partial class TypeChecker
         // a pull. This is scoped to the book's own source, not a general loosening: only the
         // prelude can define an object under a book's name (Pass1Hoist refuses a writer's).
         bool isBookLayer = BuiltinBooks.TryGetValue(od.Name, out var layerBook);
+        bool prevLayer   = _checkingBookLayer;
         if (isBookLayer)
         {
             EnterScope();
+            _checkingBookLayer = true;
             foreach (var (typeName, typeObj) in layerBook!.IntroducedTypes)
                 RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
         }
@@ -395,7 +397,11 @@ public sealed partial class TypeChecker
             foreach (var setter in od.Setters)
                 CheckSetterBody(setter, objType, od.Line);
         }
-        finally { if (isBookLayer) ExitScope(); }
+        finally
+        {
+            _checkingBookLayer = prevLayer;
+            if (isBookLayer) ExitScope();
+        }
     }
 
     // Validates own-type getter/setter name uniqueness and no clashes with methods.
@@ -443,7 +449,14 @@ public sealed partial class TypeChecker
         var saved = SaveScopes();
 
         // Method scope: functions and top-level constants visible, plus 'one' (self) + parameters.
-        ImportTopLevelVisible(saved);
+        //
+        // ★ EXCEPT in a bundled book's Cufet layer, which imports nothing from the writer's top
+        // level. The prelude is prepended to the program, so without this a book's method body
+        // sees the writer's own functions — and a local in the book then COLLIDES with any name
+        // they happened to use. A program declaring `Bind number to total` broke `log`, whose
+        // running sum is called `total`. That is not a name clash to dodge by renaming: the book
+        // was written without sight of the program, so nothing in the program should reach it.
+        if (!_checkingBookLayer) ImportTopLevelVisible(saved);
         Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), selfLine, IsParameter: true);
         foreach (var (type, name) in method.Parameters)
             Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), method.Line, IsParameter: true);

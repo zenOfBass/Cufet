@@ -373,9 +373,6 @@ public sealed class CodeGenerator
         _objectDefs.TryGetValue(bookName, out var layerDef)
             ? layerDef.Getters.FirstOrDefault(g => g.Name == member)
             : null;
-    // Set when an exact-decimal math function (floor/ceiling/round/absolute-value) is used, so the
-    // math runtime is emitted (only then). pi/e are baked as decimal literals, not runtime funcs.
-    private bool _usesMath;
     // Set when the program cases text (`in uppercase`/`in lowercase`), so the Unicode case table is
     // emitted (only then). Worth gating: the table is ~11 KB of the ~1500-line runtime that is
     // pasted into every generated file, and most programs never case anything.
@@ -815,6 +812,14 @@ static int cufet_cmp(CufetDec a, CufetDec b) {
     int c = u256_cmp(ca, cb);
     return a.sign ? -c : c;
 }
+/* Minimal form, the way .NET leaves a decimal DIVISION: 11/10 is 1.1 at scale 1, not
+   1.1000...0 at scale 28. Trailing zeros are invisible when printed (cufet_format_number
+   strips them too), so a difference here hides until some LATER operation on the value
+   overflows at one scale and not the other — which is exactly how it was found. */
+static CufetDec cufet_dec_strip(CufetDec d) {
+    while (d.scale > 0 && d.coef != 0 && d.coef % 10 == 0) { d.coef /= 10; d.scale--; }
+    return d;
+}
 static CufetDec cufet_div(CufetDec a, CufetDec b, int line) {
     if (b.coef == 0) cufet_raise(cufet_msgf("Division by zero on line %d.", line));
     int e = (b.scale - a.scale) + 28;                                   /* compute value * 10^28, then reduce */
@@ -830,9 +835,9 @@ static CufetDec cufet_div(CufetDec a, CufetDec b, int line) {
         cufet_u256 twoR = u256_add(R, R);
         int c = u256_cmp(twoR, den);
         if (c > 0 || (c == 0 && (Q.v[0] & 1ULL))) Q = u256_add(Q, u256_from_u128(1));
-        return cufet_dec_reduce(Q, 28, rsign, 0);
+        return cufet_dec_strip(cufet_dec_reduce(Q, 28, rsign, 0));
     }
-    return cufet_dec_reduce(Q, 28, rsign, !u256_is_zero(R));
+    return cufet_dec_strip(cufet_dec_reduce(Q, 28, rsign, !u256_is_zero(R)));
 }
 static CufetDec cufet_mod(CufetDec a, CufetDec b, int line) {           /* remainder, sign of dividend */
     if (b.coef == 0) cufet_raise(cufet_msgf("Modulo by zero on line %d.", line));
@@ -1684,87 +1689,6 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
 
     // The decimal↔double bridge for `math`'s three remaining native members (sqrt/log/power).
     //
-    // ★ The exact-decimal totals that used to live here — floor/ceiling/round/abs, ~25 lines of
-    // CufetDec digit arithmetic — are GONE, because those members are written in Cufet now
-    // (Prelude/math.cufe) and emit as ordinary method calls. They were dead the moment the
-    // members migrated; deleting them is part of finishing the move, not a separate cleanup.
-    private const string MathRuntime =
-"""
-/* ── The decimal↔double bridge (1B) — bit-identical replicas of .NET 10's DecCalc conversions.
-   The oracle (the interpreter) computes transcendentals as (decimal)Math.Sqrt((double)(decimal)x),
-   so BOTH conversions must match .NET exactly — including .NET's 15-significant-digit rounding
-   (half-to-even at the 15th digit) on the way back, which is NOT a naive cast. ── */
-#include <math.h>
-static const double cufet_pow10d[29] = {
-    1e0,1e1,1e2,1e3,1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14,
-    1e15,1e16,1e17,1e18,1e19,1e20,1e21,1e22,1e23,1e24,1e25,1e26,1e27,1e28
-};
-
-/* .NET VarR8FromDec: dbl = (Low64 + High*2^64) / 10^scale — same ops, same order → bit-identical. */
-static double cufet_dec_to_dbl(CufetDec d) {
-    double dbl = ((double)(unsigned long long)d.coef
-                + (double)(unsigned long long)(d.coef >> 64) * 1.8446744073709552e19)
-                / cufet_pow10d[d.scale];
-    return d.sign ? -dbl : dbl;
-}
-
-/* .NET 10 VarDecFromR8, step-for-step (DBLBIAS 1022; power = 14 - ((exp*19728)>>16) ≈ 14-log10(x);
-   double-arithmetic scaling incl. the power==-1 special case; ONE upward bump to reach 15 digits;
-   round-half-to-EVEN at the 15th digit; power<0 → whole-number scale-up to 96 bits at scale 0;
-   power>=0 → scale=power + trailing-zero strip). exp<-94 underflows to 0.0m (NOT void);
-   exp>96 overflows → returns 0 (the caller yields void, matching MathPartial's catch). */
-static int cufet_dec_from_dbl(double input, CufetDec* out) {
-    unsigned long long bits; memcpy(&bits, &input, 8);
-    int exp = (int)((bits >> 52) & 0x7FF) - 1022;
-    if (exp < -94) { out->coef = 0; out->scale = 0; out->sign = 0; return 1; }
-    if (exp > 96) return 0;
-    int sign = 0;
-    double dbl = input;
-    if (dbl < 0) { dbl = -dbl; sign = 1; }
-    int power = 14 - ((exp * 19728) >> 16);
-    if (power >= 0) {
-        if (power > 28) power = 28;
-        dbl *= cufet_pow10d[power];
-    } else if (power != -1 || dbl >= 1e15) dbl /= cufet_pow10d[-power];
-    else power = 0;
-    if (dbl < 1e14 && power < 28) { dbl *= 10; power++; }
-    unsigned long long mant = (unsigned long long)(long long)dbl;
-    double frac = dbl - (double)(long long)mant;
-    if (frac > 0.5 || (frac == 0.5 && (mant & 1))) mant++;       /* half-to-even at digit 15 */
-    if (mant == 0) { out->coef = 0; out->scale = 0; out->sign = 0; return 1; }
-    unsigned __int128 coef;
-    if (power < 0) {
-        unsigned __int128 p = 1; for (int i = 0; i < -power; i++) p *= 10;
-        coef = (unsigned __int128)mant * p;                       /* whole-number range, scale 0 */
-        if (coef >> 96) return 0;                                 /* safety net (unreachable: exp<=96) */
-        power = 0;
-    } else {
-        coef = mant;
-        while (power > 0 && coef % 10 == 0) { coef /= 10; power--; }   /* minimal form, like .NET */
-    }
-    out->coef = coef; out->scale = power; out->sign = (coef == 0) ? 0 : sign;
-    return 1;
-}
-
-/* math transcendentals — double-backed (the settled fork; the interpreter is Math.Sqrt-backed).
-   MathPartial semantics: non-finite → void; decimal-overflow → void; else the 15-sig-digit decimal. */
-static int cufet_math_sqrt(CufetDec x, CufetDec* out) {
-    double d = sqrt(cufet_dec_to_dbl(x));
-    if (!isfinite(d)) return 0;
-    return cufet_dec_from_dbl(d, out);
-}
-static int cufet_math_log(CufetDec x, CufetDec* out) {
-    double d = log(cufet_dec_to_dbl(x));
-    if (!isfinite(d)) return 0;
-    return cufet_dec_from_dbl(d, out);
-}
-static int cufet_math_power(CufetDec a, CufetDec b, CufetDec* out) {
-    double d = pow(cufet_dec_to_dbl(a), cufet_dec_to_dbl(b));
-    if (!isfinite(d)) return 0;
-    return cufet_dec_from_dbl(d, out);
-}
-
-""";
 
     // Matrix runtime (Arc 1D — the collections book's introduced type). A matrix is an ARENA
     // REFERENCE type like series/maps (shared on assign — matches the interpreter, where MatrixValue
@@ -2495,7 +2419,6 @@ static void* cufet_pipe_stage(void* argp) {
         // table calls the decimal helpers in the preamble.
         if (_usesMatrix) runtime.AppendLine(MatrixRuntime);
         if (_usesCase) runtime.AppendLine(CaseRuntime);
-        if (_usesMath) runtime.AppendLine(MathRuntime);
         if (_usesChance) runtime.AppendLine(ChanceRuntime);
         if (_usesProcess) runtime.AppendLine(ProcessRuntime);
         if (_usesSignals || _usesConcurrency) runtime.AppendLine(SignalRuntime);
@@ -5755,16 +5678,12 @@ static void* cufet_pipe_stage(void* argp) {
                  $"'{NodeName(expr)}' expressions are not yet supported by the compiler.")
     };
 
-    // A book member's declared type (for TypeOf on a `<book>'s <member> of (...)` cast). math totals
-    // → number; transcendentals → voidable number. collections is absent deliberately: every one
-    // of its members lives in the book's Cufet layer (Prelude/collections.cufe), so its casts
-    // type as ordinary method dispatch.
-    private CufetType BookMemberReturnType(string bookName, string member, IReadOnlyList<IExpression> args)
-    {
-        string m = member.ToLowerInvariant();
-        if (bookName == "math" && m is "square-root" or "log" or "power") return new VoidableType(TNumber);
-        return TNumber;   // conservative default (unresolved books surface at emit)
-    }
+    // A book member's declared type, for TypeOf on a `<book>'s <member> of (...)` cast. No
+    // bundled book has a native member left — both are written in Cufet, and a call to one of
+    // their members types as ordinary method dispatch long before this is reached. What remains
+    // here is the answer for a member that exists in no layer, which the emitter then refuses.
+    private CufetType BookMemberReturnType(string bookName, string member, IReadOnlyList<IExpression> args) =>
+        TNumber;
 
     private static CufetType BookConstantType(string bookName, string member) => TNumber;   // math pi / e
 
@@ -8255,36 +8174,13 @@ static void* cufet_pipe_stage(void* argp) {
         return ret;
     }
 
-    // Routes a book function to its C emission. All that reaches here now are `math`'s three
-    // double-backed transcendentals (square-root/log/power → 1B); everything else in both books
-    // is Cufet, in the book's own layer, and emits as ordinary method dispatch.
-    private string EmitBookFunction(string bookName, string member, IReadOnlyList<IExpression> args)
-    {
-        string m = member.ToLowerInvariant();
-        if (bookName == "math" && m is "square-root" or "log" or "power")
-        {
-            // Double-backed transcendental (1B) → voidable number: non-finite / decimal-overflow →
-            // void (MathPartial). The raw call returns 1+*out or 0=void; wrap into the cvd inline,
-            // the same shape as a channel delivery / read-line.
-            _usesMath = true;
-            string cvd = RegisterVoidableStruct(new VoidableType(TNumber));
-            int id = _freshId++;
-            string call = m switch
-            {
-                "square-root" => $"cufet_math_sqrt({EmitExpr(args[0])}, &cf_mv{id})",
-                "log"         => $"cufet_math_log({EmitExpr(args[0])}, &cf_mv{id})",
-                _             => $"cufet_math_power({EmitExpr(args[0])}, {EmitExpr(args[1])}, &cf_mv{id})",
-            };
-            _preEmits.Add($"CufetDec cf_mv{id}; int cf_mh{id} = {call};");
-            return $"(cf_mh{id} ? ({cvd}){{ .has = 1, .val = cf_mv{id} }} : ({cvd}){{ .has = 0 }})";
-        }
-        // The collections book has no native members left — every member is written in Cufet
-        // (Prelude/collections.cufe), so a collections cast never reaches this routing:
-        // CufetLayerHasMethod sends it to ordinary method emission instead.
-        if (bookName == "collections")
-            throw new CompilerException($"the collections book's member '{member}' is not supported by the compiler.");
-        throw new CompilerException($"book '{bookName}' member '{member}' is not yet supported by the compiler.");
-    }
+    // ★ NOTHING reaches here any more. Both bundled books are written in Cufet, in their own
+    // layers (`src/Interpreter/Prelude/*.cufe`), so every book-member call emits as ordinary
+    // method dispatch — CufetLayerHasMethod routes it before this is consulted. The refusal is
+    // kept as the honest answer for a member no layer defines, rather than deleted, because a
+    // book name with no member behind it should say so rather than emit something.
+    private string EmitBookFunction(string bookName, string member, IReadOnlyList<IExpression> args) =>
+        throw new CompilerException($"book '{bookName}' has no member '{member}'.");
 
     // Handles is void / is not void, voidable-vs-voidable, and voidable-vs-plain-T equality.
     // Returns null when neither operand is void/voidable (the caller falls through).

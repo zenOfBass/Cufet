@@ -10,18 +10,11 @@ public sealed partial class Interpreter
     {
         var books = new Dictionary<string, BookValue>(StringComparer.OrdinalIgnoreCase);
 
-        // The native remainder under the Cufet layer (Prelude/math.cufe owns floor/ceiling/round
-        // and the constants; their native copies are DELETED, per the migration rule).
-        var mathFunctions = new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase)
-        {
-            // Partial functions: decimal→double for the call, !IsFinite check, double→decimal back.
-            // Math.Log(0) returns NegativeInfinity, not NaN — must use !IsFinite, not IsNaN.
-            ["square-root"] = args => MathPartial(Math.Sqrt((double)(decimal)args[0])),
-            ["log"]         = args => MathPartial(Math.Log((double)(decimal)args[0])),
-            ["power"]       = args => MathPartial(Math.Pow((double)(decimal)args[0], (double)(decimal)args[1])),
-        };
-
-        books["math"] = new BookValue("math", mathFunctions,
+        // ★ Nothing native left in `math` — every member, transcendentals included, is written
+        // in Cufet (Prelude/math.cufe) and reaches here as an ordinary method on the book's
+        // layer. The value survives only to carry the book's NAME.
+        books["math"] = new BookValue("math",
+            new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase),
             new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase));
 
         // collections book — every member is written in Cufet (Prelude/collections.cufe) and
@@ -44,13 +37,6 @@ public sealed partial class Interpreter
             new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase));
 
         return books;
-    }
-
-    private static object? MathPartial(double result)
-    {
-        if (!double.IsFinite(result)) return VoidValue.Instance;
-        try   { return (object)(decimal)result; }
-        catch (OverflowException) { return VoidValue.Instance; }
     }
 
     private void ExecutePullStatement(PullStatement ps)

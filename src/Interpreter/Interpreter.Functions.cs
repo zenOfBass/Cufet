@@ -165,8 +165,12 @@ public sealed partial class Interpreter
         var saved      = SaveScopes();
         var prevHidden = _hiddenTopLevelData;
 
-        // Method scope: functions and top-level constants from the caller visible.
-        ImportTopLevelVisible(saved.Scopes);
+        // Method scope: functions and top-level constants from the caller visible — except in a
+        // bundled book's Cufet layer, which sees nothing of the writer's top level. The rule and
+        // the reason for it live in TypeChecker.CheckMethodBody; this keeps the runtime in step,
+        // and without it a book's local collides with any name the writer used for a function.
+        if (!BuiltinBookValues.ContainsKey(receiver.TypeName))
+            ImportTopLevelVisible(saved.Scopes);
 
         for (int i = 0; i < paramNames.Count; i++)
             Scope[paramNames[i]] = argValues[i];

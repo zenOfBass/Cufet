@@ -406,22 +406,20 @@ public class PipelineRecentTests : PipelineTestBase
     }
 
     [Fact]
-    public void DoubleToDecimal_AtThePowerMinusOneCase_MatchesInterpreter()
+    public void WholeNumberPowersAreExact()
     {
-        // `cufet_dec_from_dbl` has a special case for power == -1. power = 14 - ((exp*19728)>>16)
-        // is -1 only for values in roughly [2^49, 1e15) — 2^49 sits just inside, 2^48 below and
-        // 2^50 above, so these three straddle the branch rather than merely touching it.
+        // ★★ This test used to pin `1125899906842620` for 2^50 — and the true value is
+        // ...624. It was not a wrong expectation: it recorded, faithfully, what the
+        // double-backed implementation ACTUALLY RETURNED. A double carries 15 significant
+        // digits, 2^50 needs 16, and the last one was lost on the way through.
         //
-        // ★ The mutant that survived here is EQUIVALENT, and this test does not catch it — which
-        // is correct, because nothing can. Inverting the condition makes it divide by 10; but a
-        // value with power == -1 is necessarily above 1e14, so after the divide the very next
-        // line's `dbl < 1e14` bump multiplies by 10 and increments power back. Both paths end at
-        // the same mantissa and the same scale. It was misfiled as a coverage gap until this test
-        // was written and failed to fail.
+        // `power` computes a whole-number exponent by repeated squaring on the decimal now, so
+        // these are exact rather than nearly right. The values below are the arithmetic ones,
+        // and the change from the old pin is the measurement that the migration was worth
+        // doing — it did not merely move the implementation, it corrected it.
         //
-        // The test earns its place anyway: it pins exact values either side of a boundary that
-        // had no coverage at all, so a change to that branch which is NOT self-cancelling is
-        // caught. It just is not evidence about that particular mutant.
+        // (What this test formerly covered — `cufet_dec_from_dbl`'s power == -1 branch — no
+        // longer exists in any form: the decimal↔double bridge went with the last double.)
         const string src = """
             Pull a book on math.
                 State (math's power of (2, 49)) but void is -1.
@@ -430,6 +428,6 @@ public class PipelineRecentTests : PipelineTestBase
             Done.
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
-        Assert.Equal("562949953421312\n281474976710656\n1125899906842620", Compile(src));
+        Assert.Equal("562949953421312\n281474976710656\n1125899906842624", Compile(src));
     }
 }
