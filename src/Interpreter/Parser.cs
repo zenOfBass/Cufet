@@ -1706,7 +1706,7 @@ public sealed class Parser
             return new PullRabbitStatement(name, body, line, col);
         }
 
-        if (Peek().Type == TokenType.Books)
+        if (IsBookWord(Peek(), "books"))
         {
             // Plural: Pull books on <n1> [as <l1>], <n2> [as <l2>], and <n3>. ... Done.
             Advance(); // consume 'books'
@@ -1729,33 +1729,36 @@ public sealed class Parser
             return new PullStatement(books, pluralBody, line, col);
         }
 
+        // Singular: Pull a book on <name> [as <local>]. ... Done.
+        //
+        // ⚠ BEFORE the general form below, not after. `book` is an ordinary identifier now, so
+        // the general branch would otherwise swallow it as a module's name and then meet `on`
+        // where it wanted a `.`. The `on` is what tells the two apart, and one token of lookahead
+        // settles it — a writer may still have a module actually named `book`, and `Pull book.`
+        // reaches it.
+        if (IsBookWord(Peek(), "book"))
+        {
+            Advance();               // consume 'book'
+            SkipNoise();
+            Consume(TokenType.On);   // consume 'on'
+            SkipNoise();
+            var entry = ParsePullBookEntry();
+            Consume(TokenType.Dot);
+            var bookBody = ParsePullBody(); // consumes Done.
+            return new PullStatement([entry], bookBody, line, col);
+        }
+
         // ★ The GENERAL form: Pull <module> [as <local>]. ... Done.
         //
         // A module is an object conforming to `module`, and this is how you bring one into scope.
         // It is not new syntax — `Pull a rabbit.` above is already this shape, and the article is
         // noise, so `Pull rabbit.` and `Pull greeting-kit as kit.` are the same form with different
-        // names in it. The `book on <name>` spelling below is the special case being shed; it stays
-        // because `math`, `collections` and `chance` read badly without the noun in front.
-        //
-        // Placed before the Book branch and gated on Identifier, so no existing spelling changes:
-        // `book`, `books` and `rabbit` all lex as their own tokens and never reach here.
-        if (Peek().Type == TokenType.Identifier)
-        {
-            var moduleEntry = ParsePullBookEntry();
-            Consume(TokenType.Dot);
-            var moduleBody = ParsePullBody();
-            return new PullStatement([moduleEntry], moduleBody, line, col);
-        }
-
-        // Singular: Pull a book on <name> [as <local>]. ... Done.
-        Consume(TokenType.Book); // consume 'book'
-        SkipNoise();
-        Consume(TokenType.On);   // consume 'on'
-        SkipNoise();
-        var entry = ParsePullBookEntry();
+        // names in it. `book on <name>` is a second spelling every module answers to, kept because
+        // it reads well, not because books are a separate mechanism.
+        var moduleEntry = ParsePullBookEntry();
         Consume(TokenType.Dot);
-        var bookBody = ParsePullBody(); // consumes Done.
-        return new PullStatement([entry], bookBody, line, col);
+        var moduleBody = ParsePullBody();
+        return new PullStatement([moduleEntry], moduleBody, line, col);
     }
 
     // Parses one book entry in a Pull statement: <name> [as <local>]
@@ -4602,6 +4605,19 @@ public sealed class Parser
     private static bool IsRabbitWord(Token tok) =>
         tok.Type == TokenType.Identifier
         && string.Equals(tok.Lexeme, "rabbit", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Is this the word `book`/`books` opening the `Pull … on <name>` spelling?</summary>
+    /// <remarks>
+    /// ★ The `on` is what makes this decidable, and it is why the word need not be reserved:
+    /// `Pull a book on math.` and `Pull book.` differ in their SECOND token, so one look settles
+    /// which is meant — and a writer keeps `book` for a module of their own, and for
+    /// `For each book in books`. The same move as `IsRabbitWord`: recognise the word where it
+    /// does a job, rather than take it away everywhere.
+    /// </remarks>
+    private bool IsBookWord(Token tok, string word) =>
+        tok.Type == TokenType.Identifier
+        && string.Equals(tok.Lexeme, word, StringComparison.OrdinalIgnoreCase)
+        && _pos + 1 < _tokens.Count && _tokens[_pos + 1].Type == TokenType.On;
 
     private Token Peek()    => _tokens[_pos];
 

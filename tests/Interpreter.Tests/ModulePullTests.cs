@@ -315,6 +315,58 @@ public class ModulePullTests
             """));
     }
 
+    /// <summary>
+    /// `book` and `books` are ordinary words too — the line below could not be written before.
+    /// </summary>
+    /// <remarks>
+    /// ★ They appear in exactly ONE spelling, `Pull a book on <name>.`, and a word spent on a
+    /// single construct is a name every writer loses forever. The `on` is what makes the word
+    /// decidable without reserving it: `Pull a book on math.` and `Pull book.` differ in their
+    /// second token. Same move as `rabbit` — recognise a word where it does a job rather than
+    /// take it away everywhere.
+    /// </remarks>
+    [Fact]
+    public void BookAndBooksAreNames_NotReservedWords()
+    {
+        Assert.Equal("Dune\nEmma", Run("""
+            Define books as a series of text with ("Dune", "Emma").
+            For each book in books, repeat:
+                State book.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AModuleMayBeNamedBook()
+    {
+        // The reading that has to survive: `Pull book.` reaches a module actually called `book`,
+        // while `Pull a book on math.` still opens the bundled one. One token apart.
+        Assert.Equal("mine\nmine", Run("""
+            Define object book with () and module:
+                Bind text to title: Return "mine". Done.
+            Done.
+            Pull book.
+                State cast book's title on ().
+            Done.
+            Pull book as tome.
+                State cast tome's title on ().
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void BothBookSpellingsStillRead()
+    {
+        Assert.Equal("3\n3.1415926535897932384626433833", Run("""
+            Pull a book on math.
+                State math's floor of (3.7).
+            Done.
+            Pull books on math as m, and collections as c.
+                State m's pi.
+            Done.
+            """));
+    }
+
     [Fact]
     public void EveryRabbitFormStillReads_AfterUnreserving()
     {

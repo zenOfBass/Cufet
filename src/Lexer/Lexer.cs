@@ -234,8 +234,10 @@ public sealed class Lexer
             "close"      => TokenType.Close,
             "awaited"    => TokenType.Awaited,
             "pull"       => TokenType.Pull,
-            "book"       => TokenType.Book,
-            "books"      => TokenType.Books,
+            // ★ `book` and `books` are NOT reserved. They appear in exactly one spelling —
+            // `Pull a book on <name>.` — and a word spent on a single construct is a name a
+            // writer loses forever: `For each book in books` is a line this language should be
+            // able to write. The parser recognises them positionally, where `on` follows.
             // 'matrix' is contextual — 'a matrix with …' in expression position (the 'with' is
             // mandatory, so it disambiguates) and by lexeme in type position.
             // 'at' is contextual — only in 'the item at (row, col) of <matrix>'.
