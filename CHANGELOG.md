@@ -57,6 +57,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★ Stating a book printed a C# class name.** `State math.` gave
+  `Cufet.Interpreter.Interpreter+BookValue` interpreted, while the compiler printed `math()` —
+  a divergence and internal vocabulary shown to a reader, in one. `Format` had no arm for a
+  book, so it fell through to `val.ToString()`.
+
+  A module now prints as the object it is, everywhere: `math()`, `greeting-kit()`. There is
+  never anything inside the parentheses, because a module with fields is refused at the pull.
+
+  ⚠ **The same fallthrough leaked `MatrixValue` once before** — there is a comment recording it
+  three lines away. Twice is a pattern: a catch-all that ends in `ToString()` turns every type
+  nobody remembered into a host type name printed at the user.
+
 - **★★ `is` on a rabbit or a function value emitted C that gcc refused.** Both type-checked and
   ran interpreted, so `Pull a rabbit as hopper. … State hopper is grace.` printed `false` and
   then would not build — *invalid operands to binary ==*.
@@ -95,6 +107,29 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   test in the suite, and only becomes visible when it changes whether something *fails*.
 
 ### Changed
+
+- **★★ `rabbit` is no longer a reserved word.** It is a module's *name*, and no other module's
+  name is reserved — `math`, `collections` and `chance` are ordinary identifiers and always
+  were. What the books reserve is grammar (`book`, `books`, `on`), never identity; the rabbit
+  was the one module whose own name was a keyword, and that was the last thing making it a
+  privileged builtin rather than a module that ships in the box.
+
+  `Pull rabbit.` now works, so the general form `Pull <name> [as <alias>]` reaches a rabbit on
+  exactly the terms it reaches a book or a writer's own module. A writer may also use `rabbit`
+  for their own names.
+
+  ⚠ **Nothing else changed**: the word is still recognised where the parser needs it — pulling a
+  rabbit opens a region, and `Have rabbit …` addresses the enclosing one — but *recognising a
+  name is not reserving a word*. The whole suite passed unchanged, which is the proof.
+
+- **★ A rabbit is never compared.** `hopper is grace` used to type-check, interpret to `false`,
+  and emit C that gcc rejected. It is refused now, in the shared front end so both backends
+  refuse alike — including `hopper is hopper`, since the refusal is about what a rabbit *is*
+  rather than about which two you named.
+
+  A rabbit denotes a region with a lifetime of its own, not a value that can match another.
+  Refusing makes no claim and can become an answer the day something needs to tell rabbits
+  apart; answering could not be taken back.
 
 - **★★ Breaking: `math`'s two multi-word members are hyphenated — `square-root` and
   `absolute-value`.** `math's square root of (144)` is now `math's square-root of (144)`.

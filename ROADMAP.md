@@ -94,8 +94,21 @@ is one conformer's business rather than the contract's.
    about two units in the last place at 28 digits. The guarantee that is absolute — and that was
    the point of the slice — is that both backends give the same answer.
 
-**Slice 4 — the rabbit becomes an object.** Its definition — an object conforming to `module`,
-   its methods named — lives in the prelude, in Cufet. The surface is frozen:
+**Slice 4 — the rabbit becomes an object.**
+
+   ⚠⚠ **MEASURED 2026-08-19: the definition CANNOT live in the prelude.** `rabbit` is a reserved
+   keyword (`TokenType.Rabbit`), so `Define object rabbit with () and module.` does not lex, let
+   alone parse. Un-reserving it is not a small change — `Pull a rabbit`, `given (the rabbit r)`
+   and `Have rabbit start a task` all read that keyword, and the bare form in the last one means
+   *the enclosing rabbit*, which has no other spelling. So the rabbit's definition is registered
+   by the checker rather than written in Cufet, and the arc's "no part of the module system
+   lives outside Cufet" is **not** fully met for the rabbit. ★ The cost is smaller than it
+   sounds: `bury` is compiler-provided by settled decision, so the Cufet definition would be a
+   contentless shell — `with () and module` and nothing else — carrying no information the
+   registration does not.
+
+   Its definition — an object conforming to `module`,
+   its methods named — otherwise stands. The surface is frozen:
    `Pull a rabbit as hopper.`, `Have hopper bury next.`, `unbury s` — nothing changes at a use
    site. `bury` becomes a method on the rabbit that owns the buried state, which is where it was
    always meant to live, and a stash finally has an owner.

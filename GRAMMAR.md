@@ -1281,7 +1281,15 @@ rabbit.` was always `Pull <name>`, and the bundled books answer to it as well:
 Pull math.
 Pull collections.
 Pull math as m.
+Pull rabbit.
 ```
+
+★ **No module's NAME is reserved**, the rabbit's included since 2026-08-19. `math`,
+`collections`, `chance` and `rabbit` are ordinary identifiers, and a writer may use any of them
+for their own names. What the books reserve is *grammar* — `book`, `books`, `on` — never
+identity, and the rabbit was the one module whose own name had been a keyword. The parser still
+recognises `rabbit` where it must (pulling one opens a region; `Have rabbit …` addresses the
+enclosing one), because recognising a name is not reserving a word.
 
 `book on <name>` is kept because `Pull a math.` reads worse than `Pull a book on math.`, not
 because books are a separate mechanism. A book conforms by CONSTRUCTION (its members are
