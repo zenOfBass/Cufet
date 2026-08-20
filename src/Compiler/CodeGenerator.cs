@@ -8325,28 +8325,24 @@ static void* cufet_pipe_stage(void* argp) {
                 _ => throw new CompilerException($"Text comparison '{b.Op}' is not yet supported by the compiler.")
             };
 
-        // Records (structural) / objects (nominal) / series (element-wise, in-order): value
-        // equality via _eq. Series are ordered sequences — two series are equal iff same elements
-        // in the same order, matching the interpreter's List value-equality (NOT pointer equality;
-        // maps below stay pointer/reference equality, which is what the interpreter does for them).
-        if (lt is RecordType or ObjectType or SeriesType)
+        // ★ Everything else compares through EqCall — the ONE place that knows how each type
+        // does it: records structurally, objects nominally, series element-wise and in order,
+        // maps and matrices by reference (which is what the interpreter does for them), facts as
+        // ints. Its default arm refuses by name, so a type nobody taught it fails loudly.
+        //
+        // ⚠ This used to be two branches: records/objects/series through EqCall, and then a
+        // CATCH-ALL emitting `==` "for facts and maps". Anything else the checker allowed landed
+        // in that catch-all and became `==` on a C STRUCT, which gcc rejects — so `hopper is
+        // grace` type-checked, interpreted to false, and would not build. A function value
+        // compared the same way and broke identically. The catch-all was the bug: it assumed
+        // what was left rather than saying it, so each new type joined it silently.
+        if (b.Op is TokenType.Equal or TokenType.NotEqual)
         {
             string eq = EqCall(L, R, lt);
-            return b.Op switch
-            {
-                TokenType.Equal    => $"({eq})",
-                TokenType.NotEqual => $"(!({eq}))",
-                _ => throw new CompilerException($"'{b.Op}' on a '{FormatTypeName(lt)}' is not supported (only is / is not).")
-            };
+            return b.Op == TokenType.Equal ? $"({eq})" : $"(!({eq}))";
         }
-
-        // Facts (ints) and maps (reference/pointer equality — matches the interpreter's Dictionary).
-        return b.Op switch
-        {
-            TokenType.Equal    => $"({L} == {R})",
-            TokenType.NotEqual => $"({L} != {R})",
-            _ => throw new CompilerException($"Binary operator '{b.Op}' on '{FormatTypeName(lt)}' is not yet supported by the compiler.")
-        };
+        throw new CompilerException(
+            $"Binary operator '{b.Op}' on a '{FormatTypeName(lt)}' is not supported (only is / is not).");
     }
 
     // cv_ prefix avoids C keyword collisions (e.g. Cufet "double" → cv_double).

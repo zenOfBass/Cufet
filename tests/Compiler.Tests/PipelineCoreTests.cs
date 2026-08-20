@@ -247,6 +247,45 @@ public class PipelineCoreTests : PipelineTestBase
     /// surfaced when a LATER operation on that value overflowed at one scale and not the other.
     /// Dividing the largest number by the quotient is the smallest thing that makes it visible.
     /// </remarks>
+    /// <summary>
+    /// Every type's `is` goes through EqCall, including the struct-shaped ones.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Both of these type-checked and interpreted fine while emitting C that gcc REFUSED —
+    /// `invalid operands to binary ==`. The equality emitter sent records, objects and series to
+    /// EqCall and let a catch-all handle "facts and maps", so anything else the checker allowed
+    /// arrived at `==` on a C struct. Confirmed red by restoring the catch-all: both of these
+    /// fail to build under it.
+    /// </remarks>
+    [Fact]
+    public void Equality_OnARabbit_CompilesAndMatchesInterpreter()
+    {
+        const string src = """
+            Pull a rabbit as hopper.
+                Pull a rabbit as grace.
+                    State hopper is grace.
+                    State hopper is hopper.
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Equality_OnAFunctionValue_CompilesAndMatchesInterpreter()
+    {
+        const string src = """
+            Bind number to twice, given (the number n): Return n * 2. Done.
+            Bind number to thrice, given (the number n): Return n * 3. Done.
+            Define first-fn as twice.
+            Define same-fn as twice.
+            Define other-fn as thrice.
+            State first-fn is same-fn.
+            State first-fn is other-fn.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     [Fact]
     public void Division_LeavesQuotientInMinimalForm()
     {
