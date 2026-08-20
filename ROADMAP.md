@@ -75,6 +75,28 @@ Two framings that set the order:
    decimal in the arc above — so its consumers are the "call a C function" family it collapses:
    the shell's job control and raw terminal mode, sockets, the POSIX and Windows APIs.
 
+4. **`For each` over a stash.** The last mile of the language's best idea. Suspend and resume
+   ship, a recursive tree walk as a burying function works on both backends with no cursor type
+   and no explicit stack — but *consuming* a stash still costs a six-line drain loop, and that
+   loop appears **three times in `examples/language/stashes.cufe`**, the feature's own example.
+
+   ★ **The thing that made this expensive is gone.** `For each` over a user-defined type was
+   dropped because an interface can be neither a return type nor generic, so there was no way to
+   declare "hands back something steppable". Coroutines did not produce an open family of
+   steppable things — they produced **one concrete type**, `stash of T`. So this needs no
+   interface, no conformance and no new declaration syntax: one more source kind on a loop that
+   already exists, desugaring to the drain loop people write by hand.
+
+   ⚠ Two things to settle before building rather than during: the desugared loop ends itself with
+   `Stop`, which must not collide with a user's `Stop` in the body; and the refusal today reads
+   *"counter holds `<unknown>`"* because a stash lowers to a closure before the checker can name
+   it, so it should say a stash is not a series.
+
+   ★ Still **no** to iterators as a concept — a stash IS the iterator and is already first class —
+   and still no to `For each` over a user-defined object: the simple case is covered by
+   `For each x in obj's items`, and a real structure has several orders, so naming the walk is the
+   better surface. Both measured 2026-08-20.
+
 ### The design mountains
 
 All need a design session before they can be ordered against anything. They are here because
