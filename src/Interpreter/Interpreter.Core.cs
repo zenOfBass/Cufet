@@ -256,21 +256,27 @@ public sealed partial class Interpreter
     private sealed class SuppressSignal : Exception { }
 
     // Runtime representation of a book value — a named collection of native functions and constants.
-    // Stateless singleton; Pull binds the pre-existing instance into the current scope.
+    // The native layer is a stateless singleton; a book with a Cufet layer (a prelude-defined
+    // module object sharing its name) is bound as a fresh instance-carrying copy at each pull,
+    // because pulling INSTANTIATES the module object. Members the instance's type defines win at
+    // dispatch; the rest stay native. (Slice 1 of the 0.16.0 arc — see ROADMAP.)
     private sealed class BookValue
     {
         public string Name { get; }
         public IReadOnlyDictionary<string, Func<object[], object?>> Functions { get; }
         public IReadOnlyDictionary<string, object> Constants { get; }
+        public ObjectValue? CufetInstance { get; }
 
         public BookValue(
             string name,
             IReadOnlyDictionary<string, Func<object[], object?>> functions,
-            IReadOnlyDictionary<string, object> constants)
+            IReadOnlyDictionary<string, object> constants,
+            ObjectValue? cufetInstance = null)
         {
-            Name      = name;
-            Functions = functions;
-            Constants = constants;
+            Name          = name;
+            Functions     = functions;
+            Constants     = constants;
+            CufetInstance = cufetInstance;
         }
     }
 

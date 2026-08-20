@@ -243,7 +243,7 @@ public class PipelineEscapeTests : PipelineTestBase
             """;
         var tokens  = new CufetLexer(src).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
 
         var generator = new CodeGenerator();
         generator.Generate(program);

@@ -17,4 +17,8 @@
     <ProjectReference Include="..\Lexer\Cufet.Lexer.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Prelude\**\*.cufe" />
+  </ItemGroup>
+
 </Project>

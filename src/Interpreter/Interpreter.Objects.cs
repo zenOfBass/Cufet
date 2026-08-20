@@ -221,6 +221,14 @@ public sealed partial class Interpreter
         var target = Evaluate(pa.Target);
         if (target is BookValue bv)
         {
+            // The book's Cufet layer wins member by member — a getter or field its module object
+            // defines answers before any native constant of the same name.
+            if (bv.CufetInstance is { } inst)
+            {
+                var layerGetter = FindGetterInObjDefs(inst, pa.Member);
+                if (layerGetter != null) return ExecuteGetterMethod(inst, layerGetter, pa.Line);
+                if (TryFindNamedFieldValue(inst, pa.Member, out var layerVal)) return layerVal;
+            }
             if (bv.Constants.TryGetValue(pa.Member, out var constVal)) return constVal;
             if (bv.Functions.ContainsKey(pa.Member))
                 throw new RuntimeException(

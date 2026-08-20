@@ -21,7 +21,7 @@ public class BookWordTests
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         var output  = new StringWriter();
         new Interpreter(output).Execute(program);
         return output.ToString().Replace("\r\n", "\n").TrimEnd('\n');

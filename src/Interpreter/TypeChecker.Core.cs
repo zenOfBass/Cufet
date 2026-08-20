@@ -790,6 +790,16 @@ public sealed partial class TypeChecker
                 .Check(new Program(spliced));
         }
 
+        // ★ Templates are dropped even when NOTHING filled them. The splice branch above strips
+        // them on its way to the re-check, but a program that never casts a generic member skips
+        // that branch entirely — and a template's blank has no C type, so leaving it on the
+        // definition hands the compiler `cd_element`. Latent since blanks shipped (an unused
+        // template method compiled to broken C); the prelude made it the COMMON case, because
+        // every program now carries `collections` and its generic `unique`, cast or not.
+        if (_genericMethods.Count > 0 || _genericFunctions.Count > 0 || _genericObjectDefs.Count > 0)
+            program = new Program(WithFilledMethods(
+                WithoutTemplates(program.Statements, _genericFunctions.Keys.ToHashSet(StringComparer.Ordinal))));
+
         // Expand hands back the very same list when there was nothing to do, which is the usual case.
         var lowered = StashTransform.Expand(program.Statements, _buryingFunctions, _stashFacts);
         return ReferenceEquals(lowered, program.Statements) ? program : new Program(lowered);
@@ -851,7 +861,29 @@ public sealed partial class TypeChecker
     /// where instantiated definitions are spliced in.
     /// </para>
     /// </remarks>
-    private const string Prelude = "";
+    private static readonly string Prelude = LoadPrelude();
+
+    /// <summary>Reads the bundled `Prelude/*.cufe` files embedded in this assembly, in name order.</summary>
+    private static string LoadPrelude()
+    {
+        var assembly = typeof(TypeChecker).Assembly;
+        var builder  = new System.Text.StringBuilder();
+        foreach (var resource in assembly.GetManifestResourceNames()
+                     .Where(n => n.EndsWith(".cufe", StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(n => n, StringComparer.Ordinal))
+        {
+            using var stream = assembly.GetManifestResourceStream(resource)!;
+            using var reader = new StreamReader(stream);
+            builder.AppendLine(reader.ReadToEnd());
+        }
+        return builder.ToString();
+    }
+
+    // The prelude's own top-level statements, by reference — how Pass1Hoist tells the prelude's
+    // `Define object collections` from a writer's attempt to redefine a bundled book's name.
+    // Filled by WithPrelude at depth 0; deliberately left empty on the re-entrant pass, where the
+    // guard is off (everything there was already admitted once).
+    private readonly HashSet<IStatement> _preludeStatements = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>Prepends the prelude's statements, once.</summary>
     /// <remarks>
@@ -864,6 +896,7 @@ public sealed partial class TypeChecker
 
         var statements = new List<IStatement>(
             new Parser(new Lexer.Lexer(Prelude).Tokenize()).Parse().Statements);
+        foreach (var statement in statements) _preludeStatements.Add(statement);
         statements.AddRange(program.Statements);
         return new Program(statements);
     }
@@ -998,6 +1031,24 @@ public sealed partial class TypeChecker
         var untoSettersByType  = new Dictionary<string, List<SetterDeclaration>>();
         foreach (var stmt in FlattenHoistable(program.Statements))
         {
+            // ★ `unto` may not target a bundled book. The book's Cufet layer is an ordinary
+            // registered object, so without this an `unto collections` method would splice a
+            // writer's member straight onto the layer — the shadowing hole the definition guard
+            // below closes, reopened through a side door.
+            var (untoName, untoLine, untoCol) = stmt switch
+            {
+                BindStatement     { UntoType: { } t } b2 => (t, b2.Line, b2.Column),
+                GetterDeclaration { UntoType: { } t } g2 => (t, g2.Line, g2.Column),
+                SetterDeclaration { UntoType: { } t } s2 => (t, s2.Line, s2.Column),
+                _ => (null as string, 0, 0),
+            };
+            if (untoName != null && BuiltinBooks.ContainsKey(untoName))
+                throw TypeError(
+                    $"'{untoName}' is a bundled book, so 'unto' can't add members to it",
+                    null, untoLine, untoCol,
+                    $"attach a member unto '{untoName}'",
+                    "Define your own module object and pull it alongside the book instead.");
+
             if (stmt is BindStatement { UntoType: { } mUnt } bind)
             {
                 if (!untoMethodsByType.TryGetValue(mUnt, out var mList))
@@ -1021,6 +1072,20 @@ public sealed partial class TypeChecker
         foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is not ObjectDefinition od) continue;
+
+            // ★ A bundled book's name belongs to the bundled book. The prelude's own definition of
+            // it is the one exception — that IS the book's Cufet layer — and it is recognised by
+            // reference, so a writer's definition of the same name is refused rather than silently
+            // shadowing (or being shadowed by) the book at the pull site.
+            if (_instantiationDepth == 0
+                && BuiltinBooks.ContainsKey(od.Name)
+                && !_preludeStatements.Contains(stmt))
+                throw TypeError(
+                    $"'{od.Name}' is a bundled book, so its name can't be used for a new object",
+                    null, od.Line, od.Column,
+                    $"define an object named '{od.Name}'",
+                    $"Pick another name — 'Pull {od.Name}.' always finds the bundled book.");
+
             var methodSigs = od.Methods
                 .Select(m => (m.Name, new FunctionType(m.Parameters.Select(p => p.Type).ToList(), m.ReturnType)))
                 .ToList();
@@ -1557,7 +1622,8 @@ public sealed partial class TypeChecker
                     cs.ResolvedFunctionName = InstantiateFunction(gcv.Name, cs.Args, cs.Line, cs.Column);
                 // ⚠ Never overwritten once set — see the matching note in InferCastExpr.
                 else if (cs.ResolvedFunctionName is null
-                         && cs.Function is PossessiveAccess gcp && InferType(gcp.Target) is ObjectType gcOwner)
+                         && cs.Function is PossessiveAccess gcp
+                         && MemberOwnerType(InferType(gcp.Target)) is ObjectType gcOwner)
                     cs.ResolvedFunctionName = InstantiateMethod(gcOwner, gcp.Member, cs.Args, cs.Line, cs.Column);
 
                 var (funcType, displayName, declLine, argsToValidate) =

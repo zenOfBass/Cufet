@@ -293,7 +293,7 @@ public class PipelineMemoryTests : PipelineTestBase
             """;
         var tokens  = new CufetLexer(src).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
     }
     //   (b) a nested binding form's params/iterator were added to the SHARED defs set, masking a

@@ -213,4 +213,106 @@ public class ModulePullTests
             Done.
             """));
     }
+
+    // ── A book's Cufet layer (0.16.0 arc, slice 1) ─────────────────────────
+    //
+    // ★★ `unique` is written in Cufet (Prelude/collections.cufe) and the native copy is DELETED,
+    // so these tests reach the Cufet path or nothing — which is what makes them proof. A shadowed
+    // native member would answer identically and prove only that shadowing works.
+
+    [Fact]
+    public void TheCufetLayerAnswersThroughThePulledName()
+    {
+        // Two fillings of one Cufet method through a book alias — generic-method instantiation
+        // reached through a BookType-typed binding.
+        Assert.Equal("(1, 2, 3)\n(a, b)", Run("""
+            Pull collections as c.
+                State cast c's unique on (a series of number with (1, 2, 2, 3, 1)).
+                State cast c's unique on (a series of text with ("a", "b", "a")).
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void TheNativeLayerStillAnswersThroughTheSameName()
+    {
+        // A member the Cufet layer does NOT define falls to the native book — the merge is member
+        // by member, not book by book.
+        Assert.Equal("1\nmatrix((1, 3), (2, 4))", Run("""
+            Pull collections as c.
+                State cast c's minimum on (a series of number with (3, 1, 2)) but void is -1.
+                State cast c's transpose on (a matrix with ((1, 2), (3, 4))).
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void TheLayerIsUsableInsideAFunctionDeclaredInThePull()
+    {
+        // A pulled book is a lexical capability — that carried the layer with it must not regress
+        // when a book's binding starts carrying an instance.
+        Assert.Equal("(x, y)", Run("""
+            Pull collections as c.
+                Bind series of text to dedupe, given (the series of text names):
+                    Return cast c's unique on (names).
+                Done.
+                State cast dedupe on (a series of text with ("x", "y", "x")).
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ABundledBookNameCannotBeRedefined()
+    {
+        // `math` has no Cufet layer yet, so before this guard the definition was legal and simply
+        // unpullable — the book shadowed it at the pull site, silently. Refusing at the definition
+        // is the honest version.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define object math with () and module:
+            Done.
+            State "unreachable".
+            """));
+        Assert.Contains("is a bundled book", ex.Message);
+    }
+
+    [Fact]
+    public void PullIsTheOnlyConstructorForABundledBook()
+    {
+        // The Cufet layer is a registered object type (the merge rides on that), so without the
+        // guard `a new collections { }` would build a layer instance with no pull — no scope, no
+        // `Done.`, none of what pulling means. A book is a scope-thing; construction is the
+        // bracket.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define orphan as a new collections { }.
+            State "unreachable".
+            """));
+        Assert.Contains("'Pull' is how you get one", ex.Message);
+    }
+
+    [Fact]
+    public void UntoCannotAddMembersToABundledBook()
+    {
+        // `unto collections` would splice a writer's member straight onto the book's Cufet layer
+        // — the shadowing hole the redefinition guard closes, reopened through a side door.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Bind number to sneak unto collections:
+                Return 0.
+            Done.
+            State "unreachable".
+            """));
+        Assert.Contains("'unto' can't add members to it", ex.Message);
+    }
+
+    [Fact]
+    public void ABundledBookNameCannotBeRedefined_EvenWhenThePreludeDefinesIt()
+    {
+        // `collections` IS defined by the prelude — that definition is the book's Cufet layer, and
+        // it is recognised by reference, so a writer's definition of the same name is still refused.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define object collections with () and module:
+            Done.
+            State "unreachable".
+            """));
+        Assert.Contains("is a bundled book", ex.Message);
+    }
 }

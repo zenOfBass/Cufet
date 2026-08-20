@@ -117,7 +117,15 @@ public sealed partial class Interpreter
     private object? DispatchMethod(string methodName, object receiver, IReadOnlyList<IExpression> args, int line)
     {
         if (receiver is BookValue bv)
+        {
+            // The book's Cufet layer wins member by member — a method its module object defines
+            // is ordinary method dispatch on the instance the pull made; the rest is native.
+            if (bv.CufetInstance is { } inst
+                && _objectDefs.TryGetValue(inst.TypeName, out var layerDef)
+                && layerDef.Methods.Any(m => m.Name == methodName))
+                return DispatchMethod(methodName, inst, args, line);
             return DispatchBookFunction(bv, methodName, args, line);
+        }
 
         if (receiver is ObjectValue ov)
         {

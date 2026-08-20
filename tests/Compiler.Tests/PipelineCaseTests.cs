@@ -182,7 +182,7 @@ public class PipelineCaseTests : PipelineTestBase
     {
         var tokens = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         return new CodeGenerator().Generate(program);
     }
 }

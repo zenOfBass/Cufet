@@ -74,7 +74,7 @@ public class SoundnessFixtureTests
     {
         var tokens = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         var sb = new StringWriter();
         new CufetInterpreter(sb, null).Execute(program);
         return sb.ToString().Replace("\r\n", "\n").TrimEnd('\n');
@@ -84,7 +84,7 @@ public class SoundnessFixtureTests
     {
         var tokens = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         var cSource = new CodeGenerator().Generate(program);
 
         // A unique stem WITHOUT creating a file: GetTempFileName is unique only while its file exists,

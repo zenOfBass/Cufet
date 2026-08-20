@@ -62,20 +62,11 @@ public sealed partial class Interpreter
                 if (xs.Count == 0) return VoidValue.Instance;
                 return (object)(xs.Cast<decimal>().Sum() / (decimal)xs.Count);
             },
-            ["unique"] = args =>
-            {
-                var xs     = (List<object>)args[0];
-                var result = new List<object>();   // ISA.2d: rebuilt as a carrier below
-                foreach (var elem in xs)
-                {
-                    bool seen = false;
-                    foreach (var r in result)
-                        if (ValuesEqual(r, elem)) { seen = true; break; }
-                    if (!seen) result.Add(elem);
-                }
-                return Series(result, ElementTypeOf(xs));   // ISA.2d — dedup keeps the element type
-            },
         };
+        // `unique` is deliberately absent: it is written in Cufet (Prelude/collections.cufe) and
+        // reaches here as an ordinary method on the book's Cufet layer. Deleting the native copy
+        // in the same change is what makes the tests PROOF the Cufet path runs — a shadowed
+        // native member would answer identically and prove nothing.
         books["collections"] = new BookValue(
             "collections",
             collectionsFunctions,
@@ -108,7 +99,15 @@ public sealed partial class Interpreter
             {
                 if (BuiltinBookValues.TryGetValue(bookName, out var bookValue))
                 {
-                    Scope[localName] = bookValue;
+                    // ★ A book with a Cufet layer — the prelude defines a module object under the
+                    // book's own name — is pulled as ONE module: the layer is instantiated here
+                    // (pulling INSTANTIATES) and rides on the binding, and dispatch lets its
+                    // members win over the native ones. A book without a layer binds the shared
+                    // native singleton as before.
+                    Scope[localName] = _objectDefs.TryGetValue(bookName, out var layerDef)
+                        ? new BookValue(bookValue.Name, bookValue.Functions, bookValue.Constants,
+                                        (ObjectValue)InstantiateModule(layerDef, ps.Line))
+                        : bookValue;
                     continue;
                 }
 

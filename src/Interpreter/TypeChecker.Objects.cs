@@ -619,6 +619,18 @@ public sealed partial class TypeChecker
 
     private ObjectType InferObjectLiteral(ObjectLiteral lit)
     {
+        // ★ Pull is the ONLY constructor for a bundled book. Its Cufet layer is a registered
+        // object type (that is what the merge rides on), so without this guard `a new
+        // collections { }` would quietly build a layer instance with no pull — no scope, no
+        // `Done.`, none of what pulling means. Same family as the rabbit's rule: a book is a
+        // scope-thing, and its construction is the bracket.
+        if (BuiltinBooks.ContainsKey(lit.TypeName))
+            throw TypeError(
+                $"'{lit.TypeName}' is a bundled book — 'Pull' is how you get one",
+                null, lit.Line, lit.Column,
+                $"construct '{lit.TypeName}' with 'a new'",
+                $"Write 'Pull {lit.TypeName}.' (or 'Pull {lit.TypeName} as <name>.') and use it inside that block.");
+
         // `a new stack of number { … }` — fill the blanks first, so everything below reads a
         // concrete definition and knows nothing about templates. The resolved name is recorded on
         // the node because both backends look their definition up BY NAME, and the template's own
@@ -729,7 +741,18 @@ public sealed partial class TypeChecker
         }
 
         if (targetType is BookType bt)
-            return InferBookPossessiveAccess(poss, bt);
+        {
+            // ★ The book's Cufet layer wins member by member: a member the prelude-defined module
+            // object offers is ordinary object access through the same pulled name, and only the
+            // rest falls to the native book. (Slice 1 of the 0.16.0 arc — see ROADMAP.)
+            if (MemberOwnerType(bt) is ObjectType cufetLayer
+                && (FindMethodInOtOrPromoted(cufetLayer, poss.Member) != null
+                    || FindGetterInOtOrPromoted(cufetLayer, poss.Member) != null
+                    || FindFieldInOtOrPromoted(cufetLayer, poss.Member) != null))
+                targetType = cufetLayer;
+            else
+                return InferBookPossessiveAccess(poss, bt);
+        }
 
         if (targetType is not ObjectType ot)
             throw TypeError(

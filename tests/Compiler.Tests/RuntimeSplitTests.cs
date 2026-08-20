@@ -20,7 +20,7 @@ public class RuntimeSplitTests
     {
         var tokens = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         return new CodeGenerator().GenerateSplit(program);
     }
 
@@ -49,7 +49,7 @@ public class RuntimeSplitTests
             """;
         var tokens = new CufetLexer(src).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
 
         // ⚠ A FRESH generator each time. GenerateSplit runs Generate internally, and a CodeGenerator
         // accumulates per-program state, so reusing one instance across both calls emits the second

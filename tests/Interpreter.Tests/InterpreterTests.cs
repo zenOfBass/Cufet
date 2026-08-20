@@ -13,7 +13,9 @@ public class InterpreterTests
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        // ⚠ Execute what Check RETURNS, never what was parsed — the checker prepends the prelude
+        // and splices lowerings, and running the original silently tests a different program.
+        program     = new TypeChecker().Check(program);
         var output  = new StringWriter();
         RunOnLargeStack(() => new Interpreter(output).Execute(program));
         return output.ToString().Replace("\r\n", "\n").TrimEnd('\n');
@@ -23,7 +25,7 @@ public class InterpreterTests
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program     = new TypeChecker().Check(program);
         var output  = new StringWriter();
         var input   = new StringReader(stdinContent);
         RunOnLargeStack(() => new Interpreter(output, input).Execute(program));
@@ -2255,7 +2257,7 @@ public class InterpreterTests
             "Done.\n" +
             "State Cast loop on (1).").Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         var ex = Assert.Throws<RuntimeException>(() =>
             RunOnLargeStack(() => new Interpreter(maxCallDepth: 5).Execute(program)));
         Assert.Contains("loop", ex.Message);
@@ -8566,7 +8568,7 @@ public class InterpreterTests
     {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         var output  = new StringWriter();
         var interp  = new Interpreter(output);
         interp.SimulateInterrupt();
@@ -8586,7 +8588,7 @@ public class InterpreterTests
     {
         var tokens  = new CufetLexer("State \"one\".\nState \"two\".\nState \"three\".").Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         var output  = new StringWriter();
         var interp  = new Interpreter(output);
         interp.SimulateInterrupt();
@@ -8602,7 +8604,7 @@ public class InterpreterTests
         // The case that motivated all of this. Without the checkpoint this never returns.
         var tokens  = new CufetLexer("While 1 is 1, repeat:\n    State \"tick\".\nDone.").Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         var output  = new StringWriter();
         var interp  = new Interpreter(output);
         interp.SimulateInterrupt();
@@ -8669,7 +8671,7 @@ public class InterpreterTests
     {
         var tokens  = new CufetLexer("State \"fine\".").Tokenize();
         var program = new Parser(tokens).Parse();
-        new TypeChecker().Check(program);
+        program = new TypeChecker().Check(program);
         var interp  = new Interpreter(new StringWriter());
         RunOnLargeStack(() => interp.Execute(program));
         Assert.False(interp.WasInterrupted);

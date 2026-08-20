@@ -421,8 +421,8 @@ public sealed partial class TypeChecker
 
     private CufetType? InferCastExpr(CastExpression cast)
     {
-        // Collections aggregates (minimum/maximum/average/unique) have type-generic or
-        // educational-error constraints that can't be expressed as a plain FunctionType.
+        // Collections aggregates (minimum/maximum/average) have educational-error constraints
+        // that can't be expressed as a plain FunctionType.
         if (IsCollectionsAggregateCast(cast))
             return InferCollectionsAggregateCast(cast);
 
@@ -435,7 +435,8 @@ public sealed partial class TypeChecker
         // assigning that would wipe the answer the first pass worked out. The side channel is the
         // only thing carrying `unique of number` across the two passes.
         else if (cast.ResolvedFunctionName is null
-                 && cast.Function is PossessiveAccess gpa && InferType(gpa.Target) is ObjectType gowner)
+                 && cast.Function is PossessiveAccess gpa
+                 && MemberOwnerType(InferType(gpa.Target)) is ObjectType gowner)
             cast.ResolvedFunctionName = InstantiateMethod(gowner, gpa.Member, cast.Args, cast.Line, cast.Column);
 
         var (funcType, displayName, declLine, argsToValidate) =

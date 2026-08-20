@@ -353,6 +353,19 @@ public sealed class CodeGenerator
     // `Pull a book on <name>` registers a compile-time alias (localName → canonical book name) so
     // `<book>'s <member>` dispatch routes to the right emission; the alias is scoped to the Pull body.
     private readonly Dictionary<string, string> _bookAliases = new();
+
+    // The bundled books. A pulled name can carry BOTH a book alias and a module-object binding —
+    // that is a book with a Cufet layer (a prelude-defined module object sharing the book's name),
+    // and CufetLayerHasMethod decides per member which side answers. (0.16.0 arc, slice 1.)
+    private static readonly HashSet<string> BuiltinBookNames =
+        new(StringComparer.OrdinalIgnoreCase) { "math", "collections", "chance" };
+
+    // A member the book's Cufet layer defines is ordinary method dispatch on the pulled object
+    // binding; only members the layer does NOT define fall to the native book emission. The member
+    // arriving here is the RESOLVED name (`unique of number`) wherever a filling decided the body.
+    private bool CufetLayerHasMethod(string bookName, string member) =>
+        _objectDefs.TryGetValue(bookName, out var layerDef)
+        && layerDef.Methods.Any(m => m.Name == member);
     // Set when an exact-decimal math function (floor/ceiling/round/absolute value) is used, so the
     // math runtime is emitted (only then). pi/e are baked as decimal literals, not runtime funcs.
     private bool _usesMath;
@@ -2623,7 +2636,23 @@ static void* cufet_pipe_stage(void* argp) {
     /// rule is used by the struct name, the method name, the getter and the setter, and four copies
     /// of it is four chances for the next name shape to be flattened in only three of them.
     /// </remarks>
-    private static string CIdent(string name) => name.Replace('-', '_').Replace(' ', '_');
+    private static string CIdent(string name)
+    {
+        // Fast path: hyphens and spaces are the only exotic characters in writer-typeable names
+        // and in fillings by simple types (`stack of number`).
+        if (name.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or ' ' or '_'))
+            return name.Replace('-', '_').Replace(' ', '_');
+
+        // A filling by a STRUCTURAL type (`unique of record (age: number, name: text)`) carries
+        // punctuation no single replacement rule can keep distinct — flattening `(`/`:`/`,` all
+        // to `_` could collide two different shapes. Flatten for readability, then pin identity
+        // with a stable hash of the original name (FNV-1a; string.GetHashCode is randomized
+        // per process and must never reach an emitted symbol).
+        var flat = new string(name.Select(c => char.IsAsciiLetterOrDigit(c) ? c : '_').ToArray());
+        uint hash = 2166136261;
+        foreach (char c in name) { hash ^= c; hash *= 16777619; }
+        return $"{flat}_{hash:x8}";
+    }
 
     // Nominal C struct name for an object type.
     private static string ObjStructName(string objectName) => "cd_" + CIdent(objectName);
@@ -4843,13 +4872,17 @@ static void* cufet_pipe_stage(void* argp) {
                     // Pulling INSTANTIATES it and binds the name, after which `name's member` is
                     // ordinary method dispatch and needs nothing from the book routing below. The
                     // three builtins are not a category; they are the three that ship.
+                    //
+                    // A bundled book with a Cufet LAYER is both at once: the layer's object is
+                    // instantiated and bound, AND the book alias is registered, so per member the
+                    // cast routing picks whichever side defines it.
                     if (_objectDefs.TryGetValue(bookName, out var moduleDef))
                     {
                         var moduleType = ObjType(moduleDef.Name);
                         _varTypes[localName] = moduleType;
                         sb.AppendLine($"{indent}    {EmitCType(moduleType)} {MangleName(localName)} = "
                                     + $"({EmitCType(moduleType)}){{0}};");
-                        continue;
+                        if (!BuiltinBookNames.Contains(bookName)) continue;
                     }
                     _bookAliases[localName] = bookName.ToLowerInvariant();
                     added.Add(localName);
@@ -5736,15 +5769,15 @@ static void* cufet_pipe_stage(void* argp) {
     };
 
     // A book member's declared type (for TypeOf on a `<book>'s <member> of (...)` cast). math totals
-    // → number; transcendentals → voidable number; collections aggregates → voidable number (void on
-    // empty), except `unique` which is element-type-preserving (the arg's own series type).
+    // → number; transcendentals → voidable number; collections aggregates → voidable number (void
+    // on empty). `unique` is absent deliberately: it lives in the book's Cufet layer
+    // (Prelude/collections.cufe), so its cast types as ordinary method dispatch.
     private CufetType BookMemberReturnType(string bookName, string member, IReadOnlyList<IExpression> args)
     {
         string m = member.ToLowerInvariant();
         if (bookName == "math" && m is "floor" or "ceiling" or "round" or "absolute value") return TNumber;
         if (bookName == "math" && m is "square root" or "log" or "power") return new VoidableType(TNumber);
         if (bookName == "collections" && m is "minimum" or "maximum" or "average") return new VoidableType(TNumber);
-        if (bookName == "collections" && m == "unique" && args.Count > 0) return TypeOf(args[0]);
         if (bookName == "collections" && m == "transpose") return MatrixType.Instance;
         return TNumber;   // conservative default (unresolved books surface at emit)
     }
@@ -5800,7 +5833,15 @@ static void* cufet_pipe_stage(void* argp) {
         }
         if (c.Function is PossessiveAccess bpa && bpa.Target is VariableReference bref
             && _bookAliases.TryGetValue(bref.Name, out var bookName))                      // book member call
+        {
+            // The book's Cufet layer answers first, by the RESOLVED (filled) member name — and
+            // directly by owner name, because inside a Bind hoisted out of a pull body the pulled
+            // binding has no _varTypes entry for the object branch below to type the target with.
+            if (CalledFunction(c.Function, c.ResolvedFunctionName, c.Line, c.Column)
+                    is PossessiveAccess lpa && CufetLayerHasMethod(bookName, lpa.Member))
+                return MethodReturnType(bookName, lpa.Member);
             return BookMemberReturnType(bookName, bpa.Member, c.Args);
+        }
         // ⚠ The RESOLVED member, not the written one — a filled-in method is a member under its
         // filling (`unique of number`), and the template's name is a member of nothing.
         if (CalledFunction(c.Function, c.ResolvedFunctionName, c.Line, c.Column) is PossessiveAccess pa
@@ -7950,9 +7991,26 @@ static void* cufet_pipe_stage(void* argp) {
         }
 
         // Book-member call: `<book>'s <member> of (args)` (a Cast of a book possessive-access).
+        // A member the book's Cufet layer defines is ordinary method emission instead —
+        // funcExpr's member is already the resolved (filled) name. The receiver is a fresh
+        // compound literal rather than the pull's binding: the layer object is FIELDLESS by
+        // decision (a module with fields is refused at the pull), so an empty receiver is
+        // semantically exact — and it keeps a Bind hoisted out of the pull body working, where
+        // the pull-scope binding is not in C scope.
         if (funcExpr is PossessiveAccess bpa && bpa.Target is VariableReference bookRef
             && _bookAliases.TryGetValue(bookRef.Name, out var bookName))
+        {
+            if (CufetLayerHasMethod(bookName, bpa.Member))
+            {
+                var (lOwner, _) = ResolveMethodLevel(bookName, bpa.Member);
+                string lRecv = $"&(({EmitCType(ObjType(bookName))}){{0}})";
+                if (_ifaceMethods.TryGetValue((lOwner, bpa.Member), out var lIfm))
+                    return EmitSpecializedCall(lIfm, lOwner, args, lRecv);
+                var lCall = new[] { lRecv }.Concat(args.Select(EmitExpr));
+                return $"{MethodCName(lOwner, bpa.Member)}({string.Join(", ", lCall)})";
+            }
             return EmitBookFunction(bookName, bpa.Member, args);
+        }
 
         if (funcExpr is PossessiveAccess pa && TypeOf(pa.Target) is ObjectType pot)   // alice's greet
         {
@@ -8216,7 +8274,7 @@ static void* cufet_pipe_stage(void* argp) {
 
     // Routes a book function to its C emission. 1A: the `math` book's EXACT-decimal total functions
     // (floor/ceiling/round/absolute value). Transcendentals (square root/log/power → 1B), collections
-    // aggregates (minimum/maximum/average/unique → 1C), transpose (→ 1D) defer cleanly.
+    // aggregates (minimum/maximum/average → 1C), transpose (→ 1D) defer cleanly.
     private string EmitBookFunction(string bookName, string member, IReadOnlyList<IExpression> args)
     {
         string m = member.ToLowerInvariant();
@@ -8268,23 +8326,9 @@ static void* cufet_pipe_stage(void* argp) {
                     $"if (cufet_cmp(cf_as{id}->data[cf_i{id}], cf_ag{id}) {(m == "minimum" ? "<" : ">")} 0) cf_ag{id} = cf_as{id}->data[cf_i{id}]; }}");
             return $"(cf_ah{id} ? ({cvd}){{ .has = 1, .val = cf_ag{id} }} : ({cvd}){{ .has = 0 }})";
         }
-        if (bookName == "collections" && m == "unique")
-        {
-            // Element-type-preserving first-occurrence dedup — per-type value equality via EqCall
-            // (number/text/record/object/series/voidable all compose — the series-of-T payoff).
-            // Builds a NEW arena series (non-mutating), like sorted.
-            var st = (SeriesType)TypeOf(args[0]);
-            string ser = RegisterSeriesStruct(st);
-            string src = EmitExpr(args[0]);
-            int id = _freshId++;
-            string eq = EqCall($"cf_ud{id}->data[cf_j{id}]", $"cf_us{id}->data[cf_i{id}]", st.ElementType);
-            _preEmits.Add(
-                $"{ser}* cf_us{id} = {src}; {ser}* cf_ud{id} = {ser}_new(); " +
-                $"for (int cf_i{id} = 0; cf_i{id} < cf_us{id}->len; cf_i{id}++) {{ int cf_sn{id} = 0; " +
-                $"for (int cf_j{id} = 0; cf_j{id} < cf_ud{id}->len; cf_j{id}++) if ({eq}) {{ cf_sn{id} = 1; break; }} " +
-                $"if (!cf_sn{id}) {ser}_append(cf_ud{id}, cf_us{id}->data[cf_i{id}]); }}");
-            return $"cf_ud{id}";
-        }
+        // `unique` is deliberately not here: it is written in Cufet (Prelude/collections.cufe),
+        // so its cast never reaches the book routing — CufetLayerHasMethod sends it to ordinary
+        // method emission instead.
         if (bookName == "collections" && m == "transpose")
         {
             _usesMatrix = true;
