@@ -899,6 +899,32 @@ public sealed partial class TypeChecker
     // writer's top-level names. See the note in CheckMethodBody.
     private bool _checkingBookLayer;
 
+    // The module whose body is being checked, and what each module's bodies REACH FOR without
+    // defining. A module's dependencies come from the block it is USED in, not the one it is
+    // written in, so an unresolved name here is not an error — it is a requirement on the caller.
+    private string? _checkingModuleName;
+    private readonly Dictionary<string, HashSet<string>> _moduleNeeds =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>An unresolved name: recorded as a module's requirement, or deferred as before.</summary>
+    /// <remarks>
+    /// ★ Deferring is deliberate and stays — an unresolvable name infers as null rather than
+    /// cascading false positives. What is new is that a name a MODULE reaches for is remembered,
+    /// so `CheckPullStatement` can say which one is missing at the place that can fix it. Without
+    /// this the program checked clean, died at runtime pointing INSIDE the module, and compiled to
+    /// a message that blamed the compiler.
+    /// </remarks>
+    private CufetType? NoteUnresolvedName(VariableReference vr)
+    {
+        if (_checkingModuleName is { } owner && !string.Equals(owner, vr.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!_moduleNeeds.TryGetValue(owner, out var needs))
+                _moduleNeeds[owner] = needs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            needs.Add(vr.Name);
+        }
+        return null;
+    }
+
     /// <summary>
     /// Drops the Cufet layer of every bundled book the program never pulls.
     /// </summary>
@@ -2122,7 +2148,7 @@ public sealed partial class TypeChecker
         VariableReference { Name: var n } when _narrowedVars.TryGetValue(n, out var narrowed)           => narrowed,
         VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => ti.Type,
         VariableReference hv when _hiddenTopLevelData.Contains(hv.Name)                                  => throw HiddenTopLevelDataError(hv),
-        VariableReference                                                                                => null,
+        VariableReference vr                                                                              => NoteUnresolvedName(vr),
         SeriesLiteral lit                                                                                => InferSeriesLiteral(lit),
         SeriesAccess acc                                                                                 => InferSeriesAccess(acc),
         SeriesLength sl                                                                                  => InferSeriesLength(sl),

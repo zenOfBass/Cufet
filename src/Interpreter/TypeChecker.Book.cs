@@ -264,9 +264,43 @@ public sealed partial class TypeChecker
                         RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
             }
 
+            // ★ Every pulled module's requirements must be satisfiable HERE, because here is
+            // where they resolve and here is where they can be fixed. Reported at the pull rather
+            // than at the call: the caller wrote this line, and the missing name belongs in it.
+            foreach (var (moduleName, _) in ps.Books)
+                CheckModuleNeedsAreInScope(moduleName, ps);
+
             CheckBlock(ps.Body);
         }
         finally { ExitScope(); }
+    }
+
+    /// <summary>Refuses a pull whose module reaches for something this block does not have.</summary>
+    /// <remarks>
+    /// ⚠ The cost this pays for is real and was measured: forgetting a module's dependency used to
+    /// give THREE answers to one program — `check` said "No problems found", the interpreter died
+    /// pointing at a line INSIDE the module, and the compiler said "field access on 'number' is
+    /// not yet supported by the compiler", blaming itself for a scoping mistake.
+    ///
+    /// Only names the module could not resolve for itself are listed, and only when the pulling
+    /// block cannot resolve them either — so a module that needs nothing is never mentioned, and
+    /// a dependency pulled further out still satisfies it.
+    /// </remarks>
+    private void CheckModuleNeedsAreInScope(string moduleName, PullStatement ps)
+    {
+        if (!_moduleNeeds.TryGetValue(moduleName, out var needs)) return;
+
+        var missing = needs.Where(name => !TryLookup(name, out _)).OrderBy(n => n, StringComparer.Ordinal).ToList();
+        if (missing.Count == 0) return;
+
+        var names = string.Join(", ", missing.Select(m => $"'{m}'"));
+        var together = string.Join(", and ", missing.Concat([moduleName]));
+        throw TypeError(
+            $"'{moduleName}' uses {names}, which {(missing.Count == 1 ? "isn't" : "aren't")} pulled here",
+            "A module's dependencies come from the block it is used in, not the one it is written in",
+            ps.Line, ps.Column,
+            $"pull '{moduleName}' without {names}",
+            $"Pull them together: 'Pull books on {together}.'");
     }
 
     private CufetType InferBookPossessiveAccess(PossessiveAccess poss, BookType bt)

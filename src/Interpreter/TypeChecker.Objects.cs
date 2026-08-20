@@ -371,6 +371,11 @@ public sealed partial class TypeChecker
         // prelude can define an object under a book's name (Pass1Hoist refuses a writer's).
         bool isBookLayer = BuiltinBooks.TryGetValue(od.Name, out var layerBook);
         bool prevLayer   = _checkingBookLayer;
+        // Names this module's bodies reach for are collected while they are checked — see
+        // NoteUnresolvedName. Only for a module, because only a module is later PULLED somewhere
+        // that can be told what is missing.
+        var prevModule   = _checkingModuleName;
+        _checkingModuleName = od.ConformedInterfaces.Contains(ModuleInterface) ? od.Name : null;
         if (isBookLayer)
         {
             EnterScope();
@@ -399,7 +404,8 @@ public sealed partial class TypeChecker
         }
         finally
         {
-            _checkingBookLayer = prevLayer;
+            _checkingBookLayer  = prevLayer;
+            _checkingModuleName = prevModule;
             if (isBookLayer) ExitScope();
         }
     }
