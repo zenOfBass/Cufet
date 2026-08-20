@@ -1924,7 +1924,10 @@ public sealed partial class Interpreter
         BitsValue bv     => bv.ToString(),   // prints in the base it was written in
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
         FunctionValue        => "<function>",
-        RabbitValue rv       => $"<rabbit {rv.Name}>",
+        // A rabbit prints as the object it is, like every other module — `math()`,
+        // `greeting-kit()`, `rabbit()`. It used to print its BINDING's name (`<rabbit hopper>`),
+        // which nothing else in the language does: `Define x as 5. State x.` prints 5, not x.
+        RabbitValue          => $"{TypeChecker.RabbitModuleName}()",
         ReadableStreamValue  => "<readable stream of text>",
         WritableStreamValue  => "<writable stream of text>",
         RecordValue rv   => FormatRecord(rv),

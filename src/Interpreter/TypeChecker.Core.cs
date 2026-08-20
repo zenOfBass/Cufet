@@ -1101,9 +1101,9 @@ public sealed partial class TypeChecker
                 SetterDeclaration { UntoType: { } t } s2 => (t, s2.Line, s2.Column),
                 _ => (null as string, 0, 0),
             };
-            if (untoName != null && BuiltinBooks.ContainsKey(untoName))
+            if (untoName != null && IsBundledModuleName(untoName))
                 throw TypeError(
-                    $"'{untoName}' is a bundled book, so 'unto' can't add members to it",
+                    $"'{untoName}' comes with the language, so 'unto' can't add members to it",
                     null, untoLine, untoCol,
                     $"attach a member unto '{untoName}'",
                     "Define your own module object and pull it alongside the book instead.");
@@ -1137,13 +1137,13 @@ public sealed partial class TypeChecker
             // reference, so a writer's definition of the same name is refused rather than silently
             // shadowing (or being shadowed by) the book at the pull site.
             if (_instantiationDepth == 0
-                && BuiltinBooks.ContainsKey(od.Name)
+                && IsBundledModuleName(od.Name)
                 && !_preludeStatements.Contains(stmt))
                 throw TypeError(
-                    $"'{od.Name}' is a bundled book, so its name can't be used for a new object",
+                    $"'{od.Name}' comes with the language, so its name can't be used for a new object",
                     null, od.Line, od.Column,
                     $"define an object named '{od.Name}'",
-                    $"Pick another name — 'Pull {od.Name}.' always finds the bundled book.");
+                    $"Pick another name — 'Pull {od.Name}.' always finds the one the language ships.");
 
             var methodSigs = od.Methods
                 .Select(m => (m.Name, new FunctionType(m.Parameters.Select(p => p.Type).ToList(), m.ReturnType)))
@@ -1716,7 +1716,7 @@ public sealed partial class TypeChecker
                         "Take a rabbit as a parameter and name it: "
                         + "'given (the rabbit helper, ...)' then 'Have helper bury <value>.'");
 
-                if (!TryLookup(agent, out var agentInfo) || agentInfo!.Type is not RabbitType)
+                if (!TryLookup(agent, out var agentInfo) || !IsRabbitType(agentInfo!.Type))
                     throw TypeError(
                         $"'{agent}' is not a rabbit",
                         "Only a rabbit can be told to bury something",
@@ -1951,7 +1951,7 @@ public sealed partial class TypeChecker
                     $"Provide a {FormatType(_expectedReturnType)} value to return.");
 
             var returnType = InferType(ret.Value);
-            if (returnType is RabbitType)
+            if (IsRabbitType(returnType))
                 throw TypeError(
                     "rabbits cannot be returned — they flow downward only",
                     null, ret.Line, ret.Column,
@@ -2358,7 +2358,7 @@ public sealed partial class TypeChecker
             // the day something needs to tell rabbits apart. Answering cannot be taken back.
             // Refused HERE, in the shared front end, so both backends refuse identically.
             TokenType.Equal or TokenType.NotEqual
-                when l is RabbitType || r is RabbitType
+                when IsRabbitType(l) || IsRabbitType(r)
                 => throw TypeError(
                     "a rabbit can't be compared, not even to another rabbit",
                     "A rabbit is a region with a lifetime of its own, not a value that can match another",

@@ -652,10 +652,13 @@ public sealed partial class TypeChecker
         // collections { }` would quietly build a layer instance with no pull — no scope, no
         // `Done.`, none of what pulling means. Same family as the rabbit's rule: a book is a
         // scope-thing, and its construction is the bracket.
-        if (BuiltinBooks.ContainsKey(lit.TypeName))
+        if (IsBundledModuleName(lit.TypeName))
             throw TypeError(
-                $"'{lit.TypeName}' is a bundled book — 'Pull' is how you get one",
-                null, lit.Line, lit.Column,
+                $"'{lit.TypeName}' comes with the language — 'Pull' is how you get one",
+                lit.TypeName.Equals(RabbitModuleName, StringComparison.OrdinalIgnoreCase)
+                    ? "Pulling a rabbit is what opens its region, so one built this way would stand on no ground"
+                    : null,
+                lit.Line, lit.Column,
                 $"construct '{lit.TypeName}' with 'a new'",
                 $"Write 'Pull {lit.TypeName}.' (or 'Pull {lit.TypeName} as <name>.') and use it inside that block.");
 

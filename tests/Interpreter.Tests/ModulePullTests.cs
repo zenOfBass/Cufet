@@ -272,7 +272,7 @@ public class ModulePullTests
             Done.
             State "unreachable".
             """));
-        Assert.Contains("is a bundled book", ex.Message);
+        Assert.Contains("comes with the language", ex.Message);
     }
 
     /// <summary>
@@ -458,6 +458,6 @@ public class ModulePullTests
             Done.
             State "unreachable".
             """));
-        Assert.Contains("is a bundled book", ex.Message);
+        Assert.Contains("comes with the language", ex.Message);
     }
 }

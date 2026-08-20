@@ -4674,10 +4674,16 @@ static void* cufet_pipe_stage(void* argp) {
                 bool hadRabbitVar = false;
                 if (prs.Name is { } rabbitName)
                 {
-                    sb.AppendLine($"{inner}cufet_rabbit {MangleName(rabbitName)} = {{ \"{rabbitName}\" }};");
+                    // ★ A rabbit is an ordinary OBJECT now (`Prelude/rabbit.cufe`), so its C is the
+                    // struct the prelude's definition already makes the emitter declare, and it
+                    // needs no type of its own here. That is what lets a rabbit reach an interface
+                    // parameter: monomorphization specialises on a concrete object type, and a
+                    // marker type was not one.
+                    var rabbitType = ObjType(TypeChecker.RabbitModuleName);
+                    sb.AppendLine($"{inner}{EmitCType(rabbitType)} {MangleName(rabbitName)} = {{0}};");
                     sb.AppendLine($"{inner}(void){MangleName(rabbitName)};");
                     hadRabbitVar = _varTypes.TryGetValue(rabbitName, out savedRabbitVar);
-                    _varTypes[rabbitName] = RabbitType.Instance;
+                    _varTypes[rabbitName] = rabbitType;
                 }
 
                 _rabbitDepth++;   // this rabbit pops its arena at Done. (independent of concurrency) —

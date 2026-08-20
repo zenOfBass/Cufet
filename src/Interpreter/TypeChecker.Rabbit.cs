@@ -13,13 +13,25 @@ public sealed partial class TypeChecker
     // Outward-only store invariant (CheckRegionStore):
     //   • Called at every store site (Becomes, SeriesAdd, SeriesSet, MapSet, field sets).
     //   • source.depth > target.depth → error (shorter-lived into longer-lived).
+    /// <summary>The rabbit's object type, from the prelude — the one every rabbit binding has.</summary>
+    /// <remarks>
+    /// Looked up rather than cached: the registered ObjectType is REPLACED as the checker fills
+    /// things in, so a held reference goes stale — the same trap the book layers have. The
+    /// fallback keeps a checker running on a program assembled without the prelude (the tests
+    /// that build one by hand) rather than crashing on a missing name.
+    /// </remarks>
+    private CufetType RabbitObjectType() =>
+        _objectDefs.TryGetValue(RabbitModuleName, out var rabbitType)
+            ? rabbitType
+            : new ObjectType(RabbitModuleName, [], [], []);
+
     private void CheckPullRabbit(PullRabbitStatement prs)
     {
         _rabbitDepth++;
         EnterScope();
         if (prs.Name != null)
             Scope[prs.Name] = new TypeInfo(
-                RabbitType.Instance,
+                RabbitObjectType(),
                 new VariableReference(prs.Name, prs.Line, prs.Column),
                 prs.Line,
                 RabbitDepth: _rabbitDepth);
@@ -54,7 +66,7 @@ public sealed partial class TypeChecker
         // share a block, and this keeps the structured-join guarantee exactly as it was.
         if (lts.RabbitName is { } named)
         {
-            if (!TryLookup(named, out var info) || info!.Type is not RabbitType)
+            if (!TryLookup(named, out var info) || !IsRabbitType(info!.Type))
                 throw TypeError(
                     $"'{named}' is not a rabbit",
                     "Only a rabbit can be given a task",

@@ -143,6 +143,19 @@ public sealed partial class TypeChecker
     /// </remarks>
     private CufetType ResolveModule(string name, PullStatement ps)
     {
+        // ⚠ A rabbit reaches this only through `Pull a book on rabbit.` or `Pull rabbit as …`
+        // routed as an ordinary module — and neither opens a REGION, which is the one thing
+        // pulling a rabbit has to do. `Pull a rabbit.` is parsed into its own statement long
+        // before here. So this path would hand back a rabbit standing on no ground; refuse it
+        // rather than produce one.
+        if (string.Equals(name, RabbitModuleName, StringComparison.OrdinalIgnoreCase))
+            throw TypeError(
+                "a rabbit isn't a book",
+                "Pulling a rabbit opens its region, which the 'book on' spelling does not do",
+                ps.Line, ps.Column,
+                "pull a rabbit as though it were a book",
+                "Write 'Pull a rabbit.' — or 'Pull a rabbit as <name>.' to give it a name.");
+
         if (BuiltinBooks.TryGetValue(name, out var bookType))
         {
             // ★ Recorded so the book's Cufet layer can be DROPPED from the program when nothing
@@ -177,6 +190,30 @@ public sealed partial class TypeChecker
             $"Pull one of the bundled books ({available}), or define an object named "
             + $"'{name}' as a module: 'Define object {name} with (...) and {ModuleInterface}:'.");
     }
+
+    /// <summary>Names the language itself owns: the bundled books, and the rabbit.</summary>
+    /// <remarks>
+    /// ★ Each is defined in the prelude and reached by `Pull`, so a writer may not redefine one,
+    /// build one with `a new`, or hang members on one with `unto`. For a rabbit that is
+    /// load-bearing rather than tidy: **pulling is what opens its region**, so `a new rabbit { }`
+    /// would hand back a rabbit standing on no ground at all.
+    /// </remarks>
+    private static bool IsBundledModuleName(string name) =>
+        BuiltinBooks.ContainsKey(name)
+        || string.Equals(name, RabbitModuleName, StringComparison.OrdinalIgnoreCase);
+
+    public const string RabbitModuleName = "rabbit";
+
+    /// <summary>Is this the rabbit's type — the prelude-defined object, not a legacy marker?</summary>
+    /// <remarks>
+    /// ★ A rabbit is an ordinary ObjectType now (`Prelude/rabbit.cufe`), so it is first class and
+    /// conforms to `module` by inheritance rather than by a branch anywhere. What is left are the
+    /// few places that must still ASK whether something is a rabbit — being given work, being
+    /// returned, being compared — and they ask by name here rather than by a type of its own.
+    /// </remarks>
+    public static bool IsRabbitType(CufetType? type) =>
+        type is ObjectType ot
+        && string.Equals(ot.Name, RabbitModuleName, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// The type whose members a possessive target actually offers: an object directly, or — for a

@@ -1,0 +1,16 @@
+// The rabbit, written in Cufet.
+//
+// A rabbit is a module like any other — it says so here, in the language, rather than by the
+// checker knowing a special name. That is the whole of the definition, and deliberately so:
+// a rabbit has no fields (`Pull` has nowhere to put values, as for every module), and its verbs
+// are the language's floor rather than methods with Cufet bodies. `bury` suspends the function
+// around it, which is a rewrite of that function rather than a call — the same kind of thing
+// `If` is, and it is provided by the compiler for the same reason. When the compiler itself is
+// written in Cufet, that provision moves with it.
+//
+// What a rabbit IS, on the other hand, belongs here: an object, conforming to `module`, pulled
+// by name like `math` or a writer's own. `Pull a rabbit as hopper.` opens its region — that is
+// the one thing pulling a rabbit does that pulling another module does not, and it is why the
+// parser still recognises the name.
+
+Define object rabbit with () and module.

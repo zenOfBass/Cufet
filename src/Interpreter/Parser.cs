@@ -493,12 +493,10 @@ public sealed class Parser
         if (tok.Type == TokenType.Stream)
             throw new ParseException(tok,
                 "stream direction — write 'readable stream of text' or 'writable stream of text'");
-        // `given (the rabbit r)` — a type named by an ordinary identifier, the way `matrix` is.
-        if (IsRabbitWord(tok))
-        {
-            Advance();
-            return RabbitType.Instance;
-        }
+        // ★ `given (the rabbit r)` needs NO arm here at all. `rabbit` is an ordinary identifier
+        // naming an ordinary object type (defined in `Prelude/rabbit.cufe`), so it falls through
+        // to the same path that resolves `person` or `stack of number` — which is the whole point
+        // of the rabbit becoming an object.
         if (tok.Type == TokenType.Channel)
         {
             Advance(); SkipNoise(); // consume 'channel'
