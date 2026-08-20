@@ -66,7 +66,7 @@ public class ModulePullTests
     [Fact]
     public void AModuleCanBeAliased()
     {
-        // The same `as` clause `Pull a rabbit as den.` already had.
+        // The same `as` clause `Pull a rabbit as hopper.` already had.
         Assert.Equal("hello, aliased", Run(Kit + """
             Pull greeting-kit as kit.
                 State cast kit's greet on ("aliased").
@@ -152,7 +152,7 @@ public class ModulePullTests
     {
         // The `book on <name>` spelling stays — it reads better than `Pull a math.` — and nothing
         // about it changed.
-        Assert.Equal("3.14159265358979", Run("""
+        Assert.Equal("3.1415926535897932384626433833", Run("""
             Pull a book on math.
                 State math's pi.
             Done.
@@ -172,7 +172,7 @@ public class ModulePullTests
     [Fact]
     public void ABookIsPulledByTheSameFormAsAModule()
     {
-        Assert.Equal("3.14159265358979", Run("""
+        Assert.Equal("3.1415926535897932384626433833", Run("""
             Pull math.
                 State math's pi.
             Done.
@@ -182,7 +182,7 @@ public class ModulePullTests
     [Fact]
     public void ABookPulledByNameCanBeAliasedToo()
     {
-        Assert.Equal("3.14159265358979", Run("""
+        Assert.Equal("3.1415926535897932384626433833", Run("""
             Pull math as m.
                 State m's pi.
             Done.
@@ -204,7 +204,7 @@ public class ModulePullTests
     [Fact]
     public void AModuleAndABookCanBeUsedTogether()
     {
-        Assert.Equal("hello, world\n3.14159265358979", Run(Kit + """
+        Assert.Equal("hello, world\n3.1415926535897932384626433833", Run(Kit + """
             Pull greeting-kit.
                 State cast greeting-kit's greet on ("world").
                 Pull a book on math.

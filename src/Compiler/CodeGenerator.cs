@@ -366,6 +366,13 @@ public sealed class CodeGenerator
     private bool CufetLayerHasMethod(string bookName, string member) =>
         _objectDefs.TryGetValue(bookName, out var layerDef)
         && layerDef.Methods.Any(m => m.Name == member);
+
+    // The layer's getter of that name, if any — how `math's pi` resolves now that the constants
+    // live in Cufet.
+    private GetterDeclaration? CufetLayerGetter(string bookName, string member) =>
+        _objectDefs.TryGetValue(bookName, out var layerDef)
+            ? layerDef.Getters.FirstOrDefault(g => g.Name == member)
+            : null;
     // Set when an exact-decimal math function (floor/ceiling/round/absolute value) is used, so the
     // math runtime is emitted (only then). pi/e are baked as decimal literals, not runtime funcs.
     private bool _usesMath;
@@ -5702,7 +5709,8 @@ static void* cufet_pipe_stage(void* argp) {
         RecordNamedAccess rna => FieldType(TypeOf(rna.Record), rna.FieldName),
         ObjectLiteral ol      => ObjType(ol.ResolvedTypeName ?? ol.TypeName),
         PossessiveAccess pa   => pa.Target is VariableReference bvr && _bookAliases.TryGetValue(bvr.Name, out var bn)
-                                     ? BookConstantType(bn, pa.Member)                    // math's pi / e
+                                     ? (CufetLayerGetter(bn, pa.Member)?.ReturnType       // layer getter (math's pi)
+                                        ?? BookConstantType(bn, pa.Member))               // native constant
                                      : FieldType(TypeOf(pa.Target), pa.Member),
         VoidLiteral           => TVoid,
         ButVoidDefault bvd    => TypeOf(bvd.Voidable) is VoidableType vt ? vt.Inner : TypeOf(bvd.Default),
@@ -5769,16 +5777,14 @@ static void* cufet_pipe_stage(void* argp) {
     };
 
     // A book member's declared type (for TypeOf on a `<book>'s <member> of (...)` cast). math totals
-    // → number; transcendentals → voidable number; collections aggregates → voidable number (void
-    // on empty). `unique` is absent deliberately: it lives in the book's Cufet layer
-    // (Prelude/collections.cufe), so its cast types as ordinary method dispatch.
+    // → number; transcendentals → voidable number. collections is absent deliberately: every one
+    // of its members lives in the book's Cufet layer (Prelude/collections.cufe), so its casts
+    // type as ordinary method dispatch.
     private CufetType BookMemberReturnType(string bookName, string member, IReadOnlyList<IExpression> args)
     {
         string m = member.ToLowerInvariant();
-        if (bookName == "math" && m is "floor" or "ceiling" or "round" or "absolute value") return TNumber;
+        if (bookName == "math" && m == "absolute value") return TNumber;
         if (bookName == "math" && m is "square root" or "log" or "power") return new VoidableType(TNumber);
-        if (bookName == "collections" && m is "minimum" or "maximum" or "average") return new VoidableType(TNumber);
-        if (bookName == "collections" && m == "transpose") return MatrixType.Instance;
         return TNumber;   // conservative default (unresolved books surface at emit)
     }
 
@@ -6105,9 +6111,13 @@ static void* cufet_pipe_stage(void* argp) {
     // reached by walking the embed chain — all resolved statically.
     private string EmitMemberAccess(IExpression target, string member)
     {
-        // `<book>'s <const>` — a book constant (math's pi / e), baked as a decimal literal.
+        // `<book>'s <member>` — the book's Cufet layer answers first (a getter on the layer
+        // object, called on a fresh compound-literal receiver — the layer is fieldless, so an
+        // empty receiver is exact); a native constant is the fallback.
         if (target is VariableReference bvr && _bookAliases.TryGetValue(bvr.Name, out var bookName))
-            return EmitBookConstant(bookName, member);
+            return CufetLayerGetter(bookName, member) is not null
+                ? $"{GetterCName(bookName, member)}(&(({EmitCType(ObjType(bookName))}){{0}}))"
+                : EmitBookConstant(bookName, member);
         return TypeOf(target) switch
         {
             // the rows/columns of m — named access, resolved by the target's type rather than
@@ -6138,15 +6148,10 @@ static void* cufet_pipe_stage(void* argp) {
         };
     }
 
-    // A book constant (math's pi / e) — baked as the exact decimal literal. Using (decimal)Math.PI in
-    // the compiler (itself .NET) produces the bit-identical CufetDec the interpreter stores.
-    private static string EmitBookConstant(string bookName, string member)
-    {
-        string m = member.ToLowerInvariant();
-        if (bookName == "math" && m == "pi") return EmitNumberLiteral((decimal)Math.PI);
-        if (bookName == "math" && m == "e")  return EmitNumberLiteral((decimal)Math.E);
+    // No native book constants remain — pi and e are getters on math's Cufet layer now
+    // (Prelude/math.cufe), routed before this in EmitMemberAccess.
+    private static string EmitBookConstant(string bookName, string member) =>
         throw new CompilerException($"book '{bookName}' has no constant '{member}' supported by the compiler.");
-    }
 
     // the category of the failure → voidable text (NULL category → void).
     private string EmitFailureCategory(string failExpr)
@@ -8273,16 +8278,15 @@ static void* cufet_pipe_stage(void* argp) {
     }
 
     // Routes a book function to its C emission. 1A: the `math` book's EXACT-decimal total functions
-    // (floor/ceiling/round/absolute value). Transcendentals (square root/log/power → 1B), collections
-    // aggregates (minimum/maximum/average → 1C), transpose (→ 1D) defer cleanly.
+    // (floor/ceiling/round/absolute value); transcendentals (square root/log/power → 1B). The
+    // collections book routes nothing here any more — its members are Cufet (the book's layer).
     private string EmitBookFunction(string bookName, string member, IReadOnlyList<IExpression> args)
     {
         string m = member.ToLowerInvariant();
-        if (bookName == "math" && m is "floor" or "ceiling" or "round" or "absolute value")
+        if (bookName == "math" && m == "absolute value")
         {
             _usesMath = true;
-            string fn = m == "absolute value" ? "cufet_math_abs" : $"cufet_math_{m}";
-            return $"{fn}({EmitExpr(args[0])})";
+            return $"cufet_math_abs({EmitExpr(args[0])})";
         }
         if (bookName == "math" && m is "square root" or "log" or "power")
         {
@@ -8301,39 +8305,9 @@ static void* cufet_pipe_stage(void* argp) {
             _preEmits.Add($"CufetDec cf_mv{id}; int cf_mh{id} = {call};");
             return $"(cf_mh{id} ? ({cvd}){{ .has = 1, .val = cf_mv{id} }} : ({cvd}){{ .has = 0 }})";
         }
-        if (bookName == "collections" && m is "minimum" or "maximum" or "average")
-        {
-            // Series-of-number reduction → voidable number (void on empty — reuses 5C). Replicates
-            // the interpreter exactly: min/max keep the FIRST of ties (strict compare, LINQ Min/Max);
-            // average is LINQ Sum (sequential cufet_add from 0) then ONE cufet_div by the count —
-            // fully exact decimal arithmetic, no double bridge.
-            string cvd = RegisterVoidableStruct(new VoidableType(TNumber));
-            string ser = SeriesStructOf(args[0]);
-            string src = EmitExpr(args[0]);
-            int id = _freshId++;
-            if (m == "average")
-                _preEmits.Add(
-                    $"{ser}* cf_as{id} = {src}; CufetDec cf_ag{id} = cufet_dec_from_ll(0); " +
-                    $"for (int cf_i{id} = 0; cf_i{id} < cf_as{id}->len; cf_i{id}++) cf_ag{id} = cufet_add(cf_ag{id}, cf_as{id}->data[cf_i{id}]); " +
-                    $"int cf_ah{id} = cf_as{id}->len > 0; " +
-                    $"if (cf_ah{id}) cf_ag{id} = cufet_div(cf_ag{id}, cufet_dec_from_ll(cf_as{id}->len), 0);");   // len>0 guard: div-by-zero unreachable
-            else
-                _preEmits.Add(
-                    $"{ser}* cf_as{id} = {src}; CufetDec cf_ag{id} = cufet_dec_from_ll(0); " +
-                    $"int cf_ah{id} = cf_as{id}->len > 0; " +
-                    $"if (cf_ah{id}) {{ cf_ag{id} = cf_as{id}->data[0]; " +
-                    $"for (int cf_i{id} = 1; cf_i{id} < cf_as{id}->len; cf_i{id}++) " +
-                    $"if (cufet_cmp(cf_as{id}->data[cf_i{id}], cf_ag{id}) {(m == "minimum" ? "<" : ">")} 0) cf_ag{id} = cf_as{id}->data[cf_i{id}]; }}");
-            return $"(cf_ah{id} ? ({cvd}){{ .has = 1, .val = cf_ag{id} }} : ({cvd}){{ .has = 0 }})";
-        }
-        // `unique` is deliberately not here: it is written in Cufet (Prelude/collections.cufe),
-        // so its cast never reaches the book routing — CufetLayerHasMethod sends it to ordinary
-        // method emission instead.
-        if (bookName == "collections" && m == "transpose")
-        {
-            _usesMatrix = true;
-            return $"cufet_mat_transpose({EmitExpr(args[0])})";   // infallible: cols×rows flip
-        }
+        // The collections book has no native members left — every member is written in Cufet
+        // (Prelude/collections.cufe), so a collections cast never reaches this routing:
+        // CufetLayerHasMethod sends it to ordinary method emission instead.
         if (bookName == "collections")
             throw new CompilerException($"the collections book's member '{member}' is not supported by the compiler.");
         throw new CompilerException($"book '{bookName}' member '{member}' is not yet supported by the compiler.");

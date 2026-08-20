@@ -12,32 +12,26 @@ public sealed partial class TypeChecker
     {
         var books = new Dictionary<string, BookType>(StringComparer.OrdinalIgnoreCase);
 
-        // math book — deterministic operations return number;
-        // partial operations (undefined for some inputs) return voidable number.
+        // math book — the native remainder under the Cufet layer (Prelude/math.cufe, which owns
+        // floor/ceiling/round and the constants). Partial operations (undefined for some inputs)
+        // return voidable number. `absolute value` waits on multi-word method names; the three
+        // transcendentals are the arc's remaining pure-decimal numerics work.
         var mathMembers = new List<(string, CufetType)>
         {
-            ("floor",          new FunctionType([CufetType.Number], CufetType.Number)),
-            ("ceiling",        new FunctionType([CufetType.Number], CufetType.Number)),
-            ("round",          new FunctionType([CufetType.Number], CufetType.Number)),
             ("absolute value", new FunctionType([CufetType.Number], CufetType.Number)),
             ("square root",    new FunctionType([CufetType.Number], new VoidableType(CufetType.Number))),
             ("log",            new FunctionType([CufetType.Number], new VoidableType(CufetType.Number))),
             ("power",          new FunctionType([CufetType.Number, CufetType.Number], new VoidableType(CufetType.Number))),
-            ("pi",             CufetType.Number),
-            ("e",              CufetType.Number),
         };
         books["math"] = new BookType("math", mathMembers);
 
-        // collections book — introduces the matrix type + transpose operation.
+        // collections book — its members all live in the Cufet layer (Prelude/collections.cufe)
+        // now; the native side introduces the `matrix` TYPE and nothing else.
         var collectionsTypes = new Dictionary<string, CufetType>(StringComparer.OrdinalIgnoreCase)
         {
             ["matrix"] = MatrixType.Instance,
         };
-        var collectionsMembers = new List<(string, CufetType)>
-        {
-            ("transpose", new FunctionType([MatrixType.Instance], MatrixType.Instance)),
-        };
-        books["collections"] = new BookType("collections", collectionsMembers, collectionsTypes);
+        books["collections"] = new BookType("collections", [], collectionsTypes);
 
         // chance book — effectful randomness (stateful global RNG).
         // Functions are NOT registered here as book members because they use natural-language
@@ -219,50 +213,6 @@ public sealed partial class TypeChecker
             CheckBlock(ps.Body);
         }
         finally { ExitScope(); }
-    }
-
-    // Returns true when the cast is to a collections aggregate whose type cannot be expressed as
-    // a plain FunctionType (minimum/maximum/average: numeric reduction, void-on-empty).
-    // Handled in InferCastExpr before ResolveForCast. `unique` left this path 2026-08-19: it is
-    // written in Cufet now (Prelude/collections.cufe), where a blank expresses its shape directly.
-    private bool IsCollectionsAggregateCast(CastExpression cast)
-    {
-        if (cast.Function is not PossessiveAccess poss) return false;
-        if (InferType(poss.Target) is not BookType bt) return false;
-        if (!bt.Name.Equals("collections", StringComparison.OrdinalIgnoreCase)) return false;
-        var m = poss.Member.ToLowerInvariant();
-        return m is "minimum" or "maximum" or "average";
-    }
-
-    private CufetType? InferCollectionsAggregateCast(CastExpression cast)
-    {
-        var poss   = (PossessiveAccess)cast.Function;
-        var member = poss.Member.ToLowerInvariant();
-
-        if (cast.Args.Count != 1)
-            throw TypeError(
-                $"'{poss.Member}' takes one argument (a series), but {cast.Args.Count} were given",
-                null, cast.Line, cast.Column,
-                $"call '{poss.Member}' with {cast.Args.Count} arguments",
-                $"Use: cast collections' {poss.Member} of (xs).");
-
-        var argType = InferType(cast.Args[0]);
-
-        if (argType is SeriesType { ElementType: var et } && et != CufetType.Number)
-            throw TypeError(
-                $"'{poss.Member}' works on a series of numbers, but this series holds {FormatTypePlural(et)}",
-                null, cast.Line, cast.Column,
-                $"apply '{poss.Member}' to a series of {FormatTypePlural(et)}",
-                $"'{poss.Member}' requires a series of number.");
-
-        if (argType != null && argType is not SeriesType)
-            throw TypeError(
-                $"'{poss.Member}' works on a series of numbers, but got a {FormatType(argType)}",
-                null, cast.Line, cast.Column,
-                $"apply '{poss.Member}' to a {FormatType(argType)}",
-                $"'{poss.Member}' requires a series of number.");
-
-        return new VoidableType(CufetType.Number);
     }
 
     private CufetType InferBookPossessiveAccess(PossessiveAccess poss, BookType bt)

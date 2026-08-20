@@ -10,12 +10,11 @@ public sealed partial class Interpreter
     {
         var books = new Dictionary<string, BookValue>(StringComparer.OrdinalIgnoreCase);
 
+        // The native remainder under the Cufet layer (Prelude/math.cufe owns floor/ceiling/round
+        // and the constants; their native copies are DELETED, per the migration rule).
         var mathFunctions = new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase)
         {
-            // Total functions: use decimal overloads directly — no double conversion needed.
-            ["floor"]          = args => (object)(decimal)Math.Floor((decimal)args[0]),
-            ["ceiling"]        = args => (object)(decimal)Math.Ceiling((decimal)args[0]),
-            ["round"]          = args => (object)(decimal)Math.Round((decimal)args[0], MidpointRounding.AwayFromZero),
+            // Total function: the decimal overload directly — no double conversion needed.
             ["absolute value"] = args => (object)Math.Abs((decimal)args[0]),
             // Partial functions: decimal→double for the call, !IsFinite check, double→decimal back.
             // Math.Log(0) returns NegativeInfinity, not NaN — must use !IsFinite, not IsNaN.
@@ -24,52 +23,18 @@ public sealed partial class Interpreter
             ["power"]          = args => MathPartial(Math.Pow((double)(decimal)args[0], (double)(decimal)args[1])),
         };
 
-        var mathConstants = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["pi"] = (object)(decimal)Math.PI,
-            ["e"]  = (object)(decimal)Math.E,
-        };
+        books["math"] = new BookValue("math", mathFunctions,
+            new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase));
 
-        books["math"] = new BookValue("math", mathFunctions, mathConstants);
-
-        // collections book — introduces the matrix type + transpose operation + series aggregates.
-        var collectionsFunctions = new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["transpose"] = args =>
-            {
-                var mv = (MatrixValue)args[0];
-                var data = new decimal[mv.Rows * mv.Cols];
-                for (int r = 0; r < mv.Rows; r++)
-                    for (int c = 0; c < mv.Cols; c++)
-                        data[c * mv.Rows + r] = mv.GetItem(r + 1, c + 1);
-                return (object)new MatrixValue(mv.Cols, mv.Rows, data);
-            },
-            ["minimum"] = args =>
-            {
-                var xs = (List<object>)args[0];
-                if (xs.Count == 0) return VoidValue.Instance;
-                return (object)xs.Cast<decimal>().Min();
-            },
-            ["maximum"] = args =>
-            {
-                var xs = (List<object>)args[0];
-                if (xs.Count == 0) return VoidValue.Instance;
-                return (object)xs.Cast<decimal>().Max();
-            },
-            ["average"] = args =>
-            {
-                var xs = (List<object>)args[0];
-                if (xs.Count == 0) return VoidValue.Instance;
-                return (object)(xs.Cast<decimal>().Sum() / (decimal)xs.Count);
-            },
-        };
-        // `unique` is deliberately absent: it is written in Cufet (Prelude/collections.cufe) and
-        // reaches here as an ordinary method on the book's Cufet layer. Deleting the native copy
-        // in the same change is what makes the tests PROOF the Cufet path runs — a shadowed
-        // native member would answer identically and prove nothing.
+        // collections book — every member is written in Cufet (Prelude/collections.cufe) and
+        // reaches here as an ordinary method on the book's Cufet layer; the native side
+        // introduces the matrix TYPE and nothing else. The native copies are deliberately
+        // DELETED, not shadowed: deleting in the same change as each migration is what makes the
+        // tests PROOF the Cufet path runs — a shadowed native member would answer identically
+        // and prove nothing.
         books["collections"] = new BookValue(
             "collections",
-            collectionsFunctions,
+            new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase),
             new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase));
 
         // chance book — effectful randomness. Functions are dispatched via dedicated AST nodes

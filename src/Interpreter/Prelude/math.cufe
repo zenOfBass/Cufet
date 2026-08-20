@@ -1,0 +1,33 @@
+// The math book, written in Cufet.
+//
+// Same arrangement as collections.cufe: bundled, checked before every program, resolving with
+// the native book as one module. Still native, deliberately: `square root`, `log` and `power`
+// (the arc's remaining pure-decimal numerics work) and `absolute value` (a multi-word member
+// name, which a Cufet method cannot yet carry).
+
+Define object math with () and module:
+    // π and e at decimal precision — 28 fractional digits, correctly rounded. More precise than
+    // the double-derived constants they replace, which is a deliberate breaking change.
+    Get pi as number, 3.1415926535897932384626433833.
+    Get e as number, 2.7182818284590452353602874714.
+
+    // Largest whole number not above x. `x % 1` is the fractional part, its sign following x.
+    Bind number to floor, given (the number x):
+        Define fraction as x % 1.
+        If fraction is less than 0, return x - fraction - 1.
+        Return x - fraction.
+    Done.
+
+    // Smallest whole number not below x.
+    Bind number to ceiling, given (the number x):
+        Define fraction as x % 1.
+        If fraction is greater than 0, return x - fraction + 1.
+        Return x - fraction.
+    Done.
+
+    // To the nearest whole number, halves rounding away from zero.
+    Bind number to round, given (the number x):
+        If x is less than 0, return cast one's ceiling on (x - 0.5).
+        Return cast one's floor on (x + 0.5).
+    Done.
+Done.

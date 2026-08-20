@@ -3,11 +3,55 @@
 // This file is bundled into the checker (see TypeChecker.WithPrelude): every program is checked
 // and compiled as though it began with these statements. The object below shares its name with
 // the native collections book, and the two resolve as ONE module — a member defined here is the
-// only implementation of that member, and anything not defined here (transpose, minimum,
-// maximum, average, and the matrix type) is still the native book's, reached through the same
-// pulled name.
+// only implementation of that member, and anything not defined here (today only the matrix TYPE
+// itself) is still the native book's, reached through the same pulled name.
 
 Define object collections with () and module:
+    // Smallest value; the first of ties is kept, and an empty series has no smallest.
+    Bind voidable number to minimum, given (the series of number xs):
+        If the number of xs is 0, return void.
+        Define best as the first of xs.
+        For each candidate in xs, repeat:
+            If candidate is less than best, best becomes candidate.
+        Done.
+        Return best.
+    Done.
+
+    // Largest value; the first of ties is kept, and an empty series has no largest.
+    Bind voidable number to maximum, given (the series of number xs):
+        If the number of xs is 0, return void.
+        Define best as the first of xs.
+        For each candidate in xs, repeat:
+            If candidate is greater than best, best becomes candidate.
+        Done.
+        Return best.
+    Done.
+
+    // Exact-decimal mean: one running sum, then one division — no float drift, so the average
+    // of (0.1, 0.2, 0.3) is exactly 0.2. An empty series has no average.
+    Bind voidable number to average, given (the series of number xs):
+        If the number of xs is 0, return void.
+        Define sum as 0.
+        For each value in xs, repeat:
+            The sum becomes sum + value.
+        Done.
+        Return sum / (the number of xs).
+    Done.
+
+    // Columns become rows. The dimensions are bound to names first — the sized form wants a
+    // simple expression on each side of `by`.
+    Bind matrix to transpose, given (the matrix m):
+        Define height as the rows of m.
+        Define width as the columns of m.
+        Define flipped as a matrix with width by height.
+        For each row in range 1 to height, repeat:
+            For each column in range 1 to width, repeat:
+                The item at (column, row) of flipped becomes the item at (row, column) of m.
+            Done.
+        Done.
+        Return flipped.
+    Done.
+
     // First-occurrence dedup, element-type-preserving: works on a series of anything `is` can
     // compare, and hands back a new series — the one given is untouched.
     Bind series of element to unique, given (the series of element xs):

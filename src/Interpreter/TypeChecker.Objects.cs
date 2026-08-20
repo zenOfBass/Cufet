@@ -365,22 +365,37 @@ public sealed partial class TypeChecker
     {
         if (!_objectDefs.TryGetValue(od.Name, out var objType)) return;
 
-        ValidateObjectEmbedding(od, objType);
-        ValidateObjectConformance(od, objType);
-        ValidateGetterSetterNames(od, objType);
-
-        foreach (var method in od.Methods)
+        // ★ A book's Cufet layer checks with the book's own INTRODUCED TYPES in scope —
+        // `transpose`'s body constructs a matrix, and `matrix` is otherwise only in scope inside
+        // a pull. This is scoped to the book's own source, not a general loosening: only the
+        // prelude can define an object under a book's name (Pass1Hoist refuses a writer's).
+        bool isBookLayer = BuiltinBooks.TryGetValue(od.Name, out var layerBook);
+        if (isBookLayer)
         {
-            // A method that left a blank cannot have its body checked — its signature names types
-            // that do not exist yet. Each FILLING is checked instead, as the ordinary method it
-            // becomes, so one nothing calls is never checked at all.
-            if (_genericMethods.ContainsKey((od.Name, method.Name))) continue;
-            CheckMethodBody(method, objType, od.Line);
+            EnterScope();
+            foreach (var (typeName, typeObj) in layerBook!.IntroducedTypes)
+                RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
         }
-        foreach (var getter in od.Getters)
-            CheckGetterBody(getter, objType, od.Line);
-        foreach (var setter in od.Setters)
-            CheckSetterBody(setter, objType, od.Line);
+        try
+        {
+            ValidateObjectEmbedding(od, objType);
+            ValidateObjectConformance(od, objType);
+            ValidateGetterSetterNames(od, objType);
+
+            foreach (var method in od.Methods)
+            {
+                // A method that left a blank cannot have its body checked — its signature names types
+                // that do not exist yet. Each FILLING is checked instead, as the ordinary method it
+                // becomes, so one nothing calls is never checked at all.
+                if (_genericMethods.ContainsKey((od.Name, method.Name))) continue;
+                CheckMethodBody(method, objType, od.Line);
+            }
+            foreach (var getter in od.Getters)
+                CheckGetterBody(getter, objType, od.Line);
+            foreach (var setter in od.Setters)
+                CheckSetterBody(setter, objType, od.Line);
+        }
+        finally { if (isBookLayer) ExitScope(); }
     }
 
     // Validates own-type getter/setter name uniqueness and no clashes with methods.

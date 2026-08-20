@@ -421,11 +421,6 @@ public sealed partial class TypeChecker
 
     private CufetType? InferCastExpr(CastExpression cast)
     {
-        // Collections aggregates (minimum/maximum/average) have educational-error constraints
-        // that can't be expressed as a plain FunctionType.
-        if (IsCollectionsAggregateCast(cast))
-            return InferCollectionsAggregateCast(cast);
-
         // A function that left blanks is filled from THIS call's arguments before anything is
         // resolved — the filling is what decides which body the call reaches.
         if (cast.Function is VariableReference gvr && _genericFunctions.ContainsKey(gvr.Name))

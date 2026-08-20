@@ -39,6 +39,16 @@ static string Version() =>
     typeof(Lexer).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "unknown";
 
 // A verb typed wrong lands here as a filename, so the usage text has to be worth reading.
+// A file inside a `Prelude` directory IS (a draft of) the bundled prelude — check it as such,
+// or the guards protecting bundled-book names would refuse the prelude's own source, and the
+// embedded copy prepended on top would make its definitions duplicates.
+static TypeChecker MakeChecker(string sourcePath) => new()
+{
+    TreatProgramAsPrelude = string.Equals(
+        Path.GetFileName(Path.GetDirectoryName(Path.GetFullPath(sourcePath)) ?? ""),
+        "Prelude", StringComparison.OrdinalIgnoreCase),
+};
+
 static void Help()
 {
     Console.WriteLine($"""
@@ -80,7 +90,7 @@ static void EmitC(string sourcePath, string outPath)
     {
         var tokens  = new Lexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        program = new TypeChecker().Check(program);
+        program = MakeChecker(sourcePath).Check(program);
 
         // ★ Three files, not one. The point of `emit-c` is that a person can READ the C their
         // program became, and that was buried under 955 lines of runtime — measured at 79% of a
@@ -139,7 +149,7 @@ static void Check(string[] rest)
     try { source = File.ReadAllText(full); }
     catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(2); return; }
 
-    var checker = new TypeChecker();
+    var checker = MakeChecker(full);
     Cufet.Interpreter.Program program;
     // ⚠ Not the same tree. `program` is what the reader WROTE, and everything shown back to them is
     // judged on it; `lowered` is what actually runs, with every burying function rewritten into a
@@ -229,7 +239,7 @@ static void Tokens(string[] rest)
     {
         var tokens  = new Lexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        var checker = new TypeChecker();
+        var checker = MakeChecker(full);
         checker.Check(program);
         semantic = SemanticTokenizer.Collect(program, tokens, checker);
     }
@@ -304,7 +314,7 @@ static void Build(string sourcePath)
     try { source = File.ReadAllText(sourcePath); }
     catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
 
-    var checker = new TypeChecker();
+    var checker = MakeChecker(sourcePath);
     Cufet.Interpreter.Program program;
     try
     {
@@ -388,7 +398,7 @@ static void Interpret(string[] args)
     {
         var tokens  = new Lexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        var checker = new TypeChecker();
+        var checker = args.Length > 0 ? MakeChecker(args[0]) : new TypeChecker();
         // The RETURNED program, not the one handed in: a burying function is rewritten
         // into a closure factory by then. (`check` and `tokens` deliberately keep the
         // original — a reader is shown what THEY wrote, not the lowering.)

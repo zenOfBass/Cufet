@@ -885,6 +885,15 @@ public sealed partial class TypeChecker
     // guard is off (everything there was already admitted once).
     private readonly HashSet<IStatement> _preludeStatements = new(ReferenceEqualityComparer.Instance);
 
+    /// <summary>
+    /// Check the program AS the prelude: its own top-level statements get the prelude's standing
+    /// (a bundled book's name may be defined), and the embedded prelude is not prepended on top
+    /// of it — which would otherwise make the same definition a duplicate. Set by the CLI for a
+    /// file inside a `Prelude` directory, so the language's own source can be linted without
+    /// tripping the guards that source exists to justify.
+    /// </summary>
+    public bool TreatProgramAsPrelude { get; init; }
+
     /// <summary>Prepends the prelude's statements, once.</summary>
     /// <remarks>
     /// ⚠ Only at depth 0. Check re-enters itself to splice in filled-in templates, and that inner
@@ -892,7 +901,15 @@ public sealed partial class TypeChecker
     /// </remarks>
     private Program WithPrelude(Program program)
     {
-        if (_instantiationDepth > 0 || Prelude.Length == 0) return program;
+        if (_instantiationDepth > 0) return program;
+
+        if (TreatProgramAsPrelude)
+        {
+            foreach (var statement in program.Statements) _preludeStatements.Add(statement);
+            return program;
+        }
+
+        if (Prelude.Length == 0) return program;
 
         var statements = new List<IStatement>(
             new Parser(new Lexer.Lexer(Prelude).Tokenize()).Parse().Statements);
