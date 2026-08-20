@@ -45,7 +45,127 @@ true of `math` and got copied. Write "needs `square root`, which is a C call" in
 you write it, and check it again before ordering work off it. A dependency you cannot state
 precisely enough to test does not belong in this file.
 
-Two framings set the order:
+### The arc in progress — 0.16.0: everything pullable is an object
+
+**Agreed 2026-08-19. One arc, five slices, one principle: no part of the module system lives
+outside Cufet.** A book is a module, a rabbit is a module, and a writer's own object is a module
+on exactly the same terms — no privileged builtin category. So the books get written in Cufet,
+the rabbit becomes an object, and passing any of them as a `module` value stops being a
+question.
+
+The language's **floor** — control flow, arithmetic, `bury`'s transform — stays
+compiler-implemented until the compiler itself is written in Cufet (the Cufet-in-Cufet tier
+below owns that promise). This arc does not borrow it: `bury` is classed with `If`, never with
+`unique`.
+
+What already exists, measured: `Pull <module> [as <alias>]` works on both backends for a
+writer's object conforming to `module`, and the bundled books answer to the same form; blanks
+work on objects, functions and methods; the prelude hook in `TypeChecker.Check` parses bundled
+source and prepends it (empty today). Two things are settled and do not change in this arc:
+★ **`module` stays a MARKER — it requires nothing** until a real requirement earns its way in,
+and **pulling INSTANTIATES**. ★ **The loader is still not part of any of this** — fetching code
+that is not already in the program is a separate hard problem (*Shipping a book*, below), and it
+is one conformer's business rather than the contract's.
+
+**Slice 1 — resolution: a Cufet member shadows a native one, member by member.**
+
+   `ResolveModule` checks `BuiltinBooks` before `_objectDefs`, so a Cufet `collections` is
+   invisible behind the native book of the same name. The rule that fixes it: a prelude-defined
+   module object and a native book of one name resolve as ONE module — the Cufet member wins
+   wherever both define a name, and everything the prelude does not define (remaining native
+   members, introduced types — `matrix`) stays native underneath. The native layer shrinks as
+   members migrate and is deleted when it is empty. **Half-migrated is a supported state, not an
+   accident** — `collections` can never fully leave while `matrix` is native.
+
+   Two consequences, both decided:
+   - **Book names become real defined names.** A writer defining an object called `collections`
+     is refused as a redefinition, with a message that says the name is a bundled book — today
+     the native book silently shadows it at the pull site, which is worse.
+   - **The prelude's source lives as real embedded `.cufe` files** (`src/Interpreter/Prelude/`),
+     not a C# string constant. They are language artifacts a person will eventually read.
+
+   Proof of the slice, vertical first: ONE member (`unique`) written in Cufet, resolved through
+   the merge, oracle output identical.
+
+**Slice 2 — `collections` written in Cufet.** Nothing is missing (measured 2026-08-17, not
+   inferred): `unique`, `minimum`, `maximum`, `average` are `series of element` shapes that run
+   on both backends today, and a Cufet `transpose` was already written and matched the native
+   one's output exactly. ⚠ Bind a matrix's dimensions to names first — `a matrix with (the
+   columns of m) by …` does not parse; the sized form wants a simpler expression there.
+
+   Signatures and outputs are preserved exactly; the oracle pins are the proof. The pre-blanks
+   special dispatch path for the aggregates goes with them — those members only ever had one
+   because their types could not be written before blanks existed. A book's helper function is
+   public like any other member, which is the export decision already recorded under *Shipping a
+   book*, not a new policy.
+
+**Slice 3 — `math` written in Cufet: pure decimal, no FFI.** `square root`, `log` and `power`
+   do not wait for the C FFI and do not stay native: they are written in Cufet over `number`
+   itself. Both backends then run the same algorithm on the same bit-identical decimal, so the
+   results are identical everywhere **by construction** — which retires the documented libm
+   last-ULP platform caveat instead of parking a three-member debt.
+
+   Decided, 2026-08-19:
+   - **Outputs change, deliberately**: decimal-precise (~28 digits) instead of double-backed
+     (~16). A breaking output change, documented in the changelog.
+   - `square root` is **correctly rounded**; `log` and `power` are **faithfully rounded** (within
+     1 ULP at the last digit) — correct rounding of transcendentals is the table-maker's dilemma,
+     and the promise that matters is *identical everywhere*, which the construction gives free.
+   - `pi` and `e` become decimal-precise constants (today they are `(decimal)Math.PI` —
+     double-derived).
+   - Integer-exponent `power` is exact (repeated squaring). Domain errors keep today's shape
+     (`void`); overflow behaves as decimal overflow does everywhere else.
+
+**Slice 4 — the rabbit becomes an object.** Its definition — an object conforming to `module`,
+   its methods named — lives in the prelude, in Cufet. The surface is frozen:
+   `Pull a rabbit as hopper.`, `Have hopper bury next.`, `unbury s` — nothing changes at a use
+   site. `bury` becomes a method on the rabbit that owns the buried state, which is where it was
+   always meant to live, and a stash finally has an owner.
+
+   - **`bury`'s implementation is compiler-provided with a NAMED EXPIRY**, exactly like `If`'s:
+     suspension is a check-time rewrite of the containing function, so its body cannot be an
+     ordinary Cufet function until the compiler itself is written in Cufet — the Cufet-in-Cufet
+     tier, which owns that promise. Do not write "intrinsic" anywhere; that word reads as
+     *forever* and it is not.
+   - **A stash IS a continuation — the one-shot DELIMITED kind.** It captures the rest of one
+     function, the rabbit's ground is the delimiter, one live resumption. That names the design
+     and settles the question permanently. `call/cc` — undelimited, multi-shot — stays rejected
+     on the recorded reasoning: CPS-transforming the program destroys the readable emitted C,
+     stack copying is nonportable and fights the sanitizers and the thread-local arenas, and the
+     no-divergence rule decides it independent of cost because the tree-walking interpreter
+     cannot faithfully capture its host stack.
+   - **Nothing new is exposed**: no public fields, no name accessor, and embedding `rabbit` in a
+     writer's object is refused. A requirement earns its way in, as everywhere.
+   - **`Pull a rabbit as hopper.` stays the only constructor** — no `a new rabbit { }`, because
+     pulling is what creates the ground, and a rabbit without ground is not a rabbit.
+
+**Slice 5 — a book and a rabbit pass as `module` VALUES.** The arc's finish line:
+   `given (the module m)` accepts a writer's object, a book, and a rabbit on the same terms — a
+   module is an object, an object is first class, so a module is first class by inheritance
+   rather than by a separate decision. `module` stays a marker, so a module-typed parameter
+   offers no callable members; declare a narrower interface when you want calls, which is
+   machinery that already exists. Printing and equality follow object rules; the exact text is
+   measured and pinned during the slice, not invented in advance.
+
+The arc ships as **0.16.0**.
+
+Notes that outlive the arc:
+
+- **`chance` has nothing to move.** Its surface is `a random number from … to …` and friends,
+  which are AST nodes rather than members; its member list is empty. It is already exactly what
+  the arc makes the others.
+- **No variance**, if blanks are ever extended. Not covariance, not contravariance. It is the
+  part nobody can explain to a learner, and a teaching language that ships `IEnumerable<out T>`
+  has lost the plot.
+- Blanks also unlock something concrete and small: **mixed-type operator dispatch**, and with it
+  `matrix * number` scalar scaling, which is deferred today for exactly that reason. (The
+  Hadamard product is *not* blocked — it is decided: if ever added it will be a named
+  `collections` function, never an operator, because `*` means matrix product and there is one
+  canonical way.)
+
+### After the arc, in order
+
+Two framings that set the order:
 
 - **Sockets, POSIX and Windows APIs, and threading primitives are not separate items.** They
   are all "call a C function", so a **C FFI** collapses them into one item and turns each of
@@ -54,132 +174,35 @@ Two framings set the order:
   to self-hosting. A lexer, parser and type checker are one enormous dispatch on node type;
   written as `is a` chains, a Cufet-in-Cufet compiler is miserable to write and worse to read.
 
-### Tier 1 — leverage
+1. **One ownership story — really one, exceptions.** The rabbit is already the single boundary
+   for arenas, pthreads, channels and result boxes: it pushes an arena, registers what is created
+   inside it, and joins every task and frees every channel at `Done.` before the pop.
 
-1. **Modules: an object that conforms to an interface, brought into scope with `Pull`.**
+   What is not folded in is **exception bookkeeping**. `_rabbitDepth`, `_excOpen` and `_openFiles`
+   are three parallel depth stacks, each with its own unwind helper and its own per-loop list
+   (`_loopRabbitDepths`, `_loopExcDepths`, `_loopFileDepths`), and every nonlocal exit has to
+   unwind all three in the right order. The tell is `_currentTryHandler`, which carries
+   `FileDepth`, `ExcDepth` and `RabbitDepth` as separate fields. Collapsing them into one context
+   record is a refactor against a sharp invariant, not a feature.
 
-   The writer builds an object, conforms it to an interface, and pulls it. That is the whole idea,
-   and it is deliberately not more than that — **a book is a module, a rabbit is a module, and a
-   writer's own object is a module on exactly the same terms.** No privileged builtin category.
+2. **Pointers scoped to a rabbit**, which is what gates the C FFI below. ⚠ Nothing exists yet —
+   no surface, no design session. This is the item that sets the real distance to "done".
 
-   ★ **The loader is not part of this.** Fetching code that is not already in the program is a
-   separate hard problem (Tier 3), and it is one conformer's business rather than the contract's.
-   Keeping them apart is what makes this buildable now.
+3. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+   literally rather than nearly true. ★ No bundled book needs it any more — `math` went pure
+   decimal in the arc above — so its consumers are the "call a C function" family it collapses:
+   the shell's job control and raw terminal mode, sockets, the POSIX and Windows APIs.
 
-   **▶ BUILT 2026-08-15.** `Pull <module> [as <alias>]` works on both backends for a writer's object
-   conforming to `module`, and the bundled books answer to the same form (`Pull math.`,
-   `Pull collections as c.`). One question is asked of everything at the pull site — *is this a
-   module?* — in `ResolveModule`. A book conforms **by construction** (its members are native, so
-   there is no `Define object` to carry an `and module` clause); a writer's object conforms **by
-   declaration**. That is a difference in how a conformer is built, not in what the contract asks.
-
-   **What is left, and it is the whole point:**
-   - ⚠ **A book and a rabbit are refused as module VALUES.** `given (the module m)` type-checks, and
-     a writer's object satisfies it, but passing `math` or a rabbit is rejected. **This is not a
-     design boundary — it is that books and rabbits are not objects yet.** A module is an object; an
-     object is first class; so a module is first class by inheritance, not by a separate decision.
-     Do not resolve this by narrowing what `module` means.
-   - **Rabbits become objects**, which is where `bury` and `unbury` were always meant to live — as
-     methods on the rabbit that owns the buried state. Today they are free statements, which is why
-     a stash carries a type but no ownership.
-   - **The bundled books get written in Cufet**, at which point they are ordinary objects and their
-     passability stops being a question. See item 2 for what each one still needs.
-
-   ★ **`module` starts as a MARKER — it requires nothing.** An interface that says only "this is
-   pullable" is the honest starting point, because no requirement has arisen yet. Inventing one now
-   means guessing at a contract two conformers have not asked for, and a contract is the single
-   hardest thing to loosen later. Let a real requirement earn its way in.
-
-   **Surface: `Pull <module-name> [as <alias>].`** The article is noise, so `Pull math.`,
-   `Pull rabbit.`, `Pull greeting-kit as kit.` It is not new syntax — `Pull a rabbit.` is already
-   this form, and `Pull a book on <name>` is the special case being shed. Keep the `book on` form
-   working for the three builtins; their names read badly without it.
-
-   **Pulling INSTANTIATES.** `Pull a rabbit as hopper.` makes a region and binds it, so pulling a
-   module makes one and binds it. That keeps a book's singleton-ness a property of books rather than
-   of the mechanism, which is what the module notes in DESIGN already say.
-
-   ⚠ **A module with fields is refused** — a pull site has nowhere to put their values. Use
-   `a new <type> { … }`. If pull-time arguments are ever genuinely needed, that is a requirement
-   that *arose*, which is the standard for changing any of this.
-
-2. **Write the bundled books in Cufet.** A book written in Cufet is a module object with generic
-   methods, and every piece of that now exists: blanks on objects, on functions and on methods, and
-   a **prelude** hook in `TypeChecker.Check` that parses bundled source and prepends it (empty
-   today). ★ This is what item 1 waits on — once a book is an ordinary object, its passability as a
-   module value stops being a question.
-
-   **`collections` — nothing missing.** Measured 2026-08-17, not inferred:
-   - `unique`, `minimum`, `maximum`, `average` are `series of element` → `series of element` or
-     `voidable element`, and both shapes run on both backends today.
-   - `transpose` needs only what `matrix` already exposes to Cufet: `a matrix with R by C`,
-     `the rows of m` / `the columns of m`, and `the item at (r, c) of m` for read and write. A
-     Cufet `transpose` was written and its output compared to the native one — identical.
-     ⚠ Bind the dimensions to names first; `a matrix with (the columns of m) by …` does not parse,
-     the sized form wants a simpler expression there.
-
-   **`math` — needs the C FFI (item 4), and only for three members.** `square root`, `log` and
-   `power` are C library calls with no Cufet expression. `floor`, `ceiling`, `round` and
-   `absolute value` are arithmetic and could move now; `pi` and `e` are constants.
-
-   **`chance` — nothing to move.** Its surface is `a random number from … to …` and friends, which
-   are AST nodes rather than members; its member list is empty.
-
-   ⚠ **The one real obstacle is NAME RESOLUTION, not the Cufet.** `ResolveModule` checks
-   `BuiltinBooks` before `_objectDefs`, so a Cufet `collections` is shadowed by the native book of
-   the same name. Whatever moves first has to settle how a half-migrated book resolves.
-
-   **No variance**, if blanks are ever extended. Not covariance, not contravariance. It is the part
-   nobody can explain to a learner, and a teaching language that ships `IEnumerable<out T>` has lost
-   the plot.
-
-   Blanks also unlock something concrete and small: **mixed-type operator dispatch**, and with it
-   `matrix * number` scalar scaling, which is deferred today for exactly that reason. (The
-   Hadamard product is *not* blocked — it is decided: if ever added it will be a named
-   `collections` function, never an operator, because `*` means matrix product and there is one
-   canonical way.)
-
-3. **Finish the rabbit as a control-flow primitive.** Suspend and resume shipped: `Bury` and
-   `unbury` work on both backends, a burying body is rewritten into a state machine whose step
-   number is the program counter, and a stash is first class — it passes as a parameter, sits in a
-   series, and holds an object field. Narrowings survive a resumption now, `If` and `Judge` alike.
-   What is left is unifying the bookkeeping the machinery exposed, and the pointer surface that
-   gates the FFI.
-
-   **The restriction is settled and is not a temporary one.** Save state, resume in order, one live
-   resumption — coroutine-shaped, not `call/cc`. Full first-class continuations need either
-   CPS-transforming the whole program (destroying the readable, self-contained C the compiler emits)
-   or copying the machine stack (nonportable, and in conflict with both the sanitizers and the
-   thread-local arenas). ★ **The no-divergence rule decides this independent of implementation
-   cost:** a tree-walking interpreter cannot faithfully offer `call/cc` either.
-
-   **What remains, in order:**
-   1. **One ownership story — really one, exceptions.** The rabbit is already the single boundary
-      for arenas, pthreads, channels and result boxes: it pushes an arena, registers what is created
-      inside it, and joins every task and frees every channel at `Done.` before the pop.
-
-      What is not folded in is **exception bookkeeping**. `_rabbitDepth`, `_excOpen` and `_openFiles`
-      are three parallel depth stacks, each with its own unwind helper and its own per-loop list
-      (`_loopRabbitDepths`, `_loopExcDepths`, `_loopFileDepths`), and every nonlocal exit has to
-      unwind all three in the right order. The tell is `_currentTryHandler`, which carries
-      `FileDepth`, `ExcDepth` and `RabbitDepth` as separate fields. Collapsing them into one context
-      record is a refactor against a sharp invariant, not a feature.
-   2. **Pointers scoped to a rabbit**, which is what gates the C FFI below. ⚠ Nothing exists yet —
-      no surface, no design session. This is the item that sets the real distance to "done".
-
-4. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
-   literally rather than nearly true.
-
-### Tier 2 — the design mountains
+### The design mountains
 
 All need a design session before they can be ordered against anything. They are here because
 they are large, not because they are waiting. The formatter used to be blocked by the inline
 forms; those shipped in 0.15.0, so it is unblocked and simply last.
 
-5. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
+1. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
 
-6. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
+2. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
     briefly a linter rule and is not one. Both tools would need the same "how large is large"
     threshold, and one number owned in two places is one number that drifts. The severity settles
     it too: every other linter rule flags something a tool cannot fix for you — nesting you have to
@@ -203,21 +226,21 @@ forms; those shipped in 0.15.0, so it is unblocked and simply last.
     to a fixed indent; and the width that makes a shape "large" — the corpus median is 43 and p90
     is 82, so 90–100 leaves nearly everything alone.
 
-### Tier 3 — shipping a book, strictly in this order
+### Shipping a book, strictly in this order
 
-The `module` interface itself is Tier 1 item 1 — it is the language seam and is buildable now.
-What is left here is everything about code that is **not already in the program**, which is a
-separate hard problem and is nobody's contract.
+The `module` interface itself is the language seam and shipped with the arc above. What is left
+here is everything about code that is **not already in the program**, which is a separate hard
+problem and is nobody's contract.
 
-7. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
+1. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
    open-union representation is sound *because* the whole program compiles at once. Either
    feature forces revisiting it.
-8. **What a module exports.** Every member is public API, permanently, because there is no way to
+2. **What a module exports.** Every member is public API, permanently, because there is no way to
    mark one internal. A module author has no way to say *this is my helper, do not call it*.
 
    ★ **It bites when a module can be DEPENDED ON, and not before.** Nothing is distributable —
-   there is no loader (item 7) and no package manager (item 9) — so no one can rely on your
-   helper yet. This item belongs here, next to the things that make distribution real.
+   there is no loader and no package manager (the items either side of this one) — so no one can
+   rely on your helper yet. This item belongs here, next to the things that make distribution real.
 
    ⚠ **Corrected 2026-08-15.** An earlier version of this entry claimed the decision could not wait
    and had to be made before a module could be shared. That was wrong twice over, and the reasoning
@@ -227,7 +250,7 @@ separate hard problem and is nobody's contract.
    - **The obvious fix would undo the unification.** An object exposes all its methods; a module IS
      an object; so a module exposing all its methods is not an accidental default, it is the
      consistent behaviour. Requiring modules to declare an export surface would make them behave
-     differently from ordinary objects — the special-casing item 1 exists to delete. It also cuts
+     differently from ordinary objects — the special-casing the arc above exists to delete. It also cuts
      against the language's temper: you *should* keep your helpers to yourself, and we do not make
      you, the same way we do not stop you writing a magic number.
 
@@ -252,9 +275,9 @@ separate hard problem and is nobody's contract.
    hides). Whether a module with no declared surface then exports everything or nothing is the one
    real decision, and it is due when distribution is, not now.
 
-9. **A package manager for books.**
+3. **A package manager for books.**
 
-### Tier 4 — Cufet in Cufet
+### Cufet in Cufet
 
 Three programs in increasing size, ending with the compiler. The ordering is not ceremonial:
 this tier's real blocker is stated below as **ergonomic rather than capability**, and the only
@@ -262,7 +285,7 @@ way to find ergonomic blockers is to write large Cufet programs. These are the t
 realistic ones, so they are the instrument as much as they are the goal — better to meet the
 gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
-10. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+1. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
     ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
     for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
@@ -270,20 +293,25 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     makes this a stepping stone rather than a stop along the way, and the choice should be made
     when the work starts rather than assumed now.
 
-11. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
+2. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
-    ⚠ **Blocked on the C FFI (Tier 1).** Job control needs process groups and signalling a child;
+    ⚠ **Blocked on the C FFI (*After the arc*, above).** Job control needs process groups and signalling a child;
     completion needs raw terminal mode. Neither is in the language and neither should become a
     language feature — they are exactly the "call a C function" family the FFI collapses.
     Globbing and history need nothing new.
 
-12. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+3. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
     ★ The test oracle already exists. A self-hosted compiler can be validated by asserting
     its C output matches this compiler's — a third implementation held against the other two.
+
+    ★ **This is where "written in Cufet, no exceptions" is finally discharged.** The language's
+    floor — `If`, arithmetic, `bury`'s state-machine transform — is compiler-implemented, so the
+    compiler becoming Cufet is what makes every last part of the language Cufet-written. The
+    arc above deliberately did not borrow this promise; this item owns it.
 
 ### Ongoing, no fixed slot
 
@@ -357,8 +385,8 @@ indistinguishable from having forgotten.
   no two expressions are ever equivalent, which takes out `check`, monomorphization, and any
   compiled backend that is not an embedded interpreter.
 
-  *Blocker: self-hosting (Tier 5).* A macro expander generates Cufet AST, so building it in C# now
-  means building it again in Cufet later. ⚠ Macro errors are the worst part of every language that
+  *Blocker: self-hosting (the Cufet-in-Cufet tier).* A macro expander generates Cufet AST, so
+  building it in C# now means building it again in Cufet later. ⚠ Macro errors are the worst part of every language that
   has them, and clear errors are this language's distinguishing feature — that tax should be paid
   deliberately, not absorbed early.
 
