@@ -24,6 +24,7 @@ eb7f1ade05868e0a	GRAMMAR.md:724	// to the end of the line
 c6530a88bec0455d	GRAMMAR.md:920	Define deck as a series of records like (the text suit, the text rank) with (
 76ca3bb9ebc3bdc3	GRAMMAR.md:933	Define updated as a record with (the suit "Spades", the rank "Ace").
 94f434ccd5b0fbc9	GRAMMAR.md:1021	If x = 5, State "five".    ← symbol equality in condition — works
+754476231930bc98	GRAMMAR.md:1248	Pull a book on math.
 07145f4c735001bf	GRAMMAR.md:1255	Pull books on math, collections, and chance.
 fb59e5f822cca612	GRAMMAR.md:1386	Pull a rabbit.
 3f505d74c7ea33ea	GRAMMAR.md:1442	Define object card with (the text suit, the text rank):

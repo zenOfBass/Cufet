@@ -1246,7 +1246,7 @@ Define picked as a random item from xs but void is "".  ← OK for series of tex
 **Single book:**
 ```
 Pull a book on math.
-    Define r as the square root of 16.
+    Define r as math's square-root of 16.
 Done.
 ```
 
@@ -1303,7 +1303,7 @@ and its layer resolve as ONE module. A member the layer defines is ordinary Cufe
 getter) dispatch; whatever the layer does not define is still the native book's — all reached
 through the same pulled name. Today the whole of `collections` is Cufet (its native side only
 introduces the `matrix` type), and `math`'s layer holds `floor`, `ceiling`, `round`, `pi` and
-`e`, with `square root`, `log`, `power` and `absolute value` still native.
+`e`, with `square-root`, `log`, `power` and `absolute-value` still native.
 
 **Rabbit (singular only):**
 ```

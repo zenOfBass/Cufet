@@ -8,6 +8,37 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Changed
+
+- **★★ Breaking: `math`'s two multi-word members are hyphenated — `square-root` and
+  `absolute-value`.** `math's square root of (144)` is now `math's square-root of (144)`.
+
+  The decision behind it is not about spelling. A book could name a member something a writer
+  **cannot** name a member on their own module, because an identifier holds no spaces — one more
+  way a bundled book was a privileged category, which is exactly what the 0.16.0 arc exists to
+  delete. Hyphenated compounds are also what every multi-word name in Cufet already looks like
+  (`add-edge`, `grand-total`, `parse-factor`, `how-many`); `square root` was the outlier.
+
+  Three things fall out of it, and they are the reason it was worth doing:
+
+  - **`absolute-value` is written in Cufet now**, since it is finally spellable. The whole of
+    `math` is Cufet except `square-root`, `log` and `power` — the three double-backed
+    transcendentals, which are the arc's remaining numerics work.
+  - **The parser stopped guessing.** A possessive member name is ONE token again. It used to
+    accumulate consecutive identifiers after `'s` — a greedy lookahead that existed solely to
+    spell those two names, and that decided how much to swallow by scanning ahead. It is the
+    same family as the `IsNamedAccessPattern` fragility the roadmap tracks, removed rather than
+    bounded.
+  - **~25 lines of dead C runtime are gone.** `cufet_math_floor`, `_ceiling`, `_round` and
+    `_abs` had no call site left once those members became Cufet; they were still being emitted.
+    The math runtime is now just the decimal↔double bridge the three transcendentals need.
+
+  Sweeping the docs for the rename also turned up a sample that had **never** been valid —
+  GRAMMAR showed `Define r as the square-root of 16.`, with no possessive, which is not how a
+  book member is reached. Corrected, and the doc-block baseline regenerated: it now pins **190**
+  samples, up from 186, the rest being blocks that had been checking clean since the generics
+  docs landed without ever being recorded.
+
 ### Added
 
 - **★ `math` is half in Cufet: `floor`, `ceiling`, `round`, and decimal-precise `pi` and `e`.**

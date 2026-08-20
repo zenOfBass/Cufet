@@ -76,25 +76,30 @@ is one conformer's business rather than the contract's.
    remaining members moved, native copies and the pre-blanks aggregate dispatch path deleted.
    The native side of `collections` now introduces the `matrix` type and nothing else.
 
-**Slice 3 — `math` written in Cufet: pure decimal, no FFI.** ▶ **Half shipped 2026-08-19**
-   (see CHANGELOG): `floor`, `ceiling` and `round` are Cufet; `pi` and `e` are decimal-precise
-   layer getters (the breaking output change, taken). What remains: `square root`, `log` and
-   `power`, written in Cufet over `number` itself, so both backends run the same algorithm on
-   the same bit-identical decimal and the results are identical everywhere **by construction**
-   — which retires the documented libm last-ULP platform caveat instead of parking a debt.
+**Slice 3 — `math` written in Cufet: pure decimal, no FFI.** ▶ **All but the transcendentals
+   shipped 2026-08-19** (see CHANGELOG): `floor`, `ceiling`, `round` and `absolute-value` are
+   Cufet; `pi` and `e` are decimal-precise layer getters. The multi-word member question was
+   settled by **hyphenating the names** (`square-root`, `absolute-value`) rather than by a
+   mapping rule — a book may not name a member a writer could not name, which also let the
+   parser's greedy possessive lookahead be deleted.
+
+   What remains: `square-root`, `log` and `power`, written in Cufet over `number` itself, so
+   both backends run the same algorithm on the same bit-identical decimal and the results are
+   identical everywhere **by construction** — which retires the documented libm last-ULP
+   platform caveat instead of parking a debt.
 
    Decided, 2026-08-19:
-   - `square root` is **correctly rounded**; `log` and `power` are **faithfully rounded** (within
+   - `square-root` is **correctly rounded**; `log` and `power` are **faithfully rounded** (within
      1 ULP at the last digit) — correct rounding of transcendentals is the table-maker's dilemma,
      and the promise that matters is *identical everywhere*, which the construction gives free.
    - Integer-exponent `power` is exact (repeated squaring). Domain errors keep today's shape
      (`void`); overflow behaves as decimal overflow does everywhere else.
 
-   ⚠ **Open, needed to finish the slice: multi-word member names on a layer.** `square root`
-   and `absolute value` have spaces; a Cufet method name cannot. The candidate rule: the layer
-   defines the hyphenated name (`square-root`) and a book member lookup maps spaces to hyphens —
-   mechanical, but it quietly makes `math's square-root` valid too, so it needs a decision
-   before it is built.
+   ⚠ **This is a real numerics session, not a port.** `square-root` is Newton–Raphson on the
+   decimal plus a final correctly-rounding adjustment; `log` and `power` need argument reduction
+   and series evaluation at 28+ digits with guard digits. The existing double-backed answers are
+   the *starting* oracle (they agree to ~15 digits), but they cannot be the final one — the whole
+   point is to be more precise than they are. Budget it accordingly.
 
 **Slice 4 — the rabbit becomes an object.** Its definition — an object conforming to `module`,
    its methods named — lives in the prelude, in Cufet. The surface is frozen:

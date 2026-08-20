@@ -3535,7 +3535,7 @@ A pull is a **scope**: the binding is gone after `Done.`
 
 Capability that most programs do not need lives in a **book** — a module that comes in the
 box. Brought into scope for a block with `Pull a book on <name>. … Done.`, with members
-reached by the possessive: `math's square root of (144)`.
+reached by the possessive: `math's square-root of (144)`.
 
 The `book on <name>` spelling stays because the bundled names read badly without the noun —
 "Pull a math." — but a book is a module and nothing about the mechanism is special to it.
@@ -3548,7 +3548,7 @@ optional `and` before the last. One `Done.` closes the block for all of them:
 
 ```
 Pull books on math, collections, and chance.
-    State math's square root of (16).
+    State math's square-root of (16).
     State collections's maximum of (a series of number with (5, 3, 9)).
 Done.
 ```
@@ -3561,7 +3561,7 @@ Each entry may carry its own alias:
 
 ```
 Pull books on math as m, and collections as c.
-    State m's square root of (25).
+    State m's square-root of (25).
 Done.
 ```
 ```
@@ -3570,8 +3570,8 @@ Done.
 
 ```
 Pull a book on math.
-    State math's square root of (144).
-    State math's absolute value of (0 - 7).
+    State math's square-root of (144).
+    State math's absolute-value of (0 - 7).
     State math's pi.
 Done.
 ```
@@ -3581,11 +3581,11 @@ Done.
 3.1415926535897932384626433833
 ```
 
-`math` provides `square root`, `log`, `power`, `floor`, `ceiling`, `round`, `absolute
-value`, and the constants `pi` and `e`. Rounding, flooring and absolute value are exact
-decimal operations — `floor`, `ceiling` and `round` are written in Cufet itself, and `pi`
-and `e` are decimal-precise constants (28 fractional digits, correctly rounded). The
-transcendentals are still computed in double precision on both backends — which means
+`math` provides `square-root`, `log`, `power`, `floor`, `ceiling`, `round`,
+`absolute-value`, and the constants `pi` and `e`. Rounding, flooring and absolute value are exact
+decimal operations — `floor`, `ceiling`, `round` and `absolute-value` are written in Cufet
+itself, and `pi` and `e` are decimal-precise constants (28 fractional digits, correctly
+rounded). The transcendentals are still computed in double precision on both backends — which means
 `power` with a fractional exponent can differ in its last digit across platforms, because
 the underlying library *is* the platform's own.
 
