@@ -80,20 +80,31 @@ Bind void to take-three, given (the stash of number source, the text label):
     Done.
 Done.
 
+// ── Looping over a stash ────────────────────────────────────────────────────────────────────────
+//
+// `For each <name> in <stash>` takes one value per turn and ends when the stash is spent. It is the
+// same loop a series takes: `Stop` ends it, `Skip` moves to the next value, and the name holds the
+// plain buried type — not a `voidable` — because reaching the body is itself proof there was one.
+//
+// A stash is still not a series. This loop cannot count what it has not asked for, cannot start
+// over, and cannot look ahead; it just asks until the answer is "no more".
+
 // One stash draining another. `inner` is an ordinary local holding a `stash of number`, and it has
 // to survive this function's own resumptions as well as produce values of its own. The rabbit this
 // function was handed is the one it gives the inner work to as well.
+//
+// The loop is DELEGATION: it consumes one stash inside a function that is producing another, so it
+// has to survive being cut into pieces at `bury` exactly like the rest of the body.
 Bind number to evens-of-counting-up, given (the rabbit helper):
     Define inner as cast counting-up on (helper, 1).
-    Repeat:
-        Define value as unbury inner but void is 0.
+    For each value in inner, repeat:
         If value is greater than 8:
             Stop.
         Done.
         If value % 2 is 0:
             Have helper bury value.
         Done.
-    Until false.
+    Done.
 Done.
 
 Pull a rabbit as warren.
@@ -117,24 +128,19 @@ Pull a rabbit as warren.
     State "".
     State "One stash draining another:".
     Define evens as cast evens-of-counting-up on (warren).
-    Repeat:
-        Define value as unbury evens.
-        If value is void:
-            Stop.
-        Done.
+    For each value in evens, repeat:
         State value.
-    Until false.
+    Done.
 
     State "".
     State "The long words, then void:".
     Define found as cast long-words-in on (warren, a series with ("a", "rabbit", "in", "the", "warren")).
-    Repeat:
-        Define word as unbury found.
-        If word is void:
-            Stop.
-        Done.
+    For each word in found, repeat:
         State word.
-    Until false.
+    Done.
+
+    // Spent means spent. The loop above ran the stash out, and every later ask answers void — a
+    // stash is not re-read, so there is nothing to rewind to.
     State unbury found.
     State unbury found.
 Done.
