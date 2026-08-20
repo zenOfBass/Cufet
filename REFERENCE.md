@@ -636,8 +636,8 @@ Bind number to counting-up, given (the rabbit helper, the number first-value):
     Until false.
 Done.
 
-Pull a rabbit as den.
-    Define counter as cast counting-up on (den, 3).
+Pull a rabbit as hopper.
+    Define counter as cast counting-up on (hopper, 3).
     State unbury counter.       // 3
     State unbury counter.       // 4
     State unbury counter.       // 5
@@ -660,7 +660,7 @@ there is nothing left to bury, so the answer is `void` — and stays `void` howe
 often you ask.
 
 ```
-Define found as cast long-words-in on (den, a series with ("a", "rabbit")).
+Define found as cast long-words-in on (hopper, a series with ("a", "rabbit")).
 Repeat:
     Define word as unbury found.
     If word is void:
@@ -678,8 +678,8 @@ mistake — nothing in it says how many, and the loop only runs when somebody as
 Every cast makes a separate stash with its own place to stand:
 
 ```
-Define one-counter   as cast counting-up on (den, 1).
-Define other-counter as cast counting-up on (den, 100).
+Define one-counter   as cast counting-up on (hopper, 1).
+Define other-counter as cast counting-up on (hopper, 100).
 State unbury one-counter.     // 1
 State unbury other-counter.   // 100
 State unbury one-counter.     // 2
@@ -717,7 +717,7 @@ Bind void to take-three, given (the stash of number source, the text label):
     Done.
 Done.
 
-Define counter as cast counting-up on (den, 7).
+Define counter as cast counting-up on (hopper, 7).
 Cast take-three on (counter, "seven").
 ```
 
@@ -725,8 +725,8 @@ A series of them works, and each keeps its own place:
 
 ```
 Define many as a series of stash of number.
-Insert (cast counting-up on (den, 1))   into many.
-Insert (cast counting-up on (den, 10))  into many.
+Insert (cast counting-up on (hopper, 1))   into many.
+Insert (cast counting-up on (hopper, 10))  into many.
 For each one-stash in many, repeat: State unbury one-stash. Done.   // 1, 10
 For each one-stash in many, repeat: State unbury one-stash. Done.   // 2, 11
 ```
@@ -803,13 +803,13 @@ takes one — the ownership arrives with the job.
 A stash is usable for as long as you stay in the burrow:
 
 ```
-Pull a rabbit as den.
-    Define counter as cast counting-up on (den, 1).
+Pull a rabbit as hopper.
+    Define counter as cast counting-up on (hopper, 1).
     State unbury counter.                  // 1
     Cast take-two on (counter, "passed").  // handed inward — fine
 
     Define many as a series of stash of number.
-    Insert (cast counting-up on (den, 100)) into many.
+    Insert (cast counting-up on (hopper, 100)) into many.
     For each one-stash in many, repeat: State unbury one-stash. Done.
 Done.
 ```
@@ -3169,7 +3169,7 @@ though the interpreter would forgive breaking it.
 rabbit, and **the rabbit's `Done.` waits for every task it started**. A task therefore
 cannot outlive the region that launched it.
 
-**You can name the rabbit you are giving work to** — `Have den start a task: … Done.` —
+**You can name the rabbit you are giving work to** — `Have hopper start a task: … Done.` —
 which is what a rabbit's name is for: a rabbit is an agent you summon and hand a job.
 The bare `rabbit` keyword still means the enclosing one, and the two forms mix freely.
 
@@ -3525,7 +3525,7 @@ math` to attach `and module` to, because a book's members are implemented native
 than in Cufet. That is a difference in how a module is **built**, not in what `Pull` asks of
 it.
 
-**Pulling instantiates.** `Pull a rabbit as den.` makes a region rather than naming a shared
+**Pulling instantiates.** `Pull a rabbit as hopper.` makes a region rather than naming a shared
 one, and a module is the same — so a module with fields is refused, because a pull site has
 nowhere to put their values. Build one of those with `a new <type> { … }` instead.
 

@@ -8,6 +8,52 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+- **★★ The first book member written in Cufet — `unique` — and the merge machinery every later
+  one rides on.** Slice 1 of the 0.16.0 arc (*everything pullable is an object*; see ROADMAP).
+
+  - **The prelude is real now.** `src/Interpreter/Prelude/collections.cufe` is embedded in the
+    checker and prepended to every program, so both backends meet its definitions as ordinary
+    statements. The hook existed since 0.15.0's generic-method work; this fills it.
+  - **A book and its Cufet layer resolve as ONE module, member by member.** The prelude defines
+    `Define object collections with () and module:` under the book's own name; a member the
+    layer defines is ordinary (generic) method dispatch through the pulled binding, and
+    everything it does not define — `transpose`, `minimum`, `maximum`, `average`, the `matrix`
+    type — is still the native book's, through the same name. Half-migrated is a supported
+    state, which is what lets the members move one at a time with the oracle watching.
+  - **The native `unique` is deleted in the same change**, on the test-reaches-its-path rule: a
+    shadowed native member would answer identically and prove nothing, so deletion is what makes
+    every existing `unique` test proof that the Cufet path runs. Its pre-blanks special-case
+    typing path (`IsCollectionsAggregateCast`) shrinks to the three numeric aggregates.
+  - **Breaking, narrowly: a bundled book's name is refused as an object name.** `Define object
+    math …` used to be legal and simply unpullable — the book silently shadowed it at the pull
+    site. It is now refused at the definition with a message that names the book. The wall has
+    no side doors: `a new collections { }` is refused too (**`Pull` is the only constructor** —
+    a book is a scope-thing, and its construction is the bracket), and `unto` may not target a
+    bundled book, which would otherwise splice a writer's member straight onto its Cufet layer.
+  - Fixed in passing: the compiler resolved a pulled name against object definitions FIRST while
+    the checker and interpreter tried the books first — a latent three-way divergence that the
+    merge rule replaces with one order everywhere.
+  - Fixed in passing, and latent since blanks shipped: **an unused template compiled to broken
+    C.** Templates were stripped from the program only on the instantiation-splice path, so a
+    generic method (or function, or object) that no call ever filled stayed in the emitted
+    program with its blank as an unknown C type. The prelude turned that from an unlikely
+    program into every program — the full suite caught it within seconds of the prelude landing
+    — and templates are now dropped unconditionally at the end of the check.
+  - Fixed in passing, same class: **a filling by a structural type emitted an illegal C name.**
+    `unique of record (age: number, name: text)` is a fine member name — deliberately
+    un-typeable by a writer, which is what makes it collision-proof — but the C-identifier
+    mangler only flattened hyphens and spaces, so the parentheses and colons reached gcc.
+    Exotic characters now flatten with a stable FNV-1a hash appended, so two different shapes
+    can never collide into one symbol.
+  - Fixed in passing, in the tests: **24 test helpers executed the program they PARSED, not the
+    program `Check` returned.** The gap was recorded when stashes made Check return a program
+    ("a helper that runs `parsed` instead silently tests nothing") and each new lowering got its
+    own corrected helper — the old ones were left because unlowered stashes refuse loudly. The
+    prelude is the first thing they miss silently, so five `unique` tests failed the moment it
+    landed; every helper now runs the returned program.
+
 ### Changed
 
 - **★ Compiled programs are optimized.** `build` passes `-O2`. Until now it passed no `-O` flag at

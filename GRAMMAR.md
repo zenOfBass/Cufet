@@ -1292,14 +1292,26 @@ DECLARATION. Same question at the pull site, different ways of being built.
 does not conform is refused at the pull site. Pulling **instantiates**, so a module with
 fields is refused — a pull has nowhere to put their values; use `a new <type> { … }`.
 
+★ **A bundled book's name is reserved for the book.** Defining an object named `math`,
+`collections` or `chance` is refused at the definition — it used to be legal and simply
+unpullable, silently shadowed by the book at the pull site. The same wall has no side doors:
+`a new collections { }` is refused (**`Pull` is the only constructor** — a book is a
+scope-thing, and its construction is the bracket), and `unto` may not target a bundled book
+(it would splice a writer's member straight onto the book). The prelude's own definition of
+`collections` is the one exception: it is the book's **Cufet layer**, and the book and its
+layer resolve as ONE module. A member the layer defines (today: `unique`) is ordinary Cufet
+method dispatch; everything the layer does not define (`transpose`, `minimum`, `maximum`,
+`average`, and the `matrix` type) is still the native book's — all reached through the same
+pulled name.
+
 **Rabbit (singular only):**
 ```
-Pull a rabbit as den.
+Pull a rabbit as hopper.
     ...
 Done.
 ```
 Anonymous form (`Pull a rabbit.`) omits the name. A NAMED rabbit can be given work by name —
-`Have den start a task as job:` — as well as through the bare `rabbit` keyword, which means the
+`Have hopper start a task as job:` — as well as through the bare `rabbit` keyword, which means the
 enclosing one. Naming a rabbit pulled further out is refused: a task is joined by its rabbit's
 `Done.`, so it would have to outlive the block it is written in.
  Rabbits stay singular — multiple arenas
