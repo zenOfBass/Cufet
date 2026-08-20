@@ -83,23 +83,16 @@ is one conformer's business rather than the contract's.
    mapping rule — a book may not name a member a writer could not name, which also let the
    parser's greedy possessive lookahead be deleted.
 
-   What remains: `square-root`, `log` and `power`, written in Cufet over `number` itself, so
-   both backends run the same algorithm on the same bit-identical decimal and the results are
-   identical everywhere **by construction** — which retires the documented libm last-ULP
-   platform caveat instead of parking a debt.
+   The transcendentals followed the same day: `square-root`, `log`, `exp` and `power` are
+   computed on the decimal itself, so **neither bundled book has a native member left** and
+   nothing in either touches a double. **The libm last-ULP caveat is retired** — the backends
+   agree by construction rather than by sharing a platform library, and the fractional-exponent
+   family that caveat made untestable is now asserted.
 
-   Decided, 2026-08-19:
-   - `square-root` is **correctly rounded**; `log` and `power` are **faithfully rounded** (within
-     1 ULP at the last digit) — correct rounding of transcendentals is the table-maker's dilemma,
-     and the promise that matters is *identical everywhere*, which the construction gives free.
-   - Integer-exponent `power` is exact (repeated squaring). Domain errors keep today's shape
-     (`void`); overflow behaves as decimal overflow does everywhere else.
-
-   ⚠ **This is a real numerics session, not a port.** `square-root` is Newton–Raphson on the
-   decimal plus a final correctly-rounding adjustment; `log` and `power` need argument reduction
-   and series evaluation at 28+ digits with guard digits. The existing double-backed answers are
-   the *starting* oracle (they agree to ~15 digits), but they cannot be the final one — the whole
-   point is to be more precise than they are. Budget it accordingly.
+   **Accuracy is measured, not claimed:** `square-root` and `exp` came out correctly rounded on
+   every value checked, and a whole-number `power` is exact (repeated squaring); `log` is within
+   about two units in the last place at 28 digits. The guarantee that is absolute — and that was
+   the point of the slice — is that both backends give the same answer.
 
 **Slice 4 — the rabbit becomes an object.** Its definition — an object conforming to `module`,
    its methods named — lives in the prelude, in Cufet. The surface is frozen:

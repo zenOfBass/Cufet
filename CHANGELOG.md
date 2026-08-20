@@ -8,6 +8,77 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+- **★★ The whole `math` book is written in Cufet, transcendentals included — and the libm
+  caveat is retired.** Slice 3 of the 0.16.0 arc is complete. `square-root`, `log`, `exp` and
+  `power` are computed on the decimal itself, in `Prelude/math.cufe`; nothing in either bundled
+  book touches a `double` any more, and neither book has a native member left.
+
+  **What that buys, and it is the point of the whole slice:** the two backends no longer share a
+  platform library, they run the *same algorithm on the same arithmetic*, so they agree **by
+  construction**. The documented platform-owned caveat — `power` with a fractional exponent
+  differing in its last digit between ucrt and glibc, because .NET's `Math.Pow` *is* the
+  platform's libm — is gone, and the family it made untestable is now asserted
+  (`Book_Math_Power_FormerlyLibmDivergentFamily`).
+
+  - `square-root` is Newton–Raphson, after scaling into `[1, 100)` by **even** powers of ten so
+    the root scales by an exact power of ten. It stops when the iteration stops descending,
+    which is exact and needs no epsilon. Measured: `√2` and `√10` correct in all 28 digits.
+  - `log` reduces by powers of ten and then of two, and sums the `atanh` series that converges
+    fastest near 1.
+  - **`exp` is a new member** — `math`'s eleventh. `power` needs it, and a math book without the
+    companion to `log` would be an odd thing to ship; it reduces onto a power of two and sums
+    the ordinary series.
+  - `power` gives an **exact** answer for a whole-number exponent by repeated squaring — which
+    is also the only path a negative base can take — and `x^0.5` is routed to `square-root`.
+    Everything else is `exp(y · log x)`.
+  - **Accuracy, measured rather than claimed:** `square-root` and `exp` came out correctly
+    rounded on every value checked; `log` is within ~2 units in the last place at 28 digits.
+    Whole-number powers are exact, so they are *more* accurate than the double-backed versions
+    they replace. What is guaranteed absolutely is that both backends give the same answer.
+  - **Breaking: the transcendentals return far more precision.** `math's square-root of (2)` was
+    `1.4142135623731` (the double bridge's 15 significant digits) and is now
+    `1.4142135623730950488016887242`. Perfect squares are unchanged.
+  - **★ One old answer was not merely imprecise, it was wrong.** `power of (2, 50)` returned
+    `1125899906842620`; the value is `1125899906842624`. A double carries 15 significant digits
+    and that needs 16, so the last one was lost — and a test pinned the wrong number, faithfully
+    recording what the implementation did. Whole-number powers are exact now.
+  - **~120 lines of C runtime deleted**: the entire decimal↔double bridge, which existed only to
+    replicate .NET's `DecCalc` conversions bit-for-bit so the two backends could agree about
+    doubles. With no doubles left, there is nothing to agree about.
+  - **A book nobody pulls is dropped from the program.** The prelude is prepended to every
+    program, so once the books were written in Cufet a one-line `State "hi".` began carrying all
+    of `math` and `collections` into its emitted C — 20 KB of program against 54 KB of runtime,
+    which is the ratio the runtime split exists to prevent. A layer's members are reachable only
+    through a `Pull`, so a book that is never pulled is dropped whole; that one line is back to
+    210 bytes. The pull sites are collected by the type checker as it resolves them, so there is
+    no separate AST walk to keep in step.
+
+### Fixed
+
+- **★★ A bundled book's code could collide with names in the program that used it.** The prelude
+  is prepended to the program, and a method body imports the top-level functions and constants
+  around it — so a book's own local shared a scope with the writer's names. A program declaring
+  `Bind number to total` broke `log`, whose running sum is called `total`, with *'total' is
+  already defined*.
+
+  A book's Cufet layer now imports nothing from the writer's top level, on both backends. That
+  is the rule rather than a renaming: a book is written without sight of the program that pulls
+  it, so nothing in the program should be able to reach inside it. ⚠ The failure was invisible
+  until the books were written in Cufet — native members had no Cufet scope to collide with.
+
+- **★★ A compiled division left its quotient in the wrong form, and it hid behind printing.**
+  `cufet_div` always reduced to scale 28 and never stripped the trailing zeros, so `11 / 10`
+  was carried as `1.1000…0` where .NET leaves `1.1`. Both backends *printed* `1.1` — the
+  formatter strips trailing zeros too — so the difference was invisible until some later
+  operation on that value overflowed at one scale and not the other. Found by exactly that
+  route: `power of (1.1, 3)` worked with a literal and failed with a computed `11 / 10`.
+
+  A quotient is now left in minimal form, matching the oracle. ⚠ **Worth remembering as a
+  shape:** a divergence that the printer normalises away is invisible to every output-comparing
+  test in the suite, and only becomes visible when it changes whether something *fails*.
+
 ### Changed
 
 - **★★ Breaking: `math`'s two multi-word members are hyphenated — `square-root` and

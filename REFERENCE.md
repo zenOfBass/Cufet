@@ -3581,13 +3581,17 @@ Done.
 3.1415926535897932384626433833
 ```
 
-`math` provides `square-root`, `log`, `power`, `floor`, `ceiling`, `round`,
+`math` provides `square-root`, `log`, `exp`, `power`, `floor`, `ceiling`, `round`,
 `absolute-value`, and the constants `pi` and `e`. Rounding, flooring and absolute value are exact
-decimal operations — `floor`, `ceiling`, `round` and `absolute-value` are written in Cufet
-itself, and `pi` and `e` are decimal-precise constants (28 fractional digits, correctly
-rounded). The transcendentals are still computed in double precision on both backends — which means
-`power` with a fractional exponent can differ in its last digit across platforms, because
-the underlying library *is* the platform's own.
+decimal operations, and `pi` and `e` are decimal-precise constants (28 fractional digits,
+correctly rounded).
+
+★ **The whole book is written in Cufet, and nothing in it touches a `double`.** The square
+root is Newton–Raphson on the decimal; `log` and `exp` reduce their argument and sum a series;
+`power` is exact for a whole-number exponent, which is also the only kind a negative base
+accepts. Because both backends run the same algorithm on the same arithmetic, they give the
+same answer everywhere — a fractional `power` used to differ in its last digit between
+platforms, since the library underneath *was* the platform's own, and that is now gone.
 
 ```
 Pull a book on collections.
