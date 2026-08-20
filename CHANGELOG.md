@@ -8,7 +8,87 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+- **★★ `For each` over a stash.** The last mile of coroutines. Suspend and resume shipped in
+  0.13.0, but *consuming* a stash still cost a six-line drain loop — and that loop appeared three
+  times in `examples/language/stashes.cufe`, the feature's own example. Now:
+
+  ```
+  Define found as cast long-words-in on (hopper, a series with ("a", "rabbit", "in", "the")).
+  For each word in found, repeat:
+      State word.
+  Done.
+  ```
+
+  It is the same loop a series takes. `Stop` ends it, `Skip` moves to the next value, and the
+  iterator holds the **plain buried type** rather than a `voidable` of it — reaching the body is
+  itself the proof there was a value. Over an endless stash the loop is endless, so `Stop` ends
+  it. A spent stash ends it on its own.
+
+  ★ **Neither backend learned anything.** The loop is rewritten in the front end into the drain
+  people wrote by hand, so what runs is `Repeat until` holding a `Define` and an `If` — statements
+  both backends have run since long before stashes existed. The checker checks the rewritten loop
+  rather than the written one, so there is no second semantics to keep in step.
+
+  ★ Inside a burying body this is **delegation** — one stash consumed while another is produced —
+  which is why the rewrite runs *before* the state-machine builder: what gets linearised is
+  statements the machine already knows how to step.
+
+  ⚠ No `Stop` collision, and none was possible: the rewrite's own `Stop` fires before the body is
+  reached. The worry was that the two would meet; they cannot.
+
+  This needed no interface, no conformance and no new declaration syntax. `For each` over a
+  user-defined type was dropped in 0.11.0 because an interface can be neither a return type nor
+  generic, so nothing could declare "hands back something steppable" — but coroutines did not
+  produce an open family of steppable things. They produced **one concrete type**, `stash of T`.
+
 ### Fixed
+
+- **★★ `x is not void` kept its narrowing across a bury — a live backend divergence.** A burying
+  body is cut into blocks at each `bury`, and an arm's condition is carried into its block as a
+  guard so the narrowing survives the cut. Only `x is a <type>` was recognised as narrowing;
+  `x is not void` — the other narrowing form, which both front ends already treat as one — was
+  not. So the arm's block ran with the name back at the `voidable T` its slot holds:
+
+  ```
+  Define value as unbury inner.
+  If value is not void:
+      If value is greater than 12:      ← compiler: "Binary operator 'Gt' on a 'voidable number'"
+  ```
+
+  The interpreter narrows by **value** and ran the program correctly; the compiler refused it, or
+  in the `bury value + 1` shape emitted C that gcc rejected. No `For each` involved — the shape is
+  the hand-written drain and was already broken. Found while building the loop above, which walks
+  straight into it.
+
+  ⚠ Worth the note for its shape: a front-end rewrite that drops a guard surfaces as a **backend
+  divergence**, and only the compiler can see it. An interpreter-side test of this cannot go red,
+  so the regression test lives in the pipeline oracle suite.
+
+- **★ A name shadowed at a different type stayed shadowed after the block — the compiler's second
+  divergence of the day, and also older than anything in this release.** The C was right: the inner
+  declaration sits in an inner brace and the outer variable comes back at the closing one. The
+  compiler's type table did not come back with it, so the first read *after* the block reached the
+  outer variable through the inner type's accessor:
+
+  ```
+  Define value as 99.
+  Repeat:
+      Define a shadow value as cast maybe-num on (7).   ← voidable number
+      State value.
+      Stop.
+  Until false.
+  State value.                                          ← cvd_0_write(cv_value) on a CufetDec
+  ```
+
+  gcc refused the program; the interpreter, whose scopes really do pop, printed `7` then `99`. Found
+  because a stash loop shadows its iterator the way a series loop always has — but no stash is
+  needed to hit it, and `Define a shadow` at a new type was enough.
+
+- **A stash could not be named in a type error.** `FormatTypePlural` had no `StashType` arm, so
+  every message that reached for one said `<unknown>` — including the refusal for looping over a
+  stash, which read *"counter holds `<unknown>`"*. `FormatType` had always had its arm.
 
 - **★★ A module's missing dependency is caught by the checker, at the pull.** Found by writing a
   module from outside the prelude for the first time — the bundled books never hit it, because

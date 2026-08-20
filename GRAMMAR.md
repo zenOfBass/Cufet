@@ -1585,14 +1585,27 @@ body, and everything below follows from it.
 
 **Allowed, and each keeps its state across a resumption:** straight-line
 statements, `If` / `Otherwise`, `While`, `Repeat until`, `For each` over a
-series, `Stop`, `Skip`, nested loops, a reassigned parameter, and a local of any
-type — including a series or a map being built up item by item.
+series or a stash, `Stop`, `Skip`, nested loops, a reassigned parameter, and a
+local of any type — including a series or a map being built up item by item.
 
-An `If` that **tests a type** is allowed and keeps its narrowing, in the arm and
-in its `Otherwise` alike: the condition that reached the block is carried in and
+A `For each` over a **stash** is allowed here because it is not a loop the
+machine has to learn: it is rewritten into its drain — `unbury`, a void test, the
+body — before the machine sees it, so what gets linearised is a `Repeat until`
+holding a `Define` and an `If`. Inside a burying body this is **delegation**, one
+stash consumed while another is produced.
+
+An `If` that **narrows** is allowed and keeps its narrowing, in the arm and in
+its `Otherwise` alike: the condition that reached the block is carried in and
 re-tested on entry (the `Otherwise` uses the negated form). That is not a branch —
 every local is restored from its slot first, so the test gives the answer it gave
 the first time. It exists so the type is known again.
+
+⚠ Both narrowing forms count: `x is a <type>` and **`x is not void`**. The second
+was missed for a while, and the failure is worth knowing because of its shape —
+the arm lost its guard, so the block ran with `x` back at the `voidable T` its
+slot holds. The interpreter narrows by value and never noticed; the compiler
+refused `x is greater than 3` for operating on a voidable. A front-end rewrite
+that drops a guard shows up as a **backend divergence**, not as a bad rewrite.
 
 A `Judge` is allowed too, and keeps both the narrowing and the binding. `it`
 becomes an ordinary local, so the subject is evaluated once and `it` is restored
@@ -1615,6 +1628,51 @@ rather than a judgement-specific one. Bind the inner subject to a name of its ow
 | `Bury` inside `For each` over a **map** | Resuming counts back to where the loop was, and a map's entries have no position to count to. Loop over a series, or use `While`. |
 | `Define a shadow` anywhere in the body | Every scope in the body flattens into one, so the shadow would land on the name it was written to hide. |
 | One name used at two types in the body | Sibling blocks become one place to store it, and one place holds one type. Legal everywhere else in the language. |
+
+### `For each` takes three kinds of source
+
+| Source | Iterator holds | Ends when |
+|---|---|---|
+| a series | the element type | the last item is done |
+| a map | a `mapping` (`the key of`/`the value of`) | the last entry is done |
+| a stash | the **buried type**, not `voidable` of it | the stash answers `void` |
+
+Anything else is a static error: *"Only series, maps and stashes can be looped
+over."*
+
+The stash form is a **front-end rewrite**, not a third loop. This:
+
+```
+For each value in counter, repeat:
+    State value.
+Done.
+```
+
+*is* this — the drain that was written by hand before the loop existed:
+
+```
+Repeat:
+    Define value as unbury counter.
+    If value is not void:
+        State value.
+    Done.
+    Otherwise:
+        Stop.
+    Done.
+Until false.
+```
+
+Three things follow from that being the *definition* rather than a description.
+`Stop` and `Skip` in the body land on the `Repeat until`, so they mean exactly
+what they mean in any loop — and the rewrite's own `Stop` runs before the body is
+reached, so the two can never collide. The iterator is a plain `T` because the
+body sits inside the `is not void` arm. And neither backend learns anything: what
+they run is statements they have always run.
+
+⚠ The `is not void` polarity is load-bearing. Cufet narrows a name **inside an
+arm**, not for the rest of a block on the strength of an early exit — so the
+body has to be *in* the arm. Written the other way round (`If value is void:
+Stop. Done.` then the body) every iterator would be a `voidable T`.
 
 ### ★ `stash of T` is an ordinary value type
 

@@ -661,13 +661,33 @@ often you ask.
 
 ```
 Define found as cast long-words-in on (hopper, a series with ("a", "rabbit")).
-Repeat:
-    Define word as unbury found.
-    If word is void:
+State unbury found.   // "rabbit"
+State unbury found.   // void — spent, and spent for good
+```
+
+**`For each` takes them all.** Asking until the answer is `void` is what draining
+a stash always means, so the loop says it:
+
+```
+Define found as cast long-words-in on (hopper, a series with ("a", "rabbit")).
+For each word in found, repeat:
+    State word.
+Done.
+```
+
+It is the same loop a series takes. `Stop` ends it, `Skip` moves on to the next
+value, and `word` holds a plain `text` rather than a `voidable text` — reaching
+the body is itself the proof that there was one. Over an endless stash the loop
+is endless too, so `Stop` is what ends it:
+
+```
+Define counter as cast counting-up on (hopper, 3).
+For each value in counter, repeat:
+    If value is greater than 5:
         Stop.
     Done.
-    State word.
-Until false.
+    State value.
+Done.
 ```
 
 **A stash is not a collection.** A series *has* its items; a stash *produces*
@@ -685,9 +705,11 @@ State unbury other-counter.   // 100
 State unbury one-counter.     // 2
 ```
 
-`If`, `While`, `Repeat until`, `For each` over a series, `Stop` and `Skip` all
-work inside a burying body, and every local survives a resumption — a loop
-counter, a for-each's place in its series, a series being built up item by item.
+`If`, `While`, `Repeat until`, `For each` over a series or a stash, `Stop` and
+`Skip` all work inside a burying body, and every local survives a resumption — a
+loop counter, a for-each's place in its series, a series being built up item by
+item. A `For each` over a stash inside a burying body is **delegation**: one
+stash consumed while another is produced.
 
 #### What a burying body cannot do yet
 
@@ -737,13 +759,9 @@ values along:
 ```
 Bind number to squares-and-cubes, given (the rabbit helper, the number upto):
     Define inner as cast squares on (helper, upto).
-    Repeat:
-        Define value as unbury inner.
-        If value is void:
-            Stop.
-        Done.
+    For each value in inner, repeat:
         Have helper bury value.
-    Until false.
+    Done.
     ...
 Done.
 ```

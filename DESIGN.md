@@ -228,6 +228,22 @@ Which capabilities are spelled into the language and which are pulled from a boo
   them. It still has a Cufet layer of its own, carrying nothing, so that no book sits outside
   the rule that a module is an object.
 
+- **There is no iterator concept, and there will not be one.** A stash *is* the
+  iterator: it produces values one at a time, it is a first-class value, and it goes
+  wherever a value goes. Adding a separate steppable-thing abstraction would be a
+  second way to say what a stash already says. `For each` over a stash is therefore
+  not "iterator support" — it is one more source kind on the loop, rewritten in the
+  front end into the drain it stands for.
+
+  ★ **And `For each` over a user-defined object stays refused.** The simple case is
+  already spelled `For each x in obj's items`, and a real structure has *several*
+  orders — a tree has three at least — so no single `For each` could pick the right
+  one. Naming the walk is the better surface, and a walk is a burying function, which
+  is a stash, which the loop above takes. Measured 2026-08-20: the shape that used to
+  make this expensive (an interface can be neither a return type nor generic, so
+  nothing could declare "hands back something steppable") is gone, and the answer is
+  still no — for the reason above rather than for cost.
+
 - **`Pull … Done.` unification — one surface for scoped resources.** Books, rabbits,
   and other acquired resources all use a unified `Pull <thing>: … Done.` block syntax.
   The `pull` verb signals "resource whose lifetime is managed here" and `Done.` closes
