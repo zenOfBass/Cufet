@@ -108,6 +108,34 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **★★ A rabbit is an object, defined in Cufet — and a rabbit now passes as a `module` value.**
+  Slice 4 of the 0.16.0 arc, which carried slice 5's headline with it: `given (the module m)`
+  accepts a rabbit, a book, and a writer's own object on identical terms, on both backends. That
+  was never a separate decision — a module is an object, an object is first class, so a module is
+  first class **by inheritance**, and making the rabbit an object is what let the inheritance
+  happen.
+
+  Its definition lives in `Prelude/rabbit.cufe` and is one line: `Define object rabbit with ()
+  and module.` That became possible only once `rabbit` stopped being a reserved word, and it is
+  deliberately contentless — a rabbit has no fields, and its verbs are the language's floor
+  rather than methods with Cufet bodies. `bury` suspends the function around it, which is a
+  rewrite of that function rather than a call, so the compiler provides it exactly as it provides
+  `If`; when the compiler is itself written in Cufet, that provision moves with it.
+
+  - **`given (the rabbit r)` needs no special case anywhere.** `rabbit` is an identifier naming
+    an object type, so it resolves down the same path as `person` or `stack of number` — the
+    parser arm that produced a marker type is deleted rather than rerouted.
+  - **Breaking: `State hopper.` prints `rabbit()`**, not `<rabbit hopper>`. It used to print its
+    *binding's* name, which nothing else in the language does — `Define x as 5. State x.` prints
+    `5`, not `x`.
+  - **Four ways to get a rabbit without its region are refused**: `a new rabbit { }`, redefining
+    the name, `unto rabbit`, and `Pull a book on rabbit.` **`Pull` is the only constructor**, and
+    for a rabbit that is load-bearing rather than tidy — pulling is what opens the region, so any
+    other route hands back a rabbit standing on no ground.
+  - The compiler binds a rabbit as the ordinary object struct the prelude already makes it
+    declare. That is also what unblocked passing one to an interface parameter: monomorphization
+    specialises on a concrete object type, and a marker type was not one.
+
 - **★★ `book` and `books` are no longer reserved words either.** `For each book in books,
   repeat:` is a line this language could not write — in a program about a library, which is the
   first thing anyone would try. Both words are ordinary identifiers now, and a writer may even
