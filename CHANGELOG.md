@@ -57,6 +57,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **★★ `is` on a rabbit or a function value emitted C that gcc refused.** Both type-checked and
+  ran interpreted, so `Pull a rabbit as hopper. … State hopper is grace.` printed `false` and
+  then would not build — *invalid operands to binary ==*.
+
+  The cause was the shape of the emitter rather than a missing type. Equality sent records,
+  objects and series to `EqCall` and let a **catch-all** handle everything else with `==`, on
+  the assumption that what was left were facts and maps. Anything else the checker permitted
+  arrived at `==` applied to a C struct. `EqCall` even had a correct rabbit arm — nothing
+  reached it, because a direct `is` never went there.
+
+  All equality now goes through `EqCall`, the one place that knows how each type compares, and
+  whose default arm refuses by name. ⚠ **The catch-all was the bug**: it assumed what was left
+  instead of saying it, so every type added since had joined it silently. A type nobody has
+  taught it now fails loudly instead of miscompiling.
+
 - **★★ A bundled book's code could collide with names in the program that used it.** The prelude
   is prepended to the program, and a method body imports the top-level functions and constants
   around it — so a book's own local shared a scope with the writer's names. A program declaring
