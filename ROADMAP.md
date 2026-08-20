@@ -45,46 +45,7 @@ true of `math` and got copied. Write "needs `square root`, which is a C call" in
 you write it, and check it again before ordering work off it. A dependency you cannot state
 precisely enough to test does not belong in this file.
 
-### ▶ 0.16.0 — everything pullable is an object — SHIPPED 2026-08-19
-
-**All five slices done; the detail is in [CHANGELOG.md](CHANGELOG.md) and the rules are in
-[GRAMMAR.md](GRAMMAR.md).** The principle held: a book is a module, a rabbit is a module, and a
-writer's own object is a module on exactly the same terms — no privileged builtin category left.
-
-What that meant in the end, kept here only because the reasoning outlives the work:
-
-- **Both bundled books are written in Cufet**, transcendentals included, and neither has a native
-  member left. Nothing in either touches a `double`, so the two backends agree **by construction**
-  rather than by sharing a platform library — which retired the documented libm caveat.
-- **A rabbit is an object**, defined in one line of Cufet, and `Pull` is its only constructor —
-  load-bearing rather than tidy, because pulling is what opens its region.
-- **A module VALUE is first class by INHERITANCE.** `given (the module m)` takes all three kinds
-  and never asks which. That took binding a pulled book at its Cufet layer rather than at
-  `BookType`, which was only honest once every member had moved.
-- **No module's name is reserved** — `rabbit`, `book` and `books` were freed — because a future
-  external module's name cannot be reserved in advance. That rule was forced, not chosen.
-
-★ **The arc's own lesson, worth more than the feature:** writing the books in Cufet is what found
-the bugs. Five real divergences and a latent asymmetry surfaced only because someone finally
-*used* the module system from the inside. See the note under *What a module exports* for the one
-place that changed a deferral.
-
-Notes that outlive the arc:
-
-- **`chance` has no members and never had any.** Its surface is `a random number from … to …`
-  and friends, which the language parses directly rather than dispatching through the book —
-  pulling it is what licenses those forms. It still got a layer of its own, carrying nothing, so
-  that no book sits outside the rule.
-- **No variance**, if blanks are ever extended. Not covariance, not contravariance. It is the
-  part nobody can explain to a learner, and a teaching language that ships `IEnumerable<out T>`
-  has lost the plot.
-- Blanks also unlock something concrete and small: **mixed-type operator dispatch**, and with it
-  `matrix * number` scalar scaling, which is deferred today for exactly that reason. (The
-  Hadamard product is *not* blocked — it is decided: if ever added it will be a named
-  `collections` function, never an operator, because `*` means matrix product and there is one
-  canonical way.)
-
-### After the arc, in order
+### Next, in order
 
 Two framings that set the order:
 
@@ -251,6 +212,13 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
 
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary · design patterns as a book · an in-memory filesystem for the playground
+
+**Mixed-type operator dispatch, and with it `matrix * number` scalar scaling.** Overloading
+resolves by exact nominal match today, so an operator whose two sides are different types has
+nowhere to land — which is the whole reason scaling a matrix by a number is unbuilt. Blanks made
+the shape expressible, so this is unblocked rather than waiting; it simply has not been wanted
+yet. ★ Both settled decisions around it live in [DESIGN.md](DESIGN.md): no variance, and the
+Hadamard product as a named `collections` function if ever, because `*` means matrix product.
 
 **Parser-hardening.** `IsNamedAccessPattern()` decides whether `the <word> of <thing>`
 is a named-field access by **looking ahead**, and that guess once mis-parsed `the series of number

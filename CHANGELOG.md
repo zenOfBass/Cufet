@@ -8,6 +8,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-08-20
+
+**Everything pullable is an object.** A book is a module, a rabbit is a module, and a writer's
+own object is a module on exactly the same terms — there is no privileged builtin category left.
+Both bundled books are written in Cufet, transcendentals and all; a rabbit is an object defined
+in one line of it; and all three pass as `module` values by *inheritance*, because nothing in the
+checker asks which kind arrived.
+
 ### Added
 
 - **★★ The whole `math` book is written in Cufet, transcendentals included — and the libm

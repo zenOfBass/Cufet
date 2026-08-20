@@ -151,6 +151,13 @@ What it means for a value not to be there, and how types relate.
   (only if real subtyping is introduced), exact-match is the identity special
   case it would widen from — additive, not a rewrite.
 
+- **And no variance for BLANKS either, if they are ever extended.** Not
+  covariance, not contravariance. A blank is filled by one structural match per
+  argument and means the same type everywhere it appears in a call; that is the
+  whole of the inference and it stays that way. Variance is the part of generics
+  nobody can explain to a learner, and a teaching language that ships
+  `IEnumerable<out T>` has lost the plot.
+
 ---
 
 ## Objects: lifetime and accessors
@@ -213,6 +220,13 @@ Which capabilities are spelled into the language and which are pulled from a boo
   means real threads). Per-interpreter RNG (`Random _rng` on the `Interpreter` instance,
   not static) gives free test isolation: each `new Interpreter()` gets its own entropy
   seed.
+
+  ★ **`chance` has no members and never had any.** Its whole surface is statement and
+  expression syntax — `a random number from 1 to 6`, `randomly shuffled`, `a random guess`,
+  `Seed the chance with 42.` — which the language parses directly rather than dispatching
+  through the book, so pulling it is what *licenses* those forms rather than what supplies
+  them. It still has a Cufet layer of its own, carrying nothing, so that no book sits outside
+  the rule that a module is an object.
 
 - **`Pull … Done.` unification — one surface for scoped resources.** Books, rabbits,
   and other acquired resources all use a unified `Pull <thing>: … Done.` block syntax.
