@@ -8,6 +8,49 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Fixed
+
+- **★★ A module's missing dependency is caught by the checker, at the pull.** Found by writing a
+  module from outside the prelude for the first time — the bundled books never hit it, because
+  all three are self-contained and use nothing.
+
+  A module resolves names in the block it is USED in, so `geometry` needing `math` is a
+  requirement on whoever pulls it. Forget it and you got three answers to one program: `check`
+  said *No problems found*, the interpreter died pointing at a line INSIDE `geometry`, and the
+  compiler said *"field access on 'number' is not yet supported"* — blaming itself for a scoping
+  mistake. Now:
+
+  ```
+  That doesn't work: 'geometry' uses 'math', which isn't pulled here.
+    A module's dependencies come from the block it is used in, not the one it is written in.
+    Pull them together: 'Pull books on math, and geometry.'
+  ```
+
+  Nothing new to declare: the checker records what a module's body reaches for and verifies it at
+  each pull. It also catches the subtler case where a module *resolves* its dependency at its own
+  definition and is then called somewhere that dependency is not live.
+
+- **★★ An unresolved name is a static error where the scope is FINAL.** `State mystery.` used to
+  check clean and fail at run time. It is refused now — at the top level, after a `Done.`, or
+  anywhere nothing can arrive later to define the name.
+
+  ⚠ **A detached body still defers, and that is not laziness.** A method or function resolves
+  names in the scope it is CALLED from, so `math's pi` inside an ordinary object's method is
+  legitimate whenever the caller pulled `math`. Refusing there would break working programs. Doing
+  for every object and free function what is now done for modules — recording needs, checking them
+  at each call site — is the other half, and is not built.
+
+  ★ **What it flushed out is the measurement the *self-verifying docs* item was missing: 54 of the
+  190 pinned doc blocks are FRAGMENTS, not programs.** They reference names no fence defines
+  (`Increment i by 1.`), so they never ran — they passed `check` only because unresolved names
+  were tolerated. The baseline is re-pinned at 136, which is what is actually true.
+
+- **The compiler stopped blaming itself for a scoping mistake.** `field access on 'number' is not
+  yet supported by the compiler` came from an unresolved name falling back to `number` and then
+  having a member read off it. It says `'square-root' can't be read from a number — it has no such
+  member` now, which points at the program.
+
+
 ## [0.16.0] — 2026-08-20
 
 **Everything pullable is an object.** A book is a module, a rabbit is a module, and a writer's
