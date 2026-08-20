@@ -493,7 +493,8 @@ public sealed class Parser
         if (tok.Type == TokenType.Stream)
             throw new ParseException(tok,
                 "stream direction — write 'readable stream of text' or 'writable stream of text'");
-        if (tok.Type == TokenType.Rabbit)
+        // `given (the rabbit r)` — a type named by an ordinary identifier, the way `matrix` is.
+        if (IsRabbitWord(tok))
         {
             Advance();
             return RabbitType.Instance;
@@ -1686,7 +1687,7 @@ public sealed class Parser
         var col = lineTok.Column;
         SkipNoise();                             // eats 'a' (singular forms); no-op for 'books'
 
-        if (Peek().Type == TokenType.Rabbit)
+        if (IsRabbitWord(Peek()))
         {
             Advance(); // consume 'rabbit'
             SkipNoise();
@@ -1784,9 +1785,11 @@ public sealed class Parser
         var lineTok = Consume(TokenType.HaveKw);
         int line = lineTok.Line, col = lineTok.Column;
 
-        // `Have rabbit …` addresses the enclosing one; `Have den …` names the agent.
+        // `Have rabbit …` addresses the enclosing one; `Have hopper …` names the agent. The bare
+        // form still leaves the name null, so everything downstream reads exactly as before —
+        // un-reserving the word changed how it is RECOGNISED, not what it means.
         string? rabbitName = null;
-        if (Peek().Type == TokenType.Rabbit) Advance();
+        if (IsRabbitWord(Peek())) Advance();
         else rabbitName = Consume(TokenType.Identifier).Lexeme;
 
         if (Peek().Type == TokenType.Bury) return ParseHaveBuryStatement(rabbitName, line, col);
@@ -4588,6 +4591,18 @@ public sealed class Parser
     }
 
     private Token Advance() => _tokens[_pos++];
+    /// <summary>Is this token the word `rabbit` — an ordinary identifier, not a keyword?</summary>
+    /// <remarks>
+    /// ★ `rabbit` names a module, exactly as `math` and `collections` do, and none of them is
+    /// reserved. The parser still has to RECOGNISE the name in three places, because pulling a
+    /// rabbit opens a region and `Have rabbit …` addresses the enclosing one — but recognising a
+    /// name is not reserving a word, and a writer may now use `rabbit` for their own names.
+    /// Case-insensitive, like every other word in the language.
+    /// </remarks>
+    private static bool IsRabbitWord(Token tok) =>
+        tok.Type == TokenType.Identifier
+        && string.Equals(tok.Lexeme, "rabbit", StringComparison.OrdinalIgnoreCase);
+
     private Token Peek()    => _tokens[_pos];
 
     // True when the current token is an Identifier (or any token) whose normalized lexeme

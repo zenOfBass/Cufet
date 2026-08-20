@@ -258,20 +258,6 @@ public class PipelineCoreTests : PipelineTestBase
     /// fail to build under it.
     /// </remarks>
     [Fact]
-    public void Equality_OnARabbit_CompilesAndMatchesInterpreter()
-    {
-        const string src = """
-            Pull a rabbit as hopper.
-                Pull a rabbit as grace.
-                    State hopper is grace.
-                    State hopper is hopper.
-                Done.
-            Done.
-            """;
-        Assert.Equal(InterpretRaw(src), CompileRaw(src));
-    }
-
-    [Fact]
     public void Equality_OnAFunctionValue_CompilesAndMatchesInterpreter()
     {
         const string src = """

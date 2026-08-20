@@ -275,6 +275,99 @@ public class ModulePullTests
         Assert.Contains("is a bundled book", ex.Message);
     }
 
+    /// <summary>
+    /// Stating a module prints it as the object it is, whoever wrote it.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ A book used to print `Cufet.Interpreter.Interpreter+BookValue` — `Format` had no arm for
+    /// one, so it fell through to `val.ToString()`. The compiler already printed `math()`, so this
+    /// was a divergence AND a host type name shown to a reader. The same fallthrough had leaked
+    /// `MatrixValue` once before, which is recorded in a comment right beside it.
+    /// </remarks>
+    [Fact]
+    public void StatingAModulePrintsItAsAnObject()
+    {
+        Assert.Equal("greeting-kit()\nmath()", Run(Kit + """
+            Pull greeting-kit as kit.
+                State kit.
+                Pull a book on math.
+                    State math.
+                Done.
+            Done.
+            """));
+    }
+
+    /// <summary>
+    /// `rabbit` is a module's NAME, not a reserved word — so a writer may use it for their own.
+    /// </summary>
+    /// <remarks>
+    /// ★ No bundled module's name is reserved: `math`, `collections` and `chance` are ordinary
+    /// identifiers and always were. `rabbit` was the one exception, which is precisely what made
+    /// the rabbit a privileged builtin rather than a module that ships in the box. What the books
+    /// reserve is grammar — `book`, `books`, `on` — never identity.
+    /// </remarks>
+    [Fact]
+    public void RabbitIsAName_NotAReservedWord()
+    {
+        Assert.Equal("42", Run("""
+            Define rabbit as 42.
+            State rabbit.
+            """));
+    }
+
+    [Fact]
+    public void EveryRabbitFormStillReads_AfterUnreserving()
+    {
+        // The general form `Pull <name> [as <alias>]` now reaches a rabbit the same way it
+        // reaches a book — `Pull rabbit.` is new, and it is the point of un-reserving the word.
+        // The bare `Have rabbit …` still addresses the enclosing one.
+        Assert.Equal("inner\nouter", Run("""
+            Pull rabbit.
+                State "inner".
+            Done.
+            Pull rabbit as hopper.
+                Have rabbit start a task as job, return "outer".
+                State the awaited result of job.
+            Done.
+            """));
+    }
+
+    /// <summary>
+    /// A rabbit is never compared — the question is refused rather than answered.
+    /// </summary>
+    /// <remarks>
+    /// Decided 2026-08-19. A rabbit denotes a region with a lifetime, not a value, so there is no
+    /// sense in which two of them are the same one. Refusing makes no claim and can become an
+    /// answer the day something needs to tell rabbits apart; answering could not be taken back.
+    /// ⚠ Refused in the shared front end, so BOTH backends refuse — it used to type-check,
+    /// interpret to `false`, and emit C that gcc rejected.
+    /// </remarks>
+    [Fact]
+    public void ARabbitIsNeverCompared()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Pull a rabbit as hopper.
+                Pull a rabbit as grace.
+                    State hopper is grace.
+                Done.
+            Done.
+            """));
+        Assert.Contains("can't be compared", ex.Message);
+    }
+
+    [Fact]
+    public void ARabbitIsNotComparedToItselfEither()
+    {
+        // Reflexivity is not a loophole: the refusal is about the KIND of thing a rabbit is, so
+        // `hopper is hopper` is refused too rather than quietly answering true.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Pull a rabbit as hopper.
+                State hopper is hopper.
+            Done.
+            """));
+        Assert.Contains("can't be compared", ex.Message);
+    }
+
     [Fact]
     public void PullIsTheOnlyConstructorForABundledBook()
     {

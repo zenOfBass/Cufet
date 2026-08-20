@@ -2351,6 +2351,20 @@ public sealed partial class TypeChecker
             TokenType.Equal or TokenType.NotEqual
                 when (l is VoidableType lv && r == lv.Inner) || (r is VoidableType rv && l == rv.Inner)
                 => CufetType.Fact,
+            // ★ A rabbit is never compared, to another rabbit or to anything else. It denotes a
+            // REGION with its own lifetime rather than a value, and there is no sense in which
+            // two of them are the same one — so the question is refused rather than answered.
+            // Refusing is the reversible choice: it makes no claim, and it can become an answer
+            // the day something needs to tell rabbits apart. Answering cannot be taken back.
+            // Refused HERE, in the shared front end, so both backends refuse identically.
+            TokenType.Equal or TokenType.NotEqual
+                when l is RabbitType || r is RabbitType
+                => throw TypeError(
+                    "a rabbit can't be compared, not even to another rabbit",
+                    "A rabbit is a region with a lifetime of its own, not a value that can match another",
+                    bin.Line, bin.Column,
+                    "compare a rabbit",
+                    "Nothing tells one rabbit from another today. If you need that, it is worth asking for rather than working around."),
             TokenType.Equal or TokenType.NotEqual
                 when l == r
                 => CufetType.Fact,

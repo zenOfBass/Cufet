@@ -221,7 +221,10 @@ public sealed class Lexer
             "run"        => TokenType.Run,
             "stream"     => TokenType.Stream,
             "open"       => TokenType.Open,
-            "rabbit"     => TokenType.Rabbit,
+            // ★ `rabbit` is NOT reserved. It is a module's name, exactly like `math`,
+            // `collections` and `chance` — none of which is a keyword either — and reserving it
+            // was the last thing making the rabbit a privileged builtin rather than a module
+            // that ships in the box. The parser recognises the NAME where it needs to.
             "have"       => TokenType.HaveKw,
             "task"       => TokenType.TaskKw,
             "channel"    => TokenType.Channel,

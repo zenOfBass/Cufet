@@ -1929,6 +1929,12 @@ public sealed partial class Interpreter
         WritableStreamValue  => "<writable stream of text>",
         RecordValue rv   => FormatRecord(rv),
         ObjectValue ov   => FormatObject(ov),
+        // ★ A book prints as the object it is — `math()` — which is what the COMPILER already
+        // emitted for one. Without this arm it fell through to val.ToString() and printed
+        // `Cufet.Interpreter.Interpreter+BookValue` at the reader: a divergence and a host type
+        // name in one. A module has no fields (one with fields is refused at the pull), so there
+        // is never anything inside the parentheses.
+        BookValue bkv    => $"{bkv.Name}()",
         Dictionary<object, object> dict =>
             "map {" + string.Join(", ", dict.Select(kvp => $"{Format(kvp.Key)}: {Format(kvp.Value)}")) + "}",
         MappingValue mv  => $"mapping({Format(mv.Key)}: {Format(mv.Value)})",
