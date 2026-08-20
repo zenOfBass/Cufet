@@ -107,8 +107,10 @@ internal static class AstRebuilder
 
     /// <summary>Rebuilds a statement list, handing back the ORIGINAL when nothing changed.</summary>
     public static IReadOnlyList<IStatement> Apply(
-        IReadOnlyList<IStatement> statements, Func<CufetType, CufetType> substitute) =>
-        TryRebuild(statements, substitute, out var rebuilt)
+        IReadOnlyList<IStatement> statements,
+        Func<CufetType, CufetType> substitute,
+        Func<IStatement, IStatement?>? replace = null) =>
+        TryRebuild(statements, substitute, out var rebuilt, replace)
             ? (IReadOnlyList<IStatement>)rebuilt!
             : statements;
 
@@ -119,9 +121,35 @@ internal static class AstRebuilder
     /// <summary>
     /// Rebuilds <paramref name="node"/> if anything under it changed; false means "keep what you had".
     /// </summary>
-    public static bool TryRebuild(object? node, Func<CufetType, CufetType> substitute, out object? result)
+    /// <param name="replace">
+    /// Swaps whole STATEMENTS, where <paramref name="substitute"/> swaps types. Null (the usual
+    /// case) means no statement is ever replaced.
+    /// </param>
+    /// <remarks>
+    /// ★ Why the statement hook lives here rather than in a walk of its own. A pass that rewrites
+    /// one statement kind into another — a stash `For each` into the drain loop it stands for — has
+    /// to reach every statement in the program, and the containers are not all
+    /// <c>IStatement</c>: <c>ConditionArm</c> and <c>JudgeArm</c> implement neither AST interface
+    /// and are the two a hand-written walk forgets. The reflective walk cannot forget them, because
+    /// it keys on the NAMESPACE and they are in it.
+    /// </remarks>
+    public static bool TryRebuild(
+        object? node, Func<CufetType, CufetType> substitute, out object? result,
+        Func<IStatement, IStatement?>? replace = null)
     {
         result = node;
+
+        // ⚠ Descend INTO the replacement, not past it: a stash loop nested in a stash loop is
+        // replaced outside-in, and the body carried into the new node still holds the inner one.
+        // It terminates because a replacement is never itself replaceable — `replace` answers for
+        // the node kind it rewrites, and it rewrites that kind away.
+        if (replace != null && node is IStatement original && replace(original) is { } expanded
+            && !ReferenceEquals(expanded, original))
+        {
+            TryRebuild(expanded, substitute, out result, replace);
+            return true;
+        }
+
         switch (node)
         {
             case null or string:
@@ -152,7 +180,7 @@ internal static class AstRebuilder
                 var items    = new object?[tuple.Length];
                 bool changed = false;
                 for (int i = 0; i < tuple.Length; i++)
-                    changed |= TryRebuild(tuple[i], substitute, out items[i]);
+                    changed |= TryRebuild(tuple[i], substitute, out items[i], replace);
                 if (!changed) return false;
                 result = Activator.CreateInstance(node.GetType(), items);
                 return true;
@@ -167,7 +195,7 @@ internal static class AstRebuilder
                 bool changed = false;
                 foreach (var item in sequence)
                 {
-                    changed |= TryRebuild(item, substitute, out var replacement);
+                    changed |= TryRebuild(item, substitute, out var replacement, replace);
                     rebuilt.Add(replacement);
                 }
                 if (!changed) return false;
@@ -196,7 +224,7 @@ internal static class AstRebuilder
                         ?? throw new InvalidOperationException(
                             $"{type.Name}.{parameters[i].Name} has no matching property — "
                             + "AstRebuilder can only rebuild positional records.");
-                    changed |= TryRebuild(property.GetValue(node), substitute, out arguments[i]);
+                    changed |= TryRebuild(property.GetValue(node), substitute, out arguments[i], replace);
                 }
                 if (!changed) return false;
 

@@ -711,4 +711,246 @@ public class StashMachineTests
             Done.
             """)).Message);
     }
+
+    // ── `For each` over a stash ────────────────────────────────────────────
+    //
+    // The loop stands for the drain that used to be written by hand, so what these ask is whether
+    // the drain it stands for is the one a person would have written: `Stop` and `Skip` mean what
+    // they mean in any loop, a spent stash ends it, and the iterator is a plain T inside the body.
+
+    [Fact]
+    public void AForEachOverAStash_TakesEveryValueUntilItIsSpent()
+    {
+        Assert.Equal("rabbit\nwarren", Run("""
+            Bind text to long-words-in, given (the rabbit helper, the series of text words):
+                For each word in words, repeat:
+                    If the length of word is less than 4:
+                        Skip.
+                    Done.
+                    Have helper bury word.
+                Done.
+            Done.
+
+            Pull a rabbit as hopper.
+            Define found as cast long-words-in on (hopper, a series with ("a", "rabbit", "in", "the", "warren")).
+            For each word in found, repeat:
+                State word.
+            Done.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AForEachOverAnEndlessStash_IsEndedByAStopInTheBody()
+    {
+        // The stash never runs out, so the body's `Stop` is the only thing that ends this — which
+        // is the same `Stop` a series loop takes, landing on the same loop.
+        Assert.Equal("3\n4\n5", Run("""
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Pull a rabbit as hopper.
+            Define counter as cast counting-up on (hopper, 3).
+            For each value in counter, repeat:
+                If value is greater than 5:
+                    Stop.
+                Done.
+                State value.
+            Done.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ASkipInAStashLoop_TakesTheNextValueRatherThanEndingIt()
+    {
+        Assert.Equal("1\n3\n5", Run("""
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Pull a rabbit as hopper.
+            Define counter as cast counting-up on (hopper, 1).
+            For each value in counter, repeat:
+                If value is greater than 5:
+                    Stop.
+                Done.
+                If value % 2 is 0:
+                    Skip.
+                Done.
+                State value.
+            Done.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void TheIteratorOfAStashLoop_IsThePlainHeldTypeNotAVoidable()
+    {
+        // What the loop is FOR. `unbury` hands back a voidable, and the drain's whole job is to
+        // prove the value present before the body sees it — so arithmetic works with no `but void is`.
+        Assert.Equal("20\n30", Run("""
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Pull a rabbit as hopper.
+            Define counter as cast counting-up on (hopper, 2).
+            For each value in counter, repeat:
+                If value is greater than 3:
+                    Stop.
+                Done.
+                State value * 10.
+            Done.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AStashLoopInsideABuryingBody_DelegatesFromOneStashToAnother()
+    {
+        // ⚠ The reason the rewrite runs BEFORE the machine builder. This loop has to be split
+        // across the outer function's own buries, and the machine can only do that to statements
+        // it already knows how to step.
+        Assert.Equal("2\n4\n6", Run("""
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Bind number to evens-of, given (the rabbit helper):
+                Define inner as cast counting-up on (helper, 1).
+                For each value in inner, repeat:
+                    If value is greater than 6:
+                        Stop.
+                    Done.
+                    If value % 2 is 0:
+                        Have helper bury value.
+                    Done.
+                Done.
+            Done.
+
+            Pull a rabbit as hopper.
+            Define source as cast evens-of on (hopper).
+            """ + DrainNumbers));
+    }
+
+    [Fact]
+    public void AStashLoopInsideAStashLoop_KeepsTheTwoApart()
+    {
+        Assert.Equal("1-10\n1-11\n2-10\n2-11", Run("""
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Pull a rabbit as hopper.
+            Define outer-stash as cast counting-up on (hopper, 1).
+            For each left in outer-stash, repeat:
+                If left is greater than 2:
+                    Stop.
+                Done.
+                Define inner-stash as cast counting-up on (hopper, 10).
+                For each right in inner-stash, repeat:
+                    If right is greater than 11:
+                        Stop.
+                    Done.
+                    State (left converted to text) joined to "-" joined to (right converted to text).
+                Done.
+            Done.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AStashLoop_ShadowsAnOuterNameJustAsASeriesLoopDoes()
+    {
+        // ⚠ The drain declares the iterator with a `Define`, and an ordinary `Define` REFUSES a name
+        // an enclosing scope already holds. A `For each` binds rather than declares — the series
+        // form has always shadowed quietly — so the drain's Define is spelled as the shadow it is.
+        // Without that, the stash form would refuse a program the series form accepts.
+        Assert.Equal("7\n8\n99\n1\n2\n99", Run("""
+            Bind number to upto, given (the rabbit helper, the number limit):
+                Define next as 1.
+                While next is not greater than limit, repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Done.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define value as 99.
+                Define nums as a series with (7, 8).
+                For each value in nums, repeat:
+                    State value.
+                Done.
+                State value.
+
+                Define counter as cast upto on (hopper, 2).
+                For each value in counter, repeat:
+                    State value.
+                Done.
+                State value.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AStashLoop_TakesTheBareItAndTheInlineFormToo()
+    {
+        // Nothing about the source changes which spellings of the loop are available.
+        Assert.Equal("1\n2\n100\n200", Run("""
+            Bind number to upto, given (the rabbit helper, the number limit):
+                Define next as 1.
+                While next is not greater than limit, repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Done.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define counter as cast upto on (hopper, 2).
+                For each in counter, repeat:
+                    State it.
+                Done.
+
+                Define other as cast upto on (hopper, 2).
+                For each value in other, State value * 100.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void LoopingOverSomethingThatIsNeitherSeriesMapNorStash_SaysSo()
+    {
+        Assert.Contains("Only series, maps and stashes", Assert.Throws<TypeException>(() => Run("""
+            Define count as 3.
+            For each value in count, repeat:
+                State value.
+            Done.
+            """)).Message);
+    }
+
+    // ⚠ The `is not void` narrowing regression is NOT here, and could not be: the interpreter
+    // narrows by value and ran that program correctly before the fix as well as after. It only ever
+    // went red on the compiler, so it lives in PipelineClosureTests where it reaches its path.
 }

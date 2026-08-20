@@ -497,6 +497,14 @@ public sealed partial class TypeChecker
     /// </summary>
     private readonly StashFacts _stashFacts = new();
 
+    /// <summary>
+    /// Every `For each &lt;name&gt; in &lt;stash&gt;` met while checking, and the drain loop it stands
+    /// for — keyed on the loop NODE, because two loops can share a line and column no more than two
+    /// statements can, but a rewrite needs the node itself to swap.
+    /// </summary>
+    private readonly Dictionary<ForEachStatement, IStatement> _stashDrains =
+        new(ReferenceEqualityComparer.Instance);
+
     /// <summary>Parameterised definitions, by name — templates awaiting a filling.</summary>
     /// <remarks>
     /// ★ Held apart from <c>_objectDefs</c> deliberately: a template is not a type. `stack` alone
@@ -805,9 +813,19 @@ public sealed partial class TypeChecker
             program = new Program(WithFilledMethods(
                 WithoutTemplates(program.Statements, _genericFunctions.Keys.ToHashSet(StringComparer.Ordinal))));
 
+        // ⚠ BEFORE Expand, and that ordering is the feature. Inside a burying body a stash loop is
+        // DELEGATION — `For each value in inner, repeat: Have helper bury value.` — and the machine
+        // builder has to split that across its buries. Handing it the drain loop means it meets
+        // `Repeat`, `Define` and `If`, all of which it has always known how to step; handing it a
+        // `For each` over something that is not a series would send it down the indexing rewrite.
+        var statements = _stashDrains.Count == 0
+            ? program.Statements
+            : AstRebuilder.Apply(program.Statements, t => t,
+                stmt => stmt is ForEachStatement fe && _stashDrains.TryGetValue(fe, out var drain) ? drain : null);
+
         // Expand hands back the very same list when there was nothing to do, which is the usual case.
         var lowered = StashTransform.Expand(
-            DropUnpulledLayers(program.Statements), _buryingFunctions, _stashFacts);
+            DropUnpulledLayers(statements), _buryingFunctions, _stashFacts);
         return ReferenceEquals(lowered, program.Statements) ? program : new Program(lowered);
     }
 
@@ -2853,6 +2871,7 @@ public sealed partial class TypeChecker
         VoidType                             => "void values",
         VoidableType { Inner: var inner }    => $"voidable {FormatTypePlural(inner)}",
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
+        StashType { ElementType: var held }  => $"stashes of {FormatTypePlural(held)}",
         FunctionType                         => "functions",
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => $"{ot.Name} objects",

@@ -726,8 +726,23 @@ public static class StashTransform
                     n => Nested(n) || n is WhileStatement or RepeatUntilStatement or ForEachStatement);
 
     /// <summary>Does this condition narrow the type of what it tests?</summary>
+    /// <remarks>
+    /// ⚠ `x is not void` is the SECOND narrowing form and was missing here, which cost the arm its
+    /// guard: the block ran with `x` back at the `voidable T` its slot holds, and any use of the
+    /// value the arm had just proved present — `If x is greater than 12`, `bury x + 1` — was
+    /// refused by the compiler for operating on a voidable. The interpreter narrows by value and
+    /// never noticed, so it ran the same program happily; a divergence, and one with NO `For each`
+    /// or anything new in it. Both front ends already treat this shape as narrowing
+    /// (`TryGetNotVoidNarrowing`, `NotVoidNarrow`) — only the linearisation did not.
+    ///
+    /// ★ The one-armed shape only. `x is void` narrows nothing on the way IN (x is void there, and
+    /// void is what the slot already says), so its guard would restore nothing.
+    /// </remarks>
     private static bool NarrowsAType(object? node) =>
-        Search(node, n => n is IsTypeCheck, Nested);
+        Search(node, n => n is IsTypeCheck
+                       || n is BinaryExpression { Op: TokenType.NotEqual, Left: VoidLiteral }
+                       || n is BinaryExpression { Op: TokenType.NotEqual, Right: VoidLiteral },
+               Nested);
 
     /// <summary>Any appearance of the name — read, reassigned, or declared.</summary>
     private static bool Mentions(object? node, string name) =>

@@ -794,4 +794,281 @@ public class PipelineClosureTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ── `is not void` across a split ──
+
+    /// <summary>
+    /// A `x is not void` arm inside a burying body keeps its narrowing after the linearisation.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ REGRESSION, and a DIVERGENCE — which is why it has to live on this side. The machine
+    /// builder carries an arm's condition into the arm's block as a guard so the narrowing survives
+    /// the split, but it recognised only `is a &lt;type&gt;` as narrowing. With no guard the block
+    /// ran with `value` back at the `voidable number` its slot holds, and the compiler refused
+    /// `value is greater than 6` — "Binary operator 'Gt' on a 'voidable number'". The interpreter
+    /// narrows by VALUE, so it ran the identical program and reported nothing wrong; an
+    /// interpreter-side test of this cannot go red.
+    ///
+    /// ★ No `For each` in it. The shape is the hand-written drain, and it was already broken.
+    /// </remarks>
+    [Fact]
+    public void ANotVoidArmInsideABuryingBody_KeepsItsNarrowing()
+    {
+        const string src = """
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Bind number to evens-of, given (the rabbit helper):
+                Define inner as cast counting-up on (helper, 1).
+                Repeat:
+                    Define value as unbury inner.
+                    If value is not void:
+                        If value is greater than 6:
+                            Stop.
+                        Done.
+                        If value % 2 is 0:
+                            Have helper bury value.
+                        Done.
+                    Done.
+                    Otherwise:
+                        Stop.
+                    Done.
+                Until false.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define source as cast evens-of on (hopper).
+                Repeat:
+                    Define found as unbury source.
+                    If found is void:
+                        Stop.
+                    Done.
+                    State found.
+                Until false.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    /// <summary>
+    /// The narrowed value survives well enough to be COMPUTED with on its way into a bury.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ The same missing guard, failing differently: `bury value + 1` did not refuse, it emitted C
+    /// that gcc rejected. A refusal and a broken build are the same bug wearing two faces, so both
+    /// are pinned.
+    /// </remarks>
+    [Fact]
+    public void ANarrowedValueInsideABuryingBody_CanBeComputedWith()
+    {
+        const string src = """
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Bind number to one-more-than, given (the rabbit helper):
+                Define inner as cast counting-up on (helper, 1).
+                Repeat:
+                    Define value as unbury inner.
+                    If value is not void:
+                        Have helper bury value + 1.
+                    Done.
+                    Otherwise:
+                        Stop.
+                    Done.
+                Until false.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define source as cast one-more-than on (hopper).
+                State unbury source.
+                State unbury source.
+                State unbury source.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ── `For each` over a stash ──
+    //
+    // The loop is rewritten to the drain in the FRONT end, so neither backend learns anything for
+    // it — which is exactly why it is worth an oracle test on each shape: the rewrite is the only
+    // thing that could differ, and it cannot, because there is one of it.
+
+    [Fact]
+    public void AForEachOverAStash_MatchesInterpreter()
+    {
+        const string src = """
+            Bind text to long-words-in, given (the rabbit helper, the series of text words):
+                For each word in words, repeat:
+                    If the length of word is less than 4:
+                        Skip.
+                    Done.
+                    Have helper bury word.
+                Done.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define found as cast long-words-in on (hopper, a series with ("a", "rabbit", "in", "the", "warren")).
+                For each word in found, repeat:
+                    State word.
+                Done.
+                State unbury found.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void AForEachOverAnEndlessStash_StopsAndSkipsLikeAnyLoop()
+    {
+        const string src = """
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define counter as cast counting-up on (hopper, 1).
+                For each value in counter, repeat:
+                    If value is greater than 9:
+                        Stop.
+                    Done.
+                    If value % 2 is 0:
+                        Skip.
+                    Done.
+                    State value * 10.
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void AStashLoopInsideABuryingBody_Delegates()
+    {
+        // ⚠ Why the rewrite runs before the machine builder: this loop is split across the outer
+        // function's own buries, and the machine can only step statements it already knows.
+        const string src = """
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Bind number to evens-of, given (the rabbit helper):
+                Define inner as cast counting-up on (helper, 1).
+                For each value in inner, repeat:
+                    If value is greater than 12:
+                        Stop.
+                    Done.
+                    If value % 2 is 0:
+                        Have helper bury value.
+                    Done.
+                Done.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define evens as cast evens-of on (hopper).
+                For each even-one in evens, repeat:
+                    State even-one.
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void AStashLoopsBareItAndInlineForms_MatchInterpreter()
+    {
+        const string src = """
+            Bind number to upto, given (the rabbit helper, the number limit):
+                Define next as 1.
+                While next is not greater than limit, repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Done.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define counter as cast upto on (hopper, 2).
+                For each in counter, repeat:
+                    State it.
+                Done.
+
+                Define other as cast upto on (hopper, 2).
+                For each value in other, State value * 100.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void AStashLoopShadowingAnOuterName_MatchesInterpreter()
+    {
+        const string src = """
+            Bind number to upto, given (the rabbit helper, the number limit):
+                Define next as 1.
+                While next is not greater than limit, repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Done.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define value as 99.
+                Define counter as cast upto on (hopper, 2).
+                For each value in counter, repeat:
+                    State value.
+                Done.
+                State value.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void AStashLoopInsideAStashLoop_MatchesInterpreter()
+    {
+        const string src = """
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define outer-stash as cast counting-up on (hopper, 1).
+                For each left in outer-stash, repeat:
+                    If left is greater than 3:
+                        Stop.
+                    Done.
+                    Define inner-stash as cast counting-up on (hopper, 10).
+                    For each right in inner-stash, repeat:
+                        If right is greater than 11:
+                            Stop.
+                        Done.
+                        State (left converted to text) joined to "-" joined to (right converted to text).
+                    Done.
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

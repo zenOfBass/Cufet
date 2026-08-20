@@ -369,4 +369,39 @@ public class PipelineControlFlowTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    /// <summary>
+    /// A name shadowed at a DIFFERENT type comes back at its own type after the block.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ REGRESSION, and a divergence. The C was right — the inner declaration sits in an inner
+    /// brace and the outer variable returns at the closing one — but the compiler's type table did
+    /// not return with it. So the first read AFTER the block reached for the outer variable through
+    /// the INNER type's accessor: `cvd_0_write(cv_value)` on a `CufetDec`, which gcc refused. The
+    /// interpreter's scopes really do pop, so it ran the program and printed the right two numbers.
+    ///
+    /// ★ Found by a stash loop shadowing its outer name, but there is no stash here and none was
+    /// needed — `Define a shadow` at a new type was enough, and had been broken all along.
+    /// </remarks>
+    [Fact]
+    public void AShadowedNameAtANewType_ComesBackAfterTheBlock()
+    {
+        const string src = """
+            Bind voidable number to maybe-num, given (the number seed):
+                If seed is greater than 0:
+                    Return seed.
+                Done.
+                Return void.
+            Done.
+
+            Define value as 99.
+            Repeat:
+                Define a shadow value as cast maybe-num on (7).
+                State value.
+                Stop.
+            Until false.
+            State value.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

@@ -21,13 +21,32 @@ public sealed partial class TypeChecker
             return;
         }
 
+        // A stash is not a series — it PRODUCES its values one resumption at a time — so it is not
+        // looped over by indexing but by draining, and the loop stands for the drain people used to
+        // write by hand. Checking the drain rather than the `For each` is the point: what is checked
+        // here is the very statement both backends will run, so there is nothing to keep in step.
+        if (inferred is StashType)
+        {
+            // ⚠ Asked HERE, outside the scopes the drain runs in. A `For each` binds rather than
+            // declares — `For each value in <series>` quietly shadows an outer `value` and always
+            // has — so the drain's `Define` must be spelled as the shadow it is, or the stash form
+            // would refuse what the series form allows. Inside a burying body the shadow is refused,
+            // and correctly: linearisation flattens the scopes, so the two would land on one slot.
+            var drain = StashDrainLoop(forEach, TryLookup(forEach.IteratorName ?? "it", out _));
+            _stashDrains[forEach] = drain;
+            EnterScope();
+            try { CheckStatement(drain); }
+            finally { ExitScope(); }
+            return;
+        }
+
         if (inferred is not SeriesType seriesType)
             throw TypeError(
                 $"{FormatExpr(forEach.Series)} holds {FormatTypePlural(inferred)}",
                 $"It evaluates to {FormatTypePlural(inferred)}, not a series",
                 forEach.Line, forEach.Column,
                 "loop over it as if it were a series",
-                "Only series and maps can be looped over. Define a series if that's what you need.");
+                "Only series, maps and stashes can be looped over. Define a series if that's what you need.");
 
         var iterKey2 = forEach.IteratorName ?? "it";
         // What StashTransform needs to rewrite this loop into an indexed one: the source's type (to
@@ -46,6 +65,54 @@ public sealed partial class TypeChecker
             CheckBlock(forEach.Body);
         }
         finally { ExitScope(); }
+    }
+
+    /// <summary>
+    /// The loop a `For each &lt;name&gt; in &lt;stash&gt;` stands for: take one, stop when the stash is
+    /// spent, otherwise run the body.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ★ This is the drain people wrote by hand — three times in the stash example alone — and it is
+    /// built out of nothing new. `unbury` already lowers to calling the stash's closure, and a
+    /// spent stash already answers void, so the whole loop is statements both backends have run
+    /// since long before stashes existed. Neither backend learns anything for this feature.
+    /// </para>
+    /// <para>
+    /// ★ `Stop` and `Skip` need no protecting from each other. The body's `Stop` ends this loop and
+    /// its `Skip` takes the next value, which is exactly what they mean in a `For each` — the
+    /// desugaring's own `Stop` fires before the body is reached, so the two can never meet.
+    /// </para>
+    /// <para>
+    /// ⚠ Built here rather than after checking, because it is what gets CHECKED: narrowing past the
+    /// void test is what gives the body a plain `T`, and a burying function's hoisting learns the
+    /// iterator's slot type from this Define like any other local. A drain synthesised after the
+    /// checker had gone home would have to be trusted instead.
+    /// </para>
+    /// </remarks>
+    private static RepeatUntilStatement StashDrainLoop(ForEachStatement forEach, bool shadows)
+    {
+        var name = forEach.IteratorName ?? "it";
+        int line = forEach.Line, column = forEach.Column;
+
+        var take = new DefineStatement(
+            name, new UnburyExpression(forEach.Series, line, column),
+            Permanent: false, Shadow: shadows, line, column);
+
+        // ⚠ `is not void` with the body in the ARM, not `is void` with a `Stop` and the body after
+        // it. Narrowing here is arm-shaped — `TryGetNotVoidNarrowing` gives the plain `T` back
+        // inside the arm it proves — and Cufet does not narrow a name for the REST of a block on
+        // the strength of an early exit. Written the other way round, every body would see a
+        // `voidable T` and `If value is greater than 7` would be refused.
+        var alive = new IfStatement(
+            [new ConditionArm(
+                new BinaryExpression(
+                    new VariableReference(name, line, column), TokenType.NotEqual,
+                    new VoidLiteral(line, column), line, column),
+                forEach.Body)],
+            ElseBody: [new StopStatement()]);
+
+        return new RepeatUntilStatement([take, alive], new BooleanLiteral(false, line, column));
     }
 
     private void CheckSeriesAdd(SeriesInsertStatement add)

@@ -4331,8 +4331,27 @@ static void* cufet_pipe_stage(void* argp) {
         // only when `cond` was false, so a voidable var proven non-void by ¬cond reads as `.val`
         // for the rest of the block. Undone at block end so it never leaks to a sibling block.
         var guardNarrowed = new List<(string Name, (CufetType Type, string Access) Prev, bool Had)>();
+
+        // ⚠ A SHADOWING `Define` hides an outer name for this block only, and C agrees — the inner
+        // declaration is emitted in an inner brace and the outer variable comes back at the closing
+        // one. `_varTypes` did not come back with it: the shadowed entry stayed, so the first read
+        // AFTER the block emitted the inner type's accessor against the outer variable.
+        // `Define a shadow value as <voidable number>.` over an outer `number` compiled to
+        // `cvd_0_write(cv_value)` on a `CufetDec` and gcc refused the program — while the
+        // interpreter, whose scopes really do pop, ran it. No stash and no `For each` involved.
+        //
+        // ★ Only shadowing defines need this. A non-shadowing one cannot have an outer entry to
+        // lose: the checker refuses redeclaring a name an enclosing scope already holds.
+        var shadowed = new List<(string Name, CufetType? Type, int Depth, bool HadDepth)>();
+
         foreach (var stmt in body)
         {
+            if (stmt is DefineStatement { Shadow: true } shadow)
+                shadowed.Add((shadow.Name,
+                              _varTypes.TryGetValue(shadow.Name, out var outerType) ? outerType : null,
+                              _varRabbitDepth.TryGetValue(shadow.Name, out var outerDepth) ? outerDepth : 0,
+                              _varRabbitDepth.ContainsKey(shadow.Name)));
+
             EmitStatement(sb, stmt, indent);
             if (stmt is IfStatement { Arms.Count: 1, ElseBody: null } guard
                 && BlockAlwaysExits(guard.Arms[0].Body))
@@ -4349,6 +4368,14 @@ static void* cufet_pipe_stage(void* argp) {
         {
             var (name, prev, had) = guardNarrowed[i];
             if (had) _narrowedVars[name] = prev!; else _narrowedVars.Remove(name); // had ⇒ prev non-null
+        }
+
+        // Innermost first, so nested shadows of one name unwind in the order they were taken.
+        for (int i = shadowed.Count - 1; i >= 0; i--)
+        {
+            var (name, type, depth, hadDepth) = shadowed[i];
+            if (type != null) _varTypes[name] = type; else _varTypes.Remove(name);
+            if (hadDepth) _varRabbitDepth[name] = depth; else _varRabbitDepth.Remove(name);
         }
     }
 
