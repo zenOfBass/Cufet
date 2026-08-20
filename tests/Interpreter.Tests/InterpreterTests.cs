@@ -403,8 +403,8 @@ public class InterpreterTests
     [Fact]
     public void ForEachIteratorDoesNotLeakOut()
     {
-        // The iterator is block-local; using it after the loop fails at runtime.
-        Assert.Throws<RuntimeException>(() => Run(
+        // The iterator is block-local; using it after the loop is refused by the CHECKER now.
+        Assert.Throws<TypeException>(() => Run(
             "Define nums as a series of number with (1, 2, 3).\n" +
             "For each n in nums, repeat:\n" +
             "  State n.\n" +
@@ -430,8 +430,8 @@ public class InterpreterTests
     [Fact]
     public void WhileBodyScopeIsolated()
     {
-        // Variable defined inside While body doesn't leak out; fails at runtime.
-        Assert.Throws<RuntimeException>(() => Run(
+        // Variable defined inside While body doesn't leak out; refused by the CHECKER now.
+        Assert.Throws<TypeException>(() => Run(
             "Define i as 0.\n" +
             "While i is less than 1, repeat:\n" +
             "  Define secret as 5.\n" +
@@ -458,7 +458,9 @@ public class InterpreterTests
     [Fact]
     public void ReferenceUndefinedThrows()
     {
-        Assert.Throws<RuntimeException>(() => Run("State x."));
+        // ★ A TYPE error now, not a runtime one: at the top level nothing can arrive later to
+        // define `x`, so the checker refuses it instead of letting the program start.
+        Assert.Throws<TypeException>(() => Run("State x."));
     }
 
     // ── If / Otherwise if / Otherwise ────────────────────────────────────
@@ -1201,8 +1203,8 @@ public class InterpreterTests
     [Fact]
     public void ForEachItRestoredAfterLoop()
     {
-        // Bare-it loop; "it" was not defined before; after loop it is removed
-        Assert.Throws<RuntimeException>(() => Run(
+        // Bare-it loop; "it" was not defined before; after the loop it is gone — a type error now.
+        Assert.Throws<TypeException>(() => Run(
             "Define s as a series with (1, 2).\n" +
             "For each in s, repeat:\n" +
             "    State it.\n" +
@@ -2666,22 +2668,25 @@ public class InterpreterTests
     [Fact]
     public void And_ShortCircuit_SkipsRight_WhenLeftFalse()
     {
-        // 'undefined' is not in env — type checker returns null (unknown), so it passes.
-        // If short-circuit works, 'undefined' is never evaluated → no RuntimeException.
-        // If eager, 'undefined' would throw → this test would fail with RuntimeException.
+        // ⚠ The probe is a division by ZERO, not an undefined name. It used to be the latter,
+        // which worked only while an unresolved name checked clean — it is a static error now, so
+        // the old probe tested the checker rather than short-circuiting. Dividing by zero checks
+        // fine and throws only if EVALUATED, which is exactly the question.
         Assert.Equal("", Run("""
             Define flag as 1 = 2.
-            If flag and undefined is 0, State "oops".
+            Define zero as 0.
+            If flag and (1 / zero) is 0, State "oops".
             """));
     }
 
     [Fact]
     public void Or_ShortCircuit_SkipsRight_WhenLeftTrue()
     {
-        // Same pattern: 'undefined' passes type check (null), throws at runtime if evaluated.
+        // Same probe as the `and` case, and for the same reason — see the note there.
         Assert.Equal("ok", Run("""
             Define flag as 1 = 1.
-            If flag or undefined is 0, State "ok".
+            Define zero as 0.
+            If flag or (1 / zero) is 0, State "ok".
             """));
     }
 

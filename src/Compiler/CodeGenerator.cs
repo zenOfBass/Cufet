@@ -5830,7 +5830,12 @@ static void* cufet_pipe_stage(void* argp) {
         if (t is MatrixType) return TNumber;   // the rows/columns of m — counts, via named access
         if (t is RecordType rt) return rt.NamedFields.First(f => f.Name == fieldName).Type;
         if (t is ObjectType ot) return ObjectMemberType(ot.Name, fieldName);
-        throw new CompilerException($"field access on '{FormatTypeName(t)}' is not yet supported by the compiler.");
+        // ⚠ Honest about WHOSE fault it is. This used to say "field access on 'number' is not yet
+        // supported by the compiler", which read as a missing feature and blamed the compiler —
+        // and the commonest way to reach it was a scoping mistake, where an unresolved name fell
+        // back to `number` and then had a member read off it. Nothing here is unimplemented: a
+        // number has no fields, and saying so points at the program.
+        throw new CompilerException($"'{fieldName}' can't be read from a {FormatTypeName(t)} — it has no such member.");
     }
 
     // Static type of an object member, walking the embed chain (getter → own field →

@@ -906,6 +906,29 @@ public sealed partial class TypeChecker
     private readonly Dictionary<string, HashSet<string>> _moduleNeeds =
         new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>A RESOLVED name that is another pulled module — still a requirement.</summary>
+    /// <remarks>
+    /// ⚠ Resolving is not the same as being satisfied. A module written INSIDE `Pull units.` finds
+    /// `units` while it is checked, so nothing looked missing — and then it was called from a block
+    /// where `units` was not pulled and died at run time. A dependency is a dependency whether or
+    /// not the definition site happened to have it, so it is recorded either way and checked where
+    /// the module is pulled.
+    /// </remarks>
+    private CufetType? NoteModuleUse(string name, TypeInfo info)
+    {
+        if (info.IsPulledModule) NoteModuleNeed(name);
+        return info.Type;
+    }
+
+    private void NoteModuleNeed(string name)
+    {
+        if (_checkingModuleName is not { } owner
+            || string.Equals(owner, name, StringComparison.OrdinalIgnoreCase)) return;
+        if (!_moduleNeeds.TryGetValue(owner, out var needs))
+            _moduleNeeds[owner] = needs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        needs.Add(name);
+    }
+
     /// <summary>An unresolved name: recorded as a module's requirement, or deferred as before.</summary>
     /// <remarks>
     /// ★ Deferring is deliberate and stays — an unresolvable name infers as null rather than
@@ -916,12 +939,26 @@ public sealed partial class TypeChecker
     /// </remarks>
     private CufetType? NoteUnresolvedName(VariableReference vr)
     {
-        if (_checkingModuleName is { } owner && !string.Equals(owner, vr.Name, StringComparison.OrdinalIgnoreCase))
-        {
-            if (!_moduleNeeds.TryGetValue(owner, out var needs))
-                _moduleNeeds[owner] = needs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            needs.Add(vr.Name);
-        }
+        NoteModuleNeed(vr.Name);
+
+        // ★ In code whose scope is FINAL — top-level statements, not a detached body — nothing can
+        // arrive later to define this name, so it is a mistake and is refused here rather than at
+        // run time. `State mystery.` used to check clean.
+        //
+        // ⚠ A detached body still DEFERS, and that is not laziness: a method or function resolves
+        // names in the scope it is CALLED from, so `math's pi` inside an ordinary object's method
+        // is legitimate whenever the caller pulled `math`. Refusing there would break working
+        // programs. What a MODULE reaches for is recorded above and checked at its pull instead;
+        // doing the same for every object and free function, checked at each call site, is the
+        // other half of this and is not built.
+        if (!_inFunction)
+            throw TypeError(
+                $"'{vr.Name}' isn't defined",
+                "Nothing later in this block can give it a value — a name has to exist before it is used",
+                vr.Line, vr.Column,
+                $"use '{vr.Name}' here",
+                $"Define it first: 'Define {vr.Name} as <value>.' — or check the spelling.");
+
         return null;
     }
 
@@ -2146,7 +2183,7 @@ public sealed partial class TypeChecker
         UnaryExpression unary                                                                            => InferUnary(unary),
         BinaryExpression bin                                                                             => InferBinary(bin),
         VariableReference { Name: var n } when _narrowedVars.TryGetValue(n, out var narrowed)           => narrowed,
-        VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => ti.Type,
+        VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => NoteModuleUse(n, ti),
         VariableReference hv when _hiddenTopLevelData.Contains(hv.Name)                                  => throw HiddenTopLevelDataError(hv),
         VariableReference vr                                                                              => NoteUnresolvedName(vr),
         SeriesLiteral lit                                                                                => InferSeriesLiteral(lit),

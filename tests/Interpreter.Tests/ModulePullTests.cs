@@ -78,17 +78,16 @@ public class ModulePullTests
     /// A pull is a scope: the binding is gone after `Done.`
     /// </summary>
     /// <remarks>
-    /// ⚠ Caught at RUNTIME, not by the checker — and that is not a module quirk. `Pull a book on
-    /// math. … Done. State math's pi.` type-checks clean and fails the same way, because an
-    /// unresolvable name infers as null and the checker deliberately defers rather than cascade
-    /// false positives. Modules inherit the behaviour books already had, which is the consistency
-    /// worth having; that the checker lets either through is a pre-existing gap, recorded here
-    /// because a test asserting the wrong layer is how it stays invisible.
+    /// ★ Caught by the CHECKER as of 2026-08-20. This note used to record the opposite — that it
+    /// was a runtime failure, because an unresolvable name inferred as null and was deferred — and
+    /// called it "a pre-existing gap". The gap is closed where the scope is FINAL: after `Done.`
+    /// nothing can bring the binding back, so the checker refuses instead of letting the program
+    /// start. A detached body still defers, since a method resolves names where it is CALLED.
     /// </remarks>
     [Fact]
     public void TheBindingLeavesScopeAtDone()
     {
-        var ex = Assert.Throws<RuntimeException>(() => Run(Kit + """
+        var ex = Assert.Throws<TypeException>(() => Run(Kit + """
             Pull greeting-kit.
                 State cast greeting-kit's greet on ("inside").
             Done.
