@@ -3578,14 +3578,16 @@ Done.
 ```
 12
 7
-3.14159265358979
+3.1415926535897932384626433833
 ```
 
 `math` provides `square root`, `log`, `power`, `floor`, `ceiling`, `round`, `absolute
 value`, and the constants `pi` and `e`. Rounding, flooring and absolute value are exact
-decimal operations. The transcendentals are computed in double precision on both
-backends — which means `power` with a fractional exponent can differ in its last digit
-across platforms, because the underlying library *is* the platform's own.
+decimal operations — `floor`, `ceiling` and `round` are written in Cufet itself, and `pi`
+and `e` are decimal-precise constants (28 fractional digits, correctly rounded). The
+transcendentals are still computed in double precision on both backends — which means
+`power` with a fractional exponent can differ in its last digit across platforms, because
+the underlying library *is* the platform's own.
 
 ```
 Pull a book on collections.

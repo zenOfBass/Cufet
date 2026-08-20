@@ -1297,12 +1297,13 @@ fields is refused — a pull has nowhere to put their values; use `a new <type> 
 unpullable, silently shadowed by the book at the pull site. The same wall has no side doors:
 `a new collections { }` is refused (**`Pull` is the only constructor** — a book is a
 scope-thing, and its construction is the bracket), and `unto` may not target a bundled book
-(it would splice a writer's member straight onto the book). The prelude's own definition of
-`collections` is the one exception: it is the book's **Cufet layer**, and the book and its
-layer resolve as ONE module. A member the layer defines (today: `unique`) is ordinary Cufet
-method dispatch; everything the layer does not define (`transpose`, `minimum`, `maximum`,
-`average`, and the `matrix` type) is still the native book's — all reached through the same
-pulled name.
+(it would splice a writer's member straight onto the book). The prelude's own definitions of
+`collections` and `math` are the one exception: each is its book's **Cufet layer**, and a book
+and its layer resolve as ONE module. A member the layer defines is ordinary Cufet method (or
+getter) dispatch; whatever the layer does not define is still the native book's — all reached
+through the same pulled name. Today the whole of `collections` is Cufet (its native side only
+introduces the `matrix` type), and `math`'s layer holds `floor`, `ceiling`, `round`, `pi` and
+`e`, with `square root`, `log`, `power` and `absolute value` still native.
 
 **Rabbit (singular only):**
 ```

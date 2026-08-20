@@ -10,6 +10,42 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **★ `math` is half in Cufet: `floor`, `ceiling`, `round`, and decimal-precise `pi` and `e`.**
+  The start of slice 3 of the 0.16.0 arc. The three rounding members are pure decimal
+  arithmetic in `Prelude/math.cufe` (`x % 1` is the fractional part; halves still round away
+  from zero), with identical outputs to the native copies they delete. The constants are
+  **getters on the book's Cufet layer** — the first layer getters, with the compiler routing
+  `math's pi` to a getter call before any native constant — and they are now correct to 28
+  fractional digits.
+
+  - **Breaking: `pi` and `e` print differently.** They were `(decimal)Math.PI` — double-derived,
+    ~15 significant digits; they are now decimal-precise (`3.1415926535897932384626433833`).
+    More digits, all of them right.
+  - Still native, deliberately: `square root`, `log` and `power` (the arc's remaining
+    pure-decimal numerics work) and `absolute value` — a **multi-word member name**, which a
+    Cufet method cannot yet carry; how the layer spells multi-word members is an open decision
+    the transcendentals also need.
+  - Also fixed on the way: the CLI treats a `.cufe` file inside a `Prelude` directory AS the
+    prelude — its own statements get the prelude's standing and the embedded copy is not
+    prepended on top — so linting the language's own source no longer trips the bundled-book
+    guards it exists to justify.
+
+- **★★ The whole `collections` book is written in Cufet.** Slice 2 of the 0.16.0 arc:
+  `minimum`, `maximum`, `average` and `transpose` moved into `Prelude/collections.cufe` beside
+  `unique`, and their native copies are deleted — the native side of the book now introduces the
+  `matrix` type and nothing else. Behaviour is preserved exactly, pinned by the existing tests:
+  first-of-ties for `minimum`/`maximum`, void on an empty series, and the exact-decimal average
+  (one running sum, one division — `average of (0.1, 0.2, 0.3)` is still exactly `0.2`).
+
+  - **The pre-blanks special dispatch path is gone entirely** (`IsCollectionsAggregateCast` and
+    its bespoke inference). It existed because the aggregates' types could not be written before
+    blanks; they can now, so the members are ordinary methods and the checker has one less way
+    to call something. The bespoke educational errors it carried are replaced by the standard
+    argument-type refusals.
+  - **A book's Cufet layer checks with the book's own introduced types in scope** — `transpose`
+    constructs a matrix, and `matrix` is otherwise only in scope inside a pull. Scoped to the
+    book's own source: only the prelude can define an object under a book's name.
+
 - **★★ The first book member written in Cufet — `unique` — and the merge machinery every later
   one rides on.** Slice 1 of the 0.16.0 arc (*everything pullable is an object*; see ROADMAP).
 

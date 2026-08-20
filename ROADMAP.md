@@ -67,54 +67,34 @@ and **pulling INSTANTIATES**. ★ **The loader is still not part of any of this*
 that is not already in the program is a separate hard problem (*Shipping a book*, below), and it
 is one conformer's business rather than the contract's.
 
-**Slice 1 — resolution: a Cufet member shadows a native one, member by member.**
+**Slice 1 — resolution — ▶ SHIPPED 2026-08-19** (see CHANGELOG): the merge rule, the prelude as
+   embedded `.cufe` files, `unique` in Cufet with the native copy deleted, and a bundled book's
+   name walled off (`Define object`, `a new`, and `unto` all refused — `Pull` is the only
+   constructor). **Half-migrated is a supported state** — the machinery every later slice rides.
 
-   `ResolveModule` checks `BuiltinBooks` before `_objectDefs`, so a Cufet `collections` is
-   invisible behind the native book of the same name. The rule that fixes it: a prelude-defined
-   module object and a native book of one name resolve as ONE module — the Cufet member wins
-   wherever both define a name, and everything the prelude does not define (remaining native
-   members, introduced types — `matrix`) stays native underneath. The native layer shrinks as
-   members migrate and is deleted when it is empty. **Half-migrated is a supported state, not an
-   accident** — `collections` can never fully leave while `matrix` is native.
+**Slice 2 — `collections` written in Cufet — ▶ SHIPPED 2026-08-19** (see CHANGELOG): all four
+   remaining members moved, native copies and the pre-blanks aggregate dispatch path deleted.
+   The native side of `collections` now introduces the `matrix` type and nothing else.
 
-   Two consequences, both decided:
-   - **Book names become real defined names.** A writer defining an object called `collections`
-     is refused as a redefinition, with a message that says the name is a bundled book — today
-     the native book silently shadows it at the pull site, which is worse.
-   - **The prelude's source lives as real embedded `.cufe` files** (`src/Interpreter/Prelude/`),
-     not a C# string constant. They are language artifacts a person will eventually read.
-
-   Proof of the slice, vertical first: ONE member (`unique`) written in Cufet, resolved through
-   the merge, oracle output identical.
-
-**Slice 2 — `collections` written in Cufet.** Nothing is missing (measured 2026-08-17, not
-   inferred): `unique`, `minimum`, `maximum`, `average` are `series of element` shapes that run
-   on both backends today, and a Cufet `transpose` was already written and matched the native
-   one's output exactly. ⚠ Bind a matrix's dimensions to names first — `a matrix with (the
-   columns of m) by …` does not parse; the sized form wants a simpler expression there.
-
-   Signatures and outputs are preserved exactly; the oracle pins are the proof. The pre-blanks
-   special dispatch path for the aggregates goes with them — those members only ever had one
-   because their types could not be written before blanks existed. A book's helper function is
-   public like any other member, which is the export decision already recorded under *Shipping a
-   book*, not a new policy.
-
-**Slice 3 — `math` written in Cufet: pure decimal, no FFI.** `square root`, `log` and `power`
-   do not wait for the C FFI and do not stay native: they are written in Cufet over `number`
-   itself. Both backends then run the same algorithm on the same bit-identical decimal, so the
-   results are identical everywhere **by construction** — which retires the documented libm
-   last-ULP platform caveat instead of parking a three-member debt.
+**Slice 3 — `math` written in Cufet: pure decimal, no FFI.** ▶ **Half shipped 2026-08-19**
+   (see CHANGELOG): `floor`, `ceiling` and `round` are Cufet; `pi` and `e` are decimal-precise
+   layer getters (the breaking output change, taken). What remains: `square root`, `log` and
+   `power`, written in Cufet over `number` itself, so both backends run the same algorithm on
+   the same bit-identical decimal and the results are identical everywhere **by construction**
+   — which retires the documented libm last-ULP platform caveat instead of parking a debt.
 
    Decided, 2026-08-19:
-   - **Outputs change, deliberately**: decimal-precise (~28 digits) instead of double-backed
-     (~16). A breaking output change, documented in the changelog.
    - `square root` is **correctly rounded**; `log` and `power` are **faithfully rounded** (within
      1 ULP at the last digit) — correct rounding of transcendentals is the table-maker's dilemma,
      and the promise that matters is *identical everywhere*, which the construction gives free.
-   - `pi` and `e` become decimal-precise constants (today they are `(decimal)Math.PI` —
-     double-derived).
    - Integer-exponent `power` is exact (repeated squaring). Domain errors keep today's shape
      (`void`); overflow behaves as decimal overflow does everywhere else.
+
+   ⚠ **Open, needed to finish the slice: multi-word member names on a layer.** `square root`
+   and `absolute value` have spaces; a Cufet method name cannot. The candidate rule: the layer
+   defines the hyphenated name (`square-root`) and a book member lookup maps spaces to hyphens —
+   mechanical, but it quietly makes `math's square-root` valid too, so it needs a decision
+   before it is built.
 
 **Slice 4 — the rabbit becomes an object.** Its definition — an object conforming to `module`,
    its methods named — lives in the prelude, in Cufet. The surface is frozen:
