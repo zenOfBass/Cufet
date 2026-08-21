@@ -801,6 +801,7 @@ public sealed partial class TypeChecker
         program = WithPrelude(program);
         Pass1Hoist(program);
         Pass2ResolveTypes();          // resolve all placeholder ObjectType refs in _objectDefs + global scope
+        Pass2HoistSharedConstants(program); // top-level `permanently` — visible to bodies checked below
         Pass2CheckOverloads(program); // body-check all overloads; populates _overloadReturnTypes
         CheckBlock(program.Statements);
 
@@ -983,12 +984,55 @@ public sealed partial class TypeChecker
     /// run time, advising `Define math as &lt;value&gt;` for something you pull. That is the
     /// three-answers failure this check exists to stop, still live for one of the two orders.
     ///
-    /// ★ The names are SNAPSHOT, not the scope. A `Define` later in the pulling block must not
-    /// count as satisfying a dependency the pull needed earlier, and the live scope would say it
-    /// did. The snapshot is the key set <see cref="TryLookup"/> searches, so the two agree exactly.
+    /// ★ The names are SNAPSHOT because by the time this is verified the scope is GONE — every
+    /// block has been left and `_scopes` is back to the global one, so asking the live scope would
+    /// report almost everything as missing. The snapshot is the key set <see cref="TryLookup"/>
+    /// searches, so what is recorded and what would have been found agree exactly.
     /// </remarks>
     private readonly List<(string Module, PullStatement Pull, HashSet<string> Visible)>
         _pendingPullChecks = new();
+
+    /// <summary>
+    /// Registers every top-level `permanently` constant before any body is checked.
+    /// </summary>
+    /// <remarks>
+    /// ★ A shared constant is a program-level DECLARATION, not a statement whose turn comes round —
+    /// which is how the compiler has always emitted one (`_sharedConstants` puts it at C file scope,
+    /// "because a top-level function may read it and a local in main is invisible to one"). Hoisting
+    /// it here makes the checker agree: a body may read a constant declared further down the file,
+    /// exactly as it may call a function declared further down.
+    ///
+    /// ⚠ Needed once an unresolved name in a body became an ERROR rather than a deferral. Two
+    /// bodies are checked before `CheckBlock` ever reaches the constant's line — an operator
+    /// overload (checked in the pass below) and any function declared above it — and both used to
+    /// get away with it by leaving the name to run time.
+    ///
+    /// ⚠ A constant whose VALUE cannot be inferred yet is skipped, not reported. Order still
+    /// applies to the value itself — `Define a as b permanently.` before `b` exists is a real
+    /// error — and `CheckBlock` reaches that Define in order and says so properly. Reporting from
+    /// here would blame the wrong line and pre-empt a better message.
+    /// </remarks>
+    private void Pass2HoistSharedConstants(Program program)
+    {
+        foreach (var stmt in FlattenHoistable(program.Statements))
+        {
+            if (stmt is not DefineStatement { Permanent: true } constant) continue;
+            if (Scope.ContainsKey(constant.Name)) continue;
+
+            CufetType? type;
+            try { type = constant.DeclaredType ?? InferType(constant.Value); }
+            catch (TypeException) { continue; }
+            if (type == null) continue;
+
+            Scope[constant.Name] = new TypeInfo(
+                type, new VariableReference(constant.Name, constant.Line, constant.Column),
+                constant.Line, Permanent: true);
+            _hoistedConstants.Add(constant.Name);
+        }
+    }
+
+    /// <summary>Shared constants registered ahead of their declaration, awaiting it.</summary>
+    private readonly HashSet<string> _hoistedConstants = new(StringComparer.Ordinal);
 
     /// <summary>The names a lookup would find right here.</summary>
     private HashSet<string> VisibleNames()
@@ -2001,7 +2045,12 @@ public sealed partial class TypeChecker
                 "define a variable without a clear starting type",
                 "Start with a literal value or a defined variable so the type is clear from the beginning.");
 
-        if (Scope.ContainsKey(define.Name))
+        // ⚠ A hoisted shared constant reaching its OWN declaration is not a redefinition — the entry
+        // in scope is the one Pass2HoistSharedConstants put there so bodies above could read it.
+        // Removed as it is claimed, so a genuine second `Define` of the name still collides.
+        bool reclaimingHoist = define.Permanent && _hoistedConstants.Remove(define.Name);
+
+        if (Scope.ContainsKey(define.Name) && !reclaimingHoist)
             throw TypeError(
                 $"'{define.Name}' is already defined in this scope",
                 null, define.Line, define.Column,

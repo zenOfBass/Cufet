@@ -548,11 +548,12 @@ public class ModulePullTests
     }
 
     [Fact]
-    public void ADefineAfterThePull_DoesNotSatisfyTheDependency()
+    public void ANonModuleNameInAModuleBody_IsRefusedWhereItIsWritten()
     {
-        // ★ Why the visible names are SNAPSHOT at the pull rather than read from the live scope
-        // when the check finally runs: by then `factor` exists, but it did not exist at the pull,
-        // and the pulled module's body would have run without it.
+        // ⚠ This used to be recorded as a DEPENDENCY of `helper-kit` and reported at the pull —
+        // "'helper-kit' uses 'factor', which isn't pulled here", suggesting 'Pull books on factor'
+        // for a number. A module's body is a body like any other: a name that is not a module is
+        // refused where it is written, so the nonsense suggestion is unreachable now.
         var ex = Assert.Throws<TypeException>(() => Run("""
             Define object helper-kit with () and module:
                 Bind number to doubled, given (the number x):
@@ -565,7 +566,26 @@ public class ModulePullTests
             Done.
             Define factor as 2.
             """));
-        Assert.Contains("'helper-kit' uses 'factor'", ex.Message);
+        Assert.Contains("'factor' isn't defined", ex.Message);
+        Assert.DoesNotContain("Pull books on", ex.Message);
+    }
+
+    [Fact]
+    public void ASharedConstantIsVisibleToABodyDeclaredAboveIt()
+    {
+        // ⚠ REGRESSION. A `permanently` constant is a program-level DECLARATION — the compiler has
+        // always emitted one at C file scope "because a top-level function may read it" — but the
+        // checker only met it when CheckBlock reached its line. Bodies checked before that line
+        // (a function declared above it, or any operator overload) got away with it only while an
+        // unresolved name deferred to run time. They are hoisted before any body is checked now.
+        Assert.Equal("50", Run("""
+            Bind number to scaled, given (the number x):
+                Return x * limit.
+            Done.
+
+            Define limit as 10 permanently.
+            State cast scaled on (5).
+            """));
     }
 
     // ── A body sees what it can see where it is WRITTEN, plus its caller's modules ──
