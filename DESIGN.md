@@ -518,6 +518,61 @@ last place to give up a second opinion.
 ⚠ The playground runs the interpreter in **wasm**, where FFI cannot work at all. "This
 program cannot run in this environment" is therefore a required outcome regardless.
 
+### Structs: Cufet owns the memory wherever it can
+
+Structs travel as **pointers**, never by value — which is what keeps the signature set below
+simple. But the targets need to read and write struct *fields*: raw terminal mode is
+`tcgetattr`, set `c_lflag`, `tcsetattr` back; a socket bind fills `sin_family`, `sin_port`,
+`sin_addr`. So layout is on the critical path, not a later item.
+
+★ **The common direction needs no dereferencing at all.** Cufet owns the memory, C fills it:
+
+```
+Pull a rabbit as hopper.
+    Define settings as a new termios { … }             ← arena-allocated, C layout
+    Cast tcgetattr on (fd, the address of settings)    ← C writes into it
+    The settings' c-lflag becomes …                    ← ordinary Cufet field mutation
+    Cast tcsetattr on (fd, the address of settings)    ← C reads it back
+Done.
+```
+
+No foreign pointer is dereferenced; mutation is ordinary Cufet mutation. This is what "an
+explicit address-of" was always for.
+
+The other direction — `getpwnam` handing back a `struct passwd *` — is a foreign pointer, and
+reading it **copies into a Cufet record**, exactly as `char*` copies into `text`.
+
+⚠ A Cufet record already becomes a real C struct (`cr_N`) in the compiled backend, but its
+FIELDS are Cufet representations — `number` is a 128-bit `CufetDec`, not an `int`. So a
+C-compatible record is one whose fields are declared as **C types**; ordinary records are not
+layout-compatible and must not be passed off as such.
+
+### Nobody reimplements the ABI
+
+The C struct declarations live in the shim, so **the C compiler lays them out** and both
+backends read those offsets. There is no struct-layout algorithm in C#, and therefore no way
+for the two to disagree — the same reasoning as the conversions.
+
+⚠ **The rejected alternative, recorded because it will look tempting:** having the interpreter
+compute layouts from standard alignment rules. It works for scalars, arrays and nested structs
+and quietly gets **bitfields, packed structs and unions** wrong — silently, which is the exact
+failure the shim exists to prevent. If that path is ever wanted, the honest form is to compute
+the easy cases and *refuse* the hard ones, never to guess.
+
+**The cost, stated accurately:** the shim cannot be a fixed prebuilt library, because it must
+contain the program's own struct declarations. So it is **generated from the declarations and
+compiled**. Two things make that mild rather than severe:
+
+- **It caches.** `RuntimeCache` already content-addresses compiled objects by a SHA of source,
+  header, gcc identification and flags. A generated shim keyed the same way means gcc runs
+  **once per distinct set of declarations**, not once per run.
+- **The common structs ship precompiled.** `termios`, `sockaddr_in`, `stat`, `timeval` — what
+  the stated targets need — can be bundled, so the shell, sockets and terminal work with no
+  toolchain at all.
+
+> **The constraint, in full:** interpreted FFI needs a C toolchain the first time a given set of
+> declarations is seen, and not at all for the bundled structs. Wasm cannot do it in any case.
+
 ### Bounded signature set, not libffi — for now
 
 The shim calls foreign functions through a generated switch over the signature shapes

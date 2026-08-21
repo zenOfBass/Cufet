@@ -73,9 +73,11 @@ Two framings that set the order:
    **What is still undesigned**, and wants settling before code:
    - the **declaration syntax** — how a C function, its C types, and its release function are named
    - the **read operations** — `the text at p` and friends
-   - **struct layout** — a field is at an offset, so either pointer arithmetic (a can of worms) or
-     the declaration describes the layout and yields a record
    - where the **blocks** type sits in the order, now that DSLs bottom out in FFI
+
+   ★ **Struct layout is settled** (see DESIGN): structs travel as pointers, Cufet owns the memory
+   wherever it can (`the address of` a C-typed record), the C compiler lays them out inside the
+   generated shim, and nobody reimplements the ABI.
 
    ⚠ **It does not ship until both backends run it.** The interpreter is the oracle, and FFI is
    the one area where being wrong means memory corruption rather than a wrong number.
