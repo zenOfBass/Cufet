@@ -61,7 +61,7 @@ Two framings that set the order:
    family it collapses: the shell's job control and raw terminal mode, sockets, the POSIX and
    Windows APIs. ★ No bundled book needs it any more — `math` went pure decimal in 0.16.0.
 
-   ★★ **The design session happened (2026-08-21) and the decisions are in
+   **The design session happened (2026-08-21) and the decisions are in
    [DESIGN.md](DESIGN.md#foreign-interoperability)** — the rabbit block as the unsafe marker, one
    inert pointer kind, explicit reads that copy, freeing through the unmaker registry, the shared
    conversion shim, a bounded signature set, and blocks as one tagged type. This entry no longer
@@ -306,7 +306,7 @@ indistinguishable from having forgotten.
 - **Compile-time macros.** Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs,
   which are first-class and runtime.
 
-  ★★ **AMENDED 2026-08-21: this is now one tag of the BLOCKS type, not a feature of its own.**
+  **AMENDED 2026-08-21: this is now one tag of the BLOCKS type, not a feature of its own.**
   Quoted Cufet and embedded foreign source live under one type name; a macro is what consumes the
   `cufet` tag. See [DESIGN.md](DESIGN.md#foreign-interoperability) — including why hygiene and SQL
   injection turn out to be the same problem, which is what makes the unification real rather than

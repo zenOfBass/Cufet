@@ -1319,7 +1319,7 @@ written in Cufet now, behind a Cufet layer. What makes something a book is that 
 does not conform is refused at the pull site. Pulling **instantiates**, so a module with
 fields is refused — a pull has nowhere to put their values; use `a new <type> { … }`.
 
-### ★★ What a body may reach for
+### What a body may reach for
 
 **A function or method resolves the names it can see where it is WRITTEN — plus any MODULE its
 caller pulled.** Those are the only two, and the second is the whole reason the first has an
