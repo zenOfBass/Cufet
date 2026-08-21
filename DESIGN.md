@@ -573,6 +573,32 @@ compiled**. Two things make that mild rather than severe:
 > **The constraint, in full:** interpreted FFI needs a C toolchain the first time a given set of
 > declarations is seen, and not at all for the bundled structs. Wasm cannot do it in any case.
 
+### One `c` book
+
+C bindings live in **one book**, not split by domain and not split by platform.
+
+The arguments against it were both wrong and are recorded so they do not come back:
+
+- *"libc is too big"* — a C book holds what the project has actually **bound**, not all of libc,
+  and members are reached as `c's read`, so a large book pollutes nothing at the pull site.
+- *"split by domain so the platform difference lands on the book"* — weak. Portability is not a
+  naming question: a program calling `tcgetattr` is POSIX-only whatever the book is called. Naming
+  changes only *where* the failure is reported, not whether it happens.
+
+⚠ Splitting by platform (`c-windows`, `c-linux`) is the wrong axis entirely — it puts the platform
+in the book's identity, and a program written against one still does not run on the other.
+
+**No portability warning.** A linter note saying *"you used a Linux-only function without handling
+other platforms"* was considered and rejected: writers get access to platform-specific functions
+without being nagged for using them. ★ It is also a weaker case than it looks next to the void
+guardrail — void must be handled because ignoring it gives a **silent wrong answer**, whereas a
+function absent on this platform fails loudly and early. The guardrails exist where failures hide.
+
+★ A warning is only worth issuing if the reader can act on it, and acting on this one would need a
+platform-branch concept in the language. That is a real feature, worth revisiting only if programs
+are ever distributed to machines the author does not control — which needs a loader and a package
+manager first.
+
 ### Bounded signature set, not libffi — for now
 
 The shim calls foreign functions through a generated switch over the signature shapes
