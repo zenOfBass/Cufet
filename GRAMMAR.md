@@ -1274,13 +1274,23 @@ Any object conforming to `module` (`Define object greeting-kit with () and modul
 article is noise, so `Pull a greeting-kit.` is the same statement.
 
 ★ **This is not a fourth form — it is the form the others are special cases of.** `Pull a
-rabbit.` was always `Pull <name>`, and the bundled books answer to it as well:
+rabbit.` was always `Pull <name>`:
 
 ```
-Pull math.
-Pull collections.
-Pull math as m.
+Pull greeting-kit.
+Pull greeting-kit as kit.
 Pull rabbit.
+```
+
+⚠ **A BUNDLED BOOK IS NOT PULLED THIS WAY.** `Pull math.` is refused; write
+`Pull a book on math.` The plain form is for a module you defined. `Pull math.` used to work and
+was never a decision — the general branch swallowed the name on its way past, and a test pinned
+the accident. Reversed 2026-08-21.
+
+```
+Pull a book on math.                      ← a library the language ships
+Pull a book on math as m.
+Pull books on math, and collections.
 ```
 
 ★ **No module's NAME is reserved, and neither is `book` or `books`** (both freed 2026-08-19).
@@ -1294,10 +1304,16 @@ parser still *recognises* these words where they do a job — pulling a rabbit o
 `Have rabbit …` addresses the enclosing one, and `book`/`books` open the `… on <name>` spelling
 when `on` follows — because recognising a word is not reserving it.
 
-`book on <name>` is kept because `Pull a math.` reads worse than `Pull a book on math.`, not
-because books are a separate mechanism. A book conforms by CONSTRUCTION (its members are
-native, so there is no `Define object` to carry `and module`); a writer's object conforms by
-DECLARATION. Same question at the pull site, different ways of being built.
+`book on <name>` is **required** for a bundled book, and it is required because it is what
+reads: *a book on math* is natural English and *a math* is not. Pulling is one mechanism — the
+same question is asked at every pull site — but the surface says which KIND of thing is being
+pulled, because a library and the writer's own object are not the same thing.
+
+⚠ A book used to be described as conforming by CONSTRUCTION, "its members are native, so there
+is no `Define object` to carry `and module`". **That stopped being true in 0.16.0**: `math` has
+no native part left at all and `collections`'s only native piece is the `matrix` type. Both are
+written in Cufet now, behind a Cufet layer. What makes something a book is that it is a
+**library**, not how it happens to be implemented.
 
 `module` is a **marker interface**: it requires no methods, only the claim. An object that
 does not conform is refused at the pull site. Pulling **instantiates**, so a module with

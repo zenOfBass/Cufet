@@ -3580,23 +3580,17 @@ Done.
 This is not new syntax. `Pull a rabbit.` was always this form; what changed is that the
 name in it no longer has to be one the language shipped.
 
-**The bundled books answer to it too**, which is what makes "a book is a module" a fact
-about the language rather than a turn of phrase:
+⚠ **A bundled book is pulled as a book**, not with this form:
 
 ```
-Pull math.
+Pull a book on math.
     State math's pi.
 Done.
-
-Pull collections.
-    State cast collections's transpose on (a matrix with ((1, 2), (3, 4))).
-Done.
 ```
 
-A book conforms *by construction* rather than by declaration — there is no `Define object
-math` to attach `and module` to, because a book's members are implemented natively rather
-than in Cufet. That is a difference in how a module is **built**, not in what `Pull` asks of
-it.
+`Pull math.` is refused. Pulling is one mechanism and asks the same question everywhere, but
+the surface says which KIND of thing you are pulling — a library the language ships, or an
+object you defined. The noun is also what reads: *a book on math* is English, *a math* is not.
 
 **Pulling instantiates.** `Pull a rabbit as hopper.` makes a region rather than naming a shared
 one, and a module is the same — so a module with fields is refused, because a pull site has
@@ -3610,8 +3604,9 @@ Capability that most programs do not need lives in a **book** — a module that 
 box. Brought into scope for a block with `Pull a book on <name>. … Done.`, with members
 reached by the possessive: `math's square-root of (144)`.
 
-The `book on <name>` spelling stays because the bundled names read badly without the noun —
-"Pull a math." — but a book is a module and nothing about the mechanism is special to it.
+The `book on <name>` spelling is **required** for a book, because the bundled names read badly
+without the noun — "Pull a math." A book is still a module, and `Pull` asks it the same
+question; only the spelling differs.
 
 Books are resolved at compile time. There is no dynamic loading, and no external loader
 yet — the bundled books are `math`, `collections`, and `chance`.

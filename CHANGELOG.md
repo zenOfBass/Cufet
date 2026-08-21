@@ -10,7 +10,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **★★ `For each` over a stash.** The last mile of coroutines. Suspend and resume shipped in
+- **`For each` over a stash.** The last mile of coroutines. Suspend and resume shipped in
   0.13.0, but *consuming* a stash still cost a six-line drain loop — and that loop appeared three
   times in `examples/language/stashes.cufe`, the feature's own example. Now:
 
@@ -43,7 +43,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   generic, so nothing could declare "hands back something steppable" — but coroutines did not
   produce an open family of steppable things. They produced **one concrete type**, `stash of T`.
 
-- **★★ A method can bury.** Found by writing a program with the loop above: a `bury` inside an
+- **A method can bury.** Found by writing a program with the loop above: a `bury` inside an
   object's method said *"declared to give back a number, but it can reach its end without returning
   one"* — blaming a missing `Return` in a method that was never going to return one. Behind the
   message, nothing supported it: methods were never registered as burying, and the rewrite did not
@@ -78,7 +78,30 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
-- **★★ A body resolves the names it can see where it is WRITTEN — plus any MODULE its caller
+- **A bundled book is pulled as a book.** `Pull math.` is refused; write
+  `Pull a book on math.` (or `Pull books on math, and collections.`). The plain
+  `Pull <name>.` form is for a module you defined. Programs using the old spelling must change.
+
+  ```
+  That doesn't work: 'math' is a book, so it is pulled as one.
+  The plain form is for a module you defined; a book is a library the language ships.
+    Write 'Pull a book on math.' — or 'Pull books on math, and <other>.' for several at once.
+  ```
+
+  ⚠ **This reverses something 0.16.0 shipped, and it was never a decision.** The general
+  `Pull <module>` branch swallowed bundled names on its way past, and a test then pinned the
+  accident — it was called `ABookIsPulledByTheSameFormAsAModule` and its note called the plain form
+  "the point of the whole exercise". Pulling *is* one mechanism and asks the same question
+  everywhere; what it should not do is hide which KIND of thing is being pulled. A library the
+  language ships and an object you wrote are not the same thing, and the noun is what reads besides:
+  *a book on math* is English, *a math* is not.
+
+  ★ Also corrected in GRAMMAR and REFERENCE: a book was described as conforming "by CONSTRUCTION
+  (its members are native)". **That stopped being true in 0.16.0** — `math` has no native part left
+  and `collections`'s only native piece is the `matrix` type. What makes something a book is that it
+  is a **library**, not how it is implemented.
+
+- **A body resolves the names it can see where it is WRITTEN — plus any MODULE its caller
   pulled.** Deferring an unresolved name in a function or method body exists for one reason: a
   pulled module is a capability of the block that uses the body, which is what lets a module's
   method say `math's pi` and leave `math` to whoever pulls it. That reason only ever covered module
@@ -108,7 +131,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   function reached through a variable rather than by name. That surface used to be every name; it is
   now module names only.
 
-- **★★ One ownership story: every nonlocal exit releases the same four things, through one place.**
+- **One ownership story: every nonlocal exit releases the same four things, through one place.**
   A jump out of a block has to run unmakers, close files, pop exception pads and pop rabbit arenas —
   always those four, always in that order. That was written out longhand at **nine** sites, with
   four parallel per-loop stacks feeding them and two handler records carrying four loose cleanup
@@ -134,7 +157,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
-- **★★ `Suppress` released arenas and nothing else.** A destructor on an object made inside an
+- **`Suppress` released arenas and nothing else.** A destructor on an object made inside an
   exception handler never ran when the handler suppressed — a live divergence, since the interpreter
   unwinds the handler block and runs it:
 
@@ -182,7 +205,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   are known, with the names visible at each pull SNAPSHOT so a later `Define` cannot retroactively
   satisfy a dependency the pull needed earlier. Neither path had a test; both do now.
 
-- **★★ A top-level closure could not see the local it captured.** A lambda inside a function took
+- **A top-level closure could not see the local it captured.** A lambda inside a function took
   its whole enclosing scope; a lambda at the top level took only functions and constants and left
   ordinary locals "to the capture machinery" — which meant to the deferral above. So the checker
   never saw the very name the closure captured, in a program as plain as
@@ -190,7 +213,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   captures what is lexically in scope; that is what makes it a closure rather than a lookup. Both
   nesting levels take the whole scope now.
 
-- **★★ `x is not void` kept its narrowing across a bury — a live backend divergence.** A burying
+- **`x is not void` kept its narrowing across a bury — a live backend divergence.** A burying
   body is cut into blocks at each `bury`, and an arm's condition is carried into its block as a
   guard so the narrowing survives the cut. Only `x is a <type>` was recognised as narrowing;
   `x is not void` — the other narrowing form, which both front ends already treat as one — was
@@ -248,7 +271,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   first, which is now pinned by a test so it stays caught. ★ Three type switches in one day were
   missing the same arm; a stash is a container like any other and wants looking for.
 
-- **★★ A module's missing dependency is caught by the checker, at the pull.** Found by writing a
+- **A module's missing dependency is caught by the checker, at the pull.** Found by writing a
   module from outside the prelude for the first time — the bundled books never hit it, because
   all three are self-contained and use nothing.
 
@@ -268,7 +291,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   each pull. It also catches the subtler case where a module *resolves* its dependency at its own
   definition and is then called somewhere that dependency is not live.
 
-- **★★ An unresolved name is a static error where the scope is FINAL.** `State mystery.` used to
+- **An unresolved name is a static error where the scope is FINAL.** `State mystery.` used to
   check clean and fail at run time. It is refused now — at the top level, after a `Done.`, or
   anywhere nothing can arrive later to define the name.
 
@@ -299,7 +322,7 @@ checker asks which kind arrived.
 
 ### Added
 
-- **★★ The whole `math` book is written in Cufet, transcendentals included — and the libm
+- **The whole `math` book is written in Cufet, transcendentals included — and the libm
   caveat is retired.** Slice 3 of the 0.16.0 arc is complete. `square-root`, `log`, `exp` and
   `power` are computed on the decimal itself, in `Prelude/math.cufe`; nothing in either bundled
   book touches a `double` any more, and neither book has a native member left.
@@ -326,7 +349,7 @@ checker asks which kind arrived.
     rounded on every value checked; `log` is within ~2 units in the last place at 28 digits.
     Whole-number powers are exact, so they are *more* accurate than the double-backed versions
     they replace. What is guaranteed absolutely is that both backends give the same answer.
-  - **Breaking: the transcendentals return far more precision.** `math's square-root of (2)` was
+  - **The transcendentals return far more precision.** `math's square-root of (2)` was
     `1.4142135623731` (the double bridge's 15 significant digits) and is now
     `1.4142135623730950488016887242`. Perfect squares are unchanged.
   - **★ One old answer was not merely imprecise, it was wrong.** `power of (2, 50)` returned
@@ -358,7 +381,7 @@ checker asks which kind arrived.
   three lines away. Twice is a pattern: a catch-all that ends in `ToString()` turns every type
   nobody remembered into a host type name printed at the user.
 
-- **★★ `is` on a rabbit or a function value emitted C that gcc refused.** Both type-checked and
+- **`is` on a rabbit or a function value emitted C that gcc refused.** Both type-checked and
   ran interpreted, so `Pull a rabbit as hopper. … State hopper is grace.` printed `false` and
   then would not build — *invalid operands to binary ==*.
 
@@ -373,7 +396,7 @@ checker asks which kind arrived.
   instead of saying it, so every type added since had joined it silently. A type nobody has
   taught it now fails loudly instead of miscompiling.
 
-- **★★ A bundled book's code could collide with names in the program that used it.** The prelude
+- **A bundled book's code could collide with names in the program that used it.** The prelude
   is prepended to the program, and a method body imports the top-level functions and constants
   around it — so a book's own local shared a scope with the writer's names. A program declaring
   `Bind number to total` broke `log`, whose running sum is called `total`, with *'total' is
@@ -384,7 +407,7 @@ checker asks which kind arrived.
   it, so nothing in the program should be able to reach inside it. ⚠ The failure was invisible
   until the books were written in Cufet — native members had no Cufet scope to collide with.
 
-- **★★ A compiled division left its quotient in the wrong form, and it hid behind printing.**
+- **A compiled division left its quotient in the wrong form, and it hid behind printing.**
   `cufet_div` always reduced to scale 28 and never stripped the trailing zeros, so `11 / 10`
   was carried as `1.1000…0` where .NET leaves `1.1`. Both backends *printed* `1.1` — the
   formatter strips trailing zeros too — so the difference was invisible until some later
@@ -397,7 +420,7 @@ checker asks which kind arrived.
 
 ### Changed
 
-- **★★★ The arc's finish line: a writer's object, a rabbit and a book are all `module` VALUES.**
+- **The arc's finish line: a writer's object, a rabbit and a book are all `module` VALUES.**
   `given (the module m)` accepts all three on identical terms, on both backends — and they pass
   by **inheritance**, not by any decision made about them. A module is an object, an object is
   first class, so a module is first class. Nothing in the checker asks which *kind* of module
@@ -423,7 +446,7 @@ checker asks which kind arrived.
   They ask whether the binding came from a `Pull` now, which is what was meant all along. The
   asymmetry had been invisible because the only modules anyone wrote were bundled books.
 
-- **★★ A rabbit is an object, defined in Cufet — and a rabbit now passes as a `module` value.**
+- **A rabbit is an object, defined in Cufet — and a rabbit now passes as a `module` value.**
   Slice 4 of the 0.16.0 arc, which carried slice 5's headline with it: `given (the module m)`
   accepts a rabbit, a book, and a writer's own object on identical terms, on both backends. That
   was never a separate decision — a module is an object, an object is first class, so a module is
@@ -440,7 +463,7 @@ checker asks which kind arrived.
   - **`given (the rabbit r)` needs no special case anywhere.** `rabbit` is an identifier naming
     an object type, so it resolves down the same path as `person` or `stack of number` — the
     parser arm that produced a marker type is deleted rather than rerouted.
-  - **Breaking: `State hopper.` prints `rabbit()`**, not `<rabbit hopper>`. It used to print its
+  - **`State hopper.` prints `rabbit()`**, not `<rabbit hopper>`. It used to print its
     *binding's* name, which nothing else in the language does — `Define x as 5. State x.` prints
     `5`, not `x`.
   - **Four ways to get a rabbit without its region are refused**: `a new rabbit { }`, redefining
@@ -451,7 +474,7 @@ checker asks which kind arrived.
     declare. That is also what unblocked passing one to an interface parameter: monomorphization
     specialises on a concrete object type, and a marker type was not one.
 
-- **★★ `book` and `books` are no longer reserved words either.** `For each book in books,
+- **`book` and `books` are no longer reserved words either.** `For each book in books,
   repeat:` is a line this language could not write — in a program about a library, which is the
   first thing anyone would try. Both words are ordinary identifiers now, and a writer may even
   define a module named `book` and pull it with `Pull book.`
@@ -465,7 +488,7 @@ checker asks which kind arrived.
   parser. That branch is gated on an identifier, and `book` is one now — it would otherwise
   swallow the word as a module's name and then meet `on` where it wanted a `.`
 
-- **★★ `rabbit` is no longer a reserved word.** It is a module's *name*, and no other module's
+- **`rabbit` is no longer a reserved word.** It is a module's *name*, and no other module's
   name is reserved — `math`, `collections` and `chance` are ordinary identifiers and always
   were. What the books reserve is grammar (`book`, `books`, `on`), never identity; the rabbit
   was the one module whose own name was a keyword, and that was the last thing making it a
@@ -488,7 +511,7 @@ checker asks which kind arrived.
   Refusing makes no claim and can become an answer the day something needs to tell rabbits
   apart; answering could not be taken back.
 
-- **★★ Breaking: `math`'s two multi-word members are hyphenated — `square-root` and
+- **`math`'s two multi-word members are hyphenated — `square-root` and
   `absolute-value`.** `math's square root of (144)` is now `math's square-root of (144)`.
 
   The decision behind it is not about spelling. A book could name a member something a writer
@@ -527,7 +550,7 @@ checker asks which kind arrived.
   `math's pi` to a getter call before any native constant — and they are now correct to 28
   fractional digits.
 
-  - **Breaking: `pi` and `e` print differently.** They were `(decimal)Math.PI` — double-derived,
+  - **`pi` and `e` print differently.** They were `(decimal)Math.PI` — double-derived,
     ~15 significant digits; they are now decimal-precise (`3.1415926535897932384626433833`).
     More digits, all of them right.
   - Still native, deliberately: `square root`, `log` and `power` (the arc's remaining
@@ -539,7 +562,7 @@ checker asks which kind arrived.
     prepended on top — so linting the language's own source no longer trips the bundled-book
     guards it exists to justify.
 
-- **★★ The whole `collections` book is written in Cufet.** Slice 2 of the 0.16.0 arc:
+- **The whole `collections` book is written in Cufet.** Slice 2 of the 0.16.0 arc:
   `minimum`, `maximum`, `average` and `transpose` moved into `Prelude/collections.cufe` beside
   `unique`, and their native copies are deleted — the native side of the book now introduces the
   `matrix` type and nothing else. Behaviour is preserved exactly, pinned by the existing tests:
@@ -555,7 +578,7 @@ checker asks which kind arrived.
     constructs a matrix, and `matrix` is otherwise only in scope inside a pull. Scoped to the
     book's own source: only the prelude can define an object under a book's name.
 
-- **★★ The first book member written in Cufet — `unique` — and the merge machinery every later
+- **The first book member written in Cufet — `unique` — and the merge machinery every later
   one rides on.** Slice 1 of the 0.16.0 arc (*everything pullable is an object*; see ROADMAP).
 
   - **The prelude is real now.** `src/Interpreter/Prelude/collections.cufe` is embedded in the
@@ -571,7 +594,7 @@ checker asks which kind arrived.
     shadowed native member would answer identically and prove nothing, so deletion is what makes
     every existing `unique` test proof that the Cufet path runs. Its pre-blanks special-case
     typing path (`IsCollectionsAggregateCast`) shrinks to the three numeric aggregates.
-  - **Breaking, narrowly: a bundled book's name is refused as an object name.** `Define object
+  - **A bundled book's name is refused as an object name.** `Define object
     math …` used to be legal and simply unpullable — the book silently shadowed it at the pull
     site. It is now refused at the definition with a message that names the book. The wall has
     no side doors: `a new collections { }` is refused too (**`Pull` is the only constructor** —
@@ -650,7 +673,7 @@ checker asks which kind arrived.
 
 ### Added
 
-- **★★ A METHOD can leave a blank, so a book can be written in Cufet.** A module's members are
+- **A METHOD can leave a blank, so a book can be written in Cufet.** A module's members are
   methods, so generic free functions were not enough on their own:
 
   ```
@@ -671,7 +694,7 @@ checker asks which kind arrived.
   type NAME is registered — scanning earlier consults a half-built table, and a method taking a
   type defined further down the file would read as a blank rather than as the type it is.
 
-- **★★ A FUNCTION can leave a blank too.** The signature introduces it, and the call fills it from
+- **A FUNCTION can leave a blank too.** The signature introduces it, and the call fills it from
   the arguments:
 
   ```
@@ -699,7 +722,7 @@ checker asks which kind arrived.
   take both a number and a text for the same blank"*. A blank no argument mentions is refused too,
   since there is nothing to read it from.
 
-- **★★ A definition can leave a blank — `Define object stack of element`.** The writer names the
+- **A definition can leave a blank — `Define object stack of element`.** The writer names the
   blank, and `of` marks it: the slot after the type's own name.
 
   ```
@@ -801,7 +824,7 @@ checker asks which kind arrived.
   sits between `function` and `given (…)`, the same order a function-typed parameter uses, so the
   type cannot be completed before the name is read. `void` is accepted there only as a return type.
 
-- **★★ Modules — a writer's own object can be `Pull`ed.** A module is an object that says it is
+- **Modules — a writer's own object can be `Pull`ed.** A module is an object that says it is
   one, and `Pull` brings it into scope. A book is a module that ships with the language; there is
   no privileged category any more.
 
@@ -843,7 +866,7 @@ checker asks which kind arrived.
   rabbit is not an object — which is the next piece, and the one that puts `bury` and `unbury`
   where they belong.
 
-- **★★ Stashes — `Bury` and `unbury`.** A function can stop in the middle of what it is doing, hand
+- * Stashes — `Bury` and `unbury`.** A function can stop in the middle of what it is doing, hand
   one value out, and pick up from that exact line when someone asks for the next one.
 
   ```
@@ -969,7 +992,7 @@ checker asks which kind arrived.
   subject at its full union type. It narrows for a **lone** arm only — with several arms, reaching
   the else no longer implies this test was the one that failed.
 
-- **★★ BREAKING — burying is commanded: `Have <rabbit> bury <value>.`** There is no bare `Bury x.`
+- **Burying is commanded: `Have <rabbit> bury <value>.`** There is no bare `Bury x.`
   any more. A rabbit is the agent you summon to do memory work, burying *is* memory work, so a
   rabbit does it and a burying function takes one as a parameter.
 
@@ -1022,7 +1045,7 @@ checker asks which kind arrived.
   Also fixed at the same time: a named rabbit's name was known to the checker and to nothing else,
   so the pull site now binds it.
 
-- **★★ Tasks and channels compile and run on Windows.** They had been POSIX-only since the
+- **Tasks and channels compile and run on Windows.** They had been POSIX-only since the
   concurrency arc shipped, and the recorded reason — "mingw has no pthreads" — was simply not true:
   **mingw-w64 ships winpthreads**, and the bundled gcc compiles and runs a pthreads program fine.
 
@@ -1129,7 +1152,7 @@ checker asks which kind arrived.
 
 ### Changed
 
-- **★ `Add <x> to <series>` is now `Insert <x> into <series>`.** Breaking; there is no alias.
+- **★ `Add <x> to <series>` is now `Insert <x> into <series>`.** There is no alias.
 
   ```
   Insert 100 into scores.
@@ -1351,7 +1374,7 @@ checker asks which kind arrived.
 
 ### Fixed
 
-- **★★ A top-level `Define`d lambda could not be called from a function or a method when compiled**
+- **A top-level `Define`d lambda could not be called from a function or a method when compiled**
   — `'doubler': unresolved call`, while the interpreter ran it. It was emitted as a local of `main`,
   so no other function could reach it. Now hoisted to file scope like a shared constant. Aliases
   (`Define f as doubler.`) too.
@@ -1360,7 +1383,7 @@ checker asks which kind arrived.
   generated C type and was emitted above that type's definition. Scalars were unaffected, which is
   why it went unnoticed.
 
-- **★★ One program, three answers: a top-level function reading top-level data.** The rule — top
+- **One program, three answers: a top-level function reading top-level data.** The rule — top
   level functions see other functions but not top-level data — lived only in the **interpreter**,
   and only at **run time**. So:
 
@@ -1391,7 +1414,7 @@ checker asks which kind arrived.
   Groundwork for shared constants, which is now just relaxing this one static rule for
   `permanently` bindings.
 
-- **★★ The test suite could hang forever, on both backends, for one reason: "no input supplied"
+- **The test suite could hang forever, on both backends, for one reason: "no input supplied"
   silently meant "inherit whatever the host has" instead of "EOF".** Found by running the suite
   interactively through `wsl.exe`, which is the only launch that hands it a live pipe — a pipe
   nobody writes to and nobody closes. Measured: **2h15m** with a single compiled binary parked in
@@ -1755,7 +1778,7 @@ cell; most of the work went underneath.
   `UserFacingMessages_DoNotLeakInternalVocabulary` now runs the vocabulary half of the audit on
   every build, so "periodic" no longer depends on remembering.
 
-- **★★ A task published its result BEFORE running its own unmakers, so an awaiter raced the
+- **A task published its result BEFORE running its own unmakers, so an awaiter raced the
   cleanup.** `the awaited result of` woke the waiting thread while the task thread was still
   executing destructors.
 
@@ -1780,7 +1803,7 @@ cell; most of the work went underneath.
   clean — because this reorder touches every task return and almost none of that surface runs on
   Windows.
 
-- **★★ The capture-write refusal missed any write one `If` or `Judge` arm deep — a LIVE DIVERGENCE.**
+- **The capture-write refusal missed any write one `If` or `Judge` arm deep — a LIVE DIVERGENCE.**
 
   ```
   Define tally as 0.
@@ -2542,8 +2565,6 @@ other language spells them.
 
 And there is one new type. `bits` is the first full value type since failures, and the first
 built entirely in this release: literals, gates, shifts, arithmetic, and conversions.
-
-**Breaking:** the comment syntax changed. See *Changed*.
 
 ### Added
 
