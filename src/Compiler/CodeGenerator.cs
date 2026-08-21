@@ -97,7 +97,7 @@ public sealed class CodeGenerator
     private void ResetEmissionBuffers()
     {
         _taskFns.Clear(); _closureFns.Clear(); _closureEnvs.Clear(); _preEmits.Clear();
-        _openFiles.Clear(); _loopFileDepths.Clear(); _loopExcDepths.Clear(); _loopRabbitDepths.Clear();
+        _openFiles.Clear(); _loopExits.Clear();
         _rabbitCtx.Clear(); _rabbitDepth = 0; _excOpen = 0;
         _varRabbitDepth.Clear(); _closureEscapeDepth = null;
         _narrowedVars.Clear(); _armCases.Clear(); _currentFailVar = null; _closureSelf = null; _currentTaskReturn = null;
@@ -109,7 +109,7 @@ public sealed class CodeGenerator
         // Interface specializations are DISCOVERED BY EMITTING, so a discovery iteration registers
         // them too — clear the requests/emitted-set so the real pass emits each exactly once.
         _ifaceSpecReq.Clear(); _ifaceSpecDone.Clear(); _ifaceSpecSigs.Clear();
-        _loopUnmakerSnaps.Clear(); _scopeDepth = 0; _frameUnmakerBase = null;
+        _scopeDepth = 0; _frameUnmakerBase = null;
         // Registration is per-pass: the discovery iteration and the real one each build their own
         // struct lists, so "already registered" has to be forgotten between them.
         _objectFieldsDone.Clear();
@@ -239,8 +239,10 @@ public sealed class CodeGenerator
     //   return <value>       — an arbitrary value crosses, and it may ALIAS the caller's own data
     //                          (measured: returning a parameter through a rabbit shares in the
     //                          interpreter), so copying would diverge. Merge down instead.
-    private readonly List<int> _loopRabbitDepths = new();
-    private int CurrentLoopRabbitDepth() => _loopRabbitDepths.Count > 0 ? _loopRabbitDepths[^1] : 0;
+    // ⚠ Was four parallel lists — file depth, exc depth, rabbit depth, unmaker snap — pushed and
+    // popped at three different places, and the snap list was pushed only when the program had
+    // unmakers, so the four could legitimately hold DIFFERENT LENGTHS. One list of marks cannot.
+    private readonly List<CleanupPoint> _loopExits = new();
 
     // The `cufet_arena_pop(); ` / `cufet_arena_merge_down(); ` run unwinding rabbit regions down to
     // `toDepth`, or "" when the jump stays inside the same region (the common case — zero cost).
@@ -264,10 +266,10 @@ public sealed class CodeGenerator
     // Every failure-goto site shares this one definition so none can drift out of step with it —
     // three of the four were already out of step when arenas were added.
     private string FailureGotoBody(
-        (string Label, string FailVar, int FileDepth, int ExcDepth, string? UnmakerSnap, int RabbitDepth) h,
+        (string Label, string FailVar, CleanupPoint Exit) h,
         string msgLvalue, string catLvalue) =>
-        $"{ArenaStrCopyTo(h.RabbitDepth, msgLvalue, catLvalue)}{h.FailVar}.message = {msgLvalue}; {h.FailVar}.category = {catLvalue}; " +
-        $"{UnmakerRunStmt(h.UnmakerSnap)}{FileCleanupStmts(h.FileDepth)}{ExcPopStmts(h.ExcDepth)}{ArenaPopStmts(h.RabbitDepth)}goto {h.Label};";
+        $"{ArenaStrCopyTo(h.Exit.RabbitDepth, msgLvalue, catLvalue)}{h.FailVar}.message = {msgLvalue}; {h.FailVar}.category = {catLvalue}; " +
+        $"{UnwindTo(h.Exit)}goto {h.Label};";
 
     // True when a returned value can point into an arena that the return's unwinding would free —
     // either the value itself is region-bearing, or it is fallible and carries an arena-templated
@@ -292,16 +294,21 @@ public sealed class CodeGenerator
     // Inside a Try body: (handler label, the caught-failure C var, open-file depth at Try entry)
     // so a failing fallible call records the failure, closes files opened since the Try, and jumps
     // to the In-case-of-failure handler.
-    private (string Label, string FailVar, int FileDepth, int ExcDepth, string? UnmakerSnap, int RabbitDepth)? _currentTryHandler;
+    private (string Label, string FailVar, CleanupPoint Exit)? _currentTryHandler;
 
     // E-prime — exception-handler bookkeeping. `_excOpen` counts jmp_buf handlers open in the
     // function currently being emitted (reset per function): every NONLOCAL exit (return, Stop/Skip,
     // failure-goto, propagate) must pop `cufet_exc_top` by the handlers it jumps out of, or a later
     // fault would longjmp into a dead frame. `_currentExcHandler` is the active handler's suppress
     // var + done label (for `Suppress.`); `_currentExcVar` the saved message (for `the exception`).
+    //
+    // ⚠ It carries the SAME four cleanup marks as `_currentTryHandler`, and for the same reason:
+    // `Suppress` is a nonlocal exit out of the handler block, so it has to release everything the
+    // handler opened. It carried only `RabbitDepth` and released only arenas — so an object with a
+    // destructor, made inside a handler that then suppressed, was never unmade. The interpreter
+    // unwinds the handler block properly and ran the destructor; the compiled program did not.
     private int _excOpen;
-    private readonly List<int> _loopExcDepths = new();
-    private (string SupVar, string DoneLabel, int RabbitDepth)? _currentExcHandler;
+    private (string SupVar, string DoneLabel, CleanupPoint Exit)? _currentExcHandler;
     private string? _currentExcVar;
     private static readonly CufetType TExcMarker = new ExceptionMarkerType();
 
@@ -322,7 +329,6 @@ public sealed class CodeGenerator
     private readonly List<string> _openFiles = new();
     // The _openFiles depth at each enclosing loop's entry, so break/continue closes files opened
     // inside the loop body before jumping out of it.
-    private readonly List<int> _loopFileDepths = new();
 
     // ── UNMK — destructors (`unmaking`) ────────────────────────────────────────
     // Declarations collected up front (like the interpreter's _unmakeDefs): typeName → its unmaker.
@@ -339,12 +345,55 @@ public sealed class CodeGenerator
     // to it (firing every still-open block's unmakers in this frame, matching a return unwinding
     // through the block finallys in the interpreter). Null ⇒ no unmakers / not set.
     private string? _frameUnmakerBase;
-    // Per enclosing loop: the C var holding cufet_num at the loop body's entry (Stop/Skip run to it).
-    private readonly List<string> _loopUnmakerSnaps = new();
 
     private bool UsesUnmakers => _unmakeDefs.Count > 0;
     // Inline `cufet_run_unmakers_to(snap); ` for a nonlocal-exit statement; empty when not applicable.
     private string UnmakerRunStmt(string? snap) => UsesUnmakers && snap != null ? $"cufet_run_unmakers_to({snap}); " : "";
+
+    // ── One ownership story: every nonlocal exit releases the same four things ─────────────────
+    //
+    // ★★ There are FOUR kinds of thing a jump out of a block has to release — unmakers, open
+    // files, exception pads, rabbit arenas — and they are always released in that order. That is
+    // not four rules: it is one rule with four parts, and it used to be written out longhand at
+    // every jump site. Nine sites, four parts each, nothing checking they agreed.
+    //
+    // They did not agree. `FailureGotoBody`'s own comment records the first time — "three of the
+    // four were already out of step when arenas were added" — and it fixed that for FAILURE gotos
+    // only. `Suppress` was still releasing arenas alone when this record was written, so a
+    // destructor on an object made inside a suppressing handler never ran; a live divergence,
+    // because the interpreter unwinds the handler block and runs it.
+    //
+    // ★ A CleanupPoint is a MARK, taken where a jump will land. Making it one value is what makes
+    // the rule enforceable: a new kind of releasable thing is a field here and a term in UnwindTo,
+    // and every site gets it at once because no site spells the parts out any more.
+    private readonly record struct CleanupPoint(
+        int FileDepth, int ExcDepth, string? UnmakerSnap, int RabbitDepth);
+
+    /// <summary>The mark for a jump landing HERE — everything currently open stays open.</summary>
+    private CleanupPoint HereCleanup(string? unmakerSnap = null) =>
+        new(_openFiles.Count, _excOpen, unmakerSnap, _rabbitDepth);
+
+    /// <summary>The mark for leaving the current FUNCTION frame: everything in it goes.</summary>
+    private CleanupPoint FrameExit => new(0, 0, _frameUnmakerBase, 0);
+
+    /// <summary>The mark for leaving the innermost loop — what `Stop` and `Skip` unwind to.</summary>
+    private CleanupPoint LoopExit =>
+        _loopExits.Count > 0 ? _loopExits[^1] : new CleanupPoint(0, 0, null, 0);
+
+    /// <summary>
+    /// The releases a jump to <paramref name="point"/> must make, in the one correct order.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ The ORDER is load-bearing and is why this is one function. Unmakers run first, because a
+    /// destructor body is Cufet code that may still read what the later steps free. Arenas go last,
+    /// for the same reason. <paramref name="mergeArenas"/> is for a return whose VALUE points into
+    /// a region being left — it merges outward instead of popping. See ReturnCarriesArenaData.
+    /// </remarks>
+    private string UnwindTo(CleanupPoint point, bool mergeArenas = false) =>
+        UnmakerRunStmt(point.UnmakerSnap)
+      + FileCleanupStmts(point.FileDepth)
+      + ExcPopStmts(point.ExcDepth)
+      + ArenaPopStmts(point.RabbitDepth, mergeArenas);
 
     // Set when the program uses `run`/pipe, so the POSIX subprocess runtime is emitted (only then).
     private bool _usesProcess;
@@ -4312,12 +4361,17 @@ static void* cufet_pipe_stage(void* argp) {
     // EnterScope/RunScopeUnmakers-at-ExitScope. Unmakeable objects Defined inside fire their unmakers
     // LIFO at this block's NORMAL exit; nonlocal exits (return/Stop/goto/exception) fire via the
     // run-to-snapshot at their own target. `_scopeDepth++` marks "inside a block" so Defines register.
-    private void EmitScopedBlock(StringBuilder sb, IReadOnlyList<IStatement> body, string indent)
+    // <paramref name="withSnap"/> is handed this block's unmaker snapshot once it exists and before
+    // the body is emitted, for a nonlocal exit inside the body that has to run back to it —
+    // `Suppress`, which jumps to the handler's end and so past the normal run below.
+    private void EmitScopedBlock(StringBuilder sb, IReadOnlyList<IStatement> body, string indent,
+                                 Action<string?>? withSnap = null)
     {
-        if (!UsesUnmakers) { EmitBlock(sb, body, indent); return; }
+        if (!UsesUnmakers) { withSnap?.Invoke(null); EmitBlock(sb, body, indent); return; }
         _scopeDepth++;
         string snap = $"cf_um{_freshId++}";
         sb.AppendLine($"{indent}int {snap} = cufet_num;");
+        withSnap?.Invoke(snap);
         EmitBlock(sb, body, indent);
         // If the block always returns, the return path already ran these — skip the (unreachable) run.
         if (!BlockAlwaysExits(body)) sb.AppendLine($"{indent}cufet_run_unmakers_to({snap});");
@@ -4547,19 +4601,19 @@ static void* cufet_pipe_stage(void* argp) {
                         // of are genuinely reclaimed before the task's own arena goes — and the
                         // envelope outlives every pop below. Publish must still precede free(cf_a),
                         // which owns the box pointer being published to.
-                        sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{ArenaPopStmts(0)}cufet_arena_pop();");
+                        sb.AppendLine($"{indent}{UnwindTo(FrameExit)}cufet_arena_pop();");
                         sb.AppendLine($"{indent}cufet_rbox_publish(cf_a->cf_selfbox, cf_tret{rid});");
                         sb.AppendLine($"{indent}free(cf_a); return NULL;");
                     }
                     else
                     {
                         // A bare `return.` (or a value dropped by a fire-and-forget task): no result.
-                        sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{ArenaPopStmts(0)}cufet_arena_pop(); free(cf_a); return NULL;");
+                        sb.AppendLine($"{indent}{UnwindTo(FrameExit)}cufet_arena_pop(); free(cf_a); return NULL;");
                     }
                     break;
                 }
                 if (ret.Value == null)
-                    sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{ArenaPopStmts(0)}return;");
+                    sb.AppendLine($"{indent}{UnwindTo(FrameExit)}return;");
                 else
                 {
                     // Coerce so `return <T>` / `return void` widens into a voidable return type.
@@ -4573,14 +4627,17 @@ static void* cufet_pipe_stage(void* argp) {
                     // into those regions merges them outward (no copy, so aliasing is preserved);
                     // anything else — a number, a fact — reclaims them outright.
                     var retType = _currentReturnType ?? TypeOf(ret.Value);
-                    string arenas = ArenaPopStmts(0, merge: ReturnCarriesArenaData(retType));
-                    if (arenas.Length > 0)
+                    bool mergeArenas = ReturnCarriesArenaData(retType);
+                    // The temp is needed exactly when regions will actually be unwound here — the
+                    // same test as before the unwind was folded into UnwindTo, asked of the same
+                    // string rather than of a bool that only says which KIND of unwinding it is.
+                    if (ArenaPopStmts(0, mergeArenas).Length > 0)
                     {
                         int rvid = _freshId++;
                         sb.AppendLine($"{indent}{EmitCType(retType)} cf_rv{rvid} = {retExpr};");
                         retExpr = $"cf_rv{rvid}";
                     }
-                    sb.AppendLine($"{indent}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{arenas}return {retExpr};");
+                    sb.AppendLine($"{indent}{UnwindTo(FrameExit, mergeArenas)}return {retExpr};");
                 }
                 break;
 
@@ -5012,11 +5069,11 @@ static void* cufet_pipe_stage(void* argp) {
             }
 
             case StopStatement:
-                sb.AppendLine($"{indent}{UnmakerRunStmt(CurrentLoopUnmakerSnap())}{FileCleanupStmts(CurrentLoopFileDepth())}{ExcPopStmts(CurrentLoopExcDepth())}{ArenaPopStmts(CurrentLoopRabbitDepth())}break;");
+                sb.AppendLine($"{indent}{UnwindTo(LoopExit)}break;");
                 break;
 
             case SkipStatement:
-                sb.AppendLine($"{indent}{UnmakerRunStmt(CurrentLoopUnmakerSnap())}{FileCleanupStmts(CurrentLoopFileDepth())}{ExcPopStmts(CurrentLoopExcDepth())}{ArenaPopStmts(CurrentLoopRabbitDepth())}continue;");
+                sb.AppendLine($"{indent}{UnwindTo(LoopExit)}continue;");
                 break;
 
             case TryStatement ts:
@@ -5030,7 +5087,14 @@ static void* cufet_pipe_stage(void* argp) {
                     throw new CompilerException("'Suppress' is only valid inside an 'In case of exception' handler.");
                 // ESC.3: Suppress can sit inside a rabbit opened within the handler — the jump to the
                 // handler's end must release those regions, exactly like Stop out of a loop.
-                sb.AppendLine($"{indent}{eh.SupVar} = 1; {ArenaPopStmts(eh.RabbitDepth)}goto {eh.DoneLabel};");
+                //
+                // ⚠ "Exactly like Stop out of a loop" is FOUR things, not one. This released arenas
+                // only, so a destructor on an object made inside the handler never ran, a file
+                // opened there was never closed, and a pad pushed there was never popped. The
+                // destructor case was a live divergence: the interpreter unwinds the handler block
+                // and runs it. Same quartet, same order, as every other nonlocal exit.
+                sb.AppendLine($"{indent}{eh.SupVar} = 1; " +
+                              $"{UnwindTo(eh.Exit)}goto {eh.DoneLabel};");
                 break;
 
             case ForEachStatement fe when fe.Series is RangeExpression range:
@@ -5509,7 +5573,7 @@ static void* cufet_pipe_stage(void* argp) {
         var savedHandler = _currentTryHandler;
         if (hasFail)
             // failure-goto pops NESTED exc handlers + NESTED rabbit arenas only
-            _currentTryHandler = (label, failVar, _openFiles.Count, _excOpen, umSnap, _rabbitDepth);
+            _currentTryHandler = (label, failVar, HereCleanup(umSnap));
         // The Try body is a block scope: register its Defines, fire (LIFO) at normal completion.
         if (UsesUnmakers) _scopeDepth++;
         EmitBlock(sb, trySt.Body, inner);
@@ -5550,10 +5614,14 @@ static void* cufet_pipe_stage(void* argp) {
             var savedExcH = _currentExcHandler;
             var savedExcV = _currentExcVar;
             var savedExcT = _varTypes.TryGetValue("the exception", out var pex) ? pex : null;
-            _currentExcHandler = (sup, doneL, _rabbitDepth);
+            // Marked at handler ENTRY — no statement of the handler has been emitted yet, so these
+            // are the depths `Suppress` has to unwind back down to. The snapshot arrives from the
+            // scoped block itself, which is the only place it exists.
+            _currentExcHandler = (sup, doneL, HereCleanup());
             _currentExcVar = xmsg;
             _varTypes["the exception"] = TExcMarker;
-            EmitScopedBlock(sb, trySt.ExceptionHandler!, inner);
+            EmitScopedBlock(sb, trySt.ExceptionHandler!, inner,
+                snap => _currentExcHandler = (sup, doneL, HereCleanup(snap)));
             _currentExcHandler = savedExcH;
             _currentExcVar = savedExcV;
             if (savedExcT != null) _varTypes["the exception"] = savedExcT; else _varTypes.Remove("the exception");
@@ -7408,7 +7476,7 @@ static void* cufet_pipe_stage(void* argp) {
             : throw new CompilerException("'or pass the failure off' requires the enclosing function to return 'T or failure'.");
         // ESC.3: only the message/category cross this return, so move them out to the frame's base
         // arena and then genuinely reclaim every rabbit region this propagation jumps out of.
-        _preEmits.Add($"if ({tmp}.is_failure) {{ {ArenaStrCopyTo(0, $"{tmp}.message", $"{tmp}.category")}{UnmakerRunStmt(_frameUnmakerBase)}{FileCleanupStmts(0)}{ExcPopStmts(0)}{ArenaPopStmts(0)}return (({enclosing}){{ .is_failure = 1, .message = {tmp}.message, .category = {tmp}.category }}); }}");
+        _preEmits.Add($"if ({tmp}.is_failure) {{ {ArenaStrCopyTo(0, $"{tmp}.message", $"{tmp}.category")}{UnwindTo(FrameExit)}return (({enclosing}){{ .is_failure = 1, .message = {tmp}.message, .category = {tmp}.category }}); }}");
         return $"{tmp}.val";
     }
 
@@ -7664,9 +7732,8 @@ static void* cufet_pipe_stage(void* argp) {
     // closes files opened within the loop before jumping out.
     private void EmitLoopBody(StringBuilder sb, IReadOnlyList<IStatement> body, string indent)
     {
-        _loopFileDepths.Add(_openFiles.Count);
-        _loopExcDepths.Add(_excOpen);
-        _loopRabbitDepths.Add(_rabbitDepth);   // ESC.3 — Stop/Skip pop rabbits opened inside the loop
+        // ESC.3 — Stop/Skip pop rabbits opened inside the loop, alongside everything else it opened.
+        _loopExits.Add(HereCleanup());
         if (!UsesUnmakers) { EmitBlock(sb, body, indent); }
         else
         {
@@ -7676,21 +7743,17 @@ static void* cufet_pipe_stage(void* argp) {
             _scopeDepth++;
             string snap = $"cf_um{_freshId++}";
             sb.AppendLine($"{indent}int {snap} = cufet_num;");
-            _loopUnmakerSnaps.Add(snap);
+            // The snapshot only exists once the block has opened, so the mark is completed in
+            // place rather than pushed twice — which is what kept the old four lists from lining up.
+            _loopExits[^1] = _loopExits[^1] with { UnmakerSnap = snap };
             EmitBlock(sb, body, indent);
             if (!BlockAlwaysExits(body)) sb.AppendLine($"{indent}cufet_run_unmakers_to({snap});");
-            _loopUnmakerSnaps.RemoveAt(_loopUnmakerSnaps.Count - 1);
             _scopeDepth--;
         }
-        _loopFileDepths.RemoveAt(_loopFileDepths.Count - 1);
-        _loopExcDepths.RemoveAt(_loopExcDepths.Count - 1);
-        _loopRabbitDepths.RemoveAt(_loopRabbitDepths.Count - 1);
+        _loopExits.RemoveAt(_loopExits.Count - 1);
     }
 
-    private string? CurrentLoopUnmakerSnap() => _loopUnmakerSnaps.Count > 0 ? _loopUnmakerSnaps[^1] : null;
 
-    private int CurrentLoopFileDepth() => _loopFileDepths.Count > 0 ? _loopFileDepths[^1] : 0;
-    private int CurrentLoopExcDepth()  => _loopExcDepths.Count > 0 ? _loopExcDepths[^1] : 0;
 
     private string MapName(IExpression mapExpr) => RegisterMapStruct((MapType)TypeOf(mapExpr));
 

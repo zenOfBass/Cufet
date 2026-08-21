@@ -684,4 +684,44 @@ public class PipelineBooksTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    /// <summary>
+    /// `Suppress` releases everything the handler opened, not just its arenas.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ REGRESSION, and a live divergence. `Suppress` is a nonlocal exit out of the handler block,
+    /// and every other nonlocal exit in the generator emits the same FOUR releases in the same
+    /// order — run unmakers, close files, pop exception pads, pop arenas. This site emitted only
+    /// the arena pop, under a comment saying it worked "exactly like Stop out of a loop"; Stop does
+    /// all four. So a destructor on an object made inside a suppressing handler never ran. The
+    /// interpreter unwinds the handler block properly and printed `unmade: …`; the compiled program
+    /// printed nothing.
+    ///
+    /// ★ The exact failure the one-ownership-story refactor exists to prevent: four things to
+    /// release, nine open-coded sites, and nothing making a new one remember all four.
+    /// </remarks>
+    [Fact]
+    public void Suppress_RunsUnmakersForObjectsMadeInTheHandler()
+    {
+        const string src = """
+            Define object noisy with (the text tag):
+            Done.
+
+            Bind unmaking a noisy to hush:
+                State "unmade: " joined to one's tag.
+            Done.
+
+            State "before".
+            Try to:
+                State 1 / 0.
+            Done.
+            In case of exception (the exception):
+                Define inside as a new noisy { the tag "in-handler" }.
+                State "handling".
+                Suppress the exception.
+            Done.
+            State "after".
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }
