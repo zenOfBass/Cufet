@@ -152,6 +152,26 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   likewise never closed. Found by reading the sites while scoping the refactor above, which is the
   refactor's own argument.
 
+- **★ The CLI silently dropped arguments it did not understand.** `cufet build a.cufe -o out.exe`
+  wrote the binary beside the SOURCE and said nothing — `-o` is not a flag this CLI has, and a
+  whole session's binaries went somewhere other than where they were asked for before anyone
+  noticed. A mistyped `--jsno` on `check` disabled JSON just as quietly, and a second file argument
+  was read by nobody. Every verb refuses what it cannot use now, and exits **2** — 0 and 1 are the
+  program's own answers (it ran, it did not), so a mistake in the *command* has to be a third thing.
+
+  ```
+  build: don't know what to do with '-o out.exe' — 'cufet build <file.cufe>'.
+    '-o' is not a flag build takes. Run 'cufet --help' for the flags each command has.
+  ```
+
+  ★ **One place keeps the silence, deliberately:** arguments after a source file
+  (`cufet script.cufe one two`). The language has no way to read them yet, but that is exactly
+  where program arguments would arrive if they are ever added, and refusing now would only have to
+  be un-refused later.
+
+  ⚠ The CLI had **no tests at all** — no test project referenced it — which is why this survived.
+  It has some now, driving the real executable as a subprocess.
+
 - **`Suppress.` was documented but does not parse.** REFERENCE showed the short form; the parser has
   always required `Suppress the exception.`
 
