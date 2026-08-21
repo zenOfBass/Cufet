@@ -56,18 +56,31 @@ Two framings that set the order:
   to self-hosting. A lexer, parser and type checker are one enormous dispatch on node type;
   written as `is a` chains, a Cufet-in-Cufet compiler is miserable to write and worse to read.
 
-1. **Pointers scoped to a rabbit**, which is what gates the C FFI below. ⚠ Nothing exists yet —
-   no surface, no design session. This is the item that sets the real distance to "done".
+1. **Foreign interoperability — pointers, the C FFI, and blocks.** What makes "anything can be
+   written in Cufet" literally rather than nearly true. Its consumers are the "call a C function"
+   family it collapses: the shell's job control and raw terminal mode, sockets, the POSIX and
+   Windows APIs. ★ No bundled book needs it any more — `math` went pure decimal in 0.16.0.
 
-   ★ The unwind side is ready for it now: a new kind of releasable thing is one field on
-   `CleanupPoint` and one term in `UnwindTo`, and every nonlocal exit gets it at once.
+   ★★ **The design session happened (2026-08-21) and the decisions are in
+   [DESIGN.md](DESIGN.md#foreign-interoperability)** — the rabbit block as the unsafe marker, one
+   inert pointer kind, explicit reads that copy, freeing through the unmaker registry, the shared
+   conversion shim, a bounded signature set, and blocks as one tagged type. This entry no longer
+   says "no design session"; read that section before starting.
 
-2. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
-   literally rather than nearly true. ★ No bundled book needs it any more — `math` went pure
-   decimal in the arc above — so its consumers are the "call a C function" family it collapses:
-   the shell's job control and raw terminal mode, sockets, the POSIX and Windows APIs.
+   ★ The unwind side is ready: a new kind of releasable thing is one field on `CleanupPoint` and
+   one term in `UnwindTo`, and every nonlocal exit gets it at once.
 
-3. **Module needs, transitively.** ★ Much smaller than it was. A body now resolves what it can see
+   **What is still undesigned**, and wants settling before code:
+   - the **declaration syntax** — how a C function, its C types, and its release function are named
+   - the **read operations** — `the text at p` and friends
+   - **struct layout** — a field is at an offset, so either pointer arithmetic (a can of worms) or
+     the declaration describes the layout and yields a record
+   - where the **blocks** type sits in the order, now that DSLs bottom out in FFI
+
+   ⚠ **It does not ship until both backends run it.** The interpreter is the oracle, and FFI is
+   the one area where being wrong means memory corruption rather than a wrong number.
+
+2. **Module needs, transitively.** ★ Much smaller than it was. A body now resolves what it can see
    where it is WRITTEN plus any MODULE its caller pulled, so an unresolved *ordinary* name is a
    static error and only module names still defer. Two holes are left, both over that small set:
 
@@ -289,14 +302,26 @@ indistinguishable from having forgotten.
   threading order is explicitly undefined and therefore incompatible with no-divergence.
 
 - **Compile-time macros.** Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs,
-  which are first-class and runtime. Fexprs are ruled out on their own terms: Wand's result means
-  no two expressions are ever equivalent, which takes out `check`, monomorphization, and any
-  compiled backend that is not an embedded interpreter.
+  which are first-class and runtime.
 
-  *Blocker: self-hosting (the Cufet-in-Cufet tier).* A macro expander generates Cufet AST, so
-  building it in C# now means building it again in Cufet later. ⚠ Macro errors are the worst part of every language that
-  has them, and clear errors are this language's distinguishing feature — that tax should be paid
-  deliberately, not absorbed early.
+  ★★ **AMENDED 2026-08-21: this is now one tag of the BLOCKS type, not a feature of its own.**
+  Quoted Cufet and embedded foreign source live under one type name; a macro is what consumes the
+  `cufet` tag. See [DESIGN.md](DESIGN.md#foreign-interoperability) — including why hygiene and SQL
+  injection turn out to be the same problem, which is what makes the unification real rather than
+  cosmetic.
+
+  ⚠ **The blocker narrowed with it.** *Self-hosting* still blocks the `cufet` tag's CONSUMER — a
+  macro expander generates Cufet AST, so building it in C# now means building it again in Cufet
+  later. It does **not** block the blocks type itself, nor foreign tags, which can ship with the
+  FFI arc. Macro errors are the worst part of every language that has them, and clear errors are
+  this language's distinguishing feature — that tax is still paid deliberately, not early.
+
+  ★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
+  ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that
+  a compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet
+  interpreter *written in C* — a third implementation, or a divergence. Note also that an explicit
+  `eval` is not a fexpr and would cost neither `check` nor monomorphization; the C-interpreter bill
+  is what rules it out.
 
 - **`Judge` value arms and `Descend.`** The construct ships — closed-union subjects, `or`
   grouping, `it` narrowed per arm, `Otherwise`, and coverage proved or defaulted so control can

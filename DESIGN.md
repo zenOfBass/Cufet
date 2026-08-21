@@ -418,6 +418,197 @@ The two arcs where soundness was the whole problem.
 
 ---
 
+## Foreign interoperability
+
+How anything that is not Cufet gets reached from inside Cufet — C libraries, and source
+written in other languages. Designed 2026-08-21; **nothing here is built yet.** The
+ordered work lives in [ROADMAP.md](ROADMAP.md); this is the *why*.
+
+### The rabbit block is the unsafe marker
+
+Pointers exist **only inside a rabbit block**, and nowhere else. That block already means
+*region-scoped memory work*, so it is also the closest thing Cufet has to `unsafe` — and
+it needs no new keyword to say so. Leaving the block ends the pointer.
+
+The reason it is the rabbit and not a new marker: **a pointer is a rabbit responsibility.**
+The arena that knows when a region dies is the thing that knows when a pointer dies. That
+*extends* the existing safety model rather than holing it.
+
+### One concept, and it is inert
+
+There is **one kind of foreign pointer**: opaque, rabbit-scoped, and impossible to
+dereference implicitly. Reading through it is an **explicit act that always copies into the
+arena** — `the text at p` yields rabbit-owned text, never a view into foreign memory.
+
+★ `char*` and `FILE*` are therefore the *same type*. What differs is not the value but what
+the writer does with it: you read through the first and never through the second. An earlier
+draft split "data" from "handles" and that was a mechanism invented where an operation would
+do.
+
+★ Explicit reads are the guardrail working in the open. You are inside a rabbit block
+*because* this is the dangerous area, so reading foreign memory should be a thing visible in
+a diff rather than marshalling hidden in a declaration.
+
+⚠ **The residual danger, accepted deliberately:** a stale handle can still be handed back to
+C. Refusing that would mean never letting the pointer exist at all, which costs `fopen`.
+This is the smallest residue that still lets real C be called, and it is where "as many
+guardrails as we reasonably can" ends.
+
+### Freeing is the unmaker registry
+
+A foreign allocation is registered with the function that releases it, exactly as an
+unmakeable object already is:
+
+| C call | registers |
+|---|---|
+| `strdup` | the pointer, with `free` |
+| `fopen` | the handle, with `fclose` |
+| `opendir` | the handle, with `closedir` |
+| `getenv` | *nothing* — static memory |
+
+There is no second list for "does not need freeing"; those are simply not registered. The
+writer never frees anything by hand — the **declaration** names the release function, once
+per binding, because `getenv` and `strdup` have identical C signatures and opposite
+obligations and nothing can infer which is which.
+
+★ `UnwindTo` already fires unmakers at every nonlocal exit, so a handle is released whether
+the block is left by `Return`, `Stop`, an exception or `Suppress`, with no new cleanup code.
+That was the point of collapsing the cleanup families into one `CleanupPoint`.
+
+⚠ **When a declaration says nothing, do not free.** A leak is recoverable, visible to a leak
+checker, and bounded by the rabbit's lifetime; a double-free is memory corruption that
+surfaces somewhere else entirely. Guardrails fail toward the recoverable side.
+
+### The boundary conversions, and the shim
+
+**One number type survives FFI**, as it has survived everything else. C types live only in
+the declaration.
+
+| C | Cufet | why it is safe |
+|---|---|---|
+| `uint8_t`/`uint32_t`, flags, masks | `bits` at that width | `bits` carries a width, and narrowing already refuses to drop a set bit — loudly, in the divide-by-zero class |
+| `int`, `long`, `ssize_t` | `number` | `bits` is unsigned (`not 0b0000` is `0b1111`), and `read()` returning −1 must be −1 |
+| `char*` | `text` | the arena copy above |
+| `void*`, `FILE*` | the opaque pointer | never dereferenced |
+| `bool` | `fact` | |
+| `double` | `number` | ⚠ **the only lossy conversion in the boundary** |
+
+★ Neither integer path can be silently wrong. `number` is a decimal with 28–29 significant
+digits, so it holds every `int64` *exactly* — converting is a **range check**, not a lossy
+narrowing, and it refuses loudly like the `bits` rule does.
+
+⚠ **`double` is the exception, and it is why the shim exists.** `number` is base-10 and a C
+`double` is base-2; `0.1` is exact as one and not the other. Two separately-written
+conversions would differ in the last ULP — which is exactly the libm caveat this project
+already retired once by going pure decimal, and exactly the shape of the casing bug that the
+shared case table exists to neutralise.
+
+**So the shim owns the conversion rules**, written once in C, called by both backends. It is
+not "FFI implemented twice": the compiler knows each signature statically and emits a direct
+call, so only the *interpreter* dispatches dynamically. What is shared is the part that can
+silently disagree.
+
+★ Because the dynamic dispatch lives in C, the interpreter's P/Invoke surface is a handful
+of fixed `DllImport`s — no `DynamicMethod`, no `calli`.
+
+**FFI does not ship until both backends run it.** The interpreter is the oracle; FFI is the
+one area where being wrong means memory corruption rather than a wrong number, and it is the
+last place to give up a second opinion.
+
+⚠ The playground runs the interpreter in **wasm**, where FFI cannot work at all. "This
+program cannot run in this environment" is therefore a required outcome regardless.
+
+### Bounded signature set, not libffi — for now
+
+The shim calls foreign functions through a generated switch over the signature shapes
+actually supported, rather than taking a dependency. libffi is the conventional answer and
+would be the right one the moment any of these arrive:
+
+- struct-by-value in either direction — hand-rolling the x86-64 SysV classification
+  algorithm, with different rules on Windows x64, would be a genuine mistake
+- varargs beyond a fixed shape
+- **callbacks from C into Cufet**
+
+★ With scalars and pointers only, every argument passes the same way and the switch is small
+and inspectable. The design keeps it that way: foreign pointers are opaque, so structs arrive
+and depart *as pointers*, never by value.
+
+**Callbacks are out of this arc**, and the deciding rule is: *you need a callback when the
+library owns the loop.* Nothing in the target set does — sockets, `ioctl`, terminal mode,
+`epoll`/`select` (you poll them), job control. Signals are already handled by the emitted
+runtime's own `sigaction`, and a Cufet signal handler would be wrong anyway, since handlers
+must be async-signal-safe and cannot run an arena allocator.
+
+⚠ **Callbacks are also asymmetric between backends**, which is the sharper reason. In the
+compiled backend C-calls-Cufet is nearly free, because compiled Cufet *is* C. In the
+interpreter the same callback needs a trampoline that re-enters the interpreter. Under
+"ships only when both backends run it", that makes them expensive, full stop.
+
+**The trigger for revisiting:** the first API actually wanted that owns the loop. Checkable,
+unlike "when we need more power". Reversing is cheap — the conversion rules are identical
+either way, and the switch is the throwaway part.
+
+### Blocks: one type for code as data
+
+Quoted Cufet and embedded foreign source live under **one type name**, tagged by language.
+
+★ **The unification is real, not cosmetic: hygiene and SQL injection are the same problem.**
+Both are "splice this in as a **value**, never as text". One splicing rule gives macros their
+hygiene and SQL its parameterisation, from the same mechanism.
+
+★ It is also the same shape as the pointer design one level up — a block is inert until an
+explicit consumer interprets it, exactly as a foreign pointer is inert until an explicit read.
+
+**Two rules, both single:**
+
+1. **The tag names the consumer.** A block is consumed by whoever speaks its language, at
+   whatever moment that consumer exists. Cufet's consumer is the compiler, so a `cufet` block
+   is consumed at compile time; a database is a runtime program, so a `sql` block is consumed
+   at run time. They differ in *when* because they are different programs — not because
+   blocks behave inconsistently.
+2. **A block is validated as early as its language allows.** Fully for `cufet`, by the
+   checker. As far as a supplied validator manages for the rest — which lets a SQL wrapper get
+   better at checking over time without the language changing.
+
+Neither timing is a choice. Running a `cufet` block at run time hits the wall below;
+executing a `sql` block at compile time has no database to execute against.
+
+⚠ **DSLs bottom out in FFI. They never get their own execution path** — that is the specific
+discipline that keeps this from becoming JNI plus JDBC plus annotations, three mechanisms
+where one belongs. A SQL wrapper contributes *syntax and validation*; FFI carries it.
+
+### Runtime `eval` of Cufet stays out — the reason that actually holds
+
+Fexprs were already ruled out on Wand's result: no two expressions are ever equivalent, which
+takes out `check`, monomorphization, and any compiled backend that is not an embedded
+interpreter.
+
+⚠ That is true but it is **not the decisive reason**, and the decisive one should be on
+record because it survives disagreeing with the theory:
+
+> A compiled Cufet binary is standalone C from gcc. Running a Cufet block at run time would
+> require **a Cufet interpreter written in C**.
+
+"We already have an interpreter" does not transfer — that one is C#, and the compiled artifact
+deliberately does not depend on .NET. So the options are a second interpreter in C (three
+implementations to keep bit-identical, when two is already the hardest thing here), or
+compiled binaries that refuse `eval` (a divergence), or not having it.
+
+★ Note the distinction the earlier framing missed: an explicit `eval` is **not** a fexpr. A
+fexpr makes *every* call site potentially non-evaluating, which is what collapses the theory;
+an explicit `eval` is visible where it is used and leaves reasoning about the rest of the
+program intact. `check` and monomorphization would survive it. The C-interpreter cost is what
+does not.
+
+★ **The umbrella survives intact anyway:** a `cufet` block need not exist at run time at all,
+because a macro consumes it before the checker.
+
+⚠ **Monomorphization is load-bearing, not speculative** — the prelude ships
+`Bind series of element to unique, given (the series of element xs)`, so every program that
+calls `unique` monomorphizes. It is the mechanism generics run on.
+
+---
+
 ## Two backends, one language
 
 Why the interpreter and the compiler must agree, and what that agreement is standing in for.
