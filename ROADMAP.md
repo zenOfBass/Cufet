@@ -56,26 +56,18 @@ Two framings that set the order:
   to self-hosting. A lexer, parser and type checker are one enormous dispatch on node type;
   written as `is a` chains, a Cufet-in-Cufet compiler is miserable to write and worse to read.
 
-1. **One ownership story — really one, exceptions.** The rabbit is already the single boundary
-   for arenas, pthreads, channels and result boxes: it pushes an arena, registers what is created
-   inside it, and joins every task and frees every channel at `Done.` before the pop.
-
-   What is not folded in is **exception bookkeeping**. `_rabbitDepth`, `_excOpen` and `_openFiles`
-   are three parallel depth stacks, each with its own unwind helper and its own per-loop list
-   (`_loopRabbitDepths`, `_loopExcDepths`, `_loopFileDepths`), and every nonlocal exit has to
-   unwind all three in the right order. The tell is `_currentTryHandler`, which carries
-   `FileDepth`, `ExcDepth` and `RabbitDepth` as separate fields. Collapsing them into one context
-   record is a refactor against a sharp invariant, not a feature.
-
-2. **Pointers scoped to a rabbit**, which is what gates the C FFI below. ⚠ Nothing exists yet —
+1. **Pointers scoped to a rabbit**, which is what gates the C FFI below. ⚠ Nothing exists yet —
    no surface, no design session. This is the item that sets the real distance to "done".
 
-3. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
+   ★ The unwind side is ready for it now: a new kind of releasable thing is one field on
+   `CleanupPoint` and one term in `UnwindTo`, and every nonlocal exit gets it at once.
+
+2. **C FFI, including an explicit address-of.** What makes "anything can be written in Cufet"
    literally rather than nearly true. ★ No bundled book needs it any more — `math` went pure
    decimal in the arc above — so its consumers are the "call a C function" family it collapses:
    the shell's job control and raw terminal mode, sockets, the POSIX and Windows APIs.
 
-4. **The other half of the unresolved-name check.** Modules record what their bodies reach for and
+3. **The other half of the unresolved-name check.** Modules record what their bodies reach for and
    the checker verifies it at each pull. Ordinary objects and free functions do not, because they
    resolve names in the scope they are CALLED from — so the same guarantee means recording needs
    and checking them at **call sites** instead. Until then a detached body's unresolved name is

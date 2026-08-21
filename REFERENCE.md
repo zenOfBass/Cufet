@@ -2853,15 +2853,19 @@ Done.
 The name in parentheses (`the exception` in the example above) is the binding
 for the exception description — it is block-local to the handler.
 
-Exceptions **re-raise by default** after the handler runs. `Suppress.` (only
-valid inside `In case of exception`) swallows the exception and continues
-execution after the `Try`:
+Exceptions **re-raise by default** after the handler runs.
+`Suppress the exception.` (only valid inside `In case of exception`) swallows the
+exception and continues execution after the `Try`:
 ```
 In case of exception (the exception):
     State "ignoring: {exception}".
-    Suppress.
+    Suppress the exception.
 Done.
 ```
+
+Leaving the handler this way releases everything the handler opened — objects
+with destructors are unmade, files opened inside it are closed — exactly as
+`Stop` does on the way out of a loop.
 
 Both handlers can appear in the same `Try`:
 ```

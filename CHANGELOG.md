@@ -76,7 +76,54 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ★ Also fixed by the same recursion: a burying function nested inside an **ordinary** method was
   not rewritten either, and its `bury` survived to a backend.
 
+### Changed
+
+- **★★ One ownership story: every nonlocal exit releases the same four things, through one place.**
+  A jump out of a block has to run unmakers, close files, pop exception pads and pop rabbit arenas —
+  always those four, always in that order. That was written out longhand at **nine** sites, with
+  four parallel per-loop stacks feeding them and two handler records carrying four loose cleanup
+  fields each. Nothing checked that the nine agreed, and twice they did not: `FailureGotoBody`'s own
+  comment records the first time (*"three of the four were already out of step when arenas were
+  added"*), and `Suppress` was the second — see below.
+
+  There is now one `CleanupPoint` — a mark taken where a jump will land — and one `UnwindTo(point)`:
+
+  ```
+  _loopExits.Add(HereCleanup());                          // was three Adds and a conditional fourth
+  sb.AppendLine($"{indent}{UnwindTo(LoopExit)}break;");   // was four nested calls
+  ```
+
+  ★ The invariant is structural now rather than remembered: a new kind of releasable thing is one
+  field on `CleanupPoint` and one term in `UnwindTo`, and every site gets it, because no site spells
+  the parts out any more.
+
+  ⚠ It also removed a shape that could not be right: the four per-loop stacks were pushed at three
+  different places, and the unmaker one only when the program had unmakers — so they could hold
+  **different lengths**. Nothing indexed them together, so nothing had gone wrong yet. One list of
+  marks cannot have that shape.
+
 ### Fixed
+
+- **★★ `Suppress` released arenas and nothing else.** A destructor on an object made inside an
+  exception handler never ran when the handler suppressed — a live divergence, since the interpreter
+  unwinds the handler block and runs it:
+
+  ```
+  In case of exception (the exception):
+      Define inside as a new noisy { the tag "in-handler" }.
+      Suppress the exception.
+  Done.
+  ```
+  > interpreter: `before / handling / unmade: in-handler / after`
+  > compiled: `before / handling / after`
+
+  `Suppress` is a nonlocal exit out of the handler block, and the code said so — *"exactly like Stop
+  out of a loop"*. `Stop` does all four releases; this did one. Files opened in the handler were
+  likewise never closed. Found by reading the sites while scoping the refactor above, which is the
+  refactor's own argument.
+
+- **`Suppress.` was documented but does not parse.** REFERENCE showed the short form; the parser has
+  always required `Suppress the exception.`
 
 - **★★ `x is not void` kept its narrowing across a bury — a live backend divergence.** A burying
   body is cut into blocks at each `bury`, and an arm's condition is carried into its block as a
