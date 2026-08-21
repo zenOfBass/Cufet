@@ -35,3 +35,9 @@ rabbit
 warren
 void
 void
+
+Two counters, each burying from its own fields:
+low: 1
+high: 100
+low: 2
+high: 101

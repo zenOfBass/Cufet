@@ -80,6 +80,27 @@ Bind void to take-three, given (the stash of number source, the text label):
     Done.
 Done.
 
+// ── A method can bury ───────────────────────────────────────────────────────────────────────────
+//
+// A method buries on the same terms as a function — it takes a rabbit, its declared type is what it
+// buries, and it has no `Return`. What it adds is `one`: the body reads its own object's fields, so
+// the stash starts from whatever THAT instance holds. Each cast makes a stash over its own
+// receiver, so two counters keep two places and neither knows about the other.
+
+Define object counter-from with (the number first-beat, the text name):
+    Bind number to ticks, given (the rabbit helper):
+        Define next as one's first-beat.
+        Repeat:
+            Have helper bury next.
+            The next becomes next + 1.
+        Until false.
+    Done.
+
+    Bind text to describe:
+        Return one's name.
+    Done.
+Done.
+
 // ── Looping over a stash ────────────────────────────────────────────────────────────────────────
 //
 // `For each <name> in <stash>` takes one value per turn and ends when the stash is spent. It is the
@@ -143,4 +164,15 @@ Pull a rabbit as warren.
     // stash is not re-read, so there is nothing to rewind to.
     State unbury found.
     State unbury found.
+
+    State "".
+    State "Two counters, each burying from its own fields:".
+    Define low  as a new counter-from { the first-beat 1,   the name "low"  }.
+    Define high as a new counter-from { the first-beat 100, the name "high" }.
+    Define low-beats  as cast ticks on (low, warren).
+    Define high-beats as cast ticks on (high, warren).
+    State (cast describe on (low))  joined to ": " joined to ((unbury low-beats  but void is 0) converted to text).
+    State (cast describe on (high)) joined to ": " joined to ((unbury high-beats but void is 0) converted to text).
+    State (cast describe on (low))  joined to ": " joined to ((unbury low-beats  but void is 0) converted to text).
+    State (cast describe on (high)) joined to ": " joined to ((unbury high-beats but void is 0) converted to text).
 Done.
