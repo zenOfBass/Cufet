@@ -267,8 +267,12 @@ public sealed partial class TypeChecker
             // ★ Every pulled module's requirements must be satisfiable HERE, because here is
             // where they resolve and here is where they can be fixed. Reported at the pull rather
             // than at the call: the caller wrote this line, and the missing name belongs in it.
+            //
+            // ⚠ Recorded now, verified when checking is DONE — a module defined after this block
+            // has not been checked yet, so its needs are not known yet. See _pendingPullChecks.
+            var visibleHere = VisibleNames();
             foreach (var (moduleName, _) in ps.Books)
-                CheckModuleNeedsAreInScope(moduleName, ps);
+                _pendingPullChecks.Add((moduleName, ps, visibleHere));
 
             CheckBlock(ps.Body);
         }
@@ -286,11 +290,19 @@ public sealed partial class TypeChecker
     /// block cannot resolve them either — so a module that needs nothing is never mentioned, and
     /// a dependency pulled further out still satisfies it.
     /// </remarks>
-    private void CheckModuleNeedsAreInScope(string moduleName, PullStatement ps)
+    /// <summary>Verifies every recorded pull, now that every module's needs are known.</summary>
+    internal void CheckPendingPulls()
+    {
+        foreach (var (moduleName, ps, visible) in _pendingPullChecks)
+            CheckModuleNeedsAreInScope(moduleName, ps, visible);
+        _pendingPullChecks.Clear();
+    }
+
+    private void CheckModuleNeedsAreInScope(string moduleName, PullStatement ps, HashSet<string> visible)
     {
         if (!_moduleNeeds.TryGetValue(moduleName, out var needs)) return;
 
-        var missing = needs.Where(name => !TryLookup(name, out _)).OrderBy(n => n, StringComparer.Ordinal).ToList();
+        var missing = needs.Where(name => !visible.Contains(name)).OrderBy(n => n, StringComparer.Ordinal).ToList();
         if (missing.Count == 0) return;
 
         var names = string.Join(", ", missing.Select(m => $"'{m}'"));

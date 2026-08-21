@@ -486,4 +486,85 @@ public class ModulePullTests
             """));
         Assert.Contains("comes with the language", ex.Message);
     }
+
+    // ── A module's dependencies, checked at the pull ───────────────────────
+    //
+    // A module resolves names in the block it is USED in, so what it reaches for without defining
+    // is a requirement on whoever pulls it. Forgetting one used to give three answers to one
+    // program: `check` said nothing, the interpreter died pointing INSIDE the module, and the
+    // compiler blamed itself. These pin the one answer.
+
+    private const string GeometryNeedingMath = """
+        Define object geometry with () and module:
+            Bind number to circle-area, given (the number radius):
+                Return math's pi * radius * radius.
+            Done.
+        Done.
+
+        """;
+
+    [Fact]
+    public void AMissingDependency_IsRefusedAtThePull()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(GeometryNeedingMath + """
+            Pull geometry.
+                State cast geometry's circle-area on (2).
+            Done.
+            """));
+        Assert.Contains("'geometry' uses 'math', which isn't pulled here", ex.Message);
+        Assert.Contains("Pull books on math, and geometry.", ex.Message);
+    }
+
+    [Fact]
+    public void ADependencyPulledAlongside_Satisfies()
+    {
+        Assert.Equal("12.566370614359172953850573533", Run(GeometryNeedingMath + """
+            Pull books on math, and geometry.
+                State cast geometry's circle-area on (2).
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AModuleDefinedAfterThePull_StillHasItsNeedsChecked()
+    {
+        // ⚠ REGRESSION. The check ran AT the pull, so it could only see modules already checked —
+        // and a module written after the block that pulls it had not been. The identical program
+        // passed or failed on definition ORDER: this order checked clean and died at run time,
+        // advising `Define math as <value>` for something you pull. Verification is deferred to
+        // the end of checking now, when every module's needs are known.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Pull geometry.
+                State cast geometry's circle-area on (2).
+            Done.
+
+            Define object geometry with () and module:
+                Bind number to circle-area, given (the number radius):
+                    Return math's pi * radius * radius.
+                Done.
+            Done.
+            """));
+        Assert.Contains("'geometry' uses 'math', which isn't pulled here", ex.Message);
+    }
+
+    [Fact]
+    public void ADefineAfterThePull_DoesNotSatisfyTheDependency()
+    {
+        // ★ Why the visible names are SNAPSHOT at the pull rather than read from the live scope
+        // when the check finally runs: by then `factor` exists, but it did not exist at the pull,
+        // and the pulled module's body would have run without it.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define object helper-kit with () and module:
+                Bind number to doubled, given (the number x):
+                    Return x * factor.
+                Done.
+            Done.
+
+            Pull helper-kit.
+                State cast helper-kit's doubled on (5).
+            Done.
+            Define factor as 2.
+            """));
+        Assert.Contains("'helper-kit' uses 'factor'", ex.Message);
+    }
 }

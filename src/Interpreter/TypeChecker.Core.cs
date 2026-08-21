@@ -804,6 +804,11 @@ public sealed partial class TypeChecker
         Pass2CheckOverloads(program); // body-check all overloads; populates _overloadReturnTypes
         CheckBlock(program.Statements);
 
+        // ⚠ HERE, not at each pull. Every module body has now been checked, so every module's needs
+        // are known — including a module defined after the block that pulls it, which is the order
+        // the at-the-pull check silently let through.
+        CheckPendingPulls();
+
         // ★★ No filled SHELL may survive the front end, the same way no `stash of T` does. A shell
         // reaches a backend wherever a type was merely WRITTEN rather than resolved — an annotation
         // like `a series of box of number` never passes through ResolveParamType — and the backend
@@ -967,6 +972,32 @@ public sealed partial class TypeChecker
     private string? _checkingModuleName;
     private readonly Dictionary<string, HashSet<string>> _moduleNeeds =
         new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Each pull met while checking, with the names visible at it — verified once checking is done.
+    /// </summary>
+    /// <remarks>
+    /// ⚠⚠ Deferred because a module's needs are not known until its BODY has been checked, and a
+    /// module may be defined AFTER the block that pulls it. Checking at the pull worked only when
+    /// the definition came first: flip the two and the identical program checked clean and died at
+    /// run time, advising `Define math as &lt;value&gt;` for something you pull. That is the
+    /// three-answers failure this check exists to stop, still live for one of the two orders.
+    ///
+    /// ★ The names are SNAPSHOT, not the scope. A `Define` later in the pulling block must not
+    /// count as satisfying a dependency the pull needed earlier, and the live scope would say it
+    /// did. The snapshot is the key set <see cref="TryLookup"/> searches, so the two agree exactly.
+    /// </remarks>
+    private readonly List<(string Module, PullStatement Pull, HashSet<string> Visible)>
+        _pendingPullChecks = new();
+
+    /// <summary>The names a lookup would find right here.</summary>
+    private HashSet<string> VisibleNames()
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var scope in _scopes)
+            foreach (var name in scope.Keys) names.Add(name);
+        return names;
+    }
 
     /// <summary>A RESOLVED name that is another pulled module — still a requirement.</summary>
     /// <remarks>
