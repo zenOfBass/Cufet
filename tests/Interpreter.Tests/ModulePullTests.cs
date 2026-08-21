@@ -567,4 +567,103 @@ public class ModulePullTests
             """));
         Assert.Contains("'helper-kit' uses 'factor'", ex.Message);
     }
+
+    // ── A body sees what it can see where it is WRITTEN, plus its caller's modules ──
+    //
+    // ★★ Deferring an unresolved name in a detached body exists for ONE reason: a pulled module is
+    // a capability of the block that uses the body, so `math's pi` in a method is legitimate
+    // whenever the caller pulled `math`. That reason only ever covered module names, and applying
+    // it to every name meant a plain typo was indistinguishable from a capability — and waited
+    // until the line ran to say so.
+
+    [Fact]
+    public void AModuleNameStillReachesABodyWrittenOutsideAnyPull()
+    {
+        // The case the deferral is FOR, and it keeps working: `geometry` names `math` without
+        // pulling it, and the block that uses `geometry` supplies it.
+        Assert.Equal("12.566370614359172953850573533", Run("""
+            Define object geometry with () and module:
+                Bind number to circle-area, given (the number radius):
+                    Return math's pi * radius * radius.
+                Done.
+            Done.
+
+            Pull books on math, and geometry.
+                State cast geometry's circle-area on (2).
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ANameThatIsNoModule_IsRefusedWhereItIsWritten()
+    {
+        // ⚠ This is DYNAMIC SCOPING, and it used to check clean and die at run time: `borrowed` is
+        // a local of whoever calls `sneaky`. Nothing ever wanted this — it came along with the
+        // module rule because the rule was applied to every name rather than to module names.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Bind number to sneaky:
+                Return borrowed + 1.
+            Done.
+
+            Bind number to caller:
+                Define borrowed as 41.
+                Return cast sneaky on ().
+            Done.
+
+            State cast caller on ().
+            """));
+        Assert.Contains("'borrowed' isn't defined", ex.Message);
+        Assert.Contains("where it is WRITTEN", ex.Message);
+    }
+
+    [Fact]
+    public void AnAliasReachesABodyInsideItsPull()
+    {
+        // An alias is an ordinary name in the block that makes it, and a body written there sees it
+        // like any other — this has always worked and still does.
+        Assert.Equal("4", Run("""
+            Pull a book on math as m.
+                Bind number to root-of, given (the number n):
+                    Return m's square-root of (n) but void is 0.
+                Done.
+                State cast root-of on (16).
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AnAliasDoesNotReachABodyOutsideItsPull()
+    {
+        // ★ The one shape this rule takes away, and it deserves taking away: `root-of` works only
+        // while every caller happens to alias `math` to `m`. Rename the alias at one call site and
+        // the function breaks with nothing to point at. An alias is for the block that makes it —
+        // it is not something to publish.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Bind number to root-of, given (the number n):
+                Return m's square-root of (n) but void is 0.
+            Done.
+
+            Pull a book on math as m.
+                State cast root-of on (16).
+            Done.
+            """));
+        Assert.Contains("'m' isn't defined", ex.Message);
+    }
+
+    [Fact]
+    public void ALambdaSeesTheLocalItClosesOver()
+    {
+        // ⚠ REGRESSION, and the thing this rule flushed out. A lambda inside a function took its
+        // whole enclosing scope; a lambda at the TOP level took only functions and constants and
+        // left ordinary locals "to the capture machinery" — meaning to the deferral. So the checker
+        // could not see the very name the closure captured. A closure captures what is lexically in
+        // scope; that is what makes it a closure rather than a lookup.
+        Assert.Equal("3", Run("""
+            Pull a rabbit.
+                Define nums as a series of number with (1, 2, 3).
+                Define f as a function: Return the number of nums. Done.
+                State cast f on ().
+            Done.
+            """));
+    }
 }

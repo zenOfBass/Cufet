@@ -290,6 +290,31 @@ public sealed partial class TypeChecker
     /// block cannot resolve them either — so a module that needs nothing is never mentioned, and
     /// a dependency pulled further out still satisfies it.
     /// </remarks>
+    /// <summary>
+    /// Is this the name of something PULLABLE — a bundled book, or an object declared a module?
+    /// </summary>
+    /// <remarks>
+    /// ★★ The one name a detached body may reach for without having it in scope. A body resolves
+    /// names where it is WRITTEN, with one exception: a pulled module is a capability of the block
+    /// that uses the body, so `math's pi` inside a method is legitimate whenever the caller pulled
+    /// `math`. That exception is what the deferral in `NoteUnresolvedName` is FOR, and it used to
+    /// apply to every name — which made a plain typo indistinguishable from a capability and put
+    /// off finding it until run time.
+    ///
+    /// ⚠ Declarations only — an ALIAS is deliberately not a module name. `Pull math as m.` makes
+    /// `m` a name in that block, and a body written inside it sees `m` lexically like anything
+    /// else. What is refused is a body OUTSIDE the pull written against `m`, because such a body
+    /// works only while every caller happens to pick the same alias; rename it at one call site and
+    /// the function breaks with nothing to point at. An alias is for the block that makes it, not
+    /// something to publish.
+    ///
+    /// ★ Answerable whenever a body is checked: every object definition is registered in Pass1Hoist
+    /// before any body, so a module defined further down the file counts here too.
+    /// </remarks>
+    private bool IsModuleName(string name) =>
+        BuiltinBooks.ContainsKey(name)
+     || (_objectDefs.TryGetValue(name, out var ot) && ot.ConformedInterfaces.Contains(ModuleInterface));
+
     /// <summary>Verifies every recorded pull, now that every module's needs are known.</summary>
     internal void CheckPendingPulls()
     {

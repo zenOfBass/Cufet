@@ -1037,13 +1037,6 @@ public sealed partial class TypeChecker
         // ★ In code whose scope is FINAL — top-level statements, not a detached body — nothing can
         // arrive later to define this name, so it is a mistake and is refused here rather than at
         // run time. `State mystery.` used to check clean.
-        //
-        // ⚠ A detached body still DEFERS, and that is not laziness: a method or function resolves
-        // names in the scope it is CALLED from, so `math's pi` inside an ordinary object's method
-        // is legitimate whenever the caller pulled `math`. Refusing there would break working
-        // programs. What a MODULE reaches for is recorded above and checked at its pull instead;
-        // doing the same for every object and free function, checked at each call site, is the
-        // other half of this and is not built.
         if (!_inFunction)
             throw TypeError(
                 $"'{vr.Name}' isn't defined",
@@ -1051,6 +1044,30 @@ public sealed partial class TypeChecker
                 vr.Line, vr.Column,
                 $"use '{vr.Name}' here",
                 $"Define it first: 'Define {vr.Name} as <value>.' — or check the spelling.");
+
+        // ★★ A detached body defers for exactly ONE kind of name, and only that kind. A pulled
+        // module is a capability of the block that uses the body, so `math's pi` inside a method is
+        // legitimate whenever the caller pulled `math` — that is the whole reason deferring exists.
+        // It used to apply to EVERY name, which made a plain typo indistinguishable from a
+        // capability and put off finding it until the line ran.
+        //
+        // ⚠ What deferred without this was dynamic scoping, and nothing wanted it: a body reaching
+        // for `borrowed` — a LOCAL of whoever called it — checked clean and died at run time. The
+        // lexical rule was already half in force, since a body using a top-level constant declared
+        // further down was refused with a message recommending closures.
+        //
+        // ⚠ A body written INSIDE a pull is unaffected and never reaches here: SaveScopes carries
+        // every pulled module and book into a detached body's scope, aliases included, so those
+        // resolve lexically like any other name.
+        if (!IsModuleName(vr.Name))
+            throw TypeError(
+                $"'{vr.Name}' isn't defined",
+                "A function or method uses the names it can see where it is WRITTEN — plus any "
+              + "module its caller pulled, and no module is named this",
+                vr.Line, vr.Column,
+                $"use '{vr.Name}' here",
+                $"Define it first, take it as a parameter, or — if it is meant to be a module — "
+              + $"declare it: 'Define object {vr.Name} with (...) and {ModuleInterface}:'.");
 
         return null;
     }

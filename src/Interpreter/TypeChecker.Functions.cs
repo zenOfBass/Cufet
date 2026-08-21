@@ -299,23 +299,28 @@ public sealed partial class TypeChecker
     // Subsequent returns validate against the inferred type normally.
     private FunctionType InferLambdaLiteral(LambdaLiteral lambda)
     {
-        var saved     = SaveScopes();
-        bool isNested = _inFunction;
-        if (isNested)
-            foreach (var scope in saved.V)
-                foreach (var (k, v) in scope)
-                    Scope[k] = v.IsParameter && IsReferenceType(v.Type)
-                        ? v with { RabbitDepth = CapturedParameterDepth }
-                        : v;
-        else
-            // ⚠ Deliberately NOT ImportTopLevelVisible: a lambda literal is not a detached body.
-            // It CAPTURES its enclosing scope, so nothing is hidden from it — recording hidden
-            // names here rejected `Define f as a function: Return the number of nums. Done.`
-            // sitting right beside the `nums` it closes over. Constants are imported for the case
-            // where there is nothing to capture; the rest is left to the capture machinery.
-            foreach (var scope in saved.V)
-                foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType || kv.Value.Permanent))
-                    Scope[k] = v;
+        var saved = SaveScopes();
+
+        // ⚠ Deliberately NOT ImportTopLevelVisible: a lambda literal is not a detached body. It
+        // CAPTURES its enclosing scope, so nothing is hidden from it — recording hidden names here
+        // rejected `Define f as a function: Return the number of nums. Done.` sitting right beside
+        // the `nums` it closes over.
+        //
+        // ⚠⚠ The WHOLE enclosing scope, at every nesting level. A lambda inside a function already
+        // took it; a lambda at the top level took only functions and constants and left ordinary
+        // locals "to the capture machinery" — which meant to the DEFERRAL, back when an unresolved
+        // name in a body was allowed to be found at run time. It no longer is, so the same lambda
+        // beside the same `nums` has to see it here. Capturing a name the checker cannot see was
+        // always the odd half of this: what a closure captures is exactly what is lexically in
+        // scope, which is what makes it a closure rather than a lookup.
+        //
+        // ★ A reference-typed PARAMETER is re-depthed on the way in: a captured parameter is not
+        // owned by this frame's rabbit, so it is marked as coming from outside it (ESC.4).
+        foreach (var scope in saved.V)
+            foreach (var (k, v) in scope)
+                Scope[k] = v.IsParameter && IsReferenceType(v.Type)
+                    ? v with { RabbitDepth = CapturedParameterDepth }
+                    : v;
         foreach (var (type, name) in lambda.Parameters)
             Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), lambda.Line, IsParameter: true);
 

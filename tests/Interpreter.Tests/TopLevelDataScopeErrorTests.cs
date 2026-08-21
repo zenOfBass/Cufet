@@ -26,15 +26,9 @@ public class TopLevelDataScopeErrorTests
         return Assert.Throws<TypeException>(() => new TypeChecker().Check(program));
     }
 
-    // For the cases the checker still cannot see — a name that was never defined at all.
-    private static RuntimeException RunFailsAtRuntime(string source)
-    {
-        var tokens  = new CufetLexer(source).Tokenize();
-        var program = new Parser(tokens).Parse();
-        program = new TypeChecker().Check(program);
-        var output = new StringWriter();
-        return Assert.Throws<RuntimeException>(() => new Interpreter(output).Execute(program));
-    }
+    // ⚠ There was a RunFailsAtRuntime here, for "the cases the checker still cannot see". There are
+    // no such cases left in this file: an unresolvable name in a body is refused when the program
+    // is checked, so every test here goes through RunFails.
 
     private static string Run(string source)
     {
@@ -135,15 +129,20 @@ public class TopLevelDataScopeErrorTests
 
     // ── Genuine undefined still gives the plain error ─────────────────────────────
 
-    // ★ The control, and it deliberately does NOT go through RunFails. A name that was never
-    // defined anywhere is not the same case as one deliberately hidden from a top-level function:
-    // the checker still infers it to null and lets the interpreter report it at run time. Keeping
-    // this on the runtime path is what proves the new check-time refusal fires for hidden data
-    // specifically, rather than for every name the checker cannot resolve.
+    // ★ The control: a name never defined anywhere is not the same case as one deliberately hidden
+    // from a top-level function, and it must not borrow that message.
+    //
+    // ⚠⚠ This test used to assert a RUNTIME failure, and its note explained why — the checker
+    // inferred the name to null and left it to the interpreter, so keeping this on the runtime path
+    // proved the hidden-data refusal fired for hidden data specifically. That distinction is GONE
+    // as of 2026-08-21: a body resolves the names it can see where it is WRITTEN, plus modules its
+    // caller pulled, so a name that is neither is refused when the program is checked. Both cases
+    // are check-time now, and they are still told apart by their messages, which is what the
+    // assertions below check.
     [Fact]
     public void GenuineUndefined_GivesPlainError()
     {
-        var ex = RunFailsAtRuntime("""
+        var ex = RunFails("""
             Bind void to show:
                 State nonexistent.
             Done.
