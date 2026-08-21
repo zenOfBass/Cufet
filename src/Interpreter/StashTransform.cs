@@ -58,24 +58,28 @@ public static class StashTransform
     public static IReadOnlyList<IStatement> Expand(
         IReadOnlyList<IStatement> statements,
         IReadOnlySet<string> buryingFunctions,
-        StashFacts facts)
+        StashFacts facts,
+        IReadOnlySet<(string Type, string Method)>? buryingMethods = null)
     {
+        buryingMethods ??= new HashSet<(string, string)>();
+
         // Nothing buries ⇒ nothing can ever PRODUCE a stash, so any `stash of T` written in this
         // program is a type no value can inhabit. Leaving it alone keeps the walk below off the
         // path of every ordinary program, which is all of them.
-        if (buryingFunctions.Count == 0) return statements;
+        if (buryingFunctions.Count == 0 && buryingMethods.Count == 0) return statements;
 
         // ★ Two halves of one job. The rewrite turns burying BODIES into state machines; the
         // substitution turns written `stash of T` ANNOTATIONS into the closure type those machines
         // hand back. Both are needed: rewriting bodies alone leaves a `stash of number` parameter
         // spelled as a type the back end has never heard of.
-        return StashTypeSubstitution.Apply(Rewrite(statements, buryingFunctions, facts));
+        return StashTypeSubstitution.Apply(Rewrite(statements, buryingFunctions, facts, buryingMethods));
     }
 
     private static List<IStatement> Rewrite(
         IReadOnlyList<IStatement> statements,
         IReadOnlySet<string> buryingFunctions,
-        StashFacts facts)
+        StashFacts facts,
+        IReadOnlySet<(string Type, string Method)> buryingMethods)
     {
         var output = new List<IStatement>(statements.Count);
         foreach (var stmt in statements)
@@ -86,17 +90,53 @@ public static class StashTransform
                     output.AddRange(new Machine(bind, facts).Build());
                     break;
 
+                // ★ An `unto` method is a method that happens to be written at the top level, so it
+                // gets the method treatment — and both halves keep the `unto`, or the pair would
+                // land as free functions and the receiver would have nothing to resolve against.
+                // ⚠ Not covered by the object-definition arm below: an `unto` method is never moved
+                // into `od.Methods`, only its SIGNATURE is registered on the type.
+                case BindStatement bind when bind.UntoType is { } owner
+                                          && buryingMethods.Contains((owner, bind.Name)):
+                    output.AddRange(new Machine(bind, facts, owner).Build()
+                        .Cast<BindStatement>()
+                        .Select(b => b with { UntoType = owner }));
+                    break;
+
                 // A burying function can be declared inside any of these, so the walk follows them.
                 // An ordinary Bind is included because a nested generator is a generator too.
                 case BindStatement bind:
-                    output.Add(bind with { Body = Rewrite(bind.Body, buryingFunctions, facts) });
+                    output.Add(bind with { Body = Rewrite(bind.Body, buryingFunctions, facts, buryingMethods) });
                     break;
                 case PullStatement ps:
-                    output.Add(ps with { Body = Rewrite(ps.Body, buryingFunctions, facts) });
+                    output.Add(ps with { Body = Rewrite(ps.Body, buryingFunctions, facts, buryingMethods) });
                     break;
                 case PullRabbitStatement prs:
-                    output.Add(prs with { Body = Rewrite(prs.Body, buryingFunctions, facts) });
+                    output.Add(prs with { Body = Rewrite(prs.Body, buryingFunctions, facts, buryingMethods) });
                     break;
+
+                // ★ A METHOD that buries becomes two methods, where a free function becomes two
+                // functions — and both stay methods on purpose. The dispatch reads `one's <field>`
+                // like the body it came from, so leaving it a method is what makes the receiver
+                // resolve; the alternative is rewriting every `one` in the body into a synthesised
+                // parameter, which is more machinery for a worse result.
+                //
+                // ⚠ The walk did not come in here at all before, so a burying function nested
+                // inside an ORDINARY method was not rewritten either — its `bury` survived to a
+                // backend, which refuses a stray one loudly. That is fixed by the same recursion.
+                case ObjectDefinition od:
+                {
+                    var methods = new List<BindStatement>(od.Methods.Count);
+                    foreach (var method in od.Methods)
+                    {
+                        if (buryingMethods.Contains((od.Name, method.Name)))
+                            methods.AddRange(new Machine(method, facts, od.Name).Build().Cast<BindStatement>());
+                        else
+                            methods.Add(method with
+                                { Body = Rewrite(method.Body, buryingFunctions, facts, buryingMethods) });
+                    }
+                    output.Add(od with { Methods = methods });
+                    break;
+                }
 
                 default:
                     output.Add(stmt);
@@ -165,12 +205,26 @@ public static class StashTransform
         // Conditions in force at the point a block is created — see Block.Guards.
         private readonly List<IExpression> _guards = [];
 
-        public Machine(BindStatement bind, StashFacts facts)
+        /// <summary>The owning type when this is a METHOD, null when it is a free function.</summary>
+        private readonly string? _owner;
+
+        /// <summary>
+        /// What the checker recorded this body's locals under, and what a refusal calls it.
+        /// </summary>
+        /// <remarks>
+        /// A method's locals cannot be keyed on the bare method name: two types may each have a
+        /// `ticks`, and one slot table would then hold both. See TypeChecker.StashMethodKey.
+        /// </remarks>
+        private readonly string _factsKey;
+
+        public Machine(BindStatement bind, StashFacts facts, string? owner = null)
         {
-            _bind  = bind;
-            _facts = facts;
-            _line  = bind.Line;
-            _col   = bind.Column;
+            _bind     = bind;
+            _facts    = facts;
+            _owner    = owner;
+            _factsKey = owner == null ? bind.Name : TypeChecker.StashMethodKey(owner, bind.Name);
+            _line     = bind.Line;
+            _col      = bind.Column;
         }
 
         public List<IStatement> Build()
@@ -179,7 +233,7 @@ public static class StashTransform
             // reports that by handing back void. Allowing one would need a second way to say
             // "spent", which is a surface decision, not a lowering detail.
             if (ContainsReturn(_bind.Body))
-                throw Refuse($"'{_bind.Name}' buries, so it can't also return a value",
+                throw Refuse($"'{_factsKey}' buries, so it can't also return a value",
                     "return from a burying function",
                     "A burying function finishes by reaching its end, and whoever holds the stash "
                   + "sees void once it is spent. Take the 'Return' out.", _line, _col);
@@ -227,16 +281,25 @@ public static class StashTransform
                     _bind.Parameters.Any(p => p.Name == h.Name) ? [Var(h.Name)] : [],
                     h.Type, _line, _col)));
 
+            // ★ A METHOD's dispatch is cast on `one`, which the closure therefore captures. That is
+            // what gives each INSTANCE its own generator: two tickers hand back two closures, each
+            // holding its own receiver alongside its own frame and slots. `one` is an object, so it
+            // is captured by SHARE — the stash sees the instance as it is now, not as it was when
+            // the stash was made, which is the same thing every other method sees.
+            IReadOnlyList<IExpression> resumeArgs =
+            [
+                .. _owner == null ? Array.Empty<IExpression>() : [Var(SelfName)],
+                Var(FrameName),
+                .. slotNames.Select(Var),
+                .. passed.Select(p => (IExpression)Var(p.Name)),
+            ];
+
             // ⚠ Returned INLINE. A closure bound to a local and then returned is refused by the
             // compiler — its environment is opaque once built.
             factoryBody.Add(new ReturnStatement(
                 new LambdaLiteral([],
                     [new ReturnStatement(
-                        new CastExpression(Var(resumeName),
-                            [Var(FrameName),
-                            .. slotNames.Select(Var),
-                            .. passed.Select(p => (IExpression)Var(p.Name))],
-                            _line, _col),
+                        new CastExpression(Var(resumeName), resumeArgs, _line, _col),
                         _line, _col)],
                     _line, _col),
                 _line, _col));
@@ -371,10 +434,10 @@ public static class StashTransform
                     IExpression? elseGuard = null;
                     if (judge.OtherwiseBody != null)
                     {
-                        _facts.Locals.TryGetValue((_bind.Name, ItName), out var subjectType);
+                        _facts.Locals.TryGetValue((_factsKey, ItName), out var subjectType);
                         if (subjectType is not UnionType { Cases: { } subjectCases })
                             throw Refuse(
-                                $"'{_bind.Name}' buries inside the 'Otherwise' of a judgement on something "
+                                $"'{_factsKey}' buries inside the 'Otherwise' of a judgement on something "
                               + "that is not a closed union",
                                 "bury from inside that 'Otherwise'",
                                 "The leftover cases have to be named to resume into them, and only a closed "
@@ -435,13 +498,13 @@ public static class StashTransform
                     return NewBlock();
 
                 case StopStatement or SkipStatement:
-                    throw Refuse($"'{_bind.Name}' has a 'Stop' or a 'Skip' with no loop to leave",
+                    throw Refuse($"'{_factsKey}' has a 'Stop' or a 'Skip' with no loop to leave",
                         "stop or skip outside a loop",
                         "Put it inside the loop it belongs to.", Where(stmt));
 
                 default:
                     throw Refuse(
-                        $"'{_bind.Name}' buries inside a {Describe(stmt)}, which can't be split into steps",
+                        $"'{_factsKey}' buries inside a {Describe(stmt)}, which can't be split into steps",
                         $"bury from inside a {Describe(stmt)}",
                         "A Try block, a rabbit block, a task and a file block each carry something — a "
                       + "handler, a region, a thread, an open file — that a resumption cannot restore. "
@@ -458,7 +521,7 @@ public static class StashTransform
         {
             if (!_facts.ForEachSources.TryGetValue((fe.Line, fe.Column), out var sourceType))
                 throw Refuse(
-                    $"'{_bind.Name}' buries inside a for-each over something that is not a series",
+                    $"'{_factsKey}' buries inside a for-each over something that is not a series",
                     "bury while looping over a map",
                     "Resuming a loop means counting back to where it was, and a map's entries have "
                     + "no position to count to. Loop over a series, or use a While.", (fe.Line, fe.Column));
@@ -521,9 +584,9 @@ public static class StashTransform
         private CufetType TypeOfLocal(DefineStatement define)
         {
             if (_invented.TryGetValue(define.Name, out var invented)) return invented;
-            if (_facts.Locals.TryGetValue((_bind.Name, define.Name), out var known)) return known;
+            if (_facts.Locals.TryGetValue((_factsKey, define.Name), out var known)) return known;
             throw Refuse(
-                $"'{_bind.Name}' buries, and the type of '{define.Name}' could not be worked out",
+                $"'{_factsKey}' buries, and the type of '{define.Name}' could not be worked out",
                 $"keep '{define.Name}' across a bury",
                 "Everything that survives a resumption is stored, and storing it needs its type. "
                 + "Give it a starting value whose type is clear.", (define.Line, define.Column));
@@ -699,6 +762,10 @@ public static class StashTransform
     // ⚠ The one name here a user CAN write, and deliberately so: `it` is the language's own name
     // for a judgement's subject and a for-each's iterator, so the machine has to use exactly it.
     private const string ItName = "it";
+
+    // Likewise `one` — the receiver's name inside any method, and the first argument of a method
+    // cast. The machine writes it only when it is building a method, where it always resolves.
+    private const string SelfName = "one";
 
     // NumberLiteral is one of the position-less nodes — it carries no line or column.
     private static NumberLiteral Num(int n) => new(n);

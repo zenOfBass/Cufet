@@ -953,4 +953,164 @@ public class StashMachineTests
     // ⚠ The `is not void` narrowing regression is NOT here, and could not be: the interpreter
     // narrows by value and ran that program correctly before the fix as well as after. It only ever
     // went red on the compiler, so it lives in PipelineClosureTests where it reaches its path.
+
+    // ── A method that buries ───────────────────────────────────────────────
+    //
+    // A burying method becomes two METHODS, not two functions: the dispatch reads `one's <field>`
+    // exactly as the body it came from did, so the receiver has to still be there to resolve
+    // against. What each test below really asks is whether the receiver survived the split.
+
+    private const string TickerObject = """
+        Define object ticker with (the number first-beat, the text label):
+            Bind number to ticks, given (the rabbit helper):
+                Define next as one's first-beat.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Bind text to describe:
+                Return one's label.
+            Done.
+        Done.
+        """;
+
+    [Fact]
+    public void AMethodCanBury_AndReadsItsOwnFields()
+    {
+        Assert.Equal("5\n6\n7", Run(TickerObject + """
+
+            Pull a rabbit as hopper.
+                Define clock as a new ticker { the first-beat 5, the label "clock" }.
+                Define beats as cast ticks on (clock, hopper).
+                State unbury beats.
+                State unbury beats.
+                State unbury beats.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void TwoInstances_EachGetTheirOwnPlaceToStand()
+    {
+        // ★ The receiver is captured by the closure, so the state belongs to the INSTANCE rather
+        // than to the method. Two tickers hand back two stashes that know nothing of each other.
+        Assert.Equal("1\n100\n2\n101", Run(TickerObject + """
+
+            Pull a rabbit as hopper.
+                Define low  as a new ticker { the first-beat 1,   the label "low" }.
+                Define high as a new ticker { the first-beat 100, the label "high" }.
+                Define low-beats  as cast ticks on (low, hopper).
+                Define high-beats as cast ticks on (high, hopper).
+                State unbury low-beats.
+                State unbury high-beats.
+                State unbury low-beats.
+                State unbury high-beats.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AnOrdinaryMethodStillWorksBesideABuryingOne()
+    {
+        // The rewrite replaces one method and leaves the rest of the type alone.
+        Assert.Equal("clock: 5\nclock: 6", Run(TickerObject + """
+
+            Pull a rabbit as hopper.
+                Define clock as a new ticker { the first-beat 5, the label "clock" }.
+                Define beats as cast ticks on (clock, hopper).
+                Define taken as 0.
+                For each beat in beats, repeat:
+                    If taken is 2:
+                        Stop.
+                    Done.
+                    State (cast describe on (clock)) joined to ": " joined to (beat converted to text).
+                    The taken becomes taken + 1.
+                Done.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AnUntoMethodCanBuryToo()
+    {
+        // ⚠ An `unto` method is a method written at the top level, and only its SIGNATURE is
+        // registered on the type — it is never moved into the definition's method list. So it needs
+        // its own arm in the rewrite, and both halves have to keep the `unto` or they land as free
+        // functions with no receiver to resolve against.
+        Assert.Equal("1\n3\n5", Run(TickerObject + """
+
+            Bind number to every-other unto ticker, given (the rabbit helper):
+                Define next as one's first-beat.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 2.
+                Until false.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define low as a new ticker { the first-beat 1, the label "low" }.
+                Define odds as cast every-other on (low, hopper).
+                For each odd-beat in odds, repeat:
+                    If odd-beat is greater than 5:
+                        Stop.
+                    Done.
+                    State odd-beat.
+                Done.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ABuryingMethodWithNoDeclaredType_SaysWhatIsMissing()
+    {
+        Assert.Contains("has to say what kind", Assert.Throws<TypeException>(() => Run("""
+            Define object ticker with (the number first-beat):
+                Bind void to ticks, given (the rabbit helper):
+                    Have helper bury one's first-beat.
+                Done.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define clock as a new ticker { the first-beat 5 }.
+                State unbury (cast ticks on (clock, hopper)).
+            Done.
+            """)).Message);
+    }
+
+    [Fact]
+    public void TwoTypesMayEachHaveATicks_OnlyOneOfThemBurying()
+    {
+        // ⚠ Why burying METHODS are tracked by (type, method) rather than by name. A single
+        // name-keyed set would answer "buries" for both of these, and the ordinary one would be
+        // rewritten into a state machine — or be told its `number` return type is a stash.
+        Assert.Equal("5\n6\n42", Run("""
+            Define object generator with (the number first-beat):
+                Bind number to ticks, given (the rabbit helper):
+                    Define next as one's first-beat.
+                    Repeat:
+                        Have helper bury next.
+                        The next becomes next + 1.
+                    Until false.
+                Done.
+            Done.
+
+            Define object plain with (the number held):
+                Bind number to ticks:
+                    Return one's held.
+                Done.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define gen as a new generator { the first-beat 5 }.
+                Define beats as cast ticks on (gen, hopper).
+                State unbury beats.
+                State unbury beats.
+
+                Define flat as a new plain { the held 42 }.
+                State cast ticks on (flat).
+            Done.
+            """));
+    }
 }

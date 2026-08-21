@@ -753,4 +753,37 @@ public class PipelineEscapeTests : PipelineTestBase
             try { File.Delete(binPath); } catch { }
         }
     }
+
+    /// <summary>
+    /// A stash stored where it outlives the rabbit that buried it is REFUSED, not copied.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Pinned because `IsRegionBearing` — which decides the escape ANNOTATION — answered `false`
+    /// for a stash until it was given an arm, while the closure a stash lowers to answers `true`.
+    /// Nothing broke, because this refusal catches the program first; the pin is what keeps that
+    /// true. If a future change ever turned this into an escape COPY it would be silently wrong:
+    /// copying the closure struct copies two pointers, and the environment it points at is exactly
+    /// the thing the dead rabbit took with it.
+    /// </remarks>
+    [Fact]
+    public void AStashOutlivingItsRabbit_IsRefusedRatherThanCopied()
+    {
+        const string src = """
+            Bind number to counting-from, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Define keeper as a series of stash of number.
+            Pull a rabbit as inner.
+                Insert (cast counting-from on (inner, 1)) into keeper.
+            Done.
+            State unbury (item 1 of keeper).
+            """;
+        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        Assert.Contains("escape its rabbit", ex.Message);
+    }
 }

@@ -467,11 +467,17 @@ public sealed partial class TypeChecker
         foreach (var (type, name) in method.Parameters)
             Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), method.Line, IsParameter: true);
 
+        bool buries = _buryingMethods.Contains((objType.Name, method.Name));
+
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
         var prevFunctionLine     = _functionDeclarationLine;
         var prevRabbitDepth      = _rabbitDepth;
         var prevHidden           = _hiddenTopLevelData;
+        var prevRecordingStash   = _recordingStashFn;
+        // Only this body's own locals belong to this body's machine — the same rule CheckBind
+        // applies, under the qualified key a method needs.
+        _recordingStashFn        = buries ? StashMethodKey(objType.Name, method.Name) : null;
         _inFunction              = true;
         _expectedReturnType      = method.ReturnType;
         _functionDeclarationLine = method.Line;
@@ -491,7 +497,11 @@ public sealed partial class TypeChecker
                     methodFt.ReturnDepthSignature = ComputeReturnDepthSignature(method, includeReceiver: true);
             }
 
-            if (method.ReturnType != null && !DefinitelyReturns(method.Body))
+            // ★ A burying method is exempt for the same reason a burying function is: reaching its
+            // end is how it finishes, and the caller holds a stash that reports that with void.
+            // Without this exemption the refusal blamed a missing `Return` in a method that was
+            // never going to return one — the identical wrong message nested functions used to get.
+            if (method.ReturnType != null && !buries && !DefinitelyReturns(method.Body))
                 throw TypeError(
                     $"method '{method.Name}' is declared to give back a {FormatType(method.ReturnType)}, but it can reach its end without returning one",
                     null, method.Line, method.Column,
@@ -505,6 +515,7 @@ public sealed partial class TypeChecker
             _functionDeclarationLine = prevFunctionLine;
             _rabbitDepth             = prevRabbitDepth;
             _hiddenTopLevelData      = prevHidden;
+            _recordingStashFn        = prevRecordingStash;
             RestoreScopes(saved);
         }
     }

@@ -492,6 +492,50 @@ public sealed partial class TypeChecker
     private readonly HashSet<string> _buryingFunctions = new(StringComparer.Ordinal);
 
     /// <summary>
+    /// Methods whose bodies contain a `bury`, by owning type and method name.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Kept apart from <see cref="_buryingFunctions"/> rather than folded in, because that set is
+    /// keyed on a BARE name and a method name is only unique within its type. Two types may each
+    /// have a `ticks`, one burying and one not, and a single name-keyed set would answer for both.
+    /// </remarks>
+    private readonly HashSet<(string Type, string Method)> _buryingMethods = new();
+
+    /// <summary>
+    /// What a burying method's locals are recorded under, and what its machine is built for.
+    /// </summary>
+    /// <remarks>
+    /// The apostrophe-s is deliberate: it is how Cufet already spells possession, and no identifier
+    /// can contain one, so a method's key can never collide with a free function's name.
+    /// </remarks>
+    internal static string StashMethodKey(string owner, string method) => $"{owner}'s {method}";
+
+    /// <summary>
+    /// A method's signature, with a burying one's return type wrapped in the stash it hands back.
+    /// </summary>
+    /// <remarks>
+    /// ★ The same rule free functions get, in the same place — the SIGNATURE. `cast ticks on (clock)`
+    /// then infers `stash of number` through ordinary call inference, with nothing special at the
+    /// call site, because the difference really does live in the declaration.
+    /// </remarks>
+    private FunctionType MethodSignature(BindStatement method, string owner)
+    {
+        var paramTypes = method.Parameters.Select(p => p.Type).ToList();
+        if (!BuriesValues(method)) return new FunctionType(paramTypes, method.ReturnType);
+
+        if (method.ReturnType == null)
+            throw TypeError(
+                $"'{method.Name}' buries values, so it has to say what kind",
+                null, method.Line, method.Column,
+                $"declare '{method.Name}' as void when it buries",
+                "A burying method's declared type is the type of what it buries: "
+                + $"'Bind number to {method.Name}' hands back a stash of number.");
+
+        _buryingMethods.Add((owner, method.Name));
+        return new FunctionType(paramTypes, new StashType(method.ReturnType));
+    }
+
+    /// <summary>
     /// The types StashTransform cannot work out for itself — every local's type, and every
     /// for-each source's. Filled while checking a burying body; read once, after checking.
     /// </summary>
@@ -825,7 +869,7 @@ public sealed partial class TypeChecker
 
         // Expand hands back the very same list when there was nothing to do, which is the usual case.
         var lowered = StashTransform.Expand(
-            DropUnpulledLayers(statements), _buryingFunctions, _stashFacts);
+            DropUnpulledLayers(statements), _buryingFunctions, _stashFacts, _buryingMethods);
         return ReferenceEquals(lowered, program.Statements) ? program : new Program(lowered);
     }
 
@@ -1232,7 +1276,7 @@ public sealed partial class TypeChecker
                     $"Pick another name — 'Pull {od.Name}.' always finds the one the language ships.");
 
             var methodSigs = od.Methods
-                .Select(m => (m.Name, new FunctionType(m.Parameters.Select(p => p.Type).ToList(), m.ReturnType)))
+                .Select(m => (m.Name, MethodSignature(m, od.Name)))
                 .ToList();
             var getterSigs = od.Getters.Select(g => (g.Name, g.ReturnType)).ToList();
             var setterSigs = od.Setters.Select(s => (s.Name, s.ParamType, s.ParamName)).ToList();
@@ -1247,7 +1291,7 @@ public sealed partial class TypeChecker
                             null, um.Line, um.Column,
                             $"declare another method named '{um.Name}' for '{od.Name}'",
                             "Method names must be unique per type, whether declared nested or with 'unto'. Rename one of them.");
-                    methodSigs.Add((um.Name, new FunctionType(um.Parameters.Select(p => p.Type).ToList(), um.ReturnType)));
+                    methodSigs.Add((um.Name, MethodSignature(um, od.Name)));
                 }
             }
 

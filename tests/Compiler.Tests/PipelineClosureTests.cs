@@ -992,6 +992,135 @@ public class PipelineClosureTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    /// <summary>
+    /// A generic function whose blank sits inside a `stash of T` fills in from the argument.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ `Unify` — which matches a blank against an argument — had arms for series, voidable,
+    /// failable, channel, both streams and map, but not for a stash. Its catch-all answers
+    /// "matched", so `stash of thing` matched `stash of number` and bound NOTHING; the blank was
+    /// then reported as one nothing passed in could fill. `series of thing` worked throughout,
+    /// which is what made it look like a rule about blanks instead of a missing case.
+    /// </remarks>
+    [Fact]
+    public void ABlankInsideAStashParameter_FillsFromTheArgument()
+    {
+        const string src = """
+            Bind number to counting-from, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Bind text to letters-of, given (the rabbit helper, the series of text parts):
+                For each part in parts, repeat:
+                    Have helper bury part.
+                Done.
+            Done.
+
+            Bind series of thing to first-two, given (the stash of thing source):
+                Define taken as a series of thing.
+                For each value in source, repeat:
+                    Insert value into taken.
+                    If the number of taken is 2:
+                        Stop.
+                    Done.
+                Done.
+                Return taken.
+            Done.
+
+            Pull a rabbit as hopper.
+                State cast first-two on (cast counting-from on (hopper, 10)).
+                State cast first-two on (cast letters-of on (hopper, a series with ("alpha", "beta", "gamma"))).
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ── A method that buries ──
+    //
+    // The rewrite turns one method into two, and both stay METHODS so the dispatch can still read
+    // `one's <field>`. The receiver rides in the closure, which is what makes the state belong to
+    // the instance rather than to the type.
+
+    [Fact]
+    public void ABuryingMethod_MatchesInterpreter()
+    {
+        const string src = """
+            Define object ticker with (the number first-beat, the text label):
+                Bind number to ticks, given (the rabbit helper):
+                    Define next as one's first-beat.
+                    Repeat:
+                        Have helper bury next.
+                        The next becomes next + 1.
+                    Until false.
+                Done.
+
+                Bind text to describe:
+                    Return one's label.
+                Done.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define low  as a new ticker { the first-beat 1,   the label "low" }.
+                Define high as a new ticker { the first-beat 100, the label "high" }.
+
+                Define low-beats  as cast ticks on (low, hopper).
+                Define high-beats as cast ticks on (high, hopper).
+                State unbury low-beats.
+                State unbury high-beats.
+                State unbury low-beats.
+                State unbury high-beats.
+
+                Define counted as cast ticks on (low, hopper).
+                Define taken as 0.
+                For each beat in counted, repeat:
+                    If taken is 3:
+                        Stop.
+                    Done.
+                    State (cast describe on (low)) joined to ": " joined to (beat converted to text).
+                    The taken becomes taken + 1.
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void AnUntoBuryingMethod_MatchesInterpreter()
+    {
+        const string src = """
+            Define object ticker with (the number first-beat):
+                Bind text to describe:
+                    Return "a ticker".
+                Done.
+            Done.
+
+            Bind number to every-other unto ticker, given (the rabbit helper):
+                Define next as one's first-beat.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 2.
+                Until false.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define low as a new ticker { the first-beat 1 }.
+                Define odds as cast every-other on (low, hopper).
+                For each odd-beat in odds, repeat:
+                    If odd-beat is greater than 9:
+                        Stop.
+                    Done.
+                    State odd-beat.
+                Done.
+                State cast describe on (low).
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     [Fact]
     public void AStashLoopsBareItAndInlineForms_MatchInterpreter()
     {
