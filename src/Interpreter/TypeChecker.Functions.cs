@@ -792,6 +792,12 @@ public sealed partial class TypeChecker
         return (pattern, actual) switch
         {
             (SeriesType p, SeriesType a)                 => Unify(p.ElementType, a.ElementType, blanks, found),
+            // ⚠ A stash is a container like the rest of these, and leaving it out did not fail
+            // loudly: the arm below answers "matched" for any pair it does not recognise, so
+            // `stash of thing` matched `stash of number` and bound NOTHING — and the blank was then
+            // reported as one nothing passed in could fill. `series of thing` worked the whole time,
+            // which is what made it look like a rule about blanks rather than a missing case.
+            (StashType p, StashType a)                   => Unify(p.ElementType, a.ElementType, blanks, found),
             (VoidableType p, VoidableType a)             => Unify(p.Inner, a.Inner, blanks, found),
             (FailureType p, FailureType a)               => Unify(p.Inner, a.Inner, blanks, found),
             (ChannelType p, ChannelType a)               => Unify(p.ElementType, a.ElementType, blanks, found),

@@ -175,6 +175,12 @@ public sealed partial class TypeChecker
         SeriesType or MapType    => true,
         MatrixType or ChannelType => true,
         FunctionType             => true,   // a closure env is arena-allocated (ESC.4 territory)
+        // ★ A stash IS a closure — it lowers to one before either backend sees it — so it has to
+        // give the same answer as the line above. It gave `false` via the catch-all, which is only
+        // unreachable because the compiler's own closure-escape rule catches the escaping program
+        // downstream. Agreeing with the type it becomes is the point; relying on a later pass to
+        // cover for this one is not.
+        StashType                => true,
         ObjectType               => true,   // conservative — see the note above
         RecordType rt            => rt.PositionalTypes.Any(p => IsRegionBearing(p, seen))
                                  || rt.NamedFields.Any(f => IsRegionBearing(f.Type, seen)),
