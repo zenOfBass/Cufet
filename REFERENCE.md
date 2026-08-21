@@ -811,6 +811,55 @@ Define object ticker with (the stash of number source, the text name):
 Done.
 ```
 
+#### A method can bury
+
+A method buries on exactly the same terms as a function: it takes a rabbit, its
+declared type is what it *buries*, and it has no `Return`. What it adds is
+`one` — the body reads its own object's fields, so the stash starts from
+whatever that instance holds:
+
+```
+Define object ticker with (the number first-beat):
+    Bind number to ticks, given (the rabbit helper):
+        Define next as one's first-beat.
+        Repeat:
+            Have helper bury next.
+            The next becomes next + 1.
+        Until false.
+    Done.
+Done.
+
+Pull a rabbit as hopper.
+    Define low  as a new ticker { the first-beat 1 }.
+    Define high as a new ticker { the first-beat 100 }.
+    Define low-beats  as cast ticks on (low, hopper).
+    Define high-beats as cast ticks on (high, hopper).
+    State unbury low-beats.     // 1
+    State unbury high-beats.    // 100
+    State unbury low-beats.     // 2
+Done.
+```
+
+**The state belongs to the instance, not to the type.** Each cast makes its own
+stash over its own receiver, so two tickers keep two places and neither knows
+about the other — the same rule that already held for two casts of one function.
+
+A method declared outside its object body with `unto` buries the same way:
+
+```
+Bind number to every-other unto ticker, given (the rabbit helper):
+    Define next as one's first-beat.
+    Repeat:
+        Have helper bury next.
+        The next becomes next + 2.
+    Until false.
+Done.
+```
+
+Two types may each have a burying method of the same name, and one of them may
+not bury at all — a method belongs to its type, and so does the answer to
+"does this bury".
+
 #### Where a stash is buried
 
 **A stash lives in the region whose rabbit buried it, and dies with that region.**

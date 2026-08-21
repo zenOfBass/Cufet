@@ -43,6 +43,39 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   generic, so nothing could declare "hands back something steppable" — but coroutines did not
   produce an open family of steppable things. They produced **one concrete type**, `stash of T`.
 
+- **★★ A method can bury.** Found by writing a program with the loop above: a `bury` inside an
+  object's method said *"declared to give back a number, but it can reach its end without returning
+  one"* — blaming a missing `Return` in a method that was never going to return one. Behind the
+  message, nothing supported it: methods were never registered as burying, and the rewrite did not
+  walk into object definitions at all.
+
+  ```
+  Define object ticker with (the number first-beat):
+      Bind number to ticks, given (the rabbit helper):
+          Define next as one's first-beat.
+          Repeat:
+              Have helper bury next.
+              The next becomes next + 1.
+          Until false.
+      Done.
+  Done.
+  ```
+
+  ★ **The state belongs to the INSTANCE.** One method becomes two *methods* — not two functions —
+  so the dispatch still reads `one's <field>`, and the closure the factory hands back captures the
+  receiver. Two tickers give two stashes that share nothing, which is the rule two casts of one
+  function already followed.
+
+  `unto` methods bury too, and needed their own arm: an `unto` method is never moved into its
+  type's method list, only its signature is registered, so both halves of the rewrite have to keep
+  the `unto` or they land as free functions with no receiver.
+
+  ⚠ "Does this bury" is answered per `(type, method)`, never per name. Two types may each have a
+  `ticks` with only one of them burying.
+
+  ★ Also fixed by the same recursion: a burying function nested inside an **ordinary** method was
+  not rewritten either, and its `bury` survived to a backend.
+
 ### Fixed
 
 - **★★ `x is not void` kept its narrowing across a bury — a live backend divergence.** A burying
@@ -89,6 +122,19 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 - **A stash could not be named in a type error.** `FormatTypePlural` had no `StashType` arm, so
   every message that reached for one said `<unknown>` — including the refusal for looping over a
   stash, which read *"counter holds `<unknown>`"*. `FormatType` had always had its arm.
+
+- **A generic blank inside a `stash of T` parameter could not be filled in.** `Unify` matches a
+  blank against an argument and had arms for series, voidable, failable, channel, both streams and
+  map — not for a stash. Its catch-all answers "matched", so `stash of thing` matched
+  `stash of number` and bound nothing, and the blank was reported as one *"nothing passed in says
+  what fills it"*. `series of thing` worked throughout, which is what made it read as a rule about
+  blanks rather than a missing case. Generics and coroutines compose now.
+
+- **A stash answered "not region-bearing".** `IsRegionBearing` decides the escape *annotation*, and
+  had no `StashType` arm — so it said `false` where the closure a stash lowers to says `true`.
+  Latent rather than live: the compiler's own closure-escape rule catches the escaping program
+  first, which is now pinned by a test so it stays caught. ★ Three type switches in one day were
+  missing the same arm; a stash is a container like any other and wants looking for.
 
 - **★★ A module's missing dependency is caught by the checker, at the pull.** Found by writing a
   module from outside the prelude for the first time — the bundled books never hit it, because

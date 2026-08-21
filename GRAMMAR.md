@@ -1607,6 +1607,19 @@ slot holds. The interpreter narrows by value and never noticed; the compiler
 refused `x is greater than 3` for operating on a voidable. A front-end rewrite
 that drops a guard shows up as a **backend divergence**, not as a bad rewrite.
 
+**A METHOD may bury**, nested or `unto`, on exactly the same terms as a function —
+it takes a rabbit, its declared type is what it buries, and it has no `Return`.
+The rewrite turns one method into **two methods**, not two functions: the dispatch
+reads `one's <field>` the way the body it came from did, so the receiver has to
+still be there to resolve against. The closure the factory hands back captures
+`one`, which is what makes the state belong to the **instance** — two of a type
+give two stashes that share nothing.
+
+⚠ "Does this bury" is answered per `(type, method)`, never per name. Two types may
+each have a `ticks` with only one of them burying, and a name-keyed answer would
+rewrite the wrong one — or tell the ordinary one its `number` return type is a
+stash.
+
 A `Judge` is allowed too, and keeps both the narrowing and the binding. `it`
 becomes an ordinary local, so the subject is evaluated once and `it` is restored
 from its slot on every re-entry rather than re-evaluated; the arm's cases then
