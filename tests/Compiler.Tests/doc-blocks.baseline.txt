@@ -115,29 +115,29 @@ a1364c0154c8550d	REFERENCE.md:2461	Define double as a function given (the number
 676d0414cc7ba94d	REFERENCE.md:2725	Define the (number or text or fact) x as 42.
 64736bf76cfb8e86	REFERENCE.md:2742	Define the (number or text or fact) x as 42.
 47fbf12c6d6d9db9	REFERENCE.md:2803	Bind number or failure to to-positive, given (the number n):
-bddb9c5a723f695f	REFERENCE.md:2895	Define line  as read a line from the input.      ← voidable text (void at EOF)
-ae4399e7a091e1f7	REFERENCE.md:2903	Repeat:
-2ac0116280fe497b	REFERENCE.md:2937	Write "hello\n" to the file "out.txt".      ← overwrite (create or truncate)
-12ca6332aa6afa94	REFERENCE.md:2950	With the file "data.txt" open for reading as src:
-5ae43a24cf29c4d6	REFERENCE.md:2965	With the file "out.txt" open for writing as log:
-73c8d4788634214b	REFERENCE.md:2985	With the file "lines.txt" open for reading as s:
-757f828247291afb	REFERENCE.md:2995	Bind void to process, given (the readable stream of text src):
-c9410b945999aea0	REFERENCE.md:3045	Define home as the environment variable "HOME".
-d957d9b2971bce3a	REFERENCE.md:3061	Define here as the current directory but void is "(unknown)".
-2d47345160c2e664	REFERENCE.md:3156	Define totals as a series of number.
-ca69cafea4243de4	REFERENCE.md:3176	Pull a rabbit as workspace.
-14855d526ccbeaa7	REFERENCE.md:3251	Pull a rabbit.
-06b42ba6814b6951	REFERENCE.md:3271	Pull a rabbit.
-4c3cf9a86eb5acd5	REFERENCE.md:3300	Pull a rabbit.
-204486ed85c97cc8	REFERENCE.md:3335	Define data as a series of number with (1, 2, 3).
-70a0971cb8e1eac3	REFERENCE.md:3354	Define step as 5.
-466df2ed2ccab270	REFERENCE.md:3397	Bind void to emit-numbers:
-c803a60649a13124	REFERENCE.md:3474	While 1 is 1, repeat:
-439c74dd9fc21d76	REFERENCE.md:3550	Define object greeting-kit with () and module:
-e8d547dcd741c89d	REFERENCE.md:3581	Pull math.
-84b2ac174319f341	REFERENCE.md:3617	Pull books on math, collections, and chance.
-a82cb5008d1e263b	REFERENCE.md:3630	Pull books on math as m, and collections as c.
-bffd62e4b1bc0f56	REFERENCE.md:3639	Pull a book on math.
-b983f16097a83202	REFERENCE.md:3664	Pull a book on collections.
-871fdbce77b84b21	REFERENCE.md:3734	Pull a book on collections.
-8274b939488e058f	REFERENCE.md:3758	Pull a book on collections.
+bddb9c5a723f695f	REFERENCE.md:2899	Define line  as read a line from the input.      ← voidable text (void at EOF)
+ae4399e7a091e1f7	REFERENCE.md:2907	Repeat:
+2ac0116280fe497b	REFERENCE.md:2941	Write "hello\n" to the file "out.txt".      ← overwrite (create or truncate)
+12ca6332aa6afa94	REFERENCE.md:2954	With the file "data.txt" open for reading as src:
+5ae43a24cf29c4d6	REFERENCE.md:2969	With the file "out.txt" open for writing as log:
+73c8d4788634214b	REFERENCE.md:2989	With the file "lines.txt" open for reading as s:
+757f828247291afb	REFERENCE.md:2999	Bind void to process, given (the readable stream of text src):
+c9410b945999aea0	REFERENCE.md:3049	Define home as the environment variable "HOME".
+d957d9b2971bce3a	REFERENCE.md:3065	Define here as the current directory but void is "(unknown)".
+2d47345160c2e664	REFERENCE.md:3160	Define totals as a series of number.
+ca69cafea4243de4	REFERENCE.md:3180	Pull a rabbit as workspace.
+14855d526ccbeaa7	REFERENCE.md:3255	Pull a rabbit.
+06b42ba6814b6951	REFERENCE.md:3275	Pull a rabbit.
+4c3cf9a86eb5acd5	REFERENCE.md:3304	Pull a rabbit.
+204486ed85c97cc8	REFERENCE.md:3339	Define data as a series of number with (1, 2, 3).
+70a0971cb8e1eac3	REFERENCE.md:3358	Define step as 5.
+466df2ed2ccab270	REFERENCE.md:3401	Bind void to emit-numbers:
+c803a60649a13124	REFERENCE.md:3478	While 1 is 1, repeat:
+439c74dd9fc21d76	REFERENCE.md:3554	Define object greeting-kit with () and module:
+e8d547dcd741c89d	REFERENCE.md:3585	Pull math.
+84b2ac174319f341	REFERENCE.md:3621	Pull books on math, collections, and chance.
+a82cb5008d1e263b	REFERENCE.md:3634	Pull books on math as m, and collections as c.
+bffd62e4b1bc0f56	REFERENCE.md:3643	Pull a book on math.
+b983f16097a83202	REFERENCE.md:3668	Pull a book on collections.
+871fdbce77b84b21	REFERENCE.md:3738	Pull a book on collections.
+8274b939488e058f	REFERENCE.md:3762	Pull a book on collections.
