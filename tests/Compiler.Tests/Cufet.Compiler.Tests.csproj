@@ -19,6 +19,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Compiler\Cufet.Compiler.csproj" />
     <ProjectReference Include="..\..\src\Interpreter\Cufet.Interpreter.csproj" />
+    <!-- ⚠ Referenced to BUILD it, not to call into it: the CLI is top-level statements that end in
+         Environment.Exit, so CommandLineTests drives the real executable as a subprocess. Without
+         this the binary may not exist when the tests run. -->
+    <ProjectReference Include="..\..\src\App\Cufet.App.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!-- Soundness probe programs, run as fixtures by SoundnessFixtureTests. Copied next to the

@@ -25,18 +25,58 @@ if (args.Length >= 1 && args[0] is "--help" or "-h" or "help" or "-?" or "/?")
 else if (args.Length >= 1 && args[0] is "--version" or "-v")
     Console.WriteLine($"cufet {Version()}");
 else if (args.Length >= 2 && args[0].Equals("build", StringComparison.OrdinalIgnoreCase))
+{
+    RefuseExtraArguments("build", args[2..], "cufet build <file.cufe>");
     Build(args[1]);
+}
 else if (args.Length >= 2 && args[0].Equals("emit-c", StringComparison.OrdinalIgnoreCase))
+{
+    RefuseExtraArguments("emit-c", args[3..], "cufet emit-c <file.cufe> [out.c]");
     EmitC(args[1], args.Length >= 3 ? args[2] : Path.ChangeExtension(args[1], ".c"));
+}
 else if (args.Length >= 2 && args[0].Equals("check", StringComparison.OrdinalIgnoreCase))
     Check(args[1..]);
 else if (args.Length >= 2 && args[0].Equals("tokens", StringComparison.OrdinalIgnoreCase))
     Tokens(args[1..]);
 else
+    // ⚠ Deliberately NOT refused here, unlike every verb above. `cufet script.cufe one two` drops
+    // `one two` today because the language has no way to read them — but that spelling is exactly
+    // where program arguments would arrive if they are ever added, and the shell on the roadmap
+    // will want them. Refusing it now would have to be un-refused later, so the silence stays until
+    // there is something to do with them.
     Interpret(args);
 
 static string Version() =>
     typeof(Lexer).Assembly.GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "unknown";
+
+// ⚠ An argument nobody asked for is a MISTAKE, and dropping it in silence is the worst of the
+// available answers: the command appears to work while doing something else. `cufet build a.cufe
+// -o out.exe` wrote the binary next to the SOURCE and said nothing about `-o`, which is not a flag
+// this CLI has — and a whole session's binaries went somewhere other than where they were asked
+// for. A mistyped `--jsno` on `check` disabled JSON just as quietly.
+//
+// ★ Exit 2, matching the other usage failures here: 0 and 1 are the program's own answers (it ran,
+// it did not), so a mistake in the COMMAND has to be a third thing or a script cannot tell them
+// apart.
+static void RefuseExtraArguments(string verb, IEnumerable<string> extra, string usage)
+{
+    var unwanted = extra.ToList();
+    if (unwanted.Count == 0) return;
+
+    string names = string.Join(" ", unwanted);
+    Console.Error.WriteLine(
+        $"{verb}: don't know what to do with '{names}' — '{usage}'.");
+    if (unwanted.Any(a => a.StartsWith('-')))
+        Console.Error.WriteLine(
+            $"  '{unwanted.First(a => a.StartsWith('-'))}' is not a flag {verb} takes. "
+          + "Run 'cufet --help' for the flags each command has.");
+    Environment.Exit(2);
+}
+
+// The flags a verb accepts; anything else starting with '-' is a typo rather than a filename.
+static IEnumerable<string> UnknownFlags(IEnumerable<string> rest, params string[] known) =>
+    rest.Where(a => a.StartsWith('-')
+                 && !known.Contains(a, StringComparer.OrdinalIgnoreCase));
 
 // A verb typed wrong lands here as a filename, so the usage text has to be worth reading.
 // A file inside a `Prelude` directory IS (a draft of) the bundled prelude — check it as such,
@@ -132,6 +172,11 @@ static void EmitC(string sourcePath, string outPath)
 // good enough for what they are doing.
 static void Check(string[] rest)
 {
+    const string usage = "cufet check [--json] [--native] [--strict] <file>";
+    RefuseExtraArguments("check", UnknownFlags(rest, "--json", "--native", "--strict"), usage);
+    // A second FILE is a mistake too — only the first was ever read, and silently.
+    RefuseExtraArguments("check", rest.Where(a => !a.StartsWith('-')).Skip(1), usage);
+
     bool json   = rest.Any(a => a.Equals("--json",   StringComparison.OrdinalIgnoreCase));
     bool native = rest.Any(a => a.Equals("--native", StringComparison.OrdinalIgnoreCase));
     bool strict = rest.Any(a => a.Equals("--strict", StringComparison.OrdinalIgnoreCase));
@@ -221,6 +266,10 @@ static void Check(string[] rest)
 // Exit: 0 classified (even with no names in the file), 1 the file has an error, 2 unreadable.
 static void Tokens(string[] rest)
 {
+    const string tokensUsage = "cufet tokens [--json] <file>";
+    RefuseExtraArguments("tokens", UnknownFlags(rest, "--json"), tokensUsage);
+    RefuseExtraArguments("tokens", rest.Where(a => !a.StartsWith('-')).Skip(1), tokensUsage);
+
     var path = rest.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
     if (path is null)
     {
