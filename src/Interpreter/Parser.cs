@@ -1724,7 +1724,7 @@ public sealed class Parser
             }
             Consume(TokenType.Dot);
             var pluralBody = ParsePullBody();
-            return new PullStatement(books, pluralBody, line, col);
+            return new PullStatement(books, pluralBody, line, col, ViaBookForm: true);
         }
 
         // Singular: Pull a book on <name> [as <local>]. ... Done.
@@ -1743,7 +1743,7 @@ public sealed class Parser
             var entry = ParsePullBookEntry();
             Consume(TokenType.Dot);
             var bookBody = ParsePullBody(); // consumes Done.
-            return new PullStatement([entry], bookBody, line, col);
+            return new PullStatement([entry], bookBody, line, col, ViaBookForm: true);
         }
 
         // ★ The GENERAL form: Pull <module> [as <local>]. ... Done.
@@ -1751,8 +1751,11 @@ public sealed class Parser
         // A module is an object conforming to `module`, and this is how you bring one into scope.
         // It is not new syntax — `Pull a rabbit.` above is already this shape, and the article is
         // noise, so `Pull rabbit.` and `Pull greeting-kit as kit.` are the same form with different
-        // names in it. `book on <name>` is a second spelling every module answers to, kept because
-        // it reads well, not because books are a separate mechanism.
+        // names in it.
+        //
+        // ⚠ A BUNDLED book may not be pulled this way — see CheckPullStatement. `book on <name>`
+        // is how a book is pulled; this form is for a writer's own module. `Pull math.` used to be
+        // swallowed here, and was never a decision.
         var moduleEntry = ParsePullBookEntry();
         Consume(TokenType.Dot);
         var moduleBody = ParsePullBody();

@@ -161,6 +161,19 @@ public sealed partial class TypeChecker
 
         if (BuiltinBooks.TryGetValue(name, out var bookType))
         {
+            // ⚠ A BUNDLED BOOK IS PULLED AS A BOOK. `Pull math.` used to work, and was never a
+            // decision — the general `Pull <module>` branch simply swallowed the name on its way
+            // past, and a test then pinned the accident. A book is a library, not the writer's own
+            // object, and the surface says which it is.
+            if (!ps.ViaBookForm)
+                throw TypeError(
+                    $"'{name}' is a book, so it is pulled as one",
+                    "The plain form is for a module you defined; a book is a library the language ships",
+                    ps.Line, ps.Column,
+                    $"pull '{name}' with the plain form",
+                    $"Write 'Pull a book on {name}.' — or 'Pull books on {name}, and <other>.' "
+                    + "for several at once.");
+
             // ★ Recorded so the book's Cufet layer can be DROPPED from the program when nothing
             // pulls it — see DropUnpulledLayers. A layer's members are reachable only through a
             // pull, so the pull sites are the whole reachability question, and the checker

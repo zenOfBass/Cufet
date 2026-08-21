@@ -736,11 +736,15 @@ public sealed record MatrixSized(IExpression Rows, IExpression Cols, IExpression
 // Pull a book on <name> [as <local>]. ... Done.              — single book, Done.-delimited scope
 // Pull books on <n1> [as <l1>], <n2> [as <l2>], and <n3>. ... Done. — multiple books, shared scope
 // Books is never empty; single-book pull = one-element list; plural = two-or-more.
+// ViaBookForm — written as `Pull a book on <name>.` / `Pull books on <a>, and <b>.` rather than the
+// general `Pull <name>.`. Recorded because a BUNDLED book must be pulled by the book form: `Pull
+// math.` was never a decision, only something the general form swallowed on its way past.
 public sealed record PullStatement(
     IReadOnlyList<(string BookName, string LocalName)> Books,  // one entry per pulled book
     IReadOnlyList<IStatement> Body,                            // statements between Pull and Done.
     int Line,
-    int Column
+    int Column,
+    bool ViaBookForm = false
 ) : IStatement;
 
 // if x is a number — type test; yields fact (true when the runtime value matches the type).

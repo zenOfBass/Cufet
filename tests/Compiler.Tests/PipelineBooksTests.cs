@@ -248,7 +248,7 @@ public class PipelineBooksTests : PipelineTestBase
         // inside the pull body is the hoisted-function case: its body emits outside the pull's C
         // block, which is why the layer receiver is a compound literal rather than the binding.
         const string src = """
-            Pull collections as c.
+            Pull a book on collections as c.
                 Define nq as a series with (3, 1, 3, 2, 1).
                 State cast c's unique on (nq).
                 Bind series of text to dedupe, given (the series of text names):

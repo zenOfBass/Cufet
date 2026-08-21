@@ -9,10 +9,13 @@ namespace Cufet.Interpreter.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// ★ The point of the feature is that the three bundled books stop being a privileged category.
-/// A module is an object that says it is one, and `Pull` is how you bring it into scope; a book is
-/// then simply a module that ships with the language. So the tests that matter most are the ones
-/// asserting that a writer's object and a builtin behave the same at the pull site.
+/// ★ The point of the feature is that pulling is ONE mechanism: a module is an object that says it
+/// is one, and `Pull` is how you bring it into scope. A book is a library the language ships.
+///
+/// ⚠ They share the mechanism, not the spelling. A bundled book is pulled as a book
+/// (`Pull a book on math.`); the plain form is for a module you defined. This note used to say the
+/// two were interchangeable at the pull site — see ABundledBook_IsRefusedByThePlainForm for why
+/// that was an accident rather than a decision.
 /// </para>
 /// <para>
 /// It is not new syntax. `Pull a rabbit.` was always this shape, and the article is noise — which
@@ -159,42 +162,57 @@ public class ModulePullTests
     }
 
     /// <summary>
-    /// ★★ A bundled book pulled by the GENERAL form — the second conformer, and the point of the
-    /// whole exercise.
+    /// ⚠ A BUNDLED BOOK IS PULLED AS A BOOK — the plain form is refused.
     /// </summary>
     /// <remarks>
-    /// An interface with one conformer is a guess. This is the seam being pulled on from the other
-    /// direction: `math` is implemented natively and has no `Define object` to hang an `and module`
-    /// clause on, `greeting-kit` is an ordinary object written in Cufet, and `Pull` treats them the
-    /// same because the contract only ever asked "may this be pulled?".
+    /// ★★ REVERSED 2026-08-21, and this test used to assert the opposite. It was called
+    /// `ABookIsPulledByTheSameFormAsAModule` and its note called the plain form "the point of the
+    /// whole exercise". It was not a decision anyone made — the general `Pull &lt;module&gt;` branch
+    /// swallowed the name on its way past, and this test then pinned the accident.
+    ///
+    /// A book is a LIBRARY; a module is the writer's own object. The surface says which, and the
+    /// long form is the one that reads: "a book on math" is natural English and "a math" is not.
     /// </remarks>
     [Fact]
-    public void ABookIsPulledByTheSameFormAsAModule()
+    public void ABundledBook_IsRefusedByThePlainForm()
     {
-        Assert.Equal("3.1415926535897932384626433833", Run("""
+        var ex = Assert.Throws<TypeException>(() => Run("""
             Pull math.
                 State math's pi.
             Done.
             """));
+        Assert.Contains("'math' is a book, so it is pulled as one", ex.Message);
+        Assert.Contains("Pull a book on math.", ex.Message);
     }
 
     [Fact]
-    public void ABookPulledByNameCanBeAliasedToo()
+    public void ABundledBook_IsRefusedByThePlainFormEvenWithAnAlias()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Pull math as m.
+                State m's pi.
+            Done.
+            """));
+        Assert.Contains("is a book", ex.Message);
+    }
+
+    [Fact]
+    public void ABookPulledByTheBookFormCanBeAliased()
     {
         Assert.Equal("3.1415926535897932384626433833", Run("""
-            Pull math as m.
+            Pull a book on math as m.
                 State m's pi.
             Done.
             """));
     }
 
     [Fact]
-    public void ABookPulledByNameStillIntroducesItsTypes()
+    public void ABookStillIntroducesItsTypes()
     {
-        // `collections` brings the `matrix` type name into the block. That is book-specific
-        // behaviour riding on the general form, which is what "the conformer's own business" means.
+        // `collections` brings the `matrix` type name into the block — book-specific behaviour,
+        // unaffected by which spelling is required to pull it.
         Assert.Equal("matrix((1, 3), (2, 4))", Run("""
-            Pull collections.
+            Pull a book on collections.
                 State cast collections's transpose on (a matrix with ((1, 2), (3, 4))).
             Done.
             """));
@@ -225,7 +243,7 @@ public class ModulePullTests
         // Two fillings of one Cufet method through a book alias — generic-method instantiation
         // reached through a BookType-typed binding.
         Assert.Equal("(1, 2, 3)\n(a, b)", Run("""
-            Pull collections as c.
+            Pull a book on collections as c.
                 State cast c's unique on (a series of number with (1, 2, 2, 3, 1)).
                 State cast c's unique on (a series of text with ("a", "b", "a")).
             Done.
@@ -238,7 +256,7 @@ public class ModulePullTests
         // A member the Cufet layer does NOT define falls to the native book — the merge is member
         // by member, not book by book.
         Assert.Equal("1\nmatrix((1, 3), (2, 4))", Run("""
-            Pull collections as c.
+            Pull a book on collections as c.
                 State cast c's minimum on (a series of number with (3, 1, 2)) but void is -1.
                 State cast c's transpose on (a matrix with ((1, 2), (3, 4))).
             Done.
@@ -251,7 +269,7 @@ public class ModulePullTests
         // A pulled book is a lexical capability — that carried the layer with it must not regress
         // when a book's binding starts carrying an instance.
         Assert.Equal("(x, y)", Run("""
-            Pull collections as c.
+            Pull a book on collections as c.
                 Bind series of text to dedupe, given (the series of text names):
                     Return cast c's unique on (names).
                 Done.
