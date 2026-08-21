@@ -78,6 +78,36 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **★★ A body resolves the names it can see where it is WRITTEN — plus any MODULE its caller
+  pulled.** Deferring an unresolved name in a function or method body exists for one reason: a
+  pulled module is a capability of the block that uses the body, which is what lets a module's
+  method say `math's pi` and leave `math` to whoever pulls it. That reason only ever covered module
+  names. It was applied to *every* name, so a plain typo was indistinguishable from a capability and
+  waited until the line ran to say so:
+
+  ```
+  Bind number to sneaky:
+      Return borrowed + 1.        ← `borrowed` is a local of the CALLER
+  Done.
+  ```
+
+  That is dynamic scoping, it checked clean, and nothing ever wanted it. It is a static error now.
+  The lexical half of the rule was already in force — a body using a top-level constant declared
+  further down was refused, with a message recommending closures — so this finishes a rule the
+  error messages already assumed.
+
+  ★ **"Module" means DECLARED**: a bundled book, or an object marked `and module`. An **alias is
+  not one**. `Pull math as m.` makes `m` an ordinary name in that block, so a body written inside
+  the pull still sees it; a body written outside does not. Measured before choosing: no aliased
+  pull exists anywhere in the prelude or the examples, and both aliased-pull tests declare their
+  function inside the pull. The one shape this removes worked only while every caller happened to
+  pick the same alias — rename it at one call site and the function breaks with nothing to point at.
+
+  ⚠ **Known gap, now bounded.** A module's needs are checked at its pull but are not transitively
+  closed: a module reaching `math` only through a free function it calls is still missed, as is a
+  function reached through a variable rather than by name. That surface used to be every name; it is
+  now module names only.
+
 - **★★ One ownership story: every nonlocal exit releases the same four things, through one place.**
   A jump out of a block has to run unmakers, close files, pop exception pads and pop rabbit arenas —
   always those four, always in that order. That was written out longhand at **nine** sites, with
@@ -124,6 +154,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 - **`Suppress.` was documented but does not parse.** REFERENCE showed the short form; the parser has
   always required `Suppress the exception.`
+
+- **★ A module's dependency was only checked when the module was defined BEFORE the pull.** The
+  check ran at the pull, so it could only see modules already checked. Flip the two and the
+  identical program passed checking and died at run time — advising `Define math as <value>` for
+  something you pull. Verification is deferred to the end of checking now, when every module's needs
+  are known, with the names visible at each pull SNAPSHOT so a later `Define` cannot retroactively
+  satisfy a dependency the pull needed earlier. Neither path had a test; both do now.
+
+- **★★ A top-level closure could not see the local it captured.** A lambda inside a function took
+  its whole enclosing scope; a lambda at the top level took only functions and constants and left
+  ordinary locals "to the capture machinery" — which meant to the deferral above. So the checker
+  never saw the very name the closure captured, in a program as plain as
+  `Define f as a function: Return the number of nums. Done.` sitting beside its `nums`. A closure
+  captures what is lexically in scope; that is what makes it a closure rather than a lookup. Both
+  nesting levels take the whole scope now.
 
 - **★★ `x is not void` kept its narrowing across a bury — a live backend divergence.** A burying
   body is cut into blocks at each `bury`, and an arm's condition is carried into its block as a

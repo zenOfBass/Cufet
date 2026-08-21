@@ -2400,6 +2400,8 @@ signature is a static type error.
 
 **Functions as return values:**
 ```
+Bind number to double, given (the number n): Return n * 2. Done.
+
 Bind number function given (the number) to get-doubler:
     Return double.
 Done.

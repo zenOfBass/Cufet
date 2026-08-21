@@ -67,11 +67,19 @@ Two framings that set the order:
    decimal in the arc above — so its consumers are the "call a C function" family it collapses:
    the shell's job control and raw terminal mode, sockets, the POSIX and Windows APIs.
 
-3. **The other half of the unresolved-name check.** Modules record what their bodies reach for and
-   the checker verifies it at each pull. Ordinary objects and free functions do not, because they
-   resolve names in the scope they are CALLED from — so the same guarantee means recording needs
-   and checking them at **call sites** instead. Until then a detached body's unresolved name is
-   still found at run time.
+3. **Module needs, transitively.** ★ Much smaller than it was. A body now resolves what it can see
+   where it is WRITTEN plus any MODULE its caller pulled, so an unresolved *ordinary* name is a
+   static error and only module names still defer. Two holes are left, both over that small set:
+
+   - **Not transitively closed.** `geometry`'s method reaching `math` only through a free function
+     it calls is not caught — the need is recorded against the function, and nothing checks a free
+     function's needs at its call sites. This is the call-site work, now over module names only.
+   - **Indirect calls cannot be closed this way at all.** `Define f as needs-math.` then
+     `cast f on (…)` names a variable, not a function; there is no statically-known callee to look
+     needs up for. Closures, stashes and function values in series all take this shape.
+
+   ⚠ So "check the call sites" is not a complete fix and should not be sold as one — it closes the
+   first bullet and leaves the second. Worth knowing before anyone starts.
 
 ### The design mountains
 

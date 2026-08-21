@@ -206,7 +206,8 @@ Have rabbit start a task as producer, send 7 through nums.
 **A function with no parameters uses the same comma**, and `given` is what tells the two apart:
 
 ```
-Bind number to leg-pairs, one's legs / 2.        ← inline body, no parameters
+Define legs as 8 permanently.
+Bind number to leg-pairs, legs / 2.                 ← inline body, no parameters
 Bind number to double, given (the number n), n * 2.
 ```
 
@@ -1301,6 +1302,40 @@ DECLARATION. Same question at the pull site, different ways of being built.
 `module` is a **marker interface**: it requires no methods, only the claim. An object that
 does not conform is refused at the pull site. Pulling **instantiates**, so a module with
 fields is refused — a pull has nowhere to put their values; use `a new <type> { … }`.
+
+### ★★ What a body may reach for
+
+**A function or method resolves the names it can see where it is WRITTEN — plus any MODULE its
+caller pulled.** Those are the only two, and the second is the whole reason the first has an
+exception: a pulled module is a capability of the block that uses the body, which is what lets a
+module's method say `math's pi` and leave `math` to whoever pulls it.
+
+A name that is neither is refused **when the program is checked**, not when the line runs:
+
+```
+Bind number to sneaky:
+    Return borrowed + 1.        ← `borrowed` is a local of the CALLER — refused
+Done.
+```
+
+⚠ That refusal is newer than the rule (2026-08-21). Every unresolved name in a body used to defer,
+which is dynamic scoping, and nothing ever wanted it — it came along with the module rule because
+the rule was applied to *every* name rather than to module names. A plain typo was
+indistinguishable from a capability and waited until the line ran.
+
+★ **"Module" means DECLARED — a bundled book, or an object marked `and module`. An alias is not
+one.** `Pull math as m.` makes `m` an ordinary name in that block, so a body written *inside* the
+pull sees it like anything else; a body written OUTSIDE it does not. That shape worked only while
+every caller happened to choose the same alias — rename it at one call site and the function breaks
+with nothing to point at. An alias is for the block that makes it, not something to publish.
+
+★ A **lambda** is not a detached body at all: it captures its enclosing scope, so it sees
+everything lexically around it, aliases and locals included.
+
+⚠ Known gap: a module's needs are checked at its pull, but they are not transitively closed. A
+module that reaches `math` only through a free function it calls is not caught, and neither is a
+function reached through a variable rather than by name. Bounded to module names, where it used to
+be every name.
 
 ★ **A bundled book's name is reserved for the book.** Defining an object named `math`,
 `collections` or `chance` is refused at the definition — it used to be legal and simply
