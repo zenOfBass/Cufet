@@ -16,6 +16,15 @@ namespace Cufet.Interpreter;
 /// </remarks>
 public interface IForeignRunner
 {
+    /// <summary>Gets this axiom ready to be called, without calling it.</summary>
+    /// <remarks>
+    /// ★ Every axiom in the program is prepared BEFORE the first statement runs, because the
+    /// compiled backend builds them all at build time and refuses the whole program if one will
+    /// not compile. Preparing lazily meant a bad axiom late in a file printed the earlier output
+    /// first interpreted and nothing at all compiled — two answers to one program.
+    /// </remarks>
+    void Prepare(string language, string source, int line);
+
     /// <summary>Runs an axiom that produces a whole number, and gives back that number.</summary>
     /// <remarks>
     /// ⚠ The one conversion the first slice carries, and it is first because it cannot be lossy:

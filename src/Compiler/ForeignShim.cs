@@ -53,15 +53,21 @@ public sealed class GccForeignRunner : IForeignRunner
         _cacheRoot = cacheRoot ?? new RuntimeCache().Root;
     }
 
+    public void Prepare(string language, string source, int line) => Entry(language, source, line);
+
     public decimal RunForWholeNumber(string language, string source, int line)
     {
-        var entry = _loaded.GetOrAdd($"{language}\0{source}", _ => Load(language, source, line));
+        var entry = Entry(language, source, line);
         // ★ No conversion decision here. The C side has already taken the value through the same
         // `(long long)` the compiled backend uses, after the same guard, so both backends convert
         // the identical integer — and a decimal holds every 64-bit integer exactly, so neither
         // rounds. This is the whole reason the wrapper is shared rather than written twice.
         return entry();
     }
+
+    /// <summary>This axiom's loaded entry point, building and loading it the first time.</summary>
+    private WholeEntry Entry(string language, string source, int line) =>
+        _loaded.GetOrAdd($"{language}\0{source}", _ => Load(language, source, line));
 
     private WholeEntry Load(string language, string source, int line)
     {

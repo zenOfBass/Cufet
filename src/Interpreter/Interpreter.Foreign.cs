@@ -4,23 +4,81 @@ public sealed partial class Interpreter
 {
     // ── Foreign interoperability: running an axiom ───────────────────────────
 
+    /// <summary>
+    /// Builds every axiom the program can run, before the program runs at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ This is what keeps the two backends saying the same thing about a program that will not
+    /// build. The compiled backend meets every axiom at BUILD time and refuses the whole program if
+    /// one of them will not compile; the interpreter used to compile each on first use, so a bad
+    /// axiom late in a file printed all the earlier output and then failed, where compiling it
+    /// printed nothing. Two answers to one program — the shape the no-divergence rule exists for.
+    /// </para>
+    /// <para>
+    /// ★ The set is the returns that RUN an axiom, not every axiom literal, because that is exactly
+    /// what the compiler emits a wrapper for. An axiom declared and never returned is compiled by
+    /// neither backend, so preparing it here would refuse a program the compiler builds happily —
+    /// the same divergence pointing the other way.
+    /// </para>
+    /// <para>
+    /// ★ Deduplicated by content, so the same axiom returned in three places is built once. That
+    /// also matches the compiled side, which names a wrapper after a hash of its source.
+    /// </para>
+    /// <para>
+    /// ⚠ The walk is `AstSearch`, keyed on the namespace — a hand-written one would silently miss
+    /// whatever node type nobody remembered, and "silently prepared fewer axioms" reads as the
+    /// original bug rather than as a walk that went stale.
+    /// </para>
+    /// </remarks>
+    private void PrepareForeignSource(Program program)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var pending = new List<(AxiomLiteral Axiom, int Line)>();
+
+        AstSearch.Visit(program.Statements, node =>
+        {
+            if (node is ReturnStatement { RunsAxiom: { } axiom } ret
+             && seen.Add($"{axiom.Language}\0{axiom.Source}"))
+                pending.Add((axiom, ret.Line));
+        });
+
+        if (pending.Count == 0) return;
+
+        if (ForeignRunner is not { } runner)
+            throw CannotRunForeignSource(pending[0].Axiom, pending[0].Line);
+
+        foreach (var (axiom, line) in pending)
+            runner.Prepare(axiom.Language!, axiom.Source, line);
+    }
+
     /// <summary>Runs an axiom and gives back the marshalled Cufet value.</summary>
     /// <remarks>
     /// ★ Everything hard about this is on the other side of IForeignRunner. What is here is the
-    /// one thing the interpreter owns: knowing that an axiom has run, and refusing clearly when
-    /// nothing in this environment can run one.
+    /// one thing the interpreter owns: knowing that an axiom has run.
+    ///
+    /// ⚠ The runner check stays even though PrepareForeignSource already made it. Execute is the
+    /// only route that prepares, and a guard that reads "this cannot be null by now" is how a
+    /// second entry point one day gets a null-reference instead of a sentence.
     /// </remarks>
     private object RunAxiom(AxiomLiteral axiom, int line)
     {
-        if (ForeignRunner is not { } runner)
-            throw new RuntimeException(
-                $"This program calls {axiom.Language ?? "foreign"} source, which cannot run here "
-              + $"(line {line}).\n\n"
-              + "Foreign source is compiled and called through a C toolchain. Build the program "
-              + "with 'cufet build' to run it, or run it where a C compiler is available.");
-
+        if (ForeignRunner is not { } runner) throw CannotRunForeignSource(axiom, line);
         return runner.RunForWholeNumber(axiom.Language!, axiom.Source, line);
     }
+
+    /// <summary>The refusal for an environment with no way to compile and call foreign source.</summary>
+    /// <remarks>
+    /// ★ A required outcome, not a failure. The playground runs this interpreter in wasm, where no
+    /// foreign call can work at all — so "this program cannot run in this environment" has to be
+    /// sayable, and now it is said before the program produces any output rather than partway
+    /// through it.
+    /// </remarks>
+    private static RuntimeException CannotRunForeignSource(AxiomLiteral axiom, int line) =>
+        new($"This program calls {axiom.Language ?? "foreign"} source, which cannot run here "
+          + $"(line {line}).\n\n"
+          + "Foreign source is compiled and called through a C toolchain. Build the program "
+          + "with 'cufet build' to run it, or run it where a C compiler is available.");
 
     /// <summary>An axiom declaration binds the source itself — nothing about it is evaluated.</summary>
     /// <remarks>

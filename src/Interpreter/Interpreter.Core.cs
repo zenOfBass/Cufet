@@ -466,6 +466,10 @@ public sealed partial class Interpreter
 
     public void Execute(Program program)
     {
+        // ★ BEFORE anything runs, and before the scheduler exists. Every axiom is compiled here so
+        // that a program the compiled backend would refuse to build is refused here too — with the
+        // same output, which is none. See PrepareForeignSource.
+        PrepareForeignSource(program);
         _programHandlesInterrupts = MentionsInterrupts(program.Statements);
         _scheduler = new CufetScheduler();
         try

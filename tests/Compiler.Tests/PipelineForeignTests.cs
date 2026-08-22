@@ -374,15 +374,71 @@ public class PipelineForeignTests : PipelineTestBase
             Pull a book on the c-language.
                 Define c-language get-pid as [getpid()].
                 Bind number to process-id, get-pid.
+                State "before".
                 State cast process-id.
             Done.
             """;
-        var tokens = new CufetLexer(src).Tokenize();
-        var program = new TypeChecker().Check(new Parser(tokens).Parse());
-
         var output = new StringWriter();
         var e = Assert.Throws<RuntimeException>(
-            () => new CufetInterpreter(output).Execute(program));   // no ForeignRunner
+            () => new CufetInterpreter(output).Execute(Checked(src)));   // no ForeignRunner
         Assert.Contains("cannot run here", e.Message);
+
+        // ⚠ And NOTHING was printed. The refusal comes before the program starts, so it matches a
+        // compiled build refusing — which also produces no output.
+        Assert.Equal("", output.ToString());
     }
+
+    [Fact]
+    public void Interpreter_WithNoToolchain_StillRunsAProgramThatOnlyDECLARESAnAxiom()
+    {
+        // ⚠ The divergence pointing the other way, and the reason the up-front pass looks at the
+        // returns that RUN an axiom rather than at every axiom literal. An axiom nobody returns is
+        // compiled by NEITHER backend — the compiler emits no wrapper for it — so refusing it here
+        // would refuse a program that builds perfectly well.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language never-run as [getpid()].
+                State "fine".
+            Done.
+            """;
+        var output = new StringWriter();
+        new CufetInterpreter(output).Execute(Checked(src));   // no ForeignRunner, and no complaint
+        Assert.Equal("fine", Norm(output.ToString()));
+    }
+
+    [Fact]
+    public void Axiom_ThatWillNotCompile_RefusesBeforeAnyOutput_OnBothBackends()
+    {
+        // ★★ The divergence this pass exists to close. `State "before".` runs BEFORE the bad axiom
+        // is reached, so the interpreter used to print it and then fail, while the compiler refused
+        // at build time and printed nothing. Two answers to one program.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language good as [6 * 7].
+                Define c-language bad as [3.5].
+                Bind number to fine, good.
+                Bind number to broken, bad.
+                State "before".
+                State cast fine.
+                State cast broken.
+            Done.
+            """;
+
+        var interpreted = Assert.ThrowsAny<Exception>(() => InterpretRaw(src));
+        Assert.Contains("C whole number", interpreted.Message);
+
+        var compiled = Assert.ThrowsAny<Exception>(() => CompileRaw(src));
+        Assert.Contains("C whole number", compiled.Message);
+
+        // The part that was wrong: the interpreter got as far as printing, and the compiler never
+        // started. Both now produce nothing at all.
+        var output = new StringWriter();
+        Assert.ThrowsAny<Exception>(
+            () => new CufetInterpreter(output) { ForeignRunner = new GccForeignRunner() }
+                      .Execute(Checked(src)));
+        Assert.Equal("", output.ToString());
+    }
+
+    private static Program Checked(string source) =>
+        new TypeChecker().Check(new Parser(new CufetLexer(source).Tokenize()).Parse());
 }
