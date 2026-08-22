@@ -209,6 +209,32 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **Catching an exception crashed 4% of the time on Windows.** Not a rare edge — a compiled program
+  that raises and catches once died with an access violation in roughly one run in twenty-five, on
+  every Windows build. Measured at **121 crashes in 3000 serial runs** of a single binary.
+
+  On x86-64 mingw-w64, `setjmp(b)` expands to `_setjmp((b), __builtin_frame_address(0))`, and that
+  saved frame pointer makes `longjmp` perform a full SEH unwind through ntdll's `RtlUnwindEx`. At
+  `-O2` the unwinder reads stack memory it cannot validate and faults depending on what happens to
+  be lying there — which is why it looked random. The generated pad now passes a NULL context
+  (`CUFET_PLAIN_SETJMP`), so `longjmp` restores registers and skips the unwind: **3000 runs, 0
+  crashes.**
+
+  ★ Skipping the unwind is not a workaround; it is what the runtime already assumed. The unwinder
+  exists to run `__finally` blocks and C++ destructors between the jump and its target, and
+  generated Cufet C has neither — `cufet_raise` runs the unmakers, closes the files and pops the
+  arenas itself before it jumps. There was never anything for `RtlUnwindEx` to do.
+
+  ⚠ **It had been dismissed as a flaky test for weeks.** One test compiled such a program, ran it
+  once, and passed 96% of the time; the failures read as parallelism or antivirus, and a retry was
+  nearly added to paper over it. **No test in the suite could have caught it**, because every one of
+  them compiles once and runs once — so the fix ships with a test that compiles once and runs the
+  same binary 300 times. That shape is the durable part; the bug is not the last defect that will
+  only appear in a fraction of runs.
+
+  The interrupt landing pad's mingw branch had the same spelling and is fixed with it. Nothing
+  jumps to that pad on Windows today, so it was latent rather than live.
+
 - **`Suppress` released arenas and nothing else.** A destructor on an object made inside an
   exception handler never ran when the handler suppressed — a live divergence, since the interpreter
   unwinds the handler block and runs it:
