@@ -98,6 +98,9 @@ deliberate differences are marked where they arise and summarised under
       - [Restrictions](#restrictions)
       - [How stage types are checked](#how-stage-types-are-checked)
     - [Signal handling](#signal-handling)
+    - [Foreign source (`axiom`)](#foreign-source-axiom)
+      - [What crosses the boundary](#what-crosses-the-boundary)
+      - [What it costs](#what-it-costs)
       - [How far an interrupt reaches](#how-far-an-interrupt-reaches)
   - [Part VIII. The standard library](#part-viii-the-standard-library)
     - [Modules (`Pull`)](#modules-pull)
@@ -3539,6 +3542,76 @@ Handling signals **other than `SIGINT`** is not a language feature on either bac
 Note also that arithmetic faults never arrive as `SIGFPE`: `number` is a software
 decimal, so division by zero is a checked condition raised as an ordinary catchable
 Cufet exception. See the error-handling section.
+
+### Foreign source (`axiom`)
+
+**An axiom is source in another language, held as a value.** Cufet cannot check a C listing
+and does not pretend to — it takes it as given, which is what the word means.
+
+```
+Pull a book on the c-language.
+    Define c-language get-pid as [getpid()].
+    Bind number to process-id, get-pid.
+    State cast process-id.
+Done.
+```
+
+Three parts, and each does one job:
+
+- **`Pull a book on the c-language.`** — a book on a *language* has no members. Pulling it is
+  what admits C axioms in this block, and it is the line a reader can see that on.
+- **`[ ... ]`** — square brackets appear nowhere else in Cufet. Inside them nothing is Cufet:
+  no interpolation, no escapes, no comments. Bracket pairs nest, so `[argv[0]]` is fine.
+- **`c-language`** before the name — the tag, which says who reads the text. It may be written
+  in full as `Define a c-language axiom get-pid as [ ... ].`, but it cannot be left out.
+
+**An axiom runs when it is returned**, and the declared type decides what comes back. It is
+always declared first and returned by name, because the declaration is where the language tag
+lives:
+
+```
+Pull a book on the c-language.
+    Define c-language greeting-length as [(int)strlen("hello, world")].
+    Bind number to how-long, greeting-length.
+    State cast how-long.        ← 12
+Done.
+```
+
+Everywhere else, an axiom's name is refused. It is not a value that can be printed, stored,
+or passed around, and reaching for one is caught when the program is checked rather than
+when the line runs.
+
+#### What crosses the boundary
+
+**A C whole number, into a `number`.** That is the whole of it so far, and it is first
+because it cannot go wrong: a `number` is a decimal with 28–29 significant digits, so every
+64-bit integer crosses exactly. There is no rounding to argue about.
+
+Everything else is **refused rather than approximated**:
+
+| The axiom produces | What happens |
+| --- | --- |
+| `int`, `long`, `long long`, `char`, `short`, `_Bool` | crosses as a `number` |
+| `double`, `float` | refused — base-2 against a base-10 decimal |
+| `size_t`, `unsigned long long` | refused — can exceed `long long`, and casting would turn a large one negative |
+| anything, returned into a `text` or a `fact` | refused — only `number` crosses so far |
+
+The first two are refused by the C compiler, which is where the type is actually known; the
+last by Cufet's checker. Cast on the C side if you mean it: `[(int)strlen("hello")]`.
+
+#### What it costs
+
+**Running an axiom needs a C toolchain, on either backend.** Compiled, its text is pasted
+into the program's own C and called directly. Interpreted, it is compiled into a small shared
+library and called through it — cached by content, so `gcc` runs once per distinct axiom per
+machine rather than once per run.
+
+Where there is no toolchain at all — the web playground runs the interpreter in wasm — a
+program containing an axiom refuses to run and says so.
+
+**If gcc complains about your C, that is yours to fix.** Everything else in the generated C
+was written by cufet, and a failure there is reported as a compiler bug; an axiom is the one
+exception, and it is reported as one.
 
 ---
 

@@ -10,6 +10,58 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **Foreign source — an `axiom`, and the first slice of the C FFI.** Cufet can call C, on both
+  backends:
+
+  ```
+  Pull a book on the c-language.
+      Define c-language get-pid as [getpid()].
+      Bind number to process-id, get-pid.
+      State cast process-id.
+  Done.
+  ```
+
+  `axiom` names the **contract** rather than the appearance: it is taken as given without proof,
+  which is exactly what Cufet does with a C listing it cannot check. Square brackets are the
+  delimiter because they appear nowhere else in the language — this is the one construct whose
+  contents are not Cufet at all, so nothing about them needs disambiguating by context. Bracket
+  pairs nest and survive, which is what makes `[argv[0]]` lex.
+
+  The tag can be shortened (`Define a c-language axiom x as […]` → `Define c-language x as […]`)
+  but never dropped. The brackets say *this is verbatim foreign text*; they cannot say *which*
+  language, and the tag names who reads it — inferring it from what happens to be pulled would make
+  a line's meaning depend on the scope above it.
+
+  **What crosses so far is a C whole number into a `number`, and that is deliberate:** it is the
+  one direction that cannot be lossy, since a decimal with 28–29 significant digits holds every
+  64-bit integer exactly. A `double`, or an unsigned value that can exceed `long long`, is
+  **refused** rather than cast — the second would come back negative, silently, which is the
+  failure mode this project keeps refusing.
+
+  ★ **Both backends put the same wrapper around an axiom**, from one place (`ForeignC`). The
+  compiled backend pastes the text into its own C; the interpreter compiles it into a small shared
+  library and calls it. Two wrappers would have meant one program with two answers, both looking
+  right — the same reasoning the shared case table records.
+
+  ⚠ **It needs a C toolchain on either backend**, which is the price of the interpreter staying an
+  oracle here. The interpreter's shim caches by content, so `gcc` runs once per distinct axiom per
+  machine rather than once per run. Where there is no toolchain at all — the playground runs the
+  interpreter in wasm — the program refuses to run and says so, which is a required outcome rather
+  than an oversight.
+
+  ⚠ **gcc complaining about an axiom is now the author's message, not a bug report.** "Every line
+  gcc reads was written by this compiler" acquired its first exception, and reporting it the old
+  way would send someone hunting a cufet bug that is not there.
+
+  An axiom's name may be used in exactly one place — returned. Reaching for one anywhere else is
+  refused when the program is checked: `State get-pid.` used to check clean, print a C# object
+  interpreted, and emit C that would not build. Three answers to one program.
+
+  Still design and not built: parameters and splicing by the article, `address`, `the text at`,
+  `released by`, and passing an axiom around unrun. See
+  [DESIGN.md](DESIGN.md#foreign-interoperability), which carries the reasoning and the rejected
+  alternatives for all of it.
+
 - **`For each` over a stash.** The last mile of coroutines. Suspend and resume shipped in
   0.13.0, but *consuming* a stash still cost a six-line drain loop — and that loop appeared three
   times in `examples/language/stashes.cufe`, the feature's own example. Now:

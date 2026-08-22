@@ -458,6 +458,13 @@ names, parameter names, field names, and iterator names:
 of them; they are recognised by lexeme in type position, so `Define text as "hi".` is legal.
 (`number` *is* reserved, because `the number of s` needs its own token.)
 
+**`axiom`** is contextual on the same terms, recognised only where a **language book's name comes
+immediately before it** — `the c-language axiom fragment`. It qualifies under the rule below
+because that preceding name is mandatory and there is no other shape in which two identifiers in
+type position are followed by a third. `Define axiom as 1.` and `given (the number axiom)` keep
+working. The language book's own name is not reserved either, and cannot be: **no module's name
+ever is**, because nobody can reserve `inventory` or `parser` in advance.
+
 **Book vocabulary** — `at`, `filled`, `guess`, `shuffled`, `rows`, `columns`, `matrix`,
 `random`, `randomly` and `seed` are contextual. A reserved word is taken from *every* program in
 the language, whether or not it pulls the book that wanted it; these are recognised by shape
@@ -1772,6 +1779,76 @@ An ordinary function-valued field works the same way — `the number function tw
 given (a number)`. ⚠ The field NAME sits between `function` and `given`, the same
 order a function-typed parameter uses; `void` is legal there only as the return
 type (`the void function log`), never as a field type on its own.
+
+### ★ Foreign source — an `axiom` in `[ ... ]`
+
+Source in another language, held as a value. `axiom` names the **contract**: it is taken as given
+without proof, which is exactly what Cufet does with it — it cannot check a C listing and does not
+try.
+
+```
+Pull a book on the c-language.
+    Define c-language get-pid as [getpid()].
+    Bind number to process-id, get-pid.
+    State cast process-id.
+Done.
+```
+
+**Square brackets appear nowhere else in the language**, and that is why they are the delimiter:
+this is the one construct whose contents are not Cufet at all, so reusing existing punctuation
+would need disambiguating by context — the last thing wanted around foreign text.
+
+**The tag can be shortened but never dropped.** `Define a c-language axiom x as [ … ].` may be
+written `Define c-language x as [ … ].`, because the brackets already say *axiom*. They cannot say
+*which* language, and the tag names who reads it — so `Define x as [ … ].` is refused. Inferring it
+from what happens to be pulled would make a line's meaning depend on scope above it, and break the
+moment two language books are pulled together.
+
+**The language's book must be pulled** — `Pull a book on the c-language.` A language book has no
+members; you pull it to write axioms in that language at all. Aliasing works (`as c`), and the tag
+still names the language rather than the alias.
+
+**An axiom runs when it is RETURNED, and the declared type decides.** `Bind number to process-id,
+get-pid.` runs it and marshals the result. Nowhere else may an axiom's name be used at all: it is
+not a value that can be printed, stored, or passed, and reaching for one is refused when the
+program is checked.
+
+**An axiom binding is permanent whether or not it says so.** The text is fixed at the declaration
+and there is no other value it could take — so a function body sees it, by the same carve-out that
+lets a body see a `permanently` constant.
+
+| Written | Means |
+| --- | --- |
+| `Define c-language x as [ … ].` | declare an axiom (`Define a c-language axiom x as [ … ].` is the same) |
+| `Bind number to f, x.` | run it, and give back the whole number it produced |
+| `Pull a book on the c-language.` | admit C axioms in this block |
+
+**What crosses the boundary, so far: a C whole number into a `number`, and nothing else.** That
+direction is first because it cannot be lossy — a `number` is a decimal with 28–29 significant
+digits, so every 64-bit integer crosses exactly. Everything else is refused rather than
+approximated:
+
+- a `double` — base-2 against a base-10 decimal, so that conversion has to be written once in C and
+  called by both backends
+- an unsigned 64-bit value (`size_t`, `unsigned long long`) — it can exceed `long long`, and casting
+  would turn a large one negative
+- an axiom as a parameter, a field, an element type, or something a function hands back unrun
+
+The first two are refused by the **C compiler**, at the point where the type is actually known; the
+rest by the checker. Both name what is wrong.
+
+⚠ **An axiom needs a C toolchain to run, on either backend.** Compiled, its text is pasted into the
+program's own C. Interpreted, it is compiled into a small shared library and called — cached by
+content, so `gcc` runs once per distinct axiom per machine. Where no toolchain exists at all (the
+playground runs the interpreter in wasm) the program refuses to run, and says so.
+
+⚠ **gcc's complaint about an axiom is the author's to fix**, not a compiler bug — the one exception
+to "every line gcc reads was written by cufet", and it is reported as such.
+
+⚠ **Brackets are counted, and nothing else is read.** Pairs nest, so `[argv[0]]` works; a lone `]`
+inside a foreign string literal closes the axiom early. `<<...>>` has the same edge, and closing it
+would mean knowing which foreign language this is. In practice what follows an early close is read
+as Cufet and refuses.
 
 ---
 

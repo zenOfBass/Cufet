@@ -421,7 +421,8 @@ The two arcs where soundness was the whole problem.
 ## Foreign interoperability
 
 How anything that is not Cufet gets reached from inside Cufet — C libraries, and source
-written in other languages. Designed 2026-08-21; **nothing here is built yet.** The
+written in other languages. Designed 2026-08-21; **the first slice — an axiom returned as a
+number — runs on both backends, and everything else here is still design.** The
 ordered work lives in [ROADMAP.md](ROADMAP.md); this is the *why*.
 
 ### The rabbit block is the unsafe marker
@@ -675,7 +676,7 @@ The type is an **axiom**, written in square brackets, tagged by the language boo
 ```
 Pull a book on the c-language.
     Define a c-language axiom get-pid as [getpid()].
-    Bind number to process-id, return get-pid.
+    Bind number to process-id, get-pid.
 Done.
 ```
 
