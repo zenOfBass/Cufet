@@ -601,14 +601,25 @@ compiles and loads them. One artifact, and no separate declaration language to k
 > **The constraint, in full:** interpreted FFI needs a C toolchain the first time a given set of
 > axioms is seen, and not at all for bundled books. Wasm cannot do it in any case.
 
-### One `c` book
+### `c-language` is the tag; a bundled collection is optional
 
-C bindings live in **one book**, not split by domain and not split by platform.
+Two things could be called "the C book" and only one has to exist.
 
-The arguments against it were both wrong and are recorded so they do not come back:
+- **`c-language` is the tag book.** You pull it to write C axioms at all. It is the language, not a
+  library of anything.
+- **A bundled collection of ready-made axioms** — common POSIX calls, say — is *optional*. Axioms
+  live wherever they are defined: at the top level, or inside a module a writer wrote. A "book of C
+  bindings" is now just a module that happens to contain axioms, with no special status.
 
-- *"libc is too big"* — a C book holds what the project has actually **bound**, not all of libc,
-  and members are reached as `c's read`, so a large book pollutes nothing at the pull site.
+★ That dissolves a gap the earlier design had and never closed: if a `c` book were **bundled**,
+writers could not add to it, because `unto` may not target a bundled book. Under axioms there is
+nothing to add to — you write your own.
+
+**If a bundled collection does ship, it is one book** — not split by domain and not split by
+platform. The arguments against that were both wrong and are recorded so they do not come back:
+
+- *"libc is too big"* — such a book holds what was actually **bound**, not all of libc, and members
+  are reached as `c's read`, so a large book pollutes nothing at the pull site.
 - *"split by domain so the platform difference lands on the book"* — weak. Portability is not a
   naming question: a program calling `tcgetattr` is POSIX-only whatever the book is called. Naming
   changes only *where* the failure is reported, not whether it happens.
@@ -688,6 +699,24 @@ punctuation would need disambiguating by context, which is what you least want a
 brackets say *this is verbatim foreign text*; they cannot say *which* language, and the tag names
 the consumer. Making it inferable from what happens to be pulled would make a line's meaning depend
 on scope above it, and break the moment both `c-language` and `sql` are pulled.
+
+### Naming a language book
+
+By ear — the language's common name, qualified only where the bare name needs it:
+
+```
+Pull a book on the c-language.      ← `c` alone is a single letter
+Pull a book on sql.                 ← `sql-language` says language twice
+Pull a book on regex.
+```
+
+★ The constraint that survives in every case: `c` on its own is a single letter, which the style
+rule refuses, so C is qualified regardless of what the rest do.
+
+⚠ A mechanical `<name>-language` rule was the alternative and was not taken. It buys consistency —
+you always know how to spell it, and the suffix says *this is a foreign language book* at a glance —
+at the cost of reading redundantly wherever the name already ends in "language", which SQL and HTML
+both do. The judgment is per language now, so someone adding a binding decides rather than looks up.
 
 ### Splicing: values stay values, and the marker is `the`
 
