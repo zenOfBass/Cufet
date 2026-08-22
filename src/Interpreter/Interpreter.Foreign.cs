@@ -36,11 +36,17 @@ public sealed partial class Interpreter
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var pending = new List<(AxiomLiteral Axiom, int Line)>();
 
+        void Note(AxiomLiteral axiom, int line)
+        {
+            if (seen.Add(ForeignC.Identity(axiom.Language ?? "", axiom.Source, axiom.Parameters)))
+                pending.Add((axiom, line));
+        }
+
         AstSearch.Visit(program.Statements, node =>
         {
-            if (node is ReturnStatement { RunsAxiom: { } axiom } ret
-             && seen.Add($"{axiom.Language}\0{axiom.Source}"))
-                pending.Add((axiom, ret.Line));
+            // The two places an axiom RUNS: returned by name, and called with arguments.
+            if (node is ReturnStatement { RunsAxiom: { } returned } ret) Note(returned, ret.Line);
+            if (node is CastExpression { RunsAxiom: { } called } cast)   Note(called, cast.Line);
         });
 
         if (pending.Count == 0) return;
@@ -49,7 +55,37 @@ public sealed partial class Interpreter
             throw CannotRunForeignSource(pending[0].Axiom, pending[0].Line);
 
         foreach (var (axiom, line) in pending)
-            runner.Prepare(axiom.Language!, axiom.Source, line);
+            runner.Prepare(axiom.Language!, axiom.Source, axiom.Parameters, line);
+    }
+
+    /// <summary>Runs an axiom called with arguments — `cast open-file on (path, flags)`.</summary>
+    private object RunAxiomCall(CastExpression cast, AxiomLiteral axiom)
+    {
+        if (ForeignRunner is not { } runner) throw CannotRunForeignSource(axiom, cast.Line);
+
+        // ⚠ Evaluated in declaration order, left to right, which is the order the compiled backend
+        // evaluates its call arguments in. An argument with a side effect would otherwise happen in
+        // a different order on the two backends.
+        //
+        // ★ Converted HERE rather than inside the runner, because the refusals are Cufet's: the
+        // range check on a `number` and the sentence it raises belong to the language, and the
+        // runner's job stops at putting bytes in a slot.
+        var arguments = new List<object>(cast.Args.Count);
+        for (int i = 0; i < cast.Args.Count; i++)
+        {
+            var value = Evaluate(cast.Args[i]);
+            arguments.Add(axiom.Parameters[i].Type switch
+            {
+                // ⚠ The program's OWN number formatting, so the refusal reads the same way a
+                // printed number does — and the same way the compiled backend's does.
+                NumberType => ForeignC.ToForeignWhole((decimal)value, cast.Line, d => Format(d)),
+                FactType   => (bool)value ? 1L : 0L,
+                _          => value,   // text, already the UTF-8 the C side wants
+            });
+        }
+
+        return runner.RunForWholeNumber(
+            axiom.Language!, axiom.Source, axiom.Parameters, arguments, cast.Line);
     }
 
     /// <summary>Runs an axiom and gives back the marshalled Cufet value.</summary>
@@ -64,7 +100,7 @@ public sealed partial class Interpreter
     private object RunAxiom(AxiomLiteral axiom, int line)
     {
         if (ForeignRunner is not { } runner) throw CannotRunForeignSource(axiom, line);
-        return runner.RunForWholeNumber(axiom.Language!, axiom.Source, line);
+        return runner.RunForWholeNumber(axiom.Language!, axiom.Source, axiom.Parameters, [], line);
     }
 
     /// <summary>The refusal for an environment with no way to compile and call foreign source.</summary>

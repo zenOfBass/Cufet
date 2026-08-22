@@ -170,6 +170,188 @@ public class PipelineForeignTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── Parameters, and splicing them by the article ─────────────────────────
+
+    [Fact]
+    public void Axiom_SplicesNumbersTextAndFacts()
+    {
+        // ★ Values cross, never text. The C side receives a marshalled `long long`, a `const char*`
+        // and an `int` — the axiom is fixed at its definition and cannot be assembled from strings,
+        // which is the same reason `Run "grep" with arguments (…)` has no shell injection.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language add, given (the number left, the number right),
+                    as [the left + the right].
+                Define c-language text-length, given (the text subject), as [(int)strlen(the subject)].
+                Define c-language pick, given (the fact choose-first, the number first, the number second),
+                    as [the choose-first ? the first : the second].
+
+                Define the number sum as cast add on (20, 22).
+                Define the number width as cast text-length on ("hello, world").
+                Define the number picked as cast pick on (false, 10, 99).
+
+                State sum.
+                State width.
+                State picked.
+            Done.
+            """;
+        Assert.Equal("42\n12\n99", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_SplicesTheLongerNameWhenTwoOverlap()
+    {
+        // ⚠ `the flag` is a prefix of `the flag-mask`, and substituting the short one first would
+        // leave `cufet_p0-mask` behind — valid C, wrong program. Longest name first.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language combine, given (the number flag, the number flag-mask),
+                    as [the flag * 100 + the flag-mask].
+                Define the number both as cast combine on (7, 42).
+                State both.
+            Done.
+            """;
+        Assert.Equal("742", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_SameSourceDifferentParameterTypes_AreDifferentWrappers()
+    {
+        // ⚠ The wrapper is named after the axiom's IDENTITY, which includes the parameter types.
+        // Keying on the source alone would wrap the first one and silently call it for the second,
+        // handing C a `const char*` where it declared a `long long`.
+        string c = GenerateC("""
+            Pull a book on the c-language.
+                Define c-language size-of-number, given (the number thing), as [(int)sizeof(the thing)].
+                Define c-language size-of-text, given (the text thing), as [(int)sizeof(the thing)].
+                Define the number number-size as cast size-of-number on (1).
+                Define the number text-size as cast size-of-text on ("x").
+                State number-size + text-size.
+            Done.
+            """);
+        int wrappers = c.Split("static CufetDec " + ForeignC.FunctionPrefix).Length - 1;
+        Assert.Equal(2, wrappers);
+    }
+
+    [Fact]
+    public void Axiom_ArgumentThatIsNotAWholeNumber_RefusesTheSameWayOnBothBackends()
+    {
+        // ⚠ A range check, not a conversion — truncating would hand C a different number than the
+        // program said. It raises at RUN time on both backends, so the message is caught and
+        // PRINTED: that puts it on stdout where the oracle compares it byte for byte, which is the
+        // only way to hold the two backends to the same sentence rather than to the same failure.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language double-it, given (the number n), as [the n * 2].
+                Try to:
+                    Define the number bad as cast double-it on (3.50).
+                    State bad.
+                Done.
+                In case of exception (the exception):
+                    State the message of the exception.
+                    Suppress the exception.
+                Done.
+            Done.
+            """;
+        Assert.Contains("Foreign source takes whole numbers, but got 3.5", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_ReachesRealPosixCallsWithArguments()
+    {
+        // ★★ The case this slice exists for: opening, querying and closing a real file through C.
+        // None of it was reachable in slice 1, where an axiom could only be a constant expression.
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language open-read-only, given (the text file-path),
+                    as [open(the file-path, O_RDONLY)].
+                Define c-language close-it, given (the number handle), as [close(the handle)].
+
+                Define the number fd as cast open-read-only on ("/etc/hostname").
+                State fd > 0.
+                Define the number closed as cast close-it on (fd).
+                State closed = 0.
+                Define the number missing as cast open-read-only on ("/no/such/file/anywhere").
+                State missing = 0 - 1.
+            Done.
+            """;
+        Assert.Equal("true\ntrue\ntrue", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ── What the declaration and the call site refuse ────────────────────────
+
+    [Fact]
+    public void Axiom_WithAParameterItNeverUses_IsRefused()
+    {
+        // ⚠ Only DECLARED names are substituted, so a misspelling stays in the C verbatim and
+        // surfaces as a gcc syntax error about a stray `the` — a message about the writer's typo,
+        // phrased in a language they were not writing. Catching it here says it in Cufet.
+        var e = Assert.Throws<TypeException>(() => GenerateC("""
+            Pull a book on the c-language.
+                Define c-language add, given (the number left, the number right), as [the left + 1].
+                Define the number s as cast add on (1, 2).
+            Done.
+            """));
+        Assert.Contains("never uses 'the right'", e.Message);
+    }
+
+    [Theory]
+    [InlineData("cast add on (1).", "takes 2 values, and 1 was given")]
+    [InlineData("cast add on (1, \"two\").", "'right' takes a number, but a text was given")]
+    public void Axiom_CalledWrongly_IsRefused(string call, string fragment)
+    {
+        var e = Assert.Throws<TypeException>(() => GenerateC($$"""
+            Pull a book on the c-language.
+                Define c-language add, given (the number left, the number right),
+                    as [the left + the right].
+                Define the number s as {{call}}
+            Done.
+            """));
+        Assert.Contains(fragment, e.Message);
+    }
+
+    [Fact]
+    public void Axiom_CalledWhereNothingDeclaresAType_IsRefused()
+    {
+        // ⚠ The cost of "the use site's declared type decides", and it is a real one: an axiom
+        // call cannot be written inline. Nothing about the C side can say what an `int` MEANS, so
+        // the alternative to this refusal is guessing.
+        var e = Assert.Throws<TypeException>(() => GenerateC("""
+            Pull a book on the c-language.
+                Define c-language add, given (the number left, the number right),
+                    as [the left + the right].
+                State cast add on (1, 2).
+            Done.
+            """));
+        Assert.Contains("nothing here says what this c-language source gives back", e.Message);
+    }
+
+    [Fact]
+    public void Axiom_TakingATypeTheBoundaryCannotCarry_IsRefused()
+    {
+        var e = Assert.Throws<TypeException>(() => GenerateC("""
+            Pull a book on the c-language.
+                Define c-language total, given (the series of number xs), as [the xs].
+            Done.
+            """));
+        Assert.Contains("cannot be handed to c-language source yet", e.Message);
+    }
+
+    [Fact]
+    public void Given_OnSomethingThatIsNotAnAxiom_IsRefused()
+    {
+        // It parses and means nothing, which is worse than being refused — the writer would be
+        // left thinking the value takes arguments.
+        var e = Assert.Throws<TypeException>(() => GenerateC("Define x, given (the number n), as 5."));
+        Assert.Contains("cannot be 'given' anything", e.Message);
+    }
+
     // ── The header set an axiom is given ─────────────────────────────────────
     //
     // ★ Three branches, three tests, because a header list that is wrong on one platform fails at

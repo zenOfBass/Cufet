@@ -426,6 +426,14 @@ public sealed partial class TypeChecker
 
     private CufetType? InferCastExpr(CastExpression cast)
     {
+        // ★ An axiom call reached from anywhere that does NOT declare a type. The two places that
+        // do — a `Define` with one written, and a `Return` in a typed function — intercept before
+        // this and never arrive here. Everything else has nothing to decide the result from, so it
+        // is refused rather than guessed: `State cast open-file on (p, f).` used to check clean and
+        // then have no answer to give either backend.
+        if (cast.RunsAxiom is null && AxiomCalledBy(cast.Function) is { } axiom)
+            return RunAxiomOnCast(cast, axiom, expected: null);
+
         // A function that left blanks is filled from THIS call's arguments before anything is
         // resolved — the filling is what decides which body the call reaches.
         if (cast.Function is VariableReference gvr && _genericFunctions.ContainsKey(gvr.Name))

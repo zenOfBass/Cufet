@@ -48,7 +48,20 @@ public sealed partial class TypeChecker
             && IsLanguageBook(shell.Name))
             declared = new AxiomType(shell.Name);
 
-        if (define.Value is not AxiomLiteral axiom) return declared;
+        if (define.Value is not AxiomLiteral axiom)
+        {
+            // ⚠ `given` says what a BODY is handed, and only foreign source is a body a `Define`
+            // can hold. On anything else it parses and means nothing, which is worse than being
+            // refused — the writer would be left thinking the value takes arguments.
+            if (define.HasParameterClause)
+                throw TypeError(
+                    $"'{define.Name}' is not foreign source, so it cannot be 'given' anything",
+                    "Only an axiom — source in another language — takes parameters at a 'Define'",
+                    define.Line, define.Column,
+                    $"declare parameters for '{define.Name}'",
+                    $"Use 'Bind ... to {define.Name}, given (...)' for a function, or drop the clause.");
+            return declared;
+        }
 
         if (declared is not AxiomType tag)
             throw TypeError(
@@ -61,7 +74,58 @@ public sealed partial class TypeChecker
 
         RequireLanguagePulled(tag.Language, axiom.Line, axiom.Column);
         axiom.Language = tag.Language;
+        CheckAxiomParameters(define, axiom);
         return declared;
+    }
+
+    /// <summary>Checks what an axiom says it takes, and that the foreign text asks for it.</summary>
+    /// <remarks>
+    /// ★ The parameter list is the only thing that says what C types the arguments have — the
+    /// writer names no C type anywhere — so a type the boundary cannot carry has to be refused
+    /// here, at the declaration, rather than at whichever call site happens to be written first.
+    ///
+    /// ⚠ A declared parameter the text never mentions is refused. It is not pedantry: `the paht`
+    /// is left in the C verbatim (only DECLARED names are substituted), so a typo would otherwise
+    /// surface as a gcc syntax error about a stray `the` — a message about the writer's spelling
+    /// mistake, phrased in a language they were not writing.
+    /// </remarks>
+    private void CheckAxiomParameters(DefineStatement define, AxiomLiteral axiom)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (type, name) in axiom.Parameters)
+        {
+            var resolved = ResolveParamType(type);
+            if (!ForeignC.CanPassToForeign(resolved))
+                throw TypeError(
+                    $"a {FormatType(resolved)} cannot be handed to {axiom.Language} source yet",
+                    "A number, a fact and a text cross the boundary; nothing else does",
+                    axiom.Line, axiom.Column,
+                    $"declare '{name}' as a {FormatType(resolved)}",
+                    "Take a number, a fact or a text instead, and do the rest inside the source.");
+
+            if (!seen.Add(name))
+                throw TypeError(
+                    $"'{name}' is declared twice in this axiom's parameters",
+                    "Each `the <name>` in the source has to name exactly one of them",
+                    axiom.Line, axiom.Column,
+                    $"declare '{name}' twice", "Give them different names.");
+
+            if (!ForeignC.Mentions(axiom.Source, name))
+                throw TypeError(
+                    $"this {axiom.Language} source never uses 'the {name}'",
+                    "A parameter reaches the source by its article — `the text path` here, "
+                  + "`the path` in the source",
+                    axiom.Line, axiom.Column,
+                    $"declare '{name}' without using it",
+                    $"Write 'the {name}' where the value belongs, or drop it from 'given'.");
+        }
+
+        if (define.HasParameterClause && axiom.Parameters.Count == 0)
+            throw TypeError(
+                $"'{define.Name}' declares an empty parameter list",
+                null, define.Line, define.Column,
+                "write 'given ()' with nothing in it",
+                "Drop the 'given' clause — an axiom that takes nothing needs none.");
     }
 
     /// <summary>The type of a bare axiom literal — always tagged by then, or already refused.</summary>
@@ -127,6 +191,81 @@ public sealed partial class TypeChecker
             $"use '{name}' as a value",
             $"Wrap it: 'Bind number to <name>, {name}.' — then use that function.");
     }
+
+    /// <summary>A `Define`'s written type, resolved — or null when it declared none.</summary>
+    private CufetType? ResolvedDeclaredType(CufetType? declared) =>
+        declared is null ? null : ResolveParamType(declared);
+
+    /// <summary>The axiom a `cast` reaches, or null when the call is an ordinary one.</summary>
+    private AxiomLiteral? AxiomCalledBy(IExpression function) =>
+        function is VariableReference vr && TryLookup(vr.Name, out var info) && info.Type is AxiomType
+            ? info.EstablishingExpr as AxiomLiteral
+            : null;
+
+    /// <summary>
+    /// `cast open-file on (path, flags)` — runs an axiom, and what comes back is the type declared
+    /// where the call is used.
+    /// </summary>
+    /// <remarks>
+    /// ★ The same rule as returning one, extended to the only other place an axiom can be reached:
+    /// a declared type is what a value must fit into, and for an axiom it is also what decides what
+    /// the value IS. Nothing about the C side can say it — `open` gives back an `int` that means a
+    /// file descriptor, and only the writer knows that.
+    ///
+    /// ⚠ Which is why a use site that declares nothing is refused rather than guessed at. It is the
+    /// cost of the rule, and it is the one the writer can see and fix.
+    /// </remarks>
+    private CufetType RunAxiomOnCast(CastExpression cast, AxiomLiteral axiom, CufetType? expected)
+    {
+        RequireLanguagePulled(axiom.Language!, cast.Line, cast.Column);
+        CheckForeignArguments(cast, axiom);
+
+        if (expected is null)
+            throw TypeError(
+                $"nothing here says what this {axiom.Language} source gives back",
+                "Foreign source is taken as given, so its result is whatever the line using it "
+              + "declares — Cufet cannot read a C listing to find out",
+                cast.Line, cast.Column,
+                "run foreign source without declaring what comes back",
+                "Declare it: 'Define the number <name> as cast ... .'");
+
+        if (expected != CufetType.Number)
+            throw TypeError(
+                $"a {axiom.Language} axiom cannot come back as a {FormatType(expected)} yet",
+                "Only 'number' crosses the boundary so far",
+                cast.Line, cast.Column,
+                $"run a {axiom.Language} axiom into a {FormatType(expected)}",
+                "Declare it as a number and let the source produce a whole number.");
+
+        cast.RunsAxiom = axiom;
+        return CufetType.Number;
+    }
+
+    /// <summary>Checks a call's arguments against what the axiom declared it takes.</summary>
+    private void CheckForeignArguments(CastExpression cast, AxiomLiteral axiom)
+    {
+        if (cast.Args.Count != axiom.Parameters.Count)
+            throw TypeError(
+                $"this {axiom.Language} source takes {Count(axiom.Parameters.Count, "value")}, "
+              + $"and {cast.Args.Count} {(cast.Args.Count == 1 ? "was" : "were")} given",
+                null, cast.Line, cast.Column,
+                $"pass {Count(cast.Args.Count, "value")}",
+                $"It is declared 'given ({string.Join(", ", axiom.Parameters.Select(p => $"the {FormatType(p.Type)} {p.Name}"))})'.");
+
+        for (int i = 0; i < cast.Args.Count; i++)
+        {
+            var expected = ResolveParamType(axiom.Parameters[i].Type);
+            var actual = InferType(cast.Args[i]);
+            if (actual != null && !IsAssignable(expected, actual))
+                throw TypeError(
+                    $"'{axiom.Parameters[i].Name}' takes a {FormatType(expected)}, but a {FormatType(actual)} was given",
+                    null, cast.Line, cast.Column,
+                    $"pass a {FormatType(actual)} for '{axiom.Parameters[i].Name}'",
+                    $"Give it a {FormatType(expected)}.");
+        }
+    }
+
+    private static string Count(int n, string noun) => n == 1 ? $"1 {noun}" : $"{n} {noun}s";
 
     /// <summary>The axiom a returned expression stands for — the literal itself, or the one a name was defined as.</summary>
     private AxiomLiteral? AxiomBehind(IExpression value) => value switch

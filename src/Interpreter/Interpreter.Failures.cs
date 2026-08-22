@@ -317,6 +317,10 @@ public sealed partial class Interpreter
 
     private object EvaluateCastExpr(CastExpression cast)
     {
+        // Foreign source, not a Cufet function — there is no body to call into, so nothing below
+        // applies to it: an axiom is not fallible and has no failure to route.
+        if (cast.RunsAxiom is { } axiom) return RunAxiomCall(cast, axiom);
+
         var result = ExecuteCallExpr(CalledFunction(cast.Function, cast.ResolvedFunctionName, cast.Line, cast.Column),
                                      cast.Args, cast.Line)
             ?? throw new RuntimeException(

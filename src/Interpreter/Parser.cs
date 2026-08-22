@@ -132,6 +132,14 @@ public sealed class Parser
         CufetType? declaredType = TryParseTypeBeforeName();
         var name = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
+        // `Define c-language open-file, given (the text path), as [open(the path)].` — an axiom
+        // declares what it takes here. Parsed for ANY `Define` and refused by the checker for the
+        // rest, because "a value that takes parameters" is a type question rather than a shape the
+        // parser can rule on: `Define x, given (…), as 5.` is well-formed and meaningless.
+        var parameters = TryParseGivenClause();
+        // `Define c-language open-file, given (…), as [ … ].` — the clause sits between two commas,
+        // the way an aside does in English. The second one only exists when the clause does.
+        if (parameters is not null && Peek().Type == TokenType.Comma) { Advance(); SkipNoise(); }
         Consume(TokenType.As);
         SkipNoise(); // skips article 'an' before 'interface'
         if (Peek().Type == TokenType.Interface)
@@ -148,7 +156,13 @@ public sealed class Parser
             SkipNoise();
         }
         Consume(TokenType.Dot);
-        return new DefineStatement(name, value, permanent, shadow, line, col, declaredType);
+        // The clause belongs to the axiom, which is the only value that can take one. A `given` on
+        // anything else is carried no further — the checker reports it against this statement.
+        if (value is AxiomLiteral axiom && parameters is not null) axiom.Parameters = parameters;
+        return new DefineStatement(name, value, permanent, shadow, line, col, declaredType)
+        {
+            HasParameterClause = parameters is not null,
+        };
     }
 
     // Define object <name> with (<fields>) [: <bind-stmts> Done.].
@@ -3808,34 +3822,7 @@ public sealed class Parser
             SkipNoise();
         }
 
-        var parameters = new List<(CufetType Type, string Name)>();
-        // ★ A comma here means one of two things, and `given` is what tells them apart. A function
-        // that takes no parameters reaches its inline body through this same comma —
-        // `Bind number to leg-pairs, one's legs / 2.` — so consuming `given` unconditionally made
-        // the inline form unavailable to exactly the functions shortest enough to want it.
-        if (Peek().Type == TokenType.Comma && PeekPastNoiseIs(TokenType.Given))
-        {
-            Advance(); // consume ','
-            SkipNoise();
-            Consume(TokenType.Given);
-            SkipNoise();
-            Consume(TokenType.LParen);
-            SkipNoise();
-            if (Peek().Type != TokenType.RParen)
-            {
-                parameters.Add(ParseParameter());
-                SkipNoise();
-                while (Peek().Type == TokenType.Comma)
-                {
-                    Advance();
-                    SkipNoise();
-                    parameters.Add(ParseParameter());
-                    SkipNoise();
-                }
-            }
-            Consume(TokenType.RParen);
-            SkipNoise();
-        }
+        var parameters = TryParseGivenClause() ?? [];
 
         // True for free functions, false for method bodies (nested or 'unto').
         _inFreeFunction = untoType == null && constructsTypeName == null && !savedInObjectDef;
@@ -3891,6 +3878,50 @@ public sealed class Parser
     //   <base-type> <name>
     //   (<base-type> | "void") "function" <name> ["given" "(" <param-type-list> ")"]
     //   "record" <name> "with" "(" <record-shape> ")"
+    /// <summary>`, given (the number n, the text s)` — the parameter clause, or nothing.</summary>
+    /// <remarks>
+    /// ★ A comma here means one of two things, and `given` is what tells them apart. A function
+    /// that takes no parameters reaches its inline body through this same comma —
+    /// `Bind number to leg-pairs, one's legs / 2.` — so consuming `given` unconditionally made the
+    /// inline form unavailable to exactly the functions short enough to want it.
+    ///
+    /// ★ Shared with `Define c-language <name>, given (…), as [ … ].` An axiom declares what it
+    /// takes the way every other Cufet body does, so it must PARSE the way every other one does —
+    /// two implementations of one clause is how the two spellings drift apart.
+    /// </remarks>
+    /// <remarks>
+    /// ⚠ Null when there is NO clause, which is not the same as an empty one. `given ()` is a
+    /// mistake worth a sentence about, and a list that came back empty either way could not tell
+    /// the checker which had been written.
+    /// </remarks>
+    private List<(CufetType Type, string Name)>? TryParseGivenClause()
+    {
+        if (Peek().Type != TokenType.Comma || !PeekPastNoiseIs(TokenType.Given)) return null;
+
+        var parameters = new List<(CufetType Type, string Name)>();
+        Advance(); // consume ','
+        SkipNoise();
+        Consume(TokenType.Given);
+        SkipNoise();
+        Consume(TokenType.LParen);
+        SkipNoise();
+        if (Peek().Type != TokenType.RParen)
+        {
+            parameters.Add(ParseParameter());
+            SkipNoise();
+            while (Peek().Type == TokenType.Comma)
+            {
+                Advance();
+                SkipNoise();
+                parameters.Add(ParseParameter());
+                SkipNoise();
+            }
+        }
+        Consume(TokenType.RParen);
+        SkipNoise();
+        return parameters;
+    }
+
     private (CufetType Type, string Name) ParseParameter()
     {
         SkipNoise();

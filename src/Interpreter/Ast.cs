@@ -125,7 +125,17 @@ public sealed record StateStatement(IExpression Value) : IStatement;
 // `the <type> <name>` shape parameters and object fields use. The value widens into it, so the
 // binding can hold a wider type than any one value spells (a union is the case that needs it).
 // Null ⇒ the plain form, where the type is whatever the value is.
-public sealed record DefineStatement(string Name, IExpression Value, bool Permanent, bool Shadow, int Line, int Column, CufetType? DeclaredType = null) : IStatement;
+public sealed record DefineStatement(string Name, IExpression Value, bool Permanent, bool Shadow, int Line, int Column, CufetType? DeclaredType = null) : IStatement
+{
+    /// <summary>Whether this `Define` was written with a `, given (…)` clause.</summary>
+    /// <remarks>
+    /// ⚠ Recorded rather than inferred from the value, because the point is to REFUSE it on
+    /// anything but an axiom. The parameters themselves ride on the AxiomLiteral; this is the flag
+    /// that lets `Define x, given (the number n), as 5.` be told apart from `Define x as 5.` after
+    /// the clause has been parsed and discarded.
+    /// </remarks>
+    public bool HasParameterClause { get; init; }
+}
 public sealed record BecomesStatement(string Name, IExpression Value, int Line, int Column) : IStatement
 {
     // ESC.1 — set by the checker when the stored value's region depth is DEEPER than the
@@ -258,6 +268,14 @@ public sealed record CastExpression(
     // ObjectLiteral.ResolvedTypeName is, because both backends resolve a named call BY NAME and a
     // function with a blank in its signature has no single body to reach. Null for ordinary calls.
     public string? ResolvedFunctionName { get; set; }
+
+    /// <summary>The axiom this call RUNS, when the name being cast is one.</summary>
+    /// <remarks>
+    /// ★ The same side channel `ReturnStatement.RunsAxiom` is, and for the same reason: the checker
+    /// has already resolved the name to its source, so neither backend looks it up again. What
+    /// comes back is decided by the type declared where the call is USED — see RunAxiomOnCast.
+    /// </remarks>
+    public AxiomLiteral? RunsAxiom { get; set; }
 }
 
 // Cast as a statement (void call, or discarded return value).
@@ -299,6 +317,22 @@ public sealed record ReturnStatement(IExpression? Value, int Line, int Column) :
 public sealed record AxiomLiteral(string Source, int Line, int Column) : IExpression
 {
     public string? Language { get; set; }
+
+    /// <summary>What the axiom takes, declared `given (…)` on the line that names it.</summary>
+    /// <remarks>
+    /// ★ Declared the way every Cufet function declares parameters, and referred to inside the
+    /// foreign text BY THE ARTICLE — `the text path` above, `the path` in the body. That marker
+    /// works because `the path` is never valid C or SQL: it is English sitting in code that is not
+    /// English, so nothing has to be escaped.
+    ///
+    /// ★ The list is also what marshalling needs. Nothing else says what C types the arguments
+    /// have, and the writer never names a C type anywhere.
+    ///
+    /// ⚠ Only VALUES cross, never text — the precedent is `Run "grep" with arguments (…)`, which
+    /// passes a list rather than a concatenated command line, which is why there is no injection
+    /// there. An axiom is fixed at its definition and cannot be assembled from strings.
+    /// </remarks>
+    public IReadOnlyList<(CufetType Type, string Name)> Parameters { get; set; } = [];
 }
 
 // Bury <value>.  — hand one value out of a stash body and suspend there.

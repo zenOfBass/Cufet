@@ -2059,7 +2059,12 @@ public sealed partial class TypeChecker
         // ★ First, because an axiom has no type until the declaration gives it one. This also
         // resolves the shortened tag spelling, so `declared` below is an AxiomType either way.
         var declaredType = TagAxiomDeclaration(define);
-        var type = InferType(define.Value);
+        // `Define the number fd as cast open-file on (path, flags).` — running an axiom, where the
+        // type declared HERE is what comes back. Asked before the value's type is inferred, for the
+        // same reason CheckReturn asks: a cast of an axiom has no type of its own to infer.
+        var type = define.Value is CastExpression { Function: var fn } call && AxiomCalledBy(fn) is { } called
+            ? RunAxiomOnCast(call, called, ResolvedDeclaredType(declaredType))
+            : InferType(define.Value);
         if (type == null)
             throw TypeError(
                 $"the type of the value for '{define.Name}' can't be determined",
@@ -2209,8 +2214,11 @@ public sealed partial class TypeChecker
             // name bound to one may be reached for at all — see the guard in InferTypeCore. What
             // happens next is RunAxiomOnReturn's: an axiom runs when it is returned, and the
             // declared type decides what it becomes.
-            var returnType = AxiomBehind(ret.Value) is not null
-                ? RunAxiomOnReturn(ret, _expectedReturnType!)
+            var returnType =
+                  ret.Value is CastExpression { Function: var rfn } rcall && AxiomCalledBy(rfn) is { } rcalled
+                      ? RunAxiomOnCast(rcall, rcalled, _expectedReturnType)
+                : AxiomBehind(ret.Value) is not null
+                      ? RunAxiomOnReturn(ret, _expectedReturnType!)
                 : InferType(ret.Value);
             if (IsRabbitType(returnType))
                 throw TypeError(

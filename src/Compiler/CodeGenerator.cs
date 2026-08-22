@@ -859,6 +859,30 @@ static CufetDec cufet_dec_from_ll(long long v) {
     if (d.coef == 0) d.sign = 0;
     return d;
 }
+/* A `number` on its way INTO foreign source. Range-checked, never truncated: C is being handed a
+   64-bit integer, and a decimal that is fractional or too large is a mistake in the program rather
+   than something to round off quietly. Raised as an ordinary catchable exception, the same class as
+   a divide by zero — see cufet_raise. The interpreter checks identically before it marshals. */
+static void cufet_raise(const char* msg);
+static const char* cufet_msgf(const char* fmt, ...);
+static const char* cufet_text_from_dec(CufetDec d);
+static long long cufet_foreign_ll(CufetDec d, int line) {
+    /* ⚠ The ORIGINAL, kept for the message. Scaling `d` down in place and reporting that prints
+       3.50 as "3.5" — a different sentence from the one the interpreter produces for the same
+       program, which the oracle compares as strictly as it compares answers. */
+    CufetDec as_written = d;
+    for (int s = d.scale; s > 0; s--) {
+        if (d.coef % 10 != 0)
+            cufet_raise(cufet_msgf("Foreign source takes whole numbers, but got %s. This happened on line %d.",
+                                   cufet_text_from_dec(as_written), line));   /* ForeignC.WholeArgumentMessage */
+        d.coef /= 10; d.scale--;
+    }
+    if (d.coef > (unsigned __int128)9223372036854775807ULL + (d.sign ? 1u : 0u))
+        cufet_raise(cufet_msgf("%s is too large to hand to foreign source. This happened on line %d.",
+                               cufet_text_from_dec(as_written), line));       /* ForeignC.LargeArgumentMessage */
+    unsigned long long m = (unsigned long long)d.coef;
+    return d.sign ? -(long long)m : (long long)m;
+}
 static int cufet_to_int(CufetDec d) {                                   /* truncate toward zero */
     unsigned __int128 c = d.coef; for (int s = d.scale; s > 0; s--) c /= 10;
     int v = (int)c; return d.sign ? -v : v;
@@ -4688,7 +4712,7 @@ static void* cufet_pipe_stage(void* argp) {
                     // Value is materialized first (preemits), THEN open files close (a returned
                     // arena value never references a FILE*), THEN return.
                     string retExpr = ret.RunsAxiom is { } runsAxiom
-                        ? EmitAxiomCall(runsAxiom)
+                        ? EmitAxiomCall(runsAxiom, null, ret.Line)
                         : EmitAsType(ret.Value, _currentReturnType);
                     FlushPreEmits(sb, indent);
                     // ESC.3 — returning out of one or more rabbits. Bind the value to a temp FIRST so
@@ -5734,22 +5758,48 @@ static void* cufet_pipe_stage(void* argp) {
     /// signature is known here and gcc can see both sides at once. The interpreter reaches the same
     /// place the long way round, through a shim built out of the same wrapper.
     /// </remarks>
-    private string EmitAxiomCall(AxiomLiteral axiom)
+    private string EmitAxiomCall(AxiomLiteral axiom, IReadOnlyList<IExpression>? args, int line)
     {
         string language = axiom.Language ?? "foreign";
-        string key = $"{language}\0{axiom.Source}";
+        string key = ForeignC.Identity(language, axiom.Source, axiom.Parameters);
         if (!_axiomFnNames.TryGetValue(key, out var fnName))
         {
-            fnName = ForeignC.FunctionName(language, axiom.Source);
+            // The foreign text with `the path` already replaced by the C parameter it names —
+            // done ONCE, here, and used for both the guard and the body so the two cannot differ.
+            string spliced = ForeignC.Splice(axiom.Source, axiom.Parameters);
+            fnName = ForeignC.FunctionName(language, axiom.Source, axiom.Parameters);
             _axiomFnNames[key] = fnName;
             _axiomFns.AppendLine(ForeignC.Banner(language, axiom.Source));
-            _axiomFns.AppendLine($"static CufetDec {fnName}(void) {{");
-            _axiomFns.AppendLine(ForeignC.GuardStatement(axiom.Source));
-            _axiomFns.AppendLine($"    return cufet_dec_from_ll({ForeignC.WholeExpression(axiom.Source)});");
+            _axiomFns.AppendLine($"static CufetDec {fnName}({ForeignC.ParameterList(axiom.Parameters)}) {{");
+            _axiomFns.AppendLine(ForeignC.GuardStatement(spliced));
+            _axiomFns.AppendLine($"    return cufet_dec_from_ll({ForeignC.WholeExpression(spliced)});");
             _axiomFns.AppendLine("}");
         }
-        return $"{fnName}()";
+
+        if (axiom.Parameters.Count == 0) return $"{fnName}()";
+
+        // ★ Marshalled per parameter, from the CUFET type the checker put on the declaration —
+        // the writer names no C type anywhere, and this is the only place one is chosen.
+        var marshalled = axiom.Parameters
+            .Select((p, i) => EmitForeignArgument(p.Type, args![i], line))
+            .ToList();
+        return $"{fnName}({string.Join(", ", marshalled)})";
     }
+
+    /// <summary>One Cufet value, as the C parameter the wrapper declared.</summary>
+    /// <remarks>
+    /// ⚠ `number` is a decimal and C wants an integer, so it is RANGE-CHECKED rather than
+    /// truncated: a fractional or oversized argument raises where it is passed, in the same class
+    /// as a divide by zero, instead of arriving in C as something else entirely.
+    /// </remarks>
+    private string EmitForeignArgument(CufetType type, IExpression arg, int line) => type switch
+    {
+        NumberType => $"cufet_foreign_ll({EmitExpr(arg)}, {line})",
+        FactType   => $"({EmitExpr(arg)} ? 1 : 0)",
+        TextType   => EmitExpr(arg),
+        _          => throw new TypeException(
+                          $"That doesn't work: a {FormatTypeName(type)} cannot be handed to foreign source yet."),
+    };
 
     private CufetType TypeOf(IExpression expr) => NoStashes(TypeOfRaw(expr));
 
@@ -5923,6 +5973,11 @@ static void* cufet_pipe_stage(void* argp) {
 
     private CufetType RawCastReturnType(CastExpression c)
     {
+        // ★ An axiom's result is decided by the type declared where the call is USED, and the
+        // checker has already refused a use site that declares none. Only `number` crosses so far,
+        // so that is what the wrapper hands back — see ForeignC.
+        if (c.RunsAxiom is not null) return TNumber;
+
         // The filling decides the return type — `first-two of text` gives back a series of text.
         if (CalledFunction(c.Function, c.ResolvedFunctionName, c.Line, c.Column) is VariableReference vr)
         {
@@ -7970,6 +8025,9 @@ static void* cufet_pipe_stage(void* argp) {
 
     private string EmitCastExpr(CastExpression cast)
     {
+        // Foreign source, not a Cufet function — there is no body to call, only C to paste in.
+        if (cast.RunsAxiom is { } axiom) return EmitAxiomCall(axiom, cast.Args, cast.Line);
+
         var fn = CalledFunction(cast.Function, cast.ResolvedFunctionName, cast.Line, cast.Column);
         // A BARE fallible call (not wrapped by but-on-failure / propagate) is only valid inside
         // a Try: on failure, record the failure and jump to the handler; otherwise yield the T.

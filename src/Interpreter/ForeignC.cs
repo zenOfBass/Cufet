@@ -1,4 +1,4 @@
-namespace Cufet.Compiler;
+namespace Cufet.Interpreter;
 
 /// <summary>The C both backends put around a foreign axiom.</summary>
 /// <remarks>
@@ -160,6 +160,18 @@ public static class ForeignC
     /// <summary>The axiom's value, taken as the whole number both backends then convert.</summary>
     public static string WholeExpression(string source) => $"(long long)({source})";
 
+    /// <summary>The parameter list a wrapped axiom's C function declares.</summary>
+    /// <remarks>
+    /// ★ Both backends declare the SAME list in the same order. The compiled side calls it
+    /// directly and the shim unpacks an argument array into it, but what the foreign text sees is
+    /// one set of C locals with one set of C types — which is the whole reason the wrapper is
+    /// written once here rather than twice.
+    /// </remarks>
+    public static string ParameterList(IReadOnlyList<(CufetType Type, string Name)> parameters) =>
+        parameters.Count == 0
+            ? "void"
+            : string.Join(", ", parameters.Select((p, i) => $"{ParameterCType(p.Type)} {ParameterName(i)}"));
+
     /// <summary>What every wrapped axiom's C function name starts with.</summary>
     /// <remarks>
     /// ⚠ Load-bearing beyond naming: it is how a gcc failure is told apart from a code-generator
@@ -177,12 +189,159 @@ public static class ForeignC
         compilerOutput.Contains(FunctionPrefix, StringComparison.Ordinal)
      || compilerOutput.Contains(WholeEntryPoint, StringComparison.Ordinal);
 
-    /// <summary>A stable C identifier for one axiom, so the same source is wrapped once.</summary>
-    public static string FunctionName(string language, string source)
+    /// <summary>Everything that makes one axiom distinct from another.</summary>
+    /// <remarks>
+    /// ⚠ The parameter TYPES are part of it, not just the text. Two axioms can share a body and
+    /// differ only in what they are handed — `[write(the fd, the data, 1)]` over a number and over
+    /// a text are different C functions — and keying on the source alone would wrap the first one
+    /// and silently call it for the second.
+    /// </remarks>
+    public static string Identity(string language, string source,
+                                  IReadOnlyList<(CufetType Type, string Name)> parameters)
+        => $"{language}\0{ParameterList(parameters)}\0{Splice(source, parameters)}";
+
+    /// <summary>A stable C identifier for one axiom, so the same axiom is wrapped once.</summary>
+    public static string FunctionName(string language, string source,
+                                      IReadOnlyList<(CufetType Type, string Name)> parameters)
     {
-        var material = System.Text.Encoding.UTF8.GetBytes($"{language}\0{source}");
+        var material = System.Text.Encoding.UTF8.GetBytes(Identity(language, source, parameters));
         var hash = System.Security.Cryptography.SHA256.HashData(material);
         return FunctionPrefix + Convert.ToHexString(hash)[..12].ToLowerInvariant();
+    }
+
+    // ── Parameters, and splicing them into the foreign text ──────────────────
+
+    /// <summary>The C name a spliced parameter becomes. Positional, so a Cufet name never leaks.</summary>
+    /// <remarks>
+    /// ⚠ Positional and prefixed, deliberately. Using the writer's own name would put an arbitrary
+    /// Cufet identifier into C's namespace, where it can collide with a macro, a typedef or a
+    /// function the axiom is calling — `the count` next to a library's `count` is not a hypothetical.
+    /// The writer never sees these names: they read `the path` and the substitution is invisible.
+    /// </remarks>
+    public static string ParameterName(int index) => $"cufet_p{index}";
+
+    /// <summary>The C type a Cufet parameter arrives as.</summary>
+    /// <remarks>
+    /// ★ One number type survives the boundary, as it has survived everything else, so `number`
+    /// arrives as `long long` and C narrows it wherever it wants an `int`. `text` arrives as the
+    /// UTF-8 bytes Cufet already stores, valid for the length of the call and no longer.
+    /// </remarks>
+    public static string ParameterCType(CufetType type) => type switch
+    {
+        NumberType => "long long",
+        FactType   => "int",
+        TextType   => "const char*",
+        _          => throw new TypeException(
+                          $"a {TypeChecker.FormatType(type)} cannot be handed to foreign source yet — "
+                        + "a number, a fact and a text can."),
+    };
+
+    /// <summary>Is this a type an axiom can be handed?</summary>
+    public static bool CanPassToForeign(CufetType type) => type is NumberType or FactType or TextType;
+
+    /// <summary>The foreign text with each `the &lt;parameter&gt;` replaced by its C name.</summary>
+    /// <remarks>
+    /// <para>
+    /// ★ Only DECLARED parameters are substituted, and everything else is left exactly as written.
+    /// The alternative — refusing every `the &lt;word&gt;` that is not a parameter — would refuse
+    /// ordinary prose in a comment (`/* the caller owns this */`), and a genuine typo still fails
+    /// loudly: `the paht` is not valid C, so the C compiler rejects it and the message is reported
+    /// against the foreign source.
+    /// </para>
+    /// <para>
+    /// ⚠ **Known edge, and it is the design's:** `the path` inside a foreign STRING literal is
+    /// substituted too — `[printf("the path is %s", the path)]` has one hole and one piece of
+    /// prose. Every candidate marker shared this, so it separated none of them, but it is real.
+    /// </para>
+    /// <para>
+    /// ⚠ Longest name first. `the read` and `the read-only` can both be declared, and substituting
+    /// the shorter one first would leave `cufet_p0-only` behind.
+    /// </para>
+    /// </remarks>
+    public static string Splice(string source, IReadOnlyList<(CufetType Type, string Name)> parameters)
+    {
+        var byLength = parameters
+            .Select((p, index) => (p.Name, index))
+            .OrderByDescending(p => p.Name.Length)
+            .ToList();
+
+        foreach (var (name, index) in byLength)
+            source = SplicePattern(name).Replace(source, ParameterName(index));
+        return source;
+    }
+
+    /// <summary>Does the foreign text mention this parameter at all?</summary>
+    public static bool Mentions(string source, string name) => SplicePattern(name).IsMatch(source);
+
+    // `the <name>`, with the article case-insensitive and the name exact — Cufet names are
+    // case-sensitive, the article is a word. The boundaries treat '-' as part of a name, because it
+    // is one in Cufet: without that, `the read` would match inside `the read-only`.
+    private static System.Text.RegularExpressions.Regex SplicePattern(string name) =>
+        new($@"(?<![A-Za-z0-9_-])[Tt][Hh][Ee]\s+{System.Text.RegularExpressions.Regex.Escape(name)}(?![A-Za-z0-9_-])");
+
+    // ── Handing a Cufet value TO foreign source ─────────────────────────────
+
+    /// <summary>What a program is told when a `number` argument is not a whole number.</summary>
+    /// <remarks>
+    /// ★★ The messages live here, in one place, because both backends raise them: the compiled one
+    /// through `cufet_foreign_ll` in the emitted runtime and the interpreter through
+    /// `ToForeignWhole` below. Two spellings of one refusal is a divergence in what a program SAYS,
+    /// which the oracle compares as strictly as it compares answers.
+    /// </remarks>
+    public const string WholeArgumentMessage =
+        "Foreign source takes whole numbers, but got {0}. This happened on line {1}.";
+
+    /// <summary>What a program is told when a `number` argument will not fit a 64-bit integer.</summary>
+    public const string LargeArgumentMessage =
+        "{0} is too large to hand to foreign source. This happened on line {1}.";
+
+    /// <summary>A `number` on its way into foreign source — range-checked, never truncated.</summary>
+    /// <remarks>
+    /// ⚠ The C twin of this is `cufet_foreign_ll` in the emitted runtime, and the two have to
+    /// refuse exactly the same values. It is a RANGE CHECK rather than a conversion, which is what
+    /// makes that provable: a decimal either is a whole number inside 64 bits or it is not, and
+    /// there is no rounding for the two to disagree about. Truncating instead would hand C a
+    /// different number than the program said — silently, which is the failure this refuses.
+    /// </remarks>
+    public static long ToForeignWhole(decimal value, int line, Func<decimal, string> format)
+    {
+        if (decimal.Truncate(value) != value)
+            throw new RuntimeException(string.Format(WholeArgumentMessage, format(value), line));
+        if (value < long.MinValue || value > long.MaxValue)
+            throw new RuntimeException(string.Format(LargeArgumentMessage, format(value), line));
+        return (long)value;
+    }
+
+    /// <summary>The union one argument travels in, and the entry point's own signature.</summary>
+    /// <remarks>
+    /// ★ ONE slot shape for every argument, which is what keeps the interpreter's side to a single
+    /// fixed delegate. Scalars and pointers all pass the same way — the design keeps it that way on
+    /// purpose, since foreign pointers are opaque and structs therefore arrive AS pointers rather
+    /// than by value. That is also the line where libffi would start earning its keep, and it is
+    /// deliberately not crossed yet.
+    /// </remarks>
+    public const string ShimArgumentType =
+"""
+typedef union { long long whole; const char* text; } CufetShimArg;
+""";
+
+    /// <summary>The locals a shim unpacks its argument array into, one per declared parameter.</summary>
+    /// <remarks>
+    /// ★ Unpacked into NAMED locals with the wrapper's own C types, so what the foreign text sees
+    /// is identical to what it sees compiled — same names, same types, same order. The array is an
+    /// interpreter detail that stops at this line.
+    /// </remarks>
+    public static string ShimUnpack(IReadOnlyList<(CufetType Type, string Name)> parameters)
+    {
+        var lines = new System.Text.StringBuilder();
+        for (int i = 0; i < parameters.Count; i++)
+        {
+            string slot = parameters[i].Type is TextType ? "text" : "whole";
+            string cast = parameters[i].Type is FactType ? "(int)" : "";
+            lines.AppendLine(
+                $"    {ParameterCType(parameters[i].Type)} {ParameterName(i)} = {cast}cufet_args[{i}].{slot};");
+        }
+        return lines.ToString();
     }
 
     /// <summary>The comment that keeps the foreign text findable in generated output.</summary>
