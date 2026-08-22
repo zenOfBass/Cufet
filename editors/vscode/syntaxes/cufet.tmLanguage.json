@@ -33,6 +33,7 @@
     { "include": "#comment" },
     { "include": "#string" },
     { "include": "#raw-text" },
+    { "include": "#axiom" },
     { "include": "#number" },
     { "include": "#declaration" },
     { "include": "#accessor-phrase" },
@@ -94,6 +95,16 @@
       "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.cufet" } },
       "endCaptures":   { "0": { "name": "punctuation.definition.string.end.cufet" } },
       "patterns": [ { "include": "#raw-text" } ]
+    },
+
+    "axiom": {
+      "comment": "Foreign source — [ ... ]. Nothing inside is Cufet, so like #raw-text there are deliberately NO inner patterns beyond the self-include that implements depth-counted bracket nesting (which is what lets 'argv[0]' survive). Scoped as a string so every theme colours it as the opaque literal it is; highlighting it AS C would need a grammar injection per language, and the brackets do not say which language this is.",
+      "name": "string.quoted.other.axiom.cufet",
+      "begin": "\\[",
+      "end": "\\]",
+      "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.cufet" } },
+      "endCaptures":   { "0": { "name": "punctuation.definition.string.end.cufet" } },
+      "patterns": [ { "include": "#axiom" } ]
     },
 
     "interpolation": {

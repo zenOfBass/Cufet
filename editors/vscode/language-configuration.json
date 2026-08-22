@@ -7,13 +7,19 @@
 
   "brackets": [
     ["(", ")"],
-    ["{", "}"]
+    ["{", "}"],
+    // Foreign source — [ ... ]. Pairs nest inside one, so bracket matching is what a reader needs
+    // most there: a C subscript is the commonest reason an axiom has more than one pair.
+    ["[", "]"]
   ],
 
   "autoClosingPairs": [
     { "open": "/*", "close": " */" },
     { "open": "(", "close": ")" },
     { "open": "{", "close": "}" },
+    // Not inside one: an axiom holds C, where a '[' is far more often a subscript being typed
+    // than a pair being opened, and auto-closing it lands a ']' that ends the axiom.
+    { "open": "[", "close": "]", "notIn": ["string", "comment"] },
     // No pair for ' — the possessive 's would auto-close into nonsense on every field access.
     { "open": "\"", "close": "\"", "notIn": ["string", "comment"] }
   ],
