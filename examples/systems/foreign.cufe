@@ -1,0 +1,36 @@
+// Reaching C from Cufet.
+//
+// An AXIOM is source in another language, held as a value. Cufet cannot check a C listing and
+// does not try — it takes it as given, which is what the word means. The square brackets say the
+// text is not Cufet; the tag in front of the name says who reads it.
+//
+// The C here is deliberately arithmetic and libc, so this program prints the same thing on every
+// machine. Real bindings reach for the platform, and then the program is as portable as the call.
+
+Pull a book on the c-language.
+    Define c-language answer as [6 * 7].
+    Define c-language greeting-length as [(int)strlen("hello, world")].
+    Define c-language bits-in-f0f0 as [__builtin_popcount(0xF0F0)].
+    Define c-language third-letter as ["abcdef"[2]].
+
+    // An axiom runs when it is RETURNED, and the declared type decides what comes back. It is
+    // never used any other way: an axiom is not a value that can be printed, stored, or passed.
+    Bind number to the-answer, answer.
+    Bind number to how-long, greeting-length.
+    Bind number to how-many-bits, bits-in-f0f0.
+    Bind number to letter-code, third-letter.
+
+    State "C says 6 * 7 is {(cast the-answer) converted to text}.".
+    State "C says \"hello, world\" is {(cast how-long) converted to text} bytes long.".
+    State "C says 0xF0F0 has {(cast how-many-bits) converted to text} bits set.".
+
+    // Brackets NEST inside an axiom, which is what makes a C subscript survive the lexer —
+    // "abcdef"[2] is 'c', and a char crosses the boundary as the number it is.
+    Define c-code as cast letter-code.
+    State "C says the third letter of \"abcdef\" has code {c-code converted to text}.".
+
+    // Cufet checks the same thing its own way, so the two answers can be compared. A boundary
+    // that quietly lost or gained anything would show up right here.
+    Define cufet-length as the length of "hello, world".
+    State "Cufet agrees on the length: {cufet-length = cast how-long}.".
+Done.
