@@ -81,10 +81,6 @@ Two framings that set the order:
      moved onto the declaration (`Define c-language number add, given (…), as [ … ].`), so a call
      composes anywhere an ordinary call does. The use-site rule is gone rather than sitting beside
      it. See DESIGN for why it is not inferred from the C.
-   - **`path` is a reserved word**, so `given (the text path)` does not parse — including in
-     DESIGN's own example, now corrected to `file-path`. `path` is a very tempting parameter name
-     for exactly this feature, and it is reserved for `the path <p> exists`. Making it contextual
-     (as `current` already is, promoted only when `directory` follows) would give it back.
 
    - **`double` ↔ `number`** — the one lossy conversion, and the reason the wrapper is shared at
      all. It has to be written once in C and called by both backends; until it exists, a floating
