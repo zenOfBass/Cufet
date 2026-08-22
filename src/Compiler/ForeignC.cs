@@ -23,28 +23,99 @@ public static class ForeignC
 
     /// <summary>What C an axiom can assume is already included.</summary>
     /// <remarks>
+    /// <para>
     /// ★★ ONE list, emitted by both backends, because "which headers an axiom sees" is a language
     /// question and not a property of how the program was run. Two lists would mean an axiom that
     /// compiles built and fails interpreted — a divergence in what the program IS, which is the
     /// class this project refuses outright.
-    ///
-    /// ⚠ It is deliberately small: the C standard library plus the POSIX headers the emitted
-    /// runtime already reaches for. Binding to a library with a header of its OWN has nothing to
-    /// say here yet, and that gap is real — see ROADMAP.
-    ///
+    /// </para>
+    /// <para>
+    /// ★★ **A generous FIXED set, rather than letting a writer name headers, and the reason is
+    /// linking.** Everything below links by default: libc and the POSIX headers need no flag, and
+    /// mingw links kernel32/user32/advapi32 for `windows.h` on its own. A THIRD-PARTY library does
+    /// not — `#include &lt;sqlite3.h&gt;` gets the declarations and then the link fails with
+    /// "undefined reference", measured here as `__imp_socket` before `-lws2_32` was added. So
+    /// header control on its own would hand someone a feature that cannot work for the case that
+    /// makes them want it. If it ever comes, it comes as "this needs library X" — headers AND link
+    /// flags, together — and the trigger is the first person who wants a non-system library.
+    /// </para>
+    /// <para>
+    /// ⚠ **The split is MEASURED, not assumed** (`gcc -fsyntax-only`, mingw-w64 15.1 and Linux gcc
+    /// 16.1): Linux has every header here, and mingw has none of the ten in the POSIX branch. Guard
+    /// it wrong and every Windows build of an axiom-bearing program fails on the include, not on
+    /// the axiom.
+    /// </para>
+    /// <para>
+    /// ★ Refusing a missing header IS the design. A program calling `tcgetattr` is POSIX-only
+    /// whatever Cufet does about it, and DESIGN already declined to warn about that — because a
+    /// function absent on this platform fails loudly and early, which is the opposite of the silent
+    /// wrong answer the guardrails exist for. On Windows the header is simply not there and gcc
+    /// says so.
+    /// </para>
+    /// <para>
+    /// ⚠ **`&lt;windows.h&gt;` is not free, and the price is measured**: the common set preprocesses in
+    /// ~98 ms and the Windows trio takes it to ~749 ms, which shows up as a `cufet build` going
+    /// from ~618 ms to ~1300 ms. Only a program that CONTAINS an axiom pays it, and it buys the
+    /// entire Win32 API — without it the Windows half of "the POSIX and Windows APIs" is not
+    /// reachable at all. `WIN32_LEAN_AND_MEAN` is already trimming it. The interpreter pays once
+    /// ever per axiom rather than per run, because its shim is content-cached.
+    /// </para>
+    /// <para>
     /// Re-including is free. The compiled backend has already pulled most of these in through the
     /// runtime header, and include guards make the second pass a no-op.
+    /// </para>
     /// </remarks>
     public const string Headers =
 """
 #define _GNU_SOURCE   /* expose POSIX regardless of -std, exactly as the runtime does */
+
+/* Everywhere — C standard library, plus the POSIX headers mingw does ship. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
+#include <inttypes.h>
+#include <limits.h>
+#include <math.h>
+#include <time.h>
+#include <signal.h>
+#include <fcntl.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
+#if defined(_WIN32)
+/* WIN32_LEAN_AND_MEAN keeps <windows.h> from pulling the ORIGINAL winsock in, which would then
+   collide with winsock2 below; NOMINMAX stops min/max becoming macros over ordinary C. Both must
+   be defined before the include, and winsock2 must precede windows.h — verified by compiling this
+   exact order after <pthread.h>, which is what the concurrency runtime puts above it. */
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+#include <io.h>
+#include <process.h>
+#include <direct.h>
+#else
+/* POSIX-only: mingw has none of these, which is why the branch exists. Job control, raw terminal
+   mode and sockets — the three things the FFI item names — all live here. */
+#include <termios.h>
+#include <poll.h>
+#include <sys/wait.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#endif
 """;
 
     /// <summary>

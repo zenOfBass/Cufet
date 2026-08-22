@@ -2552,12 +2552,18 @@ static void* cufet_pipe_stage(void* argp) {
         // generated, and a body may call an axiom.
         if (_axiomFns.Length > 0)
         {
+            // ⚠ The HEADERS go to the very top of the generated file, ahead of every struct and
+            // helper — not here with the wrappers. On Windows the set includes <windows.h>, which
+            // defines a great many macros, and a macro cannot reach text above it: emitting it in
+            // the middle would compile the first half of the program under one macro environment
+            // and the second half under another. One state for the whole file is the only version
+            // of this worth reasoning about.
+            sb.Insert(0, ForeignC.Headers + "\n" + ForeignC.GuardMacro + "\n\n");
+
             sb.AppendLine("// ── Foreign axioms (source this program was given, taken as written) ──");
-            // ★ Here rather than in the runtime. The guard is only needed where an axiom is, and
-            // the runtime is content-addressed for the object cache — putting it there would make
-            // every existing build recompile the runtime for a macro almost no program uses.
-            sb.AppendLine(ForeignC.Headers);
-            sb.AppendLine(ForeignC.GuardMacro);
+            // ★ The wrappers themselves stay here. They call cufet_dec_from_ll and nothing else
+            // generated, so anywhere above the bodies would do; what they must NOT do is drift away
+            // from the headers, which is why both are written in this one block.
             sb.Append(_axiomFns);
             sb.AppendLine();
         }

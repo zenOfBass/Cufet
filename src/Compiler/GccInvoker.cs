@@ -86,6 +86,14 @@ public sealed class GccInvoker
         psi.ArgumentList.Add("-pthread");
         // -lm: the math-book transcendentals (sqrt/log/pow) need libm on Linux; a no-op stub on mingw.
         psi.ArgumentList.Add("-lm");
+        // -lws2_32 on Windows: sockets are IN libc on Linux and in a separate library here, so
+        // without this an axiom calling `socket()` compiles and then fails to link
+        // ("undefined reference to `__imp_socket`" — measured). The foreign header set includes
+        // <winsock2.h>, and a header whose functions cannot be linked is worse than no header:
+        // it is the trap that argues against letting anyone name their own. Costs nothing for a
+        // program that uses no sockets — the linker pulls only what is referenced.
+        if (OperatingSystem.IsWindows())
+            psi.ArgumentList.Add("-lws2_32");
         // ★ Optimized ALWAYS, the Go answer rather than the Rust one. There is no debug build and no
         // --release: "compiled Cufet is fast" should be unconditionally true rather than something a
         // reader has to know a flag to obtain. The common failure of the opt-in design is someone

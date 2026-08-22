@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Cufet.Compiler;
 using Cufet.Interpreter;
 using Xunit;
@@ -166,6 +167,86 @@ public class PipelineForeignTests : PipelineTestBase
             Done.
             """;
         Assert.Equal("42\n43\n44\n45", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ── The header set an axiom is given ─────────────────────────────────────
+    //
+    // ★ Three branches, three tests, because a header list that is wrong on one platform fails at
+    // the INCLUDE rather than at the axiom — every Windows build of every axiom-bearing program at
+    // once. The split was measured with `gcc -fsyntax-only` on both toolchains rather than
+    // remembered; these hold it there.
+
+    [Fact]
+    public void Axiom_ReachesAHeaderBeyondTheCoreSet()
+    {
+        // <limits.h> and <time.h> are in the set on every platform. Neither was there when the
+        // first slice shipped, so this fails if the common branch is trimmed back.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language bits-per-byte as [CHAR_BIT].
+                Define c-language time-is-wide as [(int)(sizeof(time_t) >= 4)].
+                Bind number to byte-width, bits-per-byte.
+                Bind number to wide-enough, time-is-wide.
+                State cast byte-width.
+                State cast wide-enough.
+            Done.
+            """;
+        Assert.Equal("8\n1", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_ReachesPosixOnlyHeaders()
+    {
+        // The POSIX branch: sockets (<sys/socket.h>, <netinet/in.h>), polling (<poll.h>) and raw
+        // terminal mode (<termios.h>) are the three things ROADMAP item 1 names, and mingw has
+        // none of their headers — which is the whole reason the set is guarded.
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language internet-family as [AF_INET].
+                Define c-language readable-event as [(int)POLLIN].
+                Define c-language terminal-state-size as [(int)sizeof(struct termios)].
+                Bind number to family, internet-family.
+                Bind number to readable, readable-event.
+                Bind number to termios-bytes, terminal-state-size.
+                State cast family.
+                State cast readable > 0.
+                State cast termios-bytes > 0.
+            Done.
+            """;
+        Assert.Equal("2\ntrue\ntrue", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_ReachesTheWindowsApiAndWinsock()
+    {
+        // The Windows branch. `htons`/`ntohs` are the load-bearing half: they live in libc on Linux
+        // and in ws2_32 here, so this pins the `-lws2_32` on the link line — without it the program
+        // compiles and then fails with "undefined reference to `__imp_socket`".
+        //
+        // ⚠ PURE winsock functions, deliberately. `socket()` was the obvious choice and is the
+        // wrong one: whether it succeeds depends on whether WSAStartup has run in THIS PROCESS, and
+        // the two backends are not the same process — a compiled binary starts clean, while the
+        // interpreter's shim is called inside a .NET host that has already initialised winsock. The
+        // backends genuinely disagreed, and neither was wrong. See the note in REFERENCE about
+        // process-global C state; a test must not assert across that.
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language process-handle as [(int)(GetCurrentProcessId() > 0)].
+                Define c-language byte-order-roundtrips as [(int)(ntohs(htons(4242)) == 4242)].
+                Bind number to has-a-pid, process-handle.
+                Bind number to linked, byte-order-roundtrips.
+                State cast has-a-pid.
+                State cast linked.
+            Done.
+            """;
+        Assert.Equal("1\n1", Interpret(src));
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
