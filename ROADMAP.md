@@ -96,7 +96,39 @@ Two framings that set the order:
    therefore needs a C toolchain the first time a given set of axioms is seen; wasm cannot do it at
    all.
 
-2. **Module needs, transitively.** ★ Much smaller than it was. A body now resolves what it can see
+2. **★ A dying task's destructors — a LIVE DIVERGENCE, measured 2026-08-22.** A task that raises
+   with no local `Try` ends the whole program on both backends, and that part agrees. What does not
+   agree is the cleanup on the way out:
+
+   ```
+   Bind unmaking a conn to disconnect:
+       State "closed {one's name}".
+   Done.
+
+   Pull a rabbit as hopper.
+       Have hopper start a task:
+           Define c as a new conn { the name "in-task" }.
+           State 1 / zero.          ← Division by zero
+       Done.
+   Done.
+   ```
+
+   **Interpreted prints `closed in-task`. Compiled does not.** One of them is wrong, and by the
+   rule at the top of this file it is never written down as a caveat.
+
+   ★ The interpreter looks right and the compiler looks like the defect: `cufet_raise` with no
+   handler installed calls `exit(1)` straight from the worker thread, without unwinding. Every
+   other nonlocal exit in the compiled backend runs the pending unmakers first — that is what
+   `UnwindTo` and `cufet_run_unmakers_to` exist for, and `cufet_raise` already calls the latter on
+   the path where a handler DOES exist. The no-handler path simply skips it.
+
+   ⚠ It is undocumented besides: nothing in GRAMMAR or REFERENCE says what an unhandled exception
+   in a task should do. So fixing the divergence also means deciding and writing down whether the
+   program dying is the right outcome at all, or whether the failure should reach the rabbit that
+   owns the task. ★ That second question is the small end of **rabbits as actors** (below) — but
+   the divergence is worth closing on its own, before and regardless.
+
+3. **Module needs, transitively.** ★ Much smaller than it was. A body now resolves what it can see
    where it is WRITTEN plus any MODULE its caller pulled, so an unresolved *ordinary* name is a
    static error and only module names still defer. Two holes are left, both over that small set:
 
@@ -113,8 +145,9 @@ Two framings that set the order:
 ### The design mountains
 
 All need a design session before they can be ordered against anything. They are here because
-they are large, not because they are waiting. The formatter used to be blocked by the inline
-forms; those shipped in 0.15.0, so it is unblocked and simply last.
+they are large, not because they are waiting — the order among them means nothing yet. The
+formatter used to be blocked by the inline forms; those shipped in 0.15.0, so nothing blocks it
+either.
 
 1. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
    it is not optional.
@@ -128,7 +161,9 @@ forms; those shipped in 0.15.0, so it is unblocked and simply last.
 
     **One blocker left.** The inline forms it used to wait on shipped in 0.15.0. What remains is
     that doing it properly means
-    teaching the **lexer to carry comments as trivia** first — comments are skipped today and
+    teaching the **lexer to carry comments as trivia** first — ★ which is also what doc comments
+    and editor hover need (item 4), so that one change to the shared front end unblocks three
+    things rather than one. Comments are skipped today and
     never reach the AST, so a printer built from the AST would silently delete all 241 comment
     lines in `examples/`, including the 34-line header on `binarysearchtree.cufe`. That is a
     change to the shared front end both backends sit on.
@@ -142,6 +177,79 @@ forms; those shipped in 0.15.0, so it is unblocked and simply last.
     but the indent then depends on the name's length, so a rename reflows the block) or explode
     to a fixed indent; and the width that makes a shape "large" — the corpus median is 43 and p90
     is 82, so 90–100 leaves nearly everything alone.
+
+3. **Rabbits as actors.** Not a new mechanism so much as a NAME for what the region model already
+   bought. A rabbit today owns an isolated arena, owns the tasks it spawns and joins them at
+   `Done.`, shares nothing mutable across threads, and has escape rules the compiler enforces —
+   isolated heap, owned lifetime, supervised children, no shared state. That is the actor
+   invariant, and the expensive part of it (the escape analysis) is built and shipping.
+
+   ⚠ **No VM. BEAM was considered and declined**, and the reason is worth keeping: actors do not
+   require one. Erlang's actor runtime is itself written in C, and Cufet already emits C with
+   pthreads, channels and a structured join. What BEAM would add — preemption, distribution, a
+   million cheap processes — is not what makes the model valuable here, and the price is a THIRD
+   backend held bit-identical to the other two, a third `CufetDec` (BEAM has bignums and IEEE
+   floats and no decimal), and a second FFI story for a boundary that is C-shaped by design.
+
+   **★ One piece stands on its own and is already being fixed elsewhere: failure is not isolated.**
+   A task that raises with no local `Try` tears down the whole program, and the two backends do not
+   even clean up the same way on the way out — see item 2 above, which is the divergence and is
+   ordered ahead of this. "Let it crash" wants the inverse of the whole behaviour: the child's
+   region dies, the parent is told, the program continues. The mechanism is already there — a
+   rabbit's region dying IS "that actor's state is gone" — it is simply not wired to failure.
+
+   **The fork that decides how big the rest is:** a rabbit's lifetime is **lexical** (`Pull …
+   Done.` opens, joins, frees) and an actor supervisor's is usually **dynamic** — it outlives the
+   children it restarts. If "the block restarts its child in place, until it succeeds or gives up"
+   is enough, this is small work on machinery that exists. If supervisors must outlive their
+   scope, it reopens the region model's central rule, and that is the same "which restriction?"
+   question the rabbit control-flow arc already carries.
+
+   ⚠ **Restart needs re-runnable bodies.** Re-running a body means resources are REACQUIRED, not
+   merely re-entered, and the language has no notion of that today.
+
+   ⚠ Identity and a mailbox are the other missing half — today channels are wired by hand, where an
+   actor is addressable and has one inbox. ★ The surface may already read for it: `Have <rabbit> …`
+   is a message-send shape that exists for other reasons (`Have hopper bury n.`,
+   `Have hopper start a task`).
+
+4. **Documentation comments, and generated pages for a book.** What a reader gets when they pull a
+   book somebody else wrote.
+
+   **★ It shares its one blocker with the formatter, which is the argument for doing that blocker
+   sooner than either feature alone would justify.** Comments are consumed inside the lexer's
+   `SkipWhitespace` and never become tokens, so nothing downstream can see them. Teaching the lexer
+   to carry them as **trivia** unblocks the formatter, doc comments, and editor hover at once —
+   three features behind one change to the shared front end.
+
+   ★ Cufet makes this unusually cheap in two ways. A signature is **already English**, so a page's
+   declaration line is the declaration, with no rendering of types into prose. And a book is an
+   object, so "what is in it" is a member list the checker already has. ★ The delivery pattern
+   exists too: `cufet tokens --json` already answers per-name questions over JSON for the editor,
+   and hover is the same data arriving one step earlier than pages do.
+
+   ⚠ **Ordered by value, not blocked** — say it precisely, per the warning at the top of this file.
+   Nothing stops generating a page for one `.cufe` today. But pages are worth most when there are
+   books by other people to read, and the loader and the package manager are both still below
+   ("Shipping a book"). A generator is a tool with little to point at until then.
+
+   **Two forks, both real:**
+
+   - **Output format**, which lands on the deferred `docs/`-folder and GitHub-Pages question — if
+     Pages ever publishes from `docs/`, that folder IS the site and generated pages belong to it.
+   - **Do the BUNDLED books get generated pages?** REFERENCE documents `math`, `collections` and
+     `chance` by hand today. Generating them too is two places telling one story, which this
+     project has a rule about. Either generated pages are for USER books only, or that part of
+     REFERENCE becomes generated. Decide before building, not after.
+
+   ⚠ **Whatever is generated must be pinned and tested**, the way `doc-blocks.baseline.txt` and
+   `examples/expected/` already are — generated output that nothing checks is the same staleness
+   in a new place, and a hand-edited "generated" page is the second lying copy immediately.
+
+   ★ **What a doc comment should be FOR** is worth settling early: the signature already says what
+   a thing takes and gives, so a comment that restates it is a second copy that drifts. What is
+   left is *why*, and *what can go wrong* — which is what this codebase's own ★/⚠ convention
+   carries in its C# and C.
 
 ### Shipping a book, strictly in this order
 
