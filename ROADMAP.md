@@ -70,9 +70,23 @@ Two framings that set the order:
 
    **What is left, in the order it makes sense to build:**
 
-   - **Parameters and splicing by the article** — `given (the text path)` in the declaration,
-     `[open(the path)]` in the body. The wrapper gains arguments, and with them the switch over
-     signature shapes the design describes.
+   **Slice 2 shipped: parameters and splicing by the article.** `Define c-language open-read-only,
+   given (the text file-path), as [open(the file-path, O_RDONLY)].` `number`, `text` and `fact`
+   cross into C; a `number` is range-checked rather than truncated, and both backends refuse in the
+   same words. Verified against real POSIX: `open`, `isatty` and `close` on a real file.
+
+   ⚠ Two things it surfaced, both worth a decision rather than a shrug:
+
+   - **A `cast` of an axiom cannot be written inline.** Its result type comes from the line that
+     uses it, so `State cast add on (1, 2).` is refused and every result passes through a typed
+     name. That was the known cost of extending one rule instead of adding a second; it is more
+     visible in practice than it looked on paper, and the alternative — a return type on the
+     declaration — is still available.
+   - **`path` is a reserved word**, so `given (the text path)` does not parse — including in
+     DESIGN's own example, now corrected to `file-path`. `path` is a very tempting parameter name
+     for exactly this feature, and it is reserved for `the path <p> exists`. Making it contextual
+     (as `current` already is, promoted only when `directory` follows) would give it back.
+
    - **`double` ↔ `number`** — the one lossy conversion, and the reason the wrapper is shared at
      all. It has to be written once in C and called by both backends; until it exists, a floating
      axiom is refused.

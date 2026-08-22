@@ -725,15 +725,16 @@ Parameters are declared the way every Cufet function declares them, and referred
 axiom by **the article**:
 
 ```
-Define c-language open-file, given (the text path, the number flags),
-    as [open(the path, the flags)].
+Define c-language open-file, given (the text file-path, the number flags),
+    as [open(the file-path, the flags)].
 
-Define handle as cast open-file on (config-path, read-only).
+Define the number handle as cast open-file on (config-path, read-only).
 ```
 
-★ **`the path` is never valid C or SQL.** That is what makes a symbol-free marker unambiguous —
+★ **`the file-path` is never valid C or SQL.** That is what makes a symbol-free marker unambiguous —
 it is English sitting in code that is not English, so nothing has to be escaped or disambiguated.
-It also reads as the line above it: `the text path` in the declaration, `the path` in the body.
+It also reads as the line above it: `the text file-path` in the declaration, `the file-path` in the
+body. ⚠ `path` itself is RESERVED (`the path <p> exists`), so it cannot be a parameter name.
 
 ⚠ Rejected markers, with the reason each failed: `?` says nothing about which argument goes where;
 bare `x, y, z` collide with the foreign language's own identifiers and break the no-single-letter
@@ -750,8 +751,8 @@ parameter. Neither receives text.
 ★ The parameter list also supplies what marshalling needs — the C types of the arguments — which
 otherwise had nowhere to come from once binding declarations were dropped.
 
-⚠ **Known edge:** `the path` inside a string literal in the foreign text would be substituted —
-`[printf("the path is %s", the path)]` has one hole and one piece of prose. Every candidate marker
+⚠ **Known edge:** `the file-path` inside a string literal in the foreign text would be substituted —
+`[printf("the file-path is %s", the file-path)]` has one hole and one piece of prose. Every candidate marker
 shares this, so it did not separate them, but it is real.
 
 **An axiom runs when it is returned**, and the declared type decides: a `Bind number to …` whose

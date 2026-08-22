@@ -1813,6 +1813,55 @@ get-pid.` runs it and marshals the result. Nowhere else may an axiom's name be u
 not a value that can be printed, stored, or passed, and reaching for one is refused when the
 program is checked.
 
+### ★ An axiom's parameters, and splicing by the article
+
+An axiom declares what it takes the way every Cufet body does, and reaches those values inside the
+foreign text **by the article**:
+
+```
+Define c-language open-read-only, given (the text file-path), as [open(the file-path, O_RDONLY)].
+
+Define the number fd as cast open-read-only on ("/etc/hostname").
+```
+
+`the file-path` is never valid C or SQL — it is English sitting in code that is not English — so
+nothing has to be escaped or disambiguated. It reads as the line that declares it: `the text
+file-path` in `given`, `the file-path` in the source.
+
+**Only VALUES cross, never text.** The C side receives a marshalled `long long`, `const char*` or
+`int`; the axiom itself is fixed where it is written and cannot be assembled from strings. That is
+the same rule `Run "grep" with arguments ("-v", "3")` follows, and the same reason there is no
+injection there.
+
+| Cufet | reaches C as |
+| --- | --- |
+| `number` | `long long` — **range-checked**, never truncated; a fractional or oversized value raises |
+| `text` | `const char*`, UTF-8, valid for the length of the call |
+| `fact` | `int`, 1 or 0 |
+
+**A `cast` of an axiom takes its result type from the line that USES it** — the same rule as
+returning one, since nothing about the C side can say what an `int` means. So a use site must
+declare a type:
+
+```
+Define the number fd as cast open-read-only on (config-path).     ← the type is required
+Bind number to open-config, cast open-read-only on (config-path). ← or a Bind supplies it
+```
+
+⚠ Which means **an axiom call cannot be written inline**: `State cast add on (1, 2).` is refused,
+because nothing there says what comes back. Every result passes through a typed name first.
+
+⚠ **A declared parameter the source never mentions is refused**, because only declared names are
+substituted — a misspelled `the paht` stays in the C verbatim and would otherwise surface as a gcc
+complaint about a stray `the`.
+
+⚠ **Known edge:** `the file-path` inside a foreign *string literal* is substituted too —
+`[printf("the file-path is %s", the file-path)]` has one hole and one piece of prose. Every
+candidate marker shared this, so it separated none of them, but it is real.
+
+⚠ **A reserved word cannot be a parameter name.** `path` is reserved (`the path <p> exists`), so
+`given (the text path)` does not parse — `file-path` does.
+
 **An axiom binding is permanent whether or not it says so.** The text is fixed at the declaration
 and there is no other value it could take — so a function body sees it, by the same carve-out that
 lets a body see a `permanently` constant.

@@ -93,8 +93,42 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   preparing it would refuse a program that builds perfectly well: the same divergence pointing the
   other way, and there is a test for each direction.
 
-  Still design and not built: parameters and splicing by the article, `address`, `the text at`,
-  `released by`, and passing an axiom around unrun. See
+  **An axiom takes parameters, and reaches them by the article.** Until now an axiom could only be
+  a constant C expression, which meant no real binding was possible — no `open`, no `read`, no
+  `ioctl`:
+
+  ```
+  Define c-language open-read-only, given (the text file-path), as [open(the file-path, O_RDONLY)].
+
+  Define the number fd as cast open-read-only on ("/etc/hostname").
+  ```
+
+  ★ `the file-path` is never valid C or SQL, which is what makes a **symbol-free** marker
+  unambiguous: it is English sitting in code that is not English, so nothing has to be escaped.
+  It also reads as the line that declares it.
+
+  ★ **Only values cross, never text.** C receives a marshalled `long long`, `const char*` or `int`
+  — the axiom is fixed where it is written and cannot be assembled from strings, the same way
+  `Run "grep" with arguments (…)` passes a list rather than a command line.
+
+  ⚠ A `number` is **range-checked** on the way in, not truncated: `cast double-it on (3.50)` raises
+  rather than quietly handing C a 3. The message lives once, in `ForeignC`, and the emitted runtime
+  quotes it — so both backends refuse in the same words, which the oracle compares byte for byte.
+
+  ⚠ **A call takes its result type from the line that uses it**, as a returned axiom does. That
+  means an axiom call cannot be written inline — `State cast add on (1, 2).` is refused, because
+  nothing there says what comes back. It is the cost of one rule instead of two, and it shows up
+  at every call site.
+
+  ⚠ A declared parameter the source never mentions is refused. Only declared names are substituted,
+  so a misspelled `the paht` would otherwise reach gcc as a stray `the` — a complaint about the
+  writer's spelling, phrased in a language they were not writing.
+
+  ⚠ **A reserved word cannot be a parameter name**, and `path` is one, so `given (the text path)`
+  does not parse. `file-path` does.
+
+  Still design and not built: `address`, `the text at`, `released by`, and passing an axiom around
+  unrun. See
   [DESIGN.md](DESIGN.md#foreign-interoperability), which carries the reasoning and the rejected
   alternatives for all of it.
 

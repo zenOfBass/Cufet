@@ -99,6 +99,7 @@ deliberate differences are marked where they arise and summarised under
       - [How stage types are checked](#how-stage-types-are-checked)
     - [Signal handling](#signal-handling)
     - [Foreign source (`axiom`)](#foreign-source-axiom)
+      - [Handing values to C](#handing-values-to-c)
       - [What crosses the boundary](#what-crosses-the-boundary)
       - [What an axiom can reach for](#what-an-axiom-can-reach-for)
       - [What it costs](#what-it-costs)
@@ -3581,6 +3582,50 @@ Done.
 Everywhere else, an axiom's name is refused. It is not a value that can be printed, stored,
 or passed around, and reaching for one is caught when the program is checked rather than
 when the line runs.
+
+#### Handing values to C
+
+An axiom declares what it takes the way every Cufet body does, and reaches those values inside
+the foreign text **by the article**:
+
+```
+Pull a book on the c-language.
+    Define c-language text-length, given (the text subject), as [(int)strlen(the subject)].
+
+    Define the number width as cast text-length on ("hello, world").
+    State width.        ← 12
+Done.
+```
+
+`the subject` works as a marker because it is never valid C — English sitting in code that is not
+English — so nothing has to be escaped. It reads as the line above it: `the text subject` in the
+declaration, `the subject` in the source.
+
+**Only values cross, never text.** C receives a marshalled number or string; the axiom itself is
+fixed where you wrote it and cannot be built up from pieces at run time. That is the same
+guarantee `Run "grep" with arguments (…)` gives, and the same reason nothing can be injected into
+it.
+
+| You pass | C receives |
+| --- | --- |
+| `number` | `long long` — **range-checked**; a fractional or oversized value raises rather than being trimmed |
+| `text` | `const char*`, UTF-8, valid for the length of the call |
+| `fact` | `int`, 1 or 0 |
+
+**The line that uses a call decides what comes back**, exactly as it does for a returned axiom —
+nothing about the C side can say what an `int` *means*:
+
+```
+Define the number fd as cast open-read-only on (config-path).
+```
+
+⚠ So an axiom call cannot be written inline: `State cast add on (1, 2).` is refused, because
+nothing there declares a type. Give the result a name first.
+
+⚠ A parameter the source never mentions is refused — only names you declared are substituted, so
+a misspelling would otherwise reach the C compiler as a stray `the`.
+
+⚠ A reserved word cannot be a parameter name. `path` is one, so write `file-path`.
 
 #### What crosses the boundary
 
