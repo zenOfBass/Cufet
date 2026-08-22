@@ -3618,21 +3618,41 @@ a misspelling would otherwise reach the C compiler as a stray `the`.
 
 #### What crosses the boundary
 
-**A C whole number, into a `number`.** That is the whole of it so far, and it is first
-because it cannot go wrong: a `number` is a decimal with 28–29 significant digits, so every
-64-bit integer crosses exactly. There is no rounding to argue about.
+Three things, and each says what it needs on the declaration:
+
+| You declare | C gives back | |
+| --- | --- | --- |
+| `number` | a whole number that fits a `long long` | exact — a decimal holds every 64-bit integer |
+| `fact` | anything with a truth value | 1 or 0 |
+| `voidable text` | a `char*` or `const char*` | **copied**; nothing becomes void |
+
+```
+Pull a book on the c-language.
+    Define c-language voidable text home as [getenv("HOME")].
+    Define c-language voidable text describe, given (the number code), as [strerror(the code)].
+
+    State (cast describe on (2)) but void is "no idea".      ← No such file or directory
+Done.
+```
+
+**A text result must be `voidable text`, never a plain `text`.** C says nothing is there by
+handing back nothing — `getenv` on a name that is not set, `strerror` on a code it does not know —
+so absence arrives in the mechanism Cufet already has instead of a promise C cannot keep.
+
+**A text is copied out of C's memory.** The bytes belong to C: `strerror` hands back a buffer the
+next call overwrites, and anything allocated dies when its owner says so. A Cufet text pointing at
+either would change under your program, so it never points at either.
 
 Everything else is **refused rather than approximated**:
 
 | The axiom produces | What happens |
 | --- | --- |
-| `int`, `long`, `long long`, `char`, `short`, `_Bool` | crosses as a `number` |
 | `double`, `float` | refused — base-2 against a base-10 decimal |
 | `size_t`, `unsigned long long` | refused — can exceed `long long`, and casting would turn a large one negative |
-| anything, returned into a `text` or a `fact` | refused — only `number` crosses so far |
+| anything else, for a `voidable text` | refused — it has to be a C string |
 
-The first two are refused by the C compiler, which is where the type is actually known; the
-last by Cufet's checker. Cast on the C side if you mean it: `[(int)strlen("hello")]`.
+These are refused by the C compiler, which is where the type is actually known. Cast on the C side
+if you mean it: `[(int)strlen("hello")]`.
 
 #### What an axiom can reach for
 

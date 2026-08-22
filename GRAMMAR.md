@@ -1877,10 +1877,23 @@ lets a body see a `permanently` constant.
 | `Bind number to f, x.` | run it, and give back the whole number it produced |
 | `Pull a book on the c-language.` | admit C axioms in this block |
 
-**What crosses the boundary, so far: a C whole number into a `number`, and nothing else.** That
-direction is first because it cannot be lossy — a `number` is a decimal with 28–29 significant
-digits, so every 64-bit integer crosses exactly. Everything else is refused rather than
-approximated:
+**What crosses BACK from foreign source:**
+
+| Declared | C gives | |
+| --- | --- | --- |
+| `number` | a whole number that fits a `long long` | exact — a decimal holds every 64-bit integer |
+| `fact` | anything with a truth value | 1 or 0 |
+| `voidable text` | a `char*` or `const char*` | **copied**; NULL becomes void |
+
+⚠ **A `text` result must be declared `voidable text`.** C says nothing is there by handing back
+nothing — `getenv` on an unset name, `strerror` on a code it does not know — so NULL lands in the
+mechanism the language already has. A plain `text` is refused as a promise the C side cannot keep.
+
+⚠ **A text is COPIED out of C's memory, never aliased.** The bytes belong to C: `strerror` hands
+back a buffer the next call overwrites, and anything malloc'd dies when its owner says so. A Cufet
+text pointing at either would change under the program.
+
+Everything else is refused rather than approximated:
 
 - a `double` — base-2 against a base-10 decimal, so that conversion has to be written once in C and
   called by both backends

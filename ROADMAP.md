@@ -65,10 +65,6 @@ Two framings that set the order:
    Part VII for what they do, and CHANGELOG for when. What is left, in the order it makes sense to
    build:
 
-   - **More results coming back.** A whole `number` is the only thing that crosses out today, so an
-     axiom cannot give back a `fact` (`[isatty(the handle)]`) or a `text` at all — which is what
-     `getenv`, `strerror` and `readdir` need. `text` copies into the arena and nothing is freed
-     unless a declaration says so.
    - **`double` ↔ `number`** — the one lossy conversion, and the reason the wrapper is shared at
      all. It has to be written once in C and called by both backends; until it exists, a floating
      axiom is refused. ⚠ Genuinely hard: base-2 against a base-10 decimal, with rounding to argue

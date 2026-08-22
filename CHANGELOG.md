@@ -146,6 +146,35 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ordinary type-mismatch message rather than a special one — foreign source stopped needing its own
   error there.
 
+  **A `fact` and a `voidable text` cross back, not just a number** — so C can finally hand Cufet a
+  string:
+
+  ```
+  Define c-language voidable text describe, given (the number code), as [strerror(the code)].
+
+  State (cast describe on (2)) but void is "no idea".      ← No such file or directory
+  ```
+
+  ⚠ **A text result must be declared `voidable text`.** C says nothing is there by handing back
+  nothing — `getenv` on an unset name is the everyday case — so NULL lands in the mechanism the
+  language already has rather than in a promise C cannot keep. A plain `text` is refused, and says
+  why.
+
+  ⚠ **The text is COPIED out of C's memory, never aliased**, on both backends: into the arena when
+  compiled, into a managed string when interpreted. `strerror` hands back a buffer the next call
+  overwrites and anything allocated dies when its owner says so, so a Cufet text pointing at either
+  would change under the program.
+
+  ★ Both backends now compile the **same wrapper function, byte for byte**, from one builder — the
+  splice, the guard, the C types and the call are decided once and compiled twice, rather than
+  described twice and compiled once each.
+
+  ⚠ Two bugs found by writing programs against it, both invisible to reading: an axiom containing a
+  **top-level comma** (C's comma operator) broke the boundary guards, because a one-parameter macro
+  splits its argument before expanding — the macros are variadic now. And the interpreter had a
+  **use-after-free**: an axiom can hand back a pointer it was *given* (`[the subject]`), and the
+  argument buffers were released before the text was copied out.
+
   Still design and not built: `address`, `the text at`, `released by`, and passing an axiom around
   unrun. See
   [DESIGN.md](DESIGN.md#foreign-interoperability), which carries the reasoning and the rejected
