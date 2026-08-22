@@ -63,6 +63,20 @@ public abstract class PipelineTestBase
     // Compiles source to a temp native binary, runs it (optionally feeding stdin), returns stdout.
     protected static string CompileRaw(string source, string? stdin = null)
     {
+        var binPath = CompileToBinary(source);
+        try { return RunBinary(binPath, stdin); }
+        finally { try { File.Delete(binPath); } catch { } }
+    }
+
+    /// <summary>Compiles to a native binary and hands back its path; the CALLER deletes it.</summary>
+    /// <remarks>
+    /// ★ Split out of CompileRaw for the one thing that needs a binary to outlive a single run:
+    /// a defect that only shows up in a FRACTION of runs. The Windows longjmp crash was 4% of
+    /// runs, so the one-compile-one-run shape could not have caught it however many tests used
+    /// it — what catches it is compiling once and running the same binary a few hundred times.
+    /// </remarks>
+    protected static string CompileToBinary(string source)
+    {
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
         program = new TypeChecker().Check(program);
@@ -103,7 +117,12 @@ public abstract class PipelineTestBase
             try { work.Delete(recursive: true); } catch { }
         }
 
-        try
+        return binPath;
+    }
+
+    /// <summary>Runs an already-compiled binary once and returns its stdout.</summary>
+    protected static string RunBinary(string binPath, string? stdin = null)
+    {
         {
             var psi = new ProcessStartInfo(binPath)
             {
@@ -151,10 +170,6 @@ public abstract class PipelineTestBase
                     $"stderr:\n{(errors.Length == 0 ? "(nothing)" : errors)}");
 
             return output;
-        }
-        finally
-        {
-            try { File.Delete(binPath); } catch { }
         }
     }
 

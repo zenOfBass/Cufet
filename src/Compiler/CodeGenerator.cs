@@ -599,6 +599,31 @@ public sealed class CodeGenerator
 #include <fcntl.h>
 #endif
 
+/* ───────── setjmp WITHOUT a Windows SEH unwind ─────────
+   ★★ On x86-64 mingw-w64, plain `setjmp(b)` expands to `_setjmp((b), __builtin_frame_address(0))`
+   (setjmp.h), and that saved frame pointer makes `longjmp` perform a full SEH unwind through
+   ntdll's RtlUnwindEx. At -O2 that unwinder reads stack memory it cannot validate and
+   ACCESS-VIOLATES depending on what happens to be on the stack — measured at 121 crashes in 3000
+   serial runs of one binary that raises and catches once. Passing NULL as the context makes
+   longjmp restore registers directly and skip the unwind: 3000 runs, 0 crashes.
+
+   ★ Skipping it is not a workaround, it is what this runtime already assumes. The unwinder's job
+   is to run __finally blocks and C++ destructors between the jump and its target; generated Cufet
+   C has neither, and cufet_raise runs the unmakers, closes the files and pops the arenas ITSELF
+   before it jumps. There was never anything for RtlUnwindEx to do.
+
+   ⚠ Two arguments is the mingw-w64 spelling. glibc's `_setjmp` takes one, so this is a _WIN32
+   branch and nothing else changes on POSIX.
+
+   ⚠ It presented as a test that "flaked occasionally" for weeks. It was a 4%-of-runs crash in
+   every compiled program that catches an exception on Windows, and the reason it looked rare is
+   that one suite run launches such a binary a handful of times. */
+#if defined(_WIN32)
+#define CUFET_PLAIN_SETJMP(b) _setjmp((b), NULL)
+#else
+#define CUFET_PLAIN_SETJMP(b) setjmp(b)
+#endif
+
 /* ───────── Line endings on stdout ─────────
    Windows opens stdout in TEXT mode, where the C runtime rewrites every '\n' on its way out as
    "\r\n". That is fine for a line terminator and wrong for everything else: a '\n' the program
@@ -1916,7 +1941,11 @@ static void cufet_checkpoint(void) {
    0 and the body simply runs. Declaring it is what lets threads compile on a platform that has
    pthreads (mingw-w64 ships winpthreads) but not POSIX signals. */
 #include <setjmp.h>
-#define CUFET_SETJMP(b) setjmp(b)
+/* ⚠ The no-unwind form, like the exception pad. Nothing longjmps to this pad on mingw today —
+   cufet_interrupted is never set — but a pad established with a bare `setjmp` is a crash waiting
+   for the day something does jump to it, and the two pads should not differ in a way nobody
+   intended. See CUFET_PLAIN_SETJMP. */
+#define CUFET_SETJMP(b) CUFET_PLAIN_SETJMP(b)
 static volatile int cufet_interrupted = 0;
 static _Thread_local jmp_buf cufet_thread_top;
 static _Thread_local int cufet_pad_set = 0;
@@ -5595,7 +5624,9 @@ static void* cufet_pipe_stage(void* argp) {
             sb.AppendLine($"{inner}int cf_xa{id} = cufet_arena_top;");
             sb.AppendLine($"{inner}int {sup} = 0; (void){sup};");
             sb.AppendLine($"{inner}const char* {xmsg} = 0; (void){xmsg};");
-            sb.AppendLine($"{inner}if (setjmp(cufet_exc_bufs[++cufet_exc_top]) != 0) goto {catchL};");
+            // ⚠ CUFET_PLAIN_SETJMP, never bare `setjmp` — on Windows the bare form makes the
+            // matching longjmp unwind through ntdll and crash ~4% of the time. See the macro.
+            sb.AppendLine($"{inner}if (CUFET_PLAIN_SETJMP(cufet_exc_bufs[++cufet_exc_top]) != 0) goto {catchL};");
             // Record the unmaker-registry depth for THIS Try, so cufet_raise runs the pending
             // unmakers (LIFO, while their C-stack objects are still live) down to here before longjmp.
             if (UsesUnmakers) sb.AppendLine($"{inner}cufet_exc_um[cufet_exc_top] = {umSnap};");
