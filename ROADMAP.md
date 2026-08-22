@@ -71,9 +71,16 @@ Two framings that set the order:
    one term in `UnwindTo`, and every nonlocal exit gets it at once.
 
    **What is still undesigned**, and wants settling before code:
-   - the **declaration syntax** — how a C function, its C types, and its release function are named
    - the **read operations** — `the text at p` and friends
-   - where the **blocks** type sits in the order, now that DSLs bottom out in FFI
+   - where **`released by`** lives, now that there are axioms rather than binding declarations
+   - **struct declarations** under the axiom model — the earlier sketch predates it
+   - where **`#include`** goes: inside each axiom, or once per book
+
+   ★ **The surface is settled** (see DESIGN): foreign source is an **axiom**, written in square
+   brackets and tagged by its language book — `Define a c-language axiom get-pid as [getpid()].`
+   Parameters are declared with `given (…)` and spliced by the article, `[open(the path)]`, which is
+   unambiguous because `the path` is never valid C or SQL. An axiom runs when returned; the declared
+   type decides.
 
    ★ **Struct layout is settled** (see DESIGN): structs travel as pointers, Cufet owns the memory
    wherever it can (`the address of` a C-typed record), the C compiler lays them out inside the

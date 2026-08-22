@@ -434,6 +434,21 @@ The reason it is the rabbit and not a new marker: **a pointer is a rabbit respon
 The arena that knows when a region dies is the thing that knows when a pointer dies. That
 *extends* the existing safety model rather than holing it.
 
+### The type is an `address`
+
+Not `pointer`. `address` is plain English for exactly what it is, where `pointer` is C's word for
+it — and the language already reached for it on its own: `the address of settings` is how the
+struct case reads, and the FFI item always described "an explicit address-of".
+
+★ It costs nothing. `address` and `pointer` both have zero uses across `examples/` and the prelude,
+and a type name does not have to be reserved — `rabbit` appears nowhere in the lexer and is
+resolved in the type checker instead. So `the text address` stays available as a field name.
+
+```
+Cast tcgetattr on (fd, the address of settings).
+Define c-language close-file, given (the address handle), as [fclose(the handle)].
+```
+
 ### One concept, and it is inert
 
 There is **one kind of foreign pointer**: opaque, rabbit-scoped, and impossible to
@@ -629,7 +644,80 @@ interpreter the same callback needs a trampoline that re-enters the interpreter.
 unlike "when we need more power". Reversing is cheap — the conversion rules are identical
 either way, and the switch is the throwaway part.
 
-### Blocks: one type for code as data
+### An axiom: foreign source as a value
+
+The type is an **axiom**, written in square brackets, tagged by the language book it belongs to:
+
+```
+Pull a book on the c-language.
+    Define a c-language axiom get-pid as [getpid()].
+    Bind number to process-id, return get-pid.
+Done.
+```
+
+**Why `axiom`.** It names the *contract*, not the appearance. An axiom is taken as given without
+proof — which is exactly what this is: Cufet cannot check a C listing, cannot prove anything about
+it, and accepts it on trust. `listing`, `source` and `block` describe how it looks; only this one
+describes what the language is agreeing to. It also fits how Cufet names things — `rabbit`, `bury`,
+`stash`, `book` are all evocative rather than literal.
+
+★ Measured before choosing: `source` appears 48 times in `examples/` and the prelude and `block` 12,
+against 0 for `axiom`. `block` also collides with the language's own word for a `… Done.` structure,
+and `expression` is a core term used 72 times in GRAMMAR and REFERENCE. `code` is a mass noun — *a
+code* is a cipher, which is the sense `huffmancoding.cufe` already uses it in.
+
+**Square brackets**, which appear nowhere else in the language. They earn the last free delimiter
+because this is the one construct whose content is not Cufet at all: anything reusing existing
+punctuation would need disambiguating by context, which is what you least want around foreign text.
+
+⚠ **The tag cannot be dropped.** `Define a c-language axiom x as […]` may shorten to
+`Define c-language x as […]` — the brackets say "axiom" — but not to `Define x as […]`. The
+brackets say *this is verbatim foreign text*; they cannot say *which* language, and the tag names
+the consumer. Making it inferable from what happens to be pulled would make a line's meaning depend
+on scope above it, and break the moment both `c-language` and `sql` are pulled.
+
+### Splicing: values stay values, and the marker is `the`
+
+Parameters are declared the way every Cufet function declares them, and referred to inside the
+axiom by **the article**:
+
+```
+Define c-language open-file, given (the text path, the number flags),
+    as [open(the path, the flags)].
+
+Define handle as cast open-file on (config-path, read-only).
+```
+
+★ **`the path` is never valid C or SQL.** That is what makes a symbol-free marker unambiguous —
+it is English sitting in code that is not English, so nothing has to be escaped or disambiguated.
+It also reads as the line above it: `the text path` in the declaration, `the path` in the body.
+
+⚠ Rejected markers, with the reason each failed: `?` says nothing about which argument goes where;
+bare `x, y, z` collide with the foreign language's own identifiers and break the no-single-letter
+rule; `#path` collides with the C preprocessor, which a C axiom will very often open with; `{path}`
+is taken twice in Cufet (interpolation, object construction) and is C's commonest punctuation —
+`{x}` is also a valid scalar initialiser. `@path` was the best symbol and remains the fallback.
+
+★ **The precedent is `run`.** `Run "grep" with arguments ("-v", "3")` passes a *list of values*,
+never a concatenated command string — which is why there is no shell injection there. An axiom does
+the same: the text is fixed at definition and only values vary at use, so an axiom cannot be
+assembled from strings. The C side receives a marshalled `int`; the SQL side receives a bound
+parameter. Neither receives text.
+
+★ The parameter list also supplies what marshalling needs — the C types of the arguments — which
+otherwise had nowhere to come from once binding declarations were dropped.
+
+⚠ **Known edge:** `the path` inside a string literal in the foreign text would be substituted —
+`[printf("the path is %s", the path)]` has one hole and one piece of prose. Every candidate marker
+shares this, so it did not separate them, but it is real.
+
+**An axiom runs when it is returned**, and the declared type decides: a `Bind number to …` whose
+value is an axiom runs it and marshals the result, while a `Bind` whose declared type *is* an axiom
+hands it back unrun. That is the existing rule that a declared type is what the value must fit into,
+and it keeps composition possible — a function that assembles a SQL fragment and returns it still
+can. Passing an axiom around does not run it.
+
+### One type for code as data
 
 Quoted Cufet and embedded foreign source live under **one type name**, tagged by language.
 
