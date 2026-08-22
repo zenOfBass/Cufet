@@ -1,5 +1,6 @@
 C says 6 * 7 is 42.
-C says "hello, world" is 12 bytes long.
 C says 0xF0F0 has 8 bits set.
 C says the third letter of "abcdef" has code 99.
+C says "hello, world" is 12 bytes long.
 Cufet agrees on the length: true.
+C sorts "apple" before "banana": true.

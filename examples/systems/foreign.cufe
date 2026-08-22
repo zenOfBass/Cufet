@@ -9,19 +9,16 @@
 
 Pull a book on the c-language.
     Define c-language answer as [6 * 7].
-    Define c-language greeting-length as [(int)strlen("hello, world")].
     Define c-language bits-in-f0f0 as [__builtin_popcount(0xF0F0)].
     Define c-language third-letter as ["abcdef"[2]].
 
     // An axiom runs when it is RETURNED, and the declared type decides what comes back. It is
     // never used any other way: an axiom is not a value that can be printed, stored, or passed.
     Bind number to the-answer, answer.
-    Bind number to how-long, greeting-length.
     Bind number to how-many-bits, bits-in-f0f0.
     Bind number to letter-code, third-letter.
 
     State "C says 6 * 7 is {(cast the-answer) converted to text}.".
-    State "C says \"hello, world\" is {(cast how-long) converted to text} bytes long.".
     State "C says 0xF0F0 has {(cast how-many-bits) converted to text} bits set.".
 
     // Brackets NEST inside an axiom, which is what makes a C subscript survive the lexer —
@@ -29,8 +26,27 @@ Pull a book on the c-language.
     Define c-code as cast letter-code.
     State "C says the third letter of \"abcdef\" has code {c-code converted to text}.".
 
+    // ── Handing values TO C ──────────────────────────────────────────────────
+    //
+    // Parameters are declared the way every Cufet body declares them, and reached inside the
+    // foreign text BY THE ARTICLE: `the text subject` here, `the subject` in the source. That
+    // works because `the subject` is never valid C — it is English sitting in code that is not.
+    //
+    // Only VALUES cross, never text. The C side is handed a marshalled `const char*`; the axiom
+    // itself is fixed at this line and cannot be assembled from strings.
+    Define c-language text-length, given (the text subject), as [(int)strlen(the subject)].
+    Define c-language compare, given (the text left, the text right),
+        as [strcmp(the left, the right)].
+
+    Define greeting as "hello, world".
+    Define the number width as cast text-length on (greeting).
+    State "C says \"{greeting}\" is {width converted to text} bytes long.".
+
     // Cufet checks the same thing its own way, so the two answers can be compared. A boundary
     // that quietly lost or gained anything would show up right here.
-    Define cufet-length as the length of "hello, world".
-    State "Cufet agrees on the length: {cufet-length = cast how-long}.".
+    Define cufet-width as the length of greeting.
+    State "Cufet agrees on the length: {cufet-width = width}.".
+
+    Define the number ordering as cast compare on ("apple", "banana").
+    State "C sorts \"apple\" before \"banana\": {ordering < 0}.".
 Done.
