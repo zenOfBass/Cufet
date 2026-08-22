@@ -1788,9 +1788,8 @@ try.
 
 ```
 Pull a book on the c-language.
-    Define c-language get-pid as [getpid()].
-    Bind number to process-id, get-pid.
-    State cast process-id.
+    Define c-language number get-pid as [getpid()].
+    State cast get-pid.
 Done.
 ```
 
@@ -1808,10 +1807,24 @@ moment two language books are pulled together.
 members; you pull it to write axioms in that language at all. Aliasing works (`as c`), and the tag
 still names the language rather than the alias.
 
-**An axiom runs when it is RETURNED, and the declared type decides.** `Bind number to process-id,
-get-pid.` runs it and marshals the result. Nowhere else may an axiom's name be used at all: it is
-not a value that can be printed, stored, or passed, and reaching for one is refused when the
-program is checked.
+**What an axiom gives back is declared where the axiom is WRITTEN**, and the tag qualifies the
+axiom rather than the result — `c-language number add` is a C-language axiom that yields a number.
+Both middle words drop:
+
+```
+Define the c-language number axiom add, given (the number left, the number right), as [ ... ].
+Define c-language number add, given (the number left, the number right), as [ ... ].
+Define c-language axiom get-pid as [getpid()].        ← says nothing about the result
+Define c-language get-pid as [getpid()].
+```
+
+⚠ **An axiom that says nothing about its result may be WRITTEN but not RUN.** Cufet cannot read a C
+listing, and an `int` might be a number, a fact or a handle — so whoever wrote the source says
+which, once. Leaving it off stays legal because an axiom passed around unrun is a later slice.
+
+**An axiom runs when it is RETURNED or CAST.** Its NAME is still not a value: an axiom cannot be
+printed, stored, or passed, and reaching for one outside a run is refused when the program is
+checked.
 
 ### ★ An axiom's parameters, and splicing by the article
 
@@ -1839,17 +1852,9 @@ injection there.
 | `text` | `const char*`, UTF-8, valid for the length of the call |
 | `fact` | `int`, 1 or 0 |
 
-**A `cast` of an axiom takes its result type from the line that USES it** — the same rule as
-returning one, since nothing about the C side can say what an `int` means. So a use site must
-declare a type:
-
-```
-Define the number fd as cast open-read-only on (config-path).     ← the type is required
-Bind number to open-config, cast open-read-only on (config-path). ← or a Bind supplies it
-```
-
-⚠ Which means **an axiom call cannot be written inline**: `State cast add on (1, 2).` is refused,
-because nothing there says what comes back. Every result passes through a typed name first.
+**A `cast` of an axiom composes anywhere an ordinary call does** — in a condition, an
+interpolation, inside arithmetic, or as an argument — because what it gives back was settled
+where the axiom was declared rather than where it is used.
 
 ⚠ **A declared parameter the source never mentions is refused**, because only declared names are
 substituted — a misspelled `the paht` stays in the C verbatim and would otherwise surface as a gcc

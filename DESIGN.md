@@ -755,11 +755,48 @@ otherwise had nowhere to come from once binding declarations were dropped.
 `[printf("the file-path is %s", the file-path)]` has one hole and one piece of prose. Every candidate marker
 shares this, so it did not separate them, but it is real.
 
-**An axiom runs when it is returned**, and the declared type decides: a `Bind number to …` whose
-value is an axiom runs it and marshals the result, while a `Bind` whose declared type *is* an axiom
-hands it back unrun. That is the existing rule that a declared type is what the value must fit into,
-and it keeps composition possible — a function that assembles a SQL fragment and returns it still
-can. Passing an axiom around does not run it.
+### What an axiom gives back is on its DECLARATION
+
+```
+Define c-language number add, given (the number left, the number right), as [the left + the right].
+Define the c-language number axiom add, ...                    ← the same thing, spelled out
+```
+
+★ **The order is `c-language number axiom`, not `number c-language axiom`**, because the tag
+qualifies the *axiom*: this is a C-language axiom that yields a number, not a number that came
+from C. Both middle words drop, and every rung of the ladder still reads —
+`the c-language number axiom add`, `c-language number add`, `c-language axiom add`, `c-language
+add`.
+
+⚠ **The alternative was tried first and reversed the same day.** The result type came from the line
+*using* the axiom (`Define the number fd as cast open-file on (…)`), on the reasoning that a
+declared type is already what a value must fit into. It works, and the cost was much larger in
+practice than on paper: the call had to be the **entire right-hand side of a typed binding**, so it
+could not appear in a condition, in an interpolation, inside arithmetic, or as an argument. Every
+result went through a named intermediate first — measured at one line becoming two at three of four
+call sites in the first real program written against it. The cost fell on *uses*, and uses are what
+multiply.
+
+⚠ **And it could not be inferred from the C**, which is the tempting third answer. The C type is
+knowable — `_Generic` already reads it, which is why no C type is ever written down — but three
+things stop it deciding the *Cufet* type:
+
+- **It is needed too early.** The checker must know the type to check `s + 1`; that happens in the
+  front end with no toolchain in sight. Inferring would put a C compiler behind `cufet check`,
+  which today needs none and runs where none can exist — the playground is wasm.
+- **It would vary by platform.** `size_t` and `time_t` are not the same width everywhere, so the
+  same program would have different Cufet types on different machines. That is a divergence in the
+  language, not in a backend.
+- **★ The C type does not determine the meaning.** `isatty` gives an `int` that is really a fact;
+  `fopen` gives a pointer that is really a handle; `getchar` gives an `int` that is a character *or*
+  an end. C says how many bits arrive, never what they are. Inferring would be Cufet claiming to
+  know something it cannot, which is exactly what "taken as given without proof" refuses.
+
+So the one party who knows says so, once, where the source is written.
+
+**An axiom runs when it is returned or cast**, and an axiom that declares no result may be written
+but not run — which is what keeps composition possible, since a function assembling a SQL fragment
+hands one back unrun. Passing an axiom around does not run it.
 
 ### One type for code as data
 

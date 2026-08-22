@@ -3552,9 +3552,8 @@ and does not pretend to — it takes it as given, which is what the word means.
 
 ```
 Pull a book on the c-language.
-    Define c-language get-pid as [getpid()].
-    Bind number to process-id, get-pid.
-    State cast process-id.
+    Define c-language number get-pid as [getpid()].
+    State cast get-pid.
 Done.
 ```
 
@@ -3564,24 +3563,25 @@ Three parts, and each does one job:
   what admits C axioms in this block, and it is the line a reader can see that on.
 - **`[ ... ]`** — square brackets appear nowhere else in Cufet. Inside them nothing is Cufet:
   no interpolation, no escapes, no comments. Bracket pairs nest, so `[argv[0]]` is fine.
-- **`c-language`** before the name — the tag, which says who reads the text. It may be written
-  in full as `Define a c-language axiom get-pid as [ ... ].`, but it cannot be left out.
+- **`c-language number`** before the name — the tag says who reads the text, and the type says
+  what running it gives back. The full spelling is `Define the c-language number axiom get-pid
+  as [ ... ].`; both middle words drop, but the tag can never be left out.
 
-**An axiom runs when it is returned**, and the declared type decides what comes back. It is
-always declared first and returned by name, because the declaration is where the language tag
-lives:
+**The result is declared where the axiom is written**, by the person who knows. Cufet cannot read
+a C listing: an `int` might be a count, a truth, or a file handle, and only you can say which.
 
 ```
 Pull a book on the c-language.
-    Define c-language greeting-length as [(int)strlen("hello, world")].
-    Bind number to how-long, greeting-length.
-    State cast how-long.        ← 12
+    Define c-language number greeting-length as [(int)strlen("hello, world")].
+    State cast greeting-length.        ← 12
 Done.
 ```
 
-Everywhere else, an axiom's name is refused. It is not a value that can be printed, stored,
-or passed around, and reaching for one is caught when the program is checked rather than
-when the line runs.
+An axiom that says nothing about its result may be written but not run — that is what leaves room
+for handing one around unrun later. A call composes anywhere an ordinary call does.
+
+An axiom's NAME, though, is not a value: it cannot be printed, stored, or passed around, and
+reaching for one outside a run is caught when the program is checked.
 
 #### Handing values to C
 
@@ -3590,10 +3590,9 @@ the foreign text **by the article**:
 
 ```
 Pull a book on the c-language.
-    Define c-language text-length, given (the text subject), as [(int)strlen(the subject)].
+    Define c-language number text-length, given (the text subject), as [(int)strlen(the subject)].
 
-    Define the number width as cast text-length on ("hello, world").
-    State width.        ← 12
+    State cast text-length on ("hello, world").        ← 12
 Done.
 ```
 
@@ -3611,16 +3610,6 @@ it.
 | `number` | `long long` — **range-checked**; a fractional or oversized value raises rather than being trimmed |
 | `text` | `const char*`, UTF-8, valid for the length of the call |
 | `fact` | `int`, 1 or 0 |
-
-**The line that uses a call decides what comes back**, exactly as it does for a returned axiom —
-nothing about the C side can say what an `int` *means*:
-
-```
-Define the number fd as cast open-read-only on (config-path).
-```
-
-⚠ So an axiom call cannot be written inline: `State cast add on (1, 2).` is refused, because
-nothing there declares a type. Give the result a name first.
 
 ⚠ A parameter the source never mentions is refused — only names you declared are substituted, so
 a misspelling would otherwise reach the C compiler as a stray `the`.

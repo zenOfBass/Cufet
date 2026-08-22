@@ -15,9 +15,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
   ```
   Pull a book on the c-language.
-      Define c-language get-pid as [getpid()].
-      Bind number to process-id, get-pid.
-      State cast process-id.
+      Define c-language number get-pid as [getpid()].
+      State cast get-pid.
   Done.
   ```
 
@@ -98,9 +97,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `ioctl`:
 
   ```
-  Define c-language open-read-only, given (the text file-path), as [open(the file-path, O_RDONLY)].
+  Define c-language number open-read-only, given (the text file-path),
+      as [open(the file-path, O_RDONLY)].
 
-  Define the number fd as cast open-read-only on ("/etc/hostname").
+  Define fd as cast open-read-only on ("/etc/hostname").
   ```
 
   ★ `the file-path` is never valid C or SQL, which is what makes a **symbol-free** marker
@@ -115,17 +115,36 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   rather than quietly handing C a 3. The message lives once, in `ForeignC`, and the emitted runtime
   quotes it — so both backends refuse in the same words, which the oracle compares byte for byte.
 
-  ⚠ **A call takes its result type from the line that uses it**, as a returned axiom does. That
-  means an axiom call cannot be written inline — `State cast add on (1, 2).` is refused, because
-  nothing there says what comes back. It is the cost of one rule instead of two, and it shows up
-  at every call site.
-
   ⚠ A declared parameter the source never mentions is refused. Only declared names are substituted,
   so a misspelled `the paht` would otherwise reach gcc as a stray `the` — a complaint about the
   writer's spelling, phrased in a language they were not writing.
 
   ⚠ **A reserved word cannot be a parameter name**, and `path` is one, so `given (the text path)`
   does not parse. `file-path` does.
+
+  **What an axiom gives back is declared where the axiom is written** — `c-language number add`
+  reads as what it is, a C-language axiom that yields a number. The tag qualifies the *axiom*, not
+  the number, and both middle words drop: `the c-language number axiom add` → `c-language number
+  add` → `c-language axiom add` → `c-language add`.
+
+  ★ **This replaced taking the type from the line that USED the axiom**, which shipped earlier the
+  same day and cost far more in practice than on paper: a call had to be the entire right-hand side
+  of a typed binding, so it could not sit in a condition, an interpolation, arithmetic, or an
+  argument list. Measured at one line becoming two at three of four call sites in the first real
+  program written against it — the cost fell on *uses*, which are what multiply. A call now
+  composes anywhere an ordinary call does.
+
+  ★ **It is not inferred from the C, and could not be.** The C type is knowable — `_Generic`
+  already reads it, which is why no C type is ever written down — but it is needed before any
+  toolchain exists (`cufet check` needs none, and the playground is wasm), it would vary by
+  platform (`size_t` is not one width), and above all **it does not determine the meaning**:
+  `isatty` gives an `int` that is a fact, `fopen` a pointer that is a handle, `getchar` an `int`
+  that is a character or an end. C says how many bits arrive, never what they are.
+
+  ⚠ An axiom that says nothing about its result may be **written but not run**, which is what keeps
+  room for handing one around unrun. And a use whose type does not fit is now refused by the
+  ordinary type-mismatch message rather than a special one — foreign source stopped needing its own
+  error there.
 
   Still design and not built: `address`, `the text at`, `released by`, and passing an axiom around
   unrun. See

@@ -77,11 +77,10 @@ Two framings that set the order:
 
    ⚠ Two things it surfaced, both worth a decision rather than a shrug:
 
-   - **A `cast` of an axiom cannot be written inline.** Its result type comes from the line that
-     uses it, so `State cast add on (1, 2).` is refused and every result passes through a typed
-     name. That was the known cost of extending one rule instead of adding a second; it is more
-     visible in practice than it looked on paper, and the alternative — a return type on the
-     declaration — is still available.
+   - ~~A `cast` of an axiom cannot be written inline.~~ **Resolved the same day**: the result type
+     moved onto the declaration (`Define c-language number add, given (…), as [ … ].`), so a call
+     composes anywhere an ordinary call does. The use-site rule is gone rather than sitting beside
+     it. See DESIGN for why it is not inferred from the C.
    - **`path` is a reserved word**, so `given (the text path)` does not parse — including in
      DESIGN's own example, now corrected to `file-path`. `path` is a very tempting parameter name
      for exactly this feature, and it is reserved for `the path <p> exists`. Making it contextual
