@@ -38,7 +38,8 @@ public sealed partial class Interpreter
 
         void Note(AxiomLiteral axiom, int line)
         {
-            if (seen.Add(ForeignC.Identity(axiom.Language ?? "", axiom.Source, axiom.Parameters)))
+            if (seen.Add(ForeignC.Identity(axiom.Language ?? "", axiom.Source, axiom.Parameters,
+                                          axiom.ReturnType)))
                 pending.Add((axiom, line));
         }
 
@@ -55,7 +56,7 @@ public sealed partial class Interpreter
             throw CannotRunForeignSource(pending[0].Axiom, pending[0].Line);
 
         foreach (var (axiom, line) in pending)
-            runner.Prepare(axiom.Language!, axiom.Source, axiom.Parameters, line);
+            runner.Prepare(axiom.Language!, axiom.Source, axiom.Parameters, axiom.ReturnType!, line);
     }
 
     /// <summary>Runs an axiom called with arguments — `cast open-file on (path, flags)`.</summary>
@@ -84,8 +85,13 @@ public sealed partial class Interpreter
             });
         }
 
-        return runner.RunForWholeNumber(
-            axiom.Language!, axiom.Source, axiom.Parameters, arguments, cast.Line);
+        // ★ null means the source had nothing to give — a NULL `char*`. Naming that `void` is the
+        // language's job, not the runner's, and it is why such an axiom must declare
+        // `voidable text`: NULL is C's universal "nothing", landing in the mechanism Cufet
+        // already has rather than in a new one.
+        return runner.Run(axiom.Language!, axiom.Source, axiom.Parameters, axiom.ReturnType!,
+                          arguments, cast.Line)
+            ?? VoidValue.Instance;
     }
 
     /// <summary>Runs an axiom and gives back the marshalled Cufet value.</summary>
@@ -100,7 +106,8 @@ public sealed partial class Interpreter
     private object RunAxiom(AxiomLiteral axiom, int line)
     {
         if (ForeignRunner is not { } runner) throw CannotRunForeignSource(axiom, line);
-        return runner.RunForWholeNumber(axiom.Language!, axiom.Source, axiom.Parameters, [], line);
+        return runner.Run(axiom.Language!, axiom.Source, axiom.Parameters, axiom.ReturnType!, [], line)
+            ?? VoidValue.Instance;
     }
 
     /// <summary>The refusal for an environment with no way to compile and call foreign source.</summary>

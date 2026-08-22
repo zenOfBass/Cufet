@@ -83,13 +83,28 @@ public sealed partial class TypeChecker
     /// <summary>Refuses a declared result the boundary cannot bring back.</summary>
     private void RequireCrossableResult(AxiomLiteral axiom)
     {
-        if (axiom.ReturnType == CufetType.Number) return;
+        var result = axiom.ReturnType!;
+        if (ForeignC.CanCrossBack(result)) return;
+
+        // ⚠ A bare `text` gets its own sentence, because it is the near miss rather than a wrong
+        // idea: a `char*` from C is NULL whenever C had nothing to give, and NULL is C's universal
+        // "nothing". Saying `voidable text` is what puts that in the mechanism the language
+        // already has instead of leaving a promise the C side cannot keep.
+        if (result is TextType)
+            throw TypeError(
+                $"a {axiom.Language} axiom gives back a 'voidable text', never a plain 'text'",
+                "C says nothing is there by handing back nothing — `getenv` on an unset name, "
+              + "`strerror` on a code it does not know",
+                axiom.Line, axiom.Column,
+                "declare it as giving back a text",
+                $"Write 'Define {axiom.Language} voidable text <name> as [ ... ].'");
+
         throw TypeError(
-            $"a {axiom.Language} axiom cannot give back a {FormatType(axiom.ReturnType!)} yet",
-            "Only 'number' crosses the boundary so far",
+            $"a {axiom.Language} axiom cannot give back a {FormatType(result)} yet",
+            "A number, a fact and a voidable text cross back; nothing else does",
             axiom.Line, axiom.Column,
-            $"declare it as giving back a {FormatType(axiom.ReturnType!)}",
-            "Declare it 'number' and let the source produce a whole number.");
+            $"declare it as giving back a {FormatType(result)}",
+            "Give back a number, a fact or a voidable text, and do the rest inside the source.");
     }
 
     /// <summary>Checks what an axiom says it takes, and that the foreign text asks for it.</summary>

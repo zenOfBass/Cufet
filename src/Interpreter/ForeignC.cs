@@ -141,11 +141,21 @@ public static class ForeignC
 """
 /* Is this C expression a whole number that fits a Cufet `number` exactly?
    Deliberately excludes unsigned long / unsigned long long (they can exceed long long) and every
-   floating type (base-2 against a base-10 decimal). Both are refused rather than truncated. */
-#define CUFET_C_WHOLE(x) _Generic((x), \
+   floating type (base-2 against a base-10 decimal). Both are refused rather than truncated.
+
+   ⚠ VARIADIC, and that is not decoration. Foreign text can contain a top-level comma — the comma
+   operator, `[open(the p, 0), 1]` — and a one-parameter macro splits on it before expanding, so
+   the guard failed to compile on source that was perfectly good C. `__VA_ARGS__` puts it back
+   together. */
+#define CUFET_C_WHOLE(...) _Generic((__VA_ARGS__), \
     _Bool: 1, char: 1, signed char: 1, unsigned char: 1, \
     short: 1, unsigned short: 1, int: 1, unsigned int: 1, \
     long: 1, long long: 1, default: 0)
+
+/* Is this C expression a string Cufet can copy out? Only the two spellings of one: a pointer to
+   char. An `unsigned char*` is bytes rather than text, and everything else is not a string at all
+   — both are refused here rather than reinterpreted. */
+#define CUFET_C_TEXT(...) _Generic((__VA_ARGS__), char*: 1, const char*: 1, default: 0)
 """;
 
     /// <summary>The refusal a C compiler prints when an axiom produces something that cannot cross.</summary>
@@ -159,6 +169,79 @@ public static class ForeignC
 
     /// <summary>The axiom's value, taken as the whole number both backends then convert.</summary>
     public static string WholeExpression(string source) => $"(long long)({source})";
+
+    // ── What an axiom can give back ─────────────────────────────────────────
+
+    /// <summary>Is this a result the boundary can bring back from foreign source?</summary>
+    /// <remarks>
+    /// ⚠ `voidable text` and not `text`. A `char*` from C is NULL whenever C had nothing to give —
+    /// `getenv` on an unset name, `strerror` on nonsense — and NULL is C's universal failure
+    /// signal, so it lands in the mechanism the language already has rather than in a new one. A
+    /// plain `text` result is refused, because it would be a promise the C side cannot keep.
+    /// </remarks>
+    public static bool CanCrossBack(CufetType result) =>
+        result is NumberType or FactType || result is VoidableType { Inner: TextType };
+
+    /// <summary>The C type a wrapped axiom hands back — the RAW one, before either backend converts.</summary>
+    /// <remarks>
+    /// ★★ Both backends compile the SAME wrapper function, byte for byte, and differ only in what
+    /// they do with what it returns: the compiled side makes a `CufetDec` or an arena copy, and the
+    /// shim widens it into a slot. Sharing the function rather than the idea is what stops the two
+    /// drifting — the foreign text is spliced once, guarded once, and called once.
+    /// </remarks>
+    public static string ResultCType(CufetType result) => result switch
+    {
+        NumberType                          => "long long",
+        FactType                            => "int",
+        VoidableType { Inner: TextType }    => "const char*",
+        _ => throw new TypeException(
+                 $"That doesn't work: foreign source cannot give back a {TypeChecker.FormatType(result)}."),
+    };
+
+    /// <summary>The guard a wrapped axiom's body opens with, or nothing when C's own rules suffice.</summary>
+    /// <remarks>
+    /// ★ `fact` needs no guard: `(x) ? 1 : 0` is only valid C for something that has a truth value,
+    /// so the C compiler already refuses a struct there and says so in its own words. A guard would
+    /// be a second opinion on a question already answered.
+    /// </remarks>
+    public static string ResultGuard(CufetType result, string spliced) => result switch
+    {
+        NumberType => GuardStatement(spliced),
+        VoidableType { Inner: TextType } =>
+            $"    _Static_assert({TextGuardName}({spliced}), \"{TextGuardMessage}\");",
+        _ => "",
+    };
+
+    /// <summary>The expression a wrapped axiom returns, in the raw C type above.</summary>
+    public static string ResultExpression(CufetType result, string spliced) => result switch
+    {
+        NumberType => WholeExpression(spliced),
+        FactType   => $"({spliced}) ? 1 : 0",
+        _          => $"({spliced})",
+    };
+
+    public const string TextGuardName = "CUFET_C_TEXT";
+
+    public const string TextGuardMessage =
+        "this axiom is returned as a text, so it has to produce a C string (a char* or const char*)";
+
+    /// <summary>The whole wrapped axiom, as one C function that both backends compile identically.</summary>
+    public static string Wrapper(string cName, string qualifier, string language, string source,
+                                 IReadOnlyList<(CufetType Type, string Name)> parameters,
+                                 CufetType result)
+    {
+        // Spliced ONCE and used for both the guard and the body, so the two cannot disagree about
+        // what the foreign text says.
+        string spliced = Splice(source, parameters);
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(Banner(language, source));
+        sb.AppendLine($"{qualifier}{ResultCType(result)} {cName}({ParameterList(parameters)}) {{");
+        string guard = ResultGuard(result, spliced);
+        if (guard.Length > 0) sb.AppendLine(guard);
+        sb.AppendLine($"    return {ResultExpression(result, spliced)};");
+        sb.AppendLine("}");
+        return sb.ToString();
+    }
 
     /// <summary>The parameter list a wrapped axiom's C function declares.</summary>
     /// <remarks>
@@ -197,8 +280,10 @@ public static class ForeignC
     /// and silently call it for the second.
     /// </remarks>
     public static string Identity(string language, string source,
-                                  IReadOnlyList<(CufetType Type, string Name)> parameters)
-        => $"{language}\0{ParameterList(parameters)}\0{Splice(source, parameters)}";
+                                  IReadOnlyList<(CufetType Type, string Name)> parameters,
+                                  CufetType? result = null)
+        => $"{language}\0{(result is null ? "" : ResultCType(result))}\0"
+         + $"{ParameterList(parameters)}\0{Splice(source, parameters)}";
 
     /// <summary>A stable C identifier for one axiom, so the same axiom is wrapped once.</summary>
     public static string FunctionName(string language, string source,

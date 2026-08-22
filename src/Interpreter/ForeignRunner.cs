@@ -24,20 +24,21 @@ public interface IForeignRunner
     /// first interpreted and nothing at all compiled — two answers to one program.
     /// </remarks>
     void Prepare(string language, string source,
-                 IReadOnlyList<(CufetType Type, string Name)> parameters, int line);
+                 IReadOnlyList<(CufetType Type, string Name)> parameters,
+                 CufetType result, int line);
 
-    /// <summary>Runs an axiom that produces a whole number, and gives back that number.</summary>
+    /// <summary>Runs an axiom and gives back the Cufet value it produced.</summary>
     /// <remarks>
-    /// ⚠ The one conversion the first slice carries, and it is first because it cannot be lossy:
-    /// a `number` is a decimal with 28–29 significant digits, so every 64-bit integer crosses
-    /// exactly. Anything the C side produces that is not a whole number is refused by the C
-    /// compiler rather than truncated — see ForeignC.
+    /// ★ The parameters and the result come along because they are what says how to marshal: the
+    /// writer names no C type anywhere, so the declared Cufet types are the only description of
+    /// this call that exists. `arguments` holds the interpreter's own values, in declaration order.
     ///
-    /// ★ The parameters come along because they are what says how to marshal: the writer names no
-    /// C type anywhere, so the declared Cufet types are the only description of the arguments that
-    /// exists. `arguments` holds the interpreter's own values, in declaration order.
+    /// ⚠ Nothing here decides a conversion. The wrapper the shim compiles is the same one the
+    /// compiled backend emits, so every choice that could be argued about — which cast, which
+    /// guard — was made once in ForeignC and made for both.
     /// </remarks>
-    decimal RunForWholeNumber(string language, string source,
-                              IReadOnlyList<(CufetType Type, string Name)> parameters,
-                              IReadOnlyList<object> arguments, int line);
+    /// <returns>The Cufet value, or null when the source had nothing to give.</returns>
+    object? Run(string language, string source,
+               IReadOnlyList<(CufetType Type, string Name)> parameters,
+               CufetType result, IReadOnlyList<object> arguments, int line);
 }

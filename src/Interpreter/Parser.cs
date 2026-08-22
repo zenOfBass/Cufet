@@ -4737,7 +4737,7 @@ public sealed class Parser
         while (i < _tokens.Count && _tokens[i].IsNoise) i++;
         if (i >= _tokens.Count) return false;
         var next = _tokens[i];
-        return next.Type is TokenType.NumberKw or TokenType.Void
+        return next.Type is TokenType.NumberKw or TokenType.Void or TokenType.Voidable
             || (next.Type == TokenType.Identifier
                 && next.Lexeme.ToLowerInvariant() is "text" or "fact" or "bits");
     }

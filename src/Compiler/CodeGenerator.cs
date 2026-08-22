@@ -5763,28 +5763,48 @@ static void* cufet_pipe_stage(void* argp) {
     {
         string language = axiom.Language ?? "foreign";
         string key = ForeignC.Identity(language, axiom.Source, axiom.Parameters);
+        var result = axiom.ReturnType!;
         if (!_axiomFnNames.TryGetValue(key, out var fnName))
         {
-            // The foreign text with `the path` already replaced by the C parameter it names —
-            // done ONCE, here, and used for both the guard and the body so the two cannot differ.
-            string spliced = ForeignC.Splice(axiom.Source, axiom.Parameters);
+            // ★★ The wrapper text comes from ForeignC, so this is byte-for-byte the function the
+            // interpreter's shim compiles. Splicing, the guard and the call all happen once, in
+            // one place, for both backends.
             fnName = ForeignC.FunctionName(language, axiom.Source, axiom.Parameters);
             _axiomFnNames[key] = fnName;
-            _axiomFns.AppendLine(ForeignC.Banner(language, axiom.Source));
-            _axiomFns.AppendLine($"static CufetDec {fnName}({ForeignC.ParameterList(axiom.Parameters)}) {{");
-            _axiomFns.AppendLine(ForeignC.GuardStatement(spliced));
-            _axiomFns.AppendLine($"    return cufet_dec_from_ll({ForeignC.WholeExpression(spliced)});");
-            _axiomFns.AppendLine("}");
+            _axiomFns.Append(ForeignC.Wrapper(fnName, "static ", language, axiom.Source,
+                                              axiom.Parameters, result));
         }
-
-        if (axiom.Parameters.Count == 0) return $"{fnName}()";
 
         // ★ Marshalled per parameter, from the CUFET type the checker put on the declaration —
         // the writer names no C type anywhere, and this is the only place one is chosen.
         var marshalled = axiom.Parameters
             .Select((p, i) => EmitForeignArgument(p.Type, args![i], line))
             .ToList();
-        return $"{fnName}({string.Join(", ", marshalled)})";
+        string call = $"{fnName}({string.Join(", ", marshalled)})";
+
+        return result switch
+        {
+            NumberType => $"cufet_dec_from_ll({call})",
+            FactType   => call,                       // already the 1/0 a Cufet fact is in C
+            _          => EmitForeignText(call),      // voidable text — copied out of C's memory
+        };
+    }
+
+    /// <summary>A `char*` from foreign source, as a `voidable text` that owns its own bytes.</summary>
+    /// <remarks>
+    /// ★ COPIED into the arena, never aliased. The bytes belong to C: `strerror` hands back a
+    /// static buffer the next call overwrites, and anything malloc'd is freed the moment its
+    /// owner says so. A Cufet text that pointed at either would change under the program.
+    ///
+    /// ★ NULL becomes void, which is the whole reason the result type is `voidable text`. It is C's
+    /// universal "nothing to give", and it lands in the mechanism the language already has.
+    /// </remarks>
+    private string EmitForeignText(string call)
+    {
+        string cvd = RegisterVoidableStruct(new VoidableType(TText));
+        int id = _freshId++;
+        _preEmits.Add($"const char* cf_fx{id} = cufet_arena_str_at(cufet_arena_top, {call});");
+        return $"(cf_fx{id} ? ({cvd}){{ .has = 1, .val = cf_fx{id} }} : ({cvd}){{ .has = 0 }})";
     }
 
     /// <summary>One Cufet value, as the C parameter the wrapper declared.</summary>
@@ -5974,10 +5994,9 @@ static void* cufet_pipe_stage(void* argp) {
 
     private CufetType RawCastReturnType(CastExpression c)
     {
-        // ★ An axiom's result is decided by the type declared where the call is USED, and the
-        // checker has already refused a use site that declares none. Only `number` crosses so far,
-        // so that is what the wrapper hands back — see ForeignC.
-        if (c.RunsAxiom is not null) return TNumber;
+        // ★ An axiom's result is declared where the axiom is WRITTEN, and the checker has already
+        // refused one that never said — see ForeignC for what may cross back.
+        if (c.RunsAxiom is { } ax) return ax.ReturnType!;
 
         // The filling decides the return type — `first-two of text` gives back a series of text.
         if (CalledFunction(c.Function, c.ResolvedFunctionName, c.Line, c.Column) is VariableReference vr)

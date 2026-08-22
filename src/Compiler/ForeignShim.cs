@@ -67,20 +67,41 @@ public sealed class GccForeignRunner : IForeignRunner
     }
 
     public void Prepare(string language, string source,
-                        IReadOnlyList<(CufetType Type, string Name)> parameters, int line)
-        => Entry(language, source, parameters, line);
+                        IReadOnlyList<(CufetType Type, string Name)> parameters,
+                        CufetType result, int line)
+        => Entry(language, source, parameters, result, line);
 
-    public decimal RunForWholeNumber(string language, string source,
-                                     IReadOnlyList<(CufetType Type, string Name)> parameters,
-                                     IReadOnlyList<object> arguments, int line)
+    public object? Run(string language, string source,
+                      IReadOnlyList<(CufetType Type, string Name)> parameters,
+                      CufetType result, IReadOnlyList<object> arguments, int line)
     {
-        var entry = Entry(language, source, parameters, line);
-        // ★ No conversion decision here. The C side has already taken the value through the same
-        // `(long long)` the compiled backend uses, after the same guard, so both backends convert
-        // the identical integer — and a decimal holds every 64-bit integer exactly, so neither
-        // rounds. This is the whole reason the wrapper is shared rather than written twice.
-        return Call(entry, parameters, arguments, line);
+        var entry = Entry(language, source, parameters, result, line);
+        return Call(entry, parameters, result, arguments);
     }
+
+    /// <summary>Reads the 64 bits the wrapper handed back as the Cufet value they stand for.</summary>
+    /// <remarks>
+    /// ★ The wrapper already made every choice that could be argued about — it is the same
+    /// wrapper the compiled backend calls, after the same guard. What is left is which 64 bits.
+    ///
+    /// ⚠⚠ Called INSIDE the marshalling scope, before the arguments are released, and that is
+    /// load-bearing rather than tidy. An axiom may hand back a pointer it was GIVEN —
+    /// `[the subject]` is the smallest example, `[strchr(the s, 'x')]` the realistic one — so
+    /// reading the text after freeing the argument buffers is a use-after-free. It read as an
+    /// empty string here and would read as anything at all elsewhere.
+    /// </remarks>
+    private static object? ReadResult(long raw, CufetType result) => result switch
+    {
+        NumberType => (decimal)raw,
+        FactType   => raw != 0,
+        // A text arrives as its POINTER and is COPIED here. The bytes belong to C: a static buffer
+        // the next call overwrites, or something its owner will free. The compiled backend copies
+        // into the arena for the same reason.
+        //
+        // ⚠ NULL comes back as null, and the INTERPRETER names it void. What "absent" is called
+        // is the language's business; the runner's job stops at the bytes.
+        _          => raw == 0 ? null : Marshal.PtrToStringUTF8((IntPtr)raw) ?? "",
+    };
 
     /// <summary>Marshals the arguments, calls the shim, and releases what was allocated for it.</summary>
     /// <remarks>
@@ -89,11 +110,11 @@ public sealed class GccForeignRunner : IForeignRunner
     /// longer, which is the same promise the compiled backend makes by passing a pointer into the
     /// arena that outlives the statement.
     /// </remarks>
-    private static decimal Call(WholeEntry entry,
+    private static object? Call(WholeEntry entry,
                                 IReadOnlyList<(CufetType Type, string Name)> parameters,
-                                IReadOnlyList<object> arguments, int line)
+                                CufetType result, IReadOnlyList<object> arguments)
     {
-        if (parameters.Count == 0) return entry(IntPtr.Zero, 0);
+        if (parameters.Count == 0) return ReadResult(entry(IntPtr.Zero, 0), result);
 
         var slots = new ShimArgument[parameters.Count];
         var texts = new List<IntPtr>();
@@ -117,12 +138,13 @@ public sealed class GccForeignRunner : IForeignRunner
                 }
             }
 
+
             var block = Marshal.AllocCoTaskMem(slots.Length * Marshal.SizeOf<ShimArgument>());
             try
             {
                 for (int i = 0; i < slots.Length; i++)
                     Marshal.StructureToPtr(slots[i], block + i * Marshal.SizeOf<ShimArgument>(), false);
-                return entry(block, slots.Length);
+                return ReadResult(entry(block, slots.Length), result);
             }
             finally { Marshal.FreeCoTaskMem(block); }
         }
@@ -131,14 +153,16 @@ public sealed class GccForeignRunner : IForeignRunner
 
     /// <summary>This axiom's loaded entry point, building and loading it the first time.</summary>
     private WholeEntry Entry(string language, string source,
-                             IReadOnlyList<(CufetType Type, string Name)> parameters, int line) =>
-        _loaded.GetOrAdd(ForeignC.Identity(language, source, parameters),
-                         _ => Load(language, source, parameters, line));
+                             IReadOnlyList<(CufetType Type, string Name)> parameters,
+                             CufetType result, int line) =>
+        _loaded.GetOrAdd(ForeignC.Identity(language, source, parameters, result),
+                         _ => Load(language, source, parameters, result, line));
 
     private WholeEntry Load(string language, string source,
-                            IReadOnlyList<(CufetType Type, string Name)> parameters, int line)
+                            IReadOnlyList<(CufetType Type, string Name)> parameters,
+                            CufetType result, int line)
     {
-        string libraryPath = Build(language, source, parameters, line);
+        string libraryPath = Build(language, source, parameters, result, line);
         try
         {
             var handle = NativeLibrary.Load(libraryPath);
@@ -154,9 +178,10 @@ public sealed class GccForeignRunner : IForeignRunner
 
     /// <summary>The path to a shared library wrapping this axiom, building it if it is not cached.</summary>
     private string Build(string language, string source,
-                         IReadOnlyList<(CufetType Type, string Name)> parameters, int line)
+                         IReadOnlyList<(CufetType Type, string Name)> parameters,
+                         CufetType result, int line)
     {
-        string shim = ShimSource(language, source, parameters);
+        string shim = ShimSource(language, source, parameters, result);
         string libraryName = "shim" + LibrarySuffix;
 
         // ⚠ A cache that cannot be used must not fail the run — the same rule the runtime object
@@ -205,7 +230,8 @@ public sealed class GccForeignRunner : IForeignRunner
 
     /// <summary>The whole shim: shared headers, the shared guard, and one wrapped axiom.</summary>
     private static string ShimSource(string language, string source,
-                                     IReadOnlyList<(CufetType Type, string Name)> parameters)
+                                     IReadOnlyList<(CufetType Type, string Name)> parameters,
+                                     CufetType result)
     {
         var sb = new StringBuilder();
         sb.AppendLine("/* Generated by cufet — one foreign axiom, compiled so the interpreter can call it. */");
@@ -221,18 +247,22 @@ public sealed class GccForeignRunner : IForeignRunner
         sb.AppendLine(ForeignC.ShimArgumentType);
         sb.AppendLine();
 
-        // The foreign text with `the path` already replaced by the C name it becomes — done ONCE
-        // and used for both the guard and the body, exactly as the compiled backend does it.
-        string spliced = ForeignC.Splice(source, parameters);
+        // ★★ The SAME wrapper the compiled backend emits, byte for byte, from the same builder.
+        // Everything that could differ — the splice, the guard, the C types, the call — is decided
+        // once in ForeignC and compiled twice, rather than described twice and compiled once each.
+        const string wrapped = "cufet_axiom_shimmed";
+        sb.Append(ForeignC.Wrapper(wrapped, "static ", language, source, parameters, result));
+        sb.AppendLine();
 
-        sb.AppendLine(ForeignC.Banner(language, source));
+        // The exported entry is a thin shell around it: unpack the slots, call, widen the answer.
+        // A text comes back as its POINTER, which the managed side copies before returning.
         sb.AppendLine($"CUFET_SHIM_EXPORT long long {WholeEntryPoint}"
                     + "(const CufetShimArg* cufet_args, int cufet_count) {");
-        // Unused when the axiom takes nothing, and the interpreter passes NULL there.
         sb.AppendLine("    (void)cufet_args; (void)cufet_count;");
         sb.Append(ForeignC.ShimUnpack(parameters));
-        sb.AppendLine(ForeignC.GuardStatement(spliced));
-        sb.AppendLine($"    return {ForeignC.WholeExpression(spliced)};");
+        var handed = string.Join(", ", Enumerable.Range(0, parameters.Count).Select(ForeignC.ParameterName));
+        string widen = result is VoidableType ? "(long long)(intptr_t)" : "(long long)";
+        sb.AppendLine($"    return {widen}{wrapped}({handed});");
         sb.AppendLine("}");
         return sb.ToString();
     }

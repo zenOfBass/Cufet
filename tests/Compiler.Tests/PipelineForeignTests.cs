@@ -112,8 +112,7 @@ public class PipelineForeignTests : PipelineTestBase
                 State cast first + cast second.
             Done.
             """);
-        int wrappers = c.Split("static CufetDec " + ForeignC.FunctionPrefix).Length - 1;
-        Assert.Equal(1, wrappers);
+        Assert.Equal(1, WrapperCount(c));
     }
 
     [Fact]
@@ -231,8 +230,7 @@ public class PipelineForeignTests : PipelineTestBase
                 State number-size + text-size.
             Done.
             """);
-        int wrappers = c.Split("static CufetDec " + ForeignC.FunctionPrefix).Length - 1;
-        Assert.Equal(2, wrappers);
+        Assert.Equal(2, WrapperCount(c));
     }
 
     [Fact]
@@ -375,6 +373,104 @@ public class PipelineForeignTests : PipelineTestBase
         // left thinking the value takes arguments.
         var e = Assert.Throws<TypeException>(() => GenerateC("Define x, given (the number n), as 5."));
         Assert.Contains("cannot be 'given' anything", e.Message);
+    }
+
+    // ── What an axiom can give back ──────────────────────────────────────────
+
+    [Fact]
+    public void Axiom_GivesBackAFact()
+    {
+        // ★ `fact` needs no boundary guard of its own: `(x) ? 1 : 0` is only valid C for something
+        // with a truth value, so C already refuses a struct there in its own words.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language fact same-text, given (the text left, the text right),
+                    as [strcmp(the left, the right) == 0].
+                State cast same-text on ("a", "a").
+                State cast same-text on ("a", "b").
+            Done.
+            """;
+        Assert.Equal("true\nfalse", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_GivesBackAVoidableText()
+    {
+        // ★★ Text coming OUT was the whole point of this slice — nothing could get a string from C
+        // before it. The bytes are COPIED, never aliased: C's belong to C, and a static buffer the
+        // next call overwrites would change under a Cufet text that pointed at it.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language voidable text greeting as ["hello from C"].
+                Define c-language voidable text echo, given (the text subject), as [the subject].
+                State (cast greeting) but void is "?".
+                State (cast echo on ("abc")) but void is "?".
+            Done.
+            """;
+        Assert.Equal("hello from C\nabc", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_ContainingATopLevelComma_Compiles()
+    {
+        // ⚠ A real bug, found by writing one: the boundary guards are macros, and a one-parameter
+        // macro splits its argument on a comma BEFORE expanding. C's comma operator put a top-level
+        // comma in perfectly good foreign source and the guard failed to compile on it. The macros
+        // are variadic now, which puts the argument back together.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number second-of-two, given (the number left, the number right),
+                    as [the left, the right].
+                State cast second-of-two on (1, 2).
+            Done.
+            """;
+        Assert.Equal("2", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_TextThatIsNull_ComesBackAsVoid()
+    {
+        // ⚠ The reason the result must be declared `voidable text` rather than `text`. NULL is C's
+        // universal "nothing to give" — `getenv` on an unset name is the everyday case — so it
+        // lands in the mechanism the language already has instead of a promise C cannot keep.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language voidable text missing
+                    as [getenv("CUFET_NO_SUCH_VARIABLE_ANYWHERE")].
+                State (cast missing) is void.
+            Done.
+            """;
+        Assert.Equal("true", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_DeclaringPlainText_IsRefusedWithTheReason()
+    {
+        var e = Assert.Throws<TypeException>(() => GenerateC("""
+            Pull a book on the c-language.
+                Define c-language text greeting as ["hi"].
+            Done.
+            """));
+        Assert.Contains("'voidable text', never a plain 'text'", e.Message);
+    }
+
+    [Fact]
+    public void Axiom_GivingBackSomethingThatIsNotAString_IsRefusedByTheCCompiler()
+    {
+        // The other half of the text guard: a `voidable text` result whose C is not a string at
+        // all. Refused where the type is actually known, with a message naming the foreign source.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language voidable text wrong as [42].
+                State (cast wrong) but void is "?".
+            Done.
+            """;
+        var e = Assert.ThrowsAny<Exception>(() => CompileRaw(src));
+        Assert.Contains("has to produce a C string", e.Message);
     }
 
     // ── The header set an axiom is given ─────────────────────────────────────
@@ -580,10 +676,10 @@ public class PipelineForeignTests : PipelineTestBase
     {
         var e = Assert.Throws<TypeException>(() => GenerateC("""
             Pull a book on the c-language.
-                Define c-language text host-name as ["localhost"].
+                Define c-language bits flags as [0xF0].
             Done.
             """));
-        Assert.Contains("cannot give back a text yet", e.Message);
+        Assert.Contains("cannot give back a bits yet", e.Message);
     }
 
     [Fact]
@@ -660,6 +756,17 @@ public class PipelineForeignTests : PipelineTestBase
                       .Execute(Checked(src)));
         Assert.Equal("", output.ToString());
     }
+
+    /// <summary>How many axiom wrappers the emitted C defines.</summary>
+    /// <remarks>
+    /// ⚠ Counts DEFINITIONS, not one spelling of them. The wrapper's C return type varies with
+    /// what the axiom gives back — `long long`, `int`, `const char*` — so matching on a fixed
+    /// prefix silently counted zero the day a second result type arrived.
+    /// </remarks>
+    private static int WrapperCount(string emittedC) =>
+        System.Text.RegularExpressions.Regex.Matches(
+            emittedC, "^static .*" + ForeignC.FunctionPrefix,
+            System.Text.RegularExpressions.RegexOptions.Multiline).Count;
 
     private static Program Checked(string source) =>
         new TypeChecker().Check(new Parser(new CufetLexer(source).Tokenize()).Parse());
