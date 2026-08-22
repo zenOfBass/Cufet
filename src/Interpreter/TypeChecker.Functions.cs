@@ -893,6 +893,23 @@ public sealed partial class TypeChecker
                                     rt.PositionalTypes.Select(ResolveParamType).ToList(),
                                     rt.NamedFields.Select(f => (f.Name, ResolveParamType(f.Type))).ToList()),
 
+        // ★ An axiom type is refused wherever a type was WRITTEN — a parameter, a field, a return
+        // type, an element type. This arm is what confines an axiom to the one shape the first
+        // slice carries, and it confines it everywhere at once rather than at each site that would
+        // otherwise have to remember. Inferring an axiom's type does not come through here (see
+        // InferType), so the declaration that names one still works.
+        //
+        // ⚠ Refusing is not the end state — the design has axioms passed around unrun, which is what
+        // lets a SQL fragment be assembled before it is used. What is missing is the backend half:
+        // an axiom has no C representation, so allowing it here would type-check a program the
+        // compiler cannot build, and "it checks but does not compile" is the divergence this
+        // project spends the most effort refusing.
+        AxiomType axiom => throw new TypeException(
+            $"That doesn't work: a {axiom.Language} axiom can be declared and returned, and not yet "
+          + "written down anywhere else.\n\n" +
+            "An axiom runs when it is returned into a number — 'Bind number to <name>, <axiom>.'. "
+          + "It cannot yet be a parameter, a field, or something a function hands back unrun."),
+
         // ── A FILLED template — `a stack of number` ───────────────────────────
         // Ahead of the shell cases below, which do not inspect the filling and would otherwise
         // resolve `stack of number` to the unsubstituted template.
@@ -905,6 +922,11 @@ public sealed partial class TypeChecker
         ObjectType { PositionalTypes.Count: 0, NamedFields.Count: 0, Methods.Count: 0,
                     EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
             when _objectDefs.ContainsKey(ot.Name) => _objectDefs[ot.Name],
+        // `the c-language x` — a language book's name in type position is the axiom type it tags.
+        // The book introduces no type of its own, so this is the one shape it can mean.
+        ObjectType { PositionalTypes.Count: 0, NamedFields.Count: 0, Methods.Count: 0,
+                    EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
+            when IsLanguageBook(ot.Name) => new AxiomType(ot.Name),
         // Book-introduced types (e.g. matrix) found in the current type scope:
         ObjectType { PositionalTypes.Count: 0, NamedFields.Count: 0, Methods.Count: 0,
                     EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot

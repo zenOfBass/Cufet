@@ -32,6 +32,12 @@ public sealed partial class TypeChecker
         // than the cast-book's-member-on dispatch path.
         books["chance"] = new BookType("chance", []);
 
+        // Language books — the tag you pull to write foreign source at all. No members, and never
+        // any: a book on a LANGUAGE is not a library of anything, and a collection of ready-made
+        // axioms would be an ordinary module. See TypeChecker.Foreign.
+        foreach (var language in LanguageBookNames())
+            books[language] = new BookType(language, []);
+
         return books;
     }
 

@@ -43,6 +43,7 @@ public class ExhaustivenessTests
         [typeof(FunctionType)]        = new FunctionType([CufetType.Number], CufetType.Number),
         [typeof(TaskHandleType)]      = new TaskHandleType(CufetType.Number),
         [typeof(BookType)]            = new BookType("math", []),
+        [typeof(AxiomType)]           = new AxiomType("c-language"),
         [typeof(UnionType)]           = new UnionType([CufetType.Number, CufetType.Text]),
     };
 

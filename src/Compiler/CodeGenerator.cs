@@ -122,6 +122,17 @@ public sealed class CodeGenerator
         new(ReferenceEqualityComparer.Instance as IEqualityComparer<DefineStatement>);
     private readonly List<string> _sharedConstDecls = [];
 
+    // ── Foreign axioms ────────────────────────────────────────────────────
+    // One C function per distinct axiom, keyed by the source it wraps so the same axiom returned
+    // in two places is pasted once. Collected while bodies are emitted and appended above them.
+    //
+    // ★ A FUNCTION rather than the text spliced at each use. It gives the boundary check somewhere
+    // to live (a `_Static_assert` is a declaration and cannot sit inside an expression), it keeps
+    // the foreign text readable in the output, and it is the same artifact the interpreter's shim
+    // builds — "the shim is the compiled axioms" holds for both backends because it is one shape.
+    private readonly Dictionary<string, string> _axiomFnNames = new(StringComparer.Ordinal);
+    private readonly System.Text.StringBuilder _axiomFns = new();
+
     // The Cufet type of each shared constant, by name. Computed BEFORE any body is emitted,
     // because bodies emit before main — so the `_varTypes[d.Name] = vt` main performs when it
     // assigns the constant comes far too late for a function that reads one.
@@ -2507,6 +2518,21 @@ static void* cufet_pipe_stage(void* argp) {
         // and facts all worked while a `permanently` lookup table would not build at all. Sitting
         // after the series/map runtime covers every shape a constant can have: scalars, records
         // and objects (EmitStructs), closures (EmitClosureStructs), series and maps (just above).
+        // ── Foreign axioms — the C this program was handed, wrapped where it can be called ──
+        // Above every body, below the runtime: an axiom calls cufet_dec_from_ll and nothing else
+        // generated, and a body may call an axiom.
+        if (_axiomFns.Length > 0)
+        {
+            sb.AppendLine("// ── Foreign axioms (source this program was given, taken as written) ──");
+            // ★ Here rather than in the runtime. The guard is only needed where an axiom is, and
+            // the runtime is content-addressed for the object cache — putting it there would make
+            // every existing build recompile the runtime for a macro almost no program uses.
+            sb.AppendLine(ForeignC.Headers);
+            sb.AppendLine(ForeignC.GuardMacro);
+            sb.Append(_axiomFns);
+            sb.AppendLine();
+        }
+
         if (_sharedConstDecls.Count > 0)
         {
             sb.AppendLine("// ── Shared constants (top-level `permanently` bindings) ──");
@@ -4002,6 +4028,7 @@ static void* cufet_pipe_stage(void* argp) {
         FailureMarkerType   => "failure",
         ExceptionMarkerType => "exception",
         BookType b      => $"book '{b.Name}'",
+        AxiomType a     => $"{a.Language} axiom",
         UnionType u     => u.Cases == null ? "catalogue value"
                              : string.Join(" or ", u.Cases.Select(FormatTypeName)),
         // Unreachable while every CufetType above has an arm — pinned by
@@ -4511,6 +4538,12 @@ static void* cufet_pipe_stage(void* argp) {
                 break;
             }
 
+            // An axiom declaration stores nothing. Foreign source has no runtime representation
+            // here: the text is pasted into this file's C when a return runs it, and the name
+            // exists so that return has something to say. See EmitAxiomCall.
+            case DefineStatement { Value: AxiomLiteral }:
+                break;
+
             case DefineStatement d:
             {
                 // An explicit annotation is the binding's type, so the value widens into it —
@@ -4619,7 +4652,9 @@ static void* cufet_pipe_stage(void* argp) {
                     // Coerce so `return <T>` / `return void` widens into a voidable return type.
                     // Value is materialized first (preemits), THEN open files close (a returned
                     // arena value never references a FILE*), THEN return.
-                    string retExpr = EmitAsType(ret.Value, _currentReturnType);
+                    string retExpr = ret.RunsAxiom is { } runsAxiom
+                        ? EmitAxiomCall(runsAxiom)
+                        : EmitAsType(ret.Value, _currentReturnType);
                     FlushPreEmits(sb, indent);
                     // ESC.3 — returning out of one or more rabbits. Bind the value to a temp FIRST so
                     // it is fully materialized before any region is unwound (the return expression
@@ -5655,6 +5690,30 @@ static void* cufet_pipe_stage(void* argp) {
     /// for equality. Normalising once means none of that code learns the word "stash"; normalising
     /// at the use sites would mean remembering to, every time, forever.
     /// </remarks>
+    /// <summary>A call to this axiom's wrapper, emitting the wrapper the first time it is needed.</summary>
+    /// <remarks>
+    /// ★ The foreign text is pasted into this program's own C, which is all "compiling an axiom"
+    /// means for this backend — there is no marshalling layer and no dynamic dispatch, because the
+    /// signature is known here and gcc can see both sides at once. The interpreter reaches the same
+    /// place the long way round, through a shim built out of the same wrapper.
+    /// </remarks>
+    private string EmitAxiomCall(AxiomLiteral axiom)
+    {
+        string language = axiom.Language ?? "foreign";
+        string key = $"{language}\0{axiom.Source}";
+        if (!_axiomFnNames.TryGetValue(key, out var fnName))
+        {
+            fnName = ForeignC.FunctionName(language, axiom.Source);
+            _axiomFnNames[key] = fnName;
+            _axiomFns.AppendLine(ForeignC.Banner(language, axiom.Source));
+            _axiomFns.AppendLine($"static CufetDec {fnName}(void) {{");
+            _axiomFns.AppendLine(ForeignC.GuardStatement(axiom.Source));
+            _axiomFns.AppendLine($"    return cufet_dec_from_ll({ForeignC.WholeExpression(axiom.Source)});");
+            _axiomFns.AppendLine("}");
+        }
+        return $"{fnName}()";
+    }
+
     private CufetType TypeOf(IExpression expr) => NoStashes(TypeOfRaw(expr));
 
     // The re-derivation itself. The program already type-checked, so this is a straightforward
@@ -5668,6 +5727,9 @@ static void* cufet_pipe_stage(void* argp) {
         BitsConvert           => TBits,
         BooleanLiteral        => TFact,
         StringLiteral         => TText,
+        // Foreign source, tagged by the checker. It has no C representation — nothing stores an
+        // axiom — but the var-type prepass asks for the type of every `Define`d value.
+        AxiomLiteral axiom    => new AxiomType(axiom.Language ?? ""),
         RangeExpression       => new SeriesType(TNumber),
         SeriesLiteral sl      => new SeriesType(SeriesElementType(sl)),
         SeriesLength          => TNumber,
@@ -7414,6 +7476,10 @@ static void* cufet_pipe_stage(void* argp) {
             // this survived: `x becomes x + 1` works, `x becomes 5` did not.)
             case BecomesStatement b: refs.Add(b.Name); CollectRefsDefs(b.Value, refs, defs); return;
             case DefineStatement d: defs.Add(d.Name); CollectRefsDefs(d.Value, refs, defs); return;
+            // A return that RUNS an axiom names it, but does not read it: the checker resolved the
+            // name to the source and this backend pastes that source in. There is no value to
+            // capture, so a body that only reaches for an axiom is not a closure.
+            case ReturnStatement { RunsAxiom: not null }: return;
             case ForEachStatement fe:
                 CollectRefsDefs(fe.Series, refs, defs);   // the series expression is in the OUTER scope
                 Nested(fe.IteratorName != null ? [fe.IteratorName] : [], fe.Body);

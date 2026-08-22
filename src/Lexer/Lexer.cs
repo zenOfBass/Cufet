@@ -55,6 +55,10 @@ public sealed class Lexer
         // no Cufet expression has.
         else if (c == '<' && Next() == '<')
             tokens.Add(ReadRawText());
+        // '[' has no other job in Cufet — it is the last free delimiter, and it goes to the one
+        // construct whose contents are not Cufet at all. Nothing here looks INSIDE the brackets.
+        else if (c == '[')
+            tokens.Add(ReadAxiomText());
         else if (c is '+' or '-' or '*' or '/' or '%' or '(' or ')' or '=' or '<' or '>' or ':' or ',' or '{' or '}' or '|')
             tokens.Add(ReadSymbol());
         else if (c == '\'')
@@ -625,6 +629,56 @@ public sealed class Lexer
         }
 
         return new Token(TokenType.String, sb.ToString(), startLine, startCol);
+    }
+
+    // `[ ... ]` — foreign source, kept exactly as written.
+    //
+    // ★ Bracket PAIRS nest and survive, which is what makes `[getenv(argv[0])]` lex at all: C's
+    // commonest use of a bracket is a subscript, so a scanner that stopped at the first ']' would
+    // be unusable for the language this delimiter exists to carry. Same depth counting as
+    // ReadRawText, and for the same reason.
+    //
+    // ⚠ It counts brackets and nothing else — an UNBALANCED bracket inside a foreign string
+    // literal (`[printf("]")]`) closes the axiom early. `<<...>>` has the same edge and the same
+    // answer, and closing it here would mean knowing which foreign language this is, which the
+    // brackets deliberately do not say.
+    private Token ReadAxiomText()
+    {
+        // Foreign source is normally multi-line, so the position reported is the opener's.
+        int startLine = _line;
+        int startCol  = ColumnAt(_pos);
+        Advance(); // consume '['
+        var sb = new System.Text.StringBuilder();
+        int depth = 1;
+
+        while (true)
+        {
+            if (AtEnd())
+                throw new LexerException(startLine, startCol,
+                    "unterminated foreign source — expected ']' to close it");
+            char c = Peek();
+
+            if (c == '[')
+            {
+                depth++;
+                Advance();
+                sb.Append('[');
+            }
+            else if (c == ']')
+            {
+                Advance();
+                if (--depth == 0) break;
+                sb.Append(']');
+            }
+            else
+            {
+                if (NewlineInLiteral()) { sb.Append('\n'); continue; }
+                Advance();
+                sb.Append(c);
+            }
+        }
+
+        return new Token(TokenType.Axiom, sb.ToString(), startLine, startCol);
     }
 
     // A line break inside a text literal, consumed and counted. Returns false if the position is

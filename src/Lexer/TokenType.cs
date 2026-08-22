@@ -15,6 +15,12 @@ public enum TokenType
               //   COUNT sets the width, so 0x0F is 8 bits where 0xF is 4.
     String,   // "..." with backslash escapes; no bare '{' inside
 
+    // ── Foreign source ────────────────────────────────────────────────────
+    Axiom,    // "[...]" — verbatim foreign source, taken as given. Never Cufet, never parsed;
+              //   the lexeme is exactly the text between the brackets, with inner bracket PAIRS
+              //   kept so `argv[0]` survives. Its LANGUAGE comes from the declaration, not from
+              //   here — the brackets say "this is foreign", they cannot say which foreign.
+
     // ── String interpolation (lexer-generated; never emitted for plain strings) ──
     InterpolOpen,      // opening '"' of an interpolated string literal
     StringPiece,       // a literal text segment within an interpolated string

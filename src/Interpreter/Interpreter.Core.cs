@@ -411,6 +411,10 @@ public sealed partial class Interpreter
     private int _callDepth = 0;
     private readonly int _maxCallDepth;
 
+    /// <summary>What runs this program's foreign axioms, or null where nothing can.</summary>
+    /// <remarks>See IForeignRunner — set by whoever wires the interpreter to a C toolchain.</remarks>
+    public IForeignRunner? ForeignRunner { get; set; }
+
     public Interpreter(TextWriter? output = null, TextReader? input = null, TextWriter? error = null, int maxCallDepth = 1000)
     {
         _out = output ?? Console.Out;
@@ -867,7 +871,12 @@ public sealed partial class Interpreter
                 break;
 
             case ReturnStatement ret:
-                throw new ReturnException(ret.Value != null ? Evaluate(ret.Value) : null);
+                // An axiom runs when it is returned, and the declared type decides — the checker
+                // resolved which and put the axiom itself on the statement.
+                throw new ReturnException(
+                    ret.RunsAxiom is { } axiom ? RunAxiom(axiom, ret.Line)
+                  : ret.Value != null          ? Evaluate(ret.Value)
+                  : null);
 
             case CurrentDirectorySetStatement cd:
                 ExecuteCurrentDirectorySetStatement(cd);
@@ -1059,6 +1068,7 @@ public sealed partial class Interpreter
         BitsLiteral      b    => new BitsValue(b.Value, b.Base, b.Width),
         BitsShift        bs   => EvaluateBitsShift(bs),
         StringLiteral    s    => s.Value,
+        AxiomLiteral     ax   => AxiomValue(ax),
         BooleanLiteral   b    => (object)b.Value,
         VariableReference r   => TryLookupValue(r.Name, out var val)
                                     ? val

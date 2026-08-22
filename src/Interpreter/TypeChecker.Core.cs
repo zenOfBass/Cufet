@@ -84,6 +84,26 @@ public sealed class StashType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(StashType), ElementType);
 }
 
+/// <summary>`a c-language axiom` — foreign source held as a value, tagged by the language it is in.</summary>
+/// <remarks>
+/// ★ The tag is part of the TYPE because it names the consumer: a block is consumed by whoever
+/// speaks its language, and nothing else may touch it. Two axioms in different languages are
+/// different types for the same reason a number and a text are.
+///
+/// ⚠ The tag can be shortened at a declaration (`Define c-language x as […]`) but never dropped.
+/// Inferring it from what happens to be pulled would make a line's meaning depend on scope above
+/// it, and break the moment two language books are pulled together.
+/// </remarks>
+public sealed class AxiomType : CufetType
+{
+    public string Language { get; }
+    public AxiomType(string language) => Language = language;
+    public override bool Equals(object? obj) =>
+        obj is AxiomType a && string.Equals(Language, a.Language, StringComparison.OrdinalIgnoreCase);
+    public override int GetHashCode() =>
+        HashCode.Combine(typeof(AxiomType), Language.ToLowerInvariant());
+}
+
 public sealed class RecordType : CufetType
 {
     // Positional fields: order-sensitive (position is identity).
@@ -2036,6 +2056,9 @@ public sealed partial class TypeChecker
 
     private void CheckDefine(DefineStatement define)
     {
+        // ★ First, because an axiom has no type until the declaration gives it one. This also
+        // resolves the shortened tag spelling, so `declared` below is an AxiomType either way.
+        var declaredType = TagAxiomDeclaration(define);
         var type = InferType(define.Value);
         if (type == null)
             throw TypeError(
@@ -2089,7 +2112,7 @@ public sealed partial class TypeChecker
 
         // An explicit annotation is the binding's type; the value only has to fit into it. That is
         // what lets `Define the (number or text) x as 42.` hold a text later.
-        var declared = define.DeclaredType;
+        var declared = declaredType;
         if (declared != null && !IsAssignable(declared, type))
             throw TypeError(
                 $"'{define.Name}' is declared as {FormatType(declared)}, but the value is a {FormatType(type)}",
@@ -2097,7 +2120,12 @@ public sealed partial class TypeChecker
                 $"start '{define.Name}' with a value that isn't a {FormatType(declared)}",
                 $"Give it a {FormatType(declared)}, or change the declared type to match the value.");
 
-        Scope[define.Name] = new TypeInfo(declared ?? type, define.Value, define.Line, define.Permanent, _rabbitDepth);
+        // ★ An axiom binding is permanent whether or not it says so. The text is fixed at the
+        // declaration and there is no other value it could take, so this is not a new rule — it is
+        // the `permanently` carve-out (ImportTopLevelVisible) applying to something that cannot be
+        // mutated, which is what makes `Bind number to process-id, get-pid.` see the axiom above it.
+        bool permanent = define.Permanent || declared is AxiomType;
+        Scope[define.Name] = new TypeInfo(declared ?? type, define.Value, define.Line, permanent, _rabbitDepth);
         RecordStashLocal(define.Name, declared ?? type, define.Line, define.Column);
     }
 
@@ -2177,7 +2205,13 @@ public sealed partial class TypeChecker
                     "return without a value",
                     $"Provide a {FormatType(_expectedReturnType)} value to return.");
 
-            var returnType = InferType(ret.Value);
+            // ★ Asked BEFORE the type is inferred, because returning an axiom is the one place a
+            // name bound to one may be reached for at all — see the guard in InferTypeCore. What
+            // happens next is RunAxiomOnReturn's: an axiom runs when it is returned, and the
+            // declared type decides what it becomes.
+            var returnType = AxiomBehind(ret.Value) is not null
+                ? RunAxiomOnReturn(ret, _expectedReturnType!)
+                : InferType(ret.Value);
             if (IsRabbitType(returnType))
                 throw TypeError(
                     "rabbits cannot be returned — they flow downward only",
@@ -2210,7 +2244,9 @@ public sealed partial class TypeChecker
     private CufetType? InferType(IExpression expr)
     {
         var t = InferTypeCore(expr);
-        return t is null ? null : ResolveParamType(t);
+        // ⚠ An axiom type is INFERRED here and refused by ResolveParamType, which is what makes
+        // "written down anywhere" and "the type of the declaration that names it" different things.
+        return t is null or AxiomType ? t : ResolveParamType(t);
     }
 
     // `<bits> at <n> bits`. The impossible case is caught at CHECK time when it is knowable: a
@@ -2336,12 +2372,19 @@ public sealed partial class TypeChecker
         BitsAtWidth baw                                                                                 => InferBitsAtWidth(baw),
         BitsShift bs                                                                                    => InferBitsShift(bs),
         StringLiteral                                                                                    => CufetType.Text,
+        AxiomLiteral axiom                                                                               => InferAxiomLiteral(axiom),
         BooleanLiteral                                                                                   => CufetType.Fact,
         VoidLiteral                                                                                      => CufetType.Void,
         UnburyExpression unbury                                                                          => InferUnbury(unbury),
         UnaryExpression unary                                                                            => InferUnary(unary),
         BinaryExpression bin                                                                             => InferBinary(bin),
         VariableReference { Name: var n } when _narrowedVars.TryGetValue(n, out var narrowed)           => narrowed,
+        // An axiom reached for by name, anywhere but a return. `State get-pid.` used to check
+        // clean, print a C# object interpreted, and emit C that would not build — three answers to
+        // one program, which is the shape a use guard exists to close. CheckReturn takes the legal
+        // case before it ever asks for a type, so nothing that reaches here is one.
+        VariableReference { Name: var an } when TryLookup(an, out var ati) && ati.Type is AxiomType axiomInfo
+                                                                                                 => throw AxiomUsedAsValue(an, axiomInfo, expr),
         VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => NoteModuleUse(n, ti),
         VariableReference hv when _hiddenTopLevelData.Contains(hv.Name)                                  => throw HiddenTopLevelDataError(hv),
         VariableReference vr                                                                              => NoteUnresolvedName(vr),
@@ -2965,6 +3008,7 @@ public sealed partial class TypeChecker
         VoidableType { Inner: var inner }    => $"voidable {FormatType(inner)}",
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
         StashType { ElementType: var held }  => $"stash of {FormatTypePlural(held)}",
+        AxiomType at                         => $"{at.Language} axiom",
         FunctionType ft                      => FormatFunctionType(ft),
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => ot.Name,

@@ -36,6 +36,15 @@ public sealed partial class Interpreter
             new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase),
             new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase));
 
+        // Language books — pulled to write foreign source at all, and empty by construction: a book
+        // on a LANGUAGE offers no members, it admits axioms in that language. See
+        // TypeChecker.Foreign, which owns the list both sides read.
+        foreach (var language in TypeChecker.LanguageBookNamesForBooks())
+            books[language] = new BookValue(
+                language,
+                new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase),
+                new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase));
+
         return books;
     }
 

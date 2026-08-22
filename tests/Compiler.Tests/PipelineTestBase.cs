@@ -176,7 +176,11 @@ public abstract class PipelineTestBase
         program = new TypeChecker().Check(program);
         var sb = new StringWriter();
         var reader = stdin != null ? new StringReader(stdin) : null;
-        new CufetInterpreter(sb, reader).Execute(program);
+        // The FFI runner is wired here for the same reason the CLI wires it: an axiom is compiled
+        // and called, so the interpreter needs a toolchain to run one. Every other program ignores
+        // it, and giving it to all of them keeps the oracle comparing the two backends of the SAME
+        // language rather than one with foreign source and one without.
+        new CufetInterpreter(sb, reader) { ForeignRunner = new GccForeignRunner() }.Execute(program);
         return sb.ToString();
     }
 

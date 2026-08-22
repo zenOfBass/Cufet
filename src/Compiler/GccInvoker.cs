@@ -136,8 +136,20 @@ public sealed class GccInvoker
     // An error that does NOT point into the generated file is an environment problem — no
     // toolchain header, a linker failure — which the author CAN act on, so it is said plainly
     // instead of being dressed up as a bug report.
+    //
+    // ⚠ And one line of that reasoning stopped being true when axioms arrived: "every line gcc
+    // reads was written by this compiler" now has an exception, and it is the one place an author
+    // CAN act on. An axiom is C the author wrote and cufet reproduced verbatim, so a complaint
+    // inside one is theirs to fix — blaming cufet for it would send someone hunting a bug that is
+    // not there.
     private static string BuildFailureMessage(string cSourcePath, string stderr)
     {
+        if (ForeignC.BlamesForeignSource(stderr))
+            return "gcc rejected the foreign source in this program:\n\n"
+                 + $"{stderr}\n\n"
+                 + "The C inside [ ... ] is reproduced exactly as written, so this is a complaint "
+                 + "about that source — not about anything cufet generated around it.";
+
         if (!stderr.Contains(Path.GetFileName(cSourcePath), StringComparison.Ordinal))
             return $"gcc could not build the generated C:\n{stderr}\n\n"
                  + "Nothing here points inside the generated file, so this is most likely a problem "

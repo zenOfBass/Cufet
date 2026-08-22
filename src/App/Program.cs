@@ -455,7 +455,11 @@ static void Interpret(string[] args)
         // To stderr, and before the program starts, so a warning never lands in the middle of the
         // output and never gets mistaken for something the program printed.
         WriteWarnings(args.Length > 0 ? args[0] : "<stdin>", checker.Diagnostics);
-        var interpreter = new Interpreter();
+        // Foreign source is compiled and called, so the interpreter needs a C toolchain to run one.
+        // Handed in rather than reached for: the interpreter is the layer the compiler is built on,
+        // and an environment with no toolchain (the playground's wasm build) has to be able to say
+        // so rather than fail to start.
+        var interpreter = new Interpreter { ForeignRunner = new GccForeignRunner() };
         RunOnLargeStack(() => interpreter.Execute(program));
         // 128 + SIGINT, the convention every shell already understands.
         if (interpreter.WasInterrupted) Environment.Exit(130);

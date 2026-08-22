@@ -359,7 +359,11 @@ public class ExampleOracleTests
             {
                 Exception? caught = null;
                 var thread = new Thread(
-                    () => { try { new CufetInterpreter(sb).Execute(program); } catch (Exception e) { caught = e; } },
+                    // The FFI runner is wired here for the same reason the CLI wires it: an axiom is
+                    // compiled and called, so the interpreter needs a toolchain to run one. Without
+                    // it an example containing foreign source refuses — which is the RIGHT answer
+                    // for a wasm playground and the wrong one for a machine with gcc on it.
+                    () => { try { new CufetInterpreter(sb) { ForeignRunner = new GccForeignRunner() }.Execute(program); } catch (Exception e) { caught = e; } },
                     16 * 1024 * 1024);
                 thread.Start();
                 thread.Join();

@@ -61,6 +61,32 @@ Two framings that set the order:
    family it collapses: the shell's job control and raw terminal mode, sockets, the POSIX and
    Windows APIs. ★ No bundled book needs it any more — `math` went pure decimal in 0.16.0.
 
+   **Slice 1 shipped: an axiom, returned as a number, on both backends.** `Pull a book on the
+   c-language.`, `Define c-language get-pid as [getpid()].`, and a `Bind number to …` that returns
+   it. Both backends wrap an axiom with the same shared C; the interpreter compiles it into a
+   content-cached shared library and calls it, so `gcc` runs once per distinct axiom per machine.
+   Only a C whole number crosses — the one direction that cannot be lossy — and a `double` or an
+   unsigned 64-bit value is refused rather than cast. See GRAMMAR §6 and REFERENCE Part VII.
+
+   **What is left, in the order it makes sense to build:**
+
+   - **Parameters and splicing by the article** — `given (the text path)` in the declaration,
+     `[open(the path)]` in the body. The wrapper gains arguments, and with them the switch over
+     signature shapes the design describes.
+   - **`double` ↔ `number`** — the one lossy conversion, and the reason the wrapper is shared at
+     all. It has to be written once in C and called by both backends; until it exists, a floating
+     axiom is refused.
+   - **Unsigned 64-bit values**, for `size_t`, which is how most of libc reports a length.
+   - **`address`, `voidable`, `the text at`, `released by`** — the pointer half, entirely designed
+     and entirely unbuilt.
+   - **An axiom passed around unrun**, which is what lets a SQL fragment be assembled before use.
+     Refused today because an axiom has no backend representation, and allowing it would type-check
+     a program the compiler cannot build.
+
+   ⚠ **A library with a header of its own has nowhere to say so.** An axiom sees a fixed set of
+   standard and POSIX headers and nothing else, so binding to anything outside libc is not yet
+   possible. The design does not cover this; it is a real gap and a decision nobody has made.
+
    **Designed 2026-08-21; nothing here is undesigned. Read
    [DESIGN.md](DESIGN.md#foreign-interoperability) before starting** — it carries the reasoning and
    the rejected alternatives, which is the part worth having. In one paragraph: foreign source is an

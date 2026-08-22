@@ -274,7 +274,32 @@ public sealed record CastStatement(
 
 // return <value>.  or  return.  (bare, for void early exit)
 // Value == null means bare return.
-public sealed record ReturnStatement(IExpression? Value, int Line, int Column) : IStatement;
+public sealed record ReturnStatement(IExpression? Value, int Line, int Column) : IStatement
+{
+    /// <summary>The axiom this return RUNS, when the declared return type says it should.</summary>
+    /// <remarks>
+    /// ★ An axiom runs when it is returned, and the declared type decides — a `Bind number to …`
+    /// whose value is an axiom runs it and marshals the result, where a `Bind` whose declared type
+    /// IS an axiom hands it back unrun. The checker resolves which, and puts the axiom itself here
+    /// so neither backend has to look the name up again. Null on every other return.
+    /// </remarks>
+    public AxiomLiteral? RunsAxiom { get; set; }
+}
+
+// ── Foreign source ────────────────────────────────────────────────────────────
+
+// [ ... ] — an AXIOM: source in another language, taken as given.
+//
+// ★ It names the CONTRACT, not the appearance. An axiom is accepted without proof, which is
+// exactly what this is — Cufet cannot check a C listing and cannot prove anything about it.
+//
+// Language is filled in by the checker from the declaration (`Define c-language get-pid as […]`),
+// because the brackets say "this is verbatim foreign text" and cannot say WHICH language; the tag
+// names the consumer. An axiom with no tag to take is refused.
+public sealed record AxiomLiteral(string Source, int Line, int Column) : IExpression
+{
+    public string? Language { get; set; }
+}
 
 // Bury <value>.  — hand one value out of a stash body and suspend there.
 //

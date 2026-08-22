@@ -534,6 +534,21 @@ public sealed class Parser
             }
             return new MapType(CufetType.Text, UnionType.Open);
         }
+        // `<language> axiom` — foreign source as a value, tagged by the language book it belongs to.
+        //
+        // ★ The tag comes FIRST and is matched here rather than left to the nominal path below,
+        // because `c-language axiom get-pid` has three identifiers in a row and only this arm knows
+        // that the middle one is the type's own word rather than the name being declared.
+        //
+        // The shortened spelling — `Define c-language get-pid as […]` — needs no arm: it parses as
+        // an ordinary named type and the checker resolves the name to the same AxiomType, since a
+        // language book is the only thing that name can mean in type position.
+        if (tok.Type == TokenType.Identifier && NextWordIs("axiom"))
+        {
+            Advance(); SkipNoise();   // consume the language tag
+            Advance();                // consume 'axiom'
+            return new AxiomType(tok.Lexeme);
+        }
         // Named type: object or interface name — resolved by TypeChecker.
         if (tok.Type == TokenType.Identifier)
         {
@@ -2624,6 +2639,14 @@ public sealed class Parser
             case TokenType.String:
                 baseExpr = new StringLiteral(Advance().Lexeme);
                 break;
+            case TokenType.Axiom:
+            {
+                // The brackets carry the text; the LANGUAGE is put on by the checker, from the
+                // declaration this literal is the value of. Nothing here reads the source.
+                var axTok = Advance();
+                baseExpr = new AxiomLiteral(axTok.Lexeme, axTok.Line, axTok.Column);
+                break;
+            }
             case TokenType.InterpolOpen:
                 Advance(); // consume InterpolOpen
                 baseExpr = ParseInterpolatedString();
