@@ -82,6 +82,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the .NET test host, which has already initialised winsock, and does not in a fresh binary. Both
   backends were right, and the test was wrong to reach across.
 
+  ★ **Every axiom a program can run is built before the program starts, on both backends.** The
+  compiled backend meets them all at build time and refuses the whole program if one will not
+  compile; the interpreter used to compile each on first use, so a bad axiom late in a file printed
+  all the earlier output and then failed, where building it printed nothing. Two answers to one
+  program. Both now produce no output at all.
+
+  ⚠ The set is the returns that RUN an axiom, not every axiom written down — which is exactly what
+  the compiler emits a wrapper for. An axiom declared and never returned is built by neither, so
+  preparing it would refuse a program that builds perfectly well: the same divergence pointing the
+  other way, and there is a test for each direction.
+
   Still design and not built: parameters and splicing by the article, `address`, `the text at`,
   `released by`, and passing an axiom around unrun. See
   [DESIGN.md](DESIGN.md#foreign-interoperability), which carries the reasoning and the rejected

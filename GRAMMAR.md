@@ -1856,6 +1856,11 @@ program's own C. Interpreted, it is compiled into a small shared library and cal
 content, so `gcc` runs once per distinct axiom per machine. Where no toolchain exists at all (the
 playground runs the interpreter in wasm) the program refuses to run, and says so.
 
+★ **Every axiom a program can run is built before the program starts**, on both backends — so a
+program with one axiom that will not compile produces **no output at all**, whichever way it is
+run. Running it and building it give the same answer, which is the point. An axiom that is
+*declared* and never returned is built by neither.
+
 ⚠ **gcc's complaint about an axiom is the author's to fix**, not a compiler bug — the one exception
 to "every line gcc reads was written by cufet", and it is reported as such.
 

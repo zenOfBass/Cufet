@@ -3632,6 +3632,11 @@ machine rather than once per run.
 Where there is no toolchain at all — the web playground runs the interpreter in wasm — a
 program containing an axiom refuses to run and says so.
 
+**Every axiom is built before the program starts**, whichever way you run it. So a program with
+one axiom that will not compile prints **nothing at all** — it does not get partway through and
+then stop, and running it tells you exactly what building it would have. An axiom you declare and
+never return is not built by either backend, so it costs nothing and cannot fail.
+
 **If gcc complains about your C, that is yours to fix.** Everything else in the generated C
 was written by cufet, and a failure there is reported as a compiler bug; an axiom is the one
 exception, and it is reported as one.
