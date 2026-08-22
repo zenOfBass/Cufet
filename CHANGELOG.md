@@ -57,6 +57,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   refused when the program is checked: `State get-pid.` used to check clean, print a C# object
   interpreted, and emit C that would not build. Three answers to one program.
 
+  **An axiom is given a platform-guarded header set and writes no `#include`.** The C standard
+  library everywhere, POSIX on Unix (`<termios.h>`, `<poll.h>`, `<sys/socket.h>`, `<sys/wait.h>`
+  and the rest), Win32 and winsock on Windows. The split was measured with `gcc -fsyntax-only` on
+  both toolchains rather than remembered: Linux has every header in the set and mingw has none of
+  the ten POSIX-only ones, so guessing it would have failed every Windows build of an axiom-bearing
+  program at the include rather than at the axiom.
+
+  ★ **A fixed set rather than letting a writer name headers, and the reason is linking.**
+  Everything in the set links by default — libc and POSIX need no flag, and mingw links
+  kernel32/user32/advapi32 for `<windows.h>` on its own. A third-party library does not:
+  `#include <sqlite3.h>` gets declarations and then fails with "undefined reference". Header
+  control on its own would ship a feature that cannot work for the case that makes someone want
+  it, so if it comes it comes as headers **and** link flags together.
+
+  Windows sockets needed exactly that treatment: `-lws2_32` is now on the link line, because
+  `socket()` is in libc on Linux and in a separate library here. Without it an axiom calling it
+  compiled and then failed with `undefined reference to __imp_socket`.
+
+  ⚠ **Foreign state is per-process, and the two backends are two processes.** A compiled program is
+  its own; the interpreter calls C inside the process running the interpreter. Anything C remembers
+  globally — winsock initialisation, `errno`, a library's one-time setup — can differ between
+  running a program and building it. Found by a test that asserted `socket()` succeeded: it does in
+  the .NET test host, which has already initialised winsock, and does not in a fresh binary. Both
+  backends were right, and the test was wrong to reach across.
+
   Still design and not built: parameters and splicing by the article, `address`, `the text at`,
   `released by`, and passing an axiom around unrun. See
   [DESIGN.md](DESIGN.md#foreign-interoperability), which carries the reasoning and the rejected

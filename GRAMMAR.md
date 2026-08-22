@@ -1837,6 +1837,20 @@ approximated:
 The first two are refused by the **C compiler**, at the point where the type is actually known; the
 rest by the checker. Both name what is wrong.
 
+**An axiom is given a fixed set of headers and writes no `#include`.** The C standard library,
+plus POSIX on Unix and Win32/winsock on Windows. The set is **platform-guarded** — `<termios.h>`,
+`<poll.h>`, `<sys/socket.h>` and `<sys/wait.h>` are Unix-only; `<windows.h>` and `<winsock2.h>` are
+Windows-only — and nothing is smoothed over, so a POSIX-only program is refused by the C compiler
+on Windows rather than mis-running.
+
+⚠ **A library of your own cannot be reached yet**, and the obstacle is linking rather than headers:
+a header declares, and something must still pass `-lsqlite3`. The two have to arrive together.
+
+⚠ **Foreign state is per-process, and the backends are two different processes** — a compiled
+program is its own, while the interpreter calls C inside the process running the interpreter. What
+C remembers globally (winsock initialisation, `errno`, a library's one-time setup) can differ
+between running and building. Cufet values cross identically; C's own memory is C's business.
+
 ⚠ **An axiom needs a C toolchain to run, on either backend.** Compiled, its text is pasted into the
 program's own C. Interpreted, it is compiled into a small shared library and called — cached by
 content, so `gcc` runs once per distinct axiom per machine. Where no toolchain exists at all (the

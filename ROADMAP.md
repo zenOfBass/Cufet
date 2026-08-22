@@ -83,9 +83,24 @@ Two framings that set the order:
      Refused today because an axiom has no backend representation, and allowing it would type-check
      a program the compiler cannot build.
 
-   ⚠ **A library with a header of its own has nowhere to say so.** An axiom sees a fixed set of
-   standard and POSIX headers and nothing else, so binding to anything outside libc is not yet
-   possible. The design does not cover this; it is a real gap and a decision nobody has made.
+   ⚠ **A library of your own is still unreachable, and the obstacle is LINKING, not headers.** The
+   header set was widened on 2026-08-22 to cover everything that links by default — the C standard
+   library, POSIX on Unix, Win32 and winsock on Windows (the last with `-lws2_32`, since sockets are
+   in libc on Linux and a separate library here). That covers every consumer this item names: job
+   control, raw terminal mode, sockets, the POSIX and Windows APIs.
+
+   What is left needs both halves at once. `#include <sqlite3.h>` gets declarations and then the
+   link fails with "undefined reference"; letting a writer name headers alone would ship a feature
+   that cannot work for the case that makes them want it. So if control ever comes it comes as
+   "this needs library X" — headers **and** link flags together — and the trigger is checkable: the
+   first person who wants to bind a non-system library.
+
+   ⚠ **Foreign state is per-process, and the two backends are two processes.** A compiled program is
+   its own; the interpreter calls C inside the process running the interpreter. Anything C remembers
+   globally can therefore differ — found by a test asserting `socket()` succeeded, which it does in
+   the .NET test host (winsock already initialised) and does not in a fresh binary. Both backends
+   were right. Cufet values cross identically; C's own memory is C's business, and a test must not
+   assert across it.
 
    **Designed 2026-08-21; nothing here is undesigned. Read
    [DESIGN.md](DESIGN.md#foreign-interoperability) before starting** — it carries the reasoning and

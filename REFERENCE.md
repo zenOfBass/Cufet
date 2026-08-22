@@ -100,6 +100,7 @@ deliberate differences are marked where they arise and summarised under
     - [Signal handling](#signal-handling)
     - [Foreign source (`axiom`)](#foreign-source-axiom)
       - [What crosses the boundary](#what-crosses-the-boundary)
+      - [What an axiom can reach for](#what-an-axiom-can-reach-for)
       - [What it costs](#what-it-costs)
       - [How far an interrupt reaches](#how-far-an-interrupt-reaches)
   - [Part VIII. The standard library](#part-viii-the-standard-library)
@@ -3598,6 +3599,28 @@ Everything else is **refused rather than approximated**:
 
 The first two are refused by the C compiler, which is where the type is actually known; the
 last by Cufet's checker. Cast on the C side if you mean it: `[(int)strlen("hello")]`.
+
+#### What an axiom can reach for
+
+**A fixed set of headers, already included.** The C standard library, plus the POSIX headers on
+Unix and the Win32 and winsock headers on Windows. You do not name headers, and there is no
+`#include` to write.
+
+The set is **platform-guarded**, because the interesting headers are not portable: `<termios.h>`,
+`<poll.h>`, `<sys/socket.h>` and `<sys/wait.h>` exist on Unix and not on Windows, while
+`<windows.h>` and `<winsock2.h>` are the other way round. Nothing is smoothed over — a program
+calling `tcgetattr` is a Unix program however it is written, and on Windows the C compiler says so
+before the program ever runs.
+
+⚠ **A library of your own is not reachable yet.** The reason is linking rather than headers: a
+header gives you declarations, and something still has to put `-lsqlite3` on the command line. Both
+halves have to arrive together, so neither has.
+
+⚠ **Foreign state is per-process, and the two backends are not the same process.** A compiled
+program is its own process; the interpreter calls into C inside the process running the
+interpreter. Anything C remembers globally — winsock initialisation, `errno`, a library's one-time
+setup, the current locale — can therefore differ between running a program and building it. Cufet
+values cross the boundary identically; what the C side remembers is the C side's business.
 
 #### What it costs
 
