@@ -97,11 +97,35 @@ public sealed class StashType : CufetType
 public sealed class AxiomType : CufetType
 {
     public string Language { get; }
-    public AxiomType(string language) => Language = language;
+
+    /// <summary>What running this axiom gives back, declared where the axiom is written.</summary>
+    /// <remarks>
+    /// ★★ On the DECLARATION, by the only party who knows. C's type says how many bits arrive and
+    /// not what they mean: `isatty` gives an `int` that is really a fact, `fopen` gives a pointer
+    /// that is really a handle, `getchar` gives an `int` that is a character or an end. Inferring
+    /// from the C would also make the answer depend on the local toolchain — `size_t` is not the
+    /// same width everywhere — and would put a C compiler behind `cufet check`, which today needs
+    /// no toolchain at all and runs where none can exist (the playground is wasm).
+    ///
+    /// ★ Null while an axiom says nothing, which is legal to WRITE and refused to RUN. That is
+    /// what leaves room for an axiom passed around unrun — a SQL fragment assembled before use —
+    /// without inventing a second rule for it now.
+    /// </remarks>
+    public CufetType? ReturnType { get; }
+
+    public AxiomType(string language, CufetType? returnType = null)
+    {
+        Language = language;
+        ReturnType = returnType;
+    }
+
     public override bool Equals(object? obj) =>
-        obj is AxiomType a && string.Equals(Language, a.Language, StringComparison.OrdinalIgnoreCase);
+        obj is AxiomType a
+        && string.Equals(Language, a.Language, StringComparison.OrdinalIgnoreCase)
+        && ReturnType == a.ReturnType;
+
     public override int GetHashCode() =>
-        HashCode.Combine(typeof(AxiomType), Language.ToLowerInvariant());
+        HashCode.Combine(typeof(AxiomType), Language.ToLowerInvariant(), ReturnType);
 }
 
 public sealed class RecordType : CufetType
@@ -2062,9 +2086,7 @@ public sealed partial class TypeChecker
         // `Define the number fd as cast open-file on (path, flags).` — running an axiom, where the
         // type declared HERE is what comes back. Asked before the value's type is inferred, for the
         // same reason CheckReturn asks: a cast of an axiom has no type of its own to infer.
-        var type = define.Value is CastExpression { Function: var fn } call && AxiomCalledBy(fn) is { } called
-            ? RunAxiomOnCast(call, called, ResolvedDeclaredType(declaredType))
-            : InferType(define.Value);
+        var type = InferType(define.Value);
         if (type == null)
             throw TypeError(
                 $"the type of the value for '{define.Name}' can't be determined",
@@ -2214,11 +2236,8 @@ public sealed partial class TypeChecker
             // name bound to one may be reached for at all — see the guard in InferTypeCore. What
             // happens next is RunAxiomOnReturn's: an axiom runs when it is returned, and the
             // declared type decides what it becomes.
-            var returnType =
-                  ret.Value is CastExpression { Function: var rfn } rcall && AxiomCalledBy(rfn) is { } rcalled
-                      ? RunAxiomOnCast(rcall, rcalled, _expectedReturnType)
-                : AxiomBehind(ret.Value) is not null
-                      ? RunAxiomOnReturn(ret, _expectedReturnType!)
+            var returnType = AxiomBehind(ret.Value) is not null
+                ? RunAxiomOnReturn(ret, _expectedReturnType)
                 : InferType(ret.Value);
             if (IsRabbitType(returnType))
                 throw TypeError(
@@ -3016,6 +3035,7 @@ public sealed partial class TypeChecker
         VoidableType { Inner: var inner }    => $"voidable {FormatType(inner)}",
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
         StashType { ElementType: var held }  => $"stash of {FormatTypePlural(held)}",
+        AxiomType { ReturnType: { } gives } a => $"{a.Language} {FormatType(gives)} axiom",
         AxiomType at                         => $"{at.Language} axiom",
         FunctionType ft                      => FormatFunctionType(ft),
         RecordType rt                        => FormatRecordType(rt),

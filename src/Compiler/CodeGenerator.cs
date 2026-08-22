@@ -4087,6 +4087,7 @@ static void* cufet_pipe_stage(void* argp) {
         FailureMarkerType   => "failure",
         ExceptionMarkerType => "exception",
         BookType b      => $"book '{b.Name}'",
+        AxiomType { ReturnType: { } gives } ar => $"{ar.Language} {FormatTypeName(gives)} axiom",
         AxiomType a     => $"{a.Language} axiom",
         UnionType u     => u.Cases == null ? "catalogue value"
                              : string.Join(" or ", u.Cases.Select(FormatTypeName)),
@@ -5816,7 +5817,7 @@ static void* cufet_pipe_stage(void* argp) {
         StringLiteral         => TText,
         // Foreign source, tagged by the checker. It has no C representation — nothing stores an
         // axiom — but the var-type prepass asks for the type of every `Define`d value.
-        AxiomLiteral axiom    => new AxiomType(axiom.Language ?? ""),
+        AxiomLiteral axiom    => new AxiomType(axiom.Language ?? "", axiom.ReturnType),
         RangeExpression       => new SeriesType(TNumber),
         SeriesLiteral sl      => new SeriesType(SeriesElementType(sl)),
         SeriesLength          => TNumber,

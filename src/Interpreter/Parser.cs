@@ -548,20 +548,44 @@ public sealed class Parser
             }
             return new MapType(CufetType.Text, UnionType.Open);
         }
-        // `<language> axiom` — foreign source as a value, tagged by the language book it belongs to.
+        // `<language> [<result>] [axiom]` — foreign source, tagged by its language book and saying
+        // what it gives back.
         //
-        // ★ The tag comes FIRST and is matched here rather than left to the nominal path below,
-        // because `c-language axiom get-pid` has three identifiers in a row and only this arm knows
-        // that the middle one is the type's own word rather than the name being declared.
+        // ★ The ORDER is `c-language number axiom`, not `number c-language axiom`, because the tag
+        // qualifies the AXIOM rather than the number: this is a C-language axiom that yields a
+        // number, not a number that came from C. Both words are droppable and the ladder stays
+        // readable at every rung — `the c-language number axiom add`, `c-language number add`,
+        // `c-language axiom add`, `c-language add`.
         //
-        // The shortened spelling — `Define c-language get-pid as […]` — needs no arm: it parses as
-        // an ordinary named type and the checker resolves the name to the same AxiomType, since a
-        // language book is the only thing that name can mean in type position.
-        if (tok.Type == TokenType.Identifier && NextWordIs("axiom"))
+        // ★ Matched here rather than left to the nominal path below, because
+        // `c-language number axiom add` has four words in type position and only this arm knows
+        // which of them is the name being declared.
+        if (tok.Type == TokenType.Identifier && (NextWordIs("axiom") || IsAxiomResultAhead()))
         {
-            Advance(); SkipNoise();   // consume the language tag
-            Advance();                // consume 'axiom'
-            return new AxiomType(tok.Lexeme);
+            int save = _pos;
+            Advance(); SkipNoise();                 // the language tag
+
+            // The result type is optional, and so is the word `axiom` — but SOMETHING has to
+            // follow them, and it has to be the name. When nothing does, what looked like a result
+            // type was the name all along (`Define c-language fact as […]` declares an axiom called
+            // `fact`), so the speculative parse is unwound rather than guessed at.
+            int beforeResult = _pos;
+            CufetType? result = null;
+            if (!IsWord("axiom"))
+            {
+                try { result = ParseTypeAnnotation(); SkipNoise(); }
+                catch (ParseException) { _pos = beforeResult; result = null; }
+            }
+            if (IsWord("axiom")) { Advance(); SkipNoise(); }
+            else if (result != null && Peek().Type != TokenType.Identifier)
+            {
+                _pos = beforeResult;   // that was the name, not a result type
+                result = null;
+            }
+
+            if (result != null || Peek().Type == TokenType.Identifier)
+                return new AxiomType(tok.Lexeme, result);
+            _pos = save;
         }
         // Named type: object or interface name — resolved by TypeChecker.
         if (tok.Type == TokenType.Identifier)
@@ -4698,6 +4722,24 @@ public sealed class Parser
         while (i < _tokens.Count && _tokens[i].IsNoise) i++;
         return i < _tokens.Count &&
                _tokens[i].Lexeme.Equals(word, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Does a RESULT type follow this identifier — `c-language number add`?</summary>
+    /// <remarks>
+    /// ⚠ Gated on words that cannot be a variable name, and that is what keeps the arm from
+    /// swallowing an ordinary `Define person alice as …`. Two identifiers in a row are genuinely
+    /// ambiguous — `person alice` is a type and a name, `c-language add` is a tag and a name — so
+    /// the arm only fires when the second word is one no name could be.
+    /// </remarks>
+    private bool IsAxiomResultAhead()
+    {
+        int i = _pos + 1;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        if (i >= _tokens.Count) return false;
+        var next = _tokens[i];
+        return next.Type is TokenType.NumberKw or TokenType.Void
+            || (next.Type == TokenType.Identifier
+                && next.Lexeme.ToLowerInvariant() is "text" or "fact" or "bits");
     }
 
     // True when the first non-noise token after the current one has this lexeme.

@@ -74,8 +74,22 @@ public sealed partial class TypeChecker
 
         RequireLanguagePulled(tag.Language, axiom.Line, axiom.Column);
         axiom.Language = tag.Language;
+        axiom.ReturnType = tag.ReturnType is { } declaredResult ? ResolveParamType(declaredResult) : null;
+        if (axiom.ReturnType is not null) RequireCrossableResult(axiom);
         CheckAxiomParameters(define, axiom);
         return declared;
+    }
+
+    /// <summary>Refuses a declared result the boundary cannot bring back.</summary>
+    private void RequireCrossableResult(AxiomLiteral axiom)
+    {
+        if (axiom.ReturnType == CufetType.Number) return;
+        throw TypeError(
+            $"a {axiom.Language} axiom cannot give back a {FormatType(axiom.ReturnType!)} yet",
+            "Only 'number' crosses the boundary so far",
+            axiom.Line, axiom.Column,
+            $"declare it as giving back a {FormatType(axiom.ReturnType!)}",
+            "Declare it 'number' and let the source produce a whole number.");
     }
 
     /// <summary>Checks what an axiom says it takes, and that the foreign text asks for it.</summary>
@@ -131,7 +145,7 @@ public sealed partial class TypeChecker
     /// <summary>The type of a bare axiom literal — always tagged by then, or already refused.</summary>
     private CufetType InferAxiomLiteral(AxiomLiteral axiom) =>
         axiom.Language is { } language
-            ? new AxiomType(language)
+            ? new AxiomType(language, axiom.ReturnType)
             : throw TypeError(
                 "this is foreign source, and nothing says what language it is in",
                 "An axiom takes its language from the declaration it is the value of",
@@ -152,7 +166,7 @@ public sealed partial class TypeChecker
     /// A `number` holds every 64-bit integer exactly — 28–29 significant digits against 19 — so
     /// this direction cannot be lossy, which is why it is the one the first slice carries.
     /// </remarks>
-    private CufetType RunAxiomOnReturn(ReturnStatement ret, CufetType expected)
+    private CufetType RunAxiomOnReturn(ReturnStatement ret, CufetType? expected)
     {
         var axiom = AxiomBehind(ret.Value!);
         if (axiom?.Language is not { } language)
@@ -166,18 +180,11 @@ public sealed partial class TypeChecker
 
         RequireLanguagePulled(language, ret.Line, ret.Column);
 
-        // The boundary conversions land here as they are built. `number` from a C integer is the
-        // first, and it is first because it is the one that cannot be lossy.
-        if (expected != CufetType.Number)
-            throw TypeError(
-                $"a {language} axiom cannot come back as a {FormatType(expected)} yet",
-                "Only 'number' crosses the boundary so far",
-                ret.Line, ret.Column,
-                $"return a {language} axiom into a {FormatType(expected)}",
-                "Declare the function 'Bind number to <name>' and let the axiom produce a whole number.");
-
+        // ★ What it gives back is the axiom's own business now, and the enclosing function's
+        // declared return type is checked against it the ordinary way, by the caller of this.
         ret.RunsAxiom = axiom;
-        return CufetType.Number;
+        _ = expected;
+        return RunResultOf(axiom, ret.Line, ret.Column);
     }
 
     /// <summary>An axiom reached for anywhere but a return.</summary>
@@ -215,31 +222,30 @@ public sealed partial class TypeChecker
     /// ⚠ Which is why a use site that declares nothing is refused rather than guessed at. It is the
     /// cost of the rule, and it is the one the writer can see and fix.
     /// </remarks>
-    private CufetType RunAxiomOnCast(CastExpression cast, AxiomLiteral axiom, CufetType? expected)
+    private CufetType RunAxiomOnCast(CastExpression cast, AxiomLiteral axiom)
     {
         RequireLanguagePulled(axiom.Language!, cast.Line, cast.Column);
         CheckForeignArguments(cast, axiom);
-
-        if (expected is null)
-            throw TypeError(
-                $"nothing here says what this {axiom.Language} source gives back",
-                "Foreign source is taken as given, so its result is whatever the line using it "
-              + "declares — Cufet cannot read a C listing to find out",
-                cast.Line, cast.Column,
-                "run foreign source without declaring what comes back",
-                "Declare it: 'Define the number <name> as cast ... .'");
-
-        if (expected != CufetType.Number)
-            throw TypeError(
-                $"a {axiom.Language} axiom cannot come back as a {FormatType(expected)} yet",
-                "Only 'number' crosses the boundary so far",
-                cast.Line, cast.Column,
-                $"run a {axiom.Language} axiom into a {FormatType(expected)}",
-                "Declare it as a number and let the source produce a whole number.");
-
         cast.RunsAxiom = axiom;
-        return CufetType.Number;
+        return RunResultOf(axiom, cast.Line, cast.Column);
     }
+
+    /// <summary>What running this axiom yields — refusing one that never said.</summary>
+    /// <remarks>
+    /// ★★ Read off the DECLARATION, which is the whole reason a call can now be written anywhere an
+    /// ordinary call can. It used to come from the line USING the axiom, and that cost more than it
+    /// looked like on paper: the call had to be the entire right-hand side of a typed binding, so
+    /// it could not sit in a condition, in an interpolation, inside arithmetic, or as an argument —
+    /// every result went through a named intermediate first.
+    /// </remarks>
+    private CufetType RunResultOf(AxiomLiteral axiom, int line, int column) =>
+        axiom.ReturnType ?? throw TypeError(
+            $"this {axiom.Language} axiom does not say what it gives back",
+            "Cufet cannot read a C listing to find out — an `int` might be a number, a fact, or a "
+          + "handle, and only the person who wrote the source knows which",
+            line, column,
+            "run foreign source that never declared a result",
+            $"Say so where it is declared: 'Define {axiom.Language} number <name> as [ ... ].'");
 
     /// <summary>Checks a call's arguments against what the axiom declared it takes.</summary>
     private void CheckForeignArguments(CastExpression cast, AxiomLiteral axiom)

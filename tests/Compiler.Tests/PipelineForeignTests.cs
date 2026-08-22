@@ -25,7 +25,7 @@ public class PipelineForeignTests : PipelineTestBase
     {
         const string src = """
             Pull a book on the c-language.
-                Define c-language answer as [6 * 7].
+                Define c-language number answer as [6 * 7].
                 Bind number to the-answer, answer.
                 State cast the-answer.
             Done.
@@ -41,7 +41,7 @@ public class PipelineForeignTests : PipelineTestBase
         // Cast to int deliberately: strlen gives size_t, which the boundary refuses (see below).
         const string src = """
             Pull a book on the c-language.
-                Define c-language greeting-length as [(int)strlen("hello, world")].
+                Define c-language number greeting-length as [(int)strlen("hello, world")].
                 Bind number to how-long, greeting-length.
                 State cast how-long.
             Done.
@@ -57,7 +57,7 @@ public class PipelineForeignTests : PipelineTestBase
         // boundary is the one the first slice carries — nothing here can round.
         const string src = """
             Pull a book on the c-language.
-                Define c-language wide as [(long long)1 << 40].
+                Define c-language number wide as [(long long)1 << 40].
                 Bind number to wide-value, wide.
                 State cast wide-value.
             Done.
@@ -73,7 +73,7 @@ public class PipelineForeignTests : PipelineTestBase
         // call. What is asserted is that a syscall was reached and came back sane.
         const string src = """
             Pull a book on the c-language.
-                Define c-language get-pid as [getpid()].
+                Define c-language number get-pid as [getpid()].
                 Bind number to process-id, get-pid.
                 State cast process-id > 0.
             Done.
@@ -89,7 +89,7 @@ public class PipelineForeignTests : PipelineTestBase
         // C's commonest bracket. Pairs nest and survive, the same rule `<<...>>` follows.
         const string src = """
             Pull a book on the c-language.
-                Define c-language third-letter as ["abcdef"[2]].
+                Define c-language number third-letter as ["abcdef"[2]].
                 Bind number to third, third-letter.
                 State cast third.
             Done.
@@ -106,7 +106,7 @@ public class PipelineForeignTests : PipelineTestBase
         // interpreter's shim cache is keyed.
         string c = GenerateC("""
             Pull a book on the c-language.
-                Define c-language answer as [6 * 7].
+                Define c-language number answer as [6 * 7].
                 Bind number to first, answer.
                 Bind number to second, answer.
                 State cast first + cast second.
@@ -129,7 +129,7 @@ public class PipelineForeignTests : PipelineTestBase
             Done.
 
             Pull a book on the c-language.
-                Define c-language answer as [6 * 7].
+                Define c-language number answer as [6 * 7].
                 Bind number to the-answer, answer.
                 Define b as a new box of number { the held cast the-answer }.
                 State cast b's peek.
@@ -147,7 +147,7 @@ public class PipelineForeignTests : PipelineTestBase
         // every scope in the body into one.
         const string src = """
             Pull a book on the c-language.
-                Define c-language answer as [6 * 7].
+                Define c-language number answer as [6 * 7].
                 Bind number to the-answer, answer.
 
                 Bind number to ticking, given (the rabbit helper):
@@ -180,10 +180,10 @@ public class PipelineForeignTests : PipelineTestBase
         // which is the same reason `Run "grep" with arguments (…)` has no shell injection.
         const string src = """
             Pull a book on the c-language.
-                Define c-language add, given (the number left, the number right),
+                Define c-language number add, given (the number left, the number right),
                     as [the left + the right].
-                Define c-language text-length, given (the text subject), as [(int)strlen(the subject)].
-                Define c-language pick, given (the fact choose-first, the number first, the number second),
+                Define c-language number text-length, given (the text subject), as [(int)strlen(the subject)].
+                Define c-language number pick, given (the fact choose-first, the number first, the number second),
                     as [the choose-first ? the first : the second].
 
                 Define the number sum as cast add on (20, 22).
@@ -206,7 +206,7 @@ public class PipelineForeignTests : PipelineTestBase
         // leave `cufet_p0-mask` behind — valid C, wrong program. Longest name first.
         const string src = """
             Pull a book on the c-language.
-                Define c-language combine, given (the number flag, the number flag-mask),
+                Define c-language number combine, given (the number flag, the number flag-mask),
                     as [the flag * 100 + the flag-mask].
                 Define the number both as cast combine on (7, 42).
                 State both.
@@ -224,8 +224,8 @@ public class PipelineForeignTests : PipelineTestBase
         // handing C a `const char*` where it declared a `long long`.
         string c = GenerateC("""
             Pull a book on the c-language.
-                Define c-language size-of-number, given (the number thing), as [(int)sizeof(the thing)].
-                Define c-language size-of-text, given (the text thing), as [(int)sizeof(the thing)].
+                Define c-language number size-of-number, given (the number thing), as [(int)sizeof(the thing)].
+                Define c-language number size-of-text, given (the text thing), as [(int)sizeof(the thing)].
                 Define the number number-size as cast size-of-number on (1).
                 Define the number text-size as cast size-of-text on ("x").
                 State number-size + text-size.
@@ -244,7 +244,7 @@ public class PipelineForeignTests : PipelineTestBase
         // only way to hold the two backends to the same sentence rather than to the same failure.
         const string src = """
             Pull a book on the c-language.
-                Define c-language double-it, given (the number n), as [the n * 2].
+                Define c-language number double-it, given (the number n), as [the n * 2].
                 Try to:
                     Define the number bad as cast double-it on (3.50).
                     State bad.
@@ -268,9 +268,9 @@ public class PipelineForeignTests : PipelineTestBase
 
         const string src = """
             Pull a book on the c-language.
-                Define c-language open-read-only, given (the text file-path),
+                Define c-language number open-read-only, given (the text file-path),
                     as [open(the file-path, O_RDONLY)].
-                Define c-language close-it, given (the number handle), as [close(the handle)].
+                Define c-language number close-it, given (the number handle), as [close(the handle)].
 
                 Define the number fd as cast open-read-only on ("/etc/hostname").
                 State fd > 0.
@@ -294,7 +294,7 @@ public class PipelineForeignTests : PipelineTestBase
         // phrased in a language they were not writing. Catching it here says it in Cufet.
         var e = Assert.Throws<TypeException>(() => GenerateC("""
             Pull a book on the c-language.
-                Define c-language add, given (the number left, the number right), as [the left + 1].
+                Define c-language number add, given (the number left, the number right), as [the left + 1].
                 Define the number s as cast add on (1, 2).
             Done.
             """));
@@ -308,7 +308,7 @@ public class PipelineForeignTests : PipelineTestBase
     {
         var e = Assert.Throws<TypeException>(() => GenerateC($$"""
             Pull a book on the c-language.
-                Define c-language add, given (the number left, the number right),
+                Define c-language number add, given (the number left, the number right),
                     as [the left + the right].
                 Define the number s as {{call}}
             Done.
@@ -317,19 +317,44 @@ public class PipelineForeignTests : PipelineTestBase
     }
 
     [Fact]
-    public void Axiom_CalledWhereNothingDeclaresAType_IsRefused()
+    public void Axiom_CallComposesLikeAnyOtherExpression()
     {
-        // ⚠ The cost of "the use site's declared type decides", and it is a real one: an axiom
-        // call cannot be written inline. Nothing about the C side can say what an `int` MEANS, so
-        // the alternative to this refusal is guessing.
+        // ★★ What the result type moving to the DECLARATION bought. It used to come from the line
+        // using the axiom, which meant a call had to be the entire right-hand side of a typed
+        // binding — not in a condition, not in an interpolation, not inside arithmetic, not as an
+        // argument. Every one of those went through a named intermediate first. All five shapes
+        // below were refused before and are ordinary now.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number add, given (the number left, the number right),
+                    as [the left + the right].
+
+                State cast add on (1, 2).
+                State (cast add on (1, 2)) * 10.
+                State "sum: {cast add on (1, 2)}".
+                State cast add on (cast add on (1, 1), 2).
+                If cast add on (1, 2) > 0:
+                    State "positive".
+                Done.
+            Done.
+            """;
+        Assert.Equal("3\n30\nsum: 3\n4\npositive", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_ThatNeverSaysWhatItGivesBack_IsRefusedWhenRun()
+    {
+        // ⚠ Declaring one is fine — that is what leaves room for an axiom passed around unrun.
+        // RUNNING one is not: Cufet cannot read a C listing, and an `int` might be a number, a
+        // fact, or a handle. Only the writer knows, so only the writer can say.
         var e = Assert.Throws<TypeException>(() => GenerateC("""
             Pull a book on the c-language.
-                Define c-language add, given (the number left, the number right),
-                    as [the left + the right].
-                State cast add on (1, 2).
+                Define c-language mystery as [1].
+                State cast mystery.
             Done.
             """));
-        Assert.Contains("nothing here says what this c-language source gives back", e.Message);
+        Assert.Contains("does not say what it gives back", e.Message);
     }
 
     [Fact]
@@ -337,7 +362,7 @@ public class PipelineForeignTests : PipelineTestBase
     {
         var e = Assert.Throws<TypeException>(() => GenerateC("""
             Pull a book on the c-language.
-                Define c-language total, given (the series of number xs), as [the xs].
+                Define c-language number total, given (the series of number xs), as [the xs].
             Done.
             """));
         Assert.Contains("cannot be handed to c-language source yet", e.Message);
@@ -366,8 +391,8 @@ public class PipelineForeignTests : PipelineTestBase
         // first slice shipped, so this fails if the common branch is trimmed back.
         const string src = """
             Pull a book on the c-language.
-                Define c-language bits-per-byte as [CHAR_BIT].
-                Define c-language time-is-wide as [(int)(sizeof(time_t) >= 4)].
+                Define c-language number bits-per-byte as [CHAR_BIT].
+                Define c-language number time-is-wide as [(int)(sizeof(time_t) >= 4)].
                 Bind number to byte-width, bits-per-byte.
                 Bind number to wide-enough, time-is-wide.
                 State cast byte-width.
@@ -388,9 +413,9 @@ public class PipelineForeignTests : PipelineTestBase
 
         const string src = """
             Pull a book on the c-language.
-                Define c-language internet-family as [AF_INET].
-                Define c-language readable-event as [(int)POLLIN].
-                Define c-language terminal-state-size as [(int)sizeof(struct termios)].
+                Define c-language number internet-family as [AF_INET].
+                Define c-language number readable-event as [(int)POLLIN].
+                Define c-language number terminal-state-size as [(int)sizeof(struct termios)].
                 Bind number to family, internet-family.
                 Bind number to readable, readable-event.
                 Bind number to termios-bytes, terminal-state-size.
@@ -420,8 +445,8 @@ public class PipelineForeignTests : PipelineTestBase
 
         const string src = """
             Pull a book on the c-language.
-                Define c-language process-handle as [(int)(GetCurrentProcessId() > 0)].
-                Define c-language byte-order-roundtrips as [(int)(ntohs(htons(4242)) == 4242)].
+                Define c-language number process-handle as [(int)(GetCurrentProcessId() > 0)].
+                Define c-language number byte-order-roundtrips as [(int)(ntohs(htons(4242)) == 4242)].
                 Bind number to has-a-pid, process-handle.
                 Bind number to linked, byte-order-roundtrips.
                 State cast has-a-pid.
@@ -442,7 +467,7 @@ public class PipelineForeignTests : PipelineTestBase
         // silent wrong answer is the failure mode this project refuses.
         const string src = """
             Pull a book on the c-language.
-                Define c-language half as [3.5].
+                Define c-language number half as [3.5].
                 Bind number to bad, half.
                 State cast bad.
             Done.
@@ -461,7 +486,7 @@ public class PipelineForeignTests : PipelineTestBase
         // value would come back NEGATIVE through `long long`, silently.
         const string src = """
             Pull a book on the c-language.
-                Define c-language greeting-length as [strlen("hello")].
+                Define c-language number greeting-length as [strlen("hello")].
                 Bind number to how-long, greeting-length.
                 State cast how-long.
             Done.
@@ -478,7 +503,7 @@ public class PipelineForeignTests : PipelineTestBase
         // bug sends them hunting something that is not there.
         const string src = """
             Pull a book on the c-language.
-                Define c-language nonsense as [not_a_real_function_anywhere()].
+                Define c-language number nonsense as [not_a_real_function_anywhere()].
                 Bind number to broken, nonsense.
                 State cast broken.
             Done.
@@ -505,7 +530,7 @@ public class PipelineForeignTests : PipelineTestBase
     public void Axiom_WithoutItsBook_IsRefused()
     {
         var e = Assert.Throws<TypeException>(() => GenerateC(
-            "Define c-language get-pid as [getpid()]."));
+            "Define c-language number get-pid as [getpid()]."));
         Assert.Contains("c-language book is not in scope", e.Message);
     }
 
@@ -516,7 +541,7 @@ public class PipelineForeignTests : PipelineTestBase
         // checked clean, printed a C# object interpreted, and emitted C that would not build.
         var e = Assert.Throws<TypeException>(() => GenerateC("""
             Pull a book on the c-language.
-                Define c-language get-pid as [getpid()].
+                Define c-language number get-pid as [getpid()].
                 State get-pid.
             Done.
             """));
@@ -535,15 +560,30 @@ public class PipelineForeignTests : PipelineTestBase
     }
 
     [Fact]
-    public void Axiom_ReturnedAsSomethingOtherThanANumber_IsRefused()
+    public void Axiom_UsedWhereItsResultDoesNotFit_IsRefusedTheOrDINARYWay()
     {
+        // ★ No special case any more, and that is the improvement. The axiom says it gives a
+        // number; a function declared to give a text refuses it with the SAME sentence any other
+        // type mismatch gets. Foreign source stopped needing its own error here.
         var e = Assert.Throws<TypeException>(() => GenerateC("""
             Pull a book on the c-language.
-                Define c-language get-pid as [getpid()].
+                Define c-language number get-pid as [getpid()].
                 Bind text to who, get-pid.
             Done.
             """));
-        Assert.Contains("cannot come back as a text yet", e.Message);
+        Assert.Contains("declared to give back a text", e.Message);
+        Assert.Contains("return a number value", e.Message);
+    }
+
+    [Fact]
+    public void Axiom_DeclaringAResultTheBoundaryCannotCarry_IsRefused()
+    {
+        var e = Assert.Throws<TypeException>(() => GenerateC("""
+            Pull a book on the c-language.
+                Define c-language text host-name as ["localhost"].
+            Done.
+            """));
+        Assert.Contains("cannot give back a text yet", e.Message);
     }
 
     [Fact]
@@ -554,7 +594,7 @@ public class PipelineForeignTests : PipelineTestBase
         // has to be sayable, and it has to be said rather than crashed.
         const string src = """
             Pull a book on the c-language.
-                Define c-language get-pid as [getpid()].
+                Define c-language number get-pid as [getpid()].
                 Bind number to process-id, get-pid.
                 State "before".
                 State cast process-id.
@@ -579,7 +619,7 @@ public class PipelineForeignTests : PipelineTestBase
         // would refuse a program that builds perfectly well.
         const string src = """
             Pull a book on the c-language.
-                Define c-language never-run as [getpid()].
+                Define c-language number never-run as [getpid()].
                 State "fine".
             Done.
             """;
@@ -596,8 +636,8 @@ public class PipelineForeignTests : PipelineTestBase
         // at build time and printed nothing. Two answers to one program.
         const string src = """
             Pull a book on the c-language.
-                Define c-language good as [6 * 7].
-                Define c-language bad as [3.5].
+                Define c-language number good as [6 * 7].
+                Define c-language number bad as [3.5].
                 Bind number to fine, good.
                 Bind number to broken, bad.
                 State "before".

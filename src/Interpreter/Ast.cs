@@ -333,6 +333,9 @@ public sealed record AxiomLiteral(string Source, int Line, int Column) : IExpres
     /// there. An axiom is fixed at its definition and cannot be assembled from strings.
     /// </remarks>
     public IReadOnlyList<(CufetType Type, string Name)> Parameters { get; set; } = [];
+
+    /// <summary>What running it gives back — see AxiomType.ReturnType for why it is declared.</summary>
+    public CufetType? ReturnType { get; set; }
 }
 
 // Bury <value>.  — hand one value out of a stash body and suspend there.

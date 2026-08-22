@@ -431,8 +431,7 @@ public sealed partial class TypeChecker
         // this and never arrive here. Everything else has nothing to decide the result from, so it
         // is refused rather than guessed: `State cast open-file on (p, f).` used to check clean and
         // then have no answer to give either backend.
-        if (cast.RunsAxiom is null && AxiomCalledBy(cast.Function) is { } axiom)
-            return RunAxiomOnCast(cast, axiom, expected: null);
+        if (AxiomCalledBy(cast.Function) is { } axiom) return RunAxiomOnCast(cast, axiom);
 
         // A function that left blanks is filled from THIS call's arguments before anything is
         // resolved — the filling is what decides which body the call reaches.
