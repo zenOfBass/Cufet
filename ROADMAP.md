@@ -61,66 +61,36 @@ Two framings that set the order:
    family it collapses: the shell's job control and raw terminal mode, sockets, the POSIX and
    Windows APIs. ★ No bundled book needs it any more — `math` went pure decimal in 0.16.0.
 
-   **Slice 1 shipped: an axiom, returned as a number, on both backends.** `Pull a book on the
-   c-language.`, `Define c-language get-pid as [getpid()].`, and a `Bind number to …` that returns
-   it. Both backends wrap an axiom with the same shared C; the interpreter compiles it into a
-   content-cached shared library and calls it, so `gcc` runs once per distinct axiom per machine.
-   Only a C whole number crosses — the one direction that cannot be lossy — and a `double` or an
-   unsigned 64-bit value is refused rather than cast. See GRAMMAR §6 and REFERENCE Part VII.
+   **Axioms, parameters and splicing already ship on both backends** — see GRAMMAR §6 and REFERENCE
+   Part VII for what they do, and CHANGELOG for when. What is left, in the order it makes sense to
+   build:
 
-   **What is left, in the order it makes sense to build:**
-
-   **Slice 2 shipped: parameters and splicing by the article.** `Define c-language open-read-only,
-   given (the text file-path), as [open(the file-path, O_RDONLY)].` `number`, `text` and `fact`
-   cross into C; a `number` is range-checked rather than truncated, and both backends refuse in the
-   same words. Verified against real POSIX: `open`, `isatty` and `close` on a real file.
-
-   ⚠ Two things it surfaced, both worth a decision rather than a shrug:
-
-   - ~~A `cast` of an axiom cannot be written inline.~~ **Resolved the same day**: the result type
-     moved onto the declaration (`Define c-language number add, given (…), as [ … ].`), so a call
-     composes anywhere an ordinary call does. The use-site rule is gone rather than sitting beside
-     it. See DESIGN for why it is not inferred from the C.
-
+   - **More results coming back.** A whole `number` is the only thing that crosses out today, so an
+     axiom cannot give back a `fact` (`[isatty(the handle)]`) or a `text` at all — which is what
+     `getenv`, `strerror` and `readdir` need. `text` copies into the arena and nothing is freed
+     unless a declaration says so.
    - **`double` ↔ `number`** — the one lossy conversion, and the reason the wrapper is shared at
      all. It has to be written once in C and called by both backends; until it exists, a floating
-     axiom is refused.
+     axiom is refused. ⚠ Genuinely hard: base-2 against a base-10 decimal, with rounding to argue
+     about in both directions.
    - **Unsigned 64-bit values**, for `size_t`, which is how most of libc reports a length.
    - **`address`, `voidable`, `the text at`, `released by`** — the pointer half, entirely designed
      and entirely unbuilt.
    - **An axiom passed around unrun**, which is what lets a SQL fragment be assembled before use.
      Refused today because an axiom has no backend representation, and allowing it would type-check
      a program the compiler cannot build.
+   - **A library of your own**, where the obstacle is LINKING rather than headers. The bundled
+     header set already covers everything that links by default, so what is missing arrives as
+     "this needs library X" — headers **and** link flags together, since `#include <sqlite3.h>`
+     alone gets declarations and then fails with "undefined reference". ★ The trigger is checkable:
+     the first person who wants to bind a non-system library.
 
-   ⚠ **A library of your own is still unreachable, and the obstacle is LINKING, not headers.** The
-   header set was widened on 2026-08-22 to cover everything that links by default — the C standard
-   library, POSIX on Unix, Win32 and winsock on Windows (the last with `-lws2_32`, since sockets are
-   in libc on Linux and a separate library here). That covers every consumer this item names: job
-   control, raw terminal mode, sockets, the POSIX and Windows APIs.
-
-   What is left needs both halves at once. `#include <sqlite3.h>` gets declarations and then the
-   link fails with "undefined reference"; letting a writer name headers alone would ship a feature
-   that cannot work for the case that makes them want it. So if control ever comes it comes as
-   "this needs library X" — headers **and** link flags together — and the trigger is checkable: the
-   first person who wants to bind a non-system library.
-
-   ⚠ **Foreign state is per-process, and the two backends are two processes.** A compiled program is
-   its own; the interpreter calls C inside the process running the interpreter. Anything C remembers
-   globally can therefore differ — found by a test asserting `socket()` succeeded, which it does in
-   the .NET test host (winsock already initialised) and does not in a fresh binary. Both backends
-   were right. Cufet values cross identically; C's own memory is C's business, and a test must not
-   assert across it.
-
-   **Designed 2026-08-21; nothing here is undesigned. Read
-   [DESIGN.md](DESIGN.md#foreign-interoperability) before starting** — it carries the reasoning and
-   the rejected alternatives, which is the part worth having. In one paragraph: foreign source is an
-   **axiom**, square-bracketed and tagged by its language book
-   (`Define c-language get-pid as [getpid()].`), with parameters declared by `given (…)` and spliced
-   by the article — `[open(the path)]` — which is unambiguous because `the path` is never valid C or
-   SQL. Addresses exist only inside a rabbit block, are never dereferenced except by
-   `the text at <address>`, and are freed by the existing unmaker registry via `released by`.
-   Cufet never models a C struct: struct work happens inside an axiom. Every address and every read
-   is `voidable`, so NULL lands in the mechanism the language already has.
+   **Read [DESIGN.md](DESIGN.md#foreign-interoperability) before starting** — it carries the
+   reasoning and the rejected alternatives, which is the part worth having. Addresses exist only
+   inside a rabbit block, are never dereferenced except by `the text at <address>`, and are freed by
+   the existing unmaker registry via `released by`. Cufet never models a C struct: struct work
+   happens inside an axiom. Every address and every read is `voidable`, so NULL lands in the
+   mechanism the language already has.
 
    ★ The unwind side is ready: a new kind of releasable thing is one field on `CleanupPoint` and one
    term in `UnwindTo`, and every nonlocal exit gets it at once.
