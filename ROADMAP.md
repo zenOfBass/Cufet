@@ -56,38 +56,29 @@ Two framings that set the order:
   to self-hosting. A lexer, parser and type checker are one enormous dispatch on node type;
   written as `is a` chains, a Cufet-in-Cufet compiler is miserable to write and worse to read.
 
-1. **Foreign interoperability — pointers, the C FFI, and blocks.** What makes "anything can be
+1. **Foreign interoperability — the C FFI, axioms, and addresses.** What makes "anything can be
    written in Cufet" literally rather than nearly true. Its consumers are the "call a C function"
    family it collapses: the shell's job control and raw terminal mode, sockets, the POSIX and
    Windows APIs. ★ No bundled book needs it any more — `math` went pure decimal in 0.16.0.
 
-   **The design session happened (2026-08-21) and the decisions are in
-   [DESIGN.md](DESIGN.md#foreign-interoperability)** — the rabbit block as the unsafe marker, one
-   inert pointer kind, explicit reads that copy, freeing through the unmaker registry, the shared
-   conversion shim, a bounded signature set, and blocks as one tagged type. This entry no longer
-   says "no design session"; read that section before starting.
+   **Designed 2026-08-21; nothing here is undesigned. Read
+   [DESIGN.md](DESIGN.md#foreign-interoperability) before starting** — it carries the reasoning and
+   the rejected alternatives, which is the part worth having. In one paragraph: foreign source is an
+   **axiom**, square-bracketed and tagged by its language book
+   (`Define c-language get-pid as [getpid()].`), with parameters declared by `given (…)` and spliced
+   by the article — `[open(the path)]` — which is unambiguous because `the path` is never valid C or
+   SQL. Addresses exist only inside a rabbit block, are never dereferenced except by
+   `the text at <address>`, and are freed by the existing unmaker registry via `released by`.
+   Cufet never models a C struct: struct work happens inside an axiom. Every address and every read
+   is `voidable`, so NULL lands in the mechanism the language already has.
 
-   ★ The unwind side is ready: a new kind of releasable thing is one field on `CleanupPoint` and
-   one term in `UnwindTo`, and every nonlocal exit gets it at once.
+   ★ The unwind side is ready: a new kind of releasable thing is one field on `CleanupPoint` and one
+   term in `UnwindTo`, and every nonlocal exit gets it at once.
 
-   **What is still undesigned**, and wants settling before code:
-   - the **read operations** — `the text at p` and friends
-   - where **`released by`** lives, now that there are axioms rather than binding declarations
-   - **struct declarations** under the axiom model — the earlier sketch predates it
-   - where **`#include`** goes: inside each axiom, or once per book
-
-   ★ **The surface is settled** (see DESIGN): foreign source is an **axiom**, written in square
-   brackets and tagged by its language book — `Define a c-language axiom get-pid as [getpid()].`
-   Parameters are declared with `given (…)` and spliced by the article, `[open(the path)]`, which is
-   unambiguous because `the path` is never valid C or SQL. An axiom runs when returned; the declared
-   type decides.
-
-   ★ **Struct layout is settled** (see DESIGN): structs travel as pointers, Cufet owns the memory
-   wherever it can (`the address of` a C-typed record), the C compiler lays them out inside the
-   generated shim, and nobody reimplements the ABI.
-
-   ⚠ **It does not ship until both backends run it.** The interpreter is the oracle, and FFI is
-   the one area where being wrong means memory corruption rather than a wrong number.
+   ⚠ **It does not ship until both backends run it.** The interpreter is the oracle, and FFI is the
+   one area where being wrong means memory corruption rather than a wrong number. Interpreted FFI
+   therefore needs a C toolchain the first time a given set of axioms is seen; wasm cannot do it at
+   all.
 
 2. **Module needs, transitively.** ★ Much smaller than it was. A body now resolves what it can see
    where it is WRITTEN plus any MODULE its caller pulled, so an unresolved *ordinary* name is a

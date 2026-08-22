@@ -437,23 +437,37 @@ The arena that knows when a region dies is the thing that knows when a pointer d
 ### The type is an `address`
 
 Not `pointer`. `address` is plain English for exactly what it is, where `pointer` is C's word for
-it — and the language already reached for it on its own: `the address of settings` is how the
-struct case reads, and the FFI item always described "an explicit address-of".
+it. The FFI item always described "an explicit address-of", so the word was already in play.
 
 ★ It costs nothing. `address` and `pointer` both have zero uses across `examples/` and the prelude,
 and a type name does not have to be reserved — `rabbit` appears nowhere in the lexer and is
 resolved in the type checker instead. So `the text address` stays available as a field name.
 
+⚠ There is no address-*of* operator. Cufet never creates an address: one only ever comes back from
+C and goes back into C. See "Cufet never models a C struct".
+
 ```
-Cast tcgetattr on (fd, the address of settings).
 Define c-language close-file, given (the address handle), as [fclose(the handle)].
+Define handle as cast open-file on (path, "r").      ← voidable address; NULL is void
 ```
 
 ### One concept, and it is inert
 
 There is **one kind of foreign pointer**: opaque, rabbit-scoped, and impossible to
 dereference implicitly. Reading through it is an **explicit act that always copies into the
-arena** — `the text at p` yields rabbit-owned text, never a view into foreign memory.
+arena** — `the text at handle` yields rabbit-owned text, never a view into foreign memory.
+
+★ **`the text at <address>` is the only read there is**, and it yields `voidable text`. Reading a
+struct or a scalar was considered and is unnecessary: an axiom can project a field
+(`[readdir(the dir)->d_name]`) or declare a local and return it
+(`[int status; waitpid(the pid, &status, 0); return status;]`), so the value comes back as an
+ordinary return rather than through an address. Text is the one case with no single-expression
+answer on the C side, because the bytes belong to C and have to be copied out.
+
+★ **Every address coming back from C is `voidable address`.** NULL is C's universal failure signal
+— `fopen`, `malloc`, `getenv`, `opendir` all use it — so every way C can fail lands in the
+mechanism the language already has, and the checker will not let it be skipped. No new failure
+concept anywhere in the FFI.
 
 ★ `char*` and `FILE*` are therefore the *same type*. What differs is not the value but what
 the writer does with it: you read through the first and never through the second. An earlier
@@ -533,60 +547,59 @@ last place to give up a second opinion.
 ⚠ The playground runs the interpreter in **wasm**, where FFI cannot work at all. "This
 program cannot run in this environment" is therefore a required outcome regardless.
 
-### Structs: Cufet owns the memory wherever it can
+### Cufet never models a C struct
 
-Structs travel as **pointers**, never by value — which is what keeps the signature set below
-simple. But the targets need to read and write struct *fields*: raw terminal mode is
-`tcgetattr`, set `c_lflag`, `tcsetattr` back; a socket bind fills `sin_family`, `sin_port`,
-`sin_addr`. So layout is on the critical path, not a later item.
-
-★ **The common direction needs no dereferencing at all.** Cufet owns the memory, C fills it:
+There is **no C-compatible record type, no layout question, and no address-of operator.** A struct
+is C's idea, so struct work happens in C:
 
 ```
-Pull a rabbit as hopper.
-    Define settings as a new termios { … }             ← arena-allocated, C layout
-    Cast tcgetattr on (fd, the address of settings)    ← C writes into it
-    The settings' c-lflag becomes …                    ← ordinary Cufet field mutation
-    Cast tcsetattr on (fd, the address of settings)    ← C reads it back
-Done.
+Define c-language set-raw-mode, given (the number fd),
+    as [struct termios t;
+        tcgetattr(the fd, &t);
+        t.c_lflag &= ~(ICANON | ECHO);
+        tcsetattr(the fd, TCSANOW, &t);
+        return 0;].
 ```
 
-No foreign pointer is dereferenced; mutation is ordinary Cufet mutation. This is what "an
-explicit address-of" was always for.
+One axiom, the whole job. The struct is declared, addressed and mutated where structs are cheap and
+correct by construction, and what crosses back is a plain return value.
 
-The other direction — `getpwnam` handing back a `struct passwd *` — is a foreign pointer, and
-reading it **copies into a Cufet record**, exactly as `char*` copies into `text`.
+A struct that must **persist** across calls — saved terminal state to restore on exit — is held as
+an opaque `address`, allocated in one axiom and `released by` another. Cufet stores it and hands it
+back; it never looks inside.
 
-⚠ A Cufet record already becomes a real C struct (`cr_N`) in the compiled backend, but its
-FIELDS are Cufet representations — `number` is a 128-bit `CufetDec`, not an `int`. So a
-C-compatible record is one whose fields are declared as **C types**; ordinary records are not
-layout-compatible and must not be passed off as such.
+★ **This is the same argument that removed struct reads and scalar reads**, applied once more.
+Every out-parameter, every field access, every layout question is answerable in C, by the person who
+is already writing C. Modelling any of it on the Cufet side would be building a second, worse C.
 
-### Nobody reimplements the ABI
+**What it removes**, all of which earlier drafts of this section carried:
 
-The C struct declarations live in the shim, so **the C compiler lays them out** and both
-backends read those offsets. There is no struct-layout algorithm in C#, and therefore no way
-for the two to disagree — the same reasoning as the conversions.
+- C type names inside Cufet (`the int input-flags`) — the boundary has Cufet types only
+- struct layout, alignment, and the question of who computes offsets
+- `the address of <value>` — an address now only ever comes *from* C and goes *back* to C, so
+  Cufet never creates one and needs no operator to
+- reading a struct or a scalar through an address — `the text at` is the only read there is
 
-⚠ **The rejected alternative, recorded because it will look tempting:** having the interpreter
-compute layouts from standard alignment rules. It works for scalars, arrays and nested structs
-and quietly gets **bitfields, packed structs and unions** wrong — silently, which is the exact
-failure the shim exists to prevent. If that path is ever wanted, the honest form is to compute
-the easy cases and *refuse* the hard ones, never to guess.
+⚠ The rejected alternative is recorded because it will look tempting: declaring C structs in Cufet
+and having the interpreter compute layouts from standard alignment rules. It works for scalars,
+arrays and nested structs and quietly gets **bitfields, packed structs and unions** wrong —
+silently, which is the failure mode this project keeps refusing.
 
-**The cost, stated accurately:** the shim cannot be a fixed prebuilt library, because it must
-contain the program's own struct declarations. So it is **generated from the declarations and
-compiled**. Two things make that mild rather than severe:
+### The shim is the compiled axioms
+
+The shim is not a fixed prebuilt library and not generated from declarations — **it is the
+program's axioms, compiled.** The compiled backend pastes them into its own C; the interpreter
+compiles and loads them. One artifact, and no separate declaration language to keep in step with it.
+
+**The cost:** interpreted FFI needs a C toolchain. Two things make that mild:
 
 - **It caches.** `RuntimeCache` already content-addresses compiled objects by a SHA of source,
-  header, gcc identification and flags. A generated shim keyed the same way means gcc runs
-  **once per distinct set of declarations**, not once per run.
-- **The common structs ship precompiled.** `termios`, `sockaddr_in`, `stat`, `timeval` — what
-  the stated targets need — can be bundled, so the shell, sockets and terminal work with no
-  toolchain at all.
+  header, gcc identification and flags. A shim keyed the same way means gcc runs **once per
+  distinct set of axioms**, not once per run.
+- **A book's axioms can ship precompiled**, so a bundled `c` book works with no toolchain at all.
 
 > **The constraint, in full:** interpreted FFI needs a C toolchain the first time a given set of
-> declarations is seen, and not at all for the bundled structs. Wasm cannot do it in any case.
+> axioms is seen, and not at all for bundled books. Wasm cannot do it in any case.
 
 ### One `c` book
 
