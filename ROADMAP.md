@@ -65,10 +65,12 @@ Two framings that set the order:
    Part VII for what they do, and CHANGELOG for when. What is left, in the order it makes sense to
    build:
 
-   - **`double` ↔ `number`** — the one lossy conversion, and the reason the wrapper is shared at
-     all. It has to be written once in C and called by both backends; until it exists, a floating
-     axiom is refused. ⚠ Genuinely hard: base-2 against a base-10 decimal, with rounding to argue
-     about in both directions.
+   - **A fractional value handed INTO foreign source.** A `double` now comes BACK, as a
+     `voidable number`; going the other way is still refused, because a `number` argument arrives
+     as a range-checked `long long` and nothing spells "this one goes in as a double". ⚠ Deferred
+     on purpose, for want of a use case — whole arguments already work by casting in C, and this is
+     the genuinely lossy direction (`0.1` has no exact `double`). When a use case turns up, it
+     brings the spelling with it and this gets solved rather than worked around.
    - **`address`, `voidable`, `the text at`, `released by`** — the pointer half, entirely designed
      and entirely unbuilt.
    - **An axiom passed around unrun**, which is what lets a SQL fragment be assembled before use.

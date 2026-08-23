@@ -10,6 +10,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **Foreign source can hand back a `double`**, declared as a `voidable number` — `[sqrt(2.0)]` is
+  `1.4142135623730951`. This is the boundary's one lossy conversion, and the only one that could
+  have differed between the two backends: `number` is base-10 and a `double` is base-2.
+
+  So it is written **once**, in C that both backends compile, and it hands back the coefficient,
+  scale and sign a decimal is made of rather than the `double` itself. Neither backend converts
+  anything — both assemble the same three numbers — and 17 significant digits cross, which is what
+  a `double` round-trips in.
+
+  **A value with no decimal becomes void**: NaN, an infinity, or a magnitude outside a decimal's
+  range. That is not a new rule but `math`'s existing one — `square-root of (-4)` and `log of (0)`
+  are both void already.
+
+  ⚠ The two number guards are **disjoint**. A floating value declared `number`, or a whole one
+  declared `voidable number`, is refused by the C compiler rather than converted: `number` is exact
+  and `voidable number` is not, so which you meant is a real question.
+
+  ⚠ **Passing a fractional value INTO foreign source is still refused** — a `number` argument
+  arrives as a range-checked `long long`, so `[pow((double)the base, (double)the exponent)]` works
+  for whole arguments and 0.5 does not cross. That direction waits for a use case.
+
 - **Foreign source can hand back an unsigned 64-bit value** — `size_t` and `unsigned long long`,
   which is how most of libc reports a length. `[strlen(the subject)]` and `[sizeof(long long)]` are
   written as they would be in C, with no cast to get past the boundary.

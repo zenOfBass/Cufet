@@ -1883,6 +1883,7 @@ lets a body see a `permanently` constant.
 | --- | --- | --- |
 | `number` | any C whole number, signed or unsigned | exact — a decimal holds every 64-bit integer either way |
 | `fact` | anything with a truth value | 1 or 0 |
+| `voidable number` | a `float`, `double` or `long double` | converted once, in shared C; NaN, an infinity, or a magnitude no decimal holds becomes void |
 | `voidable text` | a `char*` or `const char*` | **copied**; NULL becomes void |
 
 ⚠ **A `text` result must be declared `voidable text`.** C says nothing is there by handing back
@@ -1893,14 +1894,22 @@ mechanism the language already has. A plain `text` is refused as a promise the C
 back a buffer the next call overwrites, and anything malloc'd dies when its owner says so. A Cufet
 text pointing at either would change under the program.
 
+⚠ **A floating result must be declared `voidable number`, and a whole one `number`** — the two
+guards are disjoint, so naming the wrong one is refused by the C compiler rather than converted.
+`number` is exact; `voidable number` is the one conversion that is not, which makes "which did you
+mean" a real question.
+
+★ **The base-2 to base-10 conversion is written ONCE**, in C both backends compile, and it hands
+back the three numbers a decimal is made of rather than a `double` — so neither backend converts
+anything and the last digit cannot disagree. 17 significant digits, which is what a `double`
+round-trips in.
+
 Everything else is refused rather than approximated:
 
-- a `double` — base-2 against a base-10 decimal, so that conversion has to be written once in C and
-  called by both backends
 - an axiom as a parameter, a field, an element type, or something a function hands back unrun
 
-The first is refused by the **C compiler**, at the point where the type is actually known; the rest
-by the checker. Both name what is wrong.
+That is refused by the checker; the result-type questions above are refused by the **C compiler**,
+at the point where the type is actually known. Both name what is wrong.
 
 ★ **`size_t` needs no cast**, and a large one is not turned negative. `strlen`, `sizeof`, `fread`
 and the rest of libc's length-reporting family report an unsigned 64-bit value, and the boundary

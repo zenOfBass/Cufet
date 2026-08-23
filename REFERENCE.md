@@ -3623,12 +3623,13 @@ a misspelling would otherwise reach the C compiler as a stray `the`.
 
 #### What crosses the boundary
 
-Three things, and each says what it needs on the declaration:
+Four things, and each says what it needs on the declaration:
 
 | You declare | C gives back | |
 | --- | --- | --- |
 | `number` | any C whole number, signed or unsigned | exact — a decimal holds every 64-bit integer either way |
 | `fact` | anything with a truth value | 1 or 0 |
+| `voidable number` | a `float`, `double` or `long double` | converted once, in shared C; no representable answer becomes void |
 | `voidable text` | a `char*` or `const char*` | **copied**; nothing becomes void |
 
 ```
@@ -3652,10 +3653,13 @@ Everything else is **refused rather than approximated**:
 
 | The axiom produces | What happens |
 | --- | --- |
-| `double`, `float` | refused — base-2 against a base-10 decimal |
+| a floating value, for a `number` | refused — declare it a `voidable number` instead |
+| a whole number, for a `voidable number` | refused — declare it a plain `number` instead |
 | anything else, for a `voidable text` | refused — it has to be a C string |
 
-These are refused by the C compiler, which is where the type is actually known.
+These are refused by the C compiler, which is where the type is actually known. The first two are
+one question asked from either side: `number` is exact and `voidable number` is the one conversion
+that is not, so which you meant is worth saying rather than guessing.
 
 **A `size_t` needs no cast.** `strlen`, `sizeof`, `fread` and the rest of libc report a length as an
 unsigned 64-bit value, and that is a whole number like any other here — the boundary carries the
@@ -3671,6 +3675,29 @@ Pull a book on the c-language.
     State cast widest.                      ← 18446744073709551615
 Done.
 ```
+
+**A `double` crosses as a `voidable number`, and it is the one lossy conversion.** A `number` is
+base-10 and a `double` is base-2, so 17 significant digits — what a `double` round-trips in — is
+what arrives:
+
+```
+Pull a book on the c-language.
+    Define c-language voidable number root-two as [sqrt(2.0)].
+    Define c-language voidable number a-third as [1.0 / 3.0].
+
+    State (cast root-two) but void is 0.    ← 1.4142135623730951
+    State (cast a-third) but void is 0.     ← 0.33333333333333331
+Done.
+```
+
+The conversion is written **once**, in C that both backends compile, and it hands back the parts a
+decimal is made of rather than the `double` itself — so nothing is converted twice and the last
+digit cannot differ between running a program and building it.
+
+**Void is what "no such number" means here**, and it is the same answer `math` already gives:
+`math's square-root of (-4)` is void today, and so is `math's log of (0)`. A NaN, an infinity, and a
+magnitude outside a decimal's range all arrive as void — including a very small one like `1e-300`,
+which is void rather than `0`, because silently answering zero is the failure this refuses.
 
 #### What an axiom can reach for
 
