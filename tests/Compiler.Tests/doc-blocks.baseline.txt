@@ -25,13 +25,13 @@ fb59e5f822cca612	GRAMMAR.md:1454	Pull a rabbit.
 3f505d74c7ea33ea	GRAMMAR.md:1510	Define object card with (the text suit, the text rank):
 e3e4477203450184	GRAMMAR.md:1524	Get count as number:
 5863b6bbe21ba913	GRAMMAR.md:1790	Pull a book on the c-language.
-188fe4aa13f1db41	GRAMMAR.md:1971	Bind void to producer:
-abd4b2f7004e99d4	GRAMMAR.md:2125	Pull a rabbit.
-5ba92f45a804c146	GRAMMAR.md:2142	Define object user with (the text id permanently, the text name).
-2454e3504d033399	GRAMMAR.md:2319	Define total as 42 permanently.
-91f2dd14a1ea164a	GRAMMAR.md:2331	Define total as 42.
-a9c798402601631a	GRAMMAR.md:2342	Define total as 42.
-64fb97affdbf4cd2	GRAMMAR.md:2740	Define xs as a series of number.             ← empty series
+188fe4aa13f1db41	GRAMMAR.md:1977	Bind void to producer:
+abd4b2f7004e99d4	GRAMMAR.md:2131	Pull a rabbit.
+5ba92f45a804c146	GRAMMAR.md:2148	Define object user with (the text id permanently, the text name).
+2454e3504d033399	GRAMMAR.md:2325	Define total as 42 permanently.
+91f2dd14a1ea164a	GRAMMAR.md:2337	Define total as 42.
+a9c798402601631a	GRAMMAR.md:2348	Define total as 42.
+64fb97affdbf4cd2	GRAMMAR.md:2746	Define xs as a series of number.             ← empty series
 3a75b8b35067f5a0	README.md:16	For each counter in the range 1 to 100, repeat:
 d117a5d36aa1baca	README.md:30	Define the scores as a series with (92, 85, 71, 88).
 415395fa7cac6f7d	README.md:43	Bind number to factorial, given (the number n):
@@ -136,14 +136,14 @@ ca69cafea4243de4	REFERENCE.md:3192	Pull a rabbit as workspace.
 c803a60649a13124	REFERENCE.md:3490	While 1 is 1, repeat:
 fb5de09519956cc6	REFERENCE.md:3579	Pull a book on the c-language.
 fab05abcbbfdc10b	REFERENCE.md:3597	Pull a book on the c-language.
-5585389b79e8a717	REFERENCE.md:3636	Pull a book on the c-language.
-2bbb6fbdb316ebe9	REFERENCE.md:3670	Pull a book on the c-language.
-803f1746bf867006	REFERENCE.md:3684	Pull a book on the c-language.
-439c74dd9fc21d76	REFERENCE.md:3756	Define object greeting-kit with () and module:
-79fb75d216dc2c7d	REFERENCE.md:3786	Pull a book on math.
-84b2ac174319f341	REFERENCE.md:3818	Pull books on math, collections, and chance.
-a82cb5008d1e263b	REFERENCE.md:3831	Pull books on math as m, and collections as c.
-bffd62e4b1bc0f56	REFERENCE.md:3840	Pull a book on math.
-b983f16097a83202	REFERENCE.md:3865	Pull a book on collections.
-871fdbce77b84b21	REFERENCE.md:3935	Pull a book on collections.
-8274b939488e058f	REFERENCE.md:3959	Pull a book on collections.
+5585389b79e8a717	REFERENCE.md:3647	Pull a book on the c-language.
+2bbb6fbdb316ebe9	REFERENCE.md:3681	Pull a book on the c-language.
+803f1746bf867006	REFERENCE.md:3695	Pull a book on the c-language.
+439c74dd9fc21d76	REFERENCE.md:3767	Define object greeting-kit with () and module:
+79fb75d216dc2c7d	REFERENCE.md:3797	Pull a book on math.
+84b2ac174319f341	REFERENCE.md:3829	Pull books on math, collections, and chance.
+a82cb5008d1e263b	REFERENCE.md:3842	Pull books on math as m, and collections as c.
+bffd62e4b1bc0f56	REFERENCE.md:3851	Pull a book on math.
+b983f16097a83202	REFERENCE.md:3876	Pull a book on collections.
+871fdbce77b84b21	REFERENCE.md:3946	Pull a book on collections.
+8274b939488e058f	REFERENCE.md:3970	Pull a book on collections.
