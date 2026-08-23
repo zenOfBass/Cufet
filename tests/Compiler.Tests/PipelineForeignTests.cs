@@ -555,6 +555,94 @@ public class PipelineForeignTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── An axiom called for its effect ───────────────────────────────────────
+
+    [Fact]
+    public void Axiom_CalledAsAStatement_IsAllowed()
+    {
+        // ★ `Cast close-dir on (handle).` — the answer is thrown away, which is what a statement
+        // means. This used to be REFUSED, and by a message that was not true: "you can only cast
+        // functions", when every axiom call in every example is a cast. The expression form had
+        // the hook (InferCastExpr) and the statement form did not, so the writer was told to bind
+        // a result they had deliberately discarded.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number doubled, given (the number n), as [(int)(the n * 2)].
+                Cast doubled on (21).
+                State "still here".
+            Done.
+            """;
+        Assert.Equal("still here", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_CalledAsAStatement_ActuallyRuns()
+    {
+        // Discarding the answer must not discard the CALL — the whole point of calling one this
+        // way is a side effect in C. The counter is C's own: two discarded calls then one read.
+        //
+        // ⚠⚠ ONE run per backend, NOT the oracle pair — foreign state is per-process and the
+        // interpreter's shim stays loaded in the test host, so a second interpreted run of this
+        // same source would continue counting. Same reason as Axiom_WithASideEffect_RunsExactlyOnce.
+        //
+        // ⚠⚠ And the body must differ from THAT test's, textually. An axiom's identity is its
+        // CONTENT — language, result, parameters, spliced source — and deliberately not its name,
+        // so two tests whose C happens to match share one cached shim and therefore one counter.
+        // Written with the same `++n` first, this read 6 because the other test had already run
+        // its three. Any axiom holding state needs source no other test can collide with.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number bump as [({ static int discarded_calls = 0; ++discarded_calls; })].
+                Cast bump.
+                Cast bump.
+                State cast bump.
+            Done.
+            """;
+        Assert.Equal("3", Interpret(src));
+        Assert.Equal("3", Compile(src));
+    }
+
+    [Fact]
+    public void Axiom_CalledAsAStatement_IsStillCheckedLikeACall()
+    {
+        // Discarding the answer discards no CHECK: the arguments still have to fit.
+        const string arity = """
+            Pull a book on the c-language.
+                Define c-language number doubled, given (the number n), as [(int)(the n * 2)].
+                Cast doubled.
+            Done.
+            """;
+        Assert.Contains("takes 1 value", Assert.ThrowsAny<Exception>(() => Interpret(arity)).Message);
+
+        const string wrongType = """
+            Pull a book on the c-language.
+                Define c-language number doubled, given (the number n), as [(int)(the n * 2)].
+                Cast doubled on ("not a number").
+            Done.
+            """;
+        Assert.Contains("takes a number", Assert.ThrowsAny<Exception>(() => Interpret(wrongType)).Message);
+    }
+
+    [Fact]
+    public void Axiom_OnlyEverDiscarded_IsStillBuiltBeforeTheProgramRuns()
+    {
+        // ⚠ The regression this shape could reopen. Every axiom is compiled BEFORE the first
+        // statement runs, so one bad axiom produces no output at all — but the walk that finds them
+        // keys on the two nodes that RUN one, and a discarded call is a third. Miss it and this
+        // program prints its line and then fails, which is the lazy-compilation divergence again.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number broken as [not_a_real_function_at_all()].
+                State "this must not print".
+                Cast broken.
+            Done.
+            """;
+        var thrown = Assert.ThrowsAny<Exception>(() => InterpretRaw(src));
+        Assert.Contains("could not be compiled", thrown.Message);
+        Assert.DoesNotContain("this must not print", InterpretThroughFaultRaw(src));
+    }
+
     // ── Floating-point results ───────────────────────────────────────────────
 
     [Fact]

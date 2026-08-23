@@ -870,8 +870,13 @@ public sealed partial class Interpreter
                 break;
 
             case CastStatement cs:
-                ExecuteCallExpr(CalledFunction(cs.Function, cs.ResolvedFunctionName, cs.Line, cs.Column),
-                                cs.Args, cs.Line);
+                // An axiom called for its effect: run it and drop the answer, which is what a
+                // statement means. The checker resolved the name to its source.
+                if (cs.RunsAxiom is { } effectAxiom)
+                    _ = RunAxiomCall(cs.Args, effectAxiom, cs.Line);
+                else
+                    ExecuteCallExpr(CalledFunction(cs.Function, cs.ResolvedFunctionName, cs.Line, cs.Column),
+                                    cs.Args, cs.Line);
                 break;
 
             case ReturnStatement ret:

@@ -288,6 +288,14 @@ public sealed record CastStatement(
 {
     /// <inheritdoc cref="CastExpression.ResolvedFunctionName"/>
     public string? ResolvedFunctionName { get; set; }
+
+    /// <inheritdoc cref="CastExpression.RunsAxiom"/>
+    /// <remarks>
+    /// ★ An axiom called for its EFFECT rather than its answer — `Cast close-dir on (handle).`
+    /// The result is discarded, which is what a statement means; the declaration still has to say
+    /// what it gives back, because the C wrapper's return type is built from it.
+    /// </remarks>
+    public AxiomLiteral? RunsAxiom { get; set; }
 }
 
 // return <value>.  or  return.  (bare, for void early exit)

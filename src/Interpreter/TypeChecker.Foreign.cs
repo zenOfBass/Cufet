@@ -240,9 +240,24 @@ public sealed partial class TypeChecker
     private CufetType RunAxiomOnCast(CastExpression cast, AxiomLiteral axiom)
     {
         RequireLanguagePulled(axiom.Language!, cast.Line, cast.Column);
-        CheckForeignArguments(cast, axiom);
+        CheckForeignArguments(cast.Args, axiom, cast.Line, cast.Column);
         cast.RunsAxiom = axiom;
         return RunResultOf(axiom, cast.Line, cast.Column);
+    }
+
+    /// <summary>The same, for an axiom called as a STATEMENT — its answer thrown away.</summary>
+    /// <remarks>
+    /// (a) Every check the expression form makes still applies: the language must be pulled and the
+    /// arguments must fit. (b) `RunResultOf` runs too, and its answer is discarded rather than
+    /// skipped — a declaration that never said what it gives back cannot be wrapped in C at all,
+    /// because the wrapper's return type is built from exactly that.
+    /// </remarks>
+    private void RunAxiomOnCastStatement(CastStatement cast, AxiomLiteral axiom)
+    {
+        RequireLanguagePulled(axiom.Language!, cast.Line, cast.Column);
+        CheckForeignArguments(cast.Args, axiom, cast.Line, cast.Column);
+        cast.RunsAxiom = axiom;
+        _ = RunResultOf(axiom, cast.Line, cast.Column);
     }
 
     /// <summary>What running this axiom yields — refusing one that never said.</summary>
@@ -263,24 +278,25 @@ public sealed partial class TypeChecker
             $"Say so where it is declared: 'Define {axiom.Language} number <name> as [ ... ].'");
 
     /// <summary>Checks a call's arguments against what the axiom declared it takes.</summary>
-    private void CheckForeignArguments(CastExpression cast, AxiomLiteral axiom)
+    private void CheckForeignArguments(IReadOnlyList<IExpression> callArgs, AxiomLiteral axiom,
+                                       int line, int column)
     {
-        if (cast.Args.Count != axiom.Parameters.Count)
+        if (callArgs.Count != axiom.Parameters.Count)
             throw TypeError(
                 $"this {axiom.Language} source takes {Count(axiom.Parameters.Count, "value")}, "
-              + $"and {cast.Args.Count} {(cast.Args.Count == 1 ? "was" : "were")} given",
-                null, cast.Line, cast.Column,
-                $"pass {Count(cast.Args.Count, "value")}",
+              + $"and {callArgs.Count} {(callArgs.Count == 1 ? "was" : "were")} given",
+                null, line, column,
+                $"pass {Count(callArgs.Count, "value")}",
                 $"It is declared 'given ({string.Join(", ", axiom.Parameters.Select(p => $"the {FormatType(p.Type)} {p.Name}"))})'.");
 
-        for (int i = 0; i < cast.Args.Count; i++)
+        for (int i = 0; i < callArgs.Count; i++)
         {
             var expected = ResolveParamType(axiom.Parameters[i].Type);
-            var actual = InferType(cast.Args[i]);
+            var actual = InferType(callArgs[i]);
             if (actual != null && !IsAssignable(expected, actual))
                 throw TypeError(
                     $"'{axiom.Parameters[i].Name}' takes a {FormatType(expected)}, but a {FormatType(actual)} was given",
-                    null, cast.Line, cast.Column,
+                    null, line, column,
                     $"pass a {FormatType(actual)} for '{axiom.Parameters[i].Name}'",
                     $"Give it a {FormatType(expected)}.");
         }

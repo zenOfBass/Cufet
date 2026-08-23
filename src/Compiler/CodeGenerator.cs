@@ -4762,8 +4762,13 @@ static void* cufet_pipe_stage(void* argp) {
 
             case CastStatement cs:
             {
-                // Void free-function call or void method dispatch (statement position).
-                string call = EmitCall(CalledFunction(cs.Function, cs.ResolvedFunctionName, cs.Line, cs.Column), cs.Args);
+                // Void free-function call, void method dispatch, or an axiom called for its EFFECT
+                // (statement position). The axiom's value is emitted and then dropped, which is
+                // what a statement means — and `(void)` says so to a C compiler that would
+                // otherwise warn about an unused result.
+                string call = cs.RunsAxiom is { } effectAxiom
+                    ? "(void)" + EmitAxiomCall(effectAxiom, cs.Args, cs.Line)
+                    : EmitCall(CalledFunction(cs.Function, cs.ResolvedFunctionName, cs.Line, cs.Column), cs.Args);
                 FlushPreEmits(sb, indent);
                 sb.AppendLine($"{indent}{call};");
                 break;
@@ -7645,6 +7650,11 @@ static void* cufet_pipe_stage(void* argp) {
             // name to the source and this backend pastes that source in. There is no value to
             // capture, so a body that only reaches for an axiom is not a closure.
             case ReturnStatement { RunsAxiom: not null }: return;
+            // ★ The same for one called as a statement — but its ARGUMENTS are still read, so
+            // unlike the return above this recurses into them rather than stopping.
+            case CastStatement { RunsAxiom: not null } effectCall:
+                foreach (var arg in effectCall.Args) CollectRefsDefs(arg, refs, defs);
+                return;
             case ForEachStatement fe:
                 CollectRefsDefs(fe.Series, refs, defs);   // the series expression is in the OUTER scope
                 Nested(fe.IteratorName != null ? [fe.IteratorName] : [], fe.Body);

@@ -48,6 +48,10 @@ public sealed partial class Interpreter
             // The two places an axiom RUNS: returned by name, and called with arguments.
             if (node is ReturnStatement { RunsAxiom: { } returned } ret) Note(returned, ret.Line);
             if (node is CastExpression { RunsAxiom: { } called } cast)   Note(called, cast.Line);
+            // ⚠ And called for its EFFECT. Miss this and a program whose only axiom is discarded
+            // compiles its shim lazily on first use again — the divergence up-front preparation
+            // exists to close.
+            if (node is CastStatement  { RunsAxiom: { } run }     stmt)   Note(run, stmt.Line);
         });
 
         if (pending.Count == 0) return;
@@ -60,9 +64,9 @@ public sealed partial class Interpreter
     }
 
     /// <summary>Runs an axiom called with arguments — `cast open-file on (path, flags)`.</summary>
-    private object RunAxiomCall(CastExpression cast, AxiomLiteral axiom)
+    private object RunAxiomCall(IReadOnlyList<IExpression> callArgs, AxiomLiteral axiom, int line)
     {
-        if (ForeignRunner is not { } runner) throw CannotRunForeignSource(axiom, cast.Line);
+        if (ForeignRunner is not { } runner) throw CannotRunForeignSource(axiom, line);
 
         // ⚠ Evaluated in declaration order, left to right, which is the order the compiled backend
         // evaluates its call arguments in. An argument with a side effect would otherwise happen in
@@ -71,15 +75,15 @@ public sealed partial class Interpreter
         // ★ Converted HERE rather than inside the runner, because the refusals are Cufet's: the
         // range check on a `number` and the sentence it raises belong to the language, and the
         // runner's job stops at putting bytes in a slot.
-        var arguments = new List<object>(cast.Args.Count);
-        for (int i = 0; i < cast.Args.Count; i++)
+        var arguments = new List<object>(callArgs.Count);
+        for (int i = 0; i < callArgs.Count; i++)
         {
-            var value = Evaluate(cast.Args[i]);
+            var value = Evaluate(callArgs[i]);
             arguments.Add(axiom.Parameters[i].Type switch
             {
                 // ⚠ The program's OWN number formatting, so the refusal reads the same way a
                 // printed number does — and the same way the compiled backend's does.
-                NumberType => ForeignC.ToForeignWhole((decimal)value, cast.Line, d => Format(d)),
+                NumberType => ForeignC.ToForeignWhole((decimal)value, line, d => Format(d)),
                 FactType   => (bool)value ? 1L : 0L,
                 _          => value,   // text, already the UTF-8 the C side wants
             });
@@ -90,7 +94,7 @@ public sealed partial class Interpreter
         // `voidable text`: NULL is C's universal "nothing", landing in the mechanism Cufet
         // already has rather than in a new one.
         return runner.Run(axiom.Language!, axiom.Source, axiom.Parameters, axiom.ReturnType!,
-                          arguments, cast.Line)
+                          arguments, line)
             ?? VoidValue.Instance;
     }
 

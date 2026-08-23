@@ -1943,6 +1943,16 @@ public sealed partial class TypeChecker
                 break;
             case CastStatement cs:
             {
+                // ★ An axiom called for its EFFECT — `Cast close-dir on (handle).` The expression
+                // form has always had this hook (InferCastExpr); the statement form did not, so a
+                // discarded axiom call fell through to ResolveForCast and was refused as "not a
+                // function — you can only cast functions", which is not true of axioms and told
+                // the writer to bind a result they had deliberately thrown away.
+                if (AxiomCalledBy(cs.Function) is { } statementAxiom)
+                {
+                    RunAxiomOnCastStatement(cs, statementAxiom);
+                    break;
+                }
                 if (cs.Function is VariableReference gcv && _genericFunctions.ContainsKey(gcv.Name))
                     cs.ResolvedFunctionName = InstantiateFunction(gcv.Name, cs.Args, cs.Line, cs.Column);
                 // ⚠ Never overwritten once set — see the matching note in InferCastExpr.
