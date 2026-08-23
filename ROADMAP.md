@@ -69,7 +69,6 @@ Two framings that set the order:
      all. It has to be written once in C and called by both backends; until it exists, a floating
      axiom is refused. ⚠ Genuinely hard: base-2 against a base-10 decimal, with rounding to argue
      about in both directions.
-   - **Unsigned 64-bit values**, for `size_t`, which is how most of libc reports a length.
    - **`address`, `voidable`, `the text at`, `released by`** — the pointer half, entirely designed
      and entirely unbuilt.
    - **An axiom passed around unrun**, which is what lets a SQL fragment be assembled before use.

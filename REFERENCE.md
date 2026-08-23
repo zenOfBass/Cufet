@@ -3627,7 +3627,7 @@ Three things, and each says what it needs on the declaration:
 
 | You declare | C gives back | |
 | --- | --- | --- |
-| `number` | a whole number that fits a `long long` | exact — a decimal holds every 64-bit integer |
+| `number` | any C whole number, signed or unsigned | exact — a decimal holds every 64-bit integer either way |
 | `fact` | anything with a truth value | 1 or 0 |
 | `voidable text` | a `char*` or `const char*` | **copied**; nothing becomes void |
 
@@ -3653,11 +3653,24 @@ Everything else is **refused rather than approximated**:
 | The axiom produces | What happens |
 | --- | --- |
 | `double`, `float` | refused — base-2 against a base-10 decimal |
-| `size_t`, `unsigned long long` | refused — can exceed `long long`, and casting would turn a large one negative |
 | anything else, for a `voidable text` | refused — it has to be a C string |
 
-These are refused by the C compiler, which is where the type is actually known. Cast on the C side
-if you mean it: `[(int)strlen("hello")]`.
+These are refused by the C compiler, which is where the type is actually known.
+
+**A `size_t` needs no cast.** `strlen`, `sizeof`, `fread` and the rest of libc report a length as an
+unsigned 64-bit value, and that is a whole number like any other here — the boundary carries the
+value's signedness along with its bits, so a large one arrives as the number it is rather than as a
+negative one:
+
+```
+Pull a book on the c-language.
+    Define c-language number length-of, given (the text subject), as [strlen(the subject)].
+    Define c-language number widest as [(unsigned long long)-1].
+
+    State cast length-of on ("hello").      ← 5
+    State cast widest.                      ← 18446744073709551615
+Done.
+```
 
 #### What an axiom can reach for
 

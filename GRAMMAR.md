@@ -1881,7 +1881,7 @@ lets a body see a `permanently` constant.
 
 | Declared | C gives | |
 | --- | --- | --- |
-| `number` | a whole number that fits a `long long` | exact — a decimal holds every 64-bit integer |
+| `number` | any C whole number, signed or unsigned | exact — a decimal holds every 64-bit integer either way |
 | `fact` | anything with a truth value | 1 or 0 |
 | `voidable text` | a `char*` or `const char*` | **copied**; NULL becomes void |
 
@@ -1897,12 +1897,15 @@ Everything else is refused rather than approximated:
 
 - a `double` — base-2 against a base-10 decimal, so that conversion has to be written once in C and
   called by both backends
-- an unsigned 64-bit value (`size_t`, `unsigned long long`) — it can exceed `long long`, and casting
-  would turn a large one negative
 - an axiom as a parameter, a field, an element type, or something a function hands back unrun
 
-The first two are refused by the **C compiler**, at the point where the type is actually known; the
-rest by the checker. Both name what is wrong.
+The first is refused by the **C compiler**, at the point where the type is actually known; the rest
+by the checker. Both name what is wrong.
+
+★ **`size_t` needs no cast**, and a large one is not turned negative. `strlen`, `sizeof`, `fread`
+and the rest of libc's length-reporting family report an unsigned 64-bit value, and the boundary
+carries that value's signedness along with its bits — so `[strlen(the subject)]` is written as it
+would be in C, and an `unsigned long long` of 2^64−1 arrives as 18446744073709551615.
 
 **An axiom is given a fixed set of headers and writes no `#include`.** The C standard library,
 plus POSIX on Unix and Win32/winsock on Windows. The set is **platform-guarded** — `<termios.h>`,

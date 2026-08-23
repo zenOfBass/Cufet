@@ -10,6 +10,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **Foreign source can hand back an unsigned 64-bit value** — `size_t` and `unsigned long long`,
+  which is how most of libc reports a length. `[strlen(the subject)]` and `[sizeof(long long)]` are
+  written as they would be in C, with no cast to get past the boundary.
+
+  They were refused before, because a value in [2^63, 2^64) taken through a `long long` reads back
+  negative — silently, and only for large inputs. The wrapper now hands back the bits together with
+  one bit saying how to read them, decided at C compile time by the expression's own type
+  (`CUFET_C_UNSIGNED`), so `(unsigned long long)-1` arrives as 18446744073709551615 rather than as
+  -1. Both backends reconstruct the same decimal from the same pair, and a decimal holds every
+  64-bit integer — signed or unsigned — exactly, so neither rounds.
+
+  A `double` is still refused: base-2 against a base-10 decimal is a conversion with rounding to
+  decide, not a widening.
+
 - **Foreign source — an `axiom`, and the first slice of the C FFI.** Cufet can call C, on both
   backends:
 
