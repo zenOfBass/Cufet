@@ -555,6 +555,95 @@ public class PipelineForeignTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── Floating-point results ───────────────────────────────────────────────
+
+    [Fact]
+    public void Axiom_ProducingADouble_CrossesAsAVoidableNumber()
+    {
+        // ★★ The one conversion DESIGN requires to exist ONCE: base-2 to base-10. The shared C does
+        // all of it and hands back the three numbers a decimal is made of, so neither backend
+        // converts anything and the last digit cannot disagree between them.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language voidable number root-two as [sqrt(2.0)].
+                Define c-language voidable number a-third as [1.0 / 3.0].
+                Define c-language voidable number a-half as [0.5].
+                Define c-language voidable number negative as [-2.5].
+                Define c-language voidable number a-round-one as [4.0].
+                Define c-language voidable number nothing-much as [0.0].
+                Define c-language voidable number single as [(float)0.25f].
+                State (cast root-two) but void is 0.
+                State (cast a-third) but void is 0.
+                State (cast a-half) but void is 0.
+                State (cast negative) but void is 0.
+                State (cast a-round-one) but void is 0.
+                State (cast nothing-much) but void is 0.
+                State (cast single) but void is 0.
+            Done.
+            """;
+        // 17 significant digits, which is what a double round-trips in and what %.16e produces.
+        Assert.Equal("1.4142135623730951\n0.33333333333333331\n0.5\n-2.5\n4\n0\n0.25", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_ProducingSomethingWithNoDecimal_IsVoid()
+    {
+        // ★ Not a new rule: `math`'s partial functions already answer this way, and the recorded
+        // test there is `!IsFinite` rather than `IsNaN` precisely because `log(0)` is an infinity.
+        // A magnitude outside a decimal's range joins them — refusing beats a silent 0 or a
+        // silently rounded answer, which is why 1e-300 is void rather than zero.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language voidable number not-a-number as [sqrt(-1.0)].
+                Define c-language voidable number too-big as [1.0 / 0.0].
+                Define c-language voidable number below-the-floor as [1e-300].
+                Define c-language voidable number above-the-ceiling as [1e300].
+                State (cast not-a-number) is void.
+                State (cast too-big) is void.
+                State (cast below-the-floor) is void.
+                State (cast above-the-ceiling) is void.
+            Done.
+            """;
+        Assert.Equal("true\ntrue\ntrue\ntrue", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_TheTwoNumberGuards_AreDisjoint()
+    {
+        // ⚠ Declaring the wrong one of the two is REFUSED, not converted. A `number` is exact and a
+        // `voidable number` is the lossy conversion, so which one you asked for is a real question
+        // and the C compiler answers it from the expression's own type.
+        const string whole = """
+            Pull a book on the c-language.
+                Define c-language voidable number confused as [42].
+                State (cast confused) but void is 0.
+            Done.
+            """;
+        Assert.Contains("C floating-point value", Assert.ThrowsAny<Exception>(() => CompileRaw(whole)).Message);
+
+        const string real = """
+            Pull a book on the c-language.
+                Define c-language number confused as [4.5].
+                State cast confused.
+            Done.
+            """;
+        Assert.Contains("C whole number", Assert.ThrowsAny<Exception>(() => CompileRaw(real)).Message);
+    }
+
+    [Fact]
+    public void Axiom_GuardMessages_AreAsciiOnly()
+    {
+        // ⚠ A guard message is a C string literal inside a _Static_assert, and gcc echoes it back
+        // with every non-ASCII byte escaped — an em-dash reached a reader as
+        // `\37777777742\37777777600\37777777624` mid-sentence. Cheap to pin, and the failure is
+        // invisible until someone actually makes the mistake the message is for.
+        foreach (var message in new[] { ForeignC.WholeGuardMessage, ForeignC.RealGuardMessage,
+                                        ForeignC.TextGuardMessage })
+            Assert.All(message, c => Assert.InRange(c, ' ', '~'));
+    }
+
     // ── The boundary refuses rather than truncates ───────────────────────────
 
     [Fact]

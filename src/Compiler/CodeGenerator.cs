@@ -2591,7 +2591,8 @@ static void* cufet_pipe_stage(void* argp) {
             // and the second half under another. One state for the whole file is the only version
             // of this worth reasoning about.
             sb.Insert(0, ForeignC.Headers + "\n" + ForeignC.GuardMacro + "\n"
-                       + ForeignC.WholeResultType + "\n\n");
+                       + ForeignC.WholeResultType + "\n" + ForeignC.RealResultType + "\n"
+                       + ForeignC.RealConversion + "\n\n");
 
             sb.AppendLine("// ── Foreign axioms (source this program was given, taken as written) ──");
             // ★ A whole number arriving from C, read the way its own C type says. `is_unsigned` is
@@ -5809,8 +5810,28 @@ static void* cufet_pipe_stage(void* argp) {
         {
             NumberType => $"cufet_dec_from_foreign({call})",
             FactType   => call,                       // already the 1/0 a Cufet fact is in C
+            VoidableType { Inner: NumberType } => EmitForeignReal(call),
             _          => EmitForeignText(call),      // voidable text — copied out of C's memory
         };
+    }
+
+    /// <summary>A `double` from foreign source, as the `voidable number` the declaration asked for.</summary>
+    /// <remarks>
+    /// ★ Nothing is converted here. The shared C did the whole base-2-to-base-10 conversion and
+    /// handed back the three numbers a decimal is made of, so this assembles them with the same
+    /// `cufet_dec_lit` a decimal literal uses — the interpreter assembles the identical three.
+    ///
+    /// ★ `ok` is 0 for NaN, an infinity, or a magnitude no decimal can hold, and all three become
+    /// void. That follows `math`'s partial functions rather than inventing a rule: `square-root of
+    /// (-4)` is void today, and so is `log of (0)`.
+    /// </remarks>
+    private string EmitForeignReal(string call)
+    {
+        string cvd = RegisterVoidableStruct(new VoidableType(TNumber));
+        int id = _freshId++;
+        _preEmits.Add($"{ForeignC.RealResultCType} cf_fr{id} = {call};");
+        return $"(cf_fr{id}.ok ? ({cvd}){{ .has = 1, .val = cufet_dec_lit(cf_fr{id}.hi, cf_fr{id}.lo, "
+             + $"cf_fr{id}.scale, cf_fr{id}.sign) }} : ({cvd}){{ .has = 0 }})";
     }
 
     /// <summary>A `char*` from foreign source, as a `voidable text` that owns its own bytes.</summary>

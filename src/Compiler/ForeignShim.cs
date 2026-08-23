@@ -37,8 +37,41 @@ public sealed class GccForeignRunner : IForeignRunner
     /// <summary>The fixed entry point every whole-number shim exports.</summary>
     private const string WholeEntryPoint = ForeignC.WholeEntryPoint;
 
+    /// <summary>The fixed entry point a floating-point shim exports instead.</summary>
+    private const string RealEntryPoint = ForeignC.RealEntryPoint;
+
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate ForeignWhole WholeEntry(IntPtr arguments, int count);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate ForeignReal RealEntry(IntPtr arguments, int count);
+
+    /// <summary>
+    /// A loaded shim: exactly one of these is non-null, decided by the axiom's declared result.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ TWO entry points rather than one widened struct. A shim wraps ONE axiom whose result type
+    /// is known when it is generated, so it exports the one shape that axiom needs — and keeping
+    /// them apart means neither struct carries fields the other's results leave meaningless.
+    /// </remarks>
+    private readonly record struct LoadedShim(WholeEntry? Whole, RealEntry? Real);
+
+    /// <summary>The converted decimal, matching ForeignC.RealResultType exactly.</summary>
+    /// <remarks>
+    /// ★ Nothing here converts anything. The shared C already did the whole base-2-to-base-10
+    /// conversion — the one DESIGN requires to exist once — and these are the three numbers a
+    /// decimal is made of, handed straight to the parts constructor. The compiled backend assembles
+    /// the identical three through `cufet_dec_lit`.
+    /// </remarks>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ForeignReal
+    {
+        public ulong Hi;
+        public ulong Lo;
+        public int   Scale;
+        public int   Sign;
+        public int   Ok;
+    }
 
     /// <summary>The result pair, matching ForeignC.WholeResultType exactly.</summary>
     /// <remarks>
@@ -76,7 +109,7 @@ public sealed class GccForeignRunner : IForeignRunner
 
     // Loaded shims, by the axiom they wrap. A library stays loaded for the life of the process:
     // an axiom returned in a loop must not pay for a load each time round.
-    private readonly ConcurrentDictionary<string, WholeEntry> _loaded = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, LoadedShim> _loaded = new(StringComparer.Ordinal);
 
     public GccForeignRunner(GccInvoker? gcc = null, string? cacheRoot = null)
     {
@@ -108,6 +141,36 @@ public sealed class GccForeignRunner : IForeignRunner
     /// reading the text after freeing the argument buffers is a use-after-free. It read as an
     /// empty string here and would read as anything at all elsewhere.
     /// </remarks>
+    /// <summary>Calls whichever entry this shim exports and reads what it hands back.</summary>
+    /// <remarks>
+    /// ⚠⚠ Both branches run INSIDE the marshalling scope, for the use-after-free reason below.
+    /// </remarks>
+    private static object? Read(LoadedShim entry, IntPtr arguments, int count, CufetType result) =>
+        entry.Real is { } real
+            ? ReadReal(real(arguments, count))
+            : ReadResult(entry.Whole!(arguments, count), result);
+
+    /// <summary>The converted decimal the shared C handed back, as a `voidable number`.</summary>
+    /// <remarks>
+    /// ★ `Ok` is 0 for NaN, ±infinity and any magnitude no decimal can hold; all three are void.
+    /// That is `math`'s existing answer for a computation with no representable result, not a new
+    /// rule — `square-root of (-4)` and `log of (0)` are both void today, and the recorded test
+    /// there is `!IsFinite` rather than `IsNaN` precisely because `log(0)` is an infinity.
+    ///
+    /// ⚠ The coefficient arrives as 128 bits and a decimal holds 96, but the shared C already
+    /// refused anything wider by clearing `Ok` — so `Hi` never exceeds 32 significant bits here.
+    /// </remarks>
+    private static object? ReadReal(ForeignReal real)
+    {
+        if (real.Ok == 0) return null;
+        return new decimal(
+            lo:       unchecked((int)(uint)real.Lo),
+            mid:      unchecked((int)(uint)(real.Lo >> 32)),
+            hi:       unchecked((int)(uint)real.Hi),
+            isNegative: real.Sign != 0,
+            scale:    (byte)real.Scale);
+    }
+
     private static object? ReadResult(ForeignWhole whole, CufetType result) => result switch
     {
         // ★ The C twin is cufet_dec_from_foreign in the emitted runtime, and the two branches have
@@ -132,11 +195,11 @@ public sealed class GccForeignRunner : IForeignRunner
     /// longer, which is the same promise the compiled backend makes by passing a pointer into the
     /// arena that outlives the statement.
     /// </remarks>
-    private static object? Call(WholeEntry entry,
+    private static object? Call(LoadedShim entry,
                                 IReadOnlyList<(CufetType Type, string Name)> parameters,
                                 CufetType result, IReadOnlyList<object> arguments)
     {
-        if (parameters.Count == 0) return ReadResult(entry(IntPtr.Zero, 0), result);
+        if (parameters.Count == 0) return Read(entry, IntPtr.Zero, 0, result);
 
         var slots = new ShimArgument[parameters.Count];
         var texts = new List<IntPtr>();
@@ -166,7 +229,7 @@ public sealed class GccForeignRunner : IForeignRunner
             {
                 for (int i = 0; i < slots.Length; i++)
                     Marshal.StructureToPtr(slots[i], block + i * Marshal.SizeOf<ShimArgument>(), false);
-                return ReadResult(entry(block, slots.Length), result);
+                return Read(entry, block, slots.Length, result);
             }
             finally { Marshal.FreeCoTaskMem(block); }
         }
@@ -174,13 +237,13 @@ public sealed class GccForeignRunner : IForeignRunner
     }
 
     /// <summary>This axiom's loaded entry point, building and loading it the first time.</summary>
-    private WholeEntry Entry(string language, string source,
+    private LoadedShim Entry(string language, string source,
                              IReadOnlyList<(CufetType Type, string Name)> parameters,
                              CufetType result, int line) =>
         _loaded.GetOrAdd(ForeignC.Identity(language, source, parameters, result),
                          _ => Load(language, source, parameters, result, line));
 
-    private WholeEntry Load(string language, string source,
+    private LoadedShim Load(string language, string source,
                             IReadOnlyList<(CufetType Type, string Name)> parameters,
                             CufetType result, int line)
     {
@@ -188,8 +251,13 @@ public sealed class GccForeignRunner : IForeignRunner
         try
         {
             var handle = NativeLibrary.Load(libraryPath);
-            var address = NativeLibrary.GetExport(handle, WholeEntryPoint);
-            return Marshal.GetDelegateForFunctionPointer<WholeEntry>(address);
+            if (ForeignC.IsRealResult(result))
+                return new LoadedShim(null,
+                    Marshal.GetDelegateForFunctionPointer<RealEntry>(
+                        NativeLibrary.GetExport(handle, RealEntryPoint)));
+            return new LoadedShim(
+                Marshal.GetDelegateForFunctionPointer<WholeEntry>(
+                    NativeLibrary.GetExport(handle, WholeEntryPoint)), null);
         }
         catch (Exception e)
         {
@@ -260,6 +328,8 @@ public sealed class GccForeignRunner : IForeignRunner
         sb.AppendLine(ForeignC.Headers);
         sb.AppendLine(ForeignC.GuardMacro);
         sb.AppendLine(ForeignC.WholeResultType);
+        sb.AppendLine(ForeignC.RealResultType);
+        sb.AppendLine(ForeignC.RealConversion);
         sb.AppendLine();
         sb.AppendLine("#if defined(_WIN32)");
         sb.AppendLine("#define CUFET_SHIM_EXPORT __declspec(dllexport)");
@@ -284,7 +354,10 @@ public sealed class GccForeignRunner : IForeignRunner
         // ★ A whole number is already the pair; a fact and a pointer are values with no signedness
         // question, so they travel in `bits` with the flag clear. One returned struct means one
         // managed delegate, which is what keeps this side to a single P/Invoke signature.
-        sb.AppendLine($"CUFET_SHIM_EXPORT {ForeignC.WholeResultCType} {WholeEntryPoint}"
+        bool real = ForeignC.IsRealResult(result);
+        string entryPoint = real ? RealEntryPoint : WholeEntryPoint;
+        string entryType  = real ? ForeignC.RealResultCType : ForeignC.WholeResultCType;
+        sb.AppendLine($"CUFET_SHIM_EXPORT {entryType} {entryPoint}"
                     + "(const CufetShimArg* cufet_args, int cufet_count) {");
         sb.AppendLine("    (void)cufet_args; (void)cufet_count;");
         sb.Append(ForeignC.ShimUnpack(parameters));
@@ -293,6 +366,7 @@ public sealed class GccForeignRunner : IForeignRunner
         string packed = result switch
         {
             NumberType => call,                                                    // already the pair
+            VoidableType { Inner: NumberType } => call,                            // already converted
             VoidableType => $"({ForeignC.WholeResultCType}){{ (unsigned long long)(intptr_t){call}, 0 }}",
             _ => $"({ForeignC.WholeResultCType}){{ (unsigned long long){call}, 0 }}",
         };

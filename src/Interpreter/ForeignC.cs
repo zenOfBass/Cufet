@@ -137,9 +137,10 @@ public static class ForeignC
     /// guessing. Every other unsigned type (`unsigned int` and below) fits `long long` outright, so
     /// its value converts exactly either way and it does not need the flag.
     ///
-    /// ⚠ A `double` is still refused, and for a different reason: `number` is base-10 and a
-    /// `double` is base-2, so that conversion has to be written once, in C, and called by both
-    /// backends. Until it is, truncating would be the only other option.
+    /// ⚠ A floating value is refused HERE and admitted elsewhere: it is returned as a
+    /// `voidable number`, through <see cref="RealGuardName"/> and the one shared conversion. The
+    /// two guards are disjoint on purpose, so declaring the wrong one of the two is refused rather
+    /// than quietly converted.
     /// </remarks>
     public const string GuardMacro =
 """
@@ -166,6 +167,12 @@ public static class ForeignC
    effect still runs exactly once however many of these it passes through. */
 #define CUFET_C_UNSIGNED(...) _Generic((__VA_ARGS__), \
     unsigned long: 1, unsigned long long: 1, default: 0)
+
+/* Is this C expression a floating-point value? The counterpart of CUFET_C_WHOLE, and the two are
+   deliberately DISJOINT: a whole number is returned as a `number` and a floating one as a
+   `voidable number`, so declaring the wrong one is refused here rather than quietly converted. */
+#define CUFET_C_REAL(...) _Generic((__VA_ARGS__), \
+    float: 1, double: 1, long double: 1, default: 0)
 
 /* Is this C expression a string Cufet can copy out? Only the two spellings of one: a pointer to
    char. An `unsigned char*` is bytes rather than text, and everything else is not a string at all
@@ -215,6 +222,101 @@ typedef struct { unsigned long long bits; int is_unsigned; } CufetForeignWhole;
     /// <summary>The name of the struct above, as C spells it.</summary>
     public const string WholeResultCType = "CufetForeignWhole";
 
+    /// <summary>Names the macro that admits a C floating-point expression.</summary>
+    public const string RealGuardName = "CUFET_C_REAL";
+
+    /// <summary>The refusal a C compiler prints when a `voidable number` axiom is not floating.</summary>
+    /// <remarks>
+    /// ⚠ ASCII ONLY, like its two neighbours, and that is not a style preference. A guard message
+    /// is a C string literal inside a `_Static_assert`, and gcc echoes it back byte by byte with
+    /// anything non-ASCII escaped: an em-dash here printed as `\37777777742\37777777600\37777777624`
+    /// in the middle of the sentence a reader is meant to act on.
+    /// </remarks>
+    public const string RealGuardMessage =
+        "this axiom is returned as a voidable number, so it has to produce a C floating-point value "
+      + "(a float, a double or a long double); a whole number is returned as a plain number";
+
+    /// <summary>What a floating-point axiom hands back: a decimal, taken apart.</summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ **The conversion crosses as a DECIMAL's own parts, not as a `double`.** DESIGN requires
+    /// this one conversion to be written once in C and called by both backends, because two
+    /// separately-written base-2-to-base-10 conversions differ in the last place — the same reason
+    /// the case table is shared. Handing back the `double` and converting on each side would be
+    /// exactly the two implementations it forbids: .NET's own `(decimal)someDouble` rounds to 15
+    /// significant digits, which is neither what C would do nor enough to round-trip.
+    /// </para>
+    /// <para>
+    /// ★ So the shared C does the whole conversion and returns coefficient, scale and sign — the
+    /// three numbers a decimal IS. The compiled backend feeds them to `cufet_dec_lit`, whose
+    /// signature is already exactly this shape, and the interpreter to `decimal`'s own
+    /// parts constructor. Neither converts anything; both assemble the same three numbers.
+    /// </para>
+    /// <para>
+    /// ⚠ `ok` is 0 for NaN, ±infinity, and any value outside a decimal's range — all of which
+    /// become void. That is not a new rule: `math`'s partial functions already answer this way
+    /// (`square-root of (-4)` and `log of (0)` are both void today), and the test there is
+    /// `!IsFinite` rather than `IsNaN` for the same reason.
+    /// </para>
+    /// </remarks>
+    public const string RealResultType =
+"""
+/* A double, already converted to the three numbers a Cufet decimal is made of:
+   value = (sign ? -1 : 1) * ((hi << 64) | lo) * 10^-scale, and `ok` is 0 when there is no such
+   decimal (NaN, an infinity, or a magnitude no decimal can hold). */
+typedef struct { unsigned long long hi, lo; int scale; int sign; int ok; } CufetForeignReal;
+""";
+
+    /// <summary>The name of the struct above, as C spells it.</summary>
+    public const string RealResultCType = "CufetForeignReal";
+
+    /// <summary>The one base-2-to-base-10 conversion, written once and compiled by both backends.</summary>
+    /// <remarks>
+    /// ★ Digits come from `snprintf("%.16e")` — 17 significant digits, which is exactly what a
+    /// `double` needs to round-trip and what C's own guarantee is stated in. `%e` is used rather
+    /// than `%g` because it never switches notation, so the parse below has one shape to read.
+    /// </remarks>
+    public const string RealConversion =
+"""
+/* The ONE double-to-decimal conversion. Both backends compile this function and neither writes
+   another, so the last digit cannot disagree between them. */
+static CufetForeignReal cufet_real_from_double(double cufet_v) {
+    CufetForeignReal r; r.hi = 0; r.lo = 0; r.scale = 0; r.sign = 0; r.ok = 0;
+    if (!isfinite(cufet_v)) return r;              /* NaN and ±infinity have no decimal — void */
+    char b[64];
+    snprintf(b, sizeof b, "%.16e", cufet_v);       /* -d.dddddddddddddddde±ddd — 17 significant */
+    int i = 0;
+    if (b[i] == '-') { r.sign = 1; i++; }
+    unsigned __int128 coef = 0;
+    int digits = 0;
+    for (; b[i] && b[i] != 'e' && b[i] != 'E'; i++) {
+        if (b[i] == '.') continue;
+        coef = coef * 10 + (unsigned)(b[i] - '0');
+        digits++;
+    }
+    int expo = (b[i] == 'e' || b[i] == 'E') ? atoi(b + i + 1) : 0;
+    /* %.16e places the point after the first digit, so the value is coef * 10^(expo-(digits-1)). */
+    int scale = (digits - 1) - expo;
+    /* Trailing zeros are noise from the fixed 17 digits: 0.5 arrives as 5000000000000000e-16.
+       Dropping them keeps the decimal the shortest one with this value, and buys headroom below. */
+    while (scale > 0 && coef != 0 && coef % 10 == 0) { coef /= 10; scale--; }
+    if (coef == 0) { r.ok = 1; r.sign = 0; return r; }   /* zero is zero, and never negative */
+    /* A negative scale means the value is bigger than its digits: fold the exponent in, refusing
+       rather than rounding if that will not fit the 96 bits a decimal's coefficient has. */
+    while (scale < 0) {
+        if (coef > ((((unsigned __int128)1 << 96) - 1) / 10)) return r;
+        coef *= 10; scale++;
+    }
+    if (scale > 28) return r;                      /* below what a decimal can express — void */
+    if ((coef >> 96) != 0) return r;               /* wider than a decimal's coefficient — void */
+    r.lo = (unsigned long long)coef;
+    r.hi = (unsigned long long)(coef >> 64);
+    r.scale = scale;
+    r.ok = 1;
+    return r;
+}
+""";
+
     /// <summary>The axiom's value, as the bits-plus-signedness pair both backends then convert.</summary>
     public static string WholeExpression(string source) =>
         $"({WholeResultCType}){{ (unsigned long long)({source}), {UnsignedGuardName}({source}) }}";
@@ -229,7 +331,8 @@ typedef struct { unsigned long long bits; int is_unsigned; } CufetForeignWhole;
     /// plain `text` result is refused, because it would be a promise the C side cannot keep.
     /// </remarks>
     public static bool CanCrossBack(CufetType result) =>
-        result is NumberType or FactType || result is VoidableType { Inner: TextType };
+        result is NumberType or FactType
+     || result is VoidableType { Inner: TextType or NumberType };
 
     /// <summary>The C type a wrapped axiom hands back — the RAW one, before either backend converts.</summary>
     /// <remarks>
@@ -243,6 +346,7 @@ typedef struct { unsigned long long bits; int is_unsigned; } CufetForeignWhole;
         NumberType                          => WholeResultCType,
         FactType                            => "int",
         VoidableType { Inner: TextType }    => "const char*",
+        VoidableType { Inner: NumberType }  => RealResultCType,
         _ => throw new TypeException(
                  $"That doesn't work: foreign source cannot give back a {TypeChecker.FormatType(result)}."),
     };
@@ -258,6 +362,8 @@ typedef struct { unsigned long long bits; int is_unsigned; } CufetForeignWhole;
         NumberType => GuardStatement(spliced),
         VoidableType { Inner: TextType } =>
             $"    _Static_assert({TextGuardName}({spliced}), \"{TextGuardMessage}\");",
+        VoidableType { Inner: NumberType } =>
+            $"    _Static_assert({RealGuardName}({spliced}), \"{RealGuardMessage}\");",
         _ => "",
     };
 
@@ -266,6 +372,7 @@ typedef struct { unsigned long long bits; int is_unsigned; } CufetForeignWhole;
     {
         NumberType => WholeExpression(spliced),
         FactType   => $"({spliced}) ? 1 : 0",
+        VoidableType { Inner: NumberType } => $"cufet_real_from_double((double)({spliced}))",
         _          => $"({spliced})",
     };
 
@@ -316,10 +423,17 @@ typedef struct { unsigned long long bits; int is_unsigned; } CufetForeignWhole;
     /// <summary>The fixed entry point a whole-number shim exports, and the name gcc reports in it.</summary>
     public const string WholeEntryPoint = "cufet_shim_whole";
 
+    /// <summary>The fixed entry point a floating-point shim exports instead.</summary>
+    public const string RealEntryPoint = "cufet_shim_real";
+
+    /// <summary>Does this axiom come back through the floating-point conversion?</summary>
+    public static bool IsRealResult(CufetType result) => result is VoidableType { Inner: NumberType };
+
     /// <summary>Does this compiler complaint point at foreign source rather than generated code?</summary>
     public static bool BlamesForeignSource(string compilerOutput) =>
         compilerOutput.Contains(FunctionPrefix, StringComparison.Ordinal)
-     || compilerOutput.Contains(WholeEntryPoint, StringComparison.Ordinal);
+     || compilerOutput.Contains(WholeEntryPoint, StringComparison.Ordinal)
+     || compilerOutput.Contains(RealEntryPoint, StringComparison.Ordinal);
 
     /// <summary>Everything that makes one axiom distinct from another.</summary>
     /// <remarks>
