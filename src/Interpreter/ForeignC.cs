@@ -10,10 +10,12 @@ namespace Cufet.Interpreter;
 /// than unlikely, which is the same reasoning the shared case table records.
 /// </para>
 /// <para>
-/// ⚠ Both backends take the value through `(long long)` after the SAME guard, so what each one
-/// converts to a decimal is the identical integer. The decimal construction that follows differs in
-/// spelling (C builds a CufetDec, C# builds a System.Decimal) and cannot differ in result: a
-/// decimal holds every 64-bit integer exactly, so neither side rounds.
+/// ⚠ Both backends take the value through the SAME guard and receive the SAME
+/// <see cref="WholeResultCType"/> pair — the bits, and whether to read them as unsigned — so what
+/// each one converts to a decimal is the identical integer. The decimal construction that follows
+/// differs in spelling (C builds a CufetDec, C# builds a System.Decimal) and cannot differ in
+/// result: a decimal holds every 64-bit integer, signed or unsigned, exactly, so neither side
+/// rounds.
 /// </para>
 /// </remarks>
 public static class ForeignC
@@ -127,21 +129,23 @@ public static class ForeignC
     /// The writer does not name a C return type anywhere — C types live in C — and the compiler
     /// already knows the one thing that matters, which is what the expression's type actually is.
     ///
-    /// ⚠ `unsigned long` and `unsigned long long` are deliberately ABSENT. They are the two types
-    /// that can hold a value `long long` cannot, so passing one through the cast below could turn a
-    /// large `size_t` into a negative number — silently, which is the failure this project keeps
-    /// refusing. They are refused at C compile time instead, and the conversion that admits them is
-    /// a later slice's work rather than a rounding of this one.
+    /// ⚠ `unsigned long` and `unsigned long long` are IN, and they are the only two that need a
+    /// second question asked about them: they are the types that can hold a value `long long`
+    /// cannot, so a large `size_t` taken through a plain `(long long)` would read back negative —
+    /// silently, which is the failure this project keeps refusing. `CUFET_C_UNSIGNED` is what makes
+    /// admitting them safe: the boundary carries the bits AND how to read them, rather than
+    /// guessing. Every other unsigned type (`unsigned int` and below) fits `long long` outright, so
+    /// its value converts exactly either way and it does not need the flag.
     ///
-    /// ⚠ A `double` is refused here too, and for a different reason: `number` is base-10 and a
+    /// ⚠ A `double` is still refused, and for a different reason: `number` is base-10 and a
     /// `double` is base-2, so that conversion has to be written once, in C, and called by both
     /// backends. Until it is, truncating would be the only other option.
     /// </remarks>
     public const string GuardMacro =
 """
 /* Is this C expression a whole number that fits a Cufet `number` exactly?
-   Deliberately excludes unsigned long / unsigned long long (they can exceed long long) and every
-   floating type (base-2 against a base-10 decimal). Both are refused rather than truncated.
+   Every C integer type qualifies — a decimal holds all 64 bits of the widest of them exactly.
+   Floating types are excluded (base-2 against a base-10 decimal) and refused rather than truncated.
 
    ⚠ VARIADIC, and that is not decoration. Foreign text can contain a top-level comma — the comma
    operator, `[open(the p, 0), 1]` — and a one-parameter macro splits on it before expanding, so
@@ -150,7 +154,18 @@ public static class ForeignC
 #define CUFET_C_WHOLE(...) _Generic((__VA_ARGS__), \
     _Bool: 1, char: 1, signed char: 1, unsigned char: 1, \
     short: 1, unsigned short: 1, int: 1, unsigned int: 1, \
-    long: 1, long long: 1, default: 0)
+    long: 1, long long: 1, unsigned long: 1, unsigned long long: 1, default: 0)
+
+/* Must these 64 bits be read as UNSIGNED? Only the two types that can exceed long long — every
+   narrower unsigned type has a value long long holds outright, so its bits read back the same
+   either way and flagging it would change nothing. `size_t` is `unsigned long` on Linux and
+   `unsigned long long` on Windows, which is why both are here rather than one.
+
+   ★ Like the guard, this never EVALUATES the expression: a generic selection leaves its
+   controlling expression and every unselected association unevaluated, so an axiom with a side
+   effect still runs exactly once however many of these it passes through. */
+#define CUFET_C_UNSIGNED(...) _Generic((__VA_ARGS__), \
+    unsigned long: 1, unsigned long long: 1, default: 0)
 
 /* Is this C expression a string Cufet can copy out? Only the two spellings of one: a pointer to
    char. An `unsigned char*` is bytes rather than text, and everything else is not a string at all
@@ -158,17 +173,51 @@ public static class ForeignC
 #define CUFET_C_TEXT(...) _Generic((__VA_ARGS__), char*: 1, const char*: 1, default: 0)
 """;
 
+    /// <summary>Names the macro that says whether a whole number's bits are unsigned.</summary>
+    public const string UnsignedGuardName = "CUFET_C_UNSIGNED";
+
     /// <summary>The refusal a C compiler prints when an axiom produces something that cannot cross.</summary>
     public const string WholeGuardMessage =
-        "this axiom is returned as a number, so it has to produce a C whole number that fits in a "
-      + "long long (not a float, a double, or an unsigned 64-bit value)";
+        "this axiom is returned as a number, so it has to produce a C whole number "
+      + "(not a float or a double)";
 
     /// <summary>The guard, as a statement to put at the top of a wrapped axiom's body.</summary>
     public static string GuardStatement(string source) =>
         $"    _Static_assert({WholeGuardName}({source}), \"{WholeGuardMessage}\");";
 
-    /// <summary>The axiom's value, taken as the whole number both backends then convert.</summary>
-    public static string WholeExpression(string source) => $"(long long)({source})";
+    /// <summary>The C type a whole-number axiom hands back: the bits, and how to read them.</summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ **A flag rather than a wider channel, because 64 bits is what a `long long` return has.**
+    /// Admitting `size_t` means admitting values in [2^63, 2^64), which no signed 64-bit return can
+    /// carry — and the alternatives were worse. Returning `__int128` puts the answer's ABI in
+    /// question on a boundary the interpreter crosses through a delegate; refusing large values at
+    /// run time would put a limit in the language for the convenience of the plumbing. Handing back
+    /// the bits alongside the one bit that says how to read them keeps every `unsigned long long`
+    /// exact, and both backends already build a decimal wide enough to hold it (the coefficient is
+    /// a 128-bit integer in C and `System.Decimal` reaches ~7.9e28).
+    /// </para>
+    /// <para>
+    /// ⚠ Both `bits` and `is_unsigned` are filled from the SAME spliced text, and that is safe for
+    /// exactly one reason: `_Generic` does not evaluate its controlling expression, so the axiom
+    /// runs once no matter how many times its text is written into the wrapper. The guard has
+    /// always relied on this; the flag is the second user of it.
+    /// </para>
+    /// </remarks>
+    public const string WholeResultType =
+"""
+/* What a whole-number axiom hands back. `bits` is the value converted to unsigned 64-bit, which is
+   well-defined for every C integer type including negative ones; `is_unsigned` says which way to
+   read it back. Both backends reconstruct the same decimal from the pair. */
+typedef struct { unsigned long long bits; int is_unsigned; } CufetForeignWhole;
+""";
+
+    /// <summary>The name of the struct above, as C spells it.</summary>
+    public const string WholeResultCType = "CufetForeignWhole";
+
+    /// <summary>The axiom's value, as the bits-plus-signedness pair both backends then convert.</summary>
+    public static string WholeExpression(string source) =>
+        $"({WholeResultCType}){{ (unsigned long long)({source}), {UnsignedGuardName}({source}) }}";
 
     // ── What an axiom can give back ─────────────────────────────────────────
 
@@ -191,7 +240,7 @@ public static class ForeignC
     /// </remarks>
     public static string ResultCType(CufetType result) => result switch
     {
-        NumberType                          => "long long",
+        NumberType                          => WholeResultCType,
         FactType                            => "int",
         VoidableType { Inner: TextType }    => "const char*",
         _ => throw new TypeException(

@@ -38,7 +38,9 @@ public class PipelineForeignTests : PipelineTestBase
     public void Axiom_ReachesLibc()
     {
         // The point is that this is a real call into C, not arithmetic the wrapper could have done.
-        // Cast to int deliberately: strlen gives size_t, which the boundary refuses (see below).
+        // The `(int)` was once required — strlen gives size_t and the boundary refused it — and is
+        // kept here deliberately, because casting on the C side must go on working now that it is
+        // no longer needed. The uncast form is Axiom_ProducingAnUnsignedSixtyFourBitValue_*.
         const string src = """
             Pull a book on the c-language.
                 Define c-language number greeting-length as [(int)strlen("hello, world")].
@@ -575,20 +577,107 @@ public class PipelineForeignTests : PipelineTestBase
         Assert.Contains("C whole number", interpreted.Message);
     }
 
+    // ── Unsigned 64-bit values ───────────────────────────────────────────────
+
     [Fact]
-    public void Axiom_ProducingAnUnsignedSixtyFourBitValue_IsRefused()
+    public void Axiom_ProducingAnUnsignedSixtyFourBitValue_CrossesWithoutACast()
     {
-        // ⚠ size_t is the realistic way to meet this, and it is refused rather than cast: a large
-        // value would come back NEGATIVE through `long long`, silently.
+        // ★ `size_t` is how most of libc reports a length, so this is the shape the boundary meets
+        // most often. It used to be REFUSED, and the example in examples/systems/foreign.cufe had
+        // to write `(int)strlen(...)` to get past the guard.
         const string src = """
             Pull a book on the c-language.
-                Define c-language number greeting-length as [strlen("hello")].
-                Bind number to how-long, greeting-length.
-                State cast how-long.
+                Define c-language number greeting-length as [strlen("hello, world")].
+                Define c-language number size-of-a-long as [sizeof(long long)].
+                State cast greeting-length.
+                State cast size-of-a-long.
             Done.
             """;
-        var compiled = Assert.ThrowsAny<Exception>(() => CompileRaw(src));
-        Assert.Contains("C whole number", compiled.Message);
+        Assert.Equal("12\n8", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_ProducingAnUnsignedValueAboveSignedRange_IsNotNegative()
+    {
+        // ★★ THE reason the boundary carries a signedness flag rather than one more cast. Every
+        // value here is above `long long`'s ceiling, so a plain `(long long)` would have read each
+        // one back as a negative number — silently, and only for large inputs, which is the worst
+        // shape a wrong answer can have. Both backends reconstruct the same decimal.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number widest as [(unsigned long long)-1].
+                Define c-language number just-over as [9223372036854775808ULL].
+                Define c-language number and-one-more as [(unsigned long long)9223372036854775809ULL].
+                State cast widest.
+                State cast just-over.
+                State cast and-one-more.
+            Done.
+            """;
+        Assert.Equal("18446744073709551615\n9223372036854775808\n9223372036854775809", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_SignedResults_StillReadBackAsThemselves()
+    {
+        // The other half of the same change: admitting unsigned must not have disturbed how a
+        // signed value crosses. A negative arrives as its two's-complement bits and is read back
+        // through the flag being CLEAR, so this is the branch that would break if the flag were
+        // ever set wrongly.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number below-zero as [-5].
+                Define c-language number biggest-signed as [(long long)9223372036854775807LL].
+                Define c-language number smallest-signed as [(long long)(-9223372036854775807LL - 1)].
+                Define c-language number narrow-unsigned as [(unsigned int)4294967295U].
+                Define c-language number flagged-but-small as [(unsigned long)4294967295UL].
+                Define c-language number a-byte as [(unsigned char)200].
+                Define c-language number a-truth as [(_Bool)1].
+                State cast below-zero.
+                State cast biggest-signed.
+                State cast smallest-signed.
+                State cast narrow-unsigned.
+                State cast flagged-but-small.
+                State cast a-byte.
+                State cast a-truth.
+            Done.
+            """;
+        // ★ `flagged-but-small` is the third branch and the easiest one to get wrong: `unsigned
+        // long` IS flagged unsigned, and it is only 32 bits on Windows — so the value has to come
+        // back the same whichever width the platform gives it.
+        Assert.Equal("-5\n9223372036854775807\n-9223372036854775808\n4294967295\n4294967295\n200\n1",
+                     Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_WithASideEffect_RunsExactlyOnce()
+    {
+        // ⚠ The foreign text is written into the wrapper THREE times now — the guard, the value,
+        // and the signedness flag — and only one of those may evaluate it. `_Generic` leaves its
+        // controlling expression and every unselected association unevaluated, which is what makes
+        // that safe; this test is what would notice if a future arm stopped being a `_Generic`.
+        //
+        // The counter is C's own: each call returns the value AFTER incrementing, so a body
+        // evaluated twice per call would count up in twos.
+        //
+        // ⚠⚠ ONE run per backend, and NOT the usual oracle pair. This axiom keeps state in C, and
+        // foreign state is PER-PROCESS: a compiled program is its own process and starts at zero,
+        // but the interpreter calls C inside the test host and its shim stays loaded, so a second
+        // interpreted run of this same source would count 4, 5, 6. Comparing the two backends here
+        // would be comparing a fresh process against a warm one. Do not "fix" this by adding an
+        // AssertEqual(InterpretRaw, CompileRaw) beneath it.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number tick as [({ static int n = 0; ++n; })].
+                State cast tick.
+                State cast tick.
+                State cast tick.
+            Done.
+            """;
+        Assert.Equal("1\n2\n3", Interpret(src));
+        Assert.Equal("1\n2\n3", Compile(src));
     }
 
     [Fact]
