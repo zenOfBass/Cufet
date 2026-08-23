@@ -199,6 +199,40 @@ public abstract class PipelineTestBase
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Runs a program that ends in an UNHANDLED fault, and hands back what it printed on the way
+    /// out. Pair it with the ordinary <see cref="CompileRaw"/> for the compiled half.
+    /// </summary>
+    /// <remarks>
+    /// ★ <see cref="InterpretRaw"/> cannot express this case at all: the fault leaves Execute as a
+    /// RuntimeException, so the StringWriter never reaches the caller and everything printed BEFORE
+    /// the fault is lost with it — including any unmaker that fired during the unwind, which is the
+    /// only thing worth looking at here. The compiled side has no such gap (a Cufet fault exits 1
+    /// with its message on stderr, which RunBinary discards, and stdout comes back whole), so
+    /// without this the oracle simply has no way to compare what a DYING program still cleans up.
+    ///
+    /// ⚠ Not for error-message tests — those still go through a `Try` + `State`, because the
+    /// message itself never reaches stdout on the compiled side. This compares cleanup, not text.
+    /// </remarks>
+    protected static string InterpretThroughFaultRaw(string source, string? stdin = null)
+    {
+        var tokens  = new CufetLexer(source).Tokenize();
+        var program = new Parser(tokens).Parse();
+        program = new TypeChecker().Check(program);
+        var sb = new StringWriter();
+        var reader = stdin != null ? new StringReader(stdin) : null;
+        try
+        {
+            new CufetInterpreter(sb, reader) { ForeignRunner = new GccForeignRunner() }.Execute(program);
+        }
+        catch (RuntimeException) { /* expected — the program is supposed to die; keep what it printed */ }
+        return sb.ToString();
+    }
+
+    /// <summary>Oracle assertion for a program that ends in an unhandled fault.</summary>
+    protected static void AssertFaultOracle(string source) =>
+        Assert.Equal(InterpretThroughFaultRaw(source), CompileRaw(source));
+
     // ── Slice 9A: file I/O (whole-file read/write + path checks; OS-error → Cufet failure) ──
 
     // A path in the system temp dir — NOT a Controlled-Folder-Access-protected location like

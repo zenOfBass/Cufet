@@ -726,6 +726,14 @@ static void cufet_raise(const char* msg) {
         cufet_run_unmakers_to(cufet_exc_um[cufet_exc_top]);
         longjmp(cufet_exc_bufs[cufet_exc_top], 1);
     }
+    /* ★ NO HANDLER: the program is ending, but this thread's pending unmakers still run first —
+       the same unwind the interpreter performs as the exception propagates out through each open
+       block. Skipping them was a real divergence: an object made inside a block that then faulted
+       was never unmade, which is invisible until the destructor DOES something (prints, unlinks a
+       temp file, releases a lock). The registry is _Thread_local, so a dying worker runs only its
+       own; `to(0)` is this thread's whole pending set, which is what unwinding to the top means.
+       Free when unused — cufet_num stays 0. Files need no equivalent: exit() flushes them. */
+    cufet_run_unmakers_to(0);
     fprintf(stderr, "%s\n", msg);
     exit(1);
 }
@@ -4368,8 +4376,10 @@ static void* cufet_pipe_stage(void* argp) {
     // ── UNMK frame setup ───────────────────────────────────────────────────────
     // A FRAME (function / method / getter / setter / overload / closure / task / unmaker body) is
     // NOT a block scope — its own Defines don't fire (the interpreter's SaveScopes/RestoreScopes
-    // bypasses RunScopeUnmakers). So reset `_scopeDepth` to 0 (nested blocks bump it) and capture the
-    // registry depth at entry into `_frameUnmakerBase` so a `return` runs the still-open block
+    // bypasses RunScopeUnmakers). ⚠ A TASK is the one exception and the caller adds the block back:
+    // RunTaskBody uses EnterScope/ExitScope, not SaveScopes, so a task body's own Defines DO fire.
+    // So reset `_scopeDepth` to 0 (nested blocks bump it) and capture the registry depth at entry
+    // into `_frameUnmakerBase` so a `return` runs the still-open block
     // unmakers to it (a return unwinds through the frame's blocks, firing each — d17/d19).
     private string UnmakerCName(string typeName) => "cu_" + typeName.Replace('-', '_');
 
@@ -7202,7 +7212,16 @@ static void* cufet_pipe_stage(void* argp) {
             bodyIndent = "        ";
         }
         var savedTF = EnterFrame(_taskFns, bodyIndent);
-        EmitBlock(_taskFns, lts.Body, bodyIndent);
+        // ★ A task body IS a block scope, unlike every other frame — which is why this is
+        // EmitScopedBlock and a function body is not. The interpreter's RunTaskBody wraps it in
+        // EnterScope/ExitScope, NOT the SaveScopes/RestoreScopes a call gets, so an object Defined
+        // at the task body's own top level is unmade at its `Done.`. Emitting it as a plain frame
+        // meant `_scopeDepth` stayed 0 there and the Define never REGISTERED an unmaker at all —
+        // so no exit path could run it, and the epilogue's run-to-0 had nothing to find. Measured
+        // both ways: a task that faults and a task that completes normally each printed `closed`
+        // interpreted and nothing compiled. It stays a frame for everything else (rabbit depth,
+        // arena base, escape arithmetic); only the block scope is added back.
+        EmitScopedBlock(_taskFns, lts.Body, bodyIndent);
         ExitFrame(savedTF);
         _currentReturnType = savedRet;
         _excOpen = savedExcOpen;
