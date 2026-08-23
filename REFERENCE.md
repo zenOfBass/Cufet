@@ -2202,6 +2202,11 @@ Rules:
   data loss — the destructor swallows all outcomes.
 - **LIFO order** — when multiple objects in the same scope have destructors, they
   fire in reverse definition order (last-defined, first-destroyed).
+- **Every way out of the block fires them** — reaching its `Done.`, a `Stop.`, a
+  `return`, an exception caught further out, and an exception that is never caught and
+  ends the program. A dying program still unmakes what the blocks it is leaving hold.
+- **A task body is a block** — an object defined at the top of `Have <rabbit> start a
+  task:` is unmade at that task's `Done.`, whether the task finishes or faults.
 - **`one` is the object being destroyed** — its fields and methods are accessible
   via `one's <field>` and `Cast <method> on one`.
 - **Ownership rule** — destroy what you opened, not what you borrowed. A resource

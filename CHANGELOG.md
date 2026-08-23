@@ -327,6 +327,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A compiled program skipped its destructors when an exception went uncaught**, where the
+  interpreter ran them. `cufet_raise` with no handler installed printed its message and called
+  `exit(1)` without unwinding, so an object made inside a block that then faulted was never unmade
+  — invisible until the destructor does something, which is exactly when it matters. The path where
+  a handler *does* exist had always run the pending unmakers first; the no-handler path now does
+  too, for the faulting thread's whole pending set.
+
+- **A task's own objects were never unmade in a compiled program**, and not only when the task
+  died — one that ran to completion skipped them just as thoroughly. A task body was emitted as a
+  function frame, and a frame's own `Define`s do not register a destructor at all, so no exit path
+  had anything to run. The interpreter treats a task body as the block it is written as, and the
+  compiler now does the same. A function body is unchanged: its own top-level `Define`s still do
+  not fire, on either backend.
+
 - **Catching an exception crashed 4% of the time on Windows.** Not a rare edge — a compiled program
   that raises and catches once died with an access violation in roughly one run in twenty-five, on
   every Windows build. Measured at **121 crashes in 3000 serial runs** of a single binary.

@@ -96,39 +96,7 @@ Two framings that set the order:
    therefore needs a C toolchain the first time a given set of axioms is seen; wasm cannot do it at
    all.
 
-2. **★ A dying task's destructors — a LIVE DIVERGENCE, measured 2026-08-22.** A task that raises
-   with no local `Try` ends the whole program on both backends, and that part agrees. What does not
-   agree is the cleanup on the way out:
-
-   ```
-   Bind unmaking a conn to disconnect:
-       State "closed {one's name}".
-   Done.
-
-   Pull a rabbit as hopper.
-       Have hopper start a task:
-           Define c as a new conn { the name "in-task" }.
-           State 1 / zero.          ← Division by zero
-       Done.
-   Done.
-   ```
-
-   **Interpreted prints `closed in-task`. Compiled does not.** One of them is wrong, and by the
-   rule at the top of this file it is never written down as a caveat.
-
-   ★ The interpreter looks right and the compiler looks like the defect: `cufet_raise` with no
-   handler installed calls `exit(1)` straight from the worker thread, without unwinding. Every
-   other nonlocal exit in the compiled backend runs the pending unmakers first — that is what
-   `UnwindTo` and `cufet_run_unmakers_to` exist for, and `cufet_raise` already calls the latter on
-   the path where a handler DOES exist. The no-handler path simply skips it.
-
-   ⚠ It is undocumented besides: nothing in GRAMMAR or REFERENCE says what an unhandled exception
-   in a task should do. So fixing the divergence also means deciding and writing down whether the
-   program dying is the right outcome at all, or whether the failure should reach the rabbit that
-   owns the task. ★ That second question is the small end of **rabbits as actors** (below) — but
-   the divergence is worth closing on its own, before and regardless.
-
-3. **Module needs, transitively.** ★ Much smaller than it was. A body now resolves what it can see
+2. **Module needs, transitively.** ★ Much smaller than it was. A body now resolves what it can see
    where it is WRITTEN plus any MODULE its caller pulled, so an unresolved *ordinary* name is a
    static error and only module names still defer. Two holes are left, both over that small set:
 
@@ -191,10 +159,10 @@ either.
    backend held bit-identical to the other two, a third `CufetDec` (BEAM has bignums and IEEE
    floats and no decimal), and a second FFI story for a boundary that is C-shaped by design.
 
-   **★ One piece stands on its own and is already being fixed elsewhere: failure is not isolated.**
-   A task that raises with no local `Try` tears down the whole program, and the two backends do not
-   even clean up the same way on the way out — see item 2 above, which is the divergence and is
-   ordered ahead of this. "Let it crash" wants the inverse of the whole behaviour: the child's
+   **★ One piece stands on its own: failure is not isolated.** A task that raises with no local
+   `Try` tears down the whole program. (The two backends at least clean up identically on the way
+   out now — the destructor divergence there was a separate defect, and it is closed.) "Let it
+   crash" wants the inverse of the whole behaviour: the child's
    region dies, the parent is told, the program continues. The mechanism is already there — a
    rabbit's region dying IS "that actor's state is gone" — it is simply not wired to failure.
 
