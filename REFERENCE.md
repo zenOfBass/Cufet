@@ -3619,7 +3619,18 @@ it.
 ⚠ A parameter the source never mentions is refused — only names you declared are substituted, so
 a misspelling would otherwise reach the C compiler as a stray `the`.
 
-⚠ A reserved word cannot be a parameter name. `path` is one, so write `file-path`.
+⚠ A reserved word cannot be a parameter name. `path` and `where` are two, so write `file-path` and
+`folder`.
+
+**Call one as a statement when you only want the effect**, and the answer is discarded:
+
+```
+Cast close-dir on (handle).
+```
+
+Everything is checked the same way — the language must be pulled, the arguments must fit, and the
+declaration must still say what it gives back, because the C wrapper is built from that whether or
+not anyone reads the answer.
 
 #### What crosses the boundary
 

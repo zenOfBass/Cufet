@@ -1865,7 +1865,8 @@ complaint about a stray `the`.
 candidate marker shared this, so it separated none of them, but it is real.
 
 ⚠ **A reserved word cannot be a parameter name.** `path` is reserved (`the path <p> exists`), so
-`given (the text path)` does not parse — `file-path` does.
+`given (the text path)` does not parse — `file-path` does. `where` is another, and both are words a
+C binding reaches for naturally; check the reserved list when a parameter name will not parse.
 
 **An axiom binding is permanent whether or not it says so.** The text is fixed at the declaration
 and there is no other value it could take — so a function body sees it, by the same carve-out that
@@ -1875,7 +1876,12 @@ lets a body see a `permanently` constant.
 | --- | --- |
 | `Define c-language x as [ … ].` | declare an axiom (`Define a c-language axiom x as [ … ].` is the same) |
 | `Bind number to f, x.` | run it, and give back the whole number it produced |
+| `Cast x on (a, b).` | run it as a STATEMENT, for its effect — the answer is discarded |
 | `Pull a book on the c-language.` | admit C axioms in this block |
+
+★ **A call in statement position discards the answer and checks the same.** The language must be
+pulled, the arguments must fit, and the declaration must still say what it gives back — the C
+wrapper's return type is built from that whether anyone reads it or not.
 
 **What crosses BACK from foreign source:**
 

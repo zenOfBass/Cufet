@@ -10,6 +10,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **An axiom can be called as a statement**, for its effect: `Cast close-dir on (handle).` The
+  answer is discarded, which is what a statement means.
+
+  It used to be refused, and by a message that was not true — *"'close-dir' holds a c-language
+  number axiom, not a function — you can only cast functions... Only functions can be cast"* — when
+  every axiom call is written as a cast. The expression form had the hook and the statement form
+  did not, so the writer was told to bind a result they had deliberately thrown away. Every check
+  the expression form makes still applies: the language must be pulled, the arguments must fit, and
+  the axiom is still built before the program runs.
+
 - **Foreign source can hand back a `double`**, declared as a `voidable number` — `[sqrt(2.0)]` is
   `1.4142135623730951`. This is the boundary's one lossy conversion, and the only one that could
   have differed between the two backends: `number` is base-10 and a `double` is base-2.
