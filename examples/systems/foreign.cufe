@@ -30,7 +30,7 @@ Pull a book on the c-language.
     //
     // Only VALUES cross, never text. The C side is handed a marshalled `const char*`; the axiom
     // itself is fixed at this line and cannot be assembled from strings.
-    Define c-language number text-length, given (the text subject), as [(int)strlen(the subject)].
+    Define c-language number text-length, given (the text subject), as [strlen(the subject)].
     Define c-language number compare, given (the text left, the text right),
         as [strcmp(the left, the right)].
 
