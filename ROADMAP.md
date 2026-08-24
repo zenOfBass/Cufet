@@ -333,6 +333,30 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary · design patterns as a book · an in-memory filesystem for the playground
 
+**`In case of exception:` without the binding, and a NAME for it when you want one.** Two changes
+to one clause, and the second is what makes the first worth doing:
+
+```
+In case of exception:                     ← binds `exception` implicitly
+In case of exception (the trouble):       ← binds `trouble`
+```
+
+Today the clause is **mandatory and cannot vary** — `In case of exception (the trouble):` is
+refused with "expected Exception, got Identifier", so `(the exception)` is a required phrase that
+says one thing at every occurrence. Meanwhile `In case of failure:` takes no binding at all and its
+value is reached as `the message of the failure`. So the two arms of one `Try` disagree, and the
+one that demands more says less.
+
+★ **The pair already exists elsewhere**: `For each x in xs, repeat:` names the iterand, bare `it` is
+the implicit one. Making the parens form a RENAME rather than a synonym is what keeps this from
+being two spellings of the same thing — and nesting is what earns it, exactly as it does for `it`.
+The `NestedBareItLoops` linter rule exists because bare `it` in nested loops is ambiguous to a
+reader; nested `Try` blocks have the same problem and would want the same rule.
+
+⚠ The explicit slot must keep accepting the literal word `exception`, which lexes as a keyword
+rather than an identifier — every existing program and doc writes `(the exception)`, so the slot is
+"an identifier, or that keyword". Non-breaking either way; the bare form becomes what people write.
+
 **Mixed-type operator dispatch, and with it `matrix * number` scalar scaling.** Overloading
 resolves by exact nominal match today, so an operator whose two sides are different types has
 nowhere to land — which is the whole reason scaling a matrix by a number is unbuilt. Blanks made
