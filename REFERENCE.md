@@ -3704,9 +3704,12 @@ not the value but what you do with it. There is **no address-of operator**: an a
 comes *from* C and goes *back* to C, so Cufet never makes one, and there is no layout question to
 answer because a struct is C's idea and struct work happens in C.
 
-⚠ **An address may only be held inside a rabbit.** That block already means region-scoped memory
-work, so it is also where a pointer's lifetime is answerable for — the arena that knows when the
-region dies is what knows when the pointer dies. Holding one outside a rabbit is a static error.
+⚠ **An address may only be held inside a rabbit, and cannot outlive one.** That block already means
+region-scoped memory work, so it is also where a pointer's lifetime is answerable for — the arena
+that knows when the region dies is what knows when the pointer dies. Holding one outside a rabbit
+is a static error, and so is putting one somewhere that outlasts the block: an address obeys the
+same escape rule as a series or a map, so inserting one into a series declared outside the rabbit
+is refused with "this value lives in a shorter-lived rabbit region than its destination".
 
 **NULL is void**, as everywhere else on this boundary, which is why the result is a `voidable
 address` — `fopen`, `malloc`, `getenv` and `opendir` all report failure that way.

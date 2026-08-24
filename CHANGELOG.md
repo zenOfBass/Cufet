@@ -30,10 +30,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   but what you do with it. There is no address-*of* operator and Cufet never creates one — an
   address only ever comes from C and goes back to C, which is why no layout question exists.
 
-  **A pointer may only be held inside a rabbit**, which needed no new keyword to become the unsafe
-  marker: a rabbit already means region-scoped memory work, and a pointer is a rabbit
-  responsibility, because the arena that knows when a region dies is what knows when the pointer
-  dies. NULL is void, as it is everywhere else on this boundary.
+  **A pointer may only be held inside a rabbit, and cannot outlive one.** That block needed no new
+  keyword to become the unsafe marker: a rabbit already means region-scoped memory work, and a
+  pointer is a rabbit responsibility, because the arena that knows when a region dies is what knows
+  when the pointer dies. Holding one outside is a static error, and so is storing one into anything
+  that outlives the block — an address is a reference type to the region model, so the escape check
+  that already guards a series or a map guards this too. NULL is void, as everywhere else here.
 
   An address prints as `<address>`, never as its value — the two backends are two processes, so a
   printed handle could not agree between them however correct both were.

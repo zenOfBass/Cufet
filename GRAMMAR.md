@@ -1918,10 +1918,11 @@ Everything else is refused rather than approximated:
 That is refused by the checker; the result-type questions above are refused by the **C compiler**,
 at the point where the type is actually known. Both name what is wrong.
 
-⚠ **An `address` may only be held inside a rabbit block**, which is what makes that block the
-unsafe marker without a new keyword: a pointer is a rabbit responsibility, because the arena that
-knows when the region dies is what knows when the pointer dies. `Define handle as cast open-dir on
-(…)` outside one is a static error.
+⚠ **An `address` may only be held inside a rabbit block, and cannot outlive one**, which is what
+makes that block the unsafe marker without a new keyword: a pointer is a rabbit responsibility,
+because the arena that knows when the region dies is what knows when the pointer dies. `Define
+handle as cast open-dir on (…)` outside one is a static error, and so is storing one into anything
+declared outside — an address obeys the same escape rule as a series or a map.
 
 ★ **There is one kind of address**, so `char*` and `FILE*` are the same type — what differs is not
 the value but what the writer does with it. There is **no address-of operator**: an address only
