@@ -26,6 +26,7 @@ public class ExhaustivenessTests
         [typeof(VoidType)]            = new VoidType(),
         [typeof(MatrixType)]          = MatrixType.Instance,
         [typeof(RabbitType)]          = new RabbitType(),
+        [typeof(AddressType)]         = AddressType.Instance,
         [typeof(MappingType)]         = new MappingType(CufetType.Text, CufetType.Number),
         [typeof(FailureMarkerType)]   = new FailureMarkerType(),
         [typeof(ExceptionMarkerType)] = new ExceptionMarkerType(),

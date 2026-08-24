@@ -3039,6 +3039,7 @@ static void* cufet_pipe_stage(void* argp) {
         FailureType f => "F(" + TypeSig(f.Inner) + ")",
         MatrixType => "MX",   // one fixed runtime struct (CufetMatrix*) — identity is the type itself
         RabbitType => "RB",
+        AddressType => "AD",   // one opaque void* — every foreign pointer is the same type here
         FunctionType fn => "Fn(" + string.Join(",", fn.ParameterTypes.Select(TypeSig)) + "->" +
                            (fn.ReturnType == null ? "v" : TypeSig(fn.ReturnType)) + ")",
         // Closed union: cases in DECLARATION order (the front-end's UnionType.Equals is order-sensitive,
@@ -4103,6 +4104,7 @@ static void* cufet_pipe_stage(void* argp) {
         // — which is how a missing `bits` arm produced "printing a 'value' is not yet supported"
         // and cost an afternoon. Names match TypeChecker.FormatType so the two agree.
         MappingType     => "mapping",
+        AddressType     => "address",
         ReadableStreamType r => $"readable stream of {FormatTypeName(r.ElementType)}",
         WritableStreamType w => $"writable stream of {FormatTypeName(w.ElementType)}",
         RabbitType      => "rabbit",
@@ -4359,6 +4361,10 @@ static void* cufet_pipe_stage(void* argp) {
         MapType => $"({a} == {b})",   // maps: reference (pointer) equality, like the interpreter
         MatrixType => $"({a} == {b})",   // matrices: reference equality (interpreter ValuesEqual fallthrough)
         RabbitType => $"cufet_rabbit_eq({a}, {b})",
+        // Two addresses are the same when they are the same pointer — the only question anyone can
+        // ask about one without reading through it. The interpreter's ForeignAddress is a record
+        // over the same bits, so both sides compare identically.
+        AddressType => $"({a} == {b})",
         FunctionType => $"(({a}).fn == ({b}).fn && ({a}).env == ({b}).env)",   // function values: reference equality
         UnionType uqo when uqo.Cases == null => $"{OpenUnionStruct}_eq({a}, {b})",
         UnionType uq when uq.Cases != null => $"{RegisterUnionStruct(uq)}_eq({a}, {b})",   // tag + payload
@@ -4381,6 +4387,9 @@ static void* cufet_pipe_stage(void* argp) {
         MapType mt => $"{RegisterMapStruct(mt)}_write({valExpr})",
         MatrixType => $"cufet_mat_write({valExpr})",
         FunctionType => $"printf(\"<function>\")",   // matches the interpreter's Format for a FunctionValue
+        // ★ Never the pointer itself — see the interpreter's Format. Two backends are two
+        // processes, so a printed handle could not agree between them however correct both were.
+        AddressType => $"printf(\"<address>\")",
         UnionType uwo when uwo.Cases == null => $"{OpenUnionStruct}_write({valExpr})",
         UnionType uw when uw.Cases != null => $"{RegisterUnionStruct(uw)}_write({valExpr})",   // prints as the underlying value
         _ => throw new CompilerException(
@@ -4610,6 +4619,11 @@ static void* cufet_pipe_stage(void* argp) {
                     MapType mt      => $"{RegisterMapStruct(mt)}_write({valExpr}); cufet_nl()",
                     MatrixType      => $"cufet_mat_write({valExpr}); cufet_nl()",
                     RabbitType      => $"cufet_rabbit_write({valExpr}); cufet_nl()",
+                    // ⚠ Routed through WriteCall so the two places that print an address cannot
+                    // drift apart. They already had: the first arm added here made the interpreter
+                    // and the compiler agree everywhere EXCEPT a bare `State`, which is its own
+                    // switch — and only the oracle noticed.
+                    AddressType     => $"{WriteCall(valExpr, t)}; cufet_nl()",
                     // A union prints as its underlying value (tag dispatch) — the same _write the
                     // synthesized container helpers call, so a bare `State <union>` matches an
                     // element printed inside a catalogue.
@@ -5816,8 +5830,26 @@ static void* cufet_pipe_stage(void* argp) {
             NumberType => $"cufet_dec_from_foreign({call})",
             FactType   => call,                       // already the 1/0 a Cufet fact is in C
             VoidableType { Inner: NumberType } => EmitForeignReal(call),
+            VoidableType { Inner: AddressType } => EmitForeignAddress(call),
             _          => EmitForeignText(call),      // voidable text — copied out of C's memory
         };
+    }
+
+    /// <summary>A pointer from foreign source, as the `voidable address` the declaration asked for.</summary>
+    /// <remarks>
+    /// ★ NOT copied, unlike a text — the pointer IS the value. Nothing is read through it here or
+    /// anywhere else without the writer saying so, which is the whole of what makes it inert.
+    ///
+    /// ★ NULL becomes void, the same as every other absence crossing this boundary: `fopen`,
+    /// `malloc`, `getenv` and `opendir` all report failure that way, so every way C can fail lands
+    /// in the mechanism the language already has.
+    /// </remarks>
+    private string EmitForeignAddress(string call)
+    {
+        string cvd = RegisterVoidableStruct(new VoidableType(AddressType.Instance));
+        int id = _freshId++;
+        _preEmits.Add($"void* cf_fa{id} = {call};");
+        return $"(cf_fa{id} ? ({cvd}){{ .has = 1, .val = cf_fa{id} }} : ({cvd}){{ .has = 0 }})";
     }
 
     /// <summary>A `double` from foreign source, as the `voidable number` the declaration asked for.</summary>
@@ -5867,6 +5899,9 @@ static void* cufet_pipe_stage(void* argp) {
         NumberType => $"cufet_foreign_ll({EmitExpr(arg)}, {line})",
         FactType   => $"({EmitExpr(arg)} ? 1 : 0)",
         TextType   => EmitExpr(arg),
+        // Straight back the way it came, with nothing to check: Cufet never made this value, so
+        // the only thing it can be is a pointer C handed over.
+        AddressType => EmitExpr(arg),
         _          => throw new TypeException(
                           $"That doesn't work: a {FormatTypeName(type)} cannot be handed to foreign source yet."),
     };
@@ -8707,6 +8742,10 @@ static void* cufet_pipe_stage(void* argp) {
         BitsType   => "CufetBits",
         FactType   => "int",
         TextType   => "const char*",
+        // ★ A foreign pointer, held and handed back and never read through. `void*` deliberately —
+        // whatever C called it, Cufet knows only that it is an address, so there is no type here to
+        // get wrong and no layout to compute.
+        AddressType => "void*",
         SeriesType st => RegisterSeriesStruct(st) + "*",   // series are arena pointers (reference type)
         RecordType rt => RegisterRecordStruct(rt),
         ObjectType ot => ObjStructName(ot.Name),

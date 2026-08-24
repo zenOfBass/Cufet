@@ -462,6 +462,16 @@ public sealed class Parser
             Advance();
             return new FactType();
         }
+        // 'address' is contextual for the same reason 'text' and 'bits' are — a type name
+        // recognised by lexeme rather than a reserved word, which is what keeps `the text address`
+        // usable as an ordinary field name. DESIGN made that a condition of choosing the word.
+        if (tok.Type == TokenType.Identifier &&
+            (tok.Lexeme.Equals("address", StringComparison.OrdinalIgnoreCase) ||
+             tok.Lexeme.Equals("addresses", StringComparison.OrdinalIgnoreCase)))
+        {
+            Advance();
+            return AddressType.Instance;
+        }
         // 'bits' is contextual, like 'text' and 'fact' — a type name recognised by lexeme rather
         // than a reserved word, so it stays usable as an ordinary name. Plural deliberately: a
         // bit is one bit and 0xFF is eight, and it pairs with 'fact' as one bit against N.

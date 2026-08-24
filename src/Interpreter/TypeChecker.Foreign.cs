@@ -277,6 +277,33 @@ public sealed partial class TypeChecker
             "run foreign source that never declared a result",
             $"Say so where it is declared: 'Define {axiom.Language} number <name> as [ ... ].'");
 
+    /// <summary>A foreign pointer may only be held inside a rabbit block.</summary>
+    /// <remarks>
+    /// ★★ **The rabbit block IS the unsafe marker**, and it needed no new keyword to become one. A
+    /// rabbit already means region-scoped memory work, so it is the closest thing Cufet has to
+    /// `unsafe` — and the reason it is the rabbit rather than a marker of its own is that a pointer
+    /// is a rabbit RESPONSIBILITY: the arena that knows when a region dies is the thing that knows
+    /// when a pointer dies. That extends the safety model rather than holing it.
+    ///
+    /// ⚠ The check is on the BINDING, not on the call. An axiom may be declared anywhere and its
+    /// result may be handed straight back to another axiom without ever being named — what must not
+    /// happen is a pointer OUTLIVING the region that is answerable for it, and that can only start
+    /// with something holding it.
+    /// </remarks>
+    private void RequireRabbitForAddress(CufetType type, string name, int line, int column)
+    {
+        if (_rabbitDepth > 0) return;
+        if (type is not AddressType && type is not VoidableType { Inner: AddressType }) return;
+        throw TypeError(
+            $"'{name}' holds a foreign address, and one can only be held inside a rabbit",
+            "a rabbit block is where region-scoped memory work happens, so it is also where a "
+          + "pointer's lifetime is answerable for — the arena that knows when the region dies is "
+          + "what knows when the pointer dies",
+            line, column,
+            "hold a foreign address outside a rabbit",
+            "Wrap the work in 'Pull a rabbit. ... Done.'");
+    }
+
     /// <summary>Checks a call's arguments against what the axiom declared it takes.</summary>
     private void CheckForeignArguments(IReadOnlyList<IExpression> callArgs, AxiomLiteral axiom,
                                        int line, int column)

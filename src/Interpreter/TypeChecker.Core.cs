@@ -54,6 +54,27 @@ public sealed class FactType : CufetType
     public override int GetHashCode() => typeof(FactType).GetHashCode();
 }
 
+/// <summary>A foreign pointer: opaque, rabbit-scoped, and never dereferenced implicitly.</summary>
+/// <remarks>
+/// <para>
+/// ★ `address`, not `pointer` — plain English for what it is, where `pointer` is C's word. There is
+/// ONE kind, so `char*` and `FILE*` are the same type here: what differs is not the value but what
+/// the writer does with it. An earlier draft split "data" from "handles", and that was a mechanism
+/// invented where an operation would do.
+/// </para>
+/// <para>
+/// ⚠ There is no address-OF operator, and Cufet never creates one. An address only ever comes back
+/// from C and goes back into C, which is why nothing here can be forged and why no layout question
+/// exists — a struct is C's idea and struct work happens in C.
+/// </para>
+/// </remarks>
+public sealed class AddressType : CufetType
+{
+    public static readonly AddressType Instance = new();
+    public override bool Equals(object? obj) => obj is AddressType;
+    public override int GetHashCode() => typeof(AddressType).GetHashCode();
+}
+
 public sealed class SeriesType : CufetType
 {
     public CufetType ElementType { get; }
@@ -2162,6 +2183,7 @@ public sealed partial class TypeChecker
         // the `permanently` carve-out (ImportTopLevelVisible) applying to something that cannot be
         // mutated, which is what makes `Bind number to process-id, get-pid.` see the axiom above it.
         bool permanent = define.Permanent || declared is AxiomType;
+        RequireRabbitForAddress(declared ?? type, define.Name, define.Line, define.Column);
         Scope[define.Name] = new TypeInfo(declared ?? type, define.Value, define.Line, permanent, _rabbitDepth);
         RecordStashLocal(define.Name, declared ?? type, define.Line, define.Column);
     }
@@ -3054,6 +3076,7 @@ public sealed partial class TypeChecker
         ReadableStreamType { ElementType: var elem } => $"readable stream of {FormatTypePlural(elem)}",
         WritableStreamType { ElementType: var elem } => $"writable stream of {FormatTypePlural(elem)}",
         RabbitType                           => "rabbit",
+        AddressType                          => "address",
         MapType mt                           => $"map from {FormatType(mt.KeyType)} to {FormatType(mt.ValueType)}",
         MappingType                          => "mapping",
         FailureMarkerType                    => "failure",

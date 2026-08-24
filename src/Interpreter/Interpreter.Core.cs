@@ -1948,6 +1948,10 @@ public sealed partial class Interpreter
         BitsValue bv     => bv.ToString(),   // prints in the base it was written in
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
         FunctionValue        => "<function>",
+        // ★ `<address>`, never the pointer itself, and the reason is the oracle rather than
+        // secrecy: two backends are two processes, so the same program's handle is a different
+        // number in each and printing it could never agree. The same shape as <function>.
+        ForeignAddress       => "<address>",
         // A rabbit prints as the object it is, like every other module — `math()`,
         // `greeting-kit()`, `rabbit()`. It used to print its BINDING's name (`<rabbit hopper>`),
         // which nothing else in the language does: `Define x as 5. State x.` prints 5, not x.

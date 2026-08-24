@@ -555,6 +555,132 @@ public class PipelineForeignTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── Addresses ────────────────────────────────────────────────────────────
+
+    // A pointer out of C, back into C, and used there. `strdup` allocates, `strlen` reads through
+    // the pointer on the C side, `free` releases it — no filesystem, so it is the same everywhere.
+    // ⚠ `(free(…), 0)` is a top-level comma inside foreign source, which is also what the variadic
+    // guard macros exist for.
+    private const string AddressHdr =
+        "Pull a book on the c-language.\n"
+      + "    Define c-language voidable address copy-of, given (the text subject), as [strdup(the subject)].\n"
+      + "    Define c-language number length-at, given (the address held), as [strlen((char*)the held)].\n"
+      + "    Define c-language number release, given (the address held), as [(free(the held), 0)].\n";
+
+    [Fact]
+    public void Address_CrossesOutOfCAndBackIn()
+    {
+        const string src = AddressHdr + """
+                Pull a rabbit.
+                    Define copy as cast copy-of on ("hello, world").
+                    If copy is void, state "no memory".
+                    If copy is not void:
+                        State cast length-at on (copy).
+                        Cast release on (copy).
+                    Done.
+                Done.
+            Done.
+            """;
+        Assert.Equal("12", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Address_HeldOutsideARabbit_IsRefused()
+    {
+        // ★★ The rabbit block IS the unsafe marker, and it needed no new keyword to become one —
+        // a pointer is a rabbit responsibility, because the arena that knows when a region dies is
+        // what knows when the pointer dies.
+        const string src = AddressHdr + """
+                Define escaped as cast copy-of on ("nope").
+                State "held one outside a rabbit".
+            Done.
+            """;
+        Assert.Contains("only be held inside a rabbit",
+                        Assert.ThrowsAny<Exception>(() => Interpret(src)).Message);
+    }
+
+    [Fact]
+    public void Address_ThatIsNotAPointer_IsRefused()
+    {
+        // The guard that cannot be a `_Generic` — there are infinitely many pointer types, so it
+        // asks `__builtin_classify_type` instead. This is what notices when it stops working.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language voidable address confused as [42].
+                Pull a rabbit.
+                    Define held as cast confused.
+                    State "no".
+                Done.
+            Done.
+            """;
+        Assert.Contains("has to produce a C pointer",
+                        Assert.ThrowsAny<Exception>(() => CompileRaw(src)).Message);
+    }
+
+    [Fact]
+    public void Address_NullBecomesVoid()
+    {
+        // Every address is `voidable address` because NULL is C's universal failure signal —
+        // `fopen`, `malloc`, `getenv`, `opendir` all use it. No new failure concept anywhere.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language voidable address nothing-there as [(void*)0].
+                Pull a rabbit.
+                    Define held as cast nothing-there.
+                    State held is void.
+                Done.
+            Done.
+            """;
+        Assert.Equal("true", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Address_PrintsWithoutItsValue()
+    {
+        // ★ `<address>`, never the pointer, and the reason is the ORACLE rather than secrecy: the
+        // two backends are two processes, so the same program's handle is a different number in
+        // each and printing it could never agree however correct both were. Same shape as
+        // `<function>`, which is there for a different reason and lands in the same place.
+        const string src = AddressHdr + """
+                Pull a rabbit.
+                    Define copy as cast copy-of on ("x").
+                    If copy is not void:
+                        State copy.
+                        Cast release on (copy).
+                    Done.
+                Done.
+            Done.
+            """;
+        Assert.Equal("<address>", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Address_ComparesByPointer()
+    {
+        // The only question askable about an address without reading through it. Two separate
+        // allocations differ; one compared with itself matches.
+        const string src = AddressHdr + """
+                Pull a rabbit.
+                    Define first as cast copy-of on ("same text").
+                    Define second as cast copy-of on ("same text").
+                    If first is not void:
+                        If second is not void:
+                            State first is second.
+                            State first is first.
+                            Cast release on (first).
+                            Cast release on (second).
+                        Done.
+                    Done.
+                Done.
+            Done.
+            """;
+        Assert.Equal("false\ntrue", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     // ── An axiom called for its effect ───────────────────────────────────────
 
     [Fact]

@@ -18,6 +18,17 @@ namespace Cufet.Interpreter;
 /// rounds.
 /// </para>
 /// </remarks>
+/// <summary>One foreign pointer, as both backends' runtimes carry it.</summary>
+/// <remarks>
+/// ★ It lives beside the boundary rather than inside either backend, because it crosses
+/// <c>IForeignRunner</c> — the interpreter holds it as a value and the runner puts it back in a
+/// slot, and neither can name a type private to the other.
+///
+/// ⚠ Opaque by construction: it holds the bits and offers nothing that reads through them. The one
+/// read there is comes from the language (`the text at`), never from here.
+/// </remarks>
+public sealed record ForeignAddress(nint Handle);
+
 public static class ForeignC
 {
     /// <summary>Names the guard macro every wrapped axiom is checked by.</summary>
@@ -173,6 +184,21 @@ public static class ForeignC
    `voidable number`, so declaring the wrong one is refused here rather than quietly converted. */
 #define CUFET_C_REAL(...) _Generic((__VA_ARGS__), \
     float: 1, double: 1, long double: 1, default: 0)
+
+/* Is this C expression a POINTER — of any kind? The one guard that cannot be a `_Generic`: there
+   are infinitely many pointer types (`FILE*`, `DIR*`, every struct anyone declares) and a generic
+   selection matches exact types only, so there is nothing to enumerate. `__builtin_classify_type`
+   answers the question the guard actually asks, returning 5 for every pointer — measured here for
+   `char*`, `void*` and `FILE*`, against 1 for an integer, 8 for a double and 12 for a struct.
+
+   ⚠ A GCC builtin rather than standard C, which the rest of this file avoids. It is acceptable
+   because gcc is the toolchain the whole boundary already requires — both backends invoke it — and
+   there is no standard spelling of this question.
+
+   ★ Like `_Generic`, it does NOT evaluate its argument (measured: an axiom with a side effect
+   passed through both the guard and the value ran exactly once). That is what lets the foreign text
+   be written into the wrapper more than once. */
+#define CUFET_C_ADDRESS(...) (__builtin_classify_type(__VA_ARGS__) == 5)
 
 /* Is this C expression a string Cufet can copy out? Only the two spellings of one: a pointer to
    char. An `unsigned char*` is bytes rather than text, and everything else is not a string at all
@@ -332,7 +358,7 @@ static CufetForeignReal cufet_real_from_double(double cufet_v) {
     /// </remarks>
     public static bool CanCrossBack(CufetType result) =>
         result is NumberType or FactType
-     || result is VoidableType { Inner: TextType or NumberType };
+     || result is VoidableType { Inner: TextType or NumberType or AddressType };
 
     /// <summary>The C type a wrapped axiom hands back — the RAW one, before either backend converts.</summary>
     /// <remarks>
@@ -347,6 +373,7 @@ static CufetForeignReal cufet_real_from_double(double cufet_v) {
         FactType                            => "int",
         VoidableType { Inner: TextType }    => "const char*",
         VoidableType { Inner: NumberType }  => RealResultCType,
+        VoidableType { Inner: AddressType } => "void*",
         _ => throw new TypeException(
                  $"That doesn't work: foreign source cannot give back a {TypeChecker.FormatType(result)}."),
     };
@@ -364,6 +391,8 @@ static CufetForeignReal cufet_real_from_double(double cufet_v) {
             $"    _Static_assert({TextGuardName}({spliced}), \"{TextGuardMessage}\");",
         VoidableType { Inner: NumberType } =>
             $"    _Static_assert({RealGuardName}({spliced}), \"{RealGuardMessage}\");",
+        VoidableType { Inner: AddressType } =>
+            $"    _Static_assert({AddressGuardName}({spliced}), \"{AddressGuardMessage}\");",
         _ => "",
     };
 
@@ -373,8 +402,17 @@ static CufetForeignReal cufet_real_from_double(double cufet_v) {
         NumberType => WholeExpression(spliced),
         FactType   => $"({spliced}) ? 1 : 0",
         VoidableType { Inner: NumberType } => $"cufet_real_from_double((double)({spliced}))",
+        VoidableType { Inner: AddressType } => $"(void*)({spliced})",
         _          => $"({spliced})",
     };
+
+    /// <summary>Names the macro that admits a C pointer.</summary>
+    public const string AddressGuardName = "CUFET_C_ADDRESS";
+
+    /// <summary>The refusal a C compiler prints when a `voidable address` axiom is not a pointer.</summary>
+    /// <remarks>⚠ ASCII only — see <see cref="RealGuardMessage"/> for what gcc does otherwise.</remarks>
+    public const string AddressGuardMessage =
+        "this axiom is returned as a voidable address, so it has to produce a C pointer";
 
     public const string TextGuardName = "CUFET_C_TEXT";
 
@@ -476,16 +514,18 @@ static CufetForeignReal cufet_real_from_double(double cufet_v) {
     /// </remarks>
     public static string ParameterCType(CufetType type) => type switch
     {
-        NumberType => "long long",
-        FactType   => "int",
-        TextType   => "const char*",
+        NumberType  => "long long",
+        FactType    => "int",
+        TextType    => "const char*",
+        AddressType => "void*",
         _          => throw new TypeException(
                           $"a {TypeChecker.FormatType(type)} cannot be handed to foreign source yet — "
                         + "a number, a fact and a text can."),
     };
 
     /// <summary>Is this a type an axiom can be handed?</summary>
-    public static bool CanPassToForeign(CufetType type) => type is NumberType or FactType or TextType;
+    public static bool CanPassToForeign(CufetType type) =>
+        type is NumberType or FactType or TextType or AddressType;
 
     /// <summary>The foreign text with each `the &lt;parameter&gt;` replaced by its C name.</summary>
     /// <remarks>
@@ -584,8 +624,15 @@ typedef union { long long whole; const char* text; } CufetShimArg;
         var lines = new System.Text.StringBuilder();
         for (int i = 0; i < parameters.Count; i++)
         {
-            string slot = parameters[i].Type is TextType ? "text" : "whole";
-            string cast = parameters[i].Type is FactType ? "(int)" : "";
+            // An address travels in the POINTER half of the union, like a text — both are pointers,
+            // and the union exists so neither has to be squeezed through the integer half.
+            string slot = parameters[i].Type is TextType or AddressType ? "text" : "whole";
+            string cast = parameters[i].Type switch
+            {
+                FactType    => "(int)",
+                AddressType => "(void*)",
+                _           => "",
+            };
             lines.AppendLine(
                 $"    {ParameterCType(parameters[i].Type)} {ParameterName(i)} = {cast}cufet_args[{i}].{slot};");
         }

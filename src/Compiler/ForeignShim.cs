@@ -130,17 +130,6 @@ public sealed class GccForeignRunner : IForeignRunner
         return Call(entry, parameters, result, arguments);
     }
 
-    /// <summary>Reads the 64 bits the wrapper handed back as the Cufet value they stand for.</summary>
-    /// <remarks>
-    /// ★ The wrapper already made every choice that could be argued about — it is the same
-    /// wrapper the compiled backend calls, after the same guard. What is left is which 64 bits.
-    ///
-    /// ⚠⚠ Called INSIDE the marshalling scope, before the arguments are released, and that is
-    /// load-bearing rather than tidy. An axiom may hand back a pointer it was GIVEN —
-    /// `[the subject]` is the smallest example, `[strchr(the s, 'x')]` the realistic one — so
-    /// reading the text after freeing the argument buffers is a use-after-free. It read as an
-    /// empty string here and would read as anything at all elsewhere.
-    /// </remarks>
     /// <summary>Calls whichever entry this shim exports and reads what it hands back.</summary>
     /// <remarks>
     /// ⚠⚠ Both branches run INSIDE the marshalling scope, for the use-after-free reason below.
@@ -171,6 +160,17 @@ public sealed class GccForeignRunner : IForeignRunner
             scale:    (byte)real.Scale);
     }
 
+    /// <summary>Reads the 64 bits the wrapper handed back as the Cufet value they stand for.</summary>
+    /// <remarks>
+    /// ★ The wrapper already made every choice that could be argued about — it is the same
+    /// wrapper the compiled backend calls, after the same guard. What is left is which 64 bits.
+    ///
+    /// ⚠⚠ Called INSIDE the marshalling scope, before the arguments are released, and that is
+    /// load-bearing rather than tidy. An axiom may hand back a pointer it was GIVEN —
+    /// `[the subject]` is the smallest example, `[strchr(the s, 'x')]` the realistic one — so
+    /// reading the text after freeing the argument buffers is a use-after-free. It read as an
+    /// empty string here and would read as anything at all elsewhere.
+    /// </remarks>
     private static object? ReadResult(ForeignWhole whole, CufetType result) => result switch
     {
         // ★ The C twin is cufet_dec_from_foreign in the emitted runtime, and the two branches have
@@ -179,6 +179,11 @@ public sealed class GccForeignRunner : IForeignRunner
         // than as -1, which is the whole reason the flag travels with the bits.
         NumberType => whole.IsUnsigned != 0 ? (decimal)whole.Bits : (decimal)unchecked((long)whole.Bits),
         FactType   => whole.Bits != 0,
+        // ⚠ An address is NOT copied out of, unlike a text below — it is the pointer itself, held
+        // opaquely. NULL is null here and void in the language, the same as every other absence
+        // crossing this boundary.
+        VoidableType { Inner: AddressType } =>
+            whole.Bits == 0 ? null : new ForeignAddress(unchecked((nint)whole.Bits)),
         // A text arrives as its POINTER and is COPIED here. The bytes belong to C: a static buffer
         // the next call overwrites, or something its owner will free. The compiled backend copies
         // into the arena for the same reason.
@@ -210,7 +215,13 @@ public sealed class GccForeignRunner : IForeignRunner
                 // ★ The values arrive already converted — the interpreter did the range check and
                 // owns the sentence it raises, because that refusal is Cufet's rather than the
                 // marshaller's. What is left here is which half of the union to fill.
-                if (parameters[i].Type is TextType)
+                if (parameters[i].Type is AddressType)
+                {
+                    // An address goes back exactly as it came: the bits C handed over, in the
+                    // union's pointer half. Nothing here reads through it.
+                    slots[i].Text = ((ForeignAddress)arguments[i]).Handle;
+                }
+                else if (parameters[i].Type is TextType)
                 {
                     // UTF-8, which is what Cufet text already is on the compiled side.
                     var utf8 = Marshal.StringToCoTaskMemUTF8((string)arguments[i]);
@@ -390,8 +401,30 @@ public sealed class GccForeignRunner : IForeignRunner
       : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)     ? ".dylib"
                                                             : ".so";
 
+    /// <remarks>
+    /// ⚠⚠ **`--no-undefined` is not tidiness — without it a typo in an axiom KILLS THE HOST.** A
+    /// Windows DLL must resolve every symbol at link time, so `[not_a_real_function()]` fails the
+    /// build there and is reported as the author's C. An ELF shared object does not: it links
+    /// clean, loads, and the process dies on the call with `symbol lookup error` — taking the
+    /// interpreter, and under CI the whole test host, with it. Found by GitHub Actions on Linux
+    /// against a suite that was green on Windows, which is exactly the shape a one-platform
+    /// developer cannot see.
+    ///
+    /// ★ macOS spells it `-Wl,-undefined,error`; the GNU spelling is not accepted there.
+    ///
+    /// ⚠⚠ **`-lm` has to come WITH it.** Refusing undefined symbols means every symbol must resolve
+    /// at LINK time, and on glibc `sqrt` and `pow` still live in libm for the linker even though
+    /// the runtime merged it into libc — measured on glibc 2.44, where the `double` axioms failed
+    /// to link the moment `--no-undefined` went on. Windows needs neither: mingw's runtime carries
+    /// the maths functions, and a DLL already had to resolve everything.
+    ///
+    /// ⚠ These flags are part of the cache key (see Key), so adding one rebuilds every cached
+    /// shim rather than reusing a library built under the old, permissive rules.
+    /// </remarks>
     private static string[] SharedLibraryFlags =>
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
             ? ["-shared", "-O2"]
-            : ["-shared", "-O2", "-fPIC"];
+      : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+            ? ["-shared", "-O2", "-fPIC", "-Wl,-undefined,error", "-lm"]
+            : ["-shared", "-O2", "-fPIC", "-Wl,--no-undefined", "-lm"];
 }
