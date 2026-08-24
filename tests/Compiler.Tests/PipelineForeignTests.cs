@@ -786,6 +786,112 @@ public class PipelineForeignTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── `the text at <address>` — the one read there is ──────────────────────
+
+    private const string ReadHdr =
+        "Pull a book on the c-language.\n"
+      + "    Define c-language voidable address copy-of, given (the text subject), as [strdup(the subject)].\n"
+      + "    Define c-language number let-go, given (the address held), as [({ free(the held); 0; })].\n";
+
+    [Fact]
+    public void TextAt_CopiesOutOfForeignMemory()
+    {
+        // ★★ The assertion the whole design rests on: `the text at` yields rabbit-owned text, never
+        // a view into foreign memory. So the C side scribbles over the block AND frees it, and the
+        // text read a moment earlier has to be untouched. An aliasing read prints 'XXXX…' or worse.
+        const string src = ReadHdr + """
+                Define c-language number scribble, given (the address held),
+                    as [({ char* p = (char*)the held; size_t n = strlen(p); memset(p, 'X', n); free(p); 0; })].
+                Pull a rabbit.
+                    Define copy as cast copy-of on ("original bytes").
+                    If copy is not void:
+                        Define read-out as the text at copy but void is "(nothing)".
+                        Cast scribble on (copy).
+                        State read-out.
+                    Done.
+                Done.
+            Done.
+            """;
+        Assert.Equal("original bytes", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void TextAt_ReadsThroughBothAVoidableAndANarrowedAddress()
+    {
+        // Two branches in the compiler: a `voidable address` carries its own `has`, one narrowed
+        // out of its voidable is the bare pointer. Reading a VOID one is void, not a crash.
+        const string src = ReadHdr + """
+                Define c-language voidable address nowhere as [(void*)0].
+                Pull a rabbit.
+                    Define copy as cast copy-of on ("held bytes").
+                    State the text at copy but void is "(nothing)".
+                    Define missing as cast nowhere.
+                    State the text at missing but void is "(nothing)".
+                    If copy is not void:
+                        State the text at copy but void is "(nothing)".
+                        Cast let-go on (copy).
+                    Done.
+                Done.
+            Done.
+            """;
+        Assert.Equal("held bytes\n(nothing)\nheld bytes", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void TextAt_EvaluatesItsAddressOnce()
+    {
+        // ⚠ The compiled branch for a voidable address needs the `has` and the `val`, and written
+        // inline that is the address expression TWICE — two allocations, the first leaked and the
+        // second read. It is bound to a local instead; this is what would notice if that changed.
+        //
+        // ⚠⚠ ONE run per backend, not the oracle pair: the counter is C's own and the interpreter's
+        // shim stays loaded in the test host. Source deliberately unique to this test.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language voidable address counted-copy as
+                    [({ static int reads = 0; ++reads; char b[32]; snprintf(b, sizeof b, "read %d", reads); strdup(b); })].
+                Pull a rabbit.
+                    State the text at (cast counted-copy) but void is "(nothing)".
+                Done.
+            Done.
+            """;
+        Assert.Equal("read 1", Interpret(src));
+        Assert.Equal("read 1", Compile(src));
+    }
+
+    [Fact]
+    public void TextAt_RefusesAnythingThatIsNotAnAddress()
+    {
+        const string src = """
+            Define n as 42.
+            State the text at n but void is "?".
+            """;
+        Assert.Contains("reads through a foreign address",
+                        Assert.ThrowsAny<Exception>(() => Interpret(src)).Message);
+    }
+
+    [Fact]
+    public void TextAt_NeitherWordIsReserved()
+    {
+        // ★ `text` was always contextual and `at` is already matched by lexeme for `<bits> at <n>
+        // bits` and `item at (r, c)`. The PAIR is what makes the phrase unmistakable, so the read
+        // costs no keyword and both words stay usable as ordinary names.
+        const string src = """
+            Define text as "a binding named text".
+            Define at as 7.
+            Define object label with (the text text, the number at).
+            Define tag as a new label { the text "held", the at 3 }.
+            State text.
+            State at.
+            State tag's text.
+            State tag's at.
+            """;
+        Assert.Equal("a binding named text\n7\nheld\n3", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     [Fact]
     public void Address_ThatIsNotAPointer_IsRefused()
     {

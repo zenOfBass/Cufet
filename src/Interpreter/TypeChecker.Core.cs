@@ -2460,6 +2460,7 @@ public sealed partial class TypeChecker
         NumberConvert nc                                                                                 => InferNumberConvert(nc),
         BitsConvert bc                                                                                  => InferBitsConvert(bc),
         TextLength tl                                                                                    => InferTextLength(tl),
+        ForeignTextAt fta                                                                                => InferForeignTextAt(fta),
         TextSplit split                                                                                  => InferTextSplit(split),
         TextContains contains                                                                            => InferTextContains(contains),
         TextFind find                                                                                    => InferTextFind(find),

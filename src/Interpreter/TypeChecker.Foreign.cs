@@ -325,6 +325,30 @@ public sealed partial class TypeChecker
         axiom.ReleaseAxiom = release;
     }
 
+    /// <summary>`the text at &lt;address&gt;` — the one read through a foreign pointer.</summary>
+    /// <remarks>
+    /// ★ The result is `voidable text` whatever the address was, and the void case is real: a void
+    /// address reads as void rather than being refused, so `the text at handle but void is "?"`
+    /// handles both "C gave nothing" and "there was nothing there" in one place. That is the same
+    /// mechanism every other absence on this boundary lands in.
+    ///
+    /// ★ Accepting a `voidable address` directly is deliberate. Requiring the caller to narrow
+    /// first would make the commonest line two lines, and the read has an obvious answer for void.
+    /// </remarks>
+    private CufetType InferForeignTextAt(ForeignTextAt read)
+    {
+        var addressType = InferType(read.Address);
+        if (addressType is not AddressType && addressType is not VoidableType { Inner: AddressType })
+            throw TypeError(
+                $"'the text at' reads through a foreign address, and this is a {FormatType(addressType)}",
+                "the only thing an address can be read through is this phrase, and the only thing "
+              + "this phrase reads is an address",
+                read.Line, read.Column,
+                $"read text at a {FormatType(addressType)}",
+                "Give it an address from foreign source.");
+        return new VoidableType(new TextType());
+    }
+
     /// <summary>A foreign pointer may only be held inside a rabbit block.</summary>
     /// <remarks>
     /// ★★ **The rabbit block IS the unsafe marker**, and it needed no new keyword to become one. A

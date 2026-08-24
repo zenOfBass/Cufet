@@ -5896,6 +5896,35 @@ static void* cufet_pipe_stage(void* argp) {
         };
     }
 
+    /// <summary>`the text at &lt;address&gt;` — copied into the arena, as a `voidable text`.</summary>
+    /// <remarks>
+    /// ★ The SAME arena copy an axiom's `voidable text` result gets, and for the same reason: the
+    /// bytes belong to C, which may free or overwrite them whenever it likes. What differs is only
+    /// where the pointer came from — a result there, an address the program was holding here.
+    ///
+    /// ⚠ Reading through a VOID address is void, not a crash. A voidable address carries its own
+    /// `has`; one narrowed out of its voidable is the bare pointer, and that is the only difference
+    /// between the two branches below.
+    ///
+    /// ⚠ The address expression is emitted ONCE, into a local. Written inline it would appear twice
+    /// in the voidable branch — and `the text at (cast copy-of on ("x"))` would then allocate twice
+    /// and read the second one, which is a leak and a different answer.
+    /// </remarks>
+    private string EmitForeignTextAt(ForeignTextAt read)
+    {
+        var addressType = TypeOf(read.Address);
+        string cvd = RegisterVoidableStruct(new VoidableType(TText));
+        int id = _freshId++;
+        string held = $"cf_th{id}";
+        _preEmits.Add($"{EmitCType(addressType)} {held} = {EmitExpr(read.Address)};");
+        string raw = addressType is VoidableType
+            ? $"{held}.has ? (const char*){held}.val : (const char*)0"
+            : $"(const char*){held}";
+        _preEmits.Add($"const char* cf_ta{id} = {raw};");
+        _preEmits.Add($"const char* cf_tc{id} = cf_ta{id} ? cufet_arena_str_at(cufet_arena_top, cf_ta{id}) : (const char*)0;");
+        return $"(cf_tc{id} ? ({cvd}){{ .has = 1, .val = cf_tc{id} }} : ({cvd}){{ .has = 0 }})";
+    }
+
     /// <summary>A pointer from foreign source, as the `voidable address` the declaration asked for.</summary>
     /// <remarks>
     /// ★ NOT copied, unlike a text — the pointer IS the value. Nothing is read through it here or
@@ -6052,6 +6081,7 @@ static void* cufet_pipe_stage(void* argp) {
         NumberConvert nvc when TypeOf(nvc.Value) is BitsType => TNumber,
         NumberConvert or TextFind => new VoidableType(TNumber),
         TextLength            => TNumber,
+        ForeignTextAt         => new VoidableType(TText),
         TextContains          => TFact,
         // A file read is fallible; its post-check VALUE type is the inner success type (the
         // raw `T or failure` is only seen by FallibleReturnType, for Try / but-on-failure / propagate).
@@ -6634,6 +6664,7 @@ static void* cufet_pipe_stage(void* argp) {
         TextConvert tc        => EmitTextConvert(tc),
         NumberConvert nc      => EmitNumberConvert(nc),
         TextLength tl         => $"cufet_dec_from_ll((long long)cufet_u8_len({EmitExpr(tl.Target)}))",
+        ForeignTextAt fta     => EmitForeignTextAt(fta),
         TextContains tcn      => $"(strstr({EmitExpr(tcn.Text)}, {EmitExpr(tcn.Substring)}) != NULL)",
         TextFind tf           => EmitTextFind(tf),
         TextSubstringRange r  => $"cufet_str_range({EmitExpr(r.Text)}, cufet_to_int({EmitExpr(r.From)}), {(r.To != null ? $"cufet_to_int({EmitExpr(r.To)})" : "-1")}, {r.Line})",

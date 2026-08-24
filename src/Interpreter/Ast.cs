@@ -361,6 +361,23 @@ public sealed record AxiomLiteral(string Source, int Line, int Column) : IExpres
     public AxiomLiteral? ReleaseAxiom { get; set; }
 }
 
+/// <summary>`the text at &lt;address&gt;` — reading through a foreign pointer.</summary>
+/// <remarks>
+/// <para>
+/// ★★ **The only read there is.** Reading a struct or a scalar through an address was considered
+/// and is unnecessary: an axiom can project a field (`[readdir(the dir)-&gt;d_name]`) or declare a
+/// local and hand it back, so those values return the ordinary way. Text is the one case with no
+/// single-expression answer on the C side, because the bytes belong to C and have to be copied out.
+/// </para>
+/// <para>
+/// ★ It ALWAYS COPIES, into the arena on one backend and into a managed string on the other, and
+/// never yields a view into foreign memory. That is what keeps an address inert: holding one is
+/// harmless, and reading through it is a thing visible in a diff rather than marshalling hidden in
+/// a declaration.
+/// </para>
+/// </remarks>
+public sealed record ForeignTextAt(IExpression Address, int Line, int Column) : IExpression;
+
 // Bury <value>.  — hand one value out of a stash body and suspend there.
 //
 // ★ Its PRESENCE is what makes the enclosing function stash-producing; nothing marks the

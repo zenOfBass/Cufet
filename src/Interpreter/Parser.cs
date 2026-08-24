@@ -2709,6 +2709,18 @@ public sealed class Parser
         }
 
         SkipNoise(); // articles are noise before any value
+        // `the text at <address>` — reading through a foreign pointer, and the only read there is.
+        // ★ Matched by LEXEME on both words, so neither `text` nor `at` is reserved: `at` is
+        // already recognised this way for `<bits> at <n> bits` and `item at (r, c)`, and `text` has
+        // always been a contextual type name. The pair is what makes the phrase unmistakable.
+        if (IsWord("text") && IsWordAfterCurrent("at"))
+        {
+            var atLineTok = Advance();   // 'text'
+            SkipNoise();
+            Advance();                   // 'at'
+            SkipNoise();
+            return new ForeignTextAt(ParseCorePrimary(), atLineTok.Line, atLineTok.Column);
+        }
         var tok = Peek();
         IExpression baseExpr;
         // EffectiveType, not tok.Type: book words lex as Identifiers so they stay usable as
@@ -4752,6 +4764,21 @@ public sealed class Parser
     // lines, all, input) that are not reserved keywords.
     private bool IsWord(string word) =>
         Peek().Lexeme.Equals(word, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Is the first non-noise token AFTER the current one this word?</summary>
+    /// <remarks>
+    /// ★ The lexeme twin of <see cref="PeekAfterCurrent"/>, for phrases whose second word is
+    /// contextual rather than reserved — which is what lets `the text at` cost no keyword.
+    /// </remarks>
+    private bool IsWordAfterCurrent(string word)
+    {
+        for (int i = _pos + 1; i < _tokens.Count; i++)
+        {
+            if (_tokens[i].Type is TokenType.Article) continue;
+            return _tokens[i].Lexeme.Equals(word, StringComparison.OrdinalIgnoreCase);
+        }
+        return false;
+    }
 
     // Returns the type of the first non-noise token after the current position.
     private TokenType PeekAfterCurrent()

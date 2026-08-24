@@ -1110,6 +1110,14 @@ public sealed partial class Interpreter
         // Code points, not .NET's UTF-16 code units — see TextPositions for why the language
         // picks a unit rather than inheriting each backend's storage.
         TextLength  tl => (object)(decimal)TextPositions.Length((string)Evaluate(tl.Target)),
+        // ★ COPIED out of C's memory, never aliased — the bytes belong to C and can be freed or
+        // overwritten the moment it likes. A void address reads as void.
+        ForeignTextAt fta => Evaluate(fta.Address) switch
+        {
+            ForeignAddress { Handle: var h } when h != 0
+                => System.Runtime.InteropServices.Marshal.PtrToStringUTF8(h) ?? "",
+            _ => VoidValue.Instance,
+        },
         TextSplit        split => EvaluateTextSplit(split),
         TextContains     tc2   => EvaluateTextContains(tc2),
         TextFind         find  => EvaluateTextFind(find),
