@@ -432,6 +432,17 @@ public sealed partial class TypeChecker
         // is refused rather than guessed: `State cast open-file on (p, f).` used to check clean and
         // then have no answer to give either backend.
         if (AxiomCalledBy(cast.Function) is { } axiom) return RunAxiomOnCast(cast, axiom);
+        // ⚠ Typed as an axiom but its source is not reachable from here — a parameter, or a
+        // function's result. Refused by name rather than falling through to "you can only cast
+        // functions", which is not true of axioms and sent the reader looking for the wrong thing.
+        //
+        // ⚠⚠ TryLookup, never InferType. Inferring the function expression of EVERY cast is what
+        // this looked like first, and it threw "'pick' isn't defined" across the generic-function
+        // and stash suites: a template's name is not an ordinary binding, and the instantiation
+        // below is what resolves it. Ask only the question that cannot fail.
+        if (cast.Function is VariableReference axVr && TryLookup(axVr.Name, out var axInfo)
+            && axInfo!.Type is AxiomType unreachable)
+            throw AxiomSourceNotReachable(unreachable, cast.Line, cast.Column);
 
         // A function that left blanks is filled from THIS call's arguments before anything is
         // resolved — the filling is what decides which body the call reaches.
@@ -900,22 +911,25 @@ public sealed partial class TypeChecker
                                     rt.PositionalTypes.Select(ResolveParamType).ToList(),
                                     rt.NamedFields.Select(f => (f.Name, ResolveParamType(f.Type))).ToList()),
 
-        // ★ An axiom type is refused wherever a type was WRITTEN — a parameter, a field, a return
-        // type, an element type. This arm is what confines an axiom to the one shape the first
-        // slice carries, and it confines it everywhere at once rather than at each site that would
-        // otherwise have to remember. Inferring an axiom's type does not come through here (see
-        // InferType), so the declaration that names one still works.
+        // ★ An axiom type is still refused wherever a type is WRITTEN — a parameter, a field, an
+        // element type, a return type — and this one arm confines it everywhere at once.
         //
-        // ⚠ Refusing is not the end state — the design has axioms passed around unrun, which is what
-        // lets a SQL fragment be assembled before it is used. What is missing is the backend half:
-        // an axiom has no C representation, so allowing it here would type-check a program the
-        // compiler cannot build, and "it checks but does not compile" is the divergence this
-        // project spends the most effort refusing.
+        // ⚠ What DID change: an axiom can now be bound to a name (`Define alias as answer.`) and
+        // run from there, because the checker follows the chain of names back to the source. That
+        // needs no written type and no runtime representation — both names reach the same wrapper,
+        // and the binding emits nothing at all.
+        //
+        // ⚠⚠ The backend half is still what blocks the rest, and it is not theoretical: lifting
+        // this arm on its own made three shapes check clean and then fail in the code generator —
+        // an axiom as a parameter, as an object field, and as a series element, plus `State
+        // <axiom>` with no way to print one. "It checks but does not compile" is the divergence
+        // this project spends the most effort refusing, so the arm stays until an axiom has a C
+        // representation to be.
         AxiomType axiom => throw new TypeException(
-            $"That doesn't work: a {axiom.Language} axiom can be declared and returned, and not yet "
-          + "written down anywhere else.\n\n" +
-            "An axiom runs when it is returned into a number — 'Bind number to <name>, <axiom>.'. "
-          + "It cannot yet be a parameter, a field, or something a function hands back unrun."),
+            $"That doesn't work: a {axiom.Language} axiom can be declared, bound to a name and run, "
+          + "and not yet written down as a type.\n\n" +
+            "An axiom runs where its source is known — 'Bind number to <name>, <axiom>.' or "
+          + "'cast <axiom>'. It cannot yet be a parameter, a field, or an element type."),
 
         // ── A FILLED template — `a stack of number` ───────────────────────────
         // Ahead of the shell cases below, which do not inspect the filling and would otherwise

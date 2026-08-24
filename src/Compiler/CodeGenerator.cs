@@ -4652,10 +4652,28 @@ static void* cufet_pipe_stage(void* argp) {
                 break;
             }
 
-            // An axiom declaration stores nothing. Foreign source has no runtime representation
-            // here: the text is pasted into this file's C when a return runs it, and the name
-            // exists so that return has something to say. See EmitAxiomCall.
-            case DefineStatement { Value: AxiomLiteral }:
+            // An axiom binding stores nothing. Foreign source has no runtime representation here:
+            // the text is pasted into this file's C where it is run, and the name exists so the
+            // run has something to say. See EmitAxiomCall.
+            //
+            // ★ `Define alias as answer.` binds one axiom name to another and is the same
+            // COMPILE-TIME alias — the checker follows the chain to the literal, so both names
+            // reach the same wrapper and neither needs a value at run time. Keyed on the TYPE
+            // rather than on the value being a literal, which is what makes the second form work:
+            // its value is a VariableReference, and emitting it produced `CufetDec cv_alias =
+            // cv_answer;` against a `cv_answer` that never existed — checked clean, would not
+            // build, which is the divergence the axiom guard used to prevent by refusing the
+            // program outright.
+            // ⚠ The binding is RECORDED even though nothing is emitted. `TypeOf` falls back to
+            // `number` for a name it does not know, so without this `Define alias as answer.`
+            // re-derived `answer` as a number and emitted `CufetDec cv_alias = cv_answer;` —
+            // against a `cv_answer` that never existed, because an axiom emits no value.
+            case DefineStatement { Value: AxiomLiteral lit } axd:
+                _varTypes[axd.Name] = new AxiomType(lit.Language ?? "", lit.ReturnType,
+                                                    [.. lit.Parameters.Select(p => p.Type)]);
+                break;
+            case DefineStatement axiomAlias when TypeOf(axiomAlias.Value) is AxiomType aliased:
+                _varTypes[axiomAlias.Name] = aliased;
                 break;
 
             case DefineStatement d:

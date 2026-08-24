@@ -78,7 +78,13 @@ public sealed partial class TypeChecker
         if (axiom.ReturnType is not null) RequireCrossableResult(axiom);
         CheckAxiomParameters(define, axiom);
         CheckReleaseClause(axiom, axiom.Line, axiom.Column);
-        return declared;
+        // ⚠ The declared type is COMPLETED from the literal, because a written axiom type has
+        // nowhere to say what the axiom takes — `c-language number axiom` is the whole spelling.
+        // At a declaration the two describe the same thing, so the parameters come from the one
+        // place that has them. Without this, every `given (…)` axiom failed its own declaration
+        // with "declared as c-language number axiom, but the value is a c-language number axiom",
+        // which is the equality check comparing a shape against itself minus its parameters.
+        return new AxiomType(tag.Language, axiom.ReturnType, [.. axiom.Parameters.Select(p => p.Type)]);
     }
 
     /// <summary>Refuses a declared result the boundary cannot bring back.</summary>
@@ -161,7 +167,7 @@ public sealed partial class TypeChecker
     /// <summary>The type of a bare axiom literal — always tagged by then, or already refused.</summary>
     private CufetType InferAxiomLiteral(AxiomLiteral axiom) =>
         axiom.Language is { } language
-            ? new AxiomType(language, axiom.ReturnType)
+            ? new AxiomType(language, axiom.ReturnType, [.. axiom.Parameters.Select(p => p.Type)])
             : throw TypeError(
                 "this is foreign source, and nothing says what language it is in",
                 "An axiom takes its language from the declaration it is the value of",
@@ -203,6 +209,29 @@ public sealed partial class TypeChecker
         return RunResultOf(axiom, ret.Line, ret.Column);
     }
 
+    /// <summary>An axiom whose source cannot be found from where it is being run.</summary>
+    /// <remarks>
+    /// ★★ The boundary of the narrow slice, said in one place. An axiom is a VALUE now — it can be
+    /// bound to a name, and a name bound to another name is followed to the source — but RUNNING
+    /// one still needs the source at the call site, because both backends paste or compile the text
+    /// itself and neither carries an axiom at run time. An axiom arriving through a PARAMETER, or
+    /// handed back by a FUNCTION, is exactly the case with no source to find.
+    ///
+    /// ⚠ It is refused rather than allowed-and-miscompiled, which is the same reason the old
+    /// blanket guard existed: allowing it type-checked a program the compiler could not build.
+    /// Measured, when this slice first let it through — `CufetDec cv_alias = cv_answer;` against a
+    /// `cv_answer` that was never emitted.
+    /// </remarks>
+    private TypeException AxiomSourceNotReachable(AxiomType axiom, int line, int column) =>
+        TypeError(
+            $"this {axiom.Language} axiom cannot be run from here — its source is not known at this point",
+            "an axiom is the foreign text itself, and running one pastes that text; a name bound "
+          + "to an axiom can be run, but one arriving through a parameter or handed back by a "
+          + "function has no text to paste",
+            line, column,
+            "run an axiom whose source is decided at run time",
+            "Run it where it is declared, or bind the axiom to a name and run that name.");
+
     /// <summary>An axiom reached for anywhere but a return.</summary>
     private TypeException AxiomUsedAsValue(string name, AxiomType axiom, IExpression at)
     {
@@ -222,7 +251,7 @@ public sealed partial class TypeChecker
     /// <summary>The axiom a `cast` reaches, or null when the call is an ordinary one.</summary>
     private AxiomLiteral? AxiomCalledBy(IExpression function) =>
         function is VariableReference vr && TryLookup(vr.Name, out var info) && info.Type is AxiomType
-            ? info.EstablishingExpr as AxiomLiteral
+            ? AxiomBehind(function)
             : null;
 
     /// <summary>
@@ -403,13 +432,32 @@ public sealed partial class TypeChecker
 
     private static string Count(int n, string noun) => n == 1 ? $"1 {noun}" : $"{n} {noun}s";
 
-    /// <summary>The axiom a returned expression stands for — the literal itself, or the one a name was defined as.</summary>
-    private AxiomLiteral? AxiomBehind(IExpression value) => value switch
+    /// <summary>The axiom an expression stands for, following a chain of names to the literal.</summary>
+    /// <remarks>
+    /// ★ Chained, because an axiom is a value now: `Define alias as answer.` binds a name whose
+    /// establishing expression is another NAME, not a literal, and one hop used to be all this
+    /// followed. Every link is a `Define`, so the chain is finite and acyclic by construction —
+    /// the depth guard is there for the malformed tree a rebuild could hand back, not for a
+    /// program a writer can express.
+    ///
+    /// ⚠ Null is a real answer and not a failure: an axiom arriving through a PARAMETER or a
+    /// function's return has no literal to find here, and is called through its value instead.
+    /// </remarks>
+    private AxiomLiteral? AxiomBehind(IExpression value)
     {
-        AxiomLiteral literal                                       => literal,
-        VariableReference vr when TryLookup(vr.Name, out var info) => info.EstablishingExpr as AxiomLiteral,
-        _                                                          => null,
-    };
+        for (int hops = 0; hops < 64; hops++)
+            switch (value)
+            {
+                case AxiomLiteral literal: return literal;
+                case VariableReference vr when TryLookup(vr.Name, out var info):
+                    if (info.EstablishingExpr is AxiomLiteral bound) return bound;
+                    if (info.EstablishingExpr is VariableReference next && !ReferenceEquals(next, value))
+                    { value = next; continue; }
+                    return null;
+                default: return null;
+            }
+        return null;
+    }
 
     /// <summary>Refuses foreign source whose language book is not pulled here.</summary>
     /// <remarks>

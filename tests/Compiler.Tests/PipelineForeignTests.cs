@@ -555,6 +555,83 @@ public class PipelineForeignTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── An axiom bound to a name ─────────────────────────────────────────────
+
+    [Fact]
+    public void Axiom_BoundToAnotherName_RunsFromThere()
+    {
+        // ★ The first brick of "code as data": an axiom is a VALUE here, not only something being
+        // run. `alias` holds the axiom `answer` holds, and running either reaches the same source.
+        //
+        // ★ It needs no runtime representation at all, which is why this slice could land while
+        // passing one through a parameter still cannot: the checker follows the chain of names back
+        // to the literal, so both names compile to the same wrapper call and the binding emits
+        // nothing. An axiom that has to be chosen at RUN time is the part still missing.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number answer as [6 * 7].
+                Define alias as answer.
+                State cast alias.
+            Done.
+            """;
+        Assert.Equal("42", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_BoundThroughSeveralNames_StillReachesItsSource()
+    {
+        // The chain is followed, not one hop. Written because one hop was all it used to follow,
+        // and a two-link chain reported the second name as undefined rather than as an axiom.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number answer as [6 * 7].
+                Define first-alias as answer.
+                Define second-alias as first-alias.
+                State cast second-alias.
+            Done.
+            """;
+        Assert.Equal("42", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_BoundToAName_EmitsNoValue()
+    {
+        // ⚠ The binding must emit NOTHING. Emitting it produced `CufetDec cv_alias = cv_answer;`
+        // against a `cv_answer` that never existed — checked clean, would not build, which is the
+        // divergence the axiom guards exist to prevent. One wrapper, no variable of either name.
+        string c = GenerateC("""
+            Pull a book on the c-language.
+                Define c-language number answer as [6 * 7].
+                Define alias as answer.
+                State cast alias.
+            Done.
+            """);
+        Assert.Equal(1, WrapperCount(c));
+        Assert.DoesNotContain("cv_alias", c);
+        Assert.DoesNotContain("cv_answer", c);
+    }
+
+    [Fact]
+    public void Axiom_RunFromAPlaceItsSourceIsNotKnown_IsRefused()
+    {
+        // ⚠ The boundary of this slice, and it is a REFUSAL rather than a miscompile. Running an
+        // axiom pastes its text, so an axiom chosen at run time has no text to paste — and letting
+        // it through type-checked programs neither backend could build.
+        const string viaParameter = """
+            Pull a book on the c-language.
+                Define c-language number answer as [6 * 7].
+                Bind number to run-it, given (the c-language axiom which):
+                    Return which.
+                Done.
+                State cast run-it on (answer).
+            Done.
+            """;
+        Assert.Contains("not yet written down as a type",
+                        Assert.ThrowsAny<Exception>(() => Interpret(viaParameter)).Message);
+    }
+
     // ── Addresses ────────────────────────────────────────────────────────────
 
     // A pointer out of C, back into C, and used there. `strdup` allocates, `strlen` reads through
@@ -1336,7 +1413,7 @@ public class PipelineForeignTests : PipelineTestBase
     {
         var e = Assert.Throws<TypeException>(() => GenerateC(
             $"Pull a book on the c-language.\n    {declaration}\nDone."));
-        Assert.Contains("can be declared and returned", e.Message);
+        Assert.Contains("not yet written down as a type", e.Message);
     }
 
     [Fact]

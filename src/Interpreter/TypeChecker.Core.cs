@@ -134,19 +134,40 @@ public sealed class AxiomType : CufetType
     /// </remarks>
     public CufetType? ReturnType { get; }
 
-    public AxiomType(string language, CufetType? returnType = null)
+    /// <summary>What running it takes, when the type is written down rather than inferred.</summary>
+    /// <remarks>
+    /// ★ Needed the moment an axiom can be PASSED, because two axioms differing only in what they
+    /// are handed are different things to call — and a parameter declared `c-language number axiom`
+    /// has to say which shape it accepts, or the call site cannot be checked at all.
+    ///
+    /// ⚠ Empty is a real answer (an axiom taking nothing), not "unknown". A declaration's inferred
+    /// type carries the literal's own parameters, so the two agree by construction.
+    /// </remarks>
+    public IReadOnlyList<CufetType> ParameterTypes { get; }
+
+    public AxiomType(string language, CufetType? returnType = null,
+                     IReadOnlyList<CufetType>? parameterTypes = null)
     {
         Language = language;
         ReturnType = returnType;
+        ParameterTypes = parameterTypes ?? [];
     }
 
     public override bool Equals(object? obj) =>
         obj is AxiomType a
         && string.Equals(Language, a.Language, StringComparison.OrdinalIgnoreCase)
-        && ReturnType == a.ReturnType;
+        && ReturnType == a.ReturnType
+        && ParameterTypes.SequenceEqual(a.ParameterTypes);
 
-    public override int GetHashCode() =>
-        HashCode.Combine(typeof(AxiomType), Language.ToLowerInvariant(), ReturnType);
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(typeof(AxiomType));
+        hash.Add(Language.ToLowerInvariant());
+        hash.Add(ReturnType);
+        foreach (var p in ParameterTypes) hash.Add(p);
+        return hash.ToHashCode();
+    }
 }
 
 public sealed class RecordType : CufetType
@@ -2117,6 +2138,19 @@ public sealed partial class TypeChecker
         // `Define the number fd as cast open-file on (path, flags).` — running an axiom, where the
         // type declared HERE is what comes back. Asked before the value's type is inferred, for the
         // same reason CheckReturn asks: a cast of an axiom has no type of its own to infer.
+        // ★ `Define alias as answer.` — binding one axiom name to another, which is the one place
+        // an axiom name is a VALUE rather than something being run. Taken before InferType for the
+        // same reason CheckReturn takes its case first: the guard there refuses an axiom reached as
+        // a value, and this is the reading that is legal. Both names then resolve to the same
+        // source, so neither backend needs an axiom to exist at run time.
+        if (define.Value is VariableReference && AxiomBehind(define.Value) is not null
+            && TryLookup(((VariableReference)define.Value).Name, out var aliasInfo)
+            && aliasInfo!.Type is AxiomType aliasedAxiom)
+        {
+            Scope[define.Name] = new TypeInfo(aliasedAxiom, define.Value, define.Line, true, _rabbitDepth);
+            RecordStashLocal(define.Name, aliasedAxiom, define.Line, define.Column);
+            return;
+        }
         var type = InferType(define.Value);
         if (type == null)
             throw TypeError(
@@ -2268,9 +2302,17 @@ public sealed partial class TypeChecker
             // name bound to one may be reached for at all — see the guard in InferTypeCore. What
             // happens next is RunAxiomOnReturn's: an axiom runs when it is returned, and the
             // declared type decides what it becomes.
-            var returnType = AxiomBehind(ret.Value) is not null
+            // ⚠ Returning an axiom INTO an axiom type hands the axiom itself back, unrun. Only a
+            // return into some other type runs it — which is the whole of "an axiom runs when it is
+            // returned", now that there is a type a function can give one back as.
+            var returnType = AxiomBehind(ret.Value) is not null && _expectedReturnType is not AxiomType
                 ? RunAxiomOnReturn(ret, _expectedReturnType)
                 : InferType(ret.Value);
+            // Returning an axiom into something that is NOT an axiom type means running it, and
+            // running needs its source — which a parameter or another call's result does not carry.
+            if (returnType is AxiomType unreachable && _expectedReturnType is not null
+                && _expectedReturnType is not AxiomType)
+                throw AxiomSourceNotReachable(unreachable, ret.Line, ret.Column);
             if (IsRabbitType(returnType))
                 throw TypeError(
                     "rabbits cannot be returned — they flow downward only",
@@ -2442,6 +2484,11 @@ public sealed partial class TypeChecker
         // clean, print a C# object interpreted, and emit C that would not build — three answers to
         // one program, which is the shape a use guard exists to close. CheckReturn takes the legal
         // case before it ever asks for a type, so nothing that reaches here is one.
+        // An axiom reached for by name, anywhere but a return, a cast, or a `Define` binding it to
+        // another name. `State get-pid.` used to check clean, print a C# object interpreted, and
+        // emit C that would not build — three answers to one program, which is the shape a use
+        // guard exists to close. CheckReturn and CheckDefine take the legal cases before they ever
+        // ask for a type, so nothing that reaches here is one.
         VariableReference { Name: var an } when TryLookup(an, out var ati) && ati.Type is AxiomType axiomInfo
                                                                                                  => throw AxiomUsedAsValue(an, axiomInfo, expr),
         VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => NoteModuleUse(n, ti),
@@ -3069,7 +3116,9 @@ public sealed partial class TypeChecker
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
         StashType { ElementType: var held }  => $"stash of {FormatTypePlural(held)}",
         AxiomType { ReturnType: { } gives } a => $"{a.Language} {FormatType(gives)} axiom",
-        AxiomType at                         => $"{at.Language} axiom",
+        AxiomType at                         => at.ParameterTypes.Count == 0
+                                                ? $"{at.Language} axiom"
+                                                : $"{at.Language} axiom given ({string.Join(", ", at.ParameterTypes.Select(FormatType))})",
         FunctionType ft                      => FormatFunctionType(ft),
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => ot.Name,
