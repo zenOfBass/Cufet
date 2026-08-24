@@ -3717,6 +3717,35 @@ address` — `fopen`, `malloc`, `getenv` and `opendir` all report failure that w
 An address prints as `<address>`, never as its value: a handle is a different number in every
 process, so printing it could tell you nothing you could rely on.
 
+**`and free it with <name>` says how to release it**, and then Cufet does, on every way out of the
+block — its `Done.`, a `Stop`, a `return`, or an exception nobody catches:
+
+```
+Pull a book on the c-language.
+    Define c-language number shut, given (the address held), as [fclose((FILE*)the held)].
+    Define c-language voidable address open-one, given (the text file-path),
+        as [fopen(the file-path, "rb")], and free it with shut.
+
+    Pull a rabbit.
+        Define handle as cast open-one on ("notes.txt").
+        ...
+    Done.                              ← freed here, however the block is left
+Done.
+```
+
+The releasing axiom takes one `address` and nothing else. A void result is never freed — C had
+nothing to give, so there is nothing to release.
+
+**Why it sits on the acquiring declaration.** `getenv` and `strdup` both hand back a `char*`, and
+one must be freed while freeing the other is a crash. Cufet never reads the foreign text, so it
+cannot tell them apart — you can, and this is where you say so, once.
+
+⚠ **Saying nothing frees nothing.** An axiom with no clause is never released, and that is the safe
+direction: a leak is recoverable and shows up in a leak checker, where a double free is corruption
+that surfaces somewhere else entirely. Nothing checks that the function you named is the *right*
+one either — `and free it with fclose` on a directory handle type-checks and then misbehaves. This
+is the residue of calling C at all, and it is where the guardrails stop.
+
 **A `size_t` needs no cast.** `strlen`, `sizeof`, `fread` and the rest of libc report a length as an
 unsigned 64-bit value, and that is a whole number like any other here — the boundary carries the
 value's signedness along with its bits, so a large one arrives as the number it is rather than as a

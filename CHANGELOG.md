@@ -37,6 +37,30 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   that outlives the block — an address is a reference type to the region model, so the escape check
   that already guards a series or a map guards this too. NULL is void, as everywhere else here.
 
+  **`and free it with <name>` names the axiom that releases it**, and the release then happens on
+  every way out of the block — reaching its `Done.`, a `Stop`, a `return`, or an exception nobody
+  catches:
+
+  ```
+  Define c-language number shut, given (the address held), as [fclose((FILE*)the held)].
+  Define c-language voidable address open-one, given (the text file-path),
+      as [fopen(the file-path, "rb")], and free it with shut.
+  ```
+
+  It rides the destructor registry, so it needed no new cleanup machinery — LIFO at the block's
+  exit, and run by `cufet_raise` on the way out of an uncaught fault, were both already true.
+  Measured: 1200 handles opened and freed where 509 is the limit, including a version where every
+  single one is abandoned by an exception.
+
+  The clause has to be on the acquiring declaration because nothing else can carry it — `getenv`
+  and `strdup` hand back the same type with opposite obligations, and Cufet never reads the foreign
+  text, so the person who wrote it is the only possible source of the fact. ⚠ **Saying nothing
+  frees nothing:** a leak is recoverable and visible, where a double free is corruption that
+  surfaces somewhere else entirely. Nothing checks that the named function is the *right* one.
+
+  It costs no reserved word — `it`, `with` and `and` were already tokens, and `free` is recognised
+  by lexeme after `, and`, where nothing else can appear, so it stays usable as an ordinary name.
+
   An address prints as `<address>`, never as its value — the two backends are two processes, so a
   printed handle could not agree between them however correct both were.
 

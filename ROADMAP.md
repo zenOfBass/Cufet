@@ -74,10 +74,6 @@ Two framings that set the order:
    - **`the text at <address>`** — the only read there is, yielding `voidable text` COPIED into the
      arena rather than a view into foreign memory. `address` itself ships: a pointer crosses both
      ways, NULL is void, and holding one outside a rabbit is a static error.
-   - **`released by`** — registering a foreign allocation with the function that frees it, so
-     `UnwindTo` releases it on every exit path exactly as an unmakeable object already is. ⚠ DESIGN
-     settles the semantics and the words but never spells WHERE they go in the declaration; that
-     one question needs answering before it is built.
    - **An axiom passed around unrun**, which is what lets a SQL fragment be assembled before use.
      Refused today because an axiom has no backend representation, and allowing it would type-check
      a program the compiler cannot build.

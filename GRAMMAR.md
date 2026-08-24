@@ -1877,6 +1877,7 @@ lets a body see a `permanently` constant.
 | `Define c-language x as [ … ].` | declare an axiom (`Define a c-language axiom x as [ … ].` is the same) |
 | `Bind number to f, x.` | run it, and give back the whole number it produced |
 | `Cast x on (a, b).` | run it as a STATEMENT, for its effect — the answer is discarded |
+| `… as [ … ], and free it with <name>.` | name the axiom that releases the address this one gives back |
 | `Pull a book on the c-language.` | admit C axioms in this block |
 
 ★ **A call in statement position discards the answer and checks the same.** The language must be
@@ -1923,6 +1924,13 @@ makes that block the unsafe marker without a new keyword: a pointer is a rabbit 
 because the arena that knows when the region dies is what knows when the pointer dies. `Define
 handle as cast open-dir on (…)` outside one is a static error, and so is storing one into anything
 declared outside — an address obeys the same escape rule as a series or a map.
+
+★ **`and free it with <name>`** names the axiom that frees the address, and the release then runs
+on every way out of the block, exception included. The releasing axiom takes one `address`. A void
+result is never freed, and an axiom with no clause is never freed — a leak is recoverable where a
+double free is not. ⚠ Nothing checks the named function is the RIGHT one; Cufet never reads the
+foreign text. The clause costs no reserved word: `it`, `with` and `and` are already tokens, and
+`free` is recognised only after `, and`, where nothing else can appear.
 
 ★ **There is one kind of address**, so `char*` and `FILE*` are the same type — what differs is not
 the value but what the writer does with it. There is **no address-of operator**: an address only
