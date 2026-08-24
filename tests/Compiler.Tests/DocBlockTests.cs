@@ -29,7 +29,10 @@ namespace Cufet.Compiler.Tests;
 /// </summary>
 public class DocBlockTests
 {
-    private static readonly string[] DocFiles = ["README.md", "GRAMMAR.md", "REFERENCE.md"];
+    // Paths are repo-root-relative with forward slashes: they are recorded in the baseline, so
+    // they must not vary by platform.
+    private static readonly string[] DocFiles =
+        ["README.md", "docs/BOOKS.md", "docs/GRAMMAR.md", "docs/REFERENCE.md"];
 
     private static string RepoRoot => FindRepoRoot();
 

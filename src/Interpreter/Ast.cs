@@ -820,7 +820,7 @@ public sealed record MatrixAccess(
 // The item at (row, column) of <matrix> becomes <number>.
 // The write half of MatrixAccess, and the only thing that mutates a matrix in place. A matrix is a
 // reference type, so the write is visible through every name for that matrix — which is what the
-// reference-types table in GRAMMAR.md has always said it was.
+// reference-types table in docs/GRAMMAR.md has always said it was.
 public sealed record MatrixSetStatement(
     IExpression Matrix,
     IExpression Row,

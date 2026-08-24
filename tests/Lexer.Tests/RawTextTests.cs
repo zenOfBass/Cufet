@@ -113,7 +113,7 @@ public class RawTextTests
     public void RawText_ClosesAtTheFirstDoubleAngle()
     {
         // '>>>' closes at the first two and leaves a stray '>' behind — the one thing this form
-        // cannot spell is text ending in '>'. Documented in GRAMMAR.md under sharp edges.
+        // cannot spell is text ending in '>'. Documented in docs/GRAMMAR.md under sharp edges.
         var tokens = Lex("<<a>>>");
         Assert.Equal("a", tokens[0].Lexeme);
         Assert.Equal(TokenType.Gt, tokens[1].Type);

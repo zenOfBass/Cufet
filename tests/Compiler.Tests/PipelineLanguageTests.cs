@@ -638,7 +638,7 @@ public class PipelineLanguageTests : PipelineTestBase
 
     // ── `range` in value position ─────────────────────────────────────────────────────────────
     // Only the for-each form was ever emitted, so `Define halves as range 1 to 2 counting by 0.5.`
-    // — an example in REFERENCE.md — did not compile at all.
+    // — an example in docs/REFERENCE.md — did not compile at all.
 
     [Fact]
     public void Range_InValuePosition_MatchesInterpreter()

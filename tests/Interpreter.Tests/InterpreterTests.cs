@@ -10002,7 +10002,7 @@ public class InterpreterTests
 
     // ── Books / Collections — Matrix element assignment ─────────────────────────
     //
-    // The write half of `the item at (row, column) of m`. GRAMMAR.md has always listed `matrix`
+    // The write half of `the item at (row, column) of m`. docs/GRAMMAR.md has always listed `matrix`
     // among the REFERENCE types, saying "element mutations are reflected everywhere" — for a long
     // while that was a promise with no syntax behind it, and a matrix you cannot write to is just a
     // series of series with worse ergonomics.
