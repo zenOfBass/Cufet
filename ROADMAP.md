@@ -65,9 +65,30 @@ Two framings that set the order:
    Part VII for what they do, and CHANGELOG for when. What is left, in the order it makes sense to
    build:
 
-   - **An axiom passed around unrun**, which is what lets a SQL fragment be assembled before use.
-     Refused today because an axiom has no backend representation, and allowing it would type-check
-     a program the compiler cannot build.
+   - **An axiom passed around unrun — SCAFFOLDING IN, the rest still to build.** An axiom can now
+     be bound to a name and run from there (`Define alias as answer.`), because the checker follows
+     a chain of names back to the source. That needs no runtime representation: both names reach
+     the same wrapper and the binding emits nothing.
+
+     ⚠ **What is left is the backend half, and it is the whole of the rest.** An axiom still cannot
+     be written down as a TYPE — a parameter, a field, an element type — so one chosen at run time
+     cannot be run. Running an axiom pastes its foreign text, and a value that arrives at run time
+     has no text to paste. The refusal is one arm in `ResolveParamType`; lifting it alone was tried
+     and made four shapes check clean and then fail in the code generator, which is the divergence
+     this project refuses hardest.
+
+     ★ **What it would take**, for whoever picks this up: an axiom value has to become a C function
+     POINTER to its wrapper (one typedef per parameter-and-result shape) and a delegate on the
+     interpreted side, plus a written axiom type that can say what it takes — `<language>
+     [<result>] axiom` has nowhere to put a parameter list today, which is why even the
+     parameterless case cannot be checked at a call site through a parameter. `AxiomType` already
+     carries `ParameterTypes`; nothing writes them from a written type yet.
+
+     ⚠ **The bullet's old motivation was misleading and is corrected here**: this is not about
+     assembling an axiom from strings, which the design forbids outright. DESIGN's line is that
+     "a function assembling a SQL fragment hands one back unrun" — the block is fixed where it is
+     written, and what moves is the axiom VALUE. See DESIGN "One type for code as data", which is
+     the arc this is the first brick of.
 
    **Read [DESIGN.md](DESIGN.md#foreign-interoperability) before starting** — it carries the
    reasoning and the rejected alternatives, which is the part worth having. Addresses exist only

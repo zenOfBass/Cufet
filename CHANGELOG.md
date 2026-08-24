@@ -10,6 +10,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **An axiom can be bound to a name and run from there** — the first brick of the design's
+  "one type for code as data", scaffolding only:
+
+  ```
+  Define c-language number answer as [6 * 7].
+  Define alias as answer.
+  State cast alias.                    ← 42
+  ```
+
+  A chain of names is followed back to the source, so both names reach the same wrapper and the
+  binding emits nothing at all. That is why this could land while the rest could not: running an
+  axiom pastes its foreign text, so it needs the source at the call site.
+
+  ⚠ **An axiom still cannot be written down as a type** — not a parameter, a field, or an element
+  type — and an axiom chosen at run time therefore cannot be run. That is refused rather than
+  allowed, because an axiom has no runtime representation on either backend; lifting the guard on
+  its own made four shapes check clean and then fail in the code generator.
+
 - **Foreign pointers, as an `address`** — opaque, rabbit-scoped, and never dereferenced implicitly.
   A pointer comes back from C as a `voidable address` and goes back into C as an `address`, and
   that is all it does:
