@@ -376,6 +376,25 @@ The two decision points are small. The work is threading that context through ev
 a type is parsed — parameters, field declarations, `Define … as a <type>`, `Bind <type> to`,
 element types — because missing one is exactly how a regression gets in. n-queens is the canary.
 
+**Named arguments at a call site — `cast area on (the width 3, the height 4)`.** ⚠ **Sequenced
+AFTER Approach B above**, and that is the whole reason this entry sits here rather than on its own.
+
+The rule already exists and REFERENCE already states it generally: *"wherever a field could be
+positional instead, `the` is what says a name follows."* It is implemented in object literals and
+record literals — `a new card { the suit "hearts" }`, `a record with ("hatchback", the make
+"Honda")` — and an argument list is the third place a value could be positional or named, and the
+one place the marker does nothing. `cast area on (the width 3)` does not parse today.
+
+★ **The semantics need no invention**, because the analogous cases are already decided and
+measured: named fields reorder freely (`{ the rank 7, the suit "hearts" }` works), and a record
+takes positional first then named. Named arguments would do both the same way.
+
+⚠ **The cost is that it adds a third case to the guess Approach B exists to remove.** `the width 3`
+(a named argument) and `the width of box` (a named field access) are told apart by looking ahead
+for `of` — which is `IsNamedAccessPattern()`, the lookahead that mis-parsed `the series of number
+board`. Adding this before the guess is gone makes that job bigger, in the position where it is
+hardest: inside a parenthesised list, where the comma and the `of` are both load-bearing.
+
 ★ **Insurance, not repair, which is why it has no slot.** The previous approach closed every case anyone has actually hit; this closes the remaining theoretical fragility. Its precondition — a feature-complete parser syntax, so the hardening happens once against the final shape — **is met**, so it is unblocked rather than waiting on anything. It is written up as a contributor-sized task in
 CONTRIBUTING's *known debts*.
 
