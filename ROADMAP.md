@@ -65,23 +65,9 @@ Two framings that set the order:
    Part VII for what they do, and CHANGELOG for when. What is left, in the order it makes sense to
    build:
 
-   - **A fractional value handed INTO foreign source.** A `double` now comes BACK, as a
-     `voidable number`; going the other way is still refused, because a `number` argument arrives
-     as a range-checked `long long` and nothing spells "this one goes in as a double". ⚠ Deferred
-     on purpose, for want of a use case — whole arguments already work by casting in C, and this is
-     the genuinely lossy direction (`0.1` has no exact `double`). When a use case turns up, it
-     brings the spelling with it and this gets solved rather than worked around.
-   - **`the text at <address>`** — the only read there is, yielding `voidable text` COPIED into the
-     arena rather than a view into foreign memory. `address` itself ships: a pointer crosses both
-     ways, NULL is void, and holding one outside a rabbit is a static error.
    - **An axiom passed around unrun**, which is what lets a SQL fragment be assembled before use.
      Refused today because an axiom has no backend representation, and allowing it would type-check
      a program the compiler cannot build.
-   - **A library of your own**, where the obstacle is LINKING rather than headers. The bundled
-     header set already covers everything that links by default, so what is missing arrives as
-     "this needs library X" — headers **and** link flags together, since `#include <sqlite3.h>`
-     alone gets declarations and then fails with "undefined reference". ★ The trigger is checkable:
-     the first person who wants to bind a non-system library.
 
    **Read [DESIGN.md](DESIGN.md#foreign-interoperability) before starting** — it carries the
    reasoning and the rejected alternatives, which is the part worth having. Addresses exist only
@@ -376,6 +362,23 @@ indistinguishable from having forgotten.
 **Promote an item the moment its blocker becomes a numbered item.**
 
 ### Language
+
+- **A fractional value handed INTO foreign source.** *Blocker: no use case has arrived.* A `double`
+  comes BACK as a `voidable number`, and that direction ships. Going the other way is refused: a
+  `number` argument arrives as a range-checked `long long`, and nothing spells "this one goes in as
+  a double". Whole arguments already work by casting on the C side —
+  `[pow((double)the base, (double)the exponent)]` — so what is actually missing is passing `0.5`,
+  and nothing has wanted to yet.
+
+  ⚠ **It is also the genuinely lossy direction**, which is why it should not be guessed at: `0.1`
+  has no exact `double`, so the conversion has to decide a rounding, and the spelling has to make
+  the writer say they meant a double at all. Both of those want a real caller to argue from.
+
+- **A library of your own — headers AND link flags together.** *Blocker: nobody has wanted to bind
+  a non-system library.* The bundled header set covers everything that links by default, so the gap
+  only shows up as "this needs library X": `#include <sqlite3.h>` gets the declarations and then
+  fails with "undefined reference", which is why headers alone would ship a feature that cannot
+  work for the case that motivates it. ★ The trigger is checkable, which is what keeps this honest.
 
 - **Named loops — a label so `Stop.` can leave an OUTER loop.** *Blocker: no demonstrated need.*
   Across 28 examples — a sudoku solver with triple-nested loops, a JSON parser, recursive descent,

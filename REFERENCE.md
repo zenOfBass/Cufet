@@ -3717,6 +3717,38 @@ address` — `fopen`, `malloc`, `getenv` and `opendir` all report failure that w
 An address prints as `<address>`, never as its value: a handle is a different number in every
 process, so printing it could tell you nothing you could rely on.
 
+**`the text at <address>` reads through one**, and it is the only read there is:
+
+```
+Pull a book on the c-language.
+    Define c-language number shut, given (the address held), as [closedir((DIR*)the held)].
+    Define c-language voidable address open-dir, given (the text folder),
+        as [opendir(the folder)], and free it with shut.
+    Define c-language voidable address next-found, given (the address held),
+        as [({ struct dirent* e = readdir((DIR*)the held); e ? e->d_name : (char*)0; })].
+
+    Pull a rabbit.
+        Define handle as cast open-dir on ("logs").
+        If handle is not void:
+            Repeat:
+                Define found as cast next-found on (handle).
+                If found is void, stop.
+                State the text at found but void is "?".
+            Until false.
+        Done.
+    Done.                              ← the directory is closed here
+Done.
+```
+
+**It always copies.** What you get back is `voidable text` that belongs to the rabbit, never a view
+into C's memory — so it survives C freeing or overwriting the block it came from, which `readdir`
+does on the very next call. Reading through a **void** address is void, not a crash.
+
+**Reading a struct or a scalar is not offered, and is not missing.** An axiom can project a field
+(`[the point->x]`) or declare a local and hand it back, so those values come home as ordinary
+results. Text is the one case with no single-expression answer on the C side, because the bytes
+belong to C and have to be copied out.
+
 **`and free it with <name>` says how to release it**, and then Cufet does, on every way out of the
 block — its `Done.`, a `Stop`, a `return`, or an exception nobody catches:
 

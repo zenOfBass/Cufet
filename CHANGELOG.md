@@ -37,6 +37,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   that outlives the block — an address is a reference type to the region model, so the escape check
   that already guards a series or a map guards this too. NULL is void, as everywhere else here.
 
+  **`the text at <address>` is the one read there is**, and it always copies:
+
+  ```
+  Define c-language voidable address next-found, given (the address held),
+      as [({ struct dirent* e = readdir((DIR*)the held); e ? e->d_name : (char*)0; })].
+
+  State the text at found but void is "?".
+  ```
+
+  It yields `voidable text` — rabbit-owned, never a view into foreign memory, so the bytes survive
+  C freeing or overwriting the block they came from. Reading through a void address is void rather
+  than a crash. Reading a struct or a scalar was considered and is unnecessary: an axiom can
+  project a field or declare a local and hand it back, so those come home as ordinary results. Text
+  is the one case with no single-expression answer on the C side.
+
+  Neither word is reserved: `text` was always contextual and `at` is already matched this way for
+  `<bits> at <n> bits`, so the pair is what makes the phrase unmistakable and both stay usable as
+  ordinary names.
+
   **`and free it with <name>` names the axiom that releases it**, and the release then happens on
   every way out of the block — reaching its `Done.`, a `Stop`, a `return`, or an exception nobody
   catches:

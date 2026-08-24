@@ -1878,6 +1878,7 @@ lets a body see a `permanently` constant.
 | `Bind number to f, x.` | run it, and give back the whole number it produced |
 | `Cast x on (a, b).` | run it as a STATEMENT, for its effect — the answer is discarded |
 | `… as [ … ], and free it with <name>.` | name the axiom that releases the address this one gives back |
+| `the text at <address>` | read through a foreign pointer — `voidable text`, always COPIED |
 | `Pull a book on the c-language.` | admit C axioms in this block |
 
 ★ **A call in statement position discards the answer and checks the same.** The language must be
@@ -1924,6 +1925,12 @@ makes that block the unsafe marker without a new keyword: a pointer is a rabbit 
 because the arena that knows when the region dies is what knows when the pointer dies. `Define
 handle as cast open-dir on (…)` outside one is a static error, and so is storing one into anything
 declared outside — an address obeys the same escape rule as a series or a map.
+
+★ **`the text at <address>` is the ONLY read there is**, and it always copies into the arena —
+`voidable text` that belongs to the rabbit, never a view into foreign memory. Reading through a
+void address is void. Reading a struct or a scalar is not offered and is not missing: an axiom can
+project a field or declare a local and hand it back, so those come home as ordinary results. ⚠
+Neither `text` nor `at` is reserved — the PAIR is what makes the phrase unmistakable.
 
 ★ **`and free it with <name>`** names the axiom that frees the address, and the release then runs
 on every way out of the block, exception included. The releasing axiom takes one `address`. A void
