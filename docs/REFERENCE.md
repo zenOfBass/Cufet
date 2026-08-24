@@ -3547,7 +3547,7 @@ Cufet exception. See the error-handling section.
 
 ---
 
-## Part VIII. Modules and books
+## Part VIII. Modules
 
 ### Modules (`Pull`)
 
