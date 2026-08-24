@@ -72,7 +72,7 @@ Two framings that set the order:
    **Read [DESIGN.md](DESIGN.md#foreign-interoperability) before starting** — it carries the
    reasoning and the rejected alternatives, which is the part worth having. Addresses exist only
    inside a rabbit block, are never dereferenced except by `the text at <address>`, and are freed by
-   the existing unmaker registry via `released by`. Cufet never models a C struct: struct work
+   the existing unmaker registry via `and free it with <name>`. Cufet never models a C struct: struct work
    happens inside an axiom. Every address and every read is `voidable`, so NULL lands in the
    mechanism the language already has.
 
