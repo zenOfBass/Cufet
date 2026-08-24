@@ -41,6 +41,10 @@ public sealed partial class Interpreter
             if (seen.Add(ForeignC.Identity(axiom.Language ?? "", axiom.Source, axiom.Parameters,
                                           axiom.ReturnType)))
                 pending.Add((axiom, line));
+            // ⚠ The release axiom may be named ONLY by `and free it with`, never called by hand —
+            // and it still has to be built before the program starts, or the first block exit pays
+            // for a gcc run and a bad one fails partway through a program that had produced output.
+            if (axiom.ReleaseAxiom is { } release) Note(release, line);
         }
 
         AstSearch.Visit(program.Statements, node =>
@@ -61,6 +65,48 @@ public sealed partial class Interpreter
 
         foreach (var (axiom, line) in pending)
             runner.Prepare(axiom.Language!, axiom.Source, axiom.Parameters, axiom.ReturnType!, line);
+    }
+
+    // Foreign addresses awaiting release, and the block depth each was acquired at. The C twin is
+    // `cufet_um_obj`/`cufet_um_fn` with `cufet_num` as the snapshot — same registry, same LIFO
+    // order, same rule that a block exit runs back to its own base.
+    private readonly List<(nint Handle, AxiomLiteral Release, int Line)> _pendingReleases = [];
+    private readonly List<int> _scopeReleaseBase = [];
+
+    /// <summary>Registers a freshly-bound address with the axiom that frees it, if one was named.</summary>
+    /// <remarks>
+    /// ★ Keyed on the DEFINING expression rather than the value, because the value is just a
+    /// pointer and carries nothing: the checker resolved `and free it with close-dir` onto the
+    /// acquiring axiom, and this is the one place that axiom and the value it produced are both
+    /// in hand.
+    ///
+    /// ⚠ Only a `Define` registers, matching the unmaker rule exactly — an address that is
+    /// re-bound with `becomes`, or never named at all, is not registered and not freed. Both
+    /// directions are deliberate: freeing something twice is worse than not freeing it.
+    /// </remarks>
+    private void RegisterForeignRelease(IExpression definingExpr, object? value)
+    {
+        if (value is not ForeignAddress address) return;
+        if (definingExpr is not CastExpression { RunsAxiom: { } acquired }) return;
+        if (acquired.ReleaseAxiom is not { } release) return;
+        _pendingReleases.Add((address.Handle, release, acquired.Line));
+    }
+
+    /// <summary>Frees everything acquired since <paramref name="base"/>, newest first.</summary>
+    /// <remarks>
+    /// ⚠ LIFO, like the unmakers beside it, and for the same reason: a handle acquired later may
+    /// depend on one acquired earlier.
+    /// </remarks>
+    private void RunForeignReleases(int @base)
+    {
+        while (_pendingReleases.Count > @base)
+        {
+            var (handle, release, line) = _pendingReleases[^1];
+            _pendingReleases.RemoveAt(_pendingReleases.Count - 1);
+            if (ForeignRunner is not { } runner) continue;
+            runner.Run(release.Language!, release.Source, release.Parameters, release.ReturnType!,
+                       [new ForeignAddress(handle)], line);
+        }
     }
 
     /// <summary>Runs an axiom called with arguments — `cast open-file on (path, flags)`.</summary>

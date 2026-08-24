@@ -155,15 +155,52 @@ public sealed class Parser
             permanent = true;
             SkipNoise();
         }
+        var freeWith = TryParseFreeItWithClause();
         Consume(TokenType.Dot);
         // The clause belongs to the axiom, which is the only value that can take one. A `given` on
         // anything else is carried no further — the checker reports it against this statement.
         if (value is AxiomLiteral axiom && parameters is not null) axiom.Parameters = parameters;
+        if (value is AxiomLiteral released && freeWith is not null) released.ReleasedBy = freeWith;
         return new DefineStatement(name, value, permanent, shadow, line, col, declaredType)
         {
             HasParameterClause = parameters is not null,
         };
     }
+
+    /// <summary>`, and free it with &lt;name&gt;` — the release half of an acquiring axiom.</summary>
+    /// <remarks>
+    /// ★ **`free` is NOT reserved**, and does not need to be: after `, and` inside a `Define` tail
+    /// nothing else can appear, so one look settles it — the same move as `IsRabbitWord` and the
+    /// contextual type names. A writer keeps `free` for their own names, which matters for a word
+    /// this ordinary. `it`, `with` and `and` are all already tokens, so the clause costs nothing.
+    ///
+    /// ★ The COMMA is what makes `and` read as conjunction rather than as the operator. Without it,
+    /// `as [ … ] and release is close-dir` parses as `[axiom] and (release is close-dir)` — a
+    /// complete, valid expression that swallows the clause. Measured; the same `bits and fact`
+    /// mis-parse GRAMMAR already records one section over.
+    ///
+    /// ★ `it` is the axiom's own result, which is the same job the pronoun does everywhere else:
+    /// the thing under discussion. Nothing new is being taught about the word.
+    /// </remarks>
+    private string? TryParseFreeItWithClause()
+    {
+        if (Peek().Type != TokenType.Comma) return null;
+        if (_pos + 1 >= _tokens.Count || _tokens[_pos + 1].Type != TokenType.And) return null;
+        if (_pos + 2 >= _tokens.Count || !IsWord(_tokens[_pos + 2], "free")) return null;
+        Advance(); SkipNoise();      // ','
+        Advance(); SkipNoise();      // 'and'
+        Advance(); SkipNoise();      // 'free'
+        Consume(TokenType.It); SkipNoise();
+        Consume(TokenType.With); SkipNoise();
+        var name = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+        return name;
+    }
+
+    /// <summary>Is this token a given word used as an ordinary identifier, not a keyword?</summary>
+    private static bool IsWord(Token tok, string word) =>
+        tok.Type == TokenType.Identifier
+        && string.Equals(tok.Lexeme, word, StringComparison.OrdinalIgnoreCase);
 
     // Define object <name> with (<fields>) [: <bind-stmts> Done.].
     private ObjectDefinition ParseObjectDefinition(int line, int col)

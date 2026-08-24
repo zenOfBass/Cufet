@@ -77,6 +77,7 @@ public sealed partial class TypeChecker
         axiom.ReturnType = tag.ReturnType is { } declaredResult ? ResolveParamType(declaredResult) : null;
         if (axiom.ReturnType is not null) RequireCrossableResult(axiom);
         CheckAxiomParameters(define, axiom);
+        CheckReleaseClause(axiom, axiom.Line, axiom.Column);
         return declared;
     }
 
@@ -276,6 +277,53 @@ public sealed partial class TypeChecker
             line, column,
             "run foreign source that never declared a result",
             $"Say so where it is declared: 'Define {axiom.Language} number <name> as [ ... ].'");
+
+    /// <summary>Resolves `and free it with &lt;name&gt;` and checks the pair fits together.</summary>
+    /// <remarks>
+    /// ★ Three things have to hold, and each one is a mistake somebody will make: the releasing
+    /// name must be an axiom, it must take exactly one `address`, and the acquiring axiom must
+    /// actually hand back an address. The last is the one worth spelling out — a clause on an axiom
+    /// that gives back a number is a misunderstanding of what the clause does, not a typo.
+    ///
+    /// ⚠ Nothing checks that the release function is the RIGHT one. Cufet never reads the foreign
+    /// text, so `and free it with fclose` on an `opendir` handle type-checks and corrupts. That is
+    /// the residue DESIGN accepts deliberately: refusing it would mean never letting the pointer
+    /// exist, which costs `fopen`.
+    /// </remarks>
+    private void CheckReleaseClause(AxiomLiteral axiom, int line, int column)
+    {
+        if (axiom.ReleasedBy is not { } name) return;
+
+        if (axiom.ReturnType is not VoidableType { Inner: AddressType })
+            throw TypeError(
+                $"'{name}' is named to free what this axiom gives back, but it does not give back an address",
+                "only an address needs freeing — a number, a fact and a text are copied across the "
+              + "boundary and belong to Cufet once they arrive",
+                line, column,
+                "say how to free something that is not an address",
+                "Drop the clause, or declare this axiom 'voidable address'.");
+
+        if (!TryLookup(name, out var info) || info!.EstablishingExpr is not AxiomLiteral release)
+            throw TypeError(
+                $"'{name}' is named to free this axiom's result, but it is not an axiom",
+                "freeing happens in the other language, so the thing that does it has to be "
+              + "foreign source too",
+                line, column,
+                $"free an address with something that is not foreign source",
+                $"Declare it, as in 'Define {axiom.Language} number {name}, given (the address held), as [ … ].'");
+
+        if (release.Parameters.Count != 1 || ResolveParamType(release.Parameters[0].Type) is not AddressType)
+            throw TypeError(
+                $"'{name}' has to take exactly one address to free one, and it takes "
+              + (release.Parameters.Count == 0
+                    ? "nothing"
+                    : Count(release.Parameters.Count, "value")),
+                null, line, column,
+                $"free an address with an axiom that cannot be handed one",
+                $"Declare it 'given (the address held)'.");
+
+        axiom.ReleaseAxiom = release;
+    }
 
     /// <summary>A foreign pointer may only be held inside a rabbit block.</summary>
     /// <remarks>

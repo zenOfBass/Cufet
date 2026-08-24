@@ -622,6 +622,170 @@ public class PipelineForeignTests : PipelineTestBase
                         Assert.ThrowsAny<Exception>(() => Interpret(src)).Message);
     }
 
+    // `and free it with <name>` — the acquiring axiom names the one that releases what it hands
+    // back, because nothing else can: Cufet never reads the foreign text, and `getenv` and `strdup`
+    // give back the same type with opposite obligations.
+    private const string ReleaseHdr =
+        "Pull a book on the c-language.\n"
+      + "    Define c-language number shut, given (the address held), as [fclose((FILE*)the held)].\n"
+      + "    Define c-language voidable address open-one, given (the text file-path),\n"
+      + "        as [fopen(the file-path, \"rb\")], and free it with shut.\n";
+
+    /// <summary>Runs a program against a temp file that EXISTS, asserting the value on both backends.</summary>
+    /// <remarks>
+    /// ⚠⚠ Not <c>AssertFileOracle</c>, and both differences are load-bearing. It never CREATES the
+    /// file, so `fopen` for reading returns NULL on the first try and a counting loop stops at 0;
+    /// and it asserts only that the two backends agree, which 0 == 0 satisfies. Written that way,
+    /// these tests passed with the release machinery switched off — measured, by sabotage. A count
+    /// that proves anything needs a real file and an expected number.
+    /// </remarks>
+    private static void AssertCountOnBothBackends(string template, string expected)
+    {
+        var path = WritableTempPath();
+        File.WriteAllText(path.Replace('/', Path.DirectorySeparatorChar), "x");
+        try
+        {
+            var src = template.Replace("{PATH}", path);
+            Assert.Equal(expected, Interpret(src));
+            Assert.Equal(expected, Compile(src));
+        }
+        finally { try { File.Delete(path.Replace('/', Path.DirectorySeparatorChar)); } catch { } }
+    }
+
+    [Fact]
+    public void Release_ActuallyFreesAtTheBlocksEnd()
+    {
+        // ★★ The assertion that means anything here is a COUNT, not an absence of noise. A release
+        // that silently does nothing looks identical to one that works — the program prints the
+        // same thing either way. Opening past the OS limit is what tells them apart: 509 on
+        // Windows, ~1024 on Linux, so 1200 iterations cannot pass unless each `Done.` really freed.
+        //
+        // ⚠ This is exactly how the compiled backend was caught doing nothing: the registry was
+        // there, the registration was emitted, and no block ever ran it because the machinery is
+        // gated on a flag that only `Bind unmaking` used to set.
+        const string src = ReleaseHdr + """
+                Define opened as 0.
+                Define ran-out as false.
+                For each n in range 1 to 1200, repeat:
+                    Pull a rabbit.
+                        Define handle as cast open-one on ("{PATH}").
+                        If handle is void, the ran-out becomes true.
+                        If handle is not void, increment opened by 1.
+                    Done.
+                    If ran-out is true, stop.
+                Done.
+                State opened.
+            Done.
+            """;
+        AssertCountOnBothBackends(src, "1200");
+    }
+
+    [Fact]
+    public void Release_FreesWhenAnExceptionAbandonsTheBlock()
+    {
+        // ★ The case that cannot be written by hand, and the only thing this clause buys over a
+        // `Cast shut on (handle).` at the end of the block: every iteration raises between the
+        // open and the block's end, and nothing closes anything explicitly.
+        const string src = ReleaseHdr + """
+                Define opened as 0.
+                Define ran-out as false.
+                For each n in range 1 to 1200, repeat:
+                    Try to:
+                        Pull a rabbit.
+                            Define handle as cast open-one on ("{PATH}").
+                            If handle is void, the ran-out becomes true.
+                            If handle is not void, increment opened by 1.
+                            State 1 / 0.
+                        Done.
+                    Done.
+                    In case of exception (the exception):
+                        Suppress the exception.
+                    Done.
+                    If ran-out is true, stop.
+                Done.
+                State opened.
+            Done.
+            """;
+        AssertCountOnBothBackends(src, "1200");
+    }
+
+    [Fact]
+    public void Release_OnAVoidResult_FreesNothing()
+    {
+        // ⚠ NULL is not registered. "C had nothing to give" is not a thing to free, and
+        // `fclose(NULL)` is undefined — the guardrail fails toward doing nothing.
+        const string src = ReleaseHdr + """
+                Pull a rabbit.
+                    Define missing as cast open-one on ("no-such-file-anywhere-at-all").
+                    State missing is void.
+                Done.
+            Done.
+            """;
+        Assert.Equal("true", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Release_ClauseIsCheckedAgainstBothAxioms()
+    {
+        // Three mistakes, three sentences. None of them is "did you mean the right function" —
+        // nothing can check that, and DESIGN accepts the residue.
+        const string notAnAddress = """
+            Pull a book on the c-language.
+                Define c-language number shut, given (the address held), as [fclose((FILE*)the held)].
+                Define c-language number counted as [42], and free it with shut.
+                Pull a rabbit.
+                    State cast counted.
+                Done.
+            Done.
+            """;
+        Assert.Contains("does not give back an address",
+                        Assert.ThrowsAny<Exception>(() => Interpret(notAnAddress)).Message);
+
+        const string notAnAxiom = """
+            Pull a book on the c-language.
+                Bind number to shut, given (the number held): Return held. Done.
+                Define c-language voidable address grab as [(void*)0], and free it with shut.
+                Pull a rabbit.
+                    State (cast grab) is void.
+                Done.
+            Done.
+            """;
+        Assert.Contains("is not an axiom",
+                        Assert.ThrowsAny<Exception>(() => Interpret(notAnAxiom)).Message);
+
+        const string wrongShape = """
+            Pull a book on the c-language.
+                Define c-language number shut, given (the number held), as [(int)the held].
+                Define c-language voidable address grab as [(void*)0], and free it with shut.
+                Pull a rabbit.
+                    State (cast grab) is void.
+                Done.
+            Done.
+            """;
+        Assert.Contains("take exactly one address",
+                        Assert.ThrowsAny<Exception>(() => Interpret(wrongShape)).Message);
+    }
+
+    [Fact]
+    public void Release_TheWordFreeIsNotReserved()
+    {
+        // ★ The clause costs no reserved word: `it`, `with` and `and` were already tokens, and
+        // `free` is recognised by lexeme after `, and`, where nothing else can appear. That matters
+        // for a word this ordinary — someone will want it for a binding or a field.
+        const string src = """
+            Define free as 3.
+            Define object budget with (the number free).
+            Bind number to free-of, given (the number free): Return free * 2. Done.
+            Define plan as a new budget { the free 7 }.
+            State free.
+            State plan's free.
+            State cast free-of on (5).
+            """;
+        Assert.Equal("3\n7\n10", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     [Fact]
     public void Address_ThatIsNotAPointer_IsRefused()
     {

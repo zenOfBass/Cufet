@@ -357,7 +357,14 @@ public sealed class CodeGenerator
     // through the block finallys in the interpreter). Null ⇒ no unmakers / not set.
     private string? _frameUnmakerBase;
 
-    private bool UsesUnmakers => _unmakeDefs.Count > 0;
+    // ⚠⚠ A foreign RELEASE rides the same registry, so it has to switch the same machinery on. It
+    // used to read `_unmakeDefs.Count > 0` alone, and a program with `and free it with` but no
+    // `Bind unmaking` registered handles into a registry that nothing ever ran: the block emitted
+    // no snapshot and no run-to at its exit, because those are gated here. Measured as a live
+    // divergence — 3000 handles interpreted against 509 compiled, which is the OS limit, i.e. none
+    // of them freed. The program printed the right thing throughout.
+    private bool UsesUnmakers => _unmakeDefs.Count > 0 || _usesForeignRelease;
+    private bool _usesForeignRelease;
     // Inline `cufet_run_unmakers_to(snap); ` for a nonlocal-exit statement; empty when not applicable.
     private string UnmakerRunStmt(string? snap) => UsesUnmakers && snap != null ? $"cufet_run_unmakers_to({snap}); " : "";
 
@@ -2187,6 +2194,15 @@ static void* cufet_pipe_stage(void* argp) {
         // SIGINT substrate (CONC.E) is likewise discovered up front — main's top installs the handler
         // + landing pad before its body, so it must know whether interrupt handling is in play.
         _usesSignals = ProgramUsesSignals(program.Statements);
+        // ⚠ A WHOLE-PROGRAM question, answered before a single block is emitted, because
+        // `UsesUnmakers` decides whether every block gets a snapshot and a run-to at its exit.
+        // Discovering it partway through would leave the blocks above it without either.
+        // ★ Namespace-keyed, like every other walk here — see the AST-walk rule.
+        _usesForeignRelease = false;
+        AstSearch.Visit(program.Statements, node =>
+        {
+            if (node is AxiomLiteral { ReleaseAxiom: not null }) _usesForeignRelease = true;
+        });
 
         // ── Runtime: includes + software decimal + print helpers ──────────
         runtime.AppendLine(RuntimePreamble);
@@ -4676,6 +4692,19 @@ static void* cufet_pipe_stage(void* argp) {
                 // at the enclosing block's exit; value-copies register independently (double-fire).
                 if (UsesUnmakers && _scopeDepth > 0 && vt is ObjectType uot && _unmakeDefs.ContainsKey(uot.Name))
                     sb.AppendLine($"{indent}cufet_reg_unmaker(&{MangleName(d.Name)}, {UnmakerCName(uot.Name)});");
+                // ★ `and free it with <name>` rides the SAME registry, which is the whole reason it
+                // needed no new cleanup machinery: LIFO at the block's exit, and run by cufet_raise
+                // on the way out of an uncaught fault, both already true. Registered by ADDRESS of
+                // the local, like an unmaker, so the thunk reads the pointer at release time.
+                if (d.Value is CastExpression { RunsAxiom.ReleaseAxiom: { } releasedBy })
+                {
+                    // ⚠ The RAW pointer is registered, not the `voidable address` struct around it,
+                    // and a void one is not registered at all — `closedir(NULL)` is undefined, and
+                    // "C had nothing to give" is not a thing to free.
+                    string thunk = EmitReleaseThunk(releasedBy);
+                    string held  = MangleName(d.Name);
+                    sb.AppendLine($"{indent}if ({held}.has) cufet_reg_unmaker({held}.val, {thunk});");
+                }
                 break;
             }
 
@@ -5802,6 +5831,38 @@ static void* cufet_pipe_stage(void* argp) {
     /// signature is known here and gcc can see both sides at once. The interpreter reaches the same
     /// place the long way round, through a shim built out of the same wrapper.
     /// </remarks>
+    /// <summary>The `void(*)(void*)` the unmaker registry needs, wrapping a release axiom.</summary>
+    /// <remarks>
+    /// ★ A thunk exists because the registry's shape is fixed and a release axiom's is not:
+    /// `closedir` gives back an `int`, `free` gives back nothing, and the registry wants neither.
+    /// Discarding the answer here is what lets one registry serve destructors and foreign handles
+    /// alike — which is why this whole clause needed no new cleanup machinery.
+    ///
+    /// ⚠ The release axiom's own wrapper is emitted here too. It may be named ONLY by
+    /// `and free it with`, never called by hand, so nothing else would have emitted it.
+    /// </remarks>
+    private string EmitReleaseThunk(AxiomLiteral release)
+    {
+        string language = release.Language ?? "foreign";
+        string key = ForeignC.Identity(language, release.Source, release.Parameters);
+        if (_releaseThunks.TryGetValue(key, out var existing)) return existing;
+
+        string fnName = ForeignC.FunctionName(language, release.Source, release.Parameters);
+        if (!_axiomFnNames.ContainsKey(key))
+        {
+            _axiomFnNames[key] = fnName;
+            _axiomFns.Append(ForeignC.Wrapper(fnName, "static ", language, release.Source,
+                                              release.Parameters, release.ReturnType!));
+        }
+        string thunk = fnName + "_release";
+        _releaseThunks[key] = thunk;
+        _axiomFns.AppendLine($"static void {thunk}(void* cufet_held) {{ (void){fnName}(cufet_held); }}");
+        return thunk;
+    }
+
+    // Release thunks already emitted, by the axiom they wrap — one per distinct release axiom.
+    private readonly Dictionary<string, string> _releaseThunks = new(StringComparer.Ordinal);
+
     private string EmitAxiomCall(AxiomLiteral axiom, IReadOnlyList<IExpression>? args, int line)
     {
         string language = axiom.Language ?? "foreign";

@@ -344,6 +344,21 @@ public sealed record AxiomLiteral(string Source, int Line, int Column) : IExpres
 
     /// <summary>What running it gives back — see AxiomType.ReturnType for why it is declared.</summary>
     public CufetType? ReturnType { get; set; }
+
+    /// <summary>The axiom that frees what this one hands back — `and free it with close-dir`.</summary>
+    /// <remarks>
+    /// ★ The name as written; the checker resolves it onto <see cref="ReleaseAxiom"/>. It is a
+    /// property of the ACQUIRING axiom because nothing else can carry it: `getenv` and `strdup`
+    /// hand back the same C type with opposite obligations, and Cufet never reads the foreign text,
+    /// so the person who wrote it is the only possible source of this fact.
+    ///
+    /// ⚠ **Null means free nothing.** A leak is recoverable and visible; a double free is
+    /// corruption that surfaces somewhere else entirely. Guardrails fail toward the recoverable side.
+    /// </remarks>
+    public string? ReleasedBy { get; set; }
+
+    /// <summary>The resolved release axiom, filled in by the checker.</summary>
+    public AxiomLiteral? ReleaseAxiom { get; set; }
 }
 
 // Bury <value>.  — hand one value out of a stash body and suspend there.

@@ -175,11 +175,14 @@ public sealed partial class Interpreter
     {
         _scopes.Add(new Dictionary<string, object>());
         _scopeDefOrder.Add([]);
+        _scopeReleaseBase.Add(_pendingReleases.Count);
     }
 
     private void ExitScope()
     {
         RunScopeUnmakers(_scopeDefOrder[^1], _scopes[^1]);
+        RunForeignReleases(_scopeReleaseBase[^1]);
+        _scopeReleaseBase.RemoveAt(_scopeReleaseBase.Count - 1);
         _scopes.RemoveAt(_scopes.Count - 1);
         _scopeDefOrder.RemoveAt(_scopeDefOrder.Count - 1);
     }
@@ -592,6 +595,7 @@ public sealed partial class Interpreter
             {
                 Scope[d.Name] = BindCopy(Evaluate(d.Value));
                 _scopeDefOrder[^1].Add(d.Name);
+                RegisterForeignRelease(d.Value, Scope[d.Name]);
                 // A top-level `permanently` binding is a shared constant: top-level functions may
                 // read it. Recorded by NAME because the isolation in ExecuteCall filters by value
                 // and a constant is indistinguishable from any other datum once evaluated.
