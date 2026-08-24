@@ -10,6 +10,34 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **Foreign pointers, as an `address`** — opaque, rabbit-scoped, and never dereferenced implicitly.
+  A pointer comes back from C as a `voidable address` and goes back into C as an `address`, and
+  that is all it does:
+
+  ```
+  Pull a book on the c-language.
+      Define c-language voidable address open-dir, given (the text folder), as [opendir(the folder)].
+      Define c-language number close-dir, given (the address handle), as [closedir((DIR*)the handle)].
+
+      Pull a rabbit.
+          Define handle as cast open-dir on ("logs").
+          If handle is not void, cast close-dir on (handle).
+      Done.
+  Done.
+  ```
+
+  **There is one kind**, so `char*` and `FILE*` are the same type: what differs is not the value
+  but what you do with it. There is no address-*of* operator and Cufet never creates one — an
+  address only ever comes from C and goes back to C, which is why no layout question exists.
+
+  **A pointer may only be held inside a rabbit**, which needed no new keyword to become the unsafe
+  marker: a rabbit already means region-scoped memory work, and a pointer is a rabbit
+  responsibility, because the arena that knows when a region dies is what knows when the pointer
+  dies. NULL is void, as it is everywhere else on this boundary.
+
+  An address prints as `<address>`, never as its value — the two backends are two processes, so a
+  printed handle could not agree between them however correct both were.
+
 - **An axiom can be called as a statement**, for its effect: `Cast close-dir on (handle).` The
   answer is discarded, which is what a statement means.
 
@@ -371,6 +399,19 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   marks cannot have that shape.
 
 ### Fixed
+
+- **A typo in an axiom killed the interpreter's host process on Linux**, instead of being reported.
+  A Windows DLL must resolve every symbol at link time, so `[not_a_real_function()]` failed the
+  shim build there and was correctly blamed on the author's C. An ELF shared object has no such
+  rule: it linked clean, loaded, and the process died on the call with `symbol lookup error` —
+  under CI, taking the whole test host with it. The shim is now linked with `--no-undefined`
+  (`-undefined,error` on macOS), so both platforms refuse it at build time.
+
+  Caught by GitHub Actions against a suite that was green on Windows, which is the shape a
+  one-platform developer cannot see. ⚠ `-lm` had to come with it: refusing undefined symbols means
+  everything must resolve at link time, and on glibc `sqrt` and `pow` still live in libm for the
+  linker even though the runtime merged it into libc — measured on glibc 2.44, where the `double`
+  axioms stopped linking the moment the flag went on.
 
 - **A compiled program skipped its destructors when an exception went uncaught**, where the
   interpreter ran them. `cufet_raise` with no handler installed printed its message and called

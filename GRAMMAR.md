@@ -1890,6 +1890,7 @@ wrapper's return type is built from that whether anyone reads it or not.
 | `number` | any C whole number, signed or unsigned | exact — a decimal holds every 64-bit integer either way |
 | `fact` | anything with a truth value | 1 or 0 |
 | `voidable number` | a `float`, `double` or `long double` | converted once, in shared C; NaN, an infinity, or a magnitude no decimal holds becomes void |
+| `voidable address` | a pointer of any kind | held opaquely, never read through; NULL becomes void |
 | `voidable text` | a `char*` or `const char*` | **copied**; NULL becomes void |
 
 ⚠ **A `text` result must be declared `voidable text`.** C says nothing is there by handing back
@@ -1916,6 +1917,16 @@ Everything else is refused rather than approximated:
 
 That is refused by the checker; the result-type questions above are refused by the **C compiler**,
 at the point where the type is actually known. Both name what is wrong.
+
+⚠ **An `address` may only be held inside a rabbit block**, which is what makes that block the
+unsafe marker without a new keyword: a pointer is a rabbit responsibility, because the arena that
+knows when the region dies is what knows when the pointer dies. `Define handle as cast open-dir on
+(…)` outside one is a static error.
+
+★ **There is one kind of address**, so `char*` and `FILE*` are the same type — what differs is not
+the value but what the writer does with it. There is **no address-of operator**: an address only
+ever comes from C and goes back to C, so Cufet never creates one and never reads through one. An
+address prints as `<address>`, never as its value.
 
 ★ **`size_t` needs no cast**, and a large one is not turned negative. `strlen`, `sizeof`, `fread`
 and the rest of libc's length-reporting family report an unsigned 64-bit value, and the boundary

@@ -3634,13 +3634,14 @@ not anyone reads the answer.
 
 #### What crosses the boundary
 
-Four things, and each says what it needs on the declaration:
+Five things, and each says what it needs on the declaration:
 
 | You declare | C gives back | |
 | --- | --- | --- |
 | `number` | any C whole number, signed or unsigned | exact — a decimal holds every 64-bit integer either way |
 | `fact` | anything with a truth value | 1 or 0 |
 | `voidable number` | a `float`, `double` or `long double` | converted once, in shared C; no representable answer becomes void |
+| `voidable address` | a pointer of any kind | held opaquely, never read through; nothing becomes void |
 | `voidable text` | a `char*` or `const char*` | **copied**; nothing becomes void |
 
 ```
@@ -3671,6 +3672,47 @@ Everything else is **refused rather than approximated**:
 These are refused by the C compiler, which is where the type is actually known. The first two are
 one question asked from either side: `number` is exact and `voidable number` is the one conversion
 that is not, so which you meant is worth saying rather than guessing.
+
+#### Addresses — holding a C pointer
+
+Some C is a handle you get, use, and give back: `opendir`/`readdir`/`closedir`, `fopen`/`fclose`.
+That handle crosses as an **`address`** — opaque, held, and handed back, never read through:
+
+```
+Pull a book on the c-language.
+    Define c-language voidable address open-dir, given (the text folder), as [opendir(the folder)].
+    Define c-language voidable text next-name, given (the address handle),
+        as [({ struct dirent* e = readdir((DIR*)the handle); e ? e->d_name : (char*)0; })].
+    Define c-language number close-dir, given (the address handle), as [closedir((DIR*)the handle)].
+
+    Pull a rabbit.
+        Define handle as cast open-dir on ("logs").
+        If handle is not void:
+            Repeat:
+                Define name as cast next-name on (handle).
+                If name is void, stop.
+                State name.
+            Until false.
+            Cast close-dir on (handle).
+        Done.
+    Done.
+Done.
+```
+
+**There is one kind of address.** A `char*` and a `FILE*` are the same type here — what differs is
+not the value but what you do with it. There is **no address-of operator**: an address only ever
+comes *from* C and goes *back* to C, so Cufet never makes one, and there is no layout question to
+answer because a struct is C's idea and struct work happens in C.
+
+⚠ **An address may only be held inside a rabbit.** That block already means region-scoped memory
+work, so it is also where a pointer's lifetime is answerable for — the arena that knows when the
+region dies is what knows when the pointer dies. Holding one outside a rabbit is a static error.
+
+**NULL is void**, as everywhere else on this boundary, which is why the result is a `voidable
+address` — `fopen`, `malloc`, `getenv` and `opendir` all report failure that way.
+
+An address prints as `<address>`, never as its value: a handle is a different number in every
+process, so printing it could tell you nothing you could rely on.
 
 **A `size_t` needs no cast.** `strlen`, `sizeof`, `fread` and the rest of libc report a length as an
 unsigned 64-bit value, and that is a whole number like any other here — the boundary carries the
