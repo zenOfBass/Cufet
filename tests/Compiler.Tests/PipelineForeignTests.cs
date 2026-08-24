@@ -601,6 +601,28 @@ public class PipelineForeignTests : PipelineTestBase
     }
 
     [Fact]
+    public void Address_CannotOutliveItsRabbit()
+    {
+        // ★★ "Leaving the block ends the pointer" is the whole safety claim, and it was NOT
+        // enforced: refusing to `Define` one outside a rabbit is only a fraction of the rule, since
+        // a handle made INSIDE one could be inserted into a series declared outside and read after
+        // `Done.` — measured doing exactly that, on both backends, with `strlen` reading through it.
+        //
+        // The fix was to let an address into the region model's reference-type test, so the escape
+        // check that already guards a series or a map guards this too.
+        const string src = AddressHdr + """
+                Define escaped as a series of address.
+                Pull a rabbit.
+                    Define inside as cast copy-of on ("survivor").
+                    If inside is not void, insert inside into escaped.
+                Done.
+            Done.
+            """;
+        Assert.Contains("shorter-lived rabbit region",
+                        Assert.ThrowsAny<Exception>(() => Interpret(src)).Message);
+    }
+
+    [Fact]
     public void Address_ThatIsNotAPointer_IsRefused()
     {
         // The guard that cannot be a `_Generic` — there are infinitely many pointer types, so it

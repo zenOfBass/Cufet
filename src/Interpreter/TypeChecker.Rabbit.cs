@@ -142,8 +142,15 @@ public sealed partial class TypeChecker
     // ★ NOTE (ESC.1): this SHALLOW, top-level test governs the existing REJECTIONS only, and is
     // deliberately left alone — the TypeChecker is shared, so widening it would reject programs the
     // interpreter runs fine. The escape ANNOTATION below uses the structural test instead.
+    // ⚠ AddressType is here and deliberately NOT in IsRegionBearing below, and the two answer
+    // different questions. This one decides what gets REFUSED for outliving its rabbit, and an
+    // address must be: "leaving the block ends the pointer" is the whole safety claim, and without
+    // this arm a rabbit-scoped handle could be inserted into a series declared outside and read
+    // after `Done.` — measured, on both backends, before this line existed. IsRegionBearing asks
+    // whether the compiler must deep-COPY a value into the destination's arena, and an address must
+    // never be copied anywhere: it is not arena memory, it is C's.
     private static bool IsReferenceType(CufetType? t) =>
-        t is SeriesType or MapType or ObjectType or MatrixType or ChannelType;
+        t is SeriesType or MapType or ObjectType or MatrixType or ChannelType or AddressType;
 
     // ── ESC.1 — the STRUCTURAL region-bearing test ───────────────────────────
     // `IsReferenceType` is a TOP-LEVEL test: it misses `text` entirely, and every value-typed
