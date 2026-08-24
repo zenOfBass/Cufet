@@ -7,6 +7,9 @@ English's surface while keeping formal structure visible. Every keyword reads
 like prose; every control-flow boundary is explicit. No hidden scoping, no
 ambiguous syntax, no semicolons. It is Turing complete.
 
+**[Try it in your browser →](https://zenofbass.github.io/Cufet/)** — the interpreter, compiled to
+wasm. Nothing to install.
+
 Cufet has two backends: a tree-walking **interpreter**, which is the reference
 implementation, and a **native compiler** that emits C and produces a real
 executable — threads, signals, subprocesses and all. The compiler is held to the
