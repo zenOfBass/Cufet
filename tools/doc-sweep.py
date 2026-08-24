@@ -41,7 +41,7 @@ from collections import Counter, defaultdict
 sys.stdout.reconfigure(encoding="utf-8")
 
 ROOT  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FILES = ["README.md", "GRAMMAR.md", "REFERENCE.md"]
+FILES = ["README.md", "docs/BOOKS.md", "docs/GRAMMAR.md", "docs/REFERENCE.md"]
 
 # Docs annotate samples with a trailing arrow to show a value or a note. That is prose, not code —
 # and it points BOTH ways, which is easy to miss: handling only `←` leaves every `→` sample failing
