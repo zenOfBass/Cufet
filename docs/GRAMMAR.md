@@ -6,7 +6,8 @@ you can't use as names, scope rules inside object methods, which operations acce
 complex expressions vs bare names, where constructs are/aren't allowed, and the
 sharp edges that look reasonable but parse or type-check differently than expected.
 
-It is **not** a feature tour — see [REFERENCE.md](REFERENCE.md) for that.
+It is **not** a feature tour — see [REFERENCE.md](REFERENCE.md) for that, or [BOOKS.md](BOOKS.md)
+for the books Cufet ships with.
 
 **Both backends, unless marked.** Cufet runs interpreted or compiles to a native binary,
 and the lexer, parser, and type checker are shared — so every constraint here applies to

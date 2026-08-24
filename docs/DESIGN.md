@@ -9,7 +9,7 @@ future me) can tell a deliberate choice from an accident.
 
 It is not a specification. [GRAMMAR.md](GRAMMAR.md) states the rules precisely and
 [REFERENCE.md](REFERENCE.md) explains how to use them. It is not a history either —
-[CHANGELOG.md](CHANGELOG.md) records what changed and when. This file answers only *why*.
+[CHANGELOG.md](../CHANGELOG.md) records what changed and when. This file answers only *why*.
 
 Where a decision has a cost, the cost is stated. Where one was reversed, the reversal is
 kept rather than tidied away: the reasoning that failed is usually more useful than the
@@ -865,7 +865,7 @@ Why the interpreter and the compiler must agree, and what that agreement is stan
 
 - **The interpreter is the oracle, and every disagreement is a bug — settled.** A program's
   compiled output must equal its interpreted output, and a divergence never ships as a
-  documented caveat. [CONTRIBUTING.md](CONTRIBUTING.md) states the rule as practice; this
+  documented caveat. [CONTRIBUTING.md](../CONTRIBUTING.md) states the rule as practice; this
   is the reasoning under it.
 
   *Why agreement rather than conformance.* Two implementations of a language are normally

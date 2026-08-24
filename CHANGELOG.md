@@ -313,7 +313,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
   Still design and not built: `address`, `the text at`, `released by`, and passing an axiom around
   unrun. See
-  [DESIGN.md](DESIGN.md#foreign-interoperability), which carries the reasoning and the rejected
+  [DESIGN.md](docs/DESIGN.md#foreign-interoperability), which carries the reasoning and the rejected
   alternatives for all of it.
 
 - **`For each` over a stash.** The last mile of coroutines. Suspend and resume shipped in
@@ -383,6 +383,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   not rewritten either, and its `bury` survived to a backend.
 
 ### Changed
+
+- **The reference is split, and the four long docs moved into `docs/`.** Books have their own
+  document now: [BOOKS.md](docs/BOOKS.md) holds `math`, `collections`, `chance`, `matrix`, and
+  foreign source — because `Pull a book on the c-language.` is the same construct as `Pull a book
+  on math.`, so a language book is documented where books are. `Pull` itself stays in REFERENCE:
+  pulling is a module mechanism one level above books. REFERENCE, GRAMMAR, DESIGN and ROADMAP now
+  live under `docs/`; README, CHANGELOG, CONTRIBUTING, LICENSE and NOTICE stay at the root. **Any
+  link to the old top-level paths needs updating.**
 
 - **A bundled book is pulled as a book.** `Pull math.` is refused; write
   `Pull a book on math.` (or `Pull books on math, and collections.`). The plain
@@ -3166,7 +3174,7 @@ built entirely in this release: literals, gates, shifts, arithmetic, and convers
   after they shipped, and described a REPL as worth considering against a settled decision that a
   playground beats one. It drifted precisely *because* it restated the other documents.
 
-  **[DESIGN.md](DESIGN.md) is new** and holds the "why" — what Cufet is for, and the decisions
+  **[DESIGN.md](docs/DESIGN.md) is new** and holds the "why" — what Cufet is for, and the decisions
   that follow from it. ROADMAP.md is now 206 lines and records **only what is not yet done**; when
   something ships it is deleted from the roadmap, because its record is the changelog entry and
   its rationale is DESIGN.md. Implementation invariants and known limitations moved to

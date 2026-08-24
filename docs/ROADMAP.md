@@ -8,12 +8,13 @@ documents do that better, and a roadmap that restates them goes stale the moment
 
 | If you want to know | Read |
 | --- | --- |
-| What Cufet is, and why you might care | [README.md](README.md) |
+| What Cufet is, and why you might care | [README.md](../README.md) |
 | How to use a feature | [REFERENCE.md](REFERENCE.md) |
+| What is in the bundled books | [BOOKS.md](BOOKS.md) |
 | Exactly what the rules are, and the sharp edges | [GRAMMAR.md](GRAMMAR.md) |
-| What changed, and when | [CHANGELOG.md](CHANGELOG.md) |
+| What changed, and when | [CHANGELOG.md](../CHANGELOG.md) |
 | **Why** the language is like this | [DESIGN.md](DESIGN.md) |
-| How to build, test and contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| How to build, test and contribute | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 
 Cufet is pre-1.0 and may still change. Versioning is semantic: feature arcs bump the minor
 version, and 1.0.0 will mark the point at which the language is considered stable.
@@ -375,49 +376,6 @@ position* whether it is reading a type or an expression.
 The two decision points are small. The work is threading that context through every position where
 a type is parsed — parameters, field declarations, `Define … as a <type>`, `Bind <type> to`,
 element types — because missing one is exactly how a regression gets in. n-queens is the canary.
-
-**`docs/BOOKS.md`, and a `docs/` folder to put it in.** REFERENCE is **4192 lines**, up from 2575
-at the 2026-07-27 restructure, and the pressure is one subsection: **Foreign source (`axiom`) is
-309 lines** against 88 for books, 76 for pipes and 70 for signals.
-
-★ **The split is by the language's own concept, not by size.** `Pull a book on the c-language.` is
-the same construct as `Pull a book on math.`, so the c-language book belongs where books are
-documented — and today it is documented in Part VII with concurrency while books sit in Part VIII,
-which is already the wrong shape. It also scales: DESIGN sketches `Pull a book on sql.`, so language
-books are a growing family, and one document takes the next one without a decision.
-
-**BOOKS.md has two halves, and the docs already name the distinction** (*"a language book has no
-members; you pull it to write axioms in that language at all"*):
-
-- **standard-library books** — things with members you call: `math`, `collections`, `chance`
-- **language books** — no members, they admit a syntax: `c-language`, later `sql` — and with them
-  the whole axiom mechanism, since that is what a language book is *for*
-
-**What moves out of REFERENCE:** `### Foreign source (axiom)`, `### Books (the standard library)`,
-and `### Matrix` — matrix is a `collections` member (*"available inside `Pull a book on
-collections`"*), so it is book material by the same test. ⚠ Audit for other member-level prose
-before moving; the `math` member list sits inside the books section but there may be more.
-
-**What STAYS:** `### Modules (Pull)`. Pulling is a module concept one level above books, and the
-book spelling is a variation on it rather than a thing of its own.
-
-⚠ **Deleted from REFERENCE, not summarised — one link each.** A summary beside the real thing is
-exactly how ROADMAP became fiction; two places telling one story means one is already lying.
-
-**The `docs/` move, unblocked as of 2026-08-24.** The 2026-07-27 deferral was specific: *"the
-GitHub Pages source decision interacts with it — settle Pages first."* Settled, and the right way:
-`playground.yml` publishes an uploaded artifact through `actions/deploy-pages`, not a folder on
-main, so `docs/` is a plain directory with no conflict. The other trigger was *"more docs than
-four"* — BOOKS makes five. Move `REFERENCE`, `GRAMMAR`, `DESIGN`, `ROADMAP`, `BOOKS` into `docs/`;
-keep `README`, `LICENSE`, `NOTICE`, `CHANGELOG`, `CONTRIBUTING` at root, because GitHub renders the
-README as the homepage, detects the licence at root, and auto-links CONTRIBUTING in the PR flow.
-
-⚠ **What actually breaks, so it is not discovered halfway:** **80** references to those four
-filenames across `.md`, `.cs` and `.yml`; `DocBlockTests.DocFiles` is a hard-coded
-`["README.md", "GRAMMAR.md", "REFERENCE.md"]` that needs the new paths *and* BOOKS added, or every
-moved code block silently stops being checked; and `doc-blocks.baseline.txt` records
-`REFERENCE.md:NNNN` locations, so it needs regenerating after the move — verify the hash set is
-unchanged apart from paths, which is what proves nothing was lost in the cut.
 
 **Map keys: a refusal that overreaches, and the predicate to replace it with.** Not a new feature —
 a rule that is too blunt and explains itself with something untrue.

@@ -22,11 +22,11 @@ other are named and resolved explicitly.
 
 ## How to write Cufet
 
-**Read [GRAMMAR.md](GRAMMAR.md) first.** It is the single operational reference for
+**Read [docs/GRAMMAR.md](docs/GRAMMAR.md) first.** It is the single operational reference for
 writing correct Cufet: reserved keywords, one-canonical-way rules, `IExpression` vs.
 string distinctions, fallibility rules, sharp edges and how to navigate them.
-GRAMMAR.md is continuously maintained — every feature slice updates it. If you are
-writing tests, examples, or new language features, GRAMMAR.md is where to look
+docs/GRAMMAR.md is continuously maintained — every feature slice updates it. If you are
+writing tests, examples, or new language features, docs/GRAMMAR.md is where to look
 before anything else.
 
 **Key things to know going in:**
@@ -153,23 +153,24 @@ A contribution should leave all tests passing and should add tests for any new b
 nice-to-have. When you add or change language behavior:
 
 Each document answers exactly one question, so there is exactly one right place for
-any given change. Nothing restates another document — that is what let ROADMAP.md drift
+any given change. Nothing restates another document — that is what let docs/ROADMAP.md drift
 until it listed shipped features as planned.
 
 | What changed | What to update |
 |---|---|
-| New syntax or keyword | GRAMMAR.md (§ appropriate section) |
-| New built-in behavior | REFERENCE.md (relevant section) |
+| New syntax or keyword | docs/GRAMMAR.md (§ appropriate section) |
+| New built-in behavior | docs/REFERENCE.md (relevant section) |
+| A book member, or anything a `Pull a book on …` admits | docs/BOOKS.md |
 | Anything user-visible at all | CHANGELOG.md `[Unreleased]` |
-| A new design decision, or the reasoning behind one | DESIGN.md |
-| A plan changed, or an item shipped / was set aside | ROADMAP.md |
+| A new design decision, or the reasoning behind one | docs/DESIGN.md |
+| A plan changed, or an item shipped / was set aside | docs/ROADMAP.md |
 | A codebase invariant a future change could break | CONTRIBUTING.md, *Implementation invariants* |
 | An accepted limitation | CONTRIBUTING.md, *Known limitations* |
 | **A backend divergence found or closed** | **CHANGELOG.md, and the rule below** |
-| Released (minor version bump) | CHANGELOG.md, README.md line 1, REFERENCE.md header, **all four `.csproj` files**, `playground/package.json`, `editors/vscode/package.json` |
+| Released (minor version bump) | CHANGELOG.md, README.md line 1, docs/REFERENCE.md header, **all four `.csproj` files**, `playground/package.json`, `editors/vscode/package.json` |
 
 **Run any code sample you write into a doc.** `python tools/doc-sweep.py` extracts every fenced
-block from README, GRAMMAR and REFERENCE and runs `cufet check` on it. It has found samples naming
+block from README, GRAMMAR, REFERENCE and BOOKS and runs `cufet check` on it. It has found samples naming
 variables with reserved words, a form documented but never implemented, and possessive access used
 on a record — none of which reading had caught, over many readings. A sample that does not run is
 worse than no sample: a reader copies it, it fails, and they conclude the language is broken.
@@ -178,8 +179,8 @@ Not every failure it reports is a bug. Fragments (a block opening without its `D
 deliberate counter-examples, and non-Cufet blocks are expected; the output groups failures by error
 shape so the real ones stand out. `--strict` exits 1 for CI, once those are driven out.
 
-**ROADMAP.md records only what is *not yet done*.** When an item ships, delete it from
-the roadmap — its record is the CHANGELOG entry, and its rationale is DESIGN.md. Leaving
+**docs/ROADMAP.md records only what is *not yet done*.** When an item ships, delete it from
+the roadmap — its record is the CHANGELOG entry, and its rationale is docs/DESIGN.md. Leaving
 a shipped item behind is how the file becomes fiction.
 
 **The version lives in eight files.** Four `.csproj`s, two `package.json`s, and a line each in
@@ -224,7 +225,7 @@ line number) is the right default for everything else.
 but never *inward* to a shorter-lived one. This is the whole safety story for the
 regions model. Any feature that touches region depths, function return values, or
 captures must be checked against this invariant. See the soundness arc narrative in
-[DESIGN.md](DESIGN.md).
+[docs/DESIGN.md](docs/DESIGN.md).
 
 ---
 
@@ -368,7 +369,7 @@ fail quietly rather than loudly, which is why they are written down.
 ## Known limitations
 
 Behaviour that is understood, deliberate or accepted — not bugs waiting to be found.
-User-facing sharp edges are also called out in [GRAMMAR.md](GRAMMAR.md) §8.
+User-facing sharp edges are also called out in [docs/GRAMMAR.md](docs/GRAMMAR.md) §8.
 
 - **`converted to text` precedence in named-access position** — `the value of
   person converted to text` parses as `the value of (person converted to text)`,

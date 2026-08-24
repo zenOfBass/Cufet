@@ -183,8 +183,10 @@ Done.
 
 For the language in depth — every statement, the type system, records, objects,
 functions, collections, bit patterns, error handling, I/O, regions, concurrency,
-pipes and the standard-library books — see **[REFERENCE.md](REFERENCE.md)**.
-[GRAMMAR.md](GRAMMAR.md) states the rules precisely and collects the sharp edges.
+pipes and modules — see **[REFERENCE.md](docs/REFERENCE.md)**.
+[GRAMMAR.md](docs/GRAMMAR.md) states the rules precisely and collects the sharp edges, and
+[BOOKS.md](docs/BOOKS.md) covers the books Cufet ships with — including `the c-language`, the
+one that admits C source.
 
 ---
 
@@ -295,17 +297,20 @@ examples/                             — runnable programs, by category
   language/                           — programs that showcase one feature
   assets/                             — data files the programs read (paths are repo-root-relative)
   expected/                           — pinned outputs, flat and keyed on the program's file name
+docs/                                 — REFERENCE, BOOKS, GRAMMAR, DESIGN, ROADMAP
 ```
 
 The lexer, parser, and type checker are **shared** by both backends, so a program
 that type-checks does so identically whether it is interpreted or compiled.
 
-See [REFERENCE.md](REFERENCE.md) for the complete language reference.
-See [GRAMMAR.md](GRAMMAR.md) for the grammar and constraints reference — reserved
+See [REFERENCE.md](docs/REFERENCE.md) for the complete language reference.
+See [BOOKS.md](docs/BOOKS.md) for the bundled books — `math`, `collections`, `chance`,
+and `the c-language`.
+See [GRAMMAR.md](docs/GRAMMAR.md) for the grammar and constraints reference — reserved
 keywords, object field scope rules, expression vs condition contexts, and sharp
 edges for writing Cufet correctly upfront.
-See [DESIGN.md](DESIGN.md) for why the language is shaped the way it is.
-See [ROADMAP.md](ROADMAP.md) for what comes next.
+See [DESIGN.md](docs/DESIGN.md) for why the language is shaped the way it is.
+See [ROADMAP.md](docs/ROADMAP.md) for what comes next.
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute.
 
