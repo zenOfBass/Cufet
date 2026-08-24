@@ -376,6 +376,39 @@ The two decision points are small. The work is threading that context through ev
 a type is parsed — parameters, field declarations, `Define … as a <type>`, `Bind <type> to`,
 element types — because missing one is exactly how a regression gets in. n-queens is the canary.
 
+**Map keys: a refusal that overreaches, and the predicate to replace it with.** Not a new feature —
+a rule that is too blunt and explains itself with something untrue.
+
+```
+Define spot as a record with (1, 2).
+Define grid as a map with (spot : "here").
+→ 'record (number, number)' is a record — reference types can't be map keys
+  because their identity changes when copied
+```
+
+⚠ **A record is not a reference type.** The checker's own `IsReferenceType` is `series, map,
+object, matrix, channel`; records are absent from it, deep-copy on binding, and compare
+structurally. So the message tells the reader something false about records, which is why the
+workaround has never felt principled.
+
+★ **The cost is visible in `examples/algorithms/dijkstra.cufe`**: it keys by `text` node names, so
+`pq-entry` carries `the text pq-name` and every node exists twice — as an object and as the string
+that stands for it, kept in step by hand. A record of two numbers is also the commonest compound
+key there is (`(row, col)` for a grid or a visited-set), and it is refused.
+
+⚠ **The rule is too blunt rather than backwards.** A record can CONTAIN a series, and then
+structural equality and hashing would have to reach through an arena pointer — so records are not
+uniformly value-like and "records are fine" would be its own overreach in the other direction.
+
+★★ **The exact predicate already exists and is already tested.** `IsRegionBearing` — *"a type is
+region-bearing when its compiled representation holds an arena pointer anywhere in its shape"* —
+walks the shape transitively, lives in the shared project so the checker and the compiler read one
+definition, and has a test locking it against `IsChanPod`'s complement. Map keys become "not
+region-bearing" instead of "text, number, or fact": a record of scalars is admitted, a record
+holding a series is still refused, and objects are still refused.
+
+⚠ Whatever the rule ends up being, the MESSAGE has to stop calling a record a reference type.
+
 **Named arguments at a call site — `cast area on (the width 3, the height 4)`.** ⚠ **Sequenced
 AFTER Approach B above**, and that is the whole reason this entry sits here rather than on its own.
 
