@@ -321,6 +321,12 @@ public sealed partial class Interpreter
         // applies to it: an axiom is not fallible and has no failure to route.
         if (cast.RunsAxiom is { } axiom) return RunAxiomCall(cast.Args, axiom, cast.Line);
 
+        // ★ An axiom that arrived as a VALUE — through a parameter, a field, a series element. The
+        // checker could not name its source, so the source is fetched from the value here. Nothing
+        // else differs: what is held IS the literal, so the same RunAxiomCall does the rest.
+        if (cast.RunsAxiomValue)
+            return RunAxiomCall(cast.Args, HeldAxiom(cast.Function, cast.Line), cast.Line);
+
         var result = ExecuteCallExpr(CalledFunction(cast.Function, cast.ResolvedFunctionName, cast.Line, cast.Column),
                                      cast.Args, cast.Line)
             ?? throw new RuntimeException(

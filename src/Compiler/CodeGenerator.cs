@@ -3058,6 +3058,13 @@ static void* cufet_pipe_stage(void* argp) {
         AddressType => "AD",   // one opaque void* — every foreign pointer is the same type here
         FunctionType fn => "Fn(" + string.Join(",", fn.ParameterTypes.Select(TypeSig)) + "->" +
                            (fn.ReturnType == null ? "v" : TypeSig(fn.ReturnType)) + ")",
+        // ★ Distinct from the Fn( … ) above even though the two SHARE a value struct. They are
+        // different Cufet types — one is a body, the other is foreign text — and this signature is
+        // also a key into `_varTypes`, where conflating them would let an axiom satisfy a function
+        // parameter. The struct sharing is decided in EmitCTypeRaw, deliberately and separately.
+        AxiomType ax => "Ax:" + ax.Language.ToLowerInvariant() + "(" +
+                        string.Join(",", ax.ParameterTypes.Select(TypeSig)) + "->" +
+                        (ax.ReturnType == null ? "v" : TypeSig(ax.ReturnType)) + ")",
         // Closed union: cases in DECLARATION order (the front-end's UnionType.Equals is order-sensitive,
         // so `(number or text)` and `(text or number)` are distinct types — don't canonicalize).
         // A 1-case union (from extra parens, e.g. `(number)`) IS that type — normalize so it matches.
@@ -3227,6 +3234,10 @@ static void* cufet_pipe_stage(void* argp) {
             // `Define object holder with (the series of number items).` used as `a series of
             // holder` emitted a struct referencing an undeclared `cser_1`.
             case ObjectType ot: RegisterObjectFields(ot); break;
+            // ★ An axiom field carries a closure struct, and its result may be a voidable that
+            // nothing else in the program mentions. Same reasoning as the object arm above: a field
+            // the program never reads is declared in the struct and registered nowhere.
+            case AxiomType ax: RegisterFuncStruct(AsFunctionType(ax)); break;
         }
     }
 
@@ -3470,6 +3481,11 @@ static void* cufet_pipe_stage(void* argp) {
             // `funcs` is being walked, and everything reachable was already registered when the
             // bodies were emitted.
             FunctionType ft when _funcStructSig2Name.TryGetValue(TypeSig(ft), out var fn) => fn,
+            // ★ An axiom value shares the closure struct, so it has the same dependency and it is
+            // just as load-bearing: without this arm an object holding an axiom field emitted
+            // `cd_ruler` above `cfn_0` and gcc said "unknown type name" — the exact failure the
+            // note above records for closures, one type later.
+            AxiomType ax when _funcStructSig2Name.TryGetValue(TypeSig(AsFunctionType(ax)), out var axfn) => axfn,
             _ => null
         };
         bool Known(string? d) => d != null && (specs.ContainsKey(d) || voidables.ContainsKey(d)
@@ -4102,6 +4118,19 @@ static void* cufet_pipe_stage(void* argp) {
     // A user-facing name for a type. Every arm matters: this feeds error messages, and the
     // fallback used to print the C# class name — a reader hitting an unsupported feature was told
     // about a 'TaskHandleType', which is not a phrase that appears anywhere in Cufet.
+    // The same rule as TypeChecker.FormatAxiomType, and it has to stay the same: result AND
+    // parameters, or two different axiom types render identically and a mismatch message says
+    // nothing. Kept beside FormatTypeName so the pair is read together.
+    private static string FormatAxiomTypeName(AxiomType a)
+    {
+        string head = a.ReturnType is { } gives
+            ? $"{a.Language} {FormatTypeName(gives)} axiom"
+            : $"{a.Language} axiom";
+        return a.ParameterTypes.Count == 0
+            ? head
+            : $"{head} given ({string.Join(", ", a.ParameterTypes.Select(FormatTypeName))})";
+    }
+
     private static string FormatTypeName(CufetType t) => t switch
     {
         NumberType => "number", TextType => "text", FactType => "fact", BitsType => "bits",
@@ -4127,8 +4156,7 @@ static void* cufet_pipe_stage(void* argp) {
         FailureMarkerType   => "failure",
         ExceptionMarkerType => "exception",
         BookType b      => $"book '{b.Name}'",
-        AxiomType { ReturnType: { } gives } ar => $"{ar.Language} {FormatTypeName(gives)} axiom",
-        AxiomType a     => $"{a.Language} axiom",
+        AxiomType a     => FormatAxiomTypeName(a),
         UnionType u     => u.Cases == null ? "catalogue value"
                              : string.Join(" or ", u.Cases.Select(FormatTypeName)),
         // Unreachable while every CufetType above has an arm — pinned by
@@ -4382,6 +4410,9 @@ static void* cufet_pipe_stage(void* argp) {
         // over the same bits, so both sides compare identically.
         AddressType => $"({a} == {b})",
         FunctionType => $"(({a}).fn == ({b}).fn && ({a}).env == ({b}).env)",   // function values: reference equality
+        // The same struct, so the same comparison. Two names for one axiom share a thunk, which is
+        // what makes them compare equal — identity is the SOURCE, as it is everywhere else here.
+        AxiomType => $"(({a}).fn == ({b}).fn && ({a}).env == ({b}).env)",
         UnionType uqo when uqo.Cases == null => $"{OpenUnionStruct}_eq({a}, {b})",
         UnionType uq when uq.Cases != null => $"{RegisterUnionStruct(uq)}_eq({a}, {b})",   // tag + payload
         _ => throw new CompilerException($"equality on a '{FormatTypeName(t)}' is not yet supported by the compiler.")
@@ -4403,6 +4434,7 @@ static void* cufet_pipe_stage(void* argp) {
         MapType mt => $"{RegisterMapStruct(mt)}_write({valExpr})",
         MatrixType => $"cufet_mat_write({valExpr})",
         FunctionType => $"printf(\"<function>\")",   // matches the interpreter's Format for a FunctionValue
+        AxiomType    => $"printf(\"<axiom>\")",      // and the same for the other kind of callable
         // ★ Never the pointer itself — see the interpreter's Format. Two backends are two
         // processes, so a printed handle could not agree between them however correct both were.
         AddressType => $"printf(\"<address>\")",
@@ -4671,9 +4703,18 @@ static void* cufet_pipe_stage(void* argp) {
             case DefineStatement { Value: AxiomLiteral lit } axd:
                 _varTypes[axd.Name] = new AxiomType(lit.Language ?? "", lit.ReturnType,
                                                     [.. lit.Parameters.Select(p => p.Type)]);
+                // ★ The literal is kept as well as the type, because an axiom used as a VALUE has
+                // to be turned into a thunk, and a thunk needs the SOURCE. The binding still emits
+                // nothing: the value is built where it is used, not stored here.
+                _axiomLiterals[axd.Name] = lit;
                 break;
             case DefineStatement axiomAlias when TypeOf(axiomAlias.Value) is AxiomType aliased:
                 _varTypes[axiomAlias.Name] = aliased;
+                // `Define alias as answer.` — both names reach the same source, and the alias needs
+                // it for exactly the same reason the original does.
+                if (axiomAlias.Value is VariableReference { Name: var aliasOf }
+                    && _axiomLiterals.TryGetValue(aliasOf, out var aliasedLiteral))
+                    _axiomLiterals[axiomAlias.Name] = aliasedLiteral;
                 break;
 
             case DefineStatement d:
@@ -4829,6 +4870,8 @@ static void* cufet_pipe_stage(void* argp) {
                 // otherwise warn about an unused result.
                 string call = cs.RunsAxiom is { } effectAxiom
                     ? "(void)" + EmitAxiomCall(effectAxiom, cs.Args, cs.Line)
+                    : cs.RunsAxiomValue
+                    ? "(void)" + EmitIndirectCall(cs.Function, cs.Args)
                     : EmitCall(CalledFunction(cs.Function, cs.ResolvedFunctionName, cs.Line, cs.Column), cs.Args);
                 FlushPreEmits(sb, indent);
                 sb.AppendLine($"{indent}{call};");
@@ -5881,38 +5924,126 @@ static void* cufet_pipe_stage(void* argp) {
     // Release thunks already emitted, by the axiom they wrap — one per distinct release axiom.
     private readonly Dictionary<string, string> _releaseThunks = new(StringComparer.Ordinal);
 
-    private string EmitAxiomCall(AxiomLiteral axiom, IReadOnlyList<IExpression>? args, int line)
+    // The source behind every name bound to an axiom, including aliases. Needed only to build an
+    // axiom VALUE — a direct call carries its literal on the AST node the checker resolved.
+    private readonly Dictionary<string, AxiomLiteral> _axiomLiterals = new(StringComparer.Ordinal);
+
+    // Axiom-value thunks already emitted, keyed the same way wrappers are.
+    private readonly Dictionary<string, string> _axiomValueThunks = new(StringComparer.Ordinal);
+
+    /// <summary>The callable shape an axiom presents to Cufet — what its value struct is built from.</summary>
+    /// <remarks>
+    /// ⚠ NOT a claim that an axiom IS a function. The two stay separate types in the front end (a
+    /// function has a body you can read; an axiom is text taken on faith, and its language is part
+    /// of what it is). This is only the C LAYOUT question, and for that they are the same two
+    /// pointers — which is what lets an axiom be passed, stored and called with no new machinery.
+    /// </remarks>
+    private static FunctionType AsFunctionType(AxiomType axiom) =>
+        new([.. axiom.ParameterTypes], axiom.ReturnType);
+
+    /// <summary>An axiom as a VALUE — `{thunk, NULL}`, the same struct a function value is.</summary>
+    /// <remarks>
+    /// ★★ The thunk is where the boundary lives. Its parameters are CUFET types, its body marshals
+    /// them into C, calls the wrapper, and converts the result back — exactly what a direct call
+    /// emits inline, and through the same two helpers, so a call through a value and a call by name
+    /// cannot mean different things.
+    ///
+    /// ⚠ The conversions can add pre-emitted statements (an arena copy for a text, a NULL test for
+    /// an address). Those belong to the THUNK's body, not to whatever statement happened to be
+    /// under construction when the value was built, so `_preEmits` is swapped out around it the way
+    /// EmitClosure swaps it for a lambda body.
+    /// </remarks>
+    private string EmitAxiomValue(AxiomLiteral axiom, int line)
     {
         string language = axiom.Language ?? "foreign";
-        string key = ForeignC.Identity(language, axiom.Source, axiom.Parameters);
-        var result = axiom.ReturnType!;
-        if (!_axiomFnNames.TryGetValue(key, out var fnName))
+        string key = ForeignC.Identity(language, axiom.Source, axiom.Parameters, axiom.ReturnType);
+        var shape = new FunctionType([.. axiom.Parameters.Select(p => p.Type)], axiom.ReturnType);
+        string cfn = RegisterFuncStruct(shape);
+
+        if (!_axiomValueThunks.TryGetValue(key, out var thunk))
         {
-            // ★★ The wrapper text comes from ForeignC, so this is byte-for-byte the function the
-            // interpreter's shim compiles. Splicing, the guard and the call all happen once, in
-            // one place, for both backends.
-            fnName = ForeignC.FunctionName(language, axiom.Source, axiom.Parameters);
-            _axiomFnNames[key] = fnName;
-            _axiomFns.Append(ForeignC.Wrapper(fnName, "static ", language, axiom.Source,
-                                              axiom.Parameters, result));
+            string fnName = EnsureAxiomWrapper(axiom);
+            // ⚠ NOT the ForeignC.FunctionPrefix the wrappers use, and that is load-bearing twice
+            // over: that prefix is how a gcc complaint about the AUTHOR'S C is told apart from a
+            // code-generator bug (see GccInvoker.BuildFailureMessage), and it is what WrapperCount
+            // counts in the tests. A thunk is cufet's own code, so it takes cufet's own `cv_`.
+            thunk = $"cv_axiomvalue{_axiomValueThunks.Count}";
+            _axiomValueThunks[key] = thunk;
+
+            var savedPre = new List<string>(_preEmits);
+            _preEmits.Clear();
+            var marshalled = axiom.Parameters
+                .Select((p, i) => ForeignArgumentFrom(p.Type, $"p{i}", line))
+                .ToList();
+            string body = ForeignResultFrom(axiom.ReturnType!,
+                                            $"{fnName}({string.Join(", ", marshalled)})");
+            var inner = new List<string>(_preEmits);
+            _preEmits.Clear();
+            _preEmits.AddRange(savedPre);
+
+            var decls = new[] { "void* cufet_env" }
+                .Concat(axiom.Parameters.Select((p, i) => $"{EmitCType(p.Type)} p{i}"));
+            var fn = new System.Text.StringBuilder();
+            fn.AppendLine($"static {EmitCType(axiom.ReturnType)} {thunk}({string.Join(", ", decls)}) {{");
+            fn.AppendLine("    (void)cufet_env;");
+            foreach (var statement in inner) fn.AppendLine("    " + statement);
+            fn.AppendLine($"    return {body};");
+            fn.AppendLine("}");
+            _axiomFns.Append(fn);
         }
+
+        return $"({cfn}){{ .fn = {thunk}, .env = NULL }}";
+    }
+
+    private string EmitAxiomCall(AxiomLiteral axiom, IReadOnlyList<IExpression>? args, int line)
+    {
+        string fnName = EnsureAxiomWrapper(axiom);
 
         // ★ Marshalled per parameter, from the CUFET type the checker put on the declaration —
         // the writer names no C type anywhere, and this is the only place one is chosen.
         var marshalled = axiom.Parameters
-            .Select((p, i) => EmitForeignArgument(p.Type, args![i], line))
+            .Select((p, i) => ForeignArgumentFrom(p.Type, EmitExpr(args![i]), line))
             .ToList();
-        string call = $"{fnName}({string.Join(", ", marshalled)})";
-
-        return result switch
-        {
-            NumberType => $"cufet_dec_from_foreign({call})",
-            FactType   => call,                       // already the 1/0 a Cufet fact is in C
-            VoidableType { Inner: NumberType } => EmitForeignReal(call),
-            VoidableType { Inner: AddressType } => EmitForeignAddress(call),
-            _          => EmitForeignText(call),      // voidable text — copied out of C's memory
-        };
+        return ForeignResultFrom(axiom.ReturnType!, $"{fnName}({string.Join(", ", marshalled)})");
     }
+
+    /// <summary>The wrapper function for this axiom, emitted once and named.</summary>
+    /// <remarks>
+    /// ★★ The wrapper text comes from ForeignC, so this is byte-for-byte the function the
+    /// interpreter's shim compiles. Splicing, the guard and the call all happen once, in one place,
+    /// for both backends.
+    ///
+    /// ★ Keyed on IDENTITY, not on the name: two names for the same source are one wrapper, and the
+    /// same source written twice is one wrapper too.
+    /// </remarks>
+    private string EnsureAxiomWrapper(AxiomLiteral axiom)
+    {
+        string language = axiom.Language ?? "foreign";
+        string key = ForeignC.Identity(language, axiom.Source, axiom.Parameters);
+        if (_axiomFnNames.TryGetValue(key, out var existing)) return existing;
+
+        string fnName = ForeignC.FunctionName(language, axiom.Source, axiom.Parameters);
+        _axiomFnNames[key] = fnName;
+        _axiomFns.Append(ForeignC.Wrapper(fnName, "static ", language, axiom.Source,
+                                          axiom.Parameters, axiom.ReturnType!));
+        return fnName;
+    }
+
+    /// <summary>What comes back from a wrapper, as the Cufet value the declaration promised.</summary>
+    /// <remarks>
+    /// ⚠ Takes the call as C TEXT rather than as an AST node, because it is used from two places
+    /// that have nothing else in common: a direct call, where the arguments are expressions, and an
+    /// axiom-value thunk, where they are that thunk's own C parameters. Writing the conversion
+    /// twice is how the two would come to disagree about what a `voidable text` costs.
+    /// </remarks>
+    private string ForeignResultFrom(CufetType result, string call) => result switch
+    {
+        NumberType => $"cufet_dec_from_foreign({call})",
+        FactType   => call,                       // already the 1/0 a Cufet fact is in C
+        VoidableType { Inner: NumberType } => EmitForeignReal(call),
+        VoidableType { Inner: AddressType } => EmitForeignAddress(call),
+        _          => EmitForeignText(call),      // voidable text — copied out of C's memory
+    };
 
     /// <summary>`the text at &lt;address&gt;` — copied into the arena, as a `voidable text`.</summary>
     /// <remarks>
@@ -6002,14 +6133,20 @@ static void* cufet_pipe_stage(void* argp) {
     /// truncated: a fractional or oversized argument raises where it is passed, in the same class
     /// as a divide by zero, instead of arriving in C as something else entirely.
     /// </remarks>
-    private string EmitForeignArgument(CufetType type, IExpression arg, int line) => type switch
+    /// <summary>One value on its way into C, from the C text that produces it.</summary>
+    /// <remarks>
+    /// ⚠ Text in, not an AST node — for the same reason ForeignResultFrom takes text. A direct call
+    /// marshals an expression; an axiom-value thunk marshals its own C parameter, which no
+    /// expression names.
+    /// </remarks>
+    private static string ForeignArgumentFrom(CufetType type, string value, int line) => type switch
     {
-        NumberType => $"cufet_foreign_ll({EmitExpr(arg)}, {line})",
-        FactType   => $"({EmitExpr(arg)} ? 1 : 0)",
-        TextType   => EmitExpr(arg),
+        NumberType => $"cufet_foreign_ll({value}, {line})",
+        FactType   => $"({value} ? 1 : 0)",
+        TextType   => value,
         // Straight back the way it came, with nothing to check: Cufet never made this value, so
         // the only thing it can be is a pointer C handed over.
-        AddressType => EmitExpr(arg),
+        AddressType => value,
         _          => throw new TypeException(
                           $"That doesn't work: a {FormatTypeName(type)} cannot be handed to foreign source yet."),
     };
@@ -6029,7 +6166,8 @@ static void* cufet_pipe_stage(void* argp) {
         StringLiteral         => TText,
         // Foreign source, tagged by the checker. It has no C representation — nothing stores an
         // axiom — but the var-type prepass asks for the type of every `Define`d value.
-        AxiomLiteral axiom    => new AxiomType(axiom.Language ?? "", axiom.ReturnType),
+        AxiomLiteral axiom    => new AxiomType(axiom.Language ?? "", axiom.ReturnType,
+                                               [.. axiom.Parameters.Select(p => p.Type)]),
         RangeExpression       => new SeriesType(TNumber),
         SeriesLiteral sl      => new SeriesType(SeriesElementType(sl)),
         SeriesLength          => TNumber,
@@ -6190,6 +6328,8 @@ static void* cufet_pipe_stage(void* argp) {
         // ★ An axiom's result is declared where the axiom is WRITTEN, and the checker has already
         // refused one that never said — see ForeignC for what may cross back.
         if (c.RunsAxiom is { } ax) return ax.ReturnType!;
+        // Reached through a value: the WRITTEN type is the only thing that says what comes back.
+        if (c.RunsAxiomValue && TypeOf(c.Function) is AxiomType held) return held.ReturnType!;
 
         // The filling decides the return type — `first-two of text` gives back a series of text.
         if (CalledFunction(c.Function, c.ResolvedFunctionName, c.Line, c.Column) is VariableReference vr)
@@ -6655,6 +6795,11 @@ static void* cufet_pipe_stage(void* argp) {
                                 : _closureSelf is { } cse && v.Name == cse.Name ? $"({RegisterFuncStruct(cse.Type)}){{ .fn = {cse.ClosFn}, .env = cf_envp }}"
                                // A bare named function used as a VALUE → the {fn, NULL} closure value.
                                 : _funcTypes.ContainsKey(v.Name) && !_varTypes.ContainsKey(v.Name) ? EmitNamedFunctionValue(v.Name)
+                               // ★ A DECLARED axiom used as a VALUE → its {thunk, NULL} struct. The
+                               // binding itself still emits nothing; the value is built here, where
+                               // it is used. An axiom that arrived through a parameter is not in
+                               // this map — it is an ordinary local already holding the struct.
+                                : _axiomLiterals.TryGetValue(v.Name, out var axiomSource) ? EmitAxiomValue(axiomSource, v.Line)
                                 : MangleName(v.Name),
         CastExpression cast   => EmitCastExpr(cast),
         LambdaLiteral lam     => EmitLambda(lam),
@@ -7800,6 +7945,10 @@ static void* cufet_pipe_stage(void* argp) {
             case CastStatement { RunsAxiom: not null } effectCall:
                 foreach (var arg in effectCall.Args) CollectRefsDefs(arg, refs, defs);
                 return;
+            // ⚠ And NOT the same for one reached through a value. That call READS its callee — the
+            // name holds the thing being called — so it falls through to the ordinary walk below
+            // and is captured like any other free variable. Stopping here instead would build a
+            // closure with no slot for the axiom it calls.
             case ForEachStatement fe:
                 CollectRefsDefs(fe.Series, refs, defs);   // the series expression is in the OUTER scope
                 Nested(fe.IteratorName != null ? [fe.IteratorName] : [], fe.Body);
@@ -8256,6 +8405,11 @@ static void* cufet_pipe_stage(void* argp) {
         // Foreign source, not a Cufet function — there is no body to call, only C to paste in.
         if (cast.RunsAxiom is { } axiom) return EmitAxiomCall(axiom, cast.Args, cast.Line);
 
+        // ★ The same call reached through a VALUE: no source to paste, so it goes through the
+        // {fn, env} struct exactly as a call to a function value does. EmitIndirectCall works
+        // unchanged because the struct IS the one a function value uses — see EmitCTypeRaw.
+        if (cast.RunsAxiomValue) return EmitIndirectCall(cast.Function, cast.Args);
+
         var fn = CalledFunction(cast.Function, cast.ResolvedFunctionName, cast.Line, cast.Column);
         // A BARE fallible call (not wrapped by but-on-failure / propagate) is only valid inside
         // a Try: on failure, record the failure and jump to the handler; otherwise yield the T.
@@ -8442,7 +8596,15 @@ static void* cufet_pipe_stage(void* argp) {
     // a captured closure (CL.2) calls identically.
     private string EmitIndirectCall(IExpression funcExpr, IReadOnlyList<IExpression> args)
     {
-        var ft = (FunctionType)TypeOf(funcExpr);
+        // ★ An axiom value is called through the SAME struct, so this path serves both. The cast it
+        // replaces was safe only while a function value was the only callable a name could hold.
+        var ft = TypeOf(funcExpr) switch
+        {
+            FunctionType f => f,
+            AxiomType a    => AsFunctionType(a),
+            var other      => throw new CompilerException(
+                                  $"'{FormatTypeName(other)}' cannot be called through a value."),
+        };
         string cfn = RegisterFuncStruct(ft);
         string val = EmitExpr(funcExpr);
         string tmp = $"cf_fn{_freshId++}";
@@ -8868,6 +9030,12 @@ static void* cufet_pipe_stage(void* argp) {
         ChannelType => "cufet_chan*",                          // a channel is a shared mutex/condvar queue
         MatrixType => MatrixCType(),                           // a matrix is an arena pointer (reference type)
         FunctionType ft => RegisterFuncStruct(ft),             // a function value is a {fn, env} value struct
+        // ★★ An axiom VALUE is the same {fn, env} struct a function value is, pointing at a thunk
+        // that marshals, calls the wrapper and converts back. Not a bare C function pointer to the
+        // wrapper: the wrapper speaks C's types (CufetForeignWhole, const char*), and a value that
+        // could be passed to anything expecting a callable has to speak Cufet's. Sharing the struct
+        // is what makes passing, storing and calling one work with no new machinery at all.
+        AxiomType ax => RegisterFuncStruct(AsFunctionType(ax)),
         UnionType uop when uop.Cases == null => MarkOpenUnion(),   // ALL open unions share one struct
         UnionType u1c when u1c.Cases is { Count: 1 } => EmitCType(u1c.Cases[0]),   // 1-case union IS that type
         UnionType ut => RegisterUnionStruct(ut),               // a closed union is a {tag, payload} value struct

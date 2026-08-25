@@ -624,14 +624,26 @@ public sealed class Parser
                 catch (ParseException) { _pos = beforeResult; result = null; }
             }
             if (IsWord("axiom")) { Advance(); SkipNoise(); }
-            else if (result != null && Peek().Type != TokenType.Identifier)
+            else if (result != null && Peek().Type is not (TokenType.Identifier or TokenType.Given))
             {
                 _pos = beforeResult;   // that was the name, not a result type
                 result = null;
             }
 
-            if (result != null || Peek().Type == TokenType.Identifier)
-                return new AxiomType(tok.Lexeme, result);
+            // ★ `given (…)` — what running it TAKES, in the spelling a function type already uses
+            // (`number function given (the number)`). Not new syntax, and deliberately not a second
+            // way to say it: the same ParseFunctionParamTypeList, so the two cannot drift.
+            //
+            // ★ Needed only HERE, in type position. A DECLARATION states its parameters after the
+            // name — `Define c-language number length-of, given (the text subject), as […]` — and
+            // the checker reads them off the literal. A parameter, field or element type has no
+            // declaration to read, so without this an axiom type could not say what it accepts and
+            // no call through one could be checked.
+            var takes = Peek().Type == TokenType.Given ? ParseFunctionParamTypeList() : [];
+            if (takes.Count > 0) SkipNoise();
+
+            if (result != null || takes.Count > 0 || Peek().Type == TokenType.Identifier)
+                return new AxiomType(tok.Lexeme, result, takes);
             _pos = save;
         }
         // Named type: object or interface name — resolved by TypeChecker.

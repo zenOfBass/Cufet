@@ -440,9 +440,19 @@ public sealed partial class TypeChecker
         // this looked like first, and it threw "'pick' isn't defined" across the generic-function
         // and stash suites: a template's name is not an ordinary binding, and the instantiation
         // below is what resolves it. Ask only the question that cannot fail.
+        // ★ An axiom reached by name whose SOURCE is not reachable here — one that arrived through
+        // a parameter, or came back from another call. That is no longer a refusal: the WRITTEN
+        // type says what it takes and what it gives back, which is everything a call site needs to
+        // be checked, and the value carries the rest.
+        //
+        // ⚠ An axiom that never declared a result is still unrunnable, and is refused BY NAME
+        // rather than falling through to "you can only cast functions" — which is not true of
+        // axioms, and sent the reader looking for the wrong thing.
         if (cast.Function is VariableReference axVr && TryLookup(axVr.Name, out var axInfo)
-            && axInfo!.Type is AxiomType unreachable)
-            throw AxiomSourceNotReachable(unreachable, cast.Line, cast.Column);
+            && axInfo!.Type is AxiomType reached)
+            return reached.ReturnType is null
+                ? throw AxiomSourceNotReachable(reached, cast.Line, cast.Column)
+                : RunAxiomValueOnCast(cast, reached);
 
         // A function that left blanks is filled from THIS call's arguments before anything is
         // resolved — the filling is what decides which body the call reaches.
@@ -458,7 +468,12 @@ public sealed partial class TypeChecker
             cast.ResolvedFunctionName = InstantiateMethod(gowner, gpa.Member, cast.Args, cast.Line, cast.Column);
 
         var (funcType, displayName, declLine, argsToValidate) =
-            ResolveForCast(cast.Function, cast.Args, cast.Line, cast.Column, cast.ResolvedFunctionName);
+            ResolveForCast(cast.Function, cast.Args, cast.Line, cast.Column,
+                           out var castAxiomCallee, cast.ResolvedFunctionName);
+        if (castAxiomCallee is { } castHeldAxiom)
+            return castHeldAxiom.ReturnType is null
+                ? throw AxiomSourceNotReachable(castHeldAxiom, cast.Line, cast.Column)
+                : RunAxiomValueOnCast(cast, castHeldAxiom);
         if (funcType == null) return null;
 
         ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cast.Line, cast.Column);
@@ -544,8 +559,14 @@ public sealed partial class TypeChecker
     // Throws TypeException for known-bad: non-function type, or method/free-function ambiguity.
     private (FunctionType? funcType, string displayName, int declLine, IReadOnlyList<IExpression> argsToValidate)
         ResolveForCast(IExpression funcExpr, IReadOnlyList<IExpression> args, int callLine, int callCol,
-                       string? resolvedName = null)
+                       out AxiomType? axiomCallee, string? resolvedName = null)
     {
+        // ★ An axiom reached through anything but a bare name — an object field, a series element,
+        // another call's result. Reported through an out-parameter rather than by inferring the
+        // callee's type again at the call site: the type is worked out HERE either way, and the
+        // note above about never inferring a cast's function expression is exactly why a second
+        // InferType must not be added upstream.
+        axiomCallee = null;
         if (funcExpr is VariableReference vr)
         {
             // A filled-in function is registered under its filling (`unique of text`); the name
@@ -619,6 +640,11 @@ public sealed partial class TypeChecker
             : funcExpr;
         var exprType = InferType(lookedUp);
         if (exprType == null) return (null, "this function", callLine, args);
+        if (exprType is AxiomType heldAxiom)
+        {
+            axiomCallee = heldAxiom;
+            return (null, "this axiom", callLine, args);
+        }
         if (exprType is not FunctionType funcType)
             throw TypeError(
                 $"this expression holds a {FormatType(exprType)}, not a function — you can only cast functions",
@@ -925,11 +951,26 @@ public sealed partial class TypeChecker
         // <axiom>` with no way to print one. "It checks but does not compile" is the divergence
         // this project spends the most effort refusing, so the arm stays until an axiom has a C
         // representation to be.
-        AxiomType axiom => throw new TypeException(
-            $"That doesn't work: a {axiom.Language} axiom can be declared, bound to a name and run, "
-          + "and not yet written down as a type.\n\n" +
-            "An axiom runs where its source is known — 'Bind number to <name>, <axiom>.' or "
-          + "'cast <axiom>'. It cannot yet be a parameter, a field, or an element type."),
+        // ⚠ An axiom that never said what it gives BACK still cannot be written down as a type, and
+        // this is not a leftover of the blanket refusal that used to stand here. A written axiom
+        // type has to name a C function signature, and the wrapper's return type is built from
+        // exactly the result the declaration states — so an axiom with no result has no signature
+        // to be. Refusing where the TYPE is written says so at a line the writer can fix, rather
+        // than at whatever call site later tries to run it.
+        AxiomType { ReturnType: null } silent => throw new TypeException(
+            $"That doesn't work: a {silent.Language} axiom written as a type has to say what it "
+          + "gives back. 'the c-language axiom job' cannot be a parameter, a field, or an element "
+          + "type, because nothing could be done with what running it produces. Say the result: "
+          + $"'the {silent.Language} number axiom job'."),
+
+        // ★ Otherwise an axiom IS a type — a parameter, a field, an element. Its parts are resolved
+        // like any other written type: a result or a parameter may name an object or an interface,
+        // and leaving those unresolved is how a written type compares unequal to the identical one
+        // inferred from a declaration.
+        AxiomType axiom => new AxiomType(
+            axiom.Language,
+            ResolveParamType(axiom.ReturnType!),
+            [.. axiom.ParameterTypes.Select(ResolveParamType)]),
 
         // ── A FILLED template — `a stack of number` ───────────────────────────
         // Ahead of the shell cases below, which do not inspect the filling and would otherwise

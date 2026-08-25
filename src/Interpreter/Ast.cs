@@ -276,6 +276,16 @@ public sealed record CastExpression(
     /// comes back is decided by the type declared where the call is USED — see RunAxiomOnCast.
     /// </remarks>
     public AxiomLiteral? RunsAxiom { get; set; }
+
+    /// <summary>True when this call runs an axiom that arrived as a VALUE, with no literal behind it.</summary>
+    /// <remarks>
+    /// ★ Separate from <see cref="RunsAxiom"/> rather than folded into it, because the two carry
+    /// opposite information. RunsAxiom names the source to PASTE; this says there is no source to
+    /// paste and the callee has to be called through its value — a C function pointer compiled, the
+    /// held literal interpreted. A single nullable field could not tell "no axiom here" apart from
+    /// "an axiom whose text I do not have".
+    /// </remarks>
+    public bool RunsAxiomValue { get; set; }
 }
 
 // Cast as a statement (void call, or discarded return value).
@@ -296,6 +306,9 @@ public sealed record CastStatement(
     /// what it gives back, because the C wrapper's return type is built from it.
     /// </remarks>
     public AxiomLiteral? RunsAxiom { get; set; }
+
+    /// <inheritdoc cref="CastExpression.RunsAxiomValue"/>
+    public bool RunsAxiomValue { get; set; }
 }
 
 // return <value>.  or  return.  (bare, for void early exit)

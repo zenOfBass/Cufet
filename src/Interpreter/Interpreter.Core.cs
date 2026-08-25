@@ -878,6 +878,8 @@ public sealed partial class Interpreter
                 // statement means. The checker resolved the name to its source.
                 if (cs.RunsAxiom is { } effectAxiom)
                     _ = RunAxiomCall(cs.Args, effectAxiom, cs.Line);
+                else if (cs.RunsAxiomValue)
+                    _ = RunAxiomCall(cs.Args, HeldAxiom(cs.Function, cs.Line), cs.Line);
                 else
                     ExecuteCallExpr(CalledFunction(cs.Function, cs.ResolvedFunctionName, cs.Line, cs.Column),
                                     cs.Args, cs.Line);
@@ -1960,6 +1962,11 @@ public sealed partial class Interpreter
         BitsValue bv     => bv.ToString(),   // prints in the base it was written in
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
         FunctionValue        => "<function>",
+        // ★ An axiom is a callable held as a value, so it prints the way the other callable does.
+        // ⚠ Not cosmetic: the value an axiom name holds IS the AxiomLiteral record, so with no arm
+        // here it fell through to ToString() and printed the C# record — source text, line, column
+        // and all — while the compiled backend refused the same program at build time.
+        AxiomLiteral         => "<axiom>",
         // ★ `<address>`, never the pointer itself, and the reason is the oracle rather than
         // secrecy: two backends are two processes, so the same program's handle is a different
         // number in each and printing it could never agree. The same shape as <function>.

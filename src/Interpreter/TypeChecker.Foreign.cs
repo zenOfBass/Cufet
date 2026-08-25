@@ -244,6 +244,19 @@ public sealed partial class TypeChecker
             $"Wrap it: 'Bind number to <name>, {name}.' — then use that function.");
     }
 
+    /// <summary>An axiom with a release clause, reached for as a value.</summary>
+    private TypeException AxiomWithReleaseUsedAsValue(string name, AxiomType axiom, IExpression at)
+    {
+        var (line, column) = at is VariableReference vr ? (vr.Line, vr.Column) : (0, 0);
+        return TypeError(
+            $"'{name}' says how to free what it gives back, so it cannot be passed around",
+            "the freeing is registered where the result is caught, and a call reached through a "
+          + "value has no such place — the address would be taken and never given back",
+            line, column,
+            $"use '{name}' as a value",
+            $"Call '{name}' where it is declared and pass the address on instead.");
+    }
+
     /// <summary>A `Define`'s written type, resolved — or null when it declared none.</summary>
     private CufetType? ResolvedDeclaredType(CufetType? declared) =>
         declared is null ? null : ResolveParamType(declared);
@@ -273,6 +286,60 @@ public sealed partial class TypeChecker
         CheckForeignArguments(cast.Args, axiom, cast.Line, cast.Column);
         cast.RunsAxiom = axiom;
         return RunResultOf(axiom, cast.Line, cast.Column);
+    }
+
+    /// <summary>`cast job on (…)` where the axiom arrived as a VALUE — a parameter, or a result.</summary>
+    /// <remarks>
+    /// ★★ The difference from <see cref="RunAxiomOnCast"/> is what the check reads FROM. There the
+    /// literal is in hand, so the parameter names are known and a mismatch can say which one is
+    /// wrong. Here only the written type survives — `the c-language number axiom given (the text)`
+    /// — so the check is positional and the message says the position. That is the whole cost of
+    /// passing an axiom around, and it is the same cost a function value already pays.
+    ///
+    /// ⚠ The language must still be pulled at the CALL, not merely where the axiom was declared.
+    /// Otherwise an axiom could be handed out of a `Pull a book on the c-language.` block and run
+    /// somewhere the reader has no line to see that C is involved at all.
+    /// </remarks>
+    private CufetType RunAxiomValueOnCast(CastExpression cast, AxiomType axiom)
+    {
+        CheckAxiomValueCall(cast.Args, axiom, cast.Line, cast.Column);
+        cast.RunsAxiomValue = true;
+        return axiom.ReturnType!;
+    }
+
+    /// <summary>The same, for an axiom VALUE called as a statement — `Cast job on (…).`</summary>
+    private void RunAxiomValueOnCastStatement(CastStatement cast, AxiomType axiom)
+    {
+        CheckAxiomValueCall(cast.Args, axiom, cast.Line, cast.Column);
+        cast.RunsAxiomValue = true;
+    }
+
+    /// <summary>Checks a call against a WRITTEN axiom type, positionally.</summary>
+    private void CheckAxiomValueCall(IReadOnlyList<IExpression> args, AxiomType axiom,
+                                     int line, int column)
+    {
+        RequireLanguagePulled(axiom.Language, line, column);
+
+        if (args.Count != axiom.ParameterTypes.Count)
+            throw TypeError(
+                $"this {axiom.Language} axiom takes {Count(axiom.ParameterTypes.Count, "value")}, "
+              + $"and {args.Count} {(args.Count == 1 ? "was" : "were")} given",
+                null, line, column,
+                $"pass {Count(args.Count, "value")}",
+                $"It is written '{FormatType(axiom)}'.");
+
+        for (int i = 0; i < args.Count; i++)
+        {
+            var expected = axiom.ParameterTypes[i];
+            var actual = InferType(args[i]);
+            if (actual != null && !IsAssignable(expected, actual))
+                throw TypeError(
+                    $"value {i + 1} of this {axiom.Language} axiom takes a {FormatType(expected)}, "
+                  + $"but a {FormatType(actual)} was given",
+                    null, line, column,
+                    $"pass a {FormatType(actual)} there",
+                    $"Give it a {FormatType(expected)}.");
+        }
     }
 
     /// <summary>The same, for an axiom called as a STATEMENT — its answer thrown away.</summary>

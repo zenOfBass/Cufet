@@ -1995,6 +1995,19 @@ public sealed partial class TypeChecker
                     RunAxiomOnCastStatement(cs, statementAxiom);
                     break;
                 }
+                // ★ The same call with no literal behind it — an axiom that arrived as a value.
+                // AxiomCalledBy answers null there by design, so without this the call falls
+                // through to ResolveForCast and is refused as "not a function", which is the
+                // wrong sentence for the one case that IS legal.
+                if (cs.Function is VariableReference axiomValueCall
+                    && TryLookup(axiomValueCall.Name, out var axiomValueInfo)
+                    && axiomValueInfo!.Type is AxiomType heldAxiom)
+                {
+                    if (heldAxiom.ReturnType is null)
+                        throw AxiomSourceNotReachable(heldAxiom, cs.Line, cs.Column);
+                    RunAxiomValueOnCastStatement(cs, heldAxiom);
+                    break;
+                }
                 if (cs.Function is VariableReference gcv && _genericFunctions.ContainsKey(gcv.Name))
                     cs.ResolvedFunctionName = InstantiateFunction(gcv.Name, cs.Args, cs.Line, cs.Column);
                 // ⚠ Never overwritten once set — see the matching note in InferCastExpr.
@@ -2004,7 +2017,15 @@ public sealed partial class TypeChecker
                     cs.ResolvedFunctionName = InstantiateMethod(gcOwner, gcp.Member, cs.Args, cs.Line, cs.Column);
 
                 var (funcType, displayName, declLine, argsToValidate) =
-                    ResolveForCast(cs.Function, cs.Args, cs.Line, cs.Column, cs.ResolvedFunctionName);
+                    ResolveForCast(cs.Function, cs.Args, cs.Line, cs.Column,
+                                   out var statementAxiomCallee, cs.ResolvedFunctionName);
+                if (statementAxiomCallee is { } statementHeld)
+                {
+                    if (statementHeld.ReturnType is null)
+                        throw AxiomSourceNotReachable(statementHeld, cs.Line, cs.Column);
+                    RunAxiomValueOnCastStatement(cs, statementHeld);
+                    break;
+                }
                 if (funcType != null)
                 {
                     ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cs.Line, cs.Column);
@@ -2489,8 +2510,24 @@ public sealed partial class TypeChecker
         // emit C that would not build — three answers to one program, which is the shape a use
         // guard exists to close. CheckReturn and CheckDefine take the legal cases before they ever
         // ask for a type, so nothing that reaches here is one.
-        VariableReference { Name: var an } when TryLookup(an, out var ati) && ati.Type is AxiomType axiomInfo
+        // ⚠ Only an axiom that never said what it gives BACK. One that did is a VALUE now — it can
+        // be passed, stored and handed back — so it falls through to the ordinary name lookup below
+        // and carries its AxiomType with it. What it still cannot do is be PRINTED, and that is the
+        // compiler's own clean refusal rather than a rule repeated here: `State <a function>` is
+        // refused the same way, and an axiom is a callable.
+        VariableReference { Name: var an } when TryLookup(an, out var ati)
+                                            && ati.Type is AxiomType { ReturnType: null } axiomInfo
                                                                                                  => throw AxiomUsedAsValue(an, axiomInfo, expr),
+        // ⚠⚠ An axiom carrying `and free it with` cannot be passed around, and this is a real
+        // limitation rather than an oversight. The clause means "what this call gives back is freed
+        // when THIS block ends", and both backends register that release against the `Define` that
+        // caught the result — a statically resolved call site. A call reached through a value has no
+        // such site, so the address would be acquired and never freed, on both backends equally.
+        // Refusing says so; letting it through would leak quietly and agree while doing it.
+        VariableReference { Name: var rn } when TryLookup(rn, out var rti)
+                                            && rti.Type is AxiomType releasing
+                                            && rti.EstablishingExpr is AxiomLiteral { ReleasedBy: not null }
+                                                                                                 => throw AxiomWithReleaseUsedAsValue(rn, releasing, expr),
         VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => NoteModuleUse(n, ti),
         VariableReference hv when _hiddenTopLevelData.Contains(hv.Name)                                  => throw HiddenTopLevelDataError(hv),
         VariableReference vr                                                                              => NoteUnresolvedName(vr),
@@ -3115,10 +3152,7 @@ public sealed partial class TypeChecker
         VoidableType { Inner: var inner }    => $"voidable {FormatType(inner)}",
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
         StashType { ElementType: var held }  => $"stash of {FormatTypePlural(held)}",
-        AxiomType { ReturnType: { } gives } a => $"{a.Language} {FormatType(gives)} axiom",
-        AxiomType at                         => at.ParameterTypes.Count == 0
-                                                ? $"{at.Language} axiom"
-                                                : $"{at.Language} axiom given ({string.Join(", ", at.ParameterTypes.Select(FormatType))})",
+        AxiomType at                         => FormatAxiomType(at),
         FunctionType ft                      => FormatFunctionType(ft),
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => ot.Name,
@@ -3147,6 +3181,23 @@ public sealed partial class TypeChecker
         foreach (var t in rt.PositionalTypes)         parts.Add(FormatType(t));
         foreach (var (name, t) in rt.NamedFields)     parts.Add($"{name}: {FormatType(t)}");
         return parts.Count == 0 ? "record ()" : $"record ({string.Join(", ", parts)})";
+    }
+
+    /// <summary>An axiom type in the spelling it is written in — result and parameters both.</summary>
+    /// <remarks>
+    /// ⚠ Both halves, always. Printing the result but not the parameters is how a message comes out
+    /// as "declared as c-language number axiom, but the value is a c-language number axiom" — two
+    /// genuinely different types rendered identically, which says nothing and reads as a compiler
+    /// bug rather than as the mismatch it is.
+    /// </remarks>
+    private static string FormatAxiomType(AxiomType a)
+    {
+        string head = a.ReturnType is { } gives
+            ? $"{a.Language} {FormatType(gives)} axiom"
+            : $"{a.Language} axiom";
+        return a.ParameterTypes.Count == 0
+            ? head
+            : $"{head} given ({string.Join(", ", a.ParameterTypes.Select(FormatType))})";
     }
 
     private static string FormatFunctionType(FunctionType ft)

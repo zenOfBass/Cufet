@@ -35,6 +35,7 @@ public sealed partial class Interpreter
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var pending = new List<(AxiomLiteral Axiom, int Line)>();
+        bool carriesAxiomValues = false;
 
         void Note(AxiomLiteral axiom, int line)
         {
@@ -56,7 +57,28 @@ public sealed partial class Interpreter
             // compiles its shim lazily on first use again — the divergence up-front preparation
             // exists to close.
             if (node is CastStatement  { RunsAxiom: { } run }     stmt)   Note(run, stmt.Line);
+            // ★ And called through a VALUE, where there is no source to name. The callee is decided
+            // at run time, so which axiom this reaches cannot be known from here.
+            if (node is CastExpression { RunsAxiomValue: true } or CastStatement { RunsAxiomValue: true })
+                carriesAxiomValues = true;
         });
+
+        // ⚠ Deliberately imprecise, and the imprecision is the safe direction. A value-carried call
+        // could reach any axiom the program declares, so once one exists, every DECLARED axiom that
+        // could be run has to be built up front — building too many costs one gcc invocation, while
+        // building too few fails partway through a program that had already produced output, which
+        // is exactly what up-front preparation exists to prevent.
+        //
+        // ★ Gated on a value-carried call existing at all, so a program without one is unchanged:
+        // declaring an axiom and never running it still needs no toolchain.
+        if (carriesAxiomValues)
+            AstSearch.Visit(program.Statements, node =>
+            {
+                // An axiom with no declared result cannot be wrapped — there is no C return type to
+                // build one from — and the checker has already refused every way of running it.
+                if (node is DefineStatement { Value: AxiomLiteral { ReturnType: not null } declared } def)
+                    Note(declared, def.Line);
+            });
 
         if (pending.Count == 0) return;
 
@@ -172,6 +194,24 @@ public sealed partial class Interpreter
           + $"(line {line}).\n\n"
           + "Foreign source is compiled and called through a C toolchain. Build the program "
           + "with 'cufet build' to run it, or run it where a C compiler is available.");
+
+    /// <summary>The axiom a value-carried call reaches — evaluated, not looked up by name.</summary>
+    /// <remarks>
+    /// ★ The whole reason an axiom needs no new runtime representation on this backend: the value a
+    /// name holds IS the AxiomLiteral (see <see cref="AxiomValue"/>), so passing one through a
+    /// parameter, a field or a series element carries the source with it and there is nothing to
+    /// resolve. The compiled backend has to work for this — it has only C text, and the value there
+    /// is a function pointer to the wrapper.
+    ///
+    /// ⚠ The guard is not defensive noise. The checker admits this call only when the callee's type
+    /// is an AxiomType, so anything else here is a checker bug — and a cast to AxiomLiteral would
+    /// report it as an InvalidCastException from inside the interpreter rather than as the thing
+    /// that went wrong.
+    /// </remarks>
+    private AxiomLiteral HeldAxiom(IExpression callee, int line) =>
+        Evaluate(callee) as AxiomLiteral
+        ?? throw new RuntimeException(
+            $"this call expected foreign source and found something else (line {line}).");
 
     /// <summary>An axiom declaration binds the source itself — nothing about it is evaluated.</summary>
     /// <remarks>

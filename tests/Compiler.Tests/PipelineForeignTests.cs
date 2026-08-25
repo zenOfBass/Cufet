@@ -628,7 +628,7 @@ public class PipelineForeignTests : PipelineTestBase
                 State cast run-it on (answer).
             Done.
             """;
-        Assert.Contains("not yet written down as a type",
+        Assert.Contains("has to say what it gives back",
                         Assert.ThrowsAny<Exception>(() => Interpret(viaParameter)).Message);
     }
 
@@ -1392,28 +1392,224 @@ public class PipelineForeignTests : PipelineTestBase
     }
 
     [Fact]
-    public void Axiom_UsedAsAValue_IsRefused()
+    public void Axiom_Printed_ReadsAsACallable_OnBothBackends()
     {
-        // ⚠ The regression this pins is a DIVERGENCE, not a missing feature: `State get-pid.`
-        // checked clean, printed a C# object interpreted, and emitted C that would not build.
-        var e = Assert.Throws<TypeException>(() => GenerateC("""
+        // ⚠⚠ This pins a DIVERGENCE, and that is why it exists rather than to pin the wording. The
+        // value an axiom name holds IS the AxiomLiteral, so with no arm in the interpreter's Format
+        // it fell through to ToString() and printed the C# record — source text, line and column
+        // included — while the compiled backend refused the same program at build time.
+        //
+        // ★ An axiom now reads as the language's other callable does: `<axiom>` beside `<function>`
+        // interpreted, and a clean compiler refusal for both. That split is pre-existing and is
+        // visible through `check --native`; C# internals reaching a user's output was not.
+        const string src = """
             Pull a book on the c-language.
                 Define c-language number get-pid as [getpid()].
                 State get-pid.
             Done.
-            """));
-        Assert.Contains("can only be run by returning it", e.Message);
+            """;
+        Assert.Equal("<axiom>", Interpret(src));
+        Assert.Contains("State of a 'c-language number axiom' is not yet supported",
+                        Assert.Throws<CompilerException>(() => GenerateC(src)).Message);
     }
 
     [Theory]
     [InlineData("Bind number to run-it, given (the c-language axiom fragment), 1.")]
     [InlineData("Define object holder with (the c-language axiom fragment).")]
     [InlineData("Bind number to f, given (the series of c-language axiom parts), 1.")]
-    public void Axiom_WrittenInASignature_IsRefused(string declaration)
+    public void Axiom_WrittenAsATypeWithoutSayingItsResult_IsRefused(string declaration)
     {
         var e = Assert.Throws<TypeException>(() => GenerateC(
             $"Pull a book on the c-language.\n    {declaration}\nDone."));
-        Assert.Contains("not yet written down as a type", e.Message);
+        // ★ What survives of the old blanket refusal, and why it survives: a written axiom type
+        // names a C function signature, and the wrapper's return type is built from the result the
+        // declaration states. An axiom with no result has no signature to be.
+        Assert.Contains("has to say what it gives back", e.Message);
+    }
+
+    [Theory]
+    [InlineData("Bind number to run-it, given (the c-language number axiom fragment), 1.")]
+    [InlineData("Define object holder with (the c-language number axiom fragment).")]
+    [InlineData("Bind number to f, given (the series of c-language number axiom parts), 1.")]
+    public void Axiom_WrittenAsATypeWithItsResult_IsAccepted(string declaration)
+    {
+        // The same three shapes the theory above refuses, with the one word that makes them
+        // representable. Paired deliberately: a refusal test that cannot say what WOULD be
+        // accepted stops being able to tell a boundary from a blanket ban.
+        GenerateC($"Pull a book on the c-language.\n    {declaration}\nDone.");
+    }
+
+    // -- An axiom passed around unrun ----------------------------------------
+
+    [Fact]
+    public void Axiom_PassedAsAParameter_RunsOnBothBackends()
+    {
+        // * The thinnest end-to-end shape: an axiom crosses a call boundary as a VALUE and is run
+        // on the far side, where no source is in scope to paste.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number answer as [6 * 7].
+
+                Bind number to twice, given (the c-language number axiom job):
+                    Return cast job + cast job.
+                Done.
+
+                State cast twice on (answer).
+            Done.
+            """;
+        Assert.Equal("84", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_WithParameters_PassedAsAValue_RunsOnBothBackends()
+    {
+        // ** What the `given (...)` spelling in TYPE position is for. The declaration states its
+        // parameters after the name and the checker reads them off the literal -- but a parameter
+        // has no declaration to read, so without a written parameter list the call
+        // `cast job on ("hello, world")` could not be checked at all.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number length-of, given (the text subject), as [(int)strlen(the subject)].
+
+                Bind number to measure, given (the c-language number axiom given (the text) job, the text what):
+                    Return cast job on (what).
+                Done.
+
+                State cast measure on (length-of, "hello, world").
+            Done.
+            """;
+        Assert.Equal("12", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_ChosenAtRunTime_RunsOnBothBackends()
+    {
+        // ** The payoff, and the thing no earlier slice could express: WHICH axiom runs is decided
+        // by the loop, not by the text. Both backends have to reach the same two wrappers through
+        // the same two values.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number length-of, given (the text subject), as [(int)strlen(the subject)].
+                Define c-language number first-byte, given (the text subject), as [(int)(the subject)[0]].
+
+                Define the jobs as a series of c-language number axiom given (the text) with (length-of, first-byte).
+
+                For each job in the jobs, repeat:
+                    State cast job on ("hello").
+                Done.
+            Done.
+            """;
+        Assert.Equal("5\n104", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_HeldInAnObjectField_RunsOnBothBackends()
+    {
+        // ! The shape that found the ordering bug. An object field typed as an axiom carries the
+        // closure struct, and the struct-emission pass had no arm for it -- so the object struct
+        // was written above `cfn_0` and gcc said "unknown type name". Exactly the failure the note
+        // in EmitStructs records for closures, one type later.
+        //
+        // * And the result is a `voidable text`, so the field's shape reaches a voidable struct
+        // nothing else in the program mentions.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language voidable text home-of, given (the text label), as [getenv(the label)].
+
+                Define object reader with (the c-language voidable text axiom given (the text) look-up):
+                    Bind fact to has-it, given (the text label):
+                        Define found as cast one's look-up on (the label).
+                        Return found is not void.
+                    Done.
+                Done.
+
+                Define the env as a new reader { the look-up home-of }.
+                If cast has-it on (the env, "NO-SUCH-VARIABLE-ANYWHERE") is false, state "absent".
+            Done.
+            """;
+        Assert.Equal("absent", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Axiom_CalledThroughAValue_ReusesTheSameWrapper()
+    {
+        // * Identity is the SOURCE, not the route. Calling an axiom by name and calling the same
+        // axiom through a value must reach ONE wrapper -- two would mean two copies of the
+        // author's C, with the boundary guards checked twice against text that could differ.
+        string c = GenerateC("""
+            Pull a book on the c-language.
+                Define c-language number answer as [6 * 7].
+
+                Bind number to run-it, given (the c-language number axiom job):
+                    Return cast job.
+                Done.
+
+                Define direct as cast answer.
+                Define indirect as cast run-it on (answer).
+                If direct is indirect, state "same".
+            Done.
+            """);
+        Assert.Equal(1, WrapperCount(c));
+    }
+
+    [Fact]
+    public void Axiom_WithAReleaseClause_CannotBePassedAsAValue()
+    {
+        // !! A real limitation, stated rather than hidden. `and free it with` means "what this call
+        // gives back is freed when THIS block ends", and both backends register that against the
+        // `Define` that catches the result -- a statically resolved call site. A call reached
+        // through a value has no such site, so the address would be taken and never given back, on
+        // both backends equally. That is the shape an oracle cannot see: they agree while leaking.
+        var e = Assert.Throws<TypeException>(() => GenerateC("""
+            Pull a rabbit.
+                Pull a book on the c-language.
+                    Define c-language number close-it, given (the address held), as [(free(the held), 0)].
+                    Define c-language voidable address copy-of, given (the text subject), as [strdup(the subject)], and free it with close-it.
+
+                    Bind number to use-it, given (the c-language voidable address axiom given (the text) job):
+                        Return 1.
+                    Done.
+
+                    State cast use-it on (copy-of).
+                Done.
+            Done.
+            """));
+        Assert.Contains("cannot be passed around", e.Message);
+    }
+
+    [Fact]
+    public void Axiom_ValueCalledWithTheWrongType_IsRefused()
+    {
+        // The written type is the only thing that can say this, and the message names the POSITION:
+        // a value-carried call has no parameter names to blame, because the declaration that had
+        // them is somewhere else entirely.
+        var e = Assert.Throws<TypeException>(() => GenerateC("""
+            Pull a book on the c-language.
+                Define c-language number length-of, given (the text subject), as [(int)strlen(the subject)].
+                Bind number to measure, given (the c-language number axiom given (the text) job):
+                    Return cast job on (5).
+                Done.
+            Done.
+            """));
+        Assert.Contains("value 1 of this c-language axiom takes a text", e.Message);
+    }
+
+    [Fact]
+    public void Axiom_ValueCalledWithTheWrongCount_IsRefused()
+    {
+        var e = Assert.Throws<TypeException>(() => GenerateC("""
+            Pull a book on the c-language.
+                Define c-language number answer as [6 * 7].
+                Bind number to run-it, given (the c-language number axiom job):
+                    Return cast job on (1).
+                Done.
+            Done.
+            """));
+        Assert.Contains("takes 0 values", e.Message);
     }
 
     [Fact]
