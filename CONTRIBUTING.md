@@ -305,6 +305,22 @@ concurrency, pipes, regions, books, matrix and operator overloading.)*
 Things that are true of the codebase and must stay true. Breaking one of these tends to
 fail quietly rather than loudly, which is why they are written down.
 
+- **A new `CufetType` must be named in every per-type switch, or say why not.**
+  `ExhaustivenessTests` runs all 27 types through `EmitCType`, `TypeSig`,
+  `FormatTypeName`, `EqCall` and `WriteCall`, and fails on a refusal that is not
+  listed in its `DeliberateRefusals` table with a reason. Adding a type therefore
+  tells you exactly which switches to visit. **A refusal with no reason is how a
+  missing arm hides** — it looks identical to a decision until a program hits it.
+  The table's other half matters too: a listed refusal that starts succeeding also
+  fails the test, so the table cannot rot into fiction.
+
+  ⚠ **It covers refusals, not silent wrong answers.** A switch whose fallback
+  *returns* something plausible instead of throwing is invisible to it — which is
+  exactly how `EmitStructs`' local `DepName` shipped without an `AxiomType` arm,
+  returning null ("no dependency") and emitting a struct above its own typedef.
+  Extending the audit to that shape is a job on its own, and the reason it is not
+  done is that a local function cannot be reached by reflection.
+
 - **`CufetType` equality is explicit, not record-automatic.** Type
   representations are hand-written classes with explicit `Equals` / `GetHashCode`
   (so `FunctionType` can do deep `SequenceEqual` on parameter lists for exact

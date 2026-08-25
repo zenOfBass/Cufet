@@ -481,6 +481,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **`State` on a function or an axiom refused to compile while the interpreter printed it.** The
+  statement carried a per-type switch of its own that duplicated `WriteCall` arm for arm, and it
+  had drifted twice already — addresses and unions were each patched back into agreement after the
+  fact, the first caught only by the oracle. `WriteCall` knew how to print a callable and that
+  switch did not, so one backend printed `<function>` and the other refused the build.
+
+  ★ Fixed by deleting the switch rather than adding arms to it: every `cufet_print_X` it called is
+  defined as `cufet_write_X(v); cufet_nl();`, so `State` is now `WriteCall` plus a newline and the
+  two cannot drift again.
+
 - **A function reaching a module it never pulled checked clean and then failed three different
   ways.** `cufet check` said "No problems found"; the interpreter died with *"'math' isn't defined
   — Declare it first: Define math as <value>"*, which is not how you get `math`; and the compiler
