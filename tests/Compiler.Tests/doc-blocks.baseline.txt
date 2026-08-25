@@ -12,39 +12,40 @@ b983f16097a83202	docs/BOOKS.md:99	Pull a book on collections.
 8274b939488e058f	docs/BOOKS.md:193	Pull a book on collections.
 5863b6bbe21ba913	docs/BOOKS.md:224	Pull a book on the c-language.
 fb5de09519956cc6	docs/BOOKS.md:244	Pull a book on the c-language.
-fab05abcbbfdc10b	docs/BOOKS.md:262	Pull a book on the c-language.
-5585389b79e8a717	docs/BOOKS.md:313	Pull a book on the c-language.
-acba6b03b7c22b89	docs/BOOKS.md:347	Pull a book on the c-language.
-67d630efa6eff5bc	docs/BOOKS.md:388	Pull a book on the c-language.
-2bbb6fbdb316ebe9	docs/BOOKS.md:452	Pull a book on the c-language.
-803f1746bf867006	docs/BOOKS.md:466	Pull a book on the c-language.
-318ebf74da68974c	docs/GRAMMAR.md:191	for each s from input: output s. Done.          ← block
-2a7783d0c2c9e69c	docs/GRAMMAR.md:209	Define legs as 8 permanently.
-d96e2b14d43a199f	docs/GRAMMAR.md:522	State 0xFF.   // 0xFF   — hex
-ca185513a2aa768f	docs/GRAMMAR.md:549	State 0xF.   // 0xF   — 4 bits
-14d6cd33ec0b1985	docs/GRAMMAR.md:566	State 0xFF and 0x0F.   // 0x0F
-d710a2eb65cf6239	docs/GRAMMAR.md:586	State 0xFF and 0b1010.   // 0x0A     — hex on the left, so hex out
-f965a1a929bbbc0c	docs/GRAMMAR.md:602	State 255 converted to hex.   // 0xFF
-42f449294aac5cb6	docs/GRAMMAR.md:620	Define total as 200 + 55.
-17e592e2f5f57983	docs/GRAMMAR.md:636	State 0b0001 shifted left by 3.   // 0b1000
-4bde5e7e700ca1b8	docs/GRAMMAR.md:656	Define n as 8.
-7623ac0d94a5efbd	docs/GRAMMAR.md:666	State 0x0F + 0x01.   // 0x10
-61d610bcd11c2752	docs/GRAMMAR.md:680	State 0x00 - 0x1.   // would be negative, and bits are unsigned
-eb7f1ade05868e0a	docs/GRAMMAR.md:730	// to the end of the line
-54cebd825459f55d	docs/GRAMMAR.md:768	Define object stack with (the series of number items):
-c6530a88bec0455d	docs/GRAMMAR.md:926	Define deck as a series of records like (the text suit, the text rank) with (
-754476231930bc98	docs/GRAMMAR.md:1254	Pull a book on math.
-07145f4c735001bf	docs/GRAMMAR.md:1261	Pull books on math, collections, and chance.
-fb59e5f822cca612	docs/GRAMMAR.md:1454	Pull a rabbit.
-3f505d74c7ea33ea	docs/GRAMMAR.md:1510	Define object card with (the text suit, the text rank):
-e3e4477203450184	docs/GRAMMAR.md:1524	Get count as number:
-188fe4aa13f1db41	docs/GRAMMAR.md:2004	Bind void to producer:
-abd4b2f7004e99d4	docs/GRAMMAR.md:2158	Pull a rabbit.
-5ba92f45a804c146	docs/GRAMMAR.md:2175	Define object user with (the text id permanently, the text name).
-2454e3504d033399	docs/GRAMMAR.md:2352	Define total as 42 permanently.
-91f2dd14a1ea164a	docs/GRAMMAR.md:2364	Define total as 42.
-a9c798402601631a	docs/GRAMMAR.md:2375	Define total as 42.
-64fb97affdbf4cd2	docs/GRAMMAR.md:2773	Define xs as a series of number.             ← empty series
+7107a88a7a6bc6cd	docs/BOOKS.md:260	Pull a book on the c-language.
+fab05abcbbfdc10b	docs/BOOKS.md:299	Pull a book on the c-language.
+5585389b79e8a717	docs/BOOKS.md:350	Pull a book on the c-language.
+acba6b03b7c22b89	docs/BOOKS.md:384	Pull a book on the c-language.
+67d630efa6eff5bc	docs/BOOKS.md:425	Pull a book on the c-language.
+2bbb6fbdb316ebe9	docs/BOOKS.md:489	Pull a book on the c-language.
+803f1746bf867006	docs/BOOKS.md:503	Pull a book on the c-language.
+318ebf74da68974c	docs/GRAMMAR.md:192	for each s from input: output s. Done.          ← block
+2a7783d0c2c9e69c	docs/GRAMMAR.md:210	Define legs as 8 permanently.
+d96e2b14d43a199f	docs/GRAMMAR.md:523	State 0xFF.   // 0xFF   — hex
+ca185513a2aa768f	docs/GRAMMAR.md:550	State 0xF.   // 0xF   — 4 bits
+14d6cd33ec0b1985	docs/GRAMMAR.md:567	State 0xFF and 0x0F.   // 0x0F
+d710a2eb65cf6239	docs/GRAMMAR.md:587	State 0xFF and 0b1010.   // 0x0A     — hex on the left, so hex out
+f965a1a929bbbc0c	docs/GRAMMAR.md:603	State 255 converted to hex.   // 0xFF
+42f449294aac5cb6	docs/GRAMMAR.md:621	Define total as 200 + 55.
+17e592e2f5f57983	docs/GRAMMAR.md:637	State 0b0001 shifted left by 3.   // 0b1000
+4bde5e7e700ca1b8	docs/GRAMMAR.md:657	Define n as 8.
+7623ac0d94a5efbd	docs/GRAMMAR.md:667	State 0x0F + 0x01.   // 0x10
+61d610bcd11c2752	docs/GRAMMAR.md:681	State 0x00 - 0x1.   // would be negative, and bits are unsigned
+eb7f1ade05868e0a	docs/GRAMMAR.md:731	// to the end of the line
+54cebd825459f55d	docs/GRAMMAR.md:769	Define object stack with (the series of number items):
+c6530a88bec0455d	docs/GRAMMAR.md:927	Define deck as a series of records like (the text suit, the text rank) with (
+754476231930bc98	docs/GRAMMAR.md:1255	Pull a book on math.
+07145f4c735001bf	docs/GRAMMAR.md:1262	Pull books on math, collections, and chance.
+fb59e5f822cca612	docs/GRAMMAR.md:1455	Pull a rabbit.
+3f505d74c7ea33ea	docs/GRAMMAR.md:1511	Define object card with (the text suit, the text rank):
+e3e4477203450184	docs/GRAMMAR.md:1525	Get count as number:
+188fe4aa13f1db41	docs/GRAMMAR.md:2042	Bind void to producer:
+abd4b2f7004e99d4	docs/GRAMMAR.md:2196	Pull a rabbit.
+5ba92f45a804c146	docs/GRAMMAR.md:2213	Define object user with (the text id permanently, the text name).
+2454e3504d033399	docs/GRAMMAR.md:2390	Define total as 42 permanently.
+91f2dd14a1ea164a	docs/GRAMMAR.md:2402	Define total as 42.
+a9c798402601631a	docs/GRAMMAR.md:2413	Define total as 42.
+64fb97affdbf4cd2	docs/GRAMMAR.md:2811	Define xs as a series of number.             ← empty series
 911d8f1ac2967293	docs/REFERENCE.md:149	Define object point with (text, number).            ← positional: type only
 bc9d9c75b75db6aa	docs/REFERENCE.md:172	Define the text name as "Nathan".
 4e26313c13932056	docs/REFERENCE.md:182	Define the (number or text) x as 42.
