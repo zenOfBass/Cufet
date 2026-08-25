@@ -4654,30 +4654,18 @@ static void* cufet_pipe_stage(void* argp) {
                 string valExpr = EmitExpr(s.Value);
                 FlushPreEmits(sb, indent);
                 var t = TypeOf(s.Value);
-                string printStmt = t switch
-                {
-                    NumberType    => $"cufet_print_number({valExpr})",
-                    BitsType      => $"cufet_print_bits({valExpr})",
-                    FactType      => $"cufet_print_fact({valExpr})",
-                    TextType      => $"cufet_print_text({valExpr})",
-                    SeriesType st => $"{RegisterSeriesStruct(st)}_write({valExpr}); cufet_nl()",
-                    RecordType rt   => $"{RegisterRecordStruct(rt)}_write({valExpr}); cufet_nl()",
-                    ObjectType ot   => $"{ObjStructName(ot.Name)}_write({valExpr}); cufet_nl()",
-                    VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr}); cufet_nl()",
-                    MapType mt      => $"{RegisterMapStruct(mt)}_write({valExpr}); cufet_nl()",
-                    MatrixType      => $"cufet_mat_write({valExpr}); cufet_nl()",
-                    RabbitType      => $"cufet_rabbit_write({valExpr}); cufet_nl()",
-                    // ⚠ Routed through WriteCall so the two places that print an address cannot
-                    // drift apart. They already had: the first arm added here made the interpreter
-                    // and the compiler agree everywhere EXCEPT a bare `State`, which is its own
-                    // switch — and only the oracle noticed.
-                    AddressType     => $"{WriteCall(valExpr, t)}; cufet_nl()",
-                    // A union prints as its underlying value (tag dispatch) — the same _write the
-                    // synthesized container helpers call, so a bare `State <union>` matches an
-                    // element printed inside a catalogue.
-                    UnionType       => $"{WriteCall(valExpr, t)}; cufet_nl()",
-                    _ => throw new CompilerException($"State of a '{FormatTypeName(t)}' is not yet supported by the compiler.")
-                };
+                // ★★ ONE switch, not two. This was a per-type switch of its own that duplicated
+                // WriteCall arm for arm, and it drifted twice — `AddressType` and `UnionType` were
+                // each patched back by routing them here after the fact, the first of them caught
+                // only by the oracle. Every `cufet_print_X` it used to call is defined as
+                // `cufet_write_X(v); cufet_nl();`, so the duplication bought nothing and cost a
+                // whole class of divergence.
+                //
+                // ★ Collapsing it also closes what the drift was still hiding: WriteCall knows how
+                // to print a `function` and an `axiom` and this switch did not, so `State` on either
+                // refused to compile while the interpreter printed `<function>` / `<axiom>`. Two
+                // backends, two answers, and the fix was deleting a switch rather than adding arms.
+                string printStmt = $"{WriteCall(valExpr, t)}; cufet_nl()";
                 // Locked for the whole statement: a State is several writes, and a concurrent State
                 // on another thread used to splice itself between them. See cufet_out_lock.
                 sb.AppendLine($"{indent}cufet_out_lock(); {printStmt}; cufet_out_unlock();");
@@ -7507,8 +7495,8 @@ static void* cufet_pipe_stage(void* argp) {
         bool Bridged(string c) => _varTypes[c] is not (NumberType or FactType or ChannelType or TaskHandleType);
         foreach (var c in caps) if (Bridged(c)) RegisterChanElem(_varTypes[c], isTop: true);
 
-        string CapCType(string c) =>
-            Bridged(c) ? "void*" : _varTypes[c] is TaskHandleType ? "cufet_rbox*" : EmitCType(_varTypes[c]);
+        // ★ No task-handle special case any more: EmitCType knows the type, so this asks it.
+        string CapCType(string c) => Bridged(c) ? "void*" : EmitCType(_varTypes[c]);
 
         // Arg struct + thread function (accumulated; emitted before the bodies). cf_selfbox is where
         // a named task publishes its own result; it is unused by fire-and-forget tasks.
@@ -9043,6 +9031,12 @@ static void* cufet_pipe_stage(void* argp) {
         ReadableStreamType or WritableStreamType => "FILE*",   // a stream is an open FILE* (or stdin)
         RabbitType => "cufet_rabbit",                          // a rabbit is its name, as in the interpreter
         ChannelType => "cufet_chan*",                          // a channel is a shared mutex/condvar queue
+        // ★ A task handle is its result box, shared by pointer exactly as a channel is. This arm
+        // used to be missing, and ONE call site special-cased around it (`CapCType` asked
+        // `is TaskHandleType ? "cufet_rbox*" : EmitCType(…)`) — so the C type of a task handle was
+        // decided outside the switch that decides every other type's, and anything else asking
+        // this got a compiler exception instead of an answer. Found by the per-type audit.
+        TaskHandleType => "cufet_rbox*",
         MatrixType => MatrixCType(),                           // a matrix is an arena pointer (reference type)
         FunctionType ft => RegisterFuncStruct(ft),             // a function value is a {fn, env} value struct
         // ★★ An axiom VALUE is the same {fn, env} struct a function value is, pointing at a thunk

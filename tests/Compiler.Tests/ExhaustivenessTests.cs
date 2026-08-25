@@ -85,6 +85,158 @@ public class ExhaustivenessTests
             "wrong place.");
     }
 
+    // ── The per-type behavioural switches ───────────────────────────
+    //
+    // ★★ The half of this job that was deferred when these tests were written. The entry then said
+    // the tests "close the door new constructs came through rather than judging the existing cells,
+    // which is a separate job needing a reason per cell" — and a new construct came through the
+    // door anyway: AxiomType got its FormatTypeName arm, which IS checked here, and silently did
+    // not get its EmitStructs arm, which was not. A probe found that, not the suite.
+    //
+    // ★ The table below is the reason per cell. Every type is run through every switch and the
+    // outcome recorded as supported or refused; a refusal not listed here fails, and so does a
+    // listed refusal that starts succeeding. That is what turns "this type is not handled" from an
+    // oversight into a decision somebody wrote down.
+    //
+    // ⚠ What this CANNOT check is whether a supported arm is CORRECT — only that one exists. The
+    // AddressType arm that shipped printing a raw pointer would have passed this happily. It closes
+    // the omission class, which is the one that recurs.
+
+    /// <summary>A per-type switch, by the name a reader would look for it under.</summary>
+    private sealed record Switch(string Name, Func<CodeGenerator, CufetType, string> Invoke);
+
+    private static CodeGenerator FreshGenerator() =>
+        (CodeGenerator)Activator.CreateInstance(typeof(CodeGenerator), nonPublic: true)!;
+
+    private static string CallPrivate(CodeGenerator gen, string method, params object?[] args)
+    {
+        var m = typeof(CodeGenerator).GetMethod(method,
+            BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
+            ?? throw new InvalidOperationException(
+                $"CodeGenerator.{method} is gone or renamed — this audit is checking nothing.");
+        try { return (string)m.Invoke(m.IsStatic ? null : gen, args)!; }
+        catch (TargetInvocationException e) when (e.InnerException is not null) { throw e.InnerException; }
+    }
+
+    private static readonly Switch[] PerTypeSwitches =
+    [
+        // ⚠ The ENTRY POINTS, not the Raw switches behind them. Both apply NoStashes on the way in,
+        // so calling Raw would audit a path no caller takes — and would report `stash of T` as
+        // unhandled when the rewrite handles it before the switch is ever reached.
+        new("EmitCType",     (g, t) => CallPrivate(g, "EmitCType", t)),
+        new("TypeSig",       (g, t) => CallPrivate(g, "TypeSig", t)),
+        new("FormatTypeName",(g, t) => CallPrivate(g, "FormatTypeName", t)),
+        new("EqCall",        (g, t) => CallPrivate(g, "EqCall", "a", "b", t)),
+        new("WriteCall",     (g, t) => CallPrivate(g, "WriteCall", "v", t)),
+    ];
+
+    /// <summary>Refusals that are DELIBERATE, each with the reason it is one.</summary>
+    /// <remarks>
+    /// ⚠ A reason is required. "It throws today" is not one — the whole point of the table is that
+    /// somebody decided, so an entry that cannot say why is an omission wearing a disguise.
+    /// </remarks>
+    private static readonly Dictionary<(string Switch, Type Type), string> DeliberateRefusals = new()
+    {
+        // Nothing holds a `void`: it is the absence of a value, and `voidable T` is how absence is
+        // carried. A C declaration for it would be a slot for something that never arrives.
+        [("EmitCType", typeof(VoidType))] = "void is not a value a slot can hold",
+        [("TypeSig", typeof(VoidType))] = "no struct is ever keyed on void",
+        [("EqCall", typeof(VoidType))] = "nothing to compare",
+        [("WriteCall", typeof(VoidType))] = "nothing to print",
+
+        // A `stash of T` is rewritten to its closure form before any of these see it — NoStashes
+        // does that on the way in — so a raw StashType reaching one is a bug in the rewrite, not a
+        // missing arm. It is refused so the rewrite failing is loud.
+        // ⚠ EqCall and WriteCall take whatever their caller hands them, and every caller gets the
+        // type from TypeOf — which de-stashes. A raw StashType arriving here is a broken rewrite,
+        // so refusing is what makes that loud rather than silently comparing two closures.
+        [("EqCall", typeof(StashType))] = "TypeOf de-stashes first; a raw one here is a broken rewrite",
+        [("WriteCall", typeof(StashType))] = "TypeOf de-stashes first; a raw one here is a broken rewrite",
+
+        // Book, mapping and the two failure MARKERS are checker vocabulary, not runtime values: a
+        // book is a scope, a marker is what `the failure` narrows through. None reaches the backend.
+        [("EmitCType", typeof(BookType))] = "a book is a scope, never a value",
+        [("TypeSig", typeof(BookType))] = "a book is a scope, never a value",
+        [("EqCall", typeof(BookType))] = "a book is a scope, never a value",
+        [("WriteCall", typeof(BookType))] = "a book is a scope, never a value",
+        [("EmitCType", typeof(MappingType))] = "checker vocabulary for a map shape, not a runtime type",
+        [("TypeSig", typeof(MappingType))] = "checker vocabulary for a map shape, not a runtime type",
+        [("EqCall", typeof(MappingType))] = "checker vocabulary for a map shape, not a runtime type",
+        [("WriteCall", typeof(MappingType))] = "checker vocabulary for a map shape, not a runtime type",
+        [("TypeSig", typeof(FailureMarkerType))] = "a caught failure has one fixed C struct, not a keyed one",
+        [("EqCall", typeof(FailureMarkerType))] = "failures are inspected by message and category, never compared whole",
+        [("WriteCall", typeof(FailureMarkerType))] = "a failure is printed through its message, not as a value",
+        [("EmitCType", typeof(ExceptionMarkerType))] = "an exception is a control path, not a value a slot holds",
+        [("TypeSig", typeof(ExceptionMarkerType))] = "an exception is a control path, not a value a slot holds",
+        [("EqCall", typeof(ExceptionMarkerType))] = "an exception is a control path, not a value a slot holds",
+        [("WriteCall", typeof(ExceptionMarkerType))] = "an exception is a control path, not a value a slot holds",
+
+        // An interface is a shape a value CONFORMS to; the value itself is always some object.
+        [("EmitCType", typeof(InterfaceType))] = "monomorphized away — a value is always the concrete object",
+        [("TypeSig", typeof(InterfaceType))] = "monomorphized away — a value is always the concrete object",
+        [("EqCall", typeof(InterfaceType))] = "monomorphized away — a value is always the concrete object",
+        [("WriteCall", typeof(InterfaceType))] = "monomorphized away — a value is always the concrete object",
+
+        // Live machinery with identity but no readable content. Comparing or printing one would have
+        // to invent an answer, and two backends are two processes — any answer would differ.
+        [("EqCall", typeof(ChannelType))] = "identity, not value — and it would differ between backends",
+        [("WriteCall", typeof(ChannelType))] = "identity, not value — and it would differ between backends",
+        [("TypeSig", typeof(ChannelType))] = "one fixed runtime struct, not a keyed one",
+        [("EqCall", typeof(TaskHandleType))] = "identity, not value — and it would differ between backends",
+        [("WriteCall", typeof(TaskHandleType))] = "identity, not value — and it would differ between backends",
+        [("TypeSig", typeof(TaskHandleType))] = "one fixed runtime struct, not a keyed one",
+        [("EqCall", typeof(ReadableStreamType))] = "an open FILE* — identity, not value",
+        [("WriteCall", typeof(ReadableStreamType))] = "an open FILE* — identity, not value",
+        [("TypeSig", typeof(ReadableStreamType))] = "one fixed runtime type (FILE*), not a keyed one",
+        [("EqCall", typeof(WritableStreamType))] = "an open FILE* — identity, not value",
+        [("WriteCall", typeof(WritableStreamType))] = "an open FILE* — identity, not value",
+        [("TypeSig", typeof(WritableStreamType))] = "one fixed runtime type (FILE*), not a keyed one",
+
+        // A `T or failure` is consumed at the call site — handled, propagated, or defaulted. It is
+        // never stored whole, printed, or compared.
+        [("EqCall", typeof(FailureType))] = "consumed at the call site, never compared",
+        [("WriteCall", typeof(FailureType))] = "consumed at the call site, never printed whole",
+
+    };
+
+    [Fact]
+    public void EveryCufetType_IsAccountedForInEveryPerTypeSwitch()
+    {
+        var unexplained = new List<string>();
+        var stale = new List<string>();
+
+        foreach (var sw in PerTypeSwitches)
+            foreach (var (clr, instance) in Instances)
+            {
+                bool listed = DeliberateRefusals.ContainsKey((sw.Name, clr));
+                bool refused;
+                try
+                {
+                    // A fresh generator per cell: these switches REGISTER structs as a side effect,
+                    // and a shared one would let an earlier cell decide a later one's answer.
+                    sw.Invoke(FreshGenerator(), instance);
+                    refused = false;
+                }
+                catch (CompilerException) { refused = true; }
+                catch (TypeException) { refused = true; }
+
+                if (refused && !listed) unexplained.Add($"  {sw.Name} refuses {clr.Name}");
+                if (!refused && listed) stale.Add($"  {sw.Name} now handles {clr.Name}");
+            }
+
+        Assert.True(unexplained.Count == 0,
+            $"{unexplained.Count} per-type switch cell(s) refuse a type with no recorded reason:\n"
+          + string.Join("\n", unexplained)
+          + "\n\nEither add the arm, or add the (switch, type) pair to DeliberateRefusals with the "
+          + "reason it is deliberate. An unexplained refusal is how a missing arm hides.");
+
+        Assert.True(stale.Count == 0,
+            $"{stale.Count} recorded refusal(s) are no longer refusals:\n"
+          + string.Join("\n", stale)
+          + "\n\nRemove them from DeliberateRefusals — a table that records decisions nobody made "
+          + "any more stops being read.");
+    }
+
     // ── The node side ─────────────────────────────────────────────────────
     //
     // The three bugs were all one thing: a new construct was added, and a hand-written walk that

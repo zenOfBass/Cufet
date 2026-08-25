@@ -1399,9 +1399,10 @@ public class PipelineForeignTests : PipelineTestBase
         // it fell through to ToString() and printed the C# record — source text, line and column
         // included — while the compiled backend refused the same program at build time.
         //
-        // ★ An axiom now reads as the language's other callable does: `<axiom>` beside `<function>`
-        // interpreted, and a clean compiler refusal for both. That split is pre-existing and is
-        // visible through `check --native`; C# internals reaching a user's output was not.
+        // ★ An axiom reads as the language's other callable does: `<axiom>` beside `<function>` —
+        // and now on BOTH backends. The compiler used to refuse `State` on either, because the
+        // statement carried a per-type switch of its own that WriteCall's arms never reached. That
+        // switch is gone: `State` is WriteCall plus a newline.
         const string src = """
             Pull a book on the c-language.
                 Define c-language number get-pid as [getpid()].
@@ -1409,8 +1410,7 @@ public class PipelineForeignTests : PipelineTestBase
             Done.
             """;
         Assert.Equal("<axiom>", Interpret(src));
-        Assert.Contains("State of a 'c-language number axiom' is not yet supported",
-                        Assert.Throws<CompilerException>(() => GenerateC(src)).Message);
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Theory]
