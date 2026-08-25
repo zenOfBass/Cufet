@@ -1199,6 +1199,28 @@ public sealed partial class TypeChecker
                 $"Define it first, take it as a parameter, or — if it is meant to be a module — "
               + $"declare it: 'Define object {vr.Name} with (...) and {ModuleInterface}:'.");
 
+        // ★★ And only a MODULE's body may defer, which is narrower than it reads and is the whole
+        // of the fix. The permission above exists because a pulled module is a capability of the
+        // block that uses it — its methods run inside that block, so they inherit what it pulled,
+        // and `CheckPendingPulls` verifies that at the pull site. A free function is never pulled
+        // into anything: there is no block whose capabilities it inherits, and therefore no site at
+        // which the debt could ever be checked.
+        //
+        // ⚠ Granting it the permission anyway is what produced BOTH holes this closes. A free
+        // function reaching `math` recorded nothing, so a module calling that function had no need
+        // to propagate; and `Define f as helper.` then `cast f on (…)` had no statically-known
+        // callee to look one up for. Neither was a hard problem — both were a rule applied wider
+        // than its own justification.
+        if (_checkingModuleName is null)
+            throw TypeError(
+                $"'{vr.Name}' isn't pulled here",
+                $"'{vr.Name}' is a module, and a function reaches one only where it is WRITTEN — "
+              + "a module's methods inherit what their caller pulled, but a plain function has no "
+              + "caller to inherit from",
+                vr.Line, vr.Column,
+                $"use '{vr.Name}' inside this function without pulling it",
+                $"Pull it around the body: 'Pull a book on {vr.Name}. … Done.'");
+
         return null;
     }
 

@@ -565,6 +565,114 @@ public class ModulePullTests
         Assert.Contains("'geometry' uses 'math', which isn't pulled here", ex.Message);
     }
 
+    // -- A free function's needs: refused where it is written -----------------
+    //
+    // ** A MODULE's body may defer a module name because a pulled module is a capability of the
+    // block that uses it: its methods run inside that block, so they inherit what it pulled, and
+    // CheckPendingPulls verifies that at the pull. A free function is never pulled into anything.
+    // There is no block whose capabilities it inherits, and so no site at which the debt could
+    // ever be checked -- which is why it is refused where it is written instead.
+    //
+    // ! Granting a free function the deferral anyway produced BOTH of the holes these close, and
+    // both looked like separate problems: a module calling such a function had nothing to
+    // propagate, and a function VALUE had no statically-known callee to look needs up for.
+
+    [Fact]
+    public void AFreeFunctionReachingAModule_IsRefusedWhereItIsWritten()
+    {
+        // ! Three answers to one program before this. `check` said "No problems found"; the
+        // interpreter died with "'math' isn't defined -- Declare it first: Define math as <value>",
+        // which is not how you get math; and the compiler said "'square-root' can't be read from a
+        // number", blaming a number that appears nowhere. All three measured.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Bind number to rooted, given (the number x):
+                Return math's square-root of (x).
+            Done.
+
+            Pull a book on math.
+                State cast rooted on (16).
+            Done.
+            """));
+        Assert.Contains("'math' isn't pulled here", ex.Message);
+        Assert.Contains("Pull a book on math.", ex.Message);
+    }
+
+    [Fact]
+    public void AFreeFunctionCalledThroughAValue_IsRefusedTheSameWay()
+    {
+        // ** The hole that was called unclosable. `Define f as rooted.` then `cast f on (...)`
+        // names a variable, so there is no callee to look needs up for -- but with the debt
+        // refused where the function is WRITTEN, there is no debt left to look up.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Bind number to rooted, given (the number x):
+                Return math's square-root of (x).
+            Done.
+
+            Define f as rooted.
+            State cast f on (16).
+            """));
+        Assert.Contains("'math' isn't pulled here", ex.Message);
+    }
+
+    [Fact]
+    public void AModuleReachingAModuleThroughAFreeFunction_IsRefused()
+    {
+        // ** The transitive hole, closed at the other end. The module's own body never mentions
+        // `math`, so nothing could be recorded against it and its pull site checked clean; the
+        // need belonged to the free function it calls, and nothing recorded a free function's
+        // needs at all. Refusing the function removes the thing that had to be propagated.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Bind number to rooted, given (the number x):
+                Return math's square-root of (x).
+            Done.
+
+            Define object sizes with () and module:
+                Bind number to side-of, given (the number area):
+                    Return cast rooted on (area).
+                Done.
+            Done.
+
+            Pull books on math, and sizes.
+                State cast sizes's side-of on (16).
+            Done.
+            """));
+        Assert.Contains("'math' isn't pulled here", ex.Message);
+    }
+
+    [Fact]
+    public void AFreeFunctionThatPullsWhatItNeeds_IsAccepted()
+    {
+        // The remedy the message names, run. A pull is a scope like any other, so a body may open
+        // one around its own work.
+        Assert.Equal("4", Run("""
+            Bind number to rooted, given (the number x):
+                Pull a book on math.
+                    Return (math's square-root of (x)) but void is 0.
+                Done.
+            Done.
+
+            State cast rooted on (16).
+            """));
+    }
+
+    [Fact]
+    public void AFreeFunctionWrittenInsideAPull_IsUnaffected()
+    {
+        // !! The over-refusal this had to avoid, and the reason it does: SaveScopes carries every
+        // pulled module into a detached body's scope, so a body written INSIDE a pull resolves the
+        // name lexically and never reaches the deferral at all. Refusing here would have made the
+        // rule useless -- putting the function next to its pull is the obvious way to write this.
+        Assert.Equal("5", Run("""
+            Pull a book on math.
+                Bind number to rooted, given (the number x):
+                    Return (math's square-root of (x)) but void is 0.
+                Done.
+
+                State cast rooted on (25).
+            Done.
+            """));
+    }
+
     [Fact]
     public void ANonModuleNameInAModuleBody_IsRefusedWhereItIsWritten()
     {

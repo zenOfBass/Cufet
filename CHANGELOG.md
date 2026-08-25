@@ -481,6 +481,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A function reaching a module it never pulled checked clean and then failed three different
+  ways.** `cufet check` said "No problems found"; the interpreter died with *"'math' isn't defined
+  — Declare it first: Define math as <value>"*, which is not how you get `math`; and the compiler
+  said *"'square-root' can't be read from a number"*, blaming a number that appears nowhere in the
+  program. All three measured on one file.
+
+  ```
+  Bind number to rooted, given (the number x):
+      Return math's square-root of (x).        ← now refused where it is written
+  Done.
+  ```
+
+  ★ A **module's** body may still reach for a module its caller pulled — that is what a pull is
+  for, and it is verified at the pull site. The permission was simply wider than its own reason: a
+  module is pulled into a block and its methods inherit what that block pulled, while nothing pulls
+  a plain function into anything. A function written outside a pull now pulls what it needs, and one
+  written inside a pull is unaffected.
+
 - **`and free it with` leaked an acquisition nobody named.** The release was registered against
   the `Define` that caught the result, so `Cast open-one on ("f").` opened a handle and registered
   nothing — and neither did an acquisition used inline in a condition. Both backends leaked

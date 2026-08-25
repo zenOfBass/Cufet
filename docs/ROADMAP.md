@@ -48,6 +48,10 @@ precisely enough to test does not belong in this file.
 
 ### Next, in order
 
+★ **The ordered queue is empty.** Both items that stood here have shipped — foreign
+interoperability, and module needs — so nothing is waiting on anything else. What is left is in the
+sections below, and the two framings under this heading are what will order it when it is picked up.
+
 Two framings that set the order:
 
 - **Sockets, POSIX and Windows APIs, and threading primitives are not separate items.** They
@@ -56,20 +60,6 @@ Two framings that set the order:
 - **Multi-directional predicate dispatch is not free-floating** — it is on the critical path
   to self-hosting. A lexer, parser and type checker are one enormous dispatch on node type;
   written as `is a` chains, a Cufet-in-Cufet compiler is miserable to write and worse to read.
-
-1. **Module needs, transitively.** ★ Much smaller than it was. A body now resolves what it can see
-   where it is WRITTEN plus any MODULE its caller pulled, so an unresolved *ordinary* name is a
-   static error and only module names still defer. Two holes are left, both over that small set:
-
-   - **Not transitively closed.** `geometry`'s method reaching `math` only through a free function
-     it calls is not caught — the need is recorded against the function, and nothing checks a free
-     function's needs at its call sites. This is the call-site work, now over module names only.
-   - **Indirect calls cannot be closed this way at all.** `Define f as needs-math.` then
-     `cast f on (…)` names a variable, not a function; there is no statically-known callee to look
-     needs up for. Closures, stashes and function values in series all take this shape.
-
-   ⚠ So "check the call sites" is not a complete fix and should not be sold as one — it closes the
-   first bullet and leaves the second. Worth knowing before anyone starts.
 
 ### The design mountains
 

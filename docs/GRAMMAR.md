@@ -1248,6 +1248,27 @@ Define picked as a random item from xs but void is "".  ← OK for series of tex
 
 ### `Pull ... Done.` — books and rabbits
 
+★★ **A MODULE's body may reach for a module its caller pulled. A plain function may not.** The
+difference is not a special case — a module is pulled INTO a block, so its methods run there and
+inherit what that block pulled, and the pull site is where a missing one is reported. Nothing pulls
+a plain function into anything, so there is no block for it to inherit from and nowhere the debt
+could be checked; a function reaching an unpulled module name is refused where it is WRITTEN.
+
+⚠ A body written *inside* a pull is unaffected and is the ordinary way to write this — the pulled
+names are in its lexical scope like any others:
+
+```
+Pull a book on math.
+    Bind number to rooted, given (the number x):
+        Return (math's square-root of (x)) but void is 0.
+    Done.
+
+    State cast rooted on (25).
+Done.
+```
+
+A function written outside one pulls what it needs itself.
+
 `Pull` opens a scope; `Done.` closes it and frees whatever was pulled.
 
 **Single book:**
