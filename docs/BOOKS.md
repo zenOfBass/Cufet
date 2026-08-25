@@ -281,14 +281,14 @@ axiom itself.
 running it has to produce something, and an axiom that never said what has no shape to be handed
 around as. Add the result and it is accepted.
 
-Two limits are worth knowing before you meet them:
+★ **An axiom carrying `and free it with` travels too.** The freeing is registered where the address
+is ACQUIRED, so it happens once per call however that call was reached — by name, or through a
+value that arrived from somewhere else entirely. The rabbit rule is unchanged: an address still
+cannot be held outside a rabbit block, and it is still freed when that block ends, exception
+included.
 
-- ⚠ **An axiom carrying `and free it with` cannot be passed around.** The clause means "what this
-  call gives back is freed when this block ends", and the freeing is registered where the result is
-  caught. A call reached through a value has no such place, so the address would be taken and never
-  given back — and it is refused rather than leaked.
-- An axiom prints as `<axiom>`, the way a function prints as `<function>` — the source is not
-  something a program reads back.
+An axiom prints as `<axiom>`, the way a function prints as `<function>` — the source is not
+something a program reads back.
 
 #### Handing values to C
 

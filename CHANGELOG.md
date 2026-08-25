@@ -34,11 +34,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   Along the way, `Define alias as answer.` binds an axiom to a name and runs it from there; a chain
   of names is followed back to the source, so both names reach one wrapper.
 
-  ⚠ **An axiom carrying `and free it with` cannot be passed around.** The release is registered
-  where the result is caught, and a call reached through a value has no such site — so it is
-  refused rather than leaked. ⚠ **An axiom written as a type must say what it gives back**: the C
-  wrapper's return type is built from exactly that, so `the c-language axiom job` has no signature
-  to be. An axiom and a function also stay different types, whatever they share underneath.
+  ⚠ **An axiom written as a type must say what it gives back**: the C wrapper's return type is
+  built from exactly that, so `the c-language axiom job` has no signature to be. An axiom and a
+  function also stay different types, whatever they share underneath.
 
 - **Foreign pointers, as an `address`** — opaque, rabbit-scoped, and never dereferenced implicitly.
   A pointer comes back from C as a `voidable address` and goes back into C as an `address`, and
@@ -482,6 +480,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   marks cannot have that shape.
 
 ### Fixed
+
+- **`and free it with` leaked an acquisition nobody named.** The release was registered against
+  the `Define` that caught the result, so `Cast open-one on ("f").` opened a handle and registered
+  nothing — and neither did an acquisition used inline in a condition. Both backends leaked
+  identically, which is why no oracle test could see it. Release is now registered at the
+  **acquisition**, so it fires once per call however the call was reached.
+
+  ★ That also removes a limitation rather than adding a rule: an axiom carrying a release clause
+  can be passed around like any other, because a value-carried call no longer needs a binding to
+  hang the registration on. And it is the safer of the two places by construction — names multiply
+  and can reach one pointer, while an allocation happens once.
 
 - **`State` on an axiom printed C# internals.** The value an axiom name holds is its literal, and
   the interpreter had no arm for it, so printing one produced `AxiomLiteral { Source = …, Line = …`

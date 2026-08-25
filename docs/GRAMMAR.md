@@ -1914,9 +1914,9 @@ Done.
 refused wherever a type is written: the C wrapper's return type is built from the declared result,
 so an axiom with none has no signature to be. The refusal names the fix.
 
-⚠ **An axiom carrying `and free it with` cannot be used as a value.** The release is registered
-where the result is caught — a call site resolved when the program is checked — and a call reached
-through a value has no such site. Passing one is refused rather than leaked.
+★ **`and free it with` is registered at the ACQUISITION**, not at the binding that catches the
+result — so it fires once per call, whether the axiom was reached by name or through a value, and
+whether or not anybody named what came back.
 
 ⚠ **An axiom and a function stay different types**, even though a value of either is the same pair
 of pointers underneath. An axiom has no body to read and its language is part of what it is, so
