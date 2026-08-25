@@ -314,12 +314,17 @@ fail quietly rather than loudly, which is why they are written down.
   The table's other half matters too: a listed refusal that starts succeeding also
   fails the test, so the table cannot rot into fiction.
 
-  ⚠ **It covers refusals, not silent wrong answers.** A switch whose fallback
-  *returns* something plausible instead of throwing is invisible to it — which is
-  exactly how `EmitStructs`' local `DepName` shipped without an `AxiomType` arm,
-  returning null ("no dependency") and emitting a struct above its own typedef.
-  Extending the audit to that shape is a job on its own, and the reason it is not
-  done is that a local function cannot be reached by reflection.
+  ★ **A switch whose fallback returns a plausible answer must be changed to throw
+  before the audit can see it**, because the audit reads refusal as "unhandled".
+  `EmitStructs`' `DepName` was the case in point: a local function ending in
+  `_ => null`, where null reads as "depends on nothing" — so a missing arm ordered
+  a struct above its own typedef and gcc said "unknown type name". It is now
+  `DepStructName`, a private method with an explicit no-dependency list and a
+  throwing fallback, and it is audited like the rest.
+
+  ⚠ So when you add a per-type switch: **make the fallback throw**, and give the
+  types that genuinely have nothing to do an explicit arm. A `null` or a
+  default-shaped answer is invisible to every test in this file.
 
 - **`CufetType` equality is explicit, not record-automatic.** Type
   representations are hand-written classes with explicit `Equals` / `GetHashCode`

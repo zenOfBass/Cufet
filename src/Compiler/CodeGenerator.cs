@@ -3196,6 +3196,61 @@ static void* cufet_pipe_stage(void* argp) {
 
     private static string FnThunkName(string fnName) => "cv_" + fnName.Replace('-', '_') + "__fnthunk";
 
+    /// <summary>The struct a value of this type embeds BY VALUE, or null when it embeds none.</summary>
+    /// <remarks>
+    /// ★ What the struct-emission order is built on: a struct holding another by value needs that
+    /// one complete first, and a forward declaration is not an option for a by-value member.
+    ///
+    /// ⚠⚠ TOTAL, and throwing rather than returning null for anything unaccounted for. It used to
+    /// end in `_ => null`, which reads as "no dependency" and is a perfectly plausible answer — so
+    /// a type nobody added an arm for got silently ordered as if it depended on nothing. That is
+    /// exactly what shipped: an axiom-typed object field emitted its struct above `cfn_0`, and gcc
+    /// said "unknown type name". A missing arm must be a FAILURE here, not a default.
+    ///
+    /// ⚠ Extracted from a local function inside EmitStructs so ExhaustivenessTests can reach it.
+    /// A local function cannot be reflected over, which is why this switch was the one per-type
+    /// switch the audit could not see.
+    ///
+    /// ★ Null is a real answer for three groups: scalars carry no struct; a series, a map and a
+    /// matrix are ARENA POINTERS, so a field of one is a pointer and C is happy with an incomplete
+    /// type behind it; and the live machinery (channels, tasks, streams, rabbits) is either a
+    /// pointer or a fixed runtime struct declared with the runtime rather than ordered here.
+    /// </remarks>
+    private string? DepStructName(CufetType t) => t switch
+    {
+        RecordType rt   => RegisterRecordStruct(rt),
+        ObjectType ot   => ObjStructName(ot.Name),
+        VoidableType vt => RegisterVoidableStruct(vt),
+        FailureType ft  => RegisterFailableStruct(ft),
+        UnionType { Cases: not null } ut => RegisterUnionStruct(ut),
+        // ⚠ Looked up rather than REGISTERED: registering here would append to _funcStructs while
+        // the caller is walking a snapshot of it, and everything reachable was already registered
+        // when the bodies were emitted. An unregistered signature therefore means "not part of this
+        // program", which is a genuine null rather than an omission.
+        FunctionType ft => _funcStructSig2Name.TryGetValue(TypeSig(ft), out var fn) ? fn : null,
+        // ★ An axiom value shares the closure struct, so it has the same dependency and it is just
+        // as load-bearing — this is the arm whose absence shipped.
+        AxiomType ax => _funcStructSig2Name.TryGetValue(TypeSig(AsFunctionType(ax)), out var axfn) ? axfn : null,
+
+        // No by-value struct to order against. Each of these is a decision, which is the point of
+        // listing them rather than letting a fallback answer for them.
+        NumberType or BitsType or TextType or FactType or AddressType   // scalars
+          or SeriesType or MapType or MatrixType                        // arena pointers
+          or ChannelType or TaskHandleType                              // shared runtime pointers
+          or ReadableStreamType or WritableStreamType or RabbitType     // FILE*, and a region name
+          or UnionType                                                  // the ONE open union struct
+          or VoidType                                                   // not a value at all
+          or StashType                                                  // rewritten to a closure first
+          or InterfaceType                                              // monomorphized away
+          or BookType or MappingType                                    // checker vocabulary
+          or FailureMarkerType or ExceptionMarkerType => null,
+
+        _ => throw new CompilerException(
+                 $"the struct-emission order has no entry for a '{FormatTypeName(t)}'. Add one to "
+               + "DepStructName: either the struct it embeds by value, or null with the reason it "
+               + "embeds none.")
+    };
+
     // Ensures a struct exists for this record shape (and, recursively, for any nested
     // record shapes in its fields). Returns the C struct name.
     private string RegisterRecordStruct(RecordType rt)
@@ -3470,24 +3525,7 @@ static void* cufet_pipe_stage(void* argp) {
         if (specs.Count == 0 && voidables.Count == 0 && failables.Count == 0 && unions.Count == 0
             && funcs.Count == 0 && !openEmpty) return;
 
-        string? DepName(CufetType t) => t switch
-        {
-            RecordType rt   => RegisterRecordStruct(rt),
-            ObjectType ot   => ObjStructName(ot.Name),
-            VoidableType vt => RegisterVoidableStruct(vt),
-            FailureType ft  => RegisterFailableStruct(ft),
-            UnionType ut when ut.Cases != null => RegisterUnionStruct(ut),
-            // Looked up rather than registered: registering here would append to _funcStructs while
-            // `funcs` is being walked, and everything reachable was already registered when the
-            // bodies were emitted.
-            FunctionType ft when _funcStructSig2Name.TryGetValue(TypeSig(ft), out var fn) => fn,
-            // ★ An axiom value shares the closure struct, so it has the same dependency and it is
-            // just as load-bearing: without this arm an object holding an axiom field emitted
-            // `cd_ruler` above `cfn_0` and gcc said "unknown type name" — the exact failure the
-            // note above records for closures, one type later.
-            AxiomType ax when _funcStructSig2Name.TryGetValue(TypeSig(AsFunctionType(ax)), out var axfn) => axfn,
-            _ => null
-        };
+        string? DepName(CufetType t) => DepStructName(t);
         bool Known(string? d) => d != null && (specs.ContainsKey(d) || voidables.ContainsKey(d)
                                             || failables.ContainsKey(d) || unions.ContainsKey(d)
                                             || funcs.ContainsKey(d));

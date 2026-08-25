@@ -101,6 +101,12 @@ public class ExhaustivenessTests
     // ⚠ What this CANNOT check is whether a supported arm is CORRECT — only that one exists. The
     // AddressType arm that shipped printing a raw pointer would have passed this happily. It closes
     // the omission class, which is the one that recurs.
+    //
+    // ⚠⚠ And it reads a THROW as "unhandled", so a switch whose fallback returns a plausible
+    // answer is invisible to it however many types it forgets. DepStructName was exactly that — a
+    // local function ending in `_ => null`, where null means "depends on nothing" — and it had to
+    // be extracted and made throwing before it could be listed here. Any new per-type switch has
+    // to do the same to be worth auditing.
 
     /// <summary>A per-type switch, by the name a reader would look for it under.</summary>
     private sealed record Switch(string Name, Func<CodeGenerator, CufetType, string> Invoke);
@@ -128,6 +134,11 @@ public class ExhaustivenessTests
         new("FormatTypeName",(g, t) => CallPrivate(g, "FormatTypeName", t)),
         new("EqCall",        (g, t) => CallPrivate(g, "EqCall", "a", "b", t)),
         new("WriteCall",     (g, t) => CallPrivate(g, "WriteCall", "v", t)),
+        // The switch that motivated this audit and that the audit could not originally see: it was
+        // a LOCAL function inside EmitStructs, and reflection cannot reach one. Extracted, and its
+        // `_ => null` fallback replaced with a throw, so a missing arm is a failure here rather
+        // than a plausible "depends on nothing".
+        new("DepStructName", (g, t) => CallPrivate(g, "DepStructName", t)),
     ];
 
     /// <summary>Refusals that are DELIBERATE, each with the reason it is one.</summary>
