@@ -1557,28 +1557,62 @@ public class PipelineForeignTests : PipelineTestBase
     }
 
     [Fact]
-    public void Axiom_WithAReleaseClause_CannotBePassedAsAValue()
+    public void Axiom_WithAReleaseClause_PassedAsAValue_StillFrees()
     {
-        // !! A real limitation, stated rather than hidden. `and free it with` means "what this call
-        // gives back is freed when THIS block ends", and both backends register that against the
-        // `Define` that catches the result -- a statically resolved call site. A call reached
-        // through a value has no such site, so the address would be taken and never given back, on
-        // both backends equally. That is the shape an oracle cannot see: they agree while leaking.
-        var e = Assert.Throws<TypeException>(() => GenerateC("""
-            Pull a rabbit.
-                Pull a book on the c-language.
-                    Define c-language number close-it, given (the address held), as [(free(the held), 0)].
-                    Define c-language voidable address copy-of, given (the text subject), as [strdup(the subject)], and free it with close-it.
-
-                    Bind number to use-it, given (the c-language voidable address axiom given (the text) job):
-                        Return 1.
+        // ** The count is the whole test. A release that silently does nothing prints exactly what
+        // a working one prints, and only the OS handle limit tells them apart -- 509 on Windows,
+        // ~1024 on Linux, so 1200 iterations cannot pass unless every acquisition was freed.
+        //
+        // * What makes this work at all is WHERE the release is registered. It used to be
+        // registered against the `Define` that caught the result, which a call reached through a
+        // value does not have; registering at the ACQUISITION means the thunk pushes onto the
+        // caller's registry exactly as a direct call does.
+        const string src = ReleaseHdr + """
+                Define the openers as a series of c-language voidable address axiom given (the text) with (open-one).
+                Define opened as 0.
+                Define ran-out as false.
+                For each n in range 1 to 1200, repeat:
+                    For each opener in the openers, repeat:
+                        Pull a rabbit.
+                            Define handle as cast opener on ("{PATH}").
+                            If handle is void, the ran-out becomes true.
+                            If handle is not void, increment opened by 1.
+                        Done.
                     Done.
-
-                    State cast use-it on (copy-of).
+                    If ran-out is true, stop.
                 Done.
+                State opened.
             Done.
-            """));
-        Assert.Contains("cannot be passed around", e.Message);
+            """;
+        AssertCountOnBothBackends(src, "1200");
+    }
+
+    [Fact]
+    public void Release_OnAnAcquisitionNobodyNamed_StillFrees()
+    {
+        // !! A LEAK that shipped, found by reading the emitted C rather than by any test. Release
+        // was registered against the `Define` that caught the result, so
+        // `Cast open-one on ("...").` opened a handle and registered nothing -- and neither did an
+        // acquisition used inline in a condition. Both leaked on both backends, which is why no
+        // oracle test could see it: they agreed while leaking.
+        //
+        // * The count catches it because a leaked handle is never given back: without the fix this
+        // stops at the OS limit within the first few hundred iterations.
+        const string src = ReleaseHdr + """
+                Define rounds as 0.
+                Define ran-out as false.
+                For each n in range 1 to 1200, repeat:
+                    Pull a rabbit.
+                        Cast open-one on ("{PATH}").
+                        If cast open-one on ("{PATH}") is void, the ran-out becomes true.
+                    Done.
+                    If ran-out is true, stop.
+                    Increment rounds by 1.
+                Done.
+                State rounds.
+            Done.
+            """;
+        AssertCountOnBothBackends(src, "1200");
     }
 
     [Fact]

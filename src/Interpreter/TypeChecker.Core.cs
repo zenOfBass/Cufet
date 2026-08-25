@@ -2518,16 +2518,6 @@ public sealed partial class TypeChecker
         VariableReference { Name: var an } when TryLookup(an, out var ati)
                                             && ati.Type is AxiomType { ReturnType: null } axiomInfo
                                                                                                  => throw AxiomUsedAsValue(an, axiomInfo, expr),
-        // ⚠⚠ An axiom carrying `and free it with` cannot be passed around, and this is a real
-        // limitation rather than an oversight. The clause means "what this call gives back is freed
-        // when THIS block ends", and both backends register that release against the `Define` that
-        // caught the result — a statically resolved call site. A call reached through a value has no
-        // such site, so the address would be acquired and never freed, on both backends equally.
-        // Refusing says so; letting it through would leak quietly and agree while doing it.
-        VariableReference { Name: var rn } when TryLookup(rn, out var rti)
-                                            && rti.Type is AxiomType releasing
-                                            && rti.EstablishingExpr is AxiomLiteral { ReleasedBy: not null }
-                                                                                                 => throw AxiomWithReleaseUsedAsValue(rn, releasing, expr),
         VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => NoteModuleUse(n, ti),
         VariableReference hv when _hiddenTopLevelData.Contains(hv.Name)                                  => throw HiddenTopLevelDataError(hv),
         VariableReference vr                                                                              => NoteUnresolvedName(vr),

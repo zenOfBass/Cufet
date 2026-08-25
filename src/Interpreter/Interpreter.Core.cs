@@ -595,7 +595,7 @@ public sealed partial class Interpreter
             {
                 Scope[d.Name] = BindCopy(Evaluate(d.Value));
                 _scopeDefOrder[^1].Add(d.Name);
-                RegisterForeignRelease(d.Value, Scope[d.Name]);
+
                 // A top-level `permanently` binding is a shared constant: top-level functions may
                 // read it. Recorded by NAME because the isolation in ExecuteCall filters by value
                 // and a constant is indistinguishable from any other datum once evaluated.

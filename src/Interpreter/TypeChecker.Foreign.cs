@@ -244,19 +244,6 @@ public sealed partial class TypeChecker
             $"Wrap it: 'Bind number to <name>, {name}.' — then use that function.");
     }
 
-    /// <summary>An axiom with a release clause, reached for as a value.</summary>
-    private TypeException AxiomWithReleaseUsedAsValue(string name, AxiomType axiom, IExpression at)
-    {
-        var (line, column) = at is VariableReference vr ? (vr.Line, vr.Column) : (0, 0);
-        return TypeError(
-            $"'{name}' says how to free what it gives back, so it cannot be passed around",
-            "the freeing is registered where the result is caught, and a call reached through a "
-          + "value has no such place — the address would be taken and never given back",
-            line, column,
-            $"use '{name}' as a value",
-            $"Call '{name}' where it is declared and pass the address on instead.");
-    }
-
     /// <summary>A `Define`'s written type, resolved — or null when it declared none.</summary>
     private CufetType? ResolvedDeclaredType(CufetType? declared) =>
         declared is null ? null : ResolveParamType(declared);

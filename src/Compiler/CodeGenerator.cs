@@ -4751,19 +4751,10 @@ static void* cufet_pipe_stage(void* argp) {
                 // at the enclosing block's exit; value-copies register independently (double-fire).
                 if (UsesUnmakers && _scopeDepth > 0 && vt is ObjectType uot && _unmakeDefs.ContainsKey(uot.Name))
                     sb.AppendLine($"{indent}cufet_reg_unmaker(&{MangleName(d.Name)}, {UnmakerCName(uot.Name)});");
-                // ★ `and free it with <name>` rides the SAME registry, which is the whole reason it
-                // needed no new cleanup machinery: LIFO at the block's exit, and run by cufet_raise
-                // on the way out of an uncaught fault, both already true. Registered by ADDRESS of
-                // the local, like an unmaker, so the thunk reads the pointer at release time.
-                if (d.Value is CastExpression { RunsAxiom.ReleaseAxiom: { } releasedBy })
-                {
-                    // ⚠ The RAW pointer is registered, not the `voidable address` struct around it,
-                    // and a void one is not registered at all — `closedir(NULL)` is undefined, and
-                    // "C had nothing to give" is not a thing to free.
-                    string thunk = EmitReleaseThunk(releasedBy);
-                    string held  = MangleName(d.Name);
-                    sb.AppendLine($"{indent}if ({held}.has) cufet_reg_unmaker({held}.val, {thunk});");
-                }
+                // ⚠ `and free it with <name>` is NOT registered here. It rides the same registry
+                // an unmaker does, but it is registered at the ACQUISITION — see EmitForeignAddress
+                // for why anchoring it to the binding leaked, and why the binding is the more
+                // dangerous of the two places.
                 break;
             }
 
@@ -5975,8 +5966,7 @@ static void* cufet_pipe_stage(void* argp) {
             var marshalled = axiom.Parameters
                 .Select((p, i) => ForeignArgumentFrom(p.Type, $"p{i}", line))
                 .ToList();
-            string body = ForeignResultFrom(axiom.ReturnType!,
-                                            $"{fnName}({string.Join(", ", marshalled)})");
+            string body = ForeignResultFrom(axiom, $"{fnName}({string.Join(", ", marshalled)})");
             var inner = new List<string>(_preEmits);
             _preEmits.Clear();
             _preEmits.AddRange(savedPre);
@@ -6004,7 +5994,7 @@ static void* cufet_pipe_stage(void* argp) {
         var marshalled = axiom.Parameters
             .Select((p, i) => ForeignArgumentFrom(p.Type, EmitExpr(args![i]), line))
             .ToList();
-        return ForeignResultFrom(axiom.ReturnType!, $"{fnName}({string.Join(", ", marshalled)})");
+        return ForeignResultFrom(axiom, $"{fnName}({string.Join(", ", marshalled)})");
     }
 
     /// <summary>The wrapper function for this axiom, emitted once and named.</summary>
@@ -6036,12 +6026,12 @@ static void* cufet_pipe_stage(void* argp) {
     /// axiom-value thunk, where they are that thunk's own C parameters. Writing the conversion
     /// twice is how the two would come to disagree about what a `voidable text` costs.
     /// </remarks>
-    private string ForeignResultFrom(CufetType result, string call) => result switch
+    private string ForeignResultFrom(AxiomLiteral axiom, string call) => axiom.ReturnType switch
     {
         NumberType => $"cufet_dec_from_foreign({call})",
         FactType   => call,                       // already the 1/0 a Cufet fact is in C
         VoidableType { Inner: NumberType } => EmitForeignReal(call),
-        VoidableType { Inner: AddressType } => EmitForeignAddress(call),
+        VoidableType { Inner: AddressType } => EmitForeignAddress(call, axiom.ReleaseAxiom),
         _          => EmitForeignText(call),      // voidable text — copied out of C's memory
     };
 
@@ -6083,11 +6073,36 @@ static void* cufet_pipe_stage(void* argp) {
     /// `malloc`, `getenv` and `opendir` all report failure that way, so every way C can fail lands
     /// in the mechanism the language already has.
     /// </remarks>
-    private string EmitForeignAddress(string call)
+    private string EmitForeignAddress(string call, AxiomLiteral? release)
     {
         string cvd = RegisterVoidableStruct(new VoidableType(AddressType.Instance));
         int id = _freshId++;
         _preEmits.Add($"void* cf_fa{id} = {call};");
+
+        // ★★ `and free it with <name>` is registered HERE, at the acquisition, and that is the
+        // whole of what makes it work. It used to be registered against the `Define` that caught
+        // the result, which anchored a property of the AXIOM to a property of the CALL SITE — and
+        // three things fell out of that:
+        //
+        //   1. An acquisition nobody named leaked. `Cast copy-of on ("x").` called strdup and
+        //      registered nothing, as did one used inline in a condition. Measured in emitted C.
+        //   2. An axiom with a release clause could not be passed around, because a call reached
+        //      through a value has no `Define` to hang the registration on.
+        //   3. It was the more dangerous half of the trade it claimed to be making. Registering
+        //      per BINDING is what risks a double free, since names multiply and can reach one
+        //      pointer; registering per ACQUISITION happens exactly once per malloc by
+        //      construction. The old comment had this backwards.
+        //
+        // ⚠ The RAW pointer is registered, not the `voidable address` struct around it, and a NULL
+        // one is not registered at all — `closedir(NULL)` is undefined, and "C had nothing to give"
+        // is not a thing to free.
+        //
+        // ★ The registry is a thread-local stack pushed at whatever point this runs, so a call
+        // inside an axiom-value thunk pushes onto the CALLER's block exactly as a direct call does.
+        // That is why the value case needed no separate machinery.
+        if (release is { } freeIt)
+            _preEmits.Add($"if (cf_fa{id}) cufet_reg_unmaker(cf_fa{id}, {EmitReleaseThunk(freeIt)});");
+
         return $"(cf_fa{id} ? ({cvd}){{ .has = 1, .val = cf_fa{id} }} : ({cvd}){{ .has = 0 }})";
     }
 

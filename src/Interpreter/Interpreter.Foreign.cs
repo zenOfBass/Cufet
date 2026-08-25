@@ -95,21 +95,27 @@ public sealed partial class Interpreter
     private readonly List<(nint Handle, AxiomLiteral Release, int Line)> _pendingReleases = [];
     private readonly List<int> _scopeReleaseBase = [];
 
-    /// <summary>Registers a freshly-bound address with the axiom that frees it, if one was named.</summary>
+    /// <summary>Registers a freshly ACQUIRED address with the axiom that frees it, if one was named.</summary>
     /// <remarks>
-    /// ★ Keyed on the DEFINING expression rather than the value, because the value is just a
-    /// pointer and carries nothing: the checker resolved `and free it with close-dir` onto the
-    /// acquiring axiom, and this is the one place that axiom and the value it produced are both
-    /// in hand.
+    /// ★★ Keyed on the axiom that RAN, at the moment it ran. It used to be keyed on the `Define`
+    /// that caught the result, which tied a property of the axiom to a property of the call site,
+    /// and three things fell out of that — the same three the compiled twin in EmitForeignAddress
+    /// records:
     ///
-    /// ⚠ Only a `Define` registers, matching the unmaker rule exactly — an address that is
-    /// re-bound with `becomes`, or never named at all, is not registered and not freed. Both
-    /// directions are deliberate: freeing something twice is worse than not freeing it.
+    ///   1. An acquisition nobody named leaked. `Cast copy-of on ("x").` allocated and registered
+    ///      nothing, as did one used inline in a condition.
+    ///   2. An axiom with a release clause could not be passed around: a call reached through a
+    ///      value has no `Define` to hang the registration on.
+    ///   3. It was the more dangerous half of the trade it claimed to make. Registering per
+    ///      BINDING is what risks a double free — names multiply and can reach one pointer — while
+    ///      registering per ACQUISITION happens exactly once per allocation by construction.
+    ///
+    /// ⚠ A void result is not registered: NULL is C saying it had nothing to give, and freeing
+    /// that is undefined rather than tidy.
     /// </remarks>
-    private void RegisterForeignRelease(IExpression definingExpr, object? value)
+    private void RegisterForeignRelease(AxiomLiteral acquired, object? value)
     {
         if (value is not ForeignAddress address) return;
-        if (definingExpr is not CastExpression { RunsAxiom: { } acquired }) return;
         if (acquired.ReleaseAxiom is not { } release) return;
         _pendingReleases.Add((address.Handle, release, acquired.Line));
     }
@@ -161,9 +167,10 @@ public sealed partial class Interpreter
         // language's job, not the runner's, and it is why such an axiom must declare
         // `voidable text`: NULL is C's universal "nothing", landing in the mechanism Cufet
         // already has rather than in a new one.
-        return runner.Run(axiom.Language!, axiom.Source, axiom.Parameters, axiom.ReturnType!,
-                          arguments, line)
-            ?? VoidValue.Instance;
+        var produced = runner.Run(axiom.Language!, axiom.Source, axiom.Parameters, axiom.ReturnType!,
+                                  arguments, line);
+        RegisterForeignRelease(axiom, produced);
+        return produced ?? VoidValue.Instance;
     }
 
     /// <summary>Runs an axiom and gives back the marshalled Cufet value.</summary>
@@ -178,8 +185,10 @@ public sealed partial class Interpreter
     private object RunAxiom(AxiomLiteral axiom, int line)
     {
         if (ForeignRunner is not { } runner) throw CannotRunForeignSource(axiom, line);
-        return runner.Run(axiom.Language!, axiom.Source, axiom.Parameters, axiom.ReturnType!, [], line)
-            ?? VoidValue.Instance;
+        var produced = runner.Run(axiom.Language!, axiom.Source, axiom.Parameters,
+                                  axiom.ReturnType!, [], line);
+        RegisterForeignRelease(axiom, produced);
+        return produced ?? VoidValue.Instance;
     }
 
     /// <summary>The refusal for an environment with no way to compile and call foreign source.</summary>
