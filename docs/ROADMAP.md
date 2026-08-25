@@ -2,10 +2,6 @@
 
 Where Cufet is going.
 
-This file answers one question, and deliberately only one. It does not describe what the
-language can already do, why it is shaped the way it is, or how to work on it — three other
-documents do that better, and a roadmap that restates them goes stale the moment they change.
-
 | If you want to know | Read |
 | --- | --- |
 | What Cufet is, and why you might care | [README.md](../README.md) |
@@ -19,47 +15,7 @@ documents do that better, and a roadmap that restates them goes stale the moment
 Cufet is pre-1.0 and may still change. Versioning is semantic: feature arcs bump the minor
 version, and 1.0.0 will mark the point at which the language is considered stable.
 
----
-
-## Where things stand
-
-Cufet has two backends sharing one front end: a tree-walking interpreter and a compiler that emits C and invokes `gcc`. Every committed grammar feature works on both.
-
-The interpreter is the **oracle**. The compiler's test suite compiles each program, runs the
-binary, and asserts its output equals the interpreter's. Where the two disagree, one of them
-is wrong — it is never written down as a caveat. Either the behaviour becomes precise on both
-sides, or the compiler refuses with a clean error. The narrow exception is behaviour that is
-genuinely undefined or platform-owned, where there is no single right answer to converge on.
-
-That rule is the reason this list is short on soundness work and long on reach.
-
----
-
 ## What's next
-
-Ordered by what unblocks what, not by size.
-
-⚠ **A "blocked on" claim names the missing THING, never a tier number, and has to be checkable.**
-"Blocked on item 4" cannot be tested, so nobody tests it, so it rots and then drives decisions —
-`collections` carried "blocked on the C FFI" for weeks and was never blocked at all; the claim was
-true of `math` and got copied. Write "needs `square root`, which is a C call" instead, check it when
-you write it, and check it again before ordering work off it. A dependency you cannot state
-precisely enough to test does not belong in this file.
-
-### Next, in order
-
-★ **The ordered queue is empty.** Both items that stood here have shipped — foreign
-interoperability, and module needs — so nothing is waiting on anything else. What is left is in the
-sections below, and the two framings under this heading are what will order it when it is picked up.
-
-Two framings that set the order:
-
-- **Sockets, POSIX and Windows APIs, and threading primitives are not separate items.** They
-  are all "call a C function", and the C FFI that collapses them has shipped — so each is now a
-  **book to write**, not a language feature to design. That is what makes them orderable at all.
-- **Multi-directional predicate dispatch is not free-floating** — it is on the critical path
-  to self-hosting. A lexer, parser and type checker are one enormous dispatch on node type;
-  written as `is a` chains, a Cufet-in-Cufet compiler is miserable to write and worse to read.
 
 ### The design mountains
 
@@ -68,8 +24,9 @@ they are large, not because they are waiting — the order among them means noth
 formatter used to be blocked by the inline forms; those shipped in 0.15.0, so nothing blocks it
 either.
 
-1. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. See above for why
-   it is not optional.
+1. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. It is on the critical 
+    path to self-hosting. A lexer, parser and type checker are one enormous dispatch on node type;
+    written as `is a` chains, a Cufet-in-Cufet compiler is miserable to write and worse to read.
 
 2. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
     briefly a linter rule and is not one. Both tools would need the same "how large is large"
@@ -101,14 +58,7 @@ either.
    bought. A rabbit today owns an isolated arena, owns the tasks it spawns and joins them at
    `Done.`, shares nothing mutable across threads, and has escape rules the compiler enforces —
    isolated heap, owned lifetime, supervised children, no shared state. That is the actor
-   invariant, and the expensive part of it (the escape analysis) is built and shipping.
-
-   ⚠ **No VM. BEAM was considered and declined**, and the reason is worth keeping: actors do not
-   require one. Erlang's actor runtime is itself written in C, and Cufet already emits C with
-   pthreads, channels and a structured join. What BEAM would add — preemption, distribution, a
-   million cheap processes — is not what makes the model valuable here, and the price is a THIRD
-   backend held bit-identical to the other two, a third `CufetDec` (BEAM has bignums and IEEE
-   floats and no decimal), and a second FFI story for a boundary that is C-shaped by design.
+   invariant, and the expensive part of it (the escape analysis) is built and shipping. No VM.
 
    **★ One piece stands on its own: failure is not isolated.** A task that raises with no local
    `Try` tears down the whole program. (The two backends at least clean up identically on the way
