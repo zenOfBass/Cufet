@@ -247,11 +247,48 @@ Pull a book on the c-language.
 Done.
 ```
 
-An axiom that says nothing about its result may be written but not run — that is what leaves room
-for handing one around unrun later. A call composes anywhere an ordinary call does.
+An axiom that says nothing about its result may be written but not run. A call composes anywhere
+an ordinary call does.
 
-An axiom's NAME, though, is not a value: it cannot be printed, stored, or passed around, and
-reaching for one outside a run is caught when the program is checked.
+#### An axiom is a value
+
+**An axiom that says what it gives back can be passed around unrun** — handed to a function, kept
+in a series, held in an object's field — and run wherever it lands. The type is written the way its
+declaration reads, with `given (…)` saying what it takes exactly as a function type does:
+
+```
+Pull a book on the c-language.
+    Define c-language number length-of, given (the text subject), as [(int)strlen(the subject)].
+    Define c-language number first-byte, given (the text subject), as [(int)(the subject)[0]].
+
+    Define the jobs as a series of c-language number axiom given (the text) with (length-of, first-byte).
+
+    For each job in the jobs, repeat:
+        State cast job on ("hello").
+    Done.
+Done.
+```
+```
+5
+104
+```
+
+Which axiom runs is decided there by the loop, not by the text. The foreign source is still fixed
+where it was written — nothing is assembled, and nothing can be injected — and what moves is the
+axiom itself.
+
+**Saying the result is what makes it writable as a type.** `the c-language axiom job` is refused:
+running it has to produce something, and an axiom that never said what has no shape to be handed
+around as. Add the result and it is accepted.
+
+Two limits are worth knowing before you meet them:
+
+- ⚠ **An axiom carrying `and free it with` cannot be passed around.** The clause means "what this
+  call gives back is freed when this block ends", and the freeing is registered where the result is
+  caught. A call reached through a value has no such place, so the address would be taken and never
+  given back — and it is refused rather than leaked.
+- An axiom prints as `<axiom>`, the way a function prints as `<function>` — the source is not
+  something a program reads back.
 
 #### Handing values to C
 

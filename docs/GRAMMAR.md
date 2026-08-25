@@ -1879,6 +1879,8 @@ lets a body see a `permanently` constant.
 | `Bind number to f, x.` | run it, and give back the whole number it produced |
 | `Cast x on (a, b).` | run it as a STATEMENT, for its effect — the answer is discarded |
 | `… as [ … ], and free it with <name>.` | name the axiom that releases the address this one gives back |
+| `the c-language number axiom <name>` | an axiom AS A TYPE — a parameter, a field, an element |
+| `the c-language number axiom given (the text) <name>` | the same, saying what running it takes |
 | `the text at <address>` | read through a foreign pointer — `voidable text`, always COPIED |
 | `Pull a book on the c-language.` | admit C axioms in this block |
 
@@ -1895,6 +1897,41 @@ wrapper's return type is built from that whether anyone reads it or not.
 | `voidable number` | a `float`, `double` or `long double` | converted once, in shared C; NaN, an infinity, or a magnitude no decimal holds becomes void |
 | `voidable address` | a pointer of any kind | held opaquely, never read through; NULL becomes void |
 | `voidable text` | a `char*` or `const char*` | **copied**; NULL becomes void |
+
+### ★ An axiom as a value
+
+An axiom **that says what it gives back** may be passed, stored and run wherever it lands. The type
+is written as the declaration reads, and `given (…)` says what running it takes — the same spelling
+and the same parser as a function type's, so the two cannot drift apart:
+
+```
+Bind number to measure, given (the c-language number axiom given (the text) job, the text what):
+    Return cast job on (what).
+Done.
+```
+
+★ **Saying the result is what makes an axiom writable as a type.** `the c-language axiom job` is
+refused wherever a type is written: the C wrapper's return type is built from the declared result,
+so an axiom with none has no signature to be. The refusal names the fix.
+
+⚠ **An axiom carrying `and free it with` cannot be used as a value.** The release is registered
+where the result is caught — a call site resolved when the program is checked — and a call reached
+through a value has no such site. Passing one is refused rather than leaked.
+
+⚠ **An axiom and a function stay different types**, even though a value of either is the same pair
+of pointers underneath. An axiom has no body to read and its language is part of what it is, so
+neither satisfies a parameter declared as the other.
+
+★ **Identity is the SOURCE, not the name or the route.** Two names for one axiom, and a call by
+name beside a call through a value, all reach one wrapper — one copy of the foreign text, guarded
+once.
+
+An axiom prints as `<axiom>`, as a function prints as `<function>`. ⚠ The compiler refuses `State`
+on either; `cufet check --native` reports it as a warning.
+
+⚠ **A parameter, a field, or an element is the only place the `given (…)` type spelling belongs.**
+A DECLARATION states its parameters after the name — `Define c-language number length-of, given
+(the text subject), as [ … ].` — and writing them twice is not a thing to do.
 
 ⚠ **A `text` result must be declared `voidable text`.** C says nothing is there by handing back
 nothing — `getenv` on an unset name, `strerror` on a code it does not know — so NULL lands in the

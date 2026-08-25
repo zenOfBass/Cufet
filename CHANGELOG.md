@@ -10,23 +10,35 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **An axiom can be bound to a name and run from there** — the first brick of the design's
-  "one type for code as data", scaffolding only:
+- **An axiom is a value: it can be passed around unrun and run wherever it lands.** A parameter, an
+  object field, a series element — and which axiom runs is decided at run time:
 
   ```
-  Define c-language number answer as [6 * 7].
-  Define alias as answer.
-  State cast alias.                    ← 42
+  Pull a book on the c-language.
+      Define c-language number length-of, given (the text subject), as [(int)strlen(the subject)].
+      Define c-language number first-byte, given (the text subject), as [(int)(the subject)[0]].
+
+      Define the jobs as a series of c-language number axiom given (the text) with (length-of, first-byte).
+
+      For each job in the jobs, repeat:
+          State cast job on ("hello").        ← 5, then 104
+      Done.
+  Done.
   ```
 
-  A chain of names is followed back to the source, so both names reach the same wrapper and the
-  binding emits nothing at all. That is why this could land while the rest could not: running an
-  axiom pastes its foreign text, so it needs the source at the call site.
+  An axiom is now writable as a **type**, and `given (…)` says what running it takes — the same
+  spelling a function type uses (`number function given (the number)`) and the same parser, so the
+  two cannot drift. The foreign text is still fixed where it was written: nothing is assembled from
+  strings, and what moves is the axiom itself.
 
-  ⚠ **An axiom still cannot be written down as a type** — not a parameter, a field, or an element
-  type — and an axiom chosen at run time therefore cannot be run. That is refused rather than
-  allowed, because an axiom has no runtime representation on either backend; lifting the guard on
-  its own made four shapes check clean and then fail in the code generator.
+  Along the way, `Define alias as answer.` binds an axiom to a name and runs it from there; a chain
+  of names is followed back to the source, so both names reach one wrapper.
+
+  ⚠ **An axiom carrying `and free it with` cannot be passed around.** The release is registered
+  where the result is caught, and a call reached through a value has no such site — so it is
+  refused rather than leaked. ⚠ **An axiom written as a type must say what it gives back**: the C
+  wrapper's return type is built from exactly that, so `the c-language axiom job` has no signature
+  to be. An axiom and a function also stay different types, whatever they share underneath.
 
 - **Foreign pointers, as an `address`** — opaque, rabbit-scoped, and never dereferenced implicitly.
   A pointer comes back from C as a `voidable address` and goes back into C as an `address`, and
@@ -470,6 +482,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   marks cannot have that shape.
 
 ### Fixed
+
+- **`State` on an axiom printed C# internals.** The value an axiom name holds is its literal, and
+  the interpreter had no arm for it, so printing one produced `AxiomLiteral { Source = …, Line = …`
+  — source text, line and column — while the compiled backend refused the same program at build
+  time. An axiom now reads as `<axiom>`, beside `<function>`.
+
 
 - **A typo in an axiom killed the interpreter's host process on Linux**, instead of being reported.
   A Windows DLL must resolve every symbol at link time, so `[not_a_real_function()]` failed the

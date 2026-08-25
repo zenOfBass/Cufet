@@ -51,62 +51,13 @@ precisely enough to test does not belong in this file.
 Two framings that set the order:
 
 - **Sockets, POSIX and Windows APIs, and threading primitives are not separate items.** They
-  are all "call a C function", so a **C FFI** collapses them into one item and turns each of
-  them into a book rather than a language feature.
+  are all "call a C function", and the C FFI that collapses them has shipped — so each is now a
+  **book to write**, not a language feature to design. That is what makes them orderable at all.
 - **Multi-directional predicate dispatch is not free-floating** — it is on the critical path
   to self-hosting. A lexer, parser and type checker are one enormous dispatch on node type;
   written as `is a` chains, a Cufet-in-Cufet compiler is miserable to write and worse to read.
 
-1. **Foreign interoperability — the C FFI, axioms, and addresses.** What makes "anything can be
-   written in Cufet" literally rather than nearly true. Its consumers are the "call a C function"
-   family it collapses: the shell's job control and raw terminal mode, sockets, the POSIX and
-   Windows APIs. ★ No bundled book needs it any more — `math` went pure decimal in 0.16.0.
-
-   **Axioms, parameters and splicing already ship on both backends** — see GRAMMAR §6 and REFERENCE
-   Part VII for what they do, and CHANGELOG for when. What is left, in the order it makes sense to
-   build:
-
-   - **An axiom passed around unrun — SCAFFOLDING IN, the rest still to build.** An axiom can now
-     be bound to a name and run from there (`Define alias as answer.`), because the checker follows
-     a chain of names back to the source. That needs no runtime representation: both names reach
-     the same wrapper and the binding emits nothing.
-
-     ⚠ **What is left is the backend half, and it is the whole of the rest.** An axiom still cannot
-     be written down as a TYPE — a parameter, a field, an element type — so one chosen at run time
-     cannot be run. Running an axiom pastes its foreign text, and a value that arrives at run time
-     has no text to paste. The refusal is one arm in `ResolveParamType`; lifting it alone was tried
-     and made four shapes check clean and then fail in the code generator, which is the divergence
-     this project refuses hardest.
-
-     ★ **What it would take**, for whoever picks this up: an axiom value has to become a C function
-     POINTER to its wrapper (one typedef per parameter-and-result shape) and a delegate on the
-     interpreted side, plus a written axiom type that can say what it takes — `<language>
-     [<result>] axiom` has nowhere to put a parameter list today, which is why even the
-     parameterless case cannot be checked at a call site through a parameter. `AxiomType` already
-     carries `ParameterTypes`; nothing writes them from a written type yet.
-
-     ⚠ **The bullet's old motivation was misleading and is corrected here**: this is not about
-     assembling an axiom from strings, which the design forbids outright. DESIGN's line is that
-     "a function assembling a SQL fragment hands one back unrun" — the block is fixed where it is
-     written, and what moves is the axiom VALUE. See DESIGN "One type for code as data", which is
-     the arc this is the first brick of.
-
-   **Read [DESIGN.md](DESIGN.md#foreign-interoperability) before starting** — it carries the
-   reasoning and the rejected alternatives, which is the part worth having. Addresses exist only
-   inside a rabbit block, are never dereferenced except by `the text at <address>`, and are freed by
-   the existing unmaker registry via `and free it with <name>`. Cufet never models a C struct: struct work
-   happens inside an axiom. Every address and every read is `voidable`, so NULL lands in the
-   mechanism the language already has.
-
-   ★ The unwind side is ready: a new kind of releasable thing is one field on `CleanupPoint` and one
-   term in `UnwindTo`, and every nonlocal exit gets it at once.
-
-   ⚠ **It does not ship until both backends run it.** The interpreter is the oracle, and FFI is the
-   one area where being wrong means memory corruption rather than a wrong number. Interpreted FFI
-   therefore needs a C toolchain the first time a given set of axioms is seen; wasm cannot do it at
-   all.
-
-2. **Module needs, transitively.** ★ Much smaller than it was. A body now resolves what it can see
+1. **Module needs, transitively.** ★ Much smaller than it was. A body now resolves what it can see
    where it is WRITTEN plus any MODULE its caller pulled, so an unresolved *ordinary* name is a
    static error and only module names still defer. Two holes are left, both over that small set:
 
@@ -312,10 +263,10 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
 2. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
-    ⚠ **Blocked on the C FFI (*After the arc*, above).** Job control needs process groups and signalling a child;
-    completion needs raw terminal mode. Neither is in the language and neither should become a
-    language feature — they are exactly the "call a C function" family the FFI collapses.
-    Globbing and history need nothing new.
+    ★ **No longer blocked.** Job control needs process groups and signalling a child; completion
+    needs raw terminal mode. Neither is in the language and neither should become a language
+    feature — they are exactly the "call a C function" family, and axioms now reach them. What is
+    left is writing the calls, not adding to the language. Globbing and history need nothing new.
 
 3. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
