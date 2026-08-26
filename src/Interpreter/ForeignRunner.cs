@@ -16,6 +16,19 @@ namespace Cufet.Interpreter;
 /// </remarks>
 public interface IForeignRunner
 {
+    /// <summary>Declares source every later axiom in this language can see.</summary>
+    /// <remarks>
+    /// ★★ A resultless axiom is SOURCE, not a call — there is nothing to invoke and nothing to
+    /// marshal, so it does not go through Prepare. It is accumulated and pasted into every shim
+    /// this language builds afterwards, which is the interpreted twin of the compiled backend
+    /// pasting it above the wrappers.
+    ///
+    /// ⚠ Declared BEFORE anything is prepared, and that ordering is load-bearing: a shim is cached
+    /// by its content, so preparing an axiom before the preamble it needs would cache a shim that
+    /// cannot compile and hand back that failure forever.
+    /// </remarks>
+    void Declare(string language, string source, int line);
+
     /// <summary>Gets this axiom ready to be called, without calling it.</summary>
     /// <remarks>
     /// ★ Every axiom in the program is prepared BEFORE the first statement runs, because the

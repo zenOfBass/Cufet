@@ -80,10 +80,27 @@ public sealed partial class Interpreter
                     Note(declared, def.Line);
             });
 
-        if (pending.Count == 0) return;
+        // ★ Resultless axioms are SOURCE, not calls: collected separately, declared first, and never
+        // prepared — there is nothing to invoke. Order matters, and it is why they are gathered in
+        // their own pass: a shim is cached by content, so preparing an axiom before the preamble it
+        // names would cache one that cannot compile.
+        var declared = new List<(string Language, string Source, int Line)>();
+        AstSearch.Visit(program.Statements, node =>
+        {
+            if (node is DefineStatement { Value: AxiomLiteral { ReturnType: null } decl } def
+                && decl.Language is { } declLanguage)
+                declared.Add((declLanguage, decl.Source, def.Line));
+        });
+
+        if (pending.Count == 0 && declared.Count == 0) return;
 
         if (ForeignRunner is not { } runner)
-            throw CannotRunForeignSource(pending[0].Axiom, pending[0].Line);
+            throw pending.Count > 0
+                ? CannotRunForeignSource(pending[0].Axiom.Language, pending[0].Line)
+                : CannotRunForeignSource(declared[0].Language, declared[0].Line);
+
+        foreach (var (language, source, line) in declared)
+            runner.Declare(language, source, line);
 
         foreach (var (axiom, line) in pending)
             runner.Prepare(axiom.Language!, axiom.Source, axiom.Parameters, axiom.ReturnType!, line);
@@ -140,7 +157,7 @@ public sealed partial class Interpreter
     /// <summary>Runs an axiom called with arguments — `cast open-file on (path, flags)`.</summary>
     private object RunAxiomCall(IReadOnlyList<IExpression> callArgs, AxiomLiteral axiom, int line)
     {
-        if (ForeignRunner is not { } runner) throw CannotRunForeignSource(axiom, line);
+        if (ForeignRunner is not { } runner) throw CannotRunForeignSource(axiom.Language, line);
 
         // ⚠ Evaluated in declaration order, left to right, which is the order the compiled backend
         // evaluates its call arguments in. An argument with a side effect would otherwise happen in
@@ -184,7 +201,7 @@ public sealed partial class Interpreter
     /// </remarks>
     private object RunAxiom(AxiomLiteral axiom, int line)
     {
-        if (ForeignRunner is not { } runner) throw CannotRunForeignSource(axiom, line);
+        if (ForeignRunner is not { } runner) throw CannotRunForeignSource(axiom.Language, line);
         var produced = runner.Run(axiom.Language!, axiom.Source, axiom.Parameters,
                                   axiom.ReturnType!, [], line);
         RegisterForeignRelease(axiom, produced);
@@ -198,8 +215,8 @@ public sealed partial class Interpreter
     /// sayable, and now it is said before the program produces any output rather than partway
     /// through it.
     /// </remarks>
-    private static RuntimeException CannotRunForeignSource(AxiomLiteral axiom, int line) =>
-        new($"This program calls {axiom.Language ?? "foreign"} source, which cannot run here "
+    private static RuntimeException CannotRunForeignSource(string? language, int line) =>
+        new($"This program calls {language ?? "foreign"} source, which cannot run here "
           + $"(line {line}).\n\n"
           + "Foreign source is compiled and called through a C toolchain. Build the program "
           + "with 'cufet build' to run it, or run it where a C compiler is available.");

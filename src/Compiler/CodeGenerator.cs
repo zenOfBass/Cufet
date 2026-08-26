@@ -133,6 +133,11 @@ public sealed class CodeGenerator
     private readonly Dictionary<string, string> _axiomFnNames = new(StringComparer.Ordinal);
     private readonly System.Text.StringBuilder _axiomFns = new();
 
+    // Resultless axioms — source, by identity, emitted above the wrappers. Insertion-ordered so two
+    // preambles where the second names the first still compile.
+    private readonly Dictionary<string, (string Language, string Source)> _axiomPreambles =
+        new(StringComparer.Ordinal);
+
     // The Cufet type of each shared constant, by name. Computed BEFORE any body is emitted,
     // because bodies emit before main — so the `_varTypes[d.Name] = vt` main performs when it
     // assigns the constant comes far too late for a function that reads one.
@@ -2202,6 +2207,12 @@ static void* cufet_pipe_stage(void* argp) {
         AstSearch.Visit(program.Statements, node =>
         {
             if (node is AxiomLiteral { ReleaseAxiom: not null }) _usesForeignRelease = true;
+            // ★ An axiom with NO declared result is SOURCE, not a call — collected whole-program and
+            // pasted above every wrapper, because a wrapper may name what it declares. Keyed on the
+            // text so the same preamble written twice is emitted once.
+            if (node is DefineStatement { Value: AxiomLiteral { ReturnType: null } decl })
+                _axiomPreambles[ForeignC.Identity(decl.Language ?? "foreign", decl.Source, decl.Parameters)]
+                    = (decl.Language ?? "foreign", decl.Source);
         });
 
         // ── Runtime: includes + software decimal + print helpers ──────────
@@ -2613,7 +2624,9 @@ static void* cufet_pipe_stage(void* argp) {
         // ── Foreign axioms — the C this program was handed, wrapped where it can be called ──
         // Above every body, below the runtime: an axiom calls cufet_dec_from_ll and nothing else
         // generated, and a body may call an axiom.
-        if (_axiomFns.Length > 0)
+        // ⚠ Preambles count too. A program whose only foreign source is a resultless axiom emits no
+        // wrapper at all, and gating on wrappers alone dropped its headers AND its source.
+        if (_axiomFns.Length > 0 || _axiomPreambles.Count > 0)
         {
             // ⚠ The HEADERS go to the very top of the generated file, ahead of every struct and
             // helper — not here with the wrappers. On Windows the set includes <windows.h>, which
@@ -2638,6 +2651,13 @@ static void* cufet_pipe_stage(void* argp) {
             sb.AppendLine("    return w.is_unsigned ? cufet_dec_from_ull(w.bits)");
             sb.AppendLine("                        : cufet_dec_from_ll((long long)w.bits);");
             sb.AppendLine("}");
+            // ★★ Preambles FIRST, then the wrappers — a wrapper may call a helper a preamble
+            // declares, and C needs it declared above the use. This is the whole point of the
+            // resultless form: shared source that every axiom in the program can see.
+            foreach (var (language, source) in _axiomPreambles.Values)
+                sb.Append(ForeignC.Preamble(language, source));
+            if (_axiomPreambles.Count > 0) sb.AppendLine();
+
             // ★ The wrappers themselves stay here. They call the two above and nothing else
             // generated, so anywhere below the runtime would do; what they must NOT do is drift
             // away from the headers, which is why both are written in this one block.

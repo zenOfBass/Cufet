@@ -127,6 +127,21 @@ public sealed partial class TypeChecker
     /// </remarks>
     private void CheckAxiomParameters(DefineStatement define, AxiomLiteral axiom)
     {
+        // ⚠⚠ A resultless axiom is SOURCE, pasted where source goes — there is no call, so there is
+        // nowhere for a parameter's value to come from. Splicing one anyway put `cufet_p0` into a
+        // file-scope declaration, which named an identifier that exists nowhere: the program checked
+        // clean and emitted C that would not build. Refused here, where the writer can see why.
+        if (axiom.ReturnType is null && axiom.Parameters.Count > 0)
+            throw TypeError(
+                $"'{define.Name}' says nothing about what it gives back, so it is source rather "
+              + "than something to run — and source takes no parameters",
+                "A parameter's value comes from a call, and nothing calls this: it is pasted once, "
+              + "above every axiom that can then use what it declares",
+                define.Line, define.Column,
+                $"give '{define.Name}' parameters",
+                $"Drop the 'given' clause — or say what running it gives back, "
+              + $"as in 'Define {axiom.Language} number {define.Name}, given (…), as [ … ].'");
+
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var (type, name) in axiom.Parameters)
         {

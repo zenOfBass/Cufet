@@ -1646,6 +1646,104 @@ public class PipelineForeignTests : PipelineTestBase
         Assert.Contains("takes 0 values", e.Message);
     }
 
+    // -- A resultless axiom is SOURCE ----------------------------------------
+    //
+    // ** The language always drew this line and never gave one side a meaning: an axiom that says
+    // what it gives back is an expression you RUN; one that says nothing "may be written but not
+    // run". The second half was inert -- and worse than inert, because an axiom CALLING what it
+    // declared was emitted anyway.
+
+    [Fact]
+    public void AResultlessAxiom_DeclaresSourceTheOthersCanUse()
+    {
+        // !! This program CHECKED CLEAN and emitted C in which `twice` appeared nowhere, while the
+        // wrapper calling `twice(2)` was emitted in full -- so gcc rejected it and blamed the
+        // author's C for a helper the author had written down.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language helpers as [static int twice(int x) { return x * 2; }].
+                Define c-language number four as [twice(2)].
+                State cast four.
+            Done.
+            """;
+        Assert.Equal("4", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void AResultlessAxiom_IsSharedByEveryAxiomAfterIt()
+    {
+        // ** The gap this closes is SHARING, not composing. Two axioms wanting one helper used to
+        // need a copy each, because a helper declared inside an axiom is per-axiom. The alternative
+        // considered and rejected was splicing one axiom into another, which merges their parameter
+        // namespaces and makes the article substitution a regex over someone else's text. A
+        // preamble has neither problem: it takes no parameters and substitutes nothing.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language shared as [static int twice(int x) { return x * 2; }].
+                Define c-language number four as [twice(2)].
+                Define c-language number ten as [twice(5)].
+                State cast four.
+                State cast ten.
+            Done.
+            """;
+        Assert.Equal("4\n10", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void AProgramWhoseOnlyForeignSourceIsAPreamble_StillCompiles()
+    {
+        // ! The headers, the guard macros and the result types are emitted under one gate, and that
+        // gate asked whether any WRAPPER existed. A program that declares source and never calls it
+        // has none -- so its headers went missing along with the source itself.
+        string c = GenerateC("""
+            Pull a book on the c-language.
+                Define c-language unused as [static int nobody_calls_me(void) { return 0; }].
+                State "no axiom ran".
+            Done.
+            """);
+        Assert.Contains("nobody_calls_me", c);
+    }
+
+    [Fact]
+    public void AResultlessAxiom_IsEmittedOnceHoweverManyNameIt()
+    {
+        // Identity is the SOURCE, as everywhere else here -- two names for one preamble are one
+        // definition, and emitting it twice would be a duplicate-symbol error rather than a nicety.
+        string c = GenerateC("""
+            Pull a book on the c-language.
+                Define c-language once as [static int twice(int x) { return x * 2; }].
+                Define c-language again as [static int twice(int x) { return x * 2; }].
+                Define c-language number four as [twice(2)].
+                State cast four.
+            Done.
+            """);
+        // Anchored at line start: every preamble is emitted under a banner COMMENT that reproduces
+        // its source verbatim, so an unanchored count sees the definition twice and passes for the
+        // wrong reason.
+        int definitions = System.Text.RegularExpressions.Regex.Matches(
+            c, "^static int twice", System.Text.RegularExpressions.RegexOptions.Multiline).Count;
+        Assert.Equal(1, definitions);
+    }
+
+    [Fact]
+    public void AResultlessAxiom_CannotTakeParameters()
+    {
+        // !! The same hole one level down: a parameter's value comes from a call, and nothing calls
+        // a preamble. Splicing one anyway put `cufet_p0` into a file-scope declaration, naming an
+        // identifier that exists nowhere -- checks clean, will not build.
+        var e = Assert.Throws<TypeException>(() => GenerateC("""
+            Pull a book on the c-language.
+                Define c-language helpers, given (the number factor),
+                    as [static int scaled(int x) { return x * the factor; }].
+                Define c-language number six as [scaled(2)].
+                State cast six.
+            Done.
+            """));
+        Assert.Contains("source takes no parameters", e.Message);
+    }
+
     [Fact]
     public void Axiom_UsedWhereItsResultDoesNotFit_IsRefusedTheOrDINARYWay()
     {

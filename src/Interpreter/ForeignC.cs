@@ -486,6 +486,37 @@ static CufetForeignReal cufet_real_from_double(double cufet_v) {
         => $"{language}\0{(result is null ? "" : ResultCType(result))}\0"
          + $"{ParameterList(parameters)}\0{Splice(source, parameters)}";
 
+    /// <summary>An axiom with NO declared result: source, emitted where source goes.</summary>
+    /// <remarks>
+    /// ★★ The distinction is the one the language already draws. An axiom that says what it gives
+    /// back is an EXPRESSION you run — it is spliced into `return …;` and wrapped in a function. An
+    /// axiom that says nothing has always been legal to write and refused to run; this is what it
+    /// means. It is pasted at file scope, above every wrapper, so anything it declares is in scope
+    /// for the axioms that call it.
+    ///
+    /// ⚠ It closes a hole rather than only adding a capability. A resultless axiom used to be
+    /// dropped on the floor while an axiom CALLING what it declared was emitted anyway — so the
+    /// program checked clean and produced C naming an undefined function, reported against the
+    /// author's own C for a helper the author had written down.
+    ///
+    /// ★ This is also the "shared preamble" the composition question landed on: two axioms wanting
+    /// one helper share it here, rather than each carrying a copy or being spliced into each other.
+    /// Splicing one axiom into another merges their parameter namespaces and would make the article
+    /// substitution a regex over someone else's text; a preamble has neither problem, because it
+    /// takes no parameters and substitutes nothing.
+    ///
+    /// ⚠ NOT guarded and NOT checked — there is nothing to check. A wrapper's guards ask what the
+    /// spliced EXPRESSION produces; a declaration produces nothing. Whatever is written here reaches
+    /// the C compiler verbatim, and a mistake in it is reported as the author's C, which it is.
+    /// </remarks>
+    public static string Preamble(string language, string source)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(Banner(language, source));
+        sb.AppendLine(source);
+        return sb.ToString();
+    }
+
     /// <summary>A stable C identifier for one axiom, so the same axiom is wrapped once.</summary>
     public static string FunctionName(string language, string source,
                                       IReadOnlyList<(CufetType Type, string Name)> parameters)
