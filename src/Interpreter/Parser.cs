@@ -2092,13 +2092,14 @@ public sealed class Parser
         var isLine = isLineTok.Line;
         var isCol = isLineTok.Column;
         // BEFORE SkipNoise: detect type-test forms that use the Article as a discriminator.
-        if (Peek().Type == TokenType.Article) // "is a/an <type>"
+        // ⚠ `a`/`an` only — see IsTypeTestArticle for what `the` did here.
+        if (IsTypeTestArticle(Peek())) // "is a/an <type>"
         {
             Advance(); SkipNoise(); // consume the article
             return new IsTypeCheck(left, ParseTypeAnnotation(), false, isLine, isCol);
         }
         if (Peek().Type == TokenType.Not &&
-            _pos + 1 < _tokens.Count && _tokens[_pos + 1].Type == TokenType.Article) // "is not a/an <type>"
+            _pos + 1 < _tokens.Count && IsTypeTestArticle(_tokens[_pos + 1])) // "is not a/an <type>"
         {
             Advance(); // consume 'not'
             Advance(); SkipNoise(); // consume the article
@@ -2384,13 +2385,15 @@ public sealed class Parser
             var isLineTok = Consume(TokenType.Is);
             var isLine = isLineTok.Line;
             var isCol = isLineTok.Column;
-            if (Peek().Type == TokenType.Article) // "is a/an <type>"
+            // ⚠ `a`/`an` only — see IsTypeTestArticle. The expression form had the identical bug,
+            // which is why the predicate is shared rather than the test being written twice.
+            if (IsTypeTestArticle(Peek())) // "is a/an <type>"
             {
                 Advance(); SkipNoise();
                 return new IsTypeCheck(left, ParseTypeAnnotation(), false, isLine, isCol);
             }
             if (Peek().Type == TokenType.Not &&
-                _pos + 1 < _tokens.Count && _tokens[_pos + 1].Type == TokenType.Article)
+                _pos + 1 < _tokens.Count && IsTypeTestArticle(_tokens[_pos + 1]))
             {
                 Advance(); Advance(); SkipNoise(); // consume 'not', then the article
                 return new IsTypeCheck(left, ParseTypeAnnotation(), true, isLine, isCol);
@@ -2401,6 +2404,26 @@ public sealed class Parser
 
         return left;
     }
+
+    /// <summary>True when the article after `is` is the one that introduces a TYPE test.</summary>
+    /// <remarks>
+    /// ★★ `a` and `an`, never `the`. All three lex as one Article token, and treating any of them
+    /// as the discriminator made `x is the phrase` parse `phrase` as a TYPE annotation — so it
+    /// asked "is x of type phrase?", answered false, and `x is not the phrase` answered true.
+    /// Both backends, every type, silently: the front end is shared, so the oracle saw agreement.
+    ///
+    /// ⚠ It hit IDIOMATIC code hardest, which is why it survived so long. The house style leads a
+    /// name with `The` — `Define the phrase as …` — so `x is the phrase` is the natural spelling of
+    /// a comparison, and the negative form is invisible whenever the values genuinely differ.
+    ///
+    /// ★ GRAMMAR documents the narrowing form as `x is a &lt;type&gt;` and has never documented
+    /// `is the &lt;type&gt;`; no example, test or doc used one. Narrowing the rule to its own
+    /// justification is the whole fix.
+    /// </remarks>
+    private static bool IsTypeTestArticle(Token t) =>
+        t.Type == TokenType.Article
+     && (t.Lexeme.Equals("a", StringComparison.OrdinalIgnoreCase)
+      || t.Lexeme.Equals("an", StringComparison.OrdinalIgnoreCase));
 
     // '<map> has a key/entry for <key>' — postfix; returns fact.
     // Sits between ParseJoinedTo and ParseSplitBy so "has" binds tighter than "joined to"

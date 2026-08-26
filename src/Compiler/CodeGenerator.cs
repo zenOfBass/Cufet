@@ -2355,19 +2355,34 @@ static void* cufet_pipe_stage(void* argp) {
         // emit so book members resolve. Captured pull-scope locals are the closures gap (best-effort
         // clean throw via the task-capture walker).
         var pullBinds = new List<(BindStatement Bind, List<(string Local, string Book)> Aliases)>();
-        void CollectPullBinds(IReadOnlyList<IStatement> stmts, List<(string Local, string Book)> aliases)
+
+        // ⚠⚠ DISCOVERY IS THE REFLECTION WALK, not a hand-written descent. The hand-written one
+        // matched `PullStatement` and recursed only into ITS body — its own comment admitted as
+        // much — so a `Pull a book` sitting inside a rabbit, a loop, or an `If` arm was never
+        // reached at all. Its Binds were then neither hoisted here NOR emitted in place (the pull
+        // emitter skips Binds precisely because they are hoisted), so calling one failed with
+        // "'<name>' is declared further down this block" about a function declared four lines
+        // above the call — while the same program interpreted fine. See CONTRIBUTING on keying a
+        // walk to the namespace: this is that bug class, again.
+        var allPulls = new List<PullStatement>();
+        AstSearch.Visit(program.Statements, n => { if (n is PullStatement p) allPulls.Add(p); });
+
+        foreach (var ps in allPulls)
         {
-            foreach (var st in stmts)
-                if (st is PullStatement ps)
-                {
-                    var inner = new List<(string Local, string Book)>(aliases);
-                    foreach (var (bookName, localName) in ps.Books) inner.Add((localName, bookName.ToLowerInvariant()));
-                    foreach (var s2 in ps.Body)
-                        if (s2 is BindStatement pb && pb.UntoType == null) pullBinds.Add((pb, inner));
-                    CollectPullBinds(ps.Body, inner);   // nested pulls (the walker only matches PullStatement)
-                }
+            // The aliases in force inside this pull: every ENCLOSING pull's books, then its own.
+            // Containment is asked of the same walk, so a pull nested behind any construct counts.
+            var aliases = new List<(string Local, string Book)>();
+            foreach (var outer in allPulls)
+                if (!ReferenceEquals(outer, ps)
+                    && AstSearch.Contains(outer.Body, n => ReferenceEquals(n, ps)))
+                    foreach (var (bookName, localName) in outer.Books)
+                        aliases.Add((localName, bookName.ToLowerInvariant()));
+            foreach (var (bookName, localName) in ps.Books)
+                aliases.Add((localName, bookName.ToLowerInvariant()));
+
+            foreach (var s2 in ps.Body)
+                if (s2 is BindStatement pb && pb.UntoType == null) pullBinds.Add((pb, aliases));
         }
-        CollectPullBinds(program.Statements, new List<(string, string)>());
 
         foreach (var bind in topFuncs)
         {

@@ -724,4 +724,53 @@ public class PipelineBooksTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+    [Fact]
+    public void ABindInsideAPullInsideARabbit_Compiles()
+    {
+        // !! An interpreted-runs / compiled-refuses split, with a message that was simply untrue:
+        // "'doubled' is declared further down this block" about a function declared four lines
+        // ABOVE the call.
+        //
+        // ** The cause is the walk, not the ordering. Binds inside a pull body are HOISTED to free
+        // functions at Generate time, and the pull emitter skips them because of that -- but the
+        // collector that hoisted them matched `PullStatement` and recursed only into its body, so
+        // a pull nested inside a rabbit was never reached. The Bind was neither hoisted nor
+        // emitted in place, and the name resolved nowhere.
+        //
+        // * Either nesting ALONE compiled fine, which is what kept it hidden: `Pull a book` at top
+        // level worked, and `Pull a rabbit` with a bare Bind worked. Only the two together failed.
+        const string src = """
+            Pull a rabbit.
+                Pull a book on math.
+                    Bind number to doubled, given (the number x):
+                        Return x * 2.
+                    Done.
+
+                    State cast doubled on (21).
+                Done.
+            Done.
+            """;
+        Assert.Equal("42", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void ABindInsideAPullInsideARabbit_StillSeesTheBook()
+    {
+        // The hoist has to carry the book aliases with it, or the hoisted body cannot resolve the
+        // member that made it worth writing inside the pull.
+        const string src = """
+            Pull a rabbit.
+                Pull a book on math.
+                    Bind number to rooted, given (the number x):
+                        Return (math's square-root of (x)) but void is 0.
+                    Done.
+
+                    State cast rooted on (144).
+                Done.
+            Done.
+            """;
+        Assert.Equal("12", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

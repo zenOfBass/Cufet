@@ -11973,4 +11973,73 @@ public class InterpreterTests
             State the entry for "k" in m but void is (a new box { the x 0 }).
             """));
     }
+    // -- `is the <name>` is a COMPARISON, not a type test -------------------------
+
+    [Fact]
+    public void IsAgainstANameLedByThe_Compares()
+    {
+        // !! A silent wrong answer that shipped, and the worst kind: `a`, `an` and `the` all lex as
+        // one Article token, and the `is` parse took the `is a <type>` branch on ANY of them. So
+        // `plain is the phrase` parsed `phrase` as a TYPE annotation, asked "is this value of type
+        // phrase?", and answered false for every value of every type.
+        //
+        // ** It hit IDIOMATIC code hardest, which is why it lasted: the house style leads a name
+        // with `The`, so `the phrase` is the natural way to write the name, and `x is the phrase`
+        // the natural way to compare against it. Both backends were identically wrong, so the
+        // oracle saw agreement -- the front end is shared.
+        Assert.Equal("equal", Run("""
+            Define the phrase as "hello".
+            Define plain as "hello".
+            If plain is the phrase, state "equal". Otherwise, state "NOT equal".
+            """));
+    }
+
+    [Fact]
+    public void IsNotAgainstANameLedByThe_Compares()
+    {
+        // ! The negative form was always TRUE, and invisible whenever the values genuinely
+        // differed -- so a guard written this way let everything through and looked right doing it.
+        Assert.Equal("same", Run("""
+            Define the phrase as "hello".
+            Define plain as "hello".
+            If plain is not the phrase, state "different". Otherwise, state "same".
+            """));
+    }
+
+    [Fact]
+    public void IsAgainstANameLedByThe_ComparesNumbersToo()
+    {
+        // Not a text quirk: the branch never looked at the operand type.
+        Assert.Equal("equal", Run("""
+            Define the count as 5.
+            Define total as 5.
+            If total is the count, state "equal". Otherwise, state "NOT equal".
+            """));
+    }
+
+    [Fact]
+    public void IsAgainstANameLedByThe_StillDiffersWhenItShould()
+    {
+        // The other half: fixing the false-negative must not create a false-positive.
+        Assert.Equal("different", Run("""
+            Define the phrase as "hello".
+            Define plain as "world".
+            If plain is the phrase, state "equal". Otherwise, state "different".
+            """));
+    }
+
+    [Fact]
+    public void IsATypeTest_StillUsesAAndAn()
+    {
+        // * What the article branch is FOR, unchanged. `a`/`an` introduce a type test; that is the
+        // form GRAMMAR documents and the only one anything used.
+        Assert.Equal("a number\na text\nnot a number", Run("""
+            Define items as a catalogue with (1, "two").
+            For each item in items, repeat:
+                If item is a number, state "a number".
+                If item is a text, state "a text".
+                If item is not a number, state "not a number".
+            Done.
+            """));
+    }
 }
