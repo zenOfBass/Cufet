@@ -1,0 +1,73 @@
+// Reaching C from Cufet, part two: memory that C owns, and axioms that travel.
+//
+// `foreign.cufe` next door covers axioms and the values you hand them. This one covers what is
+// left of the boundary — a POINTER C allocated, reading through it, giving it back, and passing
+// an axiom around as a value instead of calling it where it is written.
+//
+// The C here is libc and nothing else, so this program prints the same thing on every machine.
+// Note what is NOT printed anywhere below: an address. Two runs of the same program get different
+// pointers, so a printed one could never be compared — an address shows itself as `<address>`.
+
+Pull a rabbit.
+    Pull a book on the c-language.
+        // ── An address, and who gives it back ────────────────────────────────
+        //
+        // `voidable address` is the only shape a pointer crosses in. Voidable because NULL is how
+        // C says it had nothing to give, and every allocator says it that way — so the failure
+        // lands in the mechanism Cufet already has rather than in a new one.
+        //
+        // `and free it with hand-back` names the axiom that frees what this one produces. It runs
+        // on every way out of the block, an exception included, and it runs once per acquisition
+        // — not once per name you bind the result to.
+        Define c-language number hand-back, given (the address held), as [(free(the held), 0)].
+        Define c-language voidable address copy-of, given (the text subject),
+            as [strdup(the subject)], and free it with hand-back.
+
+        Define the phrase as "hello, world".
+        Define held as cast copy-of on (the phrase).
+
+        // ── Reading through it ───────────────────────────────────────────────
+        //
+        // `the text at <address>` is the ONLY read there is, and it always COPIES: the bytes
+        // belong to C, which may free or overwrite them whenever it likes. Reading a struct or a
+        // scalar is not offered and is not missing — an axiom can do that in C, where the layout
+        // is known, and hand back something Cufet understands.
+        //
+        // Reading through a void address is void, not a crash.
+        Define echoed as (the text at held) but void is "(nothing)".
+        State "C kept a copy of: {echoed}.".
+        State "It is the same text Cufet started with: {echoed is the phrase}.".
+        // An address prints as `<address>`, never as its value — two runs get different pointers,
+        // so a printed one could never be compared between them.
+        State held.
+
+        // ── An axiom is a value ──────────────────────────────────────────────
+        //
+        // An axiom that says what it gives back can be passed around unrun and run wherever it
+        // lands. The type is written the way its declaration reads, with `given (…)` saying what
+        // running it takes — the same spelling a function type uses.
+        //
+        // The foreign text is still fixed where it was written. Nothing is assembled from strings
+        // and nothing can be injected; what moves is the axiom itself.
+        Define c-language number length-of, given (the text subject), as [(int)strlen(the subject)].
+        Define c-language number first-code, given (the text subject), as [(int)(the subject)[0]].
+
+        Define the measures as a series of c-language number axiom given (the text)
+            with (length-of, first-code).
+
+        State "Two axioms, chosen by the loop rather than by the text:".
+        For each measure in the measures, repeat:
+            State "  C answers {cast measure on ("abc")}.".
+        Done.
+
+        // Which one runs is decided at run time, so a function can take an axiom the way it takes
+        // anything else. There is no `cast length-of` anywhere in this body — it runs whatever it
+        // was handed.
+        Bind number to twice-over, given (the c-language number axiom given (the text) job,
+                                          the text subject):
+            Return (cast job on (subject)) * 2.
+        Done.
+
+        State "Twice the length of \"abc\" is {cast twice-over on (length-of, "abc")}.".
+    Done.
+Done.
