@@ -54,6 +54,16 @@ These are **not** reserved in the sense of being forbidden; they are consumed by
 the parser before it looks for the next meaningful token. You will never see them
 as identifiers, but that is fine — they read as natural articles.
 
+⚠⚠ **One place where `a`/`an` and `the` are NOT interchangeable: after `is`.**
+`x is a <type>` and `x is not a <type>` are TYPE TESTS, and only `a`/`an` introduce
+one. `x is the phrase` is an ordinary COMPARISON against the value named `phrase`,
+because a name may be written with its article — which is the house style.
+
+★ This is the only spelling where the article carries meaning rather than being
+skipped, and it earned a warning the hard way: `the` used to introduce a type test
+too, so `x is the phrase` asked *"is x of type phrase?"* and answered false for
+every value of every type, with `x is not the phrase` answering true.
+
 | Word | Token |
 |---|---|
 | `a` | Article |

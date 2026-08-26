@@ -481,6 +481,36 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **`x is the <name>` silently answered false, for every value of every type.** `a`, `an` and
+  `the` all lex as one article token, and the `is` parse treated any of them as the start of
+  `is a <type>` — so `the phrase` was read as a TYPE annotation and the comparison became "is this
+  value of type `phrase`?". `x is not the <name>` was the same arm, always true.
+
+  ```
+  Define the phrase as "hello".
+  Define plain as "hello".
+  If plain is the phrase, …        ← was false, now true
+  ```
+
+  ⚠ It hit **idiomatic** code hardest, which is why it lasted: the style is to lead a name with
+  `The`, so `the phrase` is the natural way to write it and `x is the phrase` the natural way to
+  compare against it. And the negative form is invisible whenever the values genuinely differ, so a
+  guard written that way let everything through while looking correct. Both backends were
+  identically wrong — the front end is shared — so no oracle test could see it.
+
+  ★ Only `a`/`an` introduce a type test now, which is the form GRAMMAR always documented. Nothing
+  in the examples, tests or docs used `is the <type>`.
+
+- **A `Bind` inside a pull block inside a rabbit did not compile**, and said so with a message that
+  was untrue: *"'doubled' is declared further down this block"* about a function declared four
+  lines above the call. Interpreted, it ran.
+
+  ★ The fault was the walk, not the ordering. Binds in a pull body are hoisted to free functions,
+  and the pull emitter skips them because of that — but the collector doing the hoisting matched
+  `PullStatement` and recursed only into its body, so a pull nested inside a rabbit was never
+  reached and its Binds were emitted nowhere. Discovery now uses the reflection walk, which
+  descends through every construct. Either nesting alone always worked, which is what hid it.
+
 - **`State` on a function or an axiom refused to compile while the interpreter printed it.** The
   statement carried a per-type switch of its own that duplicated `WriteCall` arm for arm, and it
   had drifted twice already — addresses and unions were each patched back into agreement after the
