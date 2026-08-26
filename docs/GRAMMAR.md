@@ -1850,13 +1850,32 @@ Define c-language axiom get-pid as [getpid()].        ← says nothing about the
 Define c-language get-pid as [getpid()].
 ```
 
-⚠ **An axiom that says nothing about its result may be WRITTEN but not RUN.** Cufet cannot read a C
+⚠ **An axiom that says what it gives back is an EXPRESSION you run.** Cufet cannot read a C
 listing, and an `int` might be a number, a fact or a handle — so whoever wrote the source says
-which, once. Leaving it off stays legal because an axiom passed around unrun is a later slice.
+which, once.
 
-**An axiom runs when it is RETURNED or CAST.** Its NAME is still not a value: an axiom cannot be
-printed, stored, or passed, and reaching for one outside a run is refused when the program is
-checked.
+★★ **An axiom that says NOTHING about its result is SOURCE, and cannot be run.** It is pasted once,
+above every wrapper, so anything it declares is in scope for the axioms that come after it:
+
+```
+Pull a book on the c-language.
+    Define c-language helpers as [static int twice(int x) { return x * 2; }].
+    Define c-language number four as [twice(2)].
+    State cast four.
+Done.
+```
+
+That is how two axioms SHARE a helper. A helper declared inside one axiom belongs to that axiom
+alone, and the alternative — splicing one axiom into another — was declined: it merges their
+parameter namespaces and makes the article substitution a regex over someone else's text. A
+preamble has neither problem, because it takes no parameters and substitutes nothing.
+
+⚠ **A resultless axiom therefore takes no parameters.** A parameter's value comes from a call, and
+nothing calls a preamble.
+
+⚠ **Nothing in it is guarded or checked.** A wrapper's guards ask what the spliced EXPRESSION
+produces; a declaration produces nothing. What is written reaches the C compiler verbatim, and a
+mistake in it is reported as the author's C — which it is.
 
 ### ★ An axiom's parameters, and splicing by the article
 

@@ -10,6 +10,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **An axiom that says nothing about its result is now SOURCE** — pasted once, above every wrapper,
+  so what it declares is in scope for the axioms that follow:
+
+  ```
+  Pull a book on the c-language.
+      Define c-language helpers as [static int twice(int x) { return x * 2; }].
+      Define c-language number four as [twice(2)].
+      State cast four.                    ← 4
+  Done.
+  ```
+
+  ★ That form was always legal to write and had no meaning — the docs said it "may be written but
+  not run" and left it there. ⚠ It was worse than inert: the resultless axiom was dropped while an
+  axiom CALLING what it declared was emitted anyway, so the program checked clean and produced C
+  naming an undefined function, reported against the author's own C for a helper they had written
+  down. Both backends, and only when gcc ran.
+
+  ★ This is also how two axioms share a helper. One declared inside an axiom belongs to that axiom
+  alone; joining axioms together to share one stays refused, because it would merge their parameter
+  lists and leave the article substitution rewriting someone else's text.
+
+  ⚠ A resultless axiom takes no parameters — a parameter's value comes from a call, and nothing
+  calls this. That was refused too, for the same reason: it spliced a parameter name into a
+  file-scope declaration, which checked clean and would not build.
+
 - **An axiom is a value: it can be passed around unrun and run wherever it lands.** A parameter, an
   object field, a series element — and which axiom runs is decided at run time:
 

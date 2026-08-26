@@ -247,8 +247,33 @@ Pull a book on the c-language.
 Done.
 ```
 
-An axiom that says nothing about its result may be written but not run. A call composes anywhere
-an ordinary call does.
+A call composes anywhere an ordinary call does.
+
+#### An axiom that says nothing is source
+
+**Saying what an axiom gives back is what makes it something to RUN.** An axiom that says nothing
+is **source**: it is pasted once, above everything else foreign in the program, and what it declares
+is in scope for every axiom after it.
+
+```
+Pull a book on the c-language.
+    Define c-language helpers as [static int twice(int x) { return x * 2; }].
+    Define c-language number four as [twice(2)].
+    State cast four.
+Done.
+```
+```
+4
+```
+
+That is how two axioms share a helper. One declared *inside* an axiom belongs to that axiom alone,
+so without this each would carry its own copy — and joining axioms together to share one is
+deliberately not offered, because it would merge their parameter lists and leave the article
+substitution rewriting someone else's text.
+
+⚠ A resultless axiom **takes no parameters** — a parameter's value comes from a call, and nothing
+calls this. And nothing in it is checked: a wrapper's guards ask what an expression produces, and a
+declaration produces nothing, so what you write reaches the C compiler exactly as written.
 
 #### An axiom is a value
 
