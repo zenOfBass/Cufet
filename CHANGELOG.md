@@ -516,6 +516,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   refused with its own sentence now — refused, not skipped, because with the name genuinely in
   scope this is the only check that stops the program.
 
+- **Redefining a type is allowed, the last one wins, and the linter says so.** It was already the
+  behaviour; what was broken is that the *superseded* definition's body was still checked, against
+  the **winner's** shape:
+
+  ```
+  Define object point with (the number x):
+      Bind number to shown: Return one's x. Done.     ← "'point' has no field named 'x'"
+  Done.
+
+  Define object point with (the number y): … Done.
+  ```
+
+  Correct code, blamed on line 2 for a definition further down the file — and dead code at that,
+  since nothing dispatches to it and its methods are never emitted. A superseded definition is not
+  checked at all now.
+
+  ★ Allowed rather than refused, because the language had already made this call once: a nested
+  bare `it` shadows the outer one, and the linter's answer is *"that is well defined — the
+  innermost wins — but a reader has to track which is which."* Same shape, same answer. The new
+  rule names both lines and points at the superseded definition, which is the one to remove.
+
 - **A type can be declared anywhere, including inside a function.** `Define object` in a function
   body, a loop, an `If` arm or a `Try` block is registered like any other type declaration:
 

@@ -56,8 +56,13 @@ whole program even when written inside a function, a loop, an `If` arm or a rabb
 type declared in one is usable after it.
 
 **A VALUE binding does not.** `Define x as 5.` is local to its block, and a `Bind` nested inside a
-function is a closure rather than a free function. The two rules are what make
-`Define object` in a function body sensible and `Define x as 5.` in one still private.
+function is a closure rather than a free function. The two rules are what make `Define object` in a
+function body sensible and `Define x as 5.` in one still private.
+
+★ **A type may be declared more than once, and the last declaration wins** — the same rule
+shadowing follows everywhere else. An earlier definition is dead: nothing dispatches to it, its
+methods are never emitted, and its body is not checked. ⚠ The linter reports it, because a reader
+cannot see it from the earlier definition alone.
 
 ### Noise (consumed silently wherever articles appear)
 
