@@ -654,6 +654,11 @@ public sealed partial class TypeChecker
     /// <summary>Filled-in functions already built, keyed by their filled-in name (`unique of text`).</summary>
     private readonly Dictionary<string, BindStatement> _instantiatedFunctions = new(StringComparer.Ordinal);
 
+    // Which call filled each generic, so a refusal in the filled body can be reported where the
+    // fix goes. Carried into the child checker, which is the one that actually checks the body.
+    private Dictionary<string, (int Line, int Column, string Name, string Filling)>
+        _instantiationOrigin = new(StringComparer.Ordinal);
+
     /// <summary>The same object type with a different method list — ObjectType is immutable.</summary>
     private static ObjectType WithMethods(
         ObjectType ot, IReadOnlyList<(string MethodName, FunctionType Signature)> methods) =>
@@ -935,7 +940,13 @@ public sealed partial class TypeChecker
             spliced.AddRange(_instantiatedFunctions.Values);
             spliced.AddRange(WithFilledMethods(
                 WithoutTemplates(program.Statements, _genericFunctions.Keys.ToHashSet(StringComparer.Ordinal))));
-            return new TypeChecker { _instantiationDepth = _instantiationDepth + 1 }
+            return new TypeChecker
+                   {
+                       _instantiationDepth = _instantiationDepth + 1,
+                       // ⚠ Without this the child reports a filled body's refusal at the body's own
+                       // line, having never seen the call that filled it.
+                       _instantiationOrigin = _instantiationOrigin,
+                   }
                 .Check(new Program(spliced));
         }
 
@@ -1407,7 +1418,7 @@ public sealed partial class TypeChecker
     // validated against them.
     private void Pass1Hoist(Program program)
     {
-        foreach (var stmt in FlattenHoistable(program.Statements))
+        foreach (var stmt in AstSearch.EveryStatement(program.Statements))
         {
             if (stmt is not InterfaceDefinition ifd) continue;
             _interfaceDefs[ifd.Name] = ifd;
@@ -1418,7 +1429,7 @@ public sealed partial class TypeChecker
         var untoMethodsByType  = new Dictionary<string, List<BindStatement>>();
         var untoGettersByType  = new Dictionary<string, List<GetterDeclaration>>();
         var untoSettersByType  = new Dictionary<string, List<SetterDeclaration>>();
-        foreach (var stmt in FlattenHoistable(program.Statements))
+        foreach (var stmt in AstSearch.EveryStatement(program.Statements))
         {
             // ★ `unto` may not target a bundled book. The book's Cufet layer is an ordinary
             // registered object, so without this an `unto collections` method would splice a
@@ -1458,7 +1469,7 @@ public sealed partial class TypeChecker
             }
         }
 
-        foreach (var stmt in FlattenHoistable(program.Statements))
+        foreach (var stmt in AstSearch.EveryStatement(program.Statements))
         {
             if (stmt is not ObjectDefinition od) continue;
 
@@ -1549,7 +1560,7 @@ public sealed partial class TypeChecker
         // a method taking a type defined further down the file reads as a blank — and under the
         // twice rule a method with two such parameters would quietly turn generic instead of
         // erroring, which is precisely what that rule exists to prevent.
-        foreach (var stmt in FlattenHoistable(program.Statements))
+        foreach (var stmt in AstSearch.EveryStatement(program.Statements))
         {
             if (stmt is not ObjectDefinition od || od.TypeParameters is { Count: > 0 }) continue;
             if (!_objectDefs.TryGetValue(od.Name, out var ot)) continue;
@@ -1641,7 +1652,7 @@ public sealed partial class TypeChecker
         // register them on ObjectType.Constructors, and fix up their scope entries so the return type
         // is the canonical ObjectType instance (not the shell produced by the parser).
         var ctorsByType = new Dictionary<string, List<BindStatement>>();
-        foreach (var stmt in FlattenHoistable(program.Statements))
+        foreach (var stmt in AstSearch.EveryStatement(program.Statements))
         {
             if (stmt is not BindStatement bind || bind.ConstructsTypeName == null) continue;
             if (!ctorsByType.TryGetValue(bind.ConstructsTypeName, out var cList))
@@ -1688,7 +1699,7 @@ public sealed partial class TypeChecker
         // Gather destructors ('Bind unmaking a <type> to <name>'), validate, register on ObjectType.Unmaker.
         // Exactly one destructor per type; a second 'unmaking a <type>' is a declaration-time error.
         var unmakeByType = new Dictionary<string, UnmakerDeclaration>();
-        foreach (var stmt in FlattenHoistable(program.Statements))
+        foreach (var stmt in AstSearch.EveryStatement(program.Statements))
         {
             if (stmt is not UnmakerDeclaration ud) continue;
             if (unmakeByType.ContainsKey(ud.UnmakesTypeName))

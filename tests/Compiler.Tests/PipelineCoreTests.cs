@@ -282,4 +282,77 @@ public class PipelineCoreTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+    // -- A type declaration is program-scope wherever it is written ------------
+
+    [Fact]
+    public void AnObjectDefinedInsideAFunction_Works()
+    {
+        // !! The declaration was silently IGNORED and the use failed four lines later with
+        // "'square' is not a defined object type -- define the object type first", telling the
+        // writer to declare what they had just declared.
+        //
+        // ** The cause was a hand-written walk. Three copies of it existed -- checker, interpreter,
+        // compiler -- each entering PullStatement and PullRabbitStatement and nothing else. The
+        // compiler had already been converted to the reflection walk; the other two had not, so a
+        // type declared in a FUNCTION body was registered by neither.
+        const string src = """
+            Bind number to make-and-measure, given (the number side):
+                Define object square with (the number edge):
+                    Bind number to area:
+                        Return one's edge * one's edge.
+                    Done.
+                Done.
+
+                Define the shape as a new square { the edge side }.
+                Return cast area on (the shape).
+            Done.
+
+            State cast make-and-measure on (5).
+            """;
+        Assert.Equal("25", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void AnObjectDefinedInsideALoop_Works()
+    {
+        // * Not a function-shaped fix. The walk reaches every construct, so a loop body, an If arm
+        // and a Try block all register a type the same way -- which is what "program-scope wherever
+        // it is written" has to mean to be a rule rather than a list.
+        const string src = """
+            For each n in the range 1 to 1, repeat:
+                Define object tally with (the number total):
+                    Bind number to doubled:
+                        Return one's total * 2.
+                    Done.
+                Done.
+            Done.
+
+            Define the count as a new tally { the total 21 }.
+            State cast doubled on (the count).
+            """;
+        Assert.Equal("42", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void ABindInsideAFunction_IsStillAClosure()
+    {
+        // !! The line that must NOT move. A VALUE binding is not program-scope: hoisting a nested
+        // Bind would turn a closure into a free function, so those sites keep the narrow walk. This
+        // is the counter-test for the change above -- widening everything would have passed the two
+        // tests before it and broken this.
+        const string src = """
+            Bind number to outer, given (the number factor):
+                Bind number to inner, given (the number x):
+                    Return x * factor.
+                Done.
+                Return cast inner on (10).
+            Done.
+
+            State cast outer on (4).
+            """;
+        Assert.Equal("40", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

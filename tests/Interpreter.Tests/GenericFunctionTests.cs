@@ -196,4 +196,70 @@ public class GenericFunctionTests
             State the number of (cast make-map on (3)).
             """).Message);
     }
+    // -- A filled body's refusal is reported where the FILLING happened ---------
+
+    [Fact]
+    public void AFilledGenericThatRefuses_ReportsAtTheCall()
+    {
+        // !! The body is checked by a DIFFERENT TypeChecker, on a spliced program, and that checker
+        // has never heard of the call that filled it -- so the error landed on the body's own line.
+        // Line 3 below is not wrong; it is only wrong for what line 10 passed in, and telling the
+        // writer to fix line 3 would break the filling that works.
+        //
+        // * The rule this restores is the one the module-needs check states for itself: "reported
+        // at the pull rather than at the call: the caller wrote this line, and the missing name
+        // belongs in it."
+        var e = Refused("""
+            Bind element to doubled-first, given (the series of element items):
+                Define the head as the first of items.
+                Return the head * 2.
+            Done.
+
+            Define nums as a series of number with (1, 2, 3).
+            State cast doubled-first on (nums).
+
+            Define words as a series of text with ("a", "b").
+            State cast doubled-first on (words).
+            """);
+
+        // The POSITION is the call, not the body.
+        Assert.Equal(10, e.Line);
+        Assert.Contains("'doubled-first' does not work when it fills 'element' with text", e.Message);
+    }
+
+    [Fact]
+    public void AFilledGenericThatRefuses_StillSaysWhy()
+    {
+        // ! The re-anchoring must not swallow the reason. "This doesn't work" with no account of
+        // WHAT the body objected to would trade one useless message for another.
+        var e = Refused("""
+            Bind element to doubled-first, given (the series of element items):
+                Define the head as the first of items.
+                Return the head * 2.
+            Done.
+
+            Define words as a series of text with ("a", "b").
+            State cast doubled-first on (words).
+            """);
+
+        // ⚠ The first two alone pass with the fix REVERTED — the un-reframed message contains both.
+        // Measured by sabotage. The third is what makes this test discriminate: the reason has to
+        // appear UNDER the re-framing, not instead of it.
+        Assert.Contains("arithmetic requires numbers on both sides", e.Message);
+        Assert.Contains("line 3", e.Message);
+        Assert.Contains("Its body is what refuses them:", e.Message);
+    }
+
+    [Fact]
+    public void AFillingThatWorks_IsUnaffected()
+    {
+        Assert.Equal("2", Run("""
+            Bind element to doubled-first, given (the series of element items):
+                Define the head as the first of items.
+                Return the head * 2.
+            Done.
+
+            State cast doubled-first on (a series of number with (1, 2, 3)).
+            """));
+    }
 }

@@ -211,6 +211,39 @@ public sealed partial class TypeChecker
 
     private void CheckBind(BindStatement bind)
     {
+        // ★ A FILLED generic body: anything it refuses is refused because of the call that filled
+        // it, so the error is re-anchored there. The body's own explanation is kept verbatim — it
+        // is the reason, and dropping it would leave "this doesn't work" with no account of why.
+        if (_instantiationOrigin.TryGetValue(bind.Name, out var origin))
+        {
+            try { CheckBindBody(bind); }
+            catch (TypeException inner) { throw FilledBodyRefused(origin, inner); }
+            return;
+        }
+        CheckBindBody(bind);
+    }
+
+    /// <summary>The error a call gets when the body it filled will not check.</summary>
+    /// <remarks>
+    /// ⚠ The POSITION becomes the call site, because that is where the fix goes — the same rule
+    /// the module-needs check states for itself: "reported at the pull rather than at the call: the
+    /// caller wrote this line, and the missing name belongs in it." A generic's body is written once
+    /// and is right for every filling but this one.
+    /// </remarks>
+    private static TypeException FilledBodyRefused(
+        (int Line, int Column, string Name, string Filling) origin, TypeException inner)
+    {
+        var indented = string.Join("\n",
+            inner.Message.Split('\n').Select(l => l.Length == 0 ? l : "  " + l));
+        return new TypeException(
+            $"That doesn't work: '{origin.Name}' does not work when it fills {origin.Filling}.\n"
+          + $"Here on line {origin.Line}, you're trying to call '{origin.Name}' with those types.\n\n"
+          + $"Its body is what refuses them:\n\n{indented}",
+            origin.Line, origin.Column);
+    }
+
+    private void CheckBindBody(BindStatement bind)
+    {
         var saved     = SaveScopes();
         bool isNested = _inFunction; // true when we're already inside a function (closure case)
         if (isNested)
@@ -734,6 +767,13 @@ public sealed partial class TypeChecker
 
         string filled = name + string.Concat(blankNames.Select(b => " of " + FormatType(found[b])));
         if (_instantiatedFunctions.ContainsKey(filled) || Scope.ContainsKey(filled)) return filled;
+
+        // ★★ Where this filling came FROM. The body is checked by a different TypeChecker, on a
+        // spliced program, and that checker has never heard of this call — so an error in the body
+        // was reported at the body's own line, which is correct for the checker and useless for the
+        // writer. Line 3 of a generic is not wrong; it is only wrong for what line 10 passed in.
+        _instantiationOrigin[filled] = (line, column, name,
+            string.Join(", ", blankNames.Select(b => $"'{b}' with {FormatType(found[b])}")));
 
         var concrete = GenericInstantiation.FillFunction(template, filled, found);
         _instantiatedFunctions[filled] = concrete;

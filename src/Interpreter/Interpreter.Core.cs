@@ -493,21 +493,21 @@ public sealed partial class Interpreter
     private void ExecuteCore(Program program)
     {
         // Hoist object definitions (before functions, so method bodies can reference them).
-        foreach (var stmt in FlattenHoistable(program.Statements))
+        foreach (var stmt in AstSearch.EveryStatement(program.Statements))
         {
             if (stmt is ObjectDefinition od)
                 _objectDefs[od.Name] = od;
         }
 
         // Hoist destructor declarations.
-        foreach (var stmt in FlattenHoistable(program.Statements))
+        foreach (var stmt in AstSearch.EveryStatement(program.Statements))
         {
             if (stmt is UnmakerDeclaration ud)
                 _unmakeDefs[ud.UnmakesTypeName] = ud;
         }
 
         // Hoist operator overload declarations.
-        foreach (var stmt in FlattenHoistable(program.Statements))
+        foreach (var stmt in AstSearch.EveryStatement(program.Statements))
         {
             if (stmt is OperatorOverloadDeclaration oad)
                 _overloadDefs[(oad.OperandTypeName, oad.Operator)] = oad;
@@ -515,7 +515,7 @@ public sealed partial class Interpreter
 
         // Merge 'unto' methods/getters/setters (declared outside the object body) into their
         // target type's member lists. TypeChecker already validated every target exists.
-        foreach (var stmt in FlattenHoistable(program.Statements))
+        foreach (var stmt in AstSearch.EveryStatement(program.Statements))
         {
             if (stmt is BindStatement { UntoType: { } untoType } bind)
             {

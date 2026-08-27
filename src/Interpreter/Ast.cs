@@ -955,6 +955,33 @@ public static class AstSearch
     public static void Visit(object? node, Action<object> action) =>
         Contains(node, n => { action(n); return false; });
 
+    /// <summary>Every statement anywhere in the tree, for declarations that belong to the PROGRAM.</summary>
+    /// <remarks>
+    /// ★★ A TYPE declaration is program-scope wherever it is written — measured: an object defined
+    /// inside a rabbit block is usable after that block closes. A VALUE binding is not, so this is
+    /// for the first kind only. Hoisting a nested `Bind` would turn a closure into a free function,
+    /// and hoisting a `permanently` local would make it a program-level constant; those sites keep
+    /// their narrow walks on purpose.
+    ///
+    /// ⚠⚠ It lives HERE because the same walk was written by hand THREE times — once in the
+    /// checker, once in the interpreter, once in the compiler — and they drifted. Each entered
+    /// `PullStatement` and `PullRabbitStatement` and nothing else, so `Define object` inside a
+    /// FUNCTION body was registered by none of them: the definition was silently ignored and the
+    /// USE failed later with "'square' is not a defined object type — define the object type
+    /// first", telling the writer to declare what they had just declared.
+    ///
+    /// ★ The compiler had already been fixed, and its note says why: its two collectors "were
+    /// near-identical hand-written switches that had DRIFTED — this one grew a PullStatement arm
+    /// and the other never did". Two more copies of that switch existed; this is the one that
+    /// replaces them.
+    /// </remarks>
+    public static IEnumerable<IStatement> EveryStatement(IEnumerable<IStatement> stmts)
+    {
+        var found = new List<IStatement>();
+        Visit(stmts, node => { if (node is IStatement statement) found.Add(statement); });
+        return found;
+    }
+
     public static bool Contains(object? node, Func<object, bool> predicate)
     {
         switch (node)
