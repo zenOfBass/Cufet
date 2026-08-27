@@ -394,4 +394,130 @@ public class PipelineTopLevelDataTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("3", Interpret(src));
     }
+    // -- A shared constant declared inside a block ----------------------------
+    //
+    // !! `permanently` is what the refusal above TELLS a reader to reach for — "Declare it
+    // `Define x as <value> permanently.` if it never changes" — and inside a block the advice did
+    // not work. Three components had three answers, and every one of them was reachable:
+    //
+    //   1. The block's own declaration refused ITSELF. The checker registers a shared constant
+    //      globally before any body is checked, and the `Define` then met that entry, one scope
+    //      deeper, as an outer binding: "'limit' already exists in an enclosing scope. It was
+    //      defined on line 2" — naming its own line. It hid at the top level, where the same-scope
+    //      guard happens to cover the outer check too.
+    //   2. Reading one from a function DIVERGED. Compiled inside a rabbit it printed an answer;
+    //      interpreted it died at run time saying the name was never defined.
+    //   3. Inside a book pull the compiler refused it outright as a closure capture.
+    //
+    // ★ A rabbit block is where most programs put their constants, so none of this was exotic.
+
+    [Fact]
+    public void AConstantInARabbitBlock_IsUsableInThatBlock()
+    {
+        // !! The headline: this refused itself, so `permanently` was unusable inside any block.
+        const string src = """
+            Pull a rabbit.
+                Define the limit as 10 permanently.
+                State the limit.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("10", Interpret(src));
+    }
+
+    [Fact]
+    public void AConstantInABookPull_IsUsableInThatBlock()
+    {
+        const string src = """
+            Pull a book on the c-language.
+                Define the limit as 10 permanently.
+                State the limit.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("10", Interpret(src));
+    }
+
+    [Fact]
+    public void AConstantInARabbitBlock_IsReadableByAFunction()
+    {
+        // !! The divergence. Compiled: 11. Interpreted: "'limit' isn't defined on line 4".
+        // The interpreter decided what was shared from the SCOPE-STACK DEPTH at the moment the
+        // `Define` ran, which excluded a rabbit block along with the function locals it meant to
+        // exclude. It now reads the answer off the program, from the same walk the checker uses.
+        const string src = """
+            Pull a rabbit.
+                Define the limit as 10 permanently.
+                Bind number to bumped:
+                    Return the limit + 1.
+                Done.
+                State cast bumped on ().
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("11", Interpret(src));
+    }
+
+    [Fact]
+    public void AConstantInABookPull_IsReadableByAFunction()
+    {
+        // !! The compiler's half. A hoisted function reading the block's constant was reported as
+        // "captures 'limit' from the pull scope" — but a shared constant lives at C file scope, so
+        // reading one closes over nothing. It needed both halves: the constant had to GET file
+        // scope, and the capture check had to know it was there.
+        const string src = """
+            Pull a book on the c-language.
+                Define the limit as 10 permanently.
+                Bind number to bumped:
+                    Return the limit + 1.
+                Done.
+                State cast bumped on ().
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("11", Interpret(src));
+    }
+
+    [Fact]
+    public void ABlockValueThatIsNotPermanent_IsStillRefused()
+    {
+        // ! The premise of the advice, and it has to keep holding: without `permanently` the same
+        // program is refused, by the checker, before either backend runs. If this stopped being
+        // true the fix above would have widened the rule instead of repairing it.
+        const string src = """
+            Pull a rabbit.
+                Define the limit as 10.
+                Bind number to bumped:
+                    Return the limit + 1.
+                Done.
+                State cast bumped on ().
+            Done.
+            """;
+        var error = Assert.Throws<TypeException>(() => InterpretRaw(src));
+        Assert.Contains("can't see top-level data", error.Message);
+        Assert.Equal(error.Message, Assert.Throws<TypeException>(() => CompileRaw(src)).Message);
+    }
+
+    [Fact]
+    public void AConstantInsideAFunctionBody_IsSharedWithNothing()
+    {
+        // ! The other counter-test, and the one the narrow rule was actually written for. A
+        // `permanently` local to a FUNCTION is not a shared constant — the walk does not enter a
+        // function body, which is the same reason the function hoist does not.
+        const string src = """
+            Bind number to outer:
+                Define the secret as 5 permanently.
+                Return the secret.
+            Done.
+
+            Bind number to other:
+                Return the secret + 1.
+            Done.
+
+            State cast other on ().
+            """;
+        var error = Assert.Throws<TypeException>(() => InterpretRaw(src));
+        Assert.Contains("'secret' isn't defined", error.Message);
+        Assert.Equal(error.Message, Assert.Throws<TypeException>(() => CompileRaw(src)).Message);
+    }
 }

@@ -450,17 +450,13 @@ public sealed partial class Interpreter
 
     // Flattens statements through Pull...Done scope bodies so that hoisting passes see
     // Bind/Object/etc. declarations inside Pull scopes (hoisting is transparent to Pull scopes).
-    private static IEnumerable<IStatement> FlattenHoistable(IEnumerable<IStatement> stmts)
-    {
-        foreach (var s in stmts)
-        {
-            yield return s;
-            if (s is PullStatement ps)
-                foreach (var inner in FlattenHoistable(ps.Body)) yield return inner;
-            if (s is PullRabbitStatement prs)
-                foreach (var inner in FlattenHoistable(prs.Body)) yield return inner;
-        }
-    }
+    //
+    // ⭐ The CHECKER's copy, not a second one of our own. This file had a byte-identical twin, and
+    // the two halves of the rule it states — which declarations hoist, and out of which scopes —
+    // are exactly what drifted apart for `permanently`: the checker treated a rabbit-block constant
+    // as shared and this file did not. One answer, asked in one place.
+    private static IEnumerable<IStatement> FlattenHoistable(IEnumerable<IStatement> stmts) =>
+        TypeChecker.FlattenHoistable(stmts);
 
     // True when the program stopped because of a Ctrl-C rather than by reaching its end. The CLI
     // turns this into exit code 130 (128 + SIGINT), so a script wrapping cufet can tell an
@@ -534,6 +530,24 @@ public sealed partial class Interpreter
             }
         }
 
+        // ⭐⭐ Which names are SHARED CONSTANTS — read off the PROGRAM, not off how deep the scope
+        // stack happens to be when a `Define` runs. Hoisting is transparent to a pull scope (the
+        // function hoist just below walks the very same statements), so a `permanently` written
+        // inside one is a shared constant exactly as a `Bind` there is a free function.
+        //
+        // ⚠ The old test was `_scopes.Count == 1` at the moment the `Define` executed, and that is
+        // a rule wider than its reason: it was there to exclude a `permanently` LOCAL to a function
+        // or a loop, and it excluded a rabbit block along with them. So a constant declared in
+        // `Pull a rabbit.` — where most programs put theirs — was invisible to every function, while
+        // the checker and the compiler both said it was shared. The compiler ran such a program and
+        // printed an answer; this one died at run time saying the name was never defined.
+        //
+        // ⚠ A `permanently` inside a FUNCTION body is still shared with nothing: this walk does
+        // not enter one, which is the same reason the function hoist does not.
+        foreach (var stmt in FlattenHoistable(program.Statements))
+            if (stmt is DefineStatement { Permanent: true } constant)
+                _permanentTopLevel.Add(constant.Name);
+
         // Hoist top-level function definitions.
         foreach (var stmt in FlattenHoistable(program.Statements))
         {
@@ -596,13 +610,6 @@ public sealed partial class Interpreter
                 Scope[d.Name] = BindCopy(Evaluate(d.Value));
                 _scopeDefOrder[^1].Add(d.Name);
 
-                // A top-level `permanently` binding is a shared constant: top-level functions may
-                // read it. Recorded by NAME because the isolation in ExecuteCall filters by value
-                // and a constant is indistinguishable from any other datum once evaluated.
-                // Only at the outermost scope — a `permanently` local inside a rabbit or a
-                // function is not shared with anything.
-                if (_callDepth == 0 && _scopes.Count == 1 && d.Permanent)
-                    _permanentTopLevel.Add(d.Name);
                 break;
             }
 

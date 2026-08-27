@@ -1134,6 +1134,11 @@ public sealed partial class TypeChecker
     /// </remarks>
     private void Pass2HoistSharedConstants(Program program)
     {
+        // ★★ Flattened through `Pull` scopes, so a constant written inside one is a shared constant
+        // like any other. That is not an accident of reuse — it is what the refusal a reader gets
+        // for the non-constant case tells them to do: "Declare it `Define x as <value>
+        // permanently.` if it never changes". A rabbit block is where most programs put their
+        // constants, and the advice has to work there or it is not advice.
         foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is not DefineStatement { Permanent: true } constant) continue;
@@ -1423,7 +1428,12 @@ public sealed partial class TypeChecker
 
     // Flattens statements through Pull...Done scope bodies so that Bind/Object/etc. declarations
     // inside Pull scopes are visible to the hoisting passes (hoisting is transparent to Pull scopes).
-    private static IEnumerable<IStatement> FlattenHoistable(IEnumerable<IStatement> stmts)
+    // ⭐ public, not private: BOTH backends need the same answer to "which scopes is hoisting
+    // transparent to", and the interpreter's byte-identical twin of this method is exactly where
+    // the two halves of the rule drifted — the checker treated a rabbit-block `permanently` as a
+    // shared constant and the interpreter did not. One answer, asked in one place. (Public rather
+    // than internal because the compiler is its own assembly.)
+    public static IEnumerable<IStatement> FlattenHoistable(IEnumerable<IStatement> stmts)
     {
         foreach (var s in stmts)
         {
@@ -2293,23 +2303,41 @@ public sealed partial class TypeChecker
                 $"shadow '{define.Name}' inside a burying function",
                 "Give the inner one a different name.");
 
-        if (TryLookupOuter(define.Name, out var outer))
+        // ⭐⭐ The reclaiming guard covers the ENCLOSING-scope check too, and leaving it off this one
+        // made `permanently` unusable inside ANY block. Hoisting is transparent to a pull scope, so
+        // a constant written inside one is registered globally — and then its own declaration, now
+        // one scope deeper, met that global entry as an OUTER binding and was refused for shadowing
+        // itself:
+        //
+        //     Pull a rabbit.
+        //         Define the limit as 10 permanently.     ← "'limit' already exists in an
+        //     Done.                                          enclosing scope. It was defined
+        //                                                    on line 2" — its own line
+        //
+        // ⚠ It hid at the top level because there the two checks look at the SAME scope, so the
+        // first guard happened to cover both. Both backends refused it identically, so no
+        // divergence pointed at it either; the construct was simply unreachable, in the place most
+        // programs put their constants.
+        if (!reclaimingHoist)
         {
-            if (!define.Shadow)
+            if (TryLookupOuter(define.Name, out var outer))
+            {
+                if (!define.Shadow)
+                    throw TypeError(
+                        $"'{define.Name}' already exists in an enclosing scope",
+                        $"It was defined on line {outer.EstablishingLine}",
+                        define.Line, define.Column,
+                        $"declare '{define.Name}' in this block without shadowing the outer one",
+                        $"To deliberately shadow it, write 'Define a shadow {define.Name} as ...'.");
+            }
+            else if (define.Shadow)
+            {
                 throw TypeError(
-                    $"'{define.Name}' already exists in an enclosing scope",
-                    $"It was defined on line {outer.EstablishingLine}",
-                    define.Line, define.Column,
-                    $"declare '{define.Name}' in this block without shadowing the outer one",
-                    $"To deliberately shadow it, write 'Define a shadow {define.Name} as ...'.");
-        }
-        else if (define.Shadow)
-        {
-            throw TypeError(
-                $"'a shadow {define.Name}' — there's nothing named '{define.Name}' in an enclosing scope to shadow",
-                null, define.Line, define.Column,
-                $"shadow a name that doesn't exist in any enclosing scope",
-                $"Remove 'a shadow' if you're just defining a new variable, or check the spelling.");
+                    $"'a shadow {define.Name}' — there's nothing named '{define.Name}' in an enclosing scope to shadow",
+                    null, define.Line, define.Column,
+                    $"shadow a name that doesn't exist in any enclosing scope",
+                    $"Remove 'a shadow' if you're just defining a new variable, or check the spelling.");
+            }
         }
 
         // An explicit annotation is the binding's type; the value only has to fit into it. That is

@@ -2428,8 +2428,23 @@ static void* cufet_pipe_stage(void* argp) {
         // detached body imports anything FunctionType, because mutual recursion depends on that.
         // A name a method is allowed to call has to be a symbol a method can reach.
         // Source order, so `Define alias-of-doubler as doubler.` sees the binding it aliases.
-        foreach (var topLevelConst in program.Statements.OfType<DefineStatement>())
+        //
+        // ⭐⭐ Flattened through pull scopes for the `permanently` case, because that is where a
+        // shared constant most often is: `Pull a rabbit.` wraps most programs, and a constant
+        // declared inside one is a shared constant on both of the other two answers — the checker
+        // hoists it and the interpreter shares it. Left as a local of main it had no symbol a
+        // hoisted function could reach, so `cast bumped on ()` inside a book pull was refused as a
+        // closure capture while the interpreter ran it.
+        //
+        // ⚠ Only the PERMANENT ones are taken from a nested scope. A function-VALUED binding is
+        // hoisted for a different reason (the note above), and whether one inside a pull scope
+        // should follow is a question nothing has asked yet — so this changes nothing about it.
+        var topLevelStatements = program.Statements.ToHashSet();
+        foreach (var topLevelConst in TypeChecker.FlattenHoistable(program.Statements)
+                                                 .OfType<DefineStatement>())
         {
+            if (!topLevelConst.Permanent && !topLevelStatements.Contains(topLevelConst)) continue;
+
             // A `permanently` binding and a literal lambda MUST classify — they always could, and
             // swallowing a failure here would turn a loud error into a silently broken program.
             // Everything else is classified only to find function-VALUED bindings that are not
@@ -2500,8 +2515,14 @@ static void* cufet_pipe_stage(void* argp) {
                 // now missed, exactly as one sharing a free function's name already was. The trade
                 // was already made one line up; what changes here is that correct programs stop
                 // being refused.
+                // ⚠ SHARED CONSTANTS are known too. One lives at C file scope, so a hoisted
+                // function reading it is not closing over anything — it is reading a symbol that
+                // outlives every frame. Without this, a `permanently` declared in the same pull
+                // block was reported as a capture, which is the fix the checker's own advice for
+                // the non-constant case tells a reader to make.
                 var known = new HashSet<string>(bind.Parameters.Select(p => p.Name)
                     .Concat(defs).Concat(_funcReturnTypes.Keys).Concat(aliases.Select(a => a.Local))
+                    .Concat(_sharedConstTypes.Keys)
                     .Concat(_objectDefs.Values.SelectMany(def =>
                         def.Methods.Select(m => m.Name)
                            .Concat(def.Getters.Select(g => g.Name))
