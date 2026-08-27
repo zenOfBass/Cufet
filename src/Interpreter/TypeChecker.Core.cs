@@ -656,8 +656,16 @@ public sealed partial class TypeChecker
 
     // Which call filled each generic, so a refusal in the filled body can be reported where the
     // fix goes. Carried into the child checker, which is the one that actually checks the body.
-    private Dictionary<string, (int Line, int Column, string Name, string Filling)>
+    private Dictionary<string, (int Line, int Column, string Name, string Filling, string Verb)>
         _instantiationOrigin = new(StringComparer.Ordinal);
+
+    // Where a generic OBJECT is being filled, while it is being filled. An object's blanks are
+    // filled during type RESOLUTION, which has no call site to carry — so the one place that does
+    // know (the `a new holder of text { … }` literal) leaves it here for Instantiate to read.
+    //
+    // ⚠ Null is a real answer: a filling reached through a written type annotation or a parameter
+    // has no literal, and then nothing is re-anchored — which is what happened everywhere before.
+    private (int Line, int Column)? _fillingSite;
 
     /// <summary>The same object type with a different method list — ObjectType is immutable.</summary>
     private static ObjectType WithMethods(

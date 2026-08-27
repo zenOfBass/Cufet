@@ -142,4 +142,68 @@ public class GenericObjectTests
             State the number of b's items.
             """));
     }
+    // -- A filled body's refusal is reported where the FILLING happened ---------
+    //
+    // ** Three ways a blank gets filled, and all three used to report inside the template:
+    // a free function's call, a generic METHOD's call, and a generic OBJECT's literal. The first
+    // two carry a call site; the third does not, because an object's blanks are filled during type
+    // RESOLUTION -- so the literal leaves its position for the filler to read.
+
+    [Fact]
+    public void AFilledGenericMethod_ReportsAtTheCall()
+    {
+        var e = Assert.Throws<TypeException>(() => Run("""
+            Define object box with (the number tag):
+                Bind element to twice-of, given (the element value):
+                    Return value * 2.
+                Done.
+            Done.
+
+            Define the crate as a new box { the tag 1 }.
+            State cast the crate's twice-of on ("no").
+            """));
+
+        Assert.Equal(8, e.Line);
+        Assert.Contains("'twice-of' does not work when it fills 'element' with text", e.Message);
+        Assert.Contains("Its body is what refuses them:", e.Message);
+    }
+
+    [Fact]
+    public void AFilledGenericObject_ReportsAtTheLiteral()
+    {
+        // ! The one with no call site. Reported at the `a new holder of text` on line 8, not at the
+        // method body on line 4 -- which is correct for `holder of number` and always will be.
+        var e = Assert.Throws<TypeException>(() => Run("""
+            Define object holder of element with (the series of element items):
+                Bind element to doubled-first:
+                    Define the head as the first of one's items.
+                    Return the head * 2.
+                Done.
+            Done.
+
+            Define words as a new holder of text { the items a series of text with ("a") }.
+            State cast words's doubled-first.
+            """));
+
+        Assert.Equal(8, e.Line);
+        Assert.Contains("'holder' does not work when it fills 'element' with text", e.Message);
+        Assert.Contains("you're trying to create 'holder'", e.Message);
+        Assert.Contains("Its body is what refuses them:", e.Message);
+    }
+
+    [Fact]
+    public void AFilledGenericObjectThatWorks_IsUnaffected()
+    {
+        Assert.Equal("2", Run("""
+            Define object holder of element with (the series of element items):
+                Bind element to doubled-first:
+                    Define the head as the first of one's items.
+                    Return the head * 2.
+                Done.
+            Done.
+
+            Define nums as a new holder of number { the items a series of number with (1) }.
+            State cast nums's doubled-first.
+            """));
+    }
 }

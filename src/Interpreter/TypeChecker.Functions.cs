@@ -231,13 +231,13 @@ public sealed partial class TypeChecker
     /// and is right for every filling but this one.
     /// </remarks>
     private static TypeException FilledBodyRefused(
-        (int Line, int Column, string Name, string Filling) origin, TypeException inner)
+        (int Line, int Column, string Name, string Filling, string Verb) origin, TypeException inner)
     {
         var indented = string.Join("\n",
             inner.Message.Split('\n').Select(l => l.Length == 0 ? l : "  " + l));
         return new TypeException(
             $"That doesn't work: '{origin.Name}' does not work when it fills {origin.Filling}.\n"
-          + $"Here on line {origin.Line}, you're trying to call '{origin.Name}' with those types.\n\n"
+          + $"Here on line {origin.Line}, you're trying to {origin.Verb} '{origin.Name}' with those types.\n\n"
           + $"Its body is what refuses them:\n\n{indented}",
             origin.Line, origin.Column);
     }
@@ -773,7 +773,7 @@ public sealed partial class TypeChecker
         // was reported at the body's own line, which is correct for the checker and useless for the
         // writer. Line 3 of a generic is not wrong; it is only wrong for what line 10 passed in.
         _instantiationOrigin[filled] = (line, column, name,
-            string.Join(", ", blankNames.Select(b => $"'{b}' with {FormatType(found[b])}")));
+            string.Join(", ", blankNames.Select(b => $"'{b}' with {FormatType(found[b])}")), "call");
 
         var concrete = GenericInstantiation.FillFunction(template, filled, found);
         _instantiatedFunctions[filled] = concrete;
@@ -831,6 +831,12 @@ public sealed partial class TypeChecker
         string filled = member + string.Concat(blankNames.Select(b => " of " + FormatType(found[b])));
         if (owner.Methods.Any(m => m.MethodName == filled)) return filled;
 
+        // ★ Same as a free function's filling: the body is checked elsewhere, by a pass that has
+        // never seen this call, so the call travels with the filling. Keyed by OWNER as well as
+        // member, because two types may fill a member of the same name.
+        _instantiationOrigin[FilledMethodKey(owner.Name, filled)] = (line, column, member,
+            string.Join(", ", blankNames.Select(b => $"'{b}' with {FormatType(found[b])}")), "call");
+
         var concrete = GenericInstantiation.FillFunction(template, filled, found);
 
         if (!_instantiatedMethods.TryGetValue(owner.Name, out var built))
@@ -845,6 +851,10 @@ public sealed partial class TypeChecker
 
         return filled;
     }
+
+    /// <summary>How a filled METHOD is keyed in the origin table — owner and member together.</summary>
+    internal static string FilledMethodKey(string ownerName, string filledMember) =>
+        $"{ownerName}'s {filledMember}";
 
     /// <summary>Which blank in <paramref name="pattern"/> already has a value — for the message.</summary>
     private static string? Disagreeing(CufetType pattern, HashSet<string> blanks)
@@ -931,6 +941,18 @@ public sealed partial class TypeChecker
         var concrete = GenericInstantiation.Fill(
             template, name,
             blanks.Zip(arguments).ToDictionary(p => p.First, p => p.Second, StringComparer.Ordinal));
+
+        // ★★ Every method of a filled OBJECT is refused, if it is refused, because of the filling —
+        // its body is right for every other one. The literal that caused the filling left its
+        // position in _fillingSite, because an object's blanks are filled during type resolution
+        // and there is no call site to thread through it.
+        if (_fillingSite is { } site)
+            foreach (var filledMethod in concrete.Methods)
+                _instantiationOrigin[FilledMethodKey(name, filledMethod.Name)] =
+                    (site.Line, site.Column, filled.Name,
+                     string.Join(", ", blanks.Zip(arguments)
+                         .Select(pair => $"'{pair.First}' with {FormatType(pair.Second)}")),
+                     "create");
 
         // Registered BEFORE its own field types are resolved, so a template that mentions itself
         // (`the voidable stack of number next`) finds the entry instead of filling forever.

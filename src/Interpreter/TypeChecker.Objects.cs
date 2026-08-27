@@ -452,6 +452,20 @@ public sealed partial class TypeChecker
     // whether the method is nested in the object's definition or declared via 'unto'.
     private void CheckMethodBody(BindStatement method, ObjectType objType, int selfLine)
     {
+        // ★ A FILLED generic method refuses because of the call that filled it, not because its
+        // body is wrong — the body is right for every other filling. Re-anchored there, with the
+        // body's own explanation kept underneath. Same treatment CheckBind gives a free function.
+        if (_instantiationOrigin.TryGetValue(FilledMethodKey(objType.Name, method.Name), out var origin))
+        {
+            try { CheckMethodBodyCore(method, objType, selfLine); }
+            catch (TypeException inner) { throw FilledBodyRefused(origin, inner); }
+            return;
+        }
+        CheckMethodBodyCore(method, objType, selfLine);
+    }
+
+    private void CheckMethodBodyCore(BindStatement method, ObjectType objType, int selfLine)
+    {
         var saved = SaveScopes();
 
         // Method scope: functions and top-level constants visible, plus 'one' (self) + parameters.
@@ -686,8 +700,17 @@ public sealed partial class TypeChecker
         ObjectType objType;
         if (lit.TypeArguments is { Count: > 0 } filling)
         {
-            objType = (ObjectType)ResolveParamType(
-                new ObjectType(lit.TypeName, [], [], [], typeArguments: filling));
+            // ★ The one place that knows WHERE a filling was asked for. Instantiate runs under this
+            // call, several frames down inside type resolution, and reads it back — so an error in
+            // a filled method's body can be reported here instead of inside the template.
+            var previousSite = _fillingSite;
+            _fillingSite = (lit.Line, lit.Column);
+            try
+            {
+                objType = (ObjectType)ResolveParamType(
+                    new ObjectType(lit.TypeName, [], [], [], typeArguments: filling));
+            }
+            finally { _fillingSite = previousSite; }
             lit.ResolvedTypeName = objType.Name;
         }
         else if (!_objectDefs.TryGetValue(lit.TypeName, out objType!))
