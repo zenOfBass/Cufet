@@ -552,8 +552,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
   A filled body is checked by a separate pass over a spliced program, and that pass had never seen
   the call that caused it. The filling site now travels with the filling, and the body's own
-  explanation is kept underneath. ⚠ Generic **methods** still report at the body: an object filling
-  happens during type resolution, which has no call site to carry.
+  explanation is kept underneath.
+
+  ★ All three ways a blank gets filled are covered: a free function's call, a generic **method's**
+  call, and a generic **object's** literal. The third had no call site to carry — an object's blanks
+  are filled during type resolution — so the `a new holder of text { … }` that asked for the filling
+  leaves its position for the filler to read, and its methods report there.
 
 - **`x is the <name>` silently answered false, for every value of every type.** `a`, `an` and
   `the` all lex as one article token, and the `is` parse treated any of them as the start of
