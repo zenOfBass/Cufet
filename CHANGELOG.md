@@ -10,6 +10,47 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **A `cufet` block can hold VALUES, and that is where `Cite` earns its keep.** A type belongs to
+  the program wherever it is written, so citing a block of objects places nothing a plain
+  declaration would not have. A value lands at the site that cited it — so one block, cited twice,
+  makes two independent locals:
+
+  ```
+  Pull a book on cufet.
+      Define cufet counters as [
+          Define the tally as 0.
+      ].
+
+      Bind number to first:
+          Cite counters.
+          The tally becomes the tally + 5.
+          Return the tally.       ← 5
+      Done.
+
+      Bind number to second:
+          Cite counters.
+          Return the tally.       ← 0, its own
+      Done.
+  Done.
+  ```
+
+  ★★ Neither half is a rule this feature invents. Both fall out of what the language already says
+  about where a declaration belongs, which is why splicing the statements in at the cite site is the
+  entire mechanism.
+
+  ⚠ **A block may only reach for names that belong to the PROGRAM** — a function, a type, a
+  `permanently` constant, a pulled book — plus what it declares itself. Anything else is refused at
+  the block's own line. That is what makes capture impossible by construction: a name the block did
+  not declare would otherwise mean whatever the site that cited it happened to have, and one block
+  cited in two places would be two different programs. A lambda written inside a block is checked
+  the same way, with its own parameters added — a lambda captures by design, so it is exactly where
+  a capture would hide.
+
+  ⚠ **A block cannot hold a function yet**, and the refusal says why rather than claiming a `Bind`
+  is not a declaration. A body READS names, and what a body may read once it has been placed
+  somewhere else is the question above with no answer yet. An object's methods are unaffected — they
+  are checked in a scope of their own, which never contains a local of the cite site.
+
 - **A `cufet` axiom that says what it gives back is something you RUN** — the rule the
   `c-language` tag already follows, now the rule for both tags:
 

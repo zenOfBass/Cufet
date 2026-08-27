@@ -657,10 +657,15 @@ Done.
 The book is pulled like any other language book, and it is named `cufet` — no article, because
 `cufet` is a name where `the c-language` is a common noun.
 
-**What a block holds are declarations.** An object and an interface are what it may hold. Both
-belong to the program wherever they are written and both are checked in a scope of their own, so a
-cited declaration cannot see a local at the site that cited it. That is why nothing here has to
-explain what a free name inside a block means — there is no such name.
+**What a block holds are declarations** — an object, an interface, and a `Define`. The difference
+between them is the point of `Cite`: a type belongs to the program wherever it is written, so a
+cited object is program-scope; a value lands where you cited it. Cite one block in two places and
+you get two independent locals.
+
+A block may reach for what belongs to the program — a function, a type, a `permanently` constant, a
+pulled book — and for what it declares itself. Nothing else, so a block cannot quietly pick up a
+local from the place you happened to cite it. A block cannot hold a function yet, because what a
+function body may read once it has been placed elsewhere is that same question with no answer yet.
 
 **Declaring a block places nothing.** Cite it and its declarations are there; do not, and they are
 nowhere. The name holds source rather than a value, so it cannot be stated, passed or read.

@@ -220,6 +220,32 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     compiler becoming Cufet is what makes every last part of the language Cufet-written. The
     arc above deliberately did not borrow this promise; this item owns it.
 
+**And what the three of them unblock: compile-time macros — the `cufet` tag's expander.** Not a
+fourth program. It is here rather than in *Deferred* because its blocker is now a numbered item
+above, which is the one rule that section states about itself.
+
+Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and
+runtime. It is one tag of the BLOCKS type rather than a feature of its own: quoted Cufet and
+embedded foreign source live under one type name, and a macro is what consumes the `cufet` tag. See
+[DESIGN.md](DESIGN.md#foreign-interoperability) — including why hygiene and SQL injection turn out
+to be the same problem, which is what makes the unification real rather than cosmetic.
+
+★ **The type shipped in 0.17.0, and a deliberately small consumer with it.** `Cite` places what a
+block holds, and a block that says what it gives back is lowered to an ordinary function. What is
+NOT built is the expander this entry means: syntax parameters, and generating AST from them.
+
+⚠ **Its blocker is item 3 above.** An expander generates Cufet AST, so building one in C# now means
+building it again in Cufet later. Macro errors are the worst part of every language that has them,
+and clear errors are this language's distinguishing feature — that tax is still paid deliberately,
+not early.
+
+★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
+ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that a
+compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet
+interpreter *written in C* — a third implementation, or a divergence. Note also that an explicit
+`eval` is not a fexpr and would cost neither `check` nor monomorphization; the C-interpreter bill is
+what rules it out.
+
 ### Ongoing, no fixed slot
 
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
@@ -386,28 +412,6 @@ indistinguishable from having forgotten.
   `If x is 1 or x is 2 or x is 3`. *Blocker: small win.* ⚠ If built, it must be a **comparison,
   never a value** — `Define maybe as any of (1,2,3).` would import Raku-style junctions, whose
   threading order is explicitly undefined and therefore incompatible with no-divergence.
-
-- **Compile-time macros.** Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs,
-  which are first-class and runtime.
-
-  **AMENDED 2026-08-21: this is now one tag of the BLOCKS type, not a feature of its own.**
-  Quoted Cufet and embedded foreign source live under one type name; a macro is what consumes the
-  `cufet` tag. See [DESIGN.md](DESIGN.md#foreign-interoperability) — including why hygiene and SQL
-  injection turn out to be the same problem, which is what makes the unification real rather than
-  cosmetic.
-
-  ⚠ **The blocker narrowed with it.** *Self-hosting* still blocks the `cufet` tag's CONSUMER — a
-  macro expander generates Cufet AST, so building it in C# now means building it again in Cufet
-  later. It does **not** block the blocks type itself, nor foreign tags, which can ship with the
-  FFI arc. Macro errors are the worst part of every language that has them, and clear errors are
-  this language's distinguishing feature — that tax is still paid deliberately, not early.
-
-  ★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
-  ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that
-  a compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet
-  interpreter *written in C* — a third implementation, or a divergence. Note also that an explicit
-  `eval` is not a fexpr and would cost neither `check` nor monomorphization; the C-interpreter bill
-  is what rules it out.
 
 - **`Judge` value arms and `Descend.`** The construct ships — closed-union subjects, `or`
   grouping, `it` narrowed per arm, `Otherwise`, and coverage proved or defaulted so control can

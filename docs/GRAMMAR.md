@@ -2145,10 +2145,40 @@ Done.
 **The book is `cufet`, and it is pulled like any other language book** — `Pull a book on cufet.`,
 with no article, because `cufet` is a name where `the c-language` is a common noun.
 
-**A block holds DECLARATIONS.** An object and an interface are what it may hold; anything else is
-refused. Both are hoisted to the program wherever they are written and both are checked in a scope
-of their own, so a cited declaration cannot see a local at the site that cited it — which is why
-there is no rule here about what a free name inside a block means. There is no such name.
+**A block holds DECLARATIONS** — an object, an interface, and a `Define`. The difference between
+them is the whole point of `Cite`: a TYPE belongs to the program wherever it is written, so a cited
+object is program-scope however deeply the `Cite` sits, while a VALUE lands as a local at the site
+that cited it. One block cited twice therefore makes two independent locals:
+
+```
+Pull a book on cufet.
+    Define cufet counters as [
+        Define the tally as 0.
+    ].
+
+    Bind number to first:
+        Cite counters.
+        The tally becomes the tally + 5.
+        Return the tally.       ← 5
+    Done.
+
+    Bind number to second:
+        Cite counters.
+        Return the tally.       ← 0, its own
+    Done.
+Done.
+```
+
+⚠ **A block may only reach for names that belong to the PROGRAM** — a function, a type, a
+`permanently` constant, a pulled book — plus whatever it declares itself. Anything else is refused
+at the block's own line. That is what makes capture impossible by construction: a name the block did
+not declare would otherwise mean whatever the site that cited it happened to have, and one block
+cited twice would be two different programs.
+
+⚠ **A block cannot hold a function yet.** A `Bind` is a declaration, so this is not about what a
+block is for — it is that a body READS names, and what a body may read once it has been placed
+somewhere else is the question above, which has no answer for a body yet. An object's methods are
+fine, because they are checked in a scope of their own.
 
 **Where a cited declaration lands falls out of [Where a declaration belongs](#-where-a-declaration-belongs)**,
 and nothing about `Cite` adds to it. The block's statements are spliced in at the cite site, so a
