@@ -1745,6 +1745,37 @@ public class PipelineForeignTests : PipelineTestBase
     }
 
     [Fact]
+    public void TheTextAt_SomethingWithNoType_DoesNotSayUnknown()
+    {
+        // !! `<unknown>` is FormatType's discard arm, and it reached a reader. InferType answers
+        // null for a name it cannot resolve -- a module name inside a body defers that way on
+        // purpose -- and that null went straight into the message:
+        //
+        //     'the text at' reads through a foreign address, and this is a <unknown>.
+        //
+        // ! The test that exists to stop internal vocabulary reaching a reader cannot catch this
+        // one: it scans string LITERALS and strips interpolation holes, and `<unknown>` arrives
+        // through a hole. So the guard is at the call, and this is what pins it.
+        //
+        // * Refusing rather than staying quiet is deliberate: `math` really is pulled here, so
+        // every other check is satisfied and this error is the only thing refusing the program.
+        var e = Assert.Throws<TypeException>(() => GenerateC("""
+            Define object reader with () and module:
+                Bind text to peek:
+                    Return (the text at math) but void is "x".
+                Done.
+            Done.
+
+            Pull books on math, and reader.
+                State cast reader's peek.
+            Done.
+            """));
+
+        Assert.DoesNotContain("<unknown>", e.Message);
+        Assert.Contains("nothing here says what this is", e.Message);
+    }
+
+    [Fact]
     public void Axiom_UsedWhereItsResultDoesNotFit_IsRefusedTheOrDINARYWay()
     {
         // ★ No special case any more, and that is the improvement. The axiom says it gives a

@@ -436,6 +436,32 @@ public sealed partial class TypeChecker
     private CufetType InferForeignTextAt(ForeignTextAt read)
     {
         var addressType = InferType(read.Address);
+
+        // ⚠⚠ InferType answers NULL for a name it cannot resolve — a module name inside a body
+        // defers that way on purpose, so an unresolvable name does not cascade false positives.
+        // Passing that null on to FormatType did not crash (a switch expression falls to its
+        // discard arm without dereferencing anything) but it printed the discard arm's text:
+        //
+        //     'the text at' reads through a foreign address, and this is a <unknown>.
+        //
+        // ★ `<unknown>` is internal vocabulary, and the test that exists to stop such things
+        // reaching a reader cannot see this one: it scans string literals and strips interpolation
+        // holes, and `<unknown>` arrives through a hole. So the guard belongs here, at the one call
+        // that can pass null.
+        //
+        // ⚠ Refusing rather than deferring is deliberate. This error may be the ONLY thing refusing
+        // the program — `the text at math` with `math` genuinely pulled satisfies every other check
+        // — so staying quiet would let it through to a run-time failure.
+        if (addressType is null)
+            throw TypeError(
+                "'the text at' reads through a foreign address, and nothing here says what this is",
+                "only an address from foreign source can be read through, and this name does not "
+              + "resolve to a value at all",
+                read.Line, read.Column,
+                "read text at something with no type",
+                "Give it an address from foreign source — the result of an axiom declared "
+              + "'voidable address'.");
+
         if (addressType is not AddressType && addressType is not VoidableType { Inner: AddressType })
             throw TypeError(
                 $"'the text at' reads through a foreign address, and this is a {FormatType(addressType)}",
