@@ -506,6 +506,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **An error message could print `<unknown>`.** `the text at <a name that resolves to nothing>`
+  reported *"reads through a foreign address, and this is a `<unknown>`"* — the discard arm of the
+  type formatter, in front of a reader. The name-resolution pass answers null for a name it cannot
+  resolve, on purpose, and that null reached the message.
+
+  ⚠ The test that stops internal vocabulary reaching a reader could not catch it: it scans string
+  literals and strips interpolation holes, and `<unknown>` arrives through a hole. The null case is
+  refused with its own sentence now — refused, not skipped, because with the name genuinely in
+  scope this is the only check that stops the program.
+
 - **A type can be declared anywhere, including inside a function.** `Define object` in a function
   body, a loop, an `If` arm or a `Try` block is registered like any other type declaration:
 
