@@ -2483,8 +2483,29 @@ static void* cufet_pipe_stage(void* argp) {
                 // a closure capture, the deferred gap).
                 var refs = new HashSet<string>(); var defs = new HashSet<string>();
                 foreach (var s in bind.Body) CollectRefsDefs(s, refs, defs);
+                // ⭐⭐ Object MEMBERS count as known, the same way free functions on the line above
+                // do. `cast sum on (the here)` — the free-cast form README teaches — writes the
+                // member's name in callee position, where the walk sees an ordinary variable being
+                // read. So ANY method call in that spelling, inside a function inside a `Pull`
+                // block, was refused as "captures 'sum' from the pull scope": a program the
+                // interpreter runs, on a name that is not a variable and cannot be one.
+                //
+                // ⚠ A DIVERGENCE, and independent of the one CollectRefsDefs now handles — the
+                // object here can be declared at the top of the file. The possessive spelling
+                // (`the here's sum`) was never affected, because there the member is a bare string
+                // the walk cannot see; that is the same asymmetry the free-cast form had for
+                // generic methods, and it is why this went unnoticed.
+                //
+                // ⚠ Best-effort, and this widens it: a captured LOCAL sharing a member's name is
+                // now missed, exactly as one sharing a free function's name already was. The trade
+                // was already made one line up; what changes here is that correct programs stop
+                // being refused.
                 var known = new HashSet<string>(bind.Parameters.Select(p => p.Name)
-                    .Concat(defs).Concat(_funcReturnTypes.Keys).Concat(aliases.Select(a => a.Local)));
+                    .Concat(defs).Concat(_funcReturnTypes.Keys).Concat(aliases.Select(a => a.Local))
+                    .Concat(_objectDefs.Values.SelectMany(def =>
+                        def.Methods.Select(m => m.Name)
+                           .Concat(def.Getters.Select(g => g.Name))
+                           .Concat(def.Setters.Select(s => s.Name)))));
                 var captured = refs.Where(r => !known.Contains(r) && r != "it" && r != "input" && r != "the failure").ToList();
                 if (captured.Count > 0)
                     throw new CompilerException(
@@ -8038,6 +8059,26 @@ static void* cufet_pipe_stage(void* argp) {
             case BindStatement nb:
                 defs.Add(nb.Name);                        // the local function's NAME binds in the enclosing scope
                 Nested(nb.Parameters.Select(p => p.Name), nb.Body);
+                return;
+            // ⭐⭐ An object definition sits INSIDE a body without being part of it. Its methods,
+            // getters and setters are emitted as C functions of their own, off the program's type
+            // table, and the receiver they read fields through is `one` — bound by the member, not
+            // by anything in the body the definition was written in.
+            //
+            // ⚠ Walking them without binding `one` reported it as a capture of the ENCLOSING
+            // function, so `Define object …` inside a function inside a `Pull` block was refused
+            // with "captures 'one' from the pull scope" — a program the interpreter runs and the
+            // compiler would not, on a name no writer ever declared. A DIVERGENCE, and the oracle
+            // could not have found it: no test had put those three things together.
+            //
+            // ★ The bodies are still walked. A method genuinely reaching for a local of the
+            // enclosing body is still the deferred closure gap, and still has to be caught — only
+            // the receiver and each member's own parameters are bound first.
+            case ObjectDefinition od:
+                foreach (var method in od.Methods)
+                    Nested(["one", .. method.Parameters.Select(p => p.Name)], method.Body);
+                foreach (var getter in od.Getters) Nested(["one"], getter.Body);
+                foreach (var setter in od.Setters) Nested(["one", setter.ParamName], setter.Body);
                 return;
         }
         // Generic: visit every AST child, including tuple-wrapped ones (record/object/map literal

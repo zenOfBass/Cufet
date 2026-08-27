@@ -89,6 +89,7 @@ public sealed class Parser
             TokenType.Append     => ParseFileWriteStatement(),
             TokenType.With       => ParseWithOpenStatement(),
             TokenType.Pull       => ParsePullStatement(),
+            TokenType.Cite       => ParseCiteStatement(),
             TokenType.HaveKw     => ParseHaveStatement(),
             TokenType.Send       => ParseSendStatement(),
             TokenType.Close      => ParseCloseStatement(),
@@ -161,10 +162,48 @@ public sealed class Parser
         // anything else is carried no further — the checker reports it against this statement.
         if (value is AxiomLiteral axiom && parameters is not null) axiom.Parameters = parameters;
         if (value is AxiomLiteral released && freeWith is not null) released.ReleasedBy = freeWith;
+
+        // `Define cufet <name> as [ … ].` — Cufet source, held under a name until a `Cite` places
+        // it. Parsed HERE, at the declaration, so that a mistake inside a block is reported as the
+        // syntax error it is rather than surfacing later as a puzzle about the block.
+        //
+        // ★ Only the PLAIN shape is taken. A cufet block written with a result type, a `given`
+        // clause or a release clause says "run me", and the answer to that belongs with the other
+        // axiom refusals, which have the machinery to explain themselves — so those shapes fall
+        // through to the ordinary `Define` below and are refused by the checker.
+        if (value is AxiomLiteral cufetSource && parameters is null && freeWith is null
+            && declaredType is ObjectType shell && TypeChecker.IsCufetLanguage(shell.Name))
+            return new CufetAxiomDefinition(name, HeldCufetSource(cufetSource), line, col);
         return new DefineStatement(name, value, permanent, shadow, line, col, declaredType)
         {
             HasParameterClause = parameters is not null,
         };
+    }
+
+    /// <summary>The statements a `cufet` block holds, parsed where the block actually sits.</summary>
+    /// <remarks>
+    /// ⭐⭐ The OFFSET is the whole of this method. A lexer starts at line 1, and a block held
+    /// inside another file does not — so parsed on its own, every message from inside one points at
+    /// a line of nowhere, which reads like a real position and is not one. The text begins one
+    /// character past the `[`, on the line the `[` is on, and that is what the two numbers say.
+    ///
+    /// ★ Nothing else about the inner parse is special: it is the same lexer and the same parser
+    /// the outer file went through, which is what makes a cufet block Cufet rather than a dialect
+    /// that resembles it.
+    /// </remarks>
+    private static IReadOnlyList<IStatement> HeldCufetSource(AxiomLiteral source) =>
+        new Parser(new Cufet.Lexer.Lexer(source.Source, source.Line - 1, source.Column).Tokenize())
+            .Parse().Statements;
+
+    /// <summary>`Cite &lt;name&gt;.` — place the declarations a cufet axiom holds.</summary>
+    private IStatement ParseCiteStatement()
+    {
+        var tok = Consume(TokenType.Cite);
+        SkipNoise();
+        var name = Consume(TokenType.Identifier).Lexeme;
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new CiteStatement(name, tok.Line, tok.Column);
     }
 
     /// <summary>`, and free it with &lt;name&gt;` — the release half of an acquiring axiom.</summary>

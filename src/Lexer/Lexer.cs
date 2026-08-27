@@ -9,26 +9,74 @@ public sealed class Lexer
     // to just past that newline, so a column is a subtraction rather than a rescan.
     private int _lineStart;
 
-    public Lexer(string source)
+    // Where this text sits inside a LARGER file, when it is a fragment of one. Zero for a whole
+    // file, which is every caller but one.
+    private readonly int _lineOffset;
+    private readonly int _columnOffset;
+
+    public Lexer(string source) : this(source, 0, 0) { }
+
+    /// <summary>Lexes a fragment held inside another file, reported where it actually sits.</summary>
+    /// <remarks>
+    /// ⭐⭐ A lexer always starts at line 1, and a fragment does not — so text lexed on its own
+    /// reports positions in a file that does not exist. Cufet source held inside another Cufet
+    /// file (`Define cufet <name> as [ … ].`) is exactly that case, and error quality is what this
+    /// language is for: a message pointing at line 2 of nowhere is worse than none, because it
+    /// reads like a real one.
+    ///
+    /// ★ The offsets are applied ONCE, to the finished tokens, rather than threaded through the
+    /// twenty-odd places a token is built. That keeps the scanner unaware there is such a thing as
+    /// a fragment, and there is no second place for the arithmetic to be got wrong.
+    ///
+    /// ⚠ The COLUMN offset applies to the first line only. Every later line begins at column 1 in
+    /// the outer file just as it does in the fragment; only the opening line is pushed right by
+    /// whatever preceded the fragment on it.
+    /// </remarks>
+    /// <param name="lineOffset">Lines above the fragment — its first line is 1 + this.</param>
+    /// <param name="columnOffset">Characters before it on that line.</param>
+    public Lexer(string source, int lineOffset, int columnOffset)
     {
         _source = source;
         _pos = 0;
         _line = 1;
         _lineStart = 0;
+        _lineOffset = lineOffset;
+        _columnOffset = columnOffset;
     }
 
     public IReadOnlyList<Token> Tokenize()
     {
         var tokens = new List<Token>();
-        while (!AtEnd())
+        try
         {
-            SkipWhitespace();
-            if (AtEnd()) break;
-            ReadOneToken(tokens);
+            while (!AtEnd())
+            {
+                SkipWhitespace();
+                if (AtEnd()) break;
+                ReadOneToken(tokens);
+            }
+            tokens.Add(new Token(TokenType.Eof, "", _line, ColumnAt(_pos)));
         }
-        tokens.Add(new Token(TokenType.Eof, "", _line, ColumnAt(_pos)));
-        return tokens;
+        // ⚠ A refusal carries a position too, and it is thrown rather than returned — so rebasing
+        // only the tokens would leave the one message a reader is most likely to see pointing at
+        // nowhere.
+        catch (LexerException ex) when (IsFragment)
+        {
+            throw ex.At(ex.Line + _lineOffset, ex.Line == 1 ? ex.Column + _columnOffset : ex.Column);
+        }
+
+        if (!IsFragment) return tokens;
+        var rebased = new List<Token>(tokens.Count);
+        foreach (var token in tokens)
+            rebased.Add(token with
+            {
+                Line   = token.Line + _lineOffset,
+                Column = token.Line == 1 ? token.Column + _columnOffset : token.Column,
+            });
+        return rebased;
     }
+
+    private bool IsFragment => _lineOffset != 0 || _columnOffset != 0;
 
     // 1-based column of the character at `offset`, which must sit on the current line.
     private int ColumnAt(int offset) => offset - _lineStart + 1;
@@ -238,6 +286,11 @@ public sealed class Lexer
             "close"      => TokenType.Close,
             "awaited"    => TokenType.Awaited,
             "pull"       => TokenType.Pull,
+            // ★ `cite` opens the one statement that places a cufet axiom's declarations. It is
+            // reserved rather than contextual because `Cite <name>.` is two words: there is no
+            // mandatory token after the name to tell it apart from a variable of that name being
+            // used as a statement, which is the line `book` and `books` stay on the other side of.
+            "cite"       => TokenType.Cite,
             // ★ `book` and `books` are NOT reserved. They appear in exactly one spelling —
             // `Pull a book on <name>.` — and a word spent on a single construct is a name a
             // writer loses forever: `For each book in books` is a line this language should be

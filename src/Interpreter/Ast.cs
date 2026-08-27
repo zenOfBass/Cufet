@@ -391,6 +391,36 @@ public sealed record AxiomLiteral(string Source, int Line, int Column) : IExpres
 /// </remarks>
 public sealed record ForeignTextAt(IExpression Address, int Line, int Column) : IExpression;
 
+// ── Cufet source, held as an axiom ─────────────────────────────────────
+
+// Define cufet <name> as [ <cufet source> ].  — declarations, held under a name until cited.
+//
+// ★★ The SAME SURFACE as a foreign axiom, with a different mechanism behind it — which is the
+// design as settled, not an accident of reuse. `[ … ]` says "the text inside is not the program
+// around it", and that is true of a cufet block too: it is parsed, but it is not PLACED until a
+// `Cite` says where. What differs is everything past parsing — nothing is marshalled, no boundary
+// is crossed, and no compiler but this one ever reads it.
+//
+// ★ A statement of its own rather than a `DefineStatement` holding an `AxiomLiteral`, and that is
+// what keeps the foreign machinery away from it by construction: every collector that gathers
+// axioms to prepare, to paste, or to wrap asks for that exact shape, so none of them can meet this
+// one by accident. There is no `if the language is cufet` anywhere in either backend.
+//
+// ⚠ Front-end only — CiteExpansion removes it before either backend meets a program, the same
+// rule that lets no template and no `stash of T` survive the checker.
+public sealed record CufetAxiomDefinition(
+    string Name,
+    IReadOnlyList<IStatement> Body,
+    int Line,
+    int Column
+) : IStatement;
+
+// Cite <name>.  — place the declarations a cufet axiom holds, here.
+//
+// ★ A STATEMENT, not an expression. Citing yields no value and happens before the program runs;
+// spelling it `cast` would have promised both.
+public sealed record CiteStatement(string Name, int Line, int Column) : IStatement;
+
 // Bury <value>.  — hand one value out of a stash body and suspend there.
 //
 // ★ Its PRESENCE is what makes the enclosing function stash-producing; nothing marks the
@@ -989,6 +1019,17 @@ public static class AstSearch
             // CufetType is a type graph, not program text — nothing is spelled inside one, and it
             // is the one shape in this namespace that can be deep and heavily shared.
             case null or string or CufetType: return false;
+
+            // ★★ A cufet axiom's body is NOT searched — the node itself is offered, its contents are
+            // not. What a block holds is not in the program until a `Cite` places it, and every
+            // search here answers a question about the program: which types to hoist, which axioms
+            // to prepare, whether a `bury` is reachable. Descending would make declaring a block
+            // and citing it the same thing, which would leave `Cite` with nothing to do.
+            //
+            // ⚠ This is why the hoist cannot be trusted to keep an uncited object out of scope on
+            // its own: EveryStatement reaches EVERY statement anywhere, and that is exactly its
+            // value elsewhere. The exception belongs here, once, rather than at each caller.
+            case CufetAxiomDefinition cufetAxiom: return predicate(cufetAxiom);
 
             case System.Runtime.CompilerServices.ITuple tup:
                 for (int i = 0; i < tup.Length; i++)

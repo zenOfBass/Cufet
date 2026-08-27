@@ -22,7 +22,22 @@ public sealed partial class TypeChecker
     /// reads this during its own initializer, where a field here may not be assigned yet — which
     /// showed up as a NullReferenceException inside the type initializer, from nowhere the stack
     /// pointed at. A method has no initialization order to get wrong.
-    private static string[] LanguageBookNames() => ["c-language"];
+    private static string[] LanguageBookNames() => ["c-language", CufetLanguage];
+
+    /// <summary>The language a Cufet block is tagged with — `Define cufet <name> as [ … ].`</summary>
+    /// <remarks>
+    /// ★ `cufet`, not `cufet-language`: the naming rule above is by ear, and `cufet-language`
+    /// says language twice as surely as `sql-language` would. It is a language book like the
+    /// other, pulled the same way, with no members for the same reason — what it admits is blocks
+    /// written in that language, not functions to call.
+    ///
+    /// ⚠ A cufet block is NOT foreign, and nothing past the tag treats it as though it were. See
+    /// CufetAxiomDefinition, which is a statement of its own precisely so that no collector on
+    /// either backend can pick one up by mistake.
+    /// </remarks>
+    internal const string CufetLanguage = "cufet";
+
+    internal static bool IsCufetLanguage(string name) => IsSameLanguage(CufetLanguage, name);
 
     /// <summary>The same list, for the interpreter's book table — one source, two tables.</summary>
     internal static string[] LanguageBookNamesForBooks() => LanguageBookNames();
@@ -71,6 +86,24 @@ public sealed partial class TypeChecker
                 axiom.Line, axiom.Column,
                 "write foreign source without naming its language",
                 $"Name it in the declaration: 'Define c-language {define.Name} as [ ... ].'");
+
+        // ⚠ A `cufet` block that reaches HERE was written in one of the three shapes that mean
+        // "run me" — a result type, a `given` clause, or a release clause. The parser takes every
+        // other cufet block and turns it into a CufetAxiomDefinition, so this arm sees only those.
+        //
+        // ★ Cufet source is not run at a boundary; it is PLACED, where a `Cite` says. There is no
+        // call, so there is nowhere for a result to come back to or for a parameter's value to
+        // arrive from — the same reason a resultless C axiom takes no parameters, one section up.
+        if (IsCufetLanguage(tag.Language))
+            throw TypeError(
+                $"'{define.Name}' is Cufet source, which is cited rather than run",
+                "A cufet block holds declarations and is placed where a 'Cite' says. Nothing calls "
+              + "one, so there is no result to come back and nowhere for a parameter's value to "
+              + "arrive from",
+                axiom.Line, axiom.Column,
+                $"declare '{define.Name}' as cufet source that runs",
+                $"Write 'Define cufet {define.Name} as [ ... ].', then 'Cite {define.Name}.' where "
+              + "the declarations belong.");
 
         RequireLanguagePulled(tag.Language, axiom.Line, axiom.Column);
         axiom.Language = tag.Language;
@@ -573,8 +606,17 @@ public sealed partial class TypeChecker
             $"the {language} book is not in scope",
             null, line, column,
             $"write {language} source without pulling the {language} book",
-            $"Add 'Pull a book on the {language}.' around this.");
+            $"Add 'Pull a book on {Named(language)}.' around this.");
     }
+
+    /// <summary>A language book's name as it is spoken — with the article where one belongs.</summary>
+    /// <remarks>
+    /// ⚠ `the c-language` and plain `cufet`. One is a common noun and takes an article; the other
+    /// is a name and refuses one, the same way nobody says "the English". A suggestion a reader is
+    /// meant to copy has to be a line they would have written themselves.
+    /// </remarks>
+    private static string Named(string language) =>
+        IsCufetLanguage(language) ? language : $"the {language}";
 
     private static bool IsSameLanguage(string left, string right) =>
         string.Equals(left, right, StringComparison.OrdinalIgnoreCase);

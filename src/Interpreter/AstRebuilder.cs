@@ -109,8 +109,9 @@ internal static class AstRebuilder
     public static IReadOnlyList<IStatement> Apply(
         IReadOnlyList<IStatement> statements,
         Func<CufetType, CufetType> substitute,
-        Func<IStatement, IStatement?>? replace = null) =>
-        TryRebuild(statements, substitute, out var rebuilt, replace)
+        Func<IStatement, IStatement?>? replace = null,
+        Func<IStatement, IReadOnlyList<IStatement>?>? splice = null) =>
+        TryRebuild(statements, substitute, out var rebuilt, replace, splice)
             ? (IReadOnlyList<IStatement>)rebuilt!
             : statements;
 
@@ -133,9 +134,20 @@ internal static class AstRebuilder
     /// and are the two a hand-written walk forgets. The reflective walk cannot forget them, because
     /// it keys on the NAMESPACE and they are in it.
     /// </remarks>
+    /// <param name="splice">
+    /// Turns one statement into SEVERAL, where <paramref name="replace"/> turns it into one. Null
+    /// (the usual case) means no statement is ever spliced.
+    /// </param>
+    /// <remarks>
+    /// ★ The splice hook is separate from <paramref name="replace"/> and answered only inside a
+    /// LIST, because that is the only place several statements can go: a statement held in a field
+    /// of its own — a loop's single body, an arm's consequence — has room for exactly one, and a
+    /// hook that could hand back three there would have no honest way to fail.
+    /// </remarks>
     public static bool TryRebuild(
         object? node, Func<CufetType, CufetType> substitute, out object? result,
-        Func<IStatement, IStatement?>? replace = null)
+        Func<IStatement, IStatement?>? replace = null,
+        Func<IStatement, IReadOnlyList<IStatement>?>? splice = null)
     {
         result = node;
 
@@ -146,7 +158,7 @@ internal static class AstRebuilder
         if (replace != null && node is IStatement original && replace(original) is { } expanded
             && !ReferenceEquals(expanded, original))
         {
-            TryRebuild(expanded, substitute, out result, replace);
+            TryRebuild(expanded, substitute, out result, replace, splice);
             return true;
         }
 
@@ -180,7 +192,7 @@ internal static class AstRebuilder
                 var items    = new object?[tuple.Length];
                 bool changed = false;
                 for (int i = 0; i < tuple.Length; i++)
-                    changed |= TryRebuild(tuple[i], substitute, out items[i], replace);
+                    changed |= TryRebuild(tuple[i], substitute, out items[i], replace, splice);
                 if (!changed) return false;
                 result = Activator.CreateInstance(node.GetType(), items);
                 return true;
@@ -195,7 +207,20 @@ internal static class AstRebuilder
                 bool changed = false;
                 foreach (var item in sequence)
                 {
-                    changed |= TryRebuild(item, substitute, out var replacement, replace);
+                    // ★ Asked BEFORE the item is rebuilt, and the pieces are then rebuilt in its
+                    // place — so whatever a spliced statement itself contains is still reached.
+                    if (splice != null && item is IStatement spliceable
+                        && splice(spliceable) is { } pieces)
+                    {
+                        foreach (var piece in pieces)
+                        {
+                            TryRebuild(piece, substitute, out var rebuiltPiece, replace, splice);
+                            rebuilt.Add(rebuiltPiece);
+                        }
+                        changed = true;
+                        continue;
+                    }
+                    changed |= TryRebuild(item, substitute, out var replacement, replace, splice);
                     rebuilt.Add(replacement);
                 }
                 if (!changed) return false;
@@ -224,7 +249,7 @@ internal static class AstRebuilder
                         ?? throw new InvalidOperationException(
                             $"{type.Name}.{parameters[i].Name} has no matching property — "
                             + "AstRebuilder can only rebuild positional records.");
-                    changed |= TryRebuild(property.GetValue(node), substitute, out arguments[i], replace);
+                    changed |= TryRebuild(property.GetValue(node), substitute, out arguments[i], replace, splice);
                 }
                 if (!changed) return false;
 

@@ -285,6 +285,20 @@ public sealed class SemanticTokenizer
                 WalkObjectDefinition(od);
                 break;
 
+            // ⚠ A cufet block's BODY is deliberately not walked, and the reason is mechanical:
+            // every kind here is emitted by finding the name in the ORIGINAL token stream, and a
+            // block is ONE `Axiom` token in that stream — the words inside it were lexed
+            // separately and are not in `_tokens` at all. There is nothing to anchor to, so
+            // descending would emit tokens at whatever happened to sit at those coordinates.
+            //
+            // Colouring cited source needs the inner token stream spliced into the outer one,
+            // which is a piece of work of its own. The block's NAME is still bound below, so a
+            // `Cite` of it resolves.
+            case CufetAxiomDefinition cufetBlock:
+                EmitFound(Cursor.At(_tokens, cufetBlock.Line, cufetBlock.Column), cufetBlock.Name,
+                        SemanticTokenKind.Variable, SemanticTokenModifier.Declaration);
+                break;
+
             case InterfaceDefinition id:
             {
                 // 'The void function steer, given (the number angle)' — return type, then the

@@ -311,6 +311,14 @@ public static class Linter
             case LaunchTaskStatement s: yield return (s.Body, false); break;
 
             case BindStatement s: yield return (s.Body, true); break;
+
+            // ★ A cufet block IS looked into, and here rather than where it is cited — the linter
+            // runs on the program as written, where the cited copies do not exist yet. Advice about
+            // how a line reads is only actionable at the line, and the line is in the block.
+            //
+            // A new scope, like a `Bind` body: a bare `it` inside a block cannot mean a loop
+            // outside it, because what the block holds is placed somewhere else entirely.
+            case CufetAxiomDefinition s: yield return (s.Body, true); break;
             case OperatorOverloadDeclaration s: yield return (s.Body, true); break;
             case UnmakerDeclaration s: yield return (s.Body, true); break;
             case GetterDeclaration s: yield return (s.Body, true); break;

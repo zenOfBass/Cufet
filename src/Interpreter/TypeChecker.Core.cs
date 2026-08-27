@@ -902,6 +902,14 @@ public sealed partial class TypeChecker
     {
         _scopes[0]["input"] = BuiltinInput;
         program = WithPrelude(program);
+
+        // ⭐⭐ BEFORE the hoist, and that ordering is the feature. A cited object has to be an
+        // ordinary statement of the program by the time types are gathered, or it is a type nobody
+        // declared — and the whole point of `Cite` is that it is the placement that counts, not the
+        // block. Nothing later in this method knows cufet blocks exist.
+        var placed = CiteExpansion.Expand(program.Statements);
+        if (!ReferenceEquals(placed, program.Statements)) program = new Program(placed);
+
         Pass1Hoist(program);
         Pass2ResolveTypes();          // resolve all placeholder ObjectType refs in _objectDefs + global scope
         Pass2HoistSharedConstants(program); // top-level `permanently` — visible to bodies checked below
@@ -983,8 +991,11 @@ public sealed partial class TypeChecker
                 stmt => stmt is ForEachStatement fe && _stashDrains.TryGetValue(fe, out var drain) ? drain : null);
 
         // Expand hands back the very same list when there was nothing to do, which is the usual case.
-        var lowered = StashTransform.Expand(
-            DropUnpulledLayers(statements), _buryingFunctions, _stashFacts, _buryingMethods);
+        // ⚠ The cufet blocks come out HERE, at the last moment of the front end — their contents
+        // were placed before the hoist, and the only thing they were still needed for (the pull
+        // their language wants around them) has now been checked.
+        var lowered = CiteExpansion.WithoutBlocks(StashTransform.Expand(
+            DropUnpulledLayers(statements), _buryingFunctions, _stashFacts, _buryingMethods));
         return ReferenceEquals(lowered, program.Statements) ? program : new Program(lowered);
     }
 
@@ -2175,6 +2186,13 @@ public sealed partial class TypeChecker
             case PullStatement ps:
                 CheckPullStatement(ps);
                 break;
+            case CufetAxiomDefinition cufetBlock:
+                // ⚠ The one thing left to ask of a block: that its language is pulled around it.
+                // Its contents were placed by CiteExpansion at the sites that cited them and are
+                // checked THERE, as the ordinary declarations they now are — checking them here as
+                // well would have every cited object collide with itself.
+                RequireLanguagePulled(CufetLanguage, cufetBlock.Line, cufetBlock.Column);
+                break;
             case WriteToStreamStatement wts:
                 CheckWriteToStream(wts);
                 break;
@@ -3186,7 +3204,9 @@ public sealed partial class TypeChecker
     // The one shape every type error takes: what the code says, what was already established,
     // what this line tried to do, and what to write instead. The position travels on the
     // exception rather than only in the prose, so an editor gets it without reading English.
-    private static TypeException TypeError(
+    // internal, not private: CiteExpansion refuses in the same voice, and one voice is the point.
+    // The alternative was a second error shape for the one pass that runs before the checker does.
+    internal static TypeException TypeError(
         string context,
         string? established,
         int violationLine,

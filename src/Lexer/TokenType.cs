@@ -224,6 +224,9 @@ public enum TokenType
 
     Matrix,    // "matrix"  — type introduced by the 'collections' book
 
+    // ── Cufet source held as an axiom ─────────────────────────────────────
+    Cite,   // "cite"   — in "Cite <name>." : place the declarations a cufet axiom holds
+
     // ── I/O ───────────────────────────────────────────────────────────────────
     Read,     // "read"   — starts a read expression; the form words (line/lines/all/input) are
               //            parsed as contextual identifiers (lexeme-checked), not reserved keywords

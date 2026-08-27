@@ -263,7 +263,14 @@ public class ExhaustivenessTests
     // says where to look.
     private static readonly HashSet<string> KnownBodyBearingNodes =
     [
-        "BindStatement", "ConditionArm", "ForEachFromInputStatement", "ForEachStatement",
+        // CufetAxiomDefinition — considered, one descent at a time. The compiler's four never meet
+        // one (CiteExpansion drops every block before a backend sees a program). The checker's two
+        // walk a FUNCTION body for its returns, and what a block holds returns nowhere — it is
+        // placed elsewhere and checked there. Linter.ChildBlocks now descends, because the linter
+        // runs on the program as written and that is the only place the text exists. SemanticTokens
+        // deliberately does not: a block is one `Axiom` token in the stream it anchors names in.
+        "BindStatement", "ConditionArm", "CufetAxiomDefinition",
+        "ForEachFromInputStatement", "ForEachStatement",
         "GetterDeclaration", "IfStatement", "JudgeArm", "JudgeStatement", "LambdaLiteral",
         "LaunchTaskStatement", "OperatorOverloadDeclaration", "PullRabbitStatement",
         "PullStatement", "RepeatUntilStatement", "SetterDeclaration", "TryStatement",
