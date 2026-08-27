@@ -27,6 +27,7 @@ Books come in two kinds, and the difference is what you get out of one:
     - [What an axiom can reach for](#what-an-axiom-can-reach-for)
     - [What it costs](#what-it-costs)
     - [How far an interrupt reaches](#how-far-an-interrupt-reaches)
+  - [Cufet source (`cufet`)](#cufet-source-cufet)
 
 ---
 
@@ -583,3 +584,55 @@ never return is not built by either backend, so it costs nothing and cannot fail
 **If gcc complains about your C, that is yours to fix.** Everything else in the generated C
 was written by cufet, and a failure there is reported as a compiler bug; an axiom is the one
 exception, and it is reported as one.
+
+---
+
+### Cufet source (`cufet`)
+
+**A `cufet` axiom is Cufet source held under a name.** The same surface as a foreign one, with a
+different mechanism behind it. `[ ... ]` still says *the text inside is not the program around it*,
+and that stays true here — the source is parsed, but it is not **placed** until a `Cite` says where.
+
+```
+Pull a book on cufet.
+    Define cufet vector-shape as [
+        Define object vec2 with (the number x, the number y):
+            Bind number to length-squared:
+                Return one's x * one's x + one's y * one's y.
+            Done.
+        Done.
+    ].
+
+    Cite vector-shape.
+
+    Define the arrow as a new vec2 { the x 3, the y 4 }.
+    State cast length-squared on (the arrow).
+Done.
+```
+```
+25
+```
+
+The book is pulled like any other language book, and it is named `cufet` — no article, because
+`cufet` is a name where `the c-language` is a common noun.
+
+**What a block holds are declarations.** An object and an interface are what it may hold. Both
+belong to the program wherever they are written and both are checked in a scope of their own, so a
+cited declaration cannot see a local at the site that cited it. That is why nothing here has to
+explain what a free name inside a block means — there is no such name.
+
+**Declaring a block places nothing.** Cite it and its declarations are there; do not, and they are
+nowhere. The name holds source rather than a value, so it cannot be stated, passed or read.
+
+Where a cited declaration lands is not a rule of its own. A type declaration belongs to the program
+wherever it is written, so a cited object is usable after the function that cited it — exactly as
+one written there by hand would be.
+
+⚠ One name holds one block; a second under the same name is refused. ⚠ A block cannot say what it
+gives back, take a `given` clause, or name a release — those mean *run me*, and Cufet source is
+placed rather than run. ⚠ A message from inside a block reports the line it occupies in the file
+that holds it, not the line it would have on its own.
+
+★ Nothing about this reaches a backend. The blocks are placed and then removed while the program is
+still being checked, so what runs — interpreted or compiled — is a program of ordinary declarations,
+and neither backend has a word to say about a cufet axiom.

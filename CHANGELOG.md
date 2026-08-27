@@ -10,6 +10,72 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **Cufet source can be held as an axiom and placed with `Cite`** — the same surface a foreign
+  axiom uses, with a different mechanism behind it:
+
+  ```
+  Pull a book on cufet.
+      Define cufet vector-shape as [
+          Define object vec2 with (the number x, the number y):
+              Bind number to length-squared:
+                  Return one's x * one's x + one's y * one's y.
+              Done.
+          Done.
+      ].
+
+      Cite vector-shape.
+
+      Define the arrow as a new vec2 { the x 3, the y 4 }.
+      State cast length-squared on (the arrow).       ← 25
+  Done.
+  ```
+
+  ★ `[ … ]` says *the text inside is not the program around it*, and that stays true for a `cufet`
+  tag — the source is parsed, but it is not PLACED until a `Cite` says where. A block holds
+  DECLARATIONS: an object and an interface are what it may hold so far. Declaring a block places
+  nothing; the name holds source rather than a value, so it cannot be stated, passed or read.
+
+  ★★ Where a cited declaration lands is not a rule of its own. A type declaration belongs to the
+  program wherever it is written, so splicing at the cite site is the whole mechanism — an object
+  cited inside a function is usable after that function, on both backends, because that is what the
+  language already said about declarations.
+
+  ★ Nothing about it reaches a backend. Blocks are placed and then removed while the program is
+  still being checked, the same rule that lets no template and no `stash of T` survive the front
+  end — so what runs is a program of ordinary declarations.
+
+  ⚠ A message from inside a block reports the line it occupies in the file that holds it. A lexer
+  starts at line 1 and a block does not, so the fragment's position is carried into every token and
+  every refusal the block produces — without which every complaint from inside one would point at a
+  line of nowhere, which reads like a real position and is not one.
+
+  ⚠ One name holds one block; a second under the same name is refused rather than shadowed. And a
+  block cannot say what it gives back, take a `given` clause, or name a release — those three shapes
+  mean *run me*, and Cufet source is placed rather than run.
+
+  ⚠ An interface DEFAULT written outside a block does not yet find a cited interface: defaults are
+  expanded by the parser, which runs before anything is cited. A conformer writing its own method
+  works.
+
+### Fixed
+
+- **An object defined inside a function, inside a `Pull` block, was refused by the compiler** and
+  ran perfectly interpreted. The pull-scope capture check walked into the object's method bodies and
+  reported `one` — the receiver pronoun, bound by the method and declared by nobody — as a capture
+  of the enclosing function. The bodies are still walked; `one` and each member's own parameters are
+  bound first, so a method genuinely reaching for an enclosing local is still caught.
+
+- **Any method called by the free-cast form, inside a function inside a `Pull` block, was refused by
+  the compiler** — `cast sum on (the here)` failed with "captures 'sum' from the pull scope", for a
+  name that is not a variable and cannot be one. Object members are now known to that check, the way
+  free functions already were. ★ The possessive spelling (`the here's sum`) was never affected,
+  because there the member is a bare string the walk cannot see — the same asymmetry the free-cast
+  form had for generic methods, and why this went unnoticed.
+
+  ⚠ Both were shipped divergences, and the oracle suite could not have found either: no case had
+  put an object definition, a `Pull` block and a function together, and none had called a method by
+  the free-cast spelling inside one.
+
 - **An axiom that says nothing about its result is now SOURCE** — pasted once, above every wrapper,
   so what it declares is in scope for the axioms that follow:
 

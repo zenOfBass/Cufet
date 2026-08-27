@@ -102,6 +102,7 @@ every value of every type, with `x is not the phrase` answering true.
 | `bury` | Bury | `Have <rabbit> bury <v>.` — hand one value out and suspend there. Never bare: a rabbit always does it |
 | `unbury` | Unbury | Resume a stash and take its next value — a `voidable T` |
 | `stash` | Stash | The TYPE, as in `a stash of number`. Never a call form |
+| `cite` | Cite | `Cite <name>.` — place what a `cufet` axiom holds |
 
 ### Control flow
 
@@ -2084,6 +2085,66 @@ to "every line gcc reads was written by cufet", and it is reported as such.
 inside a foreign string literal closes the axiom early. `<<...>>` has the same edge, and closing it
 would mean knowing which foreign language this is. In practice what follows an early close is read
 as Cufet and refuses.
+
+### ★★ Cufet source — a `cufet` axiom, placed by `Cite`
+
+**A `cufet` axiom is Cufet source held under a name.** Same surface as a foreign one, different
+mechanism behind it: `[ … ]` still says *the text inside is not the program around it*, and for a
+`cufet` tag that stays true — it is parsed, but it is not **placed** until a `Cite` says where.
+
+```
+Pull a book on cufet.
+    Define cufet vector-shape as [
+        Define object vec2 with (the number x, the number y):
+            Bind number to length-squared:
+                Return one's x * one's x + one's y * one's y.
+            Done.
+        Done.
+    ].
+
+    Cite vector-shape.
+
+    Define the arrow as a new vec2 { the x 3, the y 4 }.
+    State cast length-squared on (the arrow).       ← 25
+Done.
+```
+
+**The book is `cufet`, and it is pulled like any other language book** — `Pull a book on cufet.`,
+with no article, because `cufet` is a name where `the c-language` is a common noun.
+
+**A block holds DECLARATIONS.** An object and an interface are what it may hold; anything else is
+refused. Both are hoisted to the program wherever they are written and both are checked in a scope
+of their own, so a cited declaration cannot see a local at the site that cited it — which is why
+there is no rule here about what a free name inside a block means. There is no such name.
+
+**Where a cited declaration lands falls out of [Where a declaration belongs](#-where-a-declaration-belongs)**,
+and nothing about `Cite` adds to it. The block's statements are spliced in at the cite site, so a
+cited object belongs to the program however deeply the `Cite` sits — usable after the function that
+cited it, on both backends.
+
+**Declaring a block places nothing.** A block that is never cited declares nothing at all; if it
+did, `Cite` would have no work to do. The name holds source, not a value, so it cannot be stated,
+passed, or read.
+
+⚠ **A block may be cited before it is declared**, the way a declaration is available before its
+line everywhere else here.
+
+⚠ **One name holds one block.** A second under the same name is refused rather than shadowed — the
+one redeclaration in this language that is. Every other kind holds a value or a type and has an
+answer already (`Define a shadow`, or last-wins); a name holding source waiting to be placed would
+leave every `Cite` of it ambiguous at a glance.
+
+⚠ **A `cufet` axiom cannot say it gives something back, take a `given` clause, or name a release.**
+Those three shapes mean *run me*, and Cufet source is not run at a boundary — it is placed. Nothing
+calls a block, so there is no result to come back and nowhere for a parameter's value to arrive from.
+
+⚠ **A message from inside a block reports where the block actually sits**, not where it would sit if
+it were a file of its own. A lexer starts at line 1 and a block does not, so the fragment's position
+is carried into every token and every refusal it produces.
+
+⚠ **An interface DEFAULT written outside a block does not yet find a cited interface.** Defaults are
+expanded by the parser, which runs before anything is cited. A conformer writing its own method
+works; `Bind <type> to <name> unto <cited-interface>` does not.
 
 ---
 
