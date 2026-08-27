@@ -538,6 +538,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `Define x as 5.` inside a block is still local to that block, and a nested `Bind` is still a
   closure rather than a free function.
 
+- **A generic method is reachable by both call spellings.** `cast <method> on (<receiver>, …)` —
+  the form README teaches for calling a method — could not reach one that left a blank:
+
+  ```
+  Define object box with (the number tag):
+      Bind element to twice-of, given (the element value): Return value * 2. Done.
+  Done.
+
+  Define the crate as a new box { the tag 1 }.
+  State cast twice-of on (the crate, 21).        ← was "'box' has no methods"
+  ```
+
+  Only the possessive form (`cast the crate's twice-of on (21)`) filled the blank, so the free form
+  found nothing and reported that the type had no methods at all — for a method it plainly has,
+  with a filling that plainly works. ⚠ An ordinary method is untouched: filling answers null when
+  the member left no blank, and normal dispatch proceeds.
+
 - **Generic errors point at the call that filled the blank, not at the body.** A body written once
   is right for every filling but the bad one, so being told to fix it was misleading:
 
