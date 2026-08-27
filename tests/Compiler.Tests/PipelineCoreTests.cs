@@ -355,4 +355,50 @@ public class PipelineCoreTests : PipelineTestBase
         Assert.Equal("40", Interpret(src));
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+    // -- Redefining a type: the last one wins ---------------------------------
+
+    [Fact]
+    public void ARedefinedType_TakesTheLastDefinition()
+    {
+        // * Allowed, and the last one wins -- the same rule shadowing follows everywhere else here.
+        // The linter reports it; the language does not refuse it.
+        const string src = """
+            Define object point with (the number x):
+                Bind number to shown: Return 1. Done.
+            Done.
+
+            Define object point with (the number x):
+                Bind number to shown: Return 2. Done.
+            Done.
+
+            Define the here as a new point { the x 9 }.
+            State cast shown on (the here).
+            """;
+        Assert.Equal("2", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void ARedefinedType_WithADifferentShape_ChecksAgainstTheWinner()
+    {
+        // !! The bug. The SUPERSEDED definition's body used to be checked against the WINNER's
+        // fields, so this reported "'point' has no field named 'x'" on line 2 -- inside the first
+        // definition, on the line that declares `x`. Correct code, blamed for a definition further
+        // down the file, and dead code at that: nothing dispatches to it and its methods are never
+        // emitted. A superseded definition is not checked at all now.
+        const string src = """
+            Define object point with (the number x):
+                Bind number to shown: Return one's x. Done.
+            Done.
+
+            Define object point with (the number y):
+                Bind number to shown: Return one's y. Done.
+            Done.
+
+            Define the here as a new point { the y 5 }.
+            State cast shown on (the here).
+            """;
+        Assert.Equal("5", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

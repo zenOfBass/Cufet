@@ -300,4 +300,34 @@ public class LinterTests
             "    State \"moved\".\n" +
             "Done."));
     }
+    [Fact]
+    public void ASupersededTypeDefinition_IsReported()
+    {
+        // * Allowed and reported, exactly as a nested bare `it` is: well defined, invisible in the
+        // text, so the fact goes back in front of the writer rather than the program being refused.
+        // Reported at the SUPERSEDED definition, because that is the one to remove.
+        var warnings = Lint("""
+            Define object point with (the number x):
+                Bind number to shown: Return 1. Done.
+            Done.
+
+            Define object point with (the number x):
+                Bind number to shown: Return 2. Done.
+            Done.
+            """);
+
+        Assert.Single(warnings);
+        Assert.Equal(1, warnings[0].Line);
+        Assert.Contains("replaced by the one on line 5", warnings[0].Message);
+    }
+
+    [Fact]
+    public void ATypeDefinedOnce_IsNotReported()
+    {
+        Assert.Empty(Lint("""
+            Define object point with (the number x):
+                Bind number to shown: Return 1. Done.
+            Done.
+            """));
+    }
 }

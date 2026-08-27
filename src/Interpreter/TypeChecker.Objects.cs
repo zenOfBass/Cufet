@@ -365,6 +365,16 @@ public sealed partial class TypeChecker
     {
         if (!_objectDefs.TryGetValue(od.Name, out var objType)) return;
 
+        // ⚠⚠ A SUPERSEDED definition is not checked. Redefinition is allowed and the last one wins,
+        // so an earlier definition of the same name is dead — nothing dispatches to it, and its
+        // methods are never emitted. Checking it anyway meant checking it against the WINNER's
+        // fields, which produced an error on a line the writer got right.
+        //
+        // ★ The linter reports the shadowing, in the same voice it uses for a nested bare `it`:
+        // well defined, allowed, and worth saying out loud because the reader cannot see it.
+        if (_winningDefinition.TryGetValue(od.Name, out var winner) && !ReferenceEquals(winner, od))
+            return;
+
         // ★ A book's Cufet layer checks with the book's own INTRODUCED TYPES in scope —
         // `transpose`'s body constructs a matrix, and `matrix` is otherwise only in scope inside
         // a pull. This is scoped to the book's own source, not a general loosening: only the

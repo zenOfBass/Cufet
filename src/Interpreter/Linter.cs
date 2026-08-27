@@ -26,6 +26,7 @@ public static class Linter
         CapitaliseTheStartOfALine(bag, tokens, statementStarts);
         NestedBareItLoops(bag, program);
         ChangeDirectoryBeforeStartingTasks(bag, program);
+        SupersededTypeDefinitions(bag, program);
         return bag.Items;
     }
 
@@ -107,6 +108,47 @@ public static class Linter
                 $"sentence, and a sentence starts with a capital. Keywords are case-insensitive, so " +
                 $"this changes nothing but how the line reads.",
                 line, column);
+        }
+    }
+
+    // ── A type definition replaced by a later one ──────────────────────
+    //
+    // Declaring a type twice is legal and the last one wins — the same rule shadowing follows
+    // everywhere else here. What a reader cannot see is that the FIRST one is dead: nothing
+    // dispatches to it, its methods are never emitted, and its body is not even checked.
+    //
+    // ★ Allowed and reported, exactly as a nested bare `it` is. Both are well defined, both are
+    // invisible in the text, and the answer in this language is to put the fact back in front of
+    // the writer rather than to refuse the program.
+    //
+    // Reported at the SUPERSEDED definition, because that is the one to remove — naming the winner
+    // would point at code that is doing its job.
+    private static void SupersededTypeDefinitions(DiagnosticBag bag, Program program)
+    {
+        // Every definition, in the order the checker registers them — the same walk, so "last" here
+        // means what "last" means there.
+        var byName = new Dictionary<string, List<ObjectDefinition>>(StringComparer.Ordinal);
+        foreach (var statement in AstSearch.EveryStatement(program.Statements))
+            if (statement is ObjectDefinition od)
+            {
+                if (!byName.TryGetValue(od.Name, out var seen)) byName[od.Name] = seen = [];
+                seen.Add(od);
+            }
+
+        foreach (var (name, definitions) in byName)
+        {
+            if (definitions.Count < 2) continue;
+            var winner = definitions[^1];
+            foreach (var superseded in definitions)
+            {
+                if (ReferenceEquals(superseded, winner)) continue;
+                bag.Warn(
+                    $"this definition of '{name}' is replaced by the one on line {winner.Line}, so "
+                  + $"nothing reaches it. That is well defined — the last definition wins, the same "
+                  + $"as any other shadowing — but a reader has to notice the second one to know "
+                  + $"this is dead. Remove it, or rename one of them.",
+                    superseded.Line, superseded.Column);
+            }
         }
     }
 

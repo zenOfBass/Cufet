@@ -647,6 +647,10 @@ public sealed partial class TypeChecker
     /// <summary>Instantiations already built, keyed by their filled-in name (`stack of number`).</summary>
     private readonly Dictionary<string, ObjectDefinition> _instantiated = new(StringComparer.Ordinal);
 
+    // The definition that WON for each type name. Only it is checked; a superseded one is dead
+    // code, and checking dead code against a shape it never had is how a correct line gets blamed.
+    private readonly Dictionary<string, ObjectDefinition> _winningDefinition = new(StringComparer.Ordinal);
+
     /// <summary>Functions leaving a blank, by name, with the blanks their signature named.</summary>
     private readonly Dictionary<string, (BindStatement Bind, List<string> Blanks)> _genericFunctions =
         new(StringComparer.Ordinal);
@@ -1551,6 +1555,18 @@ public sealed partial class TypeChecker
                 _genericObjectDefs[od.Name] = od;
                 continue;
             }
+
+            // ★★ Which DEFINITION won, not just which type. A name may be declared more than once
+            // and the last one wins — the same rule shadowing follows everywhere else here — but the
+            // superseded definition is still a statement in the program, and something has to know
+            // it lost. Without this its BODY was checked against the WINNER's shape, so
+            //
+            //     Define object point with (the number x): … Done.
+            //     Define object point with (the number y): … Done.
+            //
+            // reported "'point' has no field named 'x'" on the line that declares `x`. Correct code,
+            // blamed for a definition further down the file.
+            _winningDefinition[od.Name] = od;
 
             _objectDefs[od.Name] = new ObjectType(
                 od.Name, od.PositionalTypes, od.NamedFields, methodSigs,
