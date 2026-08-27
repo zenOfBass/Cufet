@@ -382,4 +382,28 @@ public class PipelineCufetAxiomTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("20\n0", Interpret(src));
     }
+    [Fact]
+    public void ABlockHoldingAFunctionAndAValue_RunsTheSameOnBothBackends()
+    {
+        // ⭐ The two halves of a block landing in two different places from one `Cite`: the
+        // function becomes a free function, the value a local of the scope that cited it. The
+        // compiled side is where that would break — a free function is a C function at file scope
+        // and a local is a variable in a frame, so getting the two confused could not stay quiet.
+        const string src = """
+            Pull a book on cufet.
+                Define cufet helpers as [
+                    Define the scale as 3.
+                    Bind number to doubled, given (the number value):
+                        Return the value * 2.
+                    Done.
+                ].
+
+                Cite helpers.
+                State cast doubled on (21).
+                State the scale.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("42\n3", Interpret(src));
+    }
 }

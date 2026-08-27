@@ -564,11 +564,42 @@ public class CufetAxiomTests
             """).Message);
     }
 
+    // -- A block that holds a FUNCTION -----------------------------------------
+    //
+    // ⭐⭐ Q1 for a function body is not a thing to check, it is a thing to make TRUE. A `Bind`
+    // placed where functions belong is a FREE FUNCTION, and this language already refuses a free
+    // function that reads the data around it — so the rule enforces itself, by the scope the
+    // statement lands in rather than by a second opinion about what it says. Placed inside another
+    // body it would be a closure over the body citing it, which is precisely what Q1 forbids, so
+    // that placement is refused instead.
+
     [Fact]
-    public void ABlockHoldingAFunction_IsRefusedAndSaysWhy()
+    public void ABlockHoldingAFunction_PlacesItWhereFunctionsBelong()
     {
-        // ! A `Bind` IS a declaration, so "this is not one" would be a lie. It is held out for a
-        // reason of its own, and the message has to be that reason.
+        // A function and a value in one block: the function becomes a free function, the value a
+        // local of the scope that cited it.
+        Assert.Equal("42\n3", Run("""
+            Pull a book on cufet.
+                Define cufet helpers as [
+                    Define the scale as 3.
+                    Bind number to doubled, given (the number value):
+                        Return the value * 2.
+                    Done.
+                ].
+
+                Cite helpers.
+                State cast doubled on (21).
+                State the scale.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ABlockHoldingAFunction_CannotBeCitedInsideABody()
+    {
+        // ⚠ The placement rule, and the whole of Q1 for a body. Everything else a block holds goes
+        // anywhere — a type belongs to the program wherever written, and a value is MEANT to land at
+        // the cite site. A function is the one thing whose meaning would change with its company.
         var error = Refused("""
             Pull a book on cufet.
                 Define cufet helpers as [
@@ -576,11 +607,57 @@ public class CufetAxiomTests
                         Return the value * 2.
                     Done.
                 ].
-                Cite helpers.
+                Bind number to outer:
+                    Cite helpers.
+                    Return cast doubled on (21).
+                Done.
+                State cast outer on ().
             Done.
             """);
 
-        Assert.Contains("holds a function, and a block cannot hold one yet", error.Message);
+        Assert.Contains("holds a function, so it cannot be cited inside another body", error.Message);
+        Assert.Equal(8, error.Line);     // the cite, not the block
+    }
+
+    [Fact]
+    public void AFunctionFromABlock_CannotReadDataAtTheCiteSite()
+    {
+        // ⭐⭐ Q1 holding, enforced by a rule that was already there. Nothing in CiteExpansion
+        // examines this body — the function landed where functions live, and a free function that
+        // reads top-level data has been refused since long before blocks existed.
+        var error = Refused("""
+            Pull a book on cufet.
+                Define the loose as 10.
+                Define cufet helpers as [
+                    Bind number to nudged, given (the number value):
+                        Return the value + the loose.
+                    Done.
+                ].
+                Cite helpers.
+                State cast nudged on (5).
+            Done.
+            """);
+
+        Assert.Contains("can't see top-level data", error.Message);
+    }
+
+    [Fact]
+    public void AFunctionFromABlock_MayReadAProgramScopeConstant()
+    {
+        // ! The counter-test. What Q1 ALLOWS is what belongs to the program, and a `permanently`
+        // constant means the same thing wherever the block is placed.
+        Assert.Equal("15", Run("""
+            Pull a book on cufet.
+                Define the offset as 10 permanently.
+                Define cufet helpers as [
+                    Bind number to nudged, given (the number value):
+                        Return the value + the offset.
+                    Done.
+                ].
+                Cite helpers.
+                State cast nudged on (5).
+            Done.
+            """));
     }
     // -- The capture walk sees inside an `If` arm and a `Judge` arm ------------
     //

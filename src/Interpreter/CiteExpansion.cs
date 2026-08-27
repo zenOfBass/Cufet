@@ -74,8 +74,30 @@ public static class CiteExpansion
             RequireNoCapture(block, programScope);
         }
 
+        // ⭐⭐ Where a `Cite` may go, when what it places is a FUNCTION. Q1 says a block's names
+        // resolve at program scope and never at the cite site — and for a function body that is not
+        // a thing to check, it is a thing to make true. A `Bind` placed where functions live is a
+        // FREE FUNCTION, and the language already refuses a free function that reads top-level data;
+        // placed inside another body it is a closure, and closing over the citing body's locals is
+        // exactly what Q1 forbids.
+        //
+        // ★ So the rule is a placement rule, enforced by the scope the statement lands in rather
+        // than by a second analysis of what it says. FlattenHoistable answers "which scopes do
+        // functions belong to" for the checker and both backends; asking it here is what keeps this
+        // from becoming a fourth opinion on the same question.
+        var placesAFunction = blocks.Values
+            .Where(block => block.Body.Any(held => held is BindStatement))
+            .Select(block => block.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var functionScope = placesAFunction.Count == 0
+            ? []
+            : new HashSet<IStatement>(TypeChecker.FlattenHoistable(statements), ByReference.Instance);
+
         return AstRebuilder.Apply(statements, type => type, splice: statement =>
-            statement is CiteStatement cite ? Held(blocks, runnable, cite) : null);
+            statement is CiteStatement cite
+                ? Held(blocks, runnable, placesAFunction, functionScope, cite)
+                : null);
     }
 
     /// <summary>Takes the blocks themselves out, once everything that reads one has run.</summary>
@@ -92,12 +114,40 @@ public static class CiteExpansion
         AstRebuilder.Apply(statements, type => type,
             splice: statement => statement is CufetAxiomDefinition ? [] : null);
 
+    /// <summary>Reference identity, because two `Cite` statements that read alike are equal by value.</summary>
+    private sealed class ByReference : IEqualityComparer<IStatement>
+    {
+        public static readonly ByReference Instance = new();
+        public bool Equals(IStatement? left, IStatement? right) => ReferenceEquals(left, right);
+        public int GetHashCode(IStatement statement) =>
+            System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(statement);
+    }
+
     private static IReadOnlyList<IStatement> Held(
         Dictionary<string, CufetAxiomDefinition> blocks,
         HashSet<string> runnable,
+        HashSet<string> placesAFunction,
+        HashSet<IStatement> functionScope,
         CiteStatement cite)
     {
-        if (blocks.TryGetValue(cite.Name, out var block)) return block.Body;
+        if (blocks.TryGetValue(cite.Name, out var block))
+        {
+            // ⚠ A function may only be placed where a function belongs. Everything else a block
+            // holds goes anywhere: a type belongs to the program wherever it is written, and a
+            // value is meant to land at the cite site — that is the feature. A function is the one
+            // thing whose meaning would change with the company it keeps.
+            if (placesAFunction.Contains(cite.Name) && !functionScope.Contains(cite))
+                throw TypeChecker.TypeError(
+                    $"'{cite.Name}' holds a function, so it cannot be cited inside another body",
+                    "Placed here it would be a closure over the body citing it, and what a block "
+                  + "holds must mean the same thing wherever it is placed. Placed where functions "
+                  + "belong it is a free function, which already cannot read the data around it",
+                    cite.Line, cite.Column,
+                    $"cite '{cite.Name}' inside a body",
+                    $"Cite '{cite.Name}' at the top level, or directly inside a 'Pull' block.");
+
+            return block.Body;
+        }
 
         // ⚠ The name IS declared, just not as source — saying "there is no cufet source called
         // 'two'" and telling the writer to declare it would send them to fix a line that is
@@ -160,23 +210,9 @@ public static class CiteExpansion
 
         foreach (var statement in block.Body)
         {
-            if (statement is ObjectDefinition or InterfaceDefinition or DefineStatement) continue;
+            if (statement is ObjectDefinition or InterfaceDefinition
+                          or DefineStatement or BindStatement) continue;
             var (line, column) = PositionOf(statement, block.Line, block.Column);
-
-            // ⚠ A `Bind` IS a declaration, so the message below would be a lie. It is held out for
-            // a reason of its own: a body reads names, and what a body placed elsewhere is allowed
-            // to read is the question RequireNoCapture answers for a value and cannot answer for a
-            // body without becoming a second type checker.
-            if (statement is BindStatement)
-                throw TypeChecker.TypeError(
-                    $"'{block.Name}' holds a function, and a block cannot hold one yet",
-                    "What a block holds is placed somewhere else, and a function body reads names "
-                  + "— so where those names would then point is a question with no answer yet. An "
-                  + "object's methods are fine, because they are checked in a scope of their own",
-                    line, column,
-                    $"put a function inside '{block.Name}'",
-                    "Declare the function outside the block — or, if it belongs to a type, put it "
-                  + "in an object the block declares.");
 
             throw TypeChecker.TypeError(
                 $"cufet source holds declarations, and this is not one",
