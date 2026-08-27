@@ -250,6 +250,23 @@ Done.
 
 A call composes anywhere an ordinary call does.
 
+**The source is spliced where an expression goes**, so a loop needs C's own way of putting
+statements there — a statement-expression, `({ ... })`, whose last expression is its value:
+
+```
+Pull a book on the c-language.
+    Define c-language number sum-to, given (the number top),
+        as [({ int s = 0; for (int i = 1; i <= (int)the top; i++) s += i; s; })].
+    State cast sum-to on (10).
+Done.
+```
+```
+55
+```
+
+⚠ Written bare — `[int s = 0; for (...) ...; return s;]` — gcc rejects it, because that text is
+placed where a value is expected rather than where a body is.
+
 #### An axiom that says nothing is source
 
 **Saying what an axiom gives back is what makes it something to RUN.** An axiom that says nothing
@@ -591,7 +608,31 @@ exception, and it is reported as one.
 
 **A `cufet` axiom is Cufet source held under a name.** The same surface as a foreign one, with a
 different mechanism behind it. `[ ... ]` still says *the text inside is not the program around it*,
-and that stays true here — the source is parsed, but it is not **placed** until a `Cite` says where.
+and that stays true here — the source is parsed, but nothing happens to it until you say so.
+
+**Which kind it is comes from the same rule the C tag follows: says what it gives back, and it is
+something you run; says nothing, and it is source.**
+
+```
+Pull a book on cufet.
+    Define cufet number sum-to, given (the number top), as [
+        Define the total as 0.
+        For each step in range 1 to the top, repeat:
+            The total becomes the total + step.
+        Done.
+        Return the total.
+    ].
+    State cast sum-to on (10).
+Done.
+```
+```
+55
+```
+
+A runnable one's body is a body, so a loop goes in it, and it is a value like any function — bind
+it to another name and run it there. It has no crossing restriction either: C is limited to a
+number, a fact and a voidable text because those are what survive the boundary, and nothing crosses
+one here.
 
 ```
 Pull a book on cufet.
@@ -628,10 +669,12 @@ Where a cited declaration lands is not a rule of its own. A type declaration bel
 wherever it is written, so a cited object is usable after the function that cited it — exactly as
 one written there by hand would be.
 
-⚠ One name holds one block; a second under the same name is refused. ⚠ A block cannot say what it
-gives back, take a `given` clause, or name a release — those mean *run me*, and Cufet source is
-placed rather than run. ⚠ A message from inside a block reports the line it occupies in the file
-that holds it, not the line it would have on its own.
+⚠ One name holds one block; a second under the same name is refused. ⚠ Source takes no parameters,
+exactly as a resultless C axiom takes none — a parameter's value comes from a call, and nothing
+calls source. ⚠ `and free it with` is refused, and it is the one thing the two tags differ on: a
+release clause hands memory back to the language that allocated it, and nothing was allocated across
+a boundary here. ⚠ A message from inside a block reports the line it occupies in the file that
+holds it, not the line it would have on its own.
 
 ★ Nothing about this reaches a backend. The blocks are placed and then removed while the program is
 still being checked, so what runs — interpreted or compiled — is a program of ordinary declarations,

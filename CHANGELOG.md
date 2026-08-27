@@ -10,6 +10,58 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **A `cufet` axiom that says what it gives back is something you RUN** — the rule the
+  `c-language` tag already follows, now the rule for both tags:
+
+  ```
+  Pull a book on cufet.
+      Define cufet number sum-to, given (the number top), as [
+          Define the total as 0.
+          For each step in range 1 to the top, repeat:
+              The total becomes the total + step.
+          Done.
+          Return the total.
+      ].
+      State cast sum-to on (10).      ← 55
+  Done.
+  ```
+
+  ★★ **Says what it gives back ⇒ run it; says nothing ⇒ source, placed by `Cite`.** One rule read
+  off the declaration, for both tags, so parameters need no new spelling: they arrive on the call
+  exactly as C's do.
+
+  ★ A runnable axiom's body is a BODY, so it holds what a function body holds — a loop, a
+  condition, its own locals. It is also a value like any function: bind it to another name and run
+  it there.
+
+  ★ It has **no crossing restriction**, and none is missing. A `c-language` axiom gives back a
+  number, a fact or a voidable text because those are what survive the boundary; nothing crosses one
+  here, so `Define cufet series of number …` is fine.
+
+  ★ A runnable cufet axiom is lowered to an ordinary function by the PARSER, which is what gives it
+  everything a function has without either backend learning that cufet axioms exist — the same claim
+  the block half makes.
+
+  ⚠ Source still takes no parameters, and citing a runnable axiom is refused — saying which of the
+  two it is, rather than claiming the name is undeclared. ⚠ `and free it with` is refused on a
+  cufet axiom, and it is the only thing the two tags differ on at a declaration: a release clause
+  hands memory back to the language that allocated it, and nothing crossed a boundary here.
+
+- **A `c-language` axiom can hold a loop, and now the docs say so.** It always could — the source is
+  spliced where an expression goes, so C's own way of putting statements there works:
+
+  ```
+  Define c-language number sum-to, given (the number top),
+      as [({ int s = 0; for (int i = 1; i <= (int)the top; i++) s += i; s; })].
+  ```
+
+- **An axiom's result type may be any type the tag can carry.** The parse used to accept five words
+  in that position (`number`, `text`, `fact`, `bits`, `void`/`voidable`), which is why a cufet axiom
+  could not give back a series. A language book's name in type position can only be an axiom tag, so
+  there is nothing to guess. ★ For the `c-language` tag this turns a wrong result from a parse error
+  about a stray token into the sentence that exists to explain it — *"a c-language axiom cannot give
+  back a series of numbers yet"*.
+
 - **Cufet source can be held as an axiom and placed with `Cite`** — the same surface a foreign
   axiom uses, with a different mechanism behind it:
 

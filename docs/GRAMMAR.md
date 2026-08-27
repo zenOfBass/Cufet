@@ -2090,7 +2090,40 @@ as Cufet and refuses.
 
 **A `cufet` axiom is Cufet source held under a name.** Same surface as a foreign one, different
 mechanism behind it: `[ … ]` still says *the text inside is not the program around it*, and for a
-`cufet` tag that stays true — it is parsed, but it is not **placed** until a `Cite` says where.
+`cufet` tag that stays true — it is parsed, but nothing happens to it until you say so.
+
+★★ **Which of the two kinds it is comes from the rule the `c-language` tag already follows:
+says what it gives back ⇒ something you RUN; says nothing ⇒ SOURCE.** One rule, read off the
+declaration, for both tags.
+
+```
+Pull a book on cufet.
+    // Says it gives back a number ⇒ something you run. Called like any other.
+    Define cufet number sum-to, given (the number top), as [
+        Define the total as 0.
+        For each step in range 1 to the top, repeat:
+            The total becomes the total + step.
+        Done.
+        Return the total.
+    ].
+    State cast sum-to on (10).      ← 55
+Done.
+```
+
+**A runnable axiom's body is a BODY**, so it holds whatever a function body holds — a loop, a
+condition, its own locals. C reaches the same capability through a statement-expression, which is
+C's way of putting statements where an expression goes:
+
+```
+Define c-language number sum-to, given (the number top),
+    as [({ int s = 0; for (int i = 1; i <= (int)the top; i++) s += i; s; })].
+```
+
+**A runnable cufet axiom has no crossing restriction, and none is missing.** A `c-language` axiom
+gives back a number, a fact or a voidable text because those are what survive the boundary; nothing
+crosses a boundary here, so any Cufet type comes back — `Define cufet series of number …` is fine.
+
+**It is a value, like any function.** Bind it to another name, pass it, store it, run it there.
 
 ```
 Pull a book on cufet.
@@ -2134,9 +2167,16 @@ one redeclaration in this language that is. Every other kind holds a value or a 
 answer already (`Define a shadow`, or last-wins); a name holding source waiting to be placed would
 leave every `Cite` of it ambiguous at a glance.
 
-⚠ **A `cufet` axiom cannot say it gives something back, take a `given` clause, or name a release.**
-Those three shapes mean *run me*, and Cufet source is not run at a boundary — it is placed. Nothing
-calls a block, so there is no result to come back and nowhere for a parameter's value to arrive from.
+⚠ **Source takes no parameters**, the same as a resultless `c-language` axiom: a parameter's value
+comes from a call, and nothing calls source — it is placed. `Define cufet shape, given (…), as [ … ]`
+is refused at the declaration.
+
+⚠ **A runnable axiom cannot be cited**, and citing one says so rather than claiming the name is
+undeclared. Call it instead.
+
+⚠ **`and free it with` is refused on a cufet axiom — the one thing the two tags differ on.** A
+release clause hands memory back to the language that allocated it, and cufet source allocates
+nothing across a boundary; what it produces is an ordinary Cufet value.
 
 ⚠ **A message from inside a block reports where the block actually sits**, not where it would sit if
 it were a file of its own. A lexer starts at line 1 and a block does not, so the fragment's position
