@@ -351,6 +351,14 @@ public class ExhaustivenessTests
         // green under the same break and is labelled there as not discriminating — an `Otherwise`
         // body is an ordinary property.)
         "StashTransform.cs: Search",
+        // Q1 for cufet blocks: a block may reach only for names that belong to the PROGRAM, so a
+        // name it did not declare cannot silently mean whatever the site that cited it happens to
+        // have. Proof it sees inside ConditionArm and JudgeArm:
+        // Interpreter.Tests/CufetAxiomTests.ACaptureHidingInAnIfArmBody_IsStillCaught and
+        // ACaptureHidingInAJudgeArmBody_IsStillCaught. Both were shown RED by keying the walk on
+        // IStatement/IExpression instead of the namespace, and in both the captured name appears
+        // ONLY inside an arm's BODY — a `Judge` subject is an ordinary property any walk reaches.
+        "CiteExpansion.cs: RequireNoCapture",
     ];
 
     // A generic AST walk's fingerprint: it asks an unknown node for its properties.

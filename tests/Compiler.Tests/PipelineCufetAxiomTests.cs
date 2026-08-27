@@ -315,4 +315,71 @@ public class PipelineCufetAxiomTests : PipelineTestBase
         Assert.Contains("cannot give back a series of numbers yet",
             Assert.Throws<TypeException>(() => CompileRaw(src)).Message);
     }
+    [Fact]
+    public void AValueFromABlock_LandsAtEachCiteSite_OnBothBackends()
+    {
+        // ⭐⭐ Where `Cite` earns its keep, and the case the compiled side has to agree on. A TYPE
+        // belongs to the program wherever it is written, so citing a block of objects places
+        // nothing a plain declaration would not have. A VALUE lands at the site that cited it — so
+        // one block, two cite sites, two independent locals. If the splice were doing anything
+        // cleverer than placing statements, these two numbers would not both be right.
+        const string src = """
+            Pull a book on cufet.
+                Define cufet counters as [
+                    Define the tally as 0.
+                ].
+
+                Bind number to first:
+                    Cite counters.
+                    The tally becomes the tally + 5.
+                    Return the tally.
+                Done.
+
+                Bind number to second:
+                    Cite counters.
+                    Return the tally.
+                Done.
+
+                State cast first on ().
+                State cast second on ().
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("5\n0", Interpret(src));
+    }
+
+    [Fact]
+    public void ABlockUsingProgramScopeNames_RunsTheSameOnBothBackends()
+    {
+        // ★ What a block IS allowed to reach for: a function, a `permanently` constant, and a type
+        // a sibling block declared. All three mean the same thing wherever the block is placed,
+        // which is the test Q1 applies.
+        const string src = """
+            Pull a book on cufet.
+                Define the starting-tally as 10 permanently.
+
+                Bind number to doubled-of, given (the number value):
+                    Return the value * 2.
+                Done.
+
+                Define cufet shapes as [
+                    Define object vec2 with (the number x, the number y):
+                        Bind number to sum: Return one's x + one's y. Done.
+                    Done.
+                ].
+
+                Define cufet counters as [
+                    Define the tally as cast doubled-of on (the starting-tally).
+                    Define the origin as a new vec2 { the x 0, the y 0 }.
+                ].
+
+                Cite shapes.
+                Cite counters.
+                State the tally.
+                State cast sum on (the origin).
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("20\n0", Interpret(src));
+    }
 }

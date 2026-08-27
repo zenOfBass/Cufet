@@ -453,4 +453,192 @@ public class CufetAxiomTests
         Assert.Equal(32, error.Column);
         Assert.Contains("'@'", error.Message);
     }
+    // -- A block that holds VALUES ---------------------------------------------
+    //
+    // ⭐⭐ This is where `Cite` earns its keep. A TYPE belongs to the program wherever it is
+    // written, so citing a block of objects places nothing a plain declaration would not have. A
+    // VALUE does not — it lands at the site that cited it — so the same block cited twice makes two
+    // independent locals, which is a thing no other construct here does.
+
+    [Fact]
+    public void AValueFromABlock_LandsAtEachCiteSite()
+    {
+        // The whole point in five lines: one block, two cite sites, two separate tallies.
+        Assert.Equal("5\n0", Run("""
+            Pull a book on cufet.
+                Define cufet counters as [
+                    Define the tally as 0.
+                ].
+
+                Bind number to first:
+                    Cite counters.
+                    The tally becomes the tally + 5.
+                    Return the tally.
+                Done.
+
+                Bind number to second:
+                    Cite counters.
+                    Return the tally.
+                Done.
+
+                State cast first on ().
+                State cast second on ().
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ABlockMayUseWhatBelongsToTheProgram()
+    {
+        // ★ A function, a `permanently` constant and a type the block's own sibling declared. All
+        // three mean the same thing wherever the block is placed, which is the test Q1 applies.
+        Assert.Equal("20\n0", Run("""
+            Pull a book on cufet.
+                Define the starting-tally as 10 permanently.
+
+                Bind number to doubled-of, given (the number value):
+                    Return the value * 2.
+                Done.
+
+                Define cufet shapes as [
+                    Define object vec2 with (the number x, the number y):
+                        Bind number to sum: Return one's x + one's y. Done.
+                    Done.
+                ].
+
+                Define cufet counters as [
+                    Define the tally as cast doubled-of on (the starting-tally).
+                    Define the origin as a new vec2 { the x 0, the y 0 }.
+                ].
+
+                Cite shapes.
+                Cite counters.
+                State the tally.
+                State cast sum on (the origin).
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ABlockReachingForACiteSiteLocal_IsRefused()
+    {
+        // ⭐⭐ Q1, and it is a REFUSAL rather than a resolution rule because that is what makes
+        // capture impossible BY CONSTRUCTION. Left alone, `the secret` would mean whatever the site
+        // that cited the block happened to have under that name — so one block, cited twice, would
+        // be two different programs.
+        var error = Refused("""
+            Pull a book on cufet.
+                Define cufet grabby as [
+                    Define the copy as the secret.
+                ].
+                Bind number to sneaky:
+                    Define the secret as 99.
+                    Cite grabby.
+                    Return the copy.
+                Done.
+                State cast sneaky on ().
+            Done.
+            """);
+
+        Assert.Contains("cufet source cannot reach for 'secret'", error.Message);
+        Assert.Equal(3, error.Line);     // the block's own line, not the cite site's
+    }
+
+    [Fact]
+    public void ALambdaInsideABlock_CannotCaptureEither()
+    {
+        // ⚠ A lambda captures its enclosing scope by design, so one written inside a block is
+        // exactly where a capture would hide. Its own parameters are still fine.
+        Assert.Contains("cannot reach for 'secret'", Refused("""
+            Pull a book on cufet.
+                Define cufet grabby as [
+                    Define the grab as a function given (the number n): Return n + the secret. Done.
+                ].
+                Bind number to sneaky:
+                    Define the secret as 99.
+                    Cite grabby.
+                    Return cast the grab on (1).
+                Done.
+                State cast sneaky on ().
+            Done.
+            """).Message);
+    }
+
+    [Fact]
+    public void ABlockHoldingAFunction_IsRefusedAndSaysWhy()
+    {
+        // ! A `Bind` IS a declaration, so "this is not one" would be a lie. It is held out for a
+        // reason of its own, and the message has to be that reason.
+        var error = Refused("""
+            Pull a book on cufet.
+                Define cufet helpers as [
+                    Bind number to doubled, given (the number value):
+                        Return the value * 2.
+                    Done.
+                ].
+                Cite helpers.
+            Done.
+            """);
+
+        Assert.Contains("holds a function, and a block cannot hold one yet", error.Message);
+    }
+    // -- The capture walk sees inside an `If` arm and a `Judge` arm ------------
+    //
+    // ⭐⭐ RequireNoCapture descends by reflection, and `ConditionArm` and `JudgeArm` implement
+    // NEITHER IExpression nor IStatement — so a walk that gates on those interfaces goes straight
+    // past the condition and body of every `If` arm and every judgement. These two are the proof it
+    // does not, and they are registered as such in Compiler.Tests/ExhaustivenessTests.
+    //
+    // ⚠ In both, the captured name appears ONLY inside an arm's BODY. Putting it in a `Judge`
+    // subject would prove nothing: a subject is an ordinary property that any walk reaches.
+
+    [Fact]
+    public void ACaptureHidingInAnIfArmBody_IsStillCaught()
+    {
+        var error = Refused("""
+            Pull a book on cufet.
+                Define cufet grabby as [
+                    Define the grab as a function given (the number n):
+                        If n is 1, return the secret.
+                        Return 0.
+                    Done.
+                ].
+                Bind number to sneaky:
+                    Define the secret as 99.
+                    Cite grabby.
+                    Return cast the grab on (1).
+                Done.
+                State cast sneaky on ().
+            Done.
+            """);
+
+        Assert.Contains("cannot reach for 'secret'", error.Message);
+        Assert.Equal(4, error.Line);     // the arm's body, not the block's first line
+    }
+
+    [Fact]
+    public void ACaptureHidingInAJudgeArmBody_IsStillCaught()
+    {
+        var error = Refused("""
+            Pull a book on cufet.
+                Define cufet grabby as [
+                    Define the grab as a function given (the (number or text) thing):
+                        Judge thing, where it is:
+                            A number, return the secret.
+                            A text, return 0.
+                        Done.
+                    Done.
+                ].
+                Bind number to sneaky:
+                    Define the secret as 99.
+                    Cite grabby.
+                    Return cast the grab on (1).
+                Done.
+                State cast sneaky on ().
+            Done.
+            """);
+
+        Assert.Contains("cannot reach for 'secret'", error.Message);
+        Assert.Equal(5, error.Line);     // inside the arm, not the subject on line 4
+    }
 }
