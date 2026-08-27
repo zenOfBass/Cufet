@@ -32,10 +32,17 @@ public static class CiteExpansion
     public static IReadOnlyList<IStatement> Expand(IReadOnlyList<IStatement> statements)
     {
         var blocks = new Dictionary<string, CufetAxiomDefinition>(StringComparer.Ordinal);
+        // The cufet axioms that say what they give back — lowered to functions by the parser, and
+        // gathered here only so that citing one can say why it cannot be cited.
+        var runnable = new HashSet<string>(StringComparer.Ordinal);
         bool cited = false;
         foreach (var statement in AstSearch.EveryStatement(statements))
             switch (statement)
             {
+                case BindStatement { FromCufetAxiom: true } run:
+                    runnable.Add(run.Name);
+                    break;
+
                 case CufetAxiomDefinition block:
                     // ⚠ Refused rather than shadowed. Every other redeclaration in this language
                     // has an answer already — `Define a shadow`, or last-wins for a type — and both
@@ -63,7 +70,7 @@ public static class CiteExpansion
         foreach (var block in blocks.Values) RequireDeclarationsOnly(block);
 
         return AstRebuilder.Apply(statements, type => type, splice: statement =>
-            statement is CiteStatement cite ? Held(blocks, cite) : null);
+            statement is CiteStatement cite ? Held(blocks, runnable, cite) : null);
     }
 
     /// <summary>Takes the blocks themselves out, once everything that reads one has run.</summary>
@@ -81,16 +88,35 @@ public static class CiteExpansion
             splice: statement => statement is CufetAxiomDefinition ? [] : null);
 
     private static IReadOnlyList<IStatement> Held(
-        Dictionary<string, CufetAxiomDefinition> blocks, CiteStatement cite) =>
-        blocks.TryGetValue(cite.Name, out var block)
-            ? block.Body
-            : throw TypeChecker.TypeError(
-                $"there is no cufet source called '{cite.Name}' to cite",
-                "'Cite' places what a cufet block holds, and the name is the block's, not a "
-              + "variable's",
+        Dictionary<string, CufetAxiomDefinition> blocks,
+        HashSet<string> runnable,
+        CiteStatement cite)
+    {
+        if (blocks.TryGetValue(cite.Name, out var block)) return block.Body;
+
+        // ⚠ The name IS declared, just not as source — saying "there is no cufet source called
+        // 'two'" and telling the writer to declare it would send them to fix a line that is
+        // already right. Which of the two a cufet axiom is comes from one place: whether it says
+        // what it gives back.
+        if (runnable.Contains(cite.Name))
+            throw TypeChecker.TypeError(
+                $"'{cite.Name}' says what it gives back, so it is something you run rather than "
+              + "source to cite",
+                "A cufet axiom that names a result is a body with a name — the same rule the "
+              + "c-language tag follows",
                 cite.Line, cite.Column,
                 $"cite '{cite.Name}'",
-                $"Declare it first: 'Define cufet {cite.Name} as [ ... ].'");
+                $"Call it: 'cast {cite.Name} on (...)'. Only a block that says nothing about a "
+              + "result is cited.");
+
+        throw TypeChecker.TypeError(
+            $"there is no cufet source called '{cite.Name}' to cite",
+            "'Cite' places what a cufet block holds, and the name is the block's, not a "
+          + "variable's",
+            cite.Line, cite.Column,
+            $"cite '{cite.Name}'",
+            $"Declare it first: 'Define cufet {cite.Name} as [ ... ].'");
+    }
 
     /// <summary>Refuses a block holding anything but a declaration.</summary>
     /// <remarks>
@@ -107,6 +133,21 @@ public static class CiteExpansion
     /// </remarks>
     private static void RequireDeclarationsOnly(CufetAxiomDefinition block)
     {
+        // ⚠ The same refusal the c-language tag makes, for the same reason: a parameter's value
+        // comes from a call, and nothing calls source — it is placed. Said here rather than left to
+        // the checker because a `Cite` of this name would otherwise report first, and "there is no
+        // cufet source called 'shape'" is a true sentence about the wrong line.
+        if (block.HasParameterClause)
+            throw TypeChecker.TypeError(
+                $"'{block.Name}' says nothing about what it gives back, so it is source rather "
+              + "than something to run — and source takes no parameters",
+                "A parameter's value comes from a call, and nothing calls this: it is placed where "
+              + "a 'Cite' says",
+                block.Line, block.Column,
+                $"give '{block.Name}' parameters",
+                $"Drop the 'given' clause — or say what running it gives back, as in "
+              + $"'Define cufet number {block.Name}, given (…), as [ … ].'");
+
         foreach (var statement in block.Body)
         {
             if (statement is ObjectDefinition or InterfaceDefinition) continue;

@@ -211,6 +211,12 @@ public sealed partial class TypeChecker
 
     private void CheckBind(BindStatement bind)
     {
+        // ⚠ A function lowered from a runnable `cufet` axiom still owes the pull its language
+        // wants around it. The literal that would normally carry that requirement is gone by now,
+        // so the flag carries it instead — and this is the same check every other axiom gets.
+        if (bind.FromCufetAxiom)
+            RequireLanguagePulled(CufetLanguage, bind.Line, bind.Column);
+
         // ★ A FILLED generic body: anything it refuses is refused because of the call that filled
         // it, so the error is re-anchored there. The body's own explanation is kept verbatim — it
         // is the reason, and dropping it would leave "this doesn't work" with no account of why.

@@ -225,7 +225,21 @@ public sealed record BindStatement(
     string? ConstructsTypeName,
     int Line,
     int Column
-) : IStatement;
+) : IStatement
+{
+    /// <summary>Whether this function was written as a runnable `cufet` axiom.</summary>
+    /// <remarks>
+    /// ★ A cufet axiom that says what it gives back IS a function, and the parser lowers it to one
+    /// — which is what gives it everything a function has (called with `cast`, held as a value,
+    /// passed, stored) without either backend learning that cufet axioms exist.
+    ///
+    /// ⚠ One thing does not survive that lowering: the requirement that the language's book be
+    /// pulled. Every other axiom is checked for it through the literal it is the value of, and
+    /// after lowering there is no literal left. So the fact rides here, and the checker asks the
+    /// same RequireLanguagePulled everything else does — one rule, not a second one for this shape.
+    /// </remarks>
+    public bool FromCufetAxiom { get; init; }
+}
 
 // Bind overloading <Op>, given (the <LeftName> is a <OperandTypeName>, the <RightName> is a <OperandTypeName>): ... Done.
 // Declares the behaviour of <Op> for two same-type <OperandTypeName> operands.
@@ -413,7 +427,17 @@ public sealed record CufetAxiomDefinition(
     IReadOnlyList<IStatement> Body,
     int Line,
     int Column
-) : IStatement;
+) : IStatement
+{
+    /// <summary>Whether this block was written with a `, given (…)` clause.</summary>
+    /// <remarks>
+    /// ⚠ Carried rather than refused at the parse, so the refusal can come from the pass that owns
+    /// blocks and can say it in the language's own voice. A `Cite` of the name would otherwise
+    /// report first — "there is no cufet source called 'shape'" — which is true and useless, because
+    /// the source is right there and the clause is the problem.
+    /// </remarks>
+    public bool HasParameterClause { get; init; }
+}
 
 // Cite <name>.  — place the declarations a cufet axiom holds, here.
 //

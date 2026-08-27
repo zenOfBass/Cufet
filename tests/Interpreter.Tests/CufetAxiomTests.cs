@@ -13,7 +13,12 @@ namespace Cufet.Interpreter.Tests;
 /// but it is not PLACED until a `Cite` says where. Everything past parsing differs: nothing is
 /// marshalled, no boundary is crossed, and no compiler but this one ever reads it.
 ///
-/// ★ What a block holds are DECLARATIONS. An object and an interface are both hoisted to the
+/// ⭐⭐ Which of the two a cufet axiom is comes from the rule the c-language tag already follows:
+/// **says what it gives back ⇒ something you run; says nothing ⇒ source, placed by `Cite`.** One
+/// rule for both tags. The only thing they differ on at a declaration is a release clause, which
+/// has nothing to release when no boundary was crossed.
+///
+/// ★ What a BLOCK holds are DECLARATIONS. An object and an interface are both hoisted to the
 /// program wherever they are written, and both are checked in a scope of their own — so a cited one
 /// cannot see a local at the site that cited it, and the question of what a free name inside a
 /// block means never arises.
@@ -241,22 +246,145 @@ public class CufetAxiomTests
             """).Message);
     }
 
-    [Theory]
-    [InlineData("Define cufet number two as [ 2 ].")]
-    [InlineData("Define cufet shape, given (the number n), as [ Define object vec2 with (the number x): Done. ].")]
-    public void ACufetBlockWrittenAsSomethingToRun_IsRefused(string declaration)
+    // -- An axiom that says what it gives back is something you RUN ------------
+    //
+    // ⭐⭐ The rule is the c-language tag's, unchanged: **says what it gives back ⇒ something you
+    // run; says nothing ⇒ source.** One rule, read off the declaration, for both tags — the only
+    // thing they differ on is that a release clause has nothing to release here.
+    //
+    // ★ A runnable cufet axiom is lowered to a `Bind` by the PARSER, which is what gives it
+    // everything a function already has — called with `cast`, held as a value, passed, stored —
+    // without either backend learning that cufet axioms exist.
+
+    [Fact]
+    public void AnAxiomThatSaysWhatItGivesBack_IsRun()
     {
-        // The shapes that mean "run me" — a result type, a `given` clause, a release clause. The
-        // parser turns every OTHER cufet block into a block; these fall through to the ordinary
-        // axiom path, where the refusal has the machinery to explain itself.
-        var error = Refused($"""
+        Assert.Equal("42", Run("""
             Pull a book on cufet.
-                {declaration}
-                State "ok".
+                Define cufet number doubled, given (the number value), as [
+                    Return the value * 2.
+                ].
+                State cast doubled on (21).
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ARunnableAxiom_CanHoldALoop()
+    {
+        // ★ The body is a BODY, not an expression, so a loop goes in one. C reaches the same
+        // capability through a statement-expression — `[({ int s = 0; for (…) …; s; })]` — which is
+        // C's way of putting statements where an expression goes. Same power, each language
+        // spelled the way that language spells it.
+        Assert.Equal("55", Run("""
+            Pull a book on cufet.
+                Define cufet number sum-to, given (the number top), as [
+                    Define the total as 0.
+                    For each step in range 1 to the top, repeat:
+                        The total becomes the total + step.
+                    Done.
+                    Return the total.
+                ].
+                State cast sum-to on (10).
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ARunnableAxiom_GivesBackAnyCufetType()
+    {
+        // ★ No crossing restriction, and none is missing. A c-language axiom is limited to a
+        // number, a fact and a voidable text because those are what survive the BOUNDARY — and
+        // there is no boundary here, so a series comes back like anything else.
+        Assert.Equal("(1, 2, 3)", Run("""
+            Pull a book on cufet.
+                Define cufet series of number first-few as [
+                    Return a series of number with (1, 2, 3).
+                ].
+                State cast first-few on ().
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ARunnableAxiom_IsAValue()
+    {
+        // Held under another name and run there — one of the things a C axiom can do, so this can.
+        Assert.Equal("42", Run("""
+            Pull a book on cufet.
+                Define cufet number doubled, given (the number value), as [
+                    Return the value * 2.
+                ].
+                Define the operation as doubled.
+                State cast the operation on (21).
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ARunnableAxiom_StillWantsThePull()
+    {
+        // ⚠ The one thing the lowering to a `Bind` does not carry on its own. Every other axiom is
+        // checked for its language's pull through the literal it is the value of, and after
+        // lowering there is no literal — so the fact rides on the `Bind` and reaches the same
+        // check. Without it the source form would want a pull and the runnable form would not.
+        Assert.Contains("the cufet book is not in scope", Refused("""
+            Define cufet number doubled, given (the number value), as [
+                Return the value * 2.
+            ].
+            State cast doubled on (21).
+            """).Message);
+    }
+
+    [Fact]
+    public void ARunnableAxiom_CannotBeCited()
+    {
+        // ⚠ The name IS declared, so "there is no cufet source called 'two'" would send the writer
+        // to fix a line that is already right.
+        var error = Refused("""
+            Pull a book on cufet.
+                Define cufet number two as [ Return 2. ].
+                Cite two.
             Done.
             """);
 
-        Assert.Contains("is Cufet source, which is cited rather than run", error.Message);
+        Assert.Contains("'two' says what it gives back, so it is something you run", error.Message);
+        Assert.Contains("cast two on (...)", error.Message);
+    }
+
+    [Fact]
+    public void SourceWithAGivenClause_IsRefused()
+    {
+        // The same refusal the c-language tag makes, for the same reason: a parameter's value comes
+        // from a call, and nothing calls source.
+        //
+        // ⚠ Reported at the DECLARATION. A `Cite` of the name used to report first, and "there is
+        // no cufet source called 'shape'" is a true sentence about the wrong line.
+        var error = Refused("""
+            Pull a book on cufet.
+                Define cufet shape, given (the number n), as [
+                    Define object vec2 with (the number x): Done.
+                ].
+                Cite shape.
+            Done.
+            """);
+
+        Assert.Contains("source takes no parameters", error.Message);
+        Assert.Equal(2, error.Line);
+    }
+
+    [Fact]
+    public void AReleaseClause_IsRefused()
+    {
+        // ★ The ONLY thing the two tags differ on at a declaration. `and free it with` hands memory
+        // back to the language that allocated it, and cufet source allocates nothing across a
+        // boundary — what it produces is an ordinary Cufet value.
+        Assert.Contains("there is nothing for it to free", Refused("""
+            Pull a book on cufet.
+                Define cufet number two as [ Return 2. ], and free it with two.
+                State cast two on ().
+            Done.
+            """).Message);
     }
 
     // ── Where a message from inside a block points ────────────────────────────

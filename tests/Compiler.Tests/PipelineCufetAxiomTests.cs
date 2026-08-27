@@ -204,4 +204,115 @@ public class PipelineCufetAxiomTests : PipelineTestBase
         Assert.Contains("function and method bodies can't see top-level data",
             Assert.Throws<TypeException>(() => CompileRaw(src)).Message);
     }
+    // -- An axiom that says what it gives back is something you RUN ------------
+    //
+    // ⭐⭐ The c-language tag's rule, unchanged: says what it gives back ⇒ run it; says nothing ⇒
+    // source. A runnable cufet axiom is lowered to a `Bind` by the PARSER, so what reaches either
+    // backend is an ordinary function — which is the same claim the block half makes, and the
+    // compiled side is again where it would break if it were false.
+
+    [Fact]
+    public void ARunnableAxiom_RunsTheSameOnBothBackends()
+    {
+        const string src = """
+            Pull a book on cufet.
+                Define cufet number doubled, given (the number value), as [
+                    Return the value * 2.
+                ].
+                State cast doubled on (21).
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("42", Interpret(src));
+    }
+
+    [Fact]
+    public void ARunnableAxiomHoldingALoop_RunsTheSameOnBothBackends()
+    {
+        // ★ A body, not an expression, so a loop goes in one. C reaches the same capability through
+        // a statement-expression, which is C's way of putting statements where an expression goes.
+        const string src = """
+            Pull a book on cufet.
+                Define cufet number sum-to, given (the number top), as [
+                    Define the total as 0.
+                    For each step in range 1 to the top, repeat:
+                        The total becomes the total + step.
+                    Done.
+                    Return the total.
+                ].
+                State cast sum-to on (10).
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("55", Interpret(src));
+    }
+
+    [Fact]
+    public void ACAxiomHoldingALoop_RunsTheSameOnBothBackends()
+    {
+        // ★ The other half of "same power, each language spelled its own way" — and this already
+        // worked, it was simply never written down. A statement-expression is how C puts statements
+        // where an expression goes, and the axiom's source is spliced where an expression goes.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language number sum-to, given (the number top),
+                    as [({ int s = 0; for (int i = 1; i <= (int)the top; i++) s += i; s; })].
+                State cast sum-to on (10).
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("55", Interpret(src));
+    }
+
+    [Fact]
+    public void ARunnableAxiomGivingBackASeries_RunsTheSameOnBothBackends()
+    {
+        // ★ No crossing restriction, and none missing: C is limited to a number, a fact and a
+        // voidable text because those are what survive the BOUNDARY, and there is no boundary here.
+        // A series has to have a C name and a struct on the compiled side, so this is the case that
+        // would show if a cufet axiom were being treated as foreign anywhere.
+        const string src = """
+            Pull a book on cufet.
+                Define cufet series of number first-few as [
+                    Return a series of number with (1, 2, 3).
+                ].
+                State cast first-few on ().
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("(1, 2, 3)", Interpret(src));
+    }
+
+    [Fact]
+    public void ARunnableAxiomHeldAsAValue_RunsTheSameOnBothBackends()
+    {
+        const string src = """
+            Pull a book on cufet.
+                Define cufet number doubled, given (the number value), as [
+                    Return the value * 2.
+                ].
+                Define the operation as doubled.
+                State cast the operation on (21).
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("42", Interpret(src));
+    }
+
+    [Fact]
+    public void ACAxiomWithAResultCCannotCarry_SaysSo()
+    {
+        // ! A knock-on the widened result-type parse had to get right. The gate used to accept five
+        // words, so `c-language series of number` was a PARSE error about a stray token; now it
+        // parses and reaches the sentence that exists to explain it. Kept here because widening
+        // that gate for cufet must not have cost C its message.
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language series of number nope as [getpid()].
+                State cast nope on ().
+            Done.
+            """;
+        Assert.Contains("cannot give back a series of numbers yet",
+            Assert.Throws<TypeException>(() => CompileRaw(src)).Message);
+    }
 }

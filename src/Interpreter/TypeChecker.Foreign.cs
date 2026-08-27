@@ -87,23 +87,23 @@ public sealed partial class TypeChecker
                 "write foreign source without naming its language",
                 $"Name it in the declaration: 'Define c-language {define.Name} as [ ... ].'");
 
-        // ⚠ A `cufet` block that reaches HERE was written in one of the three shapes that mean
-        // "run me" — a result type, a `given` clause, or a release clause. The parser takes every
-        // other cufet block and turns it into a CufetAxiomDefinition, so this arm sees only those.
+        // ⚠ `and free it with` names the axiom that frees what this one hands back, and what it
+        // frees is memory C owns. A cufet axiom crosses no boundary and allocates nothing anybody
+        // has to hand back — a value it produces is an ordinary Cufet value, kept alive by the
+        // ordinary rules — so there is nothing here for a release axiom to release.
         //
-        // ★ Cufet source is not run at a boundary; it is PLACED, where a `Cite` says. There is no
-        // call, so there is nowhere for a result to come back to or for a parameter's value to
-        // arrive from — the same reason a resultless C axiom takes no parameters, one section up.
-        if (IsCufetLanguage(tag.Language))
+        // ★ This is the ONLY thing the two tags differ on at a declaration. Everything else the
+        // c-language tag does, the cufet tag does: a result means something you run, silence means
+        // source, and a `given` clause is refused on source for the same reason in both.
+        if (IsCufetLanguage(tag.Language) && axiom.ReleasedBy is not null)
             throw TypeError(
-                $"'{define.Name}' is Cufet source, which is cited rather than run",
-                "A cufet block holds declarations and is placed where a 'Cite' says. Nothing calls "
-              + "one, so there is no result to come back and nowhere for a parameter's value to "
-              + "arrive from",
+                $"'{define.Name}' is Cufet source, so there is nothing for it to free",
+                "A release clause hands memory back to the language that allocated it, and cufet "
+              + "source allocates nothing across a boundary — what it produces is an ordinary Cufet "
+              + "value",
                 axiom.Line, axiom.Column,
-                $"declare '{define.Name}' as cufet source that runs",
-                $"Write 'Define cufet {define.Name} as [ ... ].', then 'Cite {define.Name}.' where "
-              + "the declarations belong.");
+                $"give '{define.Name}' a release clause",
+                "Drop the ', and free it with ...' clause.");
 
         RequireLanguagePulled(tag.Language, axiom.Line, axiom.Column);
         axiom.Language = tag.Language;

@@ -163,22 +163,66 @@ public sealed class Parser
         if (value is AxiomLiteral axiom && parameters is not null) axiom.Parameters = parameters;
         if (value is AxiomLiteral released && freeWith is not null) released.ReleasedBy = freeWith;
 
-        // `Define cufet <name> as [ … ].` — Cufet source, held under a name until a `Cite` places
-        // it. Parsed HERE, at the declaration, so that a mistake inside a block is reported as the
-        // syntax error it is rather than surfacing later as a puzzle about the block.
+        // `Define cufet <name> … as [ … ].` — Cufet source, held under a name. Parsed HERE, at the
+        // declaration, so a mistake inside is reported as the syntax error it is rather than
+        // surfacing later as a puzzle about the block.
         //
-        // ★ Only the PLAIN shape is taken. A cufet block written with a result type, a `given`
-        // clause or a release clause says "run me", and the answer to that belongs with the other
-        // axiom refusals, which have the machinery to explain themselves — so those shapes fall
-        // through to the ordinary `Define` below and are refused by the checker.
-        if (value is AxiomLiteral cufetSource && parameters is null && freeWith is null
-            && declaredType is ObjectType shell && TypeChecker.IsCufetLanguage(shell.Name))
-            return new CufetAxiomDefinition(name, HeldCufetSource(cufetSource), line, col);
+        // ⭐⭐ The SAME RULE the c-language tag already follows decides which of the two it is:
+        // **says what it gives back ⇒ something you run; says nothing ⇒ source.** Nothing about that
+        // is new here, which is the point — one rule, read off the declaration, for both tags.
+        if (value is AxiomLiteral cufetSource && freeWith is null && NamesCufet(declaredType))
+        {
+            // Says what it gives back ⇒ a function, and lowered to one right here. A runnable cufet
+            // axiom IS a Cufet body with a name, a result and parameters — so making it a
+            // `BindStatement` in the front end gives it everything a function already has (called
+            // with `cast`, held as a value, passed, stored) and teaches neither backend a thing.
+            //
+            // ★ The body is a BODY, not an expression, so it can hold a loop. C reaches the same
+            // capability through a statement-expression — `[({ int s = 0; for (…) …; s; })]` — which
+            // is C's way of putting statements where an expression goes. Same power, each language
+            // spelled the way that language spells it.
+            if (declaredType is AxiomType { ReturnType: not null } runnable)
+                return new BindStatement(
+                    name, runnable.ReturnType, parameters ?? [], HeldCufetBody(cufetSource),
+                    UntoType: null, ConstructsTypeName: null, line, col)
+                {
+                    FromCufetAxiom = true,
+                };
+
+            // Says nothing ⇒ source, held until a `Cite` places it. A `given` clause on source is
+            // the one mistake left, and it rides along to be refused by the pass that owns blocks.
+            return new CufetAxiomDefinition(name, HeldCufetSource(cufetSource), line, col)
+            {
+                HasParameterClause = parameters is not null,
+            };
+        }
         return new DefineStatement(name, value, permanent, shadow, line, col, declaredType)
         {
             HasParameterClause = parameters is not null,
         };
     }
+
+    /// <summary>Does this declared type name the `cufet` tag, in either of its two spellings?</summary>
+    /// <remarks>
+    /// `Define cufet <name>` parses the tag as an ordinary named type; `Define cufet number <name>`
+    /// reaches the axiom-type arm and parses it as one. Both are the same tag.
+    /// </remarks>
+    private static bool NamesCufet(CufetType? declared) => declared switch
+    {
+        ObjectType shell => TypeChecker.IsCufetLanguage(shell.Name),
+        AxiomType axiom  => TypeChecker.IsCufetLanguage(axiom.Language),
+        _                => false,
+    };
+
+    /// <summary>The BODY a runnable `cufet` axiom holds — parsed as what it is, a function body.</summary>
+    /// <remarks>
+    /// ⚠ `asFunctionBody` is not a detail. A fresh parser starts at the top level, where `Return` is
+    /// "'return' used outside a function" — so the body of every runnable cufet axiom was refused
+    /// on its first line. It IS a function body: the declaration names a result and its parameters,
+    /// and the lowering below makes it a `Bind`.
+    /// </remarks>
+    private static IReadOnlyList<IStatement> HeldCufetBody(AxiomLiteral source) =>
+        HeldCufetSource(source, asFunctionBody: true);
 
     /// <summary>The statements a `cufet` block holds, parsed where the block actually sits.</summary>
     /// <remarks>
@@ -191,9 +235,18 @@ public sealed class Parser
     /// the outer file went through, which is what makes a cufet block Cufet rather than a dialect
     /// that resembles it.
     /// </remarks>
-    private static IReadOnlyList<IStatement> HeldCufetSource(AxiomLiteral source) =>
-        new Parser(new Cufet.Lexer.Lexer(source.Source, source.Line - 1, source.Column).Tokenize())
-            .Parse().Statements;
+    private static IReadOnlyList<IStatement> HeldCufetSource(
+        AxiomLiteral source, bool asFunctionBody = false)
+    {
+        var inner = new Parser(
+            new Cufet.Lexer.Lexer(source.Source, source.Line - 1, source.Column).Tokenize());
+        if (asFunctionBody)
+        {
+            inner._functionDepth  = 1;      // `Return` belongs here
+            inner._inFreeFunction = true;   // and so does a nested `Bind`
+        }
+        return inner.Parse().Statements;
+    }
 
     /// <summary>`Cite &lt;name&gt;.` — place the declarations a cufet axiom holds.</summary>
     private IStatement ParseCiteStatement()
@@ -4881,6 +4934,20 @@ public sealed class Parser
     /// </remarks>
     private bool IsAxiomResultAhead()
     {
+        // ⭐⭐ A LANGUAGE BOOK's name in type position can only be an axiom tag, so whatever follows
+        // it is a result type and there is nothing to guess. The speculative parse above already
+        // unwinds when what followed turns out to have been the NAME (`Define cufet vector-shape`),
+        // which is what makes being permissive here safe.
+        //
+        // ⚠ Without this the result was limited to the five words below, so a cufet axiom could
+        // give back only those — `Define cufet series of number first-few` did not parse at all,
+        // and a cufet axiom has no boundary to justify any limit. For the c-language tag it turns a
+        // wrong result type from a parse error into the sentence RequireCrossableResult exists to
+        // say: "a c-language axiom cannot give back a series of number yet".
+        if (_tokens[_pos].Type == TokenType.Identifier
+            && TypeChecker.IsLanguageBook(_tokens[_pos].Lexeme))
+            return true;
+
         int i = _pos + 1;
         while (i < _tokens.Count && _tokens[i].IsNoise) i++;
         if (i >= _tokens.Count) return false;
