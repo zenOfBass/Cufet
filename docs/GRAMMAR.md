@@ -2145,7 +2145,7 @@ Done.
 **The book is `cufet`, and it is pulled like any other language book** — `Pull a book on cufet.`,
 with no article, because `cufet` is a name where `the c-language` is a common noun.
 
-**A block holds DECLARATIONS** — an object, an interface, and a `Define`. The difference between
+**A block holds DECLARATIONS** — an object, an interface, a `Define` and a `Bind`. The difference between
 them is the whole point of `Cite`: a TYPE belongs to the program wherever it is written, so a cited
 object is program-scope however deeply the `Cite` sits, while a VALUE lands as a local at the site
 that cited it. One block cited twice therefore makes two independent locals:
@@ -2175,10 +2175,15 @@ at the block's own line. That is what makes capture impossible by construction: 
 not declare would otherwise mean whatever the site that cited it happened to have, and one block
 cited twice would be two different programs.
 
-⚠ **A block cannot hold a function yet.** A `Bind` is a declaration, so this is not about what a
-block is for — it is that a body READS names, and what a body may read once it has been placed
-somewhere else is the question above, which has no answer for a body yet. An object's methods are
-fine, because they are checked in a scope of their own.
+★★ **A block that holds a FUNCTION may only be cited where functions belong** — at the top level,
+or directly inside a `Pull` block. That is Q1 for a body, and it is a placement rule rather than a
+second check: placed where functions live, a `Bind` is a free function, and a free function already
+cannot read the data around it. Placed inside another body it would be a closure over the body
+citing it, which is the capture Q1 exists to prevent.
+
+Everything else a block holds goes anywhere. A type belongs to the program wherever it is written; a
+value is *meant* to land at the cite site. A function is the one thing whose meaning would change
+with the company it keeps.
 
 **Where a cited declaration lands falls out of [Where a declaration belongs](#-where-a-declaration-belongs)**,
 and nothing about `Cite` adds to it. The block's statements are spliced in at the cite site, so a

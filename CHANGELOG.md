@@ -46,10 +46,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the same way, with its own parameters added — a lambda captures by design, so it is exactly where
   a capture would hide.
 
-  ⚠ **A block cannot hold a function yet**, and the refusal says why rather than claiming a `Bind`
-  is not a declaration. A body READS names, and what a body may read once it has been placed
-  somewhere else is the question above with no answer yet. An object's methods are unaffected — they
-  are checked in a scope of their own, which never contains a local of the cite site.
+  ★★ **A block may hold a FUNCTION, and one that does may only be cited where functions belong**
+  — at the top level, or directly inside a `Pull` block. That is Q1 for a body, and it is a
+  placement rule rather than a second analysis: placed where functions live, a `Bind` is a free
+  function, and this language has always refused a free function that reads the data around it.
+  Placed inside another body it would be a closure over the body citing it, which is exactly the
+  capture Q1 exists to prevent. So nothing examines such a body — the scope it lands in decides,
+  and the rule that decides is one that was already there.
+
+  Everything else a block holds goes anywhere: a type belongs to the program wherever it is written,
+  and a value is *meant* to land at the cite site. A function is the one thing whose meaning would
+  change with the company it keeps.
 
 - **A `cufet` axiom that says what it gives back is something you RUN** — the rule the
   `c-language` tag already follows, now the rule for both tags:
