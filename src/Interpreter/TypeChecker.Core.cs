@@ -2057,6 +2057,20 @@ public sealed partial class TypeChecker
                          && MemberOwnerType(InferType(gcp.Target)) is ObjectType gcOwner)
                     cs.ResolvedFunctionName = InstantiateMethod(gcOwner, gcp.Member, cs.Args, cs.Line, cs.Column);
 
+                // ★★ The same method reached by the FREE-CAST spelling — `cast twice-of on (the crate, 21)`,
+                // where the receiver is the first argument. Only the possessive form filled a blank, so a
+                // generic method called the way README teaches you to call a method found nothing at all
+                // and failed with "'box' has no methods" — for a method the type plainly has.
+                //
+                // ⚠ InstantiateMethod answers null when the member left no blank, so an ordinary method
+                // falls straight through to normal dispatch. Nothing here changes what a non-generic call
+                // does.
+                else if (cs.ResolvedFunctionName is null
+                         && cs.Function is VariableReference csFreeVr && cs.Args.Count > 0
+                         && MemberOwnerType(InferType(cs.Args[0])) is ObjectType csFreeOwner)
+                    cs.ResolvedFunctionName = InstantiateMethod(
+                        csFreeOwner, csFreeVr.Name, [.. cs.Args.Skip(1)], cs.Line, cs.Column);
+
                 var (funcType, displayName, declLine, argsToValidate) =
                     ResolveForCast(cs.Function, cs.Args, cs.Line, cs.Column,
                                    out var statementAxiomCallee, cs.ResolvedFunctionName);

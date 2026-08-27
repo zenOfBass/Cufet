@@ -206,4 +206,77 @@ public class GenericObjectTests
             State cast nums's doubled-first.
             """));
     }
+    // -- A generic method is reachable by BOTH spellings -----------------------
+
+    [Fact]
+    public void AGenericMethod_WorksThroughTheFreeCastForm()
+    {
+        // !! `cast <method> on (<receiver>, …)` is the spelling README teaches for calling a
+        // method, and a generic one was unreachable through it: only the POSSESSIVE form filled a
+        // blank, so this failed with "'box' has no method named 'twice-of'" -- for a method the
+        // type plainly has, with a filling that plainly works.
+        Assert.Equal("42", Run("""
+            Define object box with (the number tag):
+                Bind element to twice-of, given (the element value):
+                    Return value * 2.
+                Done.
+            Done.
+
+            Define the crate as a new box { the tag 1 }.
+            State cast twice-of on (the crate, 21).
+            """));
+    }
+
+    [Fact]
+    public void AGenericMethod_WorksThroughThePossessiveForm()
+    {
+        // The spelling that always worked, kept beside it -- the point is that the two agree.
+        Assert.Equal("42", Run("""
+            Define object box with (the number tag):
+                Bind element to twice-of, given (the element value):
+                    Return value * 2.
+                Done.
+            Done.
+
+            Define the crate as a new box { the tag 1 }.
+            State cast the crate's twice-of on (21).
+            """));
+    }
+
+    [Fact]
+    public void AGenericMethod_FreeCastForm_ReportsAtTheCall()
+    {
+        // The free-cast form has to reach the same refusal, anchored the same way -- otherwise
+        // fixing the dispatch would have left one spelling with the old message.
+        var e = Assert.Throws<TypeException>(() => Run("""
+            Define object box with (the number tag):
+                Bind element to twice-of, given (the element value):
+                    Return value * 2.
+                Done.
+            Done.
+
+            Define the crate as a new box { the tag 1 }.
+            State cast twice-of on (the crate, "no").
+            """));
+
+        Assert.Equal(8, e.Line);
+        Assert.Contains("'twice-of' does not work when it fills 'element' with text", e.Message);
+    }
+
+    [Fact]
+    public void AnOrdinaryMethod_FreeCastForm_IsUnaffected()
+    {
+        // ! The counter-test. The new branch runs for ANY cast whose first argument is an object,
+        // and it must do nothing at all when the member left no blank.
+        Assert.Equal("7", Run("""
+            Define object tally with (the number total):
+                Bind number to shown:
+                    Return one's total.
+                Done.
+            Done.
+
+            Define the count as a new tally { the total 7 }.
+            State cast shown on (the count).
+            """));
+    }
 }
