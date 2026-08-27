@@ -2312,6 +2312,23 @@ Done.
 The rule keeps data flow explicit and prevents hidden global mutation. A `permanently` binding
 cannot be mutated, so it is exempt — the restriction was previously broader than the reason for it.
 
+★★ **"Top level" here means anywhere hoisting is transparent to — a `Pull` block included.** A
+constant declared inside `Pull a rabbit.` or `Pull a book on …` is a shared constant exactly as one
+written at the top of the file is, and a function declared in the same block is a free function for
+the same reason. That matters because a rabbit block is where most programs put both:
+
+```
+Pull a rabbit.
+    Define the limit as 10 permanently.
+    Bind number to bumped:
+        Return the limit + 1.       ← fine: a shared constant, wherever the block is
+    Done.
+Done.
+```
+
+⚠ **A `permanently` inside a FUNCTION body is shared with nothing.** Hoisting does not enter one,
+which is the same reason a nested `Bind` is a closure rather than a free function.
+
 **It applies to every body that leaves the top-level scope**, in exactly the same terms: a
 top-level function, a **method**, a **getter**, a **setter**, a **destructor**, an **operator
 overload**, a **pipe stage**. There is one rule, not one per body kind.

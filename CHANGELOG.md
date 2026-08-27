@@ -59,6 +59,45 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **`permanently` was unusable inside any block, and reading such a constant gave three different
+  answers.** A rabbit block is where most programs put their constants, and this is the fix the
+  language's own refusal for the non-constant case tells a reader to make — *"Declare it `Define x
+  as <value> permanently.` if it never changes"*:
+
+  ```
+  Pull a rabbit.
+      Define the limit as 10 permanently.
+      Bind number to bumped:
+          Return the limit + 1.
+      Done.
+      State cast bumped on ().          ← 11
+  Done.
+  ```
+
+  Three components disagreed, and every disagreement was reachable:
+
+  ⚠ **The declaration refused ITSELF.** The checker registers a shared constant globally before any
+  body is checked; the `Define` then met that entry, one scope deeper, as an outer binding —
+  *"'limit' already exists in an enclosing scope. It was defined on line 2"*, naming its own line. It
+  hid at the top level, where the same-scope guard happens to cover the outer check too.
+
+  ⚠ **Reading one from a function DIVERGED.** Compiled inside a rabbit block it printed an answer;
+  interpreted, it died at run time saying the name was never defined. The interpreter decided what
+  counted as shared from the SCOPE-STACK DEPTH at the moment the `Define` ran — a rule wider than
+  its reason, written to exclude a constant local to a function and excluding a rabbit block with
+  it. It now reads the answer off the program, through the same walk the checker uses.
+
+  ⚠ **Inside a book pull the compiler refused it outright** as a closure capture. A shared constant
+  lives at C file scope, so reading one closes over nothing — but a block-scope constant was never
+  given that storage, and the capture check did not know about shared constants either.
+
+  ★ The interpreter's byte-identical copy of the walk that decides which scopes hoisting is
+  transparent to is gone; both backends ask the checker's. That duplication is precisely where the
+  two halves of this rule drifted apart.
+
+  ★ A `permanently` inside a FUNCTION body is still shared with nothing — that is the narrow rule
+  the wide one was written for, and it is unchanged.
+
 - **An object defined inside a function, inside a `Pull` block, was refused by the compiler** and
   ran perfectly interpreted. The pull-scope capture check walked into the object's method bodies and
   reported `one` — the receiver pronoun, bound by the method and declared by nobody — as a capture
