@@ -48,6 +48,17 @@ names, field names, function names, or for-each iterator names.
 
 Keywords are **case-insensitive** (`State`, `state`, `STATE` are identical).
 
+### ★ Where a declaration belongs
+
+**A TYPE declaration belongs to the PROGRAM, wherever it is written.** `Define object`, an
+interface, an `unmake`, an operator overload and a named constructor are all registered for the
+whole program even when written inside a function, a loop, an `If` arm or a rabbit block — so a
+type declared in one is usable after it.
+
+**A VALUE binding does not.** `Define x as 5.` is local to its block, and a `Bind` nested inside a
+function is a closure rather than a free function. The two rules are what make
+`Define object` in a function body sensible and `Define x as 5.` in one still private.
+
 ### Noise (consumed silently wherever articles appear)
 
 These are **not** reserved in the sense of being forbidden; they are consumed by

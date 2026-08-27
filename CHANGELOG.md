@@ -506,6 +506,45 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A type can be declared anywhere, including inside a function.** `Define object` in a function
+  body, a loop, an `If` arm or a `Try` block is registered like any other type declaration:
+
+  ```
+  Bind number to make-and-measure, given (the number side):
+      Define object square with (the number edge):
+          Bind number to area: Return one's edge * one's edge. Done.
+      Done.
+      Define the shape as a new square { the edge side }.
+      Return cast area on (the shape).
+  Done.
+  ```
+
+  ⚠ It used to be silently ignored, and the USE failed four lines later with *"'square' is not a
+  defined object type — define the object type first"*, telling the writer to declare what they
+  had just declared.
+
+  ★ The rule it makes good is one the language already followed everywhere else: a **type**
+  declaration belongs to the program wherever it is written, while a **value** binding does not.
+  `Define x as 5.` inside a block is still local to that block, and a nested `Bind` is still a
+  closure rather than a free function.
+
+- **Generic errors point at the call that filled the blank, not at the body.** A body written once
+  is right for every filling but the bad one, so being told to fix it was misleading:
+
+  ```
+  gen.cufe:10:7: error: 'doubled-first' does not work when it fills 'element' with text.
+    Here on line 10, you're trying to call 'doubled-first' with those types.
+
+    Its body is what refuses them:
+      That doesn't work: arithmetic requires numbers on both sides.
+      Here on line 3, you're trying to use * with text and number.
+  ```
+
+  A filled body is checked by a separate pass over a spliced program, and that pass had never seen
+  the call that caused it. The filling site now travels with the filling, and the body's own
+  explanation is kept underneath. ⚠ Generic **methods** still report at the body: an object filling
+  happens during type resolution, which has no call site to carry.
+
 - **`x is the <name>` silently answered false, for every value of every type.** `a`, `an` and
   `the` all lex as one article token, and the `is` parse treated any of them as the start of
   `is a <type>` — so `the phrase` was read as a TYPE annotation and the comparison became "is this
