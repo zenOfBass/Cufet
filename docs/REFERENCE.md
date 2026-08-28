@@ -2907,13 +2907,28 @@ dynamic out-of-bounds, etc.) that the type system can't statically prevent:
 Try to:
     State 1 / 0.
 Done.
-In case of exception (the exception):
-    State "runtime error: {exception}".    ← bound as text
+In case of exception:
+    State the message of the exception.    ← "Division by zero on line 2."
 Done.
 ```
 
-The name in parentheses (`the exception` in the example above) is the binding
-for the exception description — it is block-local to the handler.
+Inside the handler, `the exception` is bound to what was raised, and its text is
+reached the same way a failure's is — `the message of the exception`. The value
+itself is opaque: printing it gives `<exception>`, as printing a function gives
+`<function>`.
+
+**The binding can be renamed, and the parentheses are optional.** Bare, it is
+called `the exception`; naming it is what nested handlers want, so the inner one
+does not shadow a name the outer one is still using:
+
+```
+In case of exception:                     ← bound as 'the exception'
+In case of exception (the trouble):       ← bound as 'the trouble'
+In case of exception (the exception):     ← the same as the bare form, said out loud
+```
+
+It is block-local to the handler either way. This is the pair `For each` already
+has: `For each item in items` names the iterand, and bare `it` is the implicit one.
 
 Exceptions **re-raise by default** after the handler runs.
 `Suppress the exception.` (only valid inside `In case of exception`) swallows the

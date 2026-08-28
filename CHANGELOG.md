@@ -46,6 +46,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   monomorphization already makes.
 
 ### Changed
+- **`In case of exception:` takes no binding, and names one when you want it to.** The parentheses
+  were mandatory and could hold exactly one word, so a required phrase said the same thing at every
+  occurrence:
+
+  ```
+  In case of exception:                     ← bound as 'the exception'
+  In case of exception (the trouble):       ← bound as 'the trouble'
+  In case of exception (the exception):     ← the same as the bare form, said out loud
+  ```
+
+  ★ The two arms of one `Try` had disagreed, and the one that DEMANDED more said less —
+  `In case of failure:` has always taken no binding. ★ The pair this restores already exists for
+  loops: `For each item in items` names the iterand, bare `it` is the implicit one. Naming is what
+  nested handlers want, so an inner one does not shadow a name the outer one is still using.
+
+  ⚠ `exception` lexes as a keyword rather than an identifier, and every existing program writes
+  `(the exception)`, so the slot takes an identifier or that one word. Non-breaking.
+
 
 - **A map key is now "a scalar, or a record of keys".** It was "text, number, or fact", which was
   too blunt in one direction and explained itself with something FALSE in the other — it told the
@@ -92,6 +110,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   answer, not a value anyone looks something up by.
 
 ### Fixed
+- **Printing a failure or an exception leaked a C# class name, and the two backends disagreed.**
+  `State the failure.` checked clean — *"No problems found"* — then the interpreter printed
+  `Cufet.Interpreter.Interpreter+FailureValue` while the compiler refused to build at all. Both
+  arms, the same way, with nothing catching either.
+
+  They were the only two gaps in the interpreter's `Format` list, falling through to
+  `val.ToString()`. Both now print a placeholder — `<failure>`, `<exception>` — following the
+  convention every other opaque value already uses (`<function>`, `<axiom>`, `<address>`), and the
+  compiler prints the same. What is worth reading is still reached by name:
+  `the message of the failure`, `the message of the exception`.
+
+  ★ Same defect and same fix as `State` on a function in 0.17.0, which is what said which direction
+  to resolve it in: the placeholder, matched on both sides, rather than a refusal.
+
+- **REFERENCE showed an exception example that could not run.** It had
+  `State "runtime error: {exception}"` annotated *"← bound as text"*, and interpolating an exception
+  is refused — *"'converted to text' doesn't work on exceptions"*. The idiom is
+  `the message of the exception`, which is what the chapter shows now.
+
 - **`the number of` on a map or a text died at RUNTIME**, with *"Expected a series for 'the number
   of'"* — a message thrown by the evaluator, carrying none of the writer's program. Both have their
   own word (`the size of` for a map, `the length of` for a text) and the reverse direction has
