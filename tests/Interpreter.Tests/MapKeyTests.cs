@@ -308,14 +308,36 @@ public class MapKeyTests
     }
 
     [Fact]
-    public void ANamedField_HoldingANegativeNumber_KeepsItsOldReading()
+    public void AMinusWrittenAgainstItsValue_IsANamedFieldHoldingANegativeNumber()
     {
-        // ⚠ MINUS is the one operator left out, because it is the one that can also BEGIN a value.
-        // `the offset -1` is a named field holding negative one; `the offset - 1` wants the
-        // subtraction; the two differ only by a space. Guessing from column adjacency would be the
-        // kind of lookahead this parser has been shedding, so `-` keeps the named-field reading.
+        // ★ `-` is the one operator that can also BEGIN a value, so it is settled by the rule the
+        // language ALREADY states about it: binary `-` is written with spaces around it, because
+        // `grand-total` is one name. Written tight against what follows, the `-` is part of the
+        // value; written with a space, it is an operator between two things.
         Assert.Equal("-1", Run("""
             Define spot as a record with (the offset -1).
+            State the offset of spot.
+            """));
+    }
+
+    [Fact]
+    public void AMinusWithSpacesAroundIt_IsTheSubtraction()
+    {
+        // ! The other half of the same rule, and the case that did not parse at all before.
+        Assert.Equal("4", Run("""
+            Define the row as 5.
+            Define spot as a record with (the row - 1, 9).
+            State the first of spot.
+            """));
+    }
+
+    [Fact]
+    public void AMinusWrittenAgainstANAME_NegatesIt_AndStaysANamedField()
+    {
+        // The rule is about SPACING, not about what follows being a literal.
+        Assert.Equal("-4", Run("""
+            Define the shift as 4.
+            Define spot as a record with (the offset -shift).
             State the offset of spot.
             """));
     }

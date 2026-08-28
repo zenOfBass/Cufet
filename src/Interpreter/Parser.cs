@@ -4003,19 +4003,44 @@ public sealed class Parser
         // did not parse at all, and the message pointed at the operator — *"expected expression,
         // got Plus"* — rather than at the reading that went wrong.
         //
-        // ⚠ MINUS is deliberately absent, because it is the one that stays ambiguous: `-` can
-        // begin a value. `a record with (the offset -1)` is a named field holding negative one,
-        // and `a record with (the offset - 1)` wants the subtraction, and the two differ only by a
-        // space. Guessing from column adjacency would be exactly the kind of lookahead this parser
-        // has been getting rid of, so `-` keeps its old reading — the named field — and the
-        // subtraction needs parentheses: `((the offset) - 1)`.
         if (_tokens[i].Type is TokenType.Plus or TokenType.Star or TokenType.Slash
                             or TokenType.Percent or TokenType.Equal or TokenType.Lt
                             or TokenType.Gt or TokenType.Lte or TokenType.Gte
                             or TokenType.NotEqual)
             return false;
 
+        // ★ MINUS is the one operator that can also BEGIN a value, so it needs the rule the
+        // language already states about it: **binary `-` is written with spaces around it**
+        // (GRAMMAR, *"Binary `-` needs spaces, because hyphens are identifier characters"*). The
+        // rule exists because `grand-total` is one name; it settles this position too.
+        //
+        //     a record with (the offset -1)      ← a named field holding negative one
+        //     a record with (the offset - 1)     ← the subtraction, a positional field
+        //
+        // So the question is not "which did they mean" — it is "is this minus written as part of
+        // the value, or as an operator between two things", and the spacing answers it. That is
+        // reading what was written, not guessing what was meant.
+        if (_tokens[i].Type == TokenType.Minus)
+            return BindsToWhatFollows(i);
+
         return true;
+    }
+
+    /// <summary>
+    /// True when the `-` at <paramref name="minus"/> is written against the value after it —
+    /// `-1` rather than `- 1` — making it part of that value instead of an operator.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Adjacency is measured in COLUMNS, which is the only place the spacing survives: the lexer
+    /// emits the same two tokens either way. Same line and no gap means nothing was typed between
+    /// them.
+    /// </remarks>
+    private bool BindsToWhatFollows(int minus)
+    {
+        if (minus + 1 >= _tokens.Count) return false;
+        var sign  = _tokens[minus];
+        var value = _tokens[minus + 1];
+        return value.Line == sign.Line && value.Column == sign.Column + sign.Lexeme.Length;
     }
 
     // Returns true when the current position starts a named record access: 'the' <name> 'of'.
