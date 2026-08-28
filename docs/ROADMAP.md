@@ -20,41 +20,13 @@ version, and 1.0.0 will mark the point at which the language is considered stabl
 ### The design mountains
 
 All need a design session before they can be ordered against anything. They are here because
-they are large, not because they are waiting — the order among them means nothing yet. The
-formatter used to be blocked by the inline forms; those shipped in 0.15.0, so nothing blocks it
-either.
+they are large, not because they are waiting — the order among them means nothing yet.
 
 1. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. It is on the critical 
     path to self-hosting. A lexer, parser and type checker are one enormous dispatch on node type;
     written as `is a` chains, a Cufet-in-Cufet compiler is miserable to write and worse to read.
 
-2. **Formatter.** It owns **multiline layout of large record and object shapes**, which was
-    briefly a linter rule and is not one. Both tools would need the same "how large is large"
-    threshold, and one number owned in two places is one number that drifts. The severity settles
-    it too: every other linter rule flags something a tool cannot fix for you — nesting you have to
-    rename your way out of, an ordering you have to rethink, a capital you have to type. Layout is
-    pure mechanism, so a warning about it is noise next to a tool that simply does it.
-
-    **One blocker left.** The inline forms it used to wait on shipped in 0.15.0. What remains is
-    that doing it properly means
-    teaching the **lexer to carry comments as trivia** first — ★ which is also what doc comments
-    and editor hover need (item 4), so that one change to the shared front end unblocks three
-    things rather than one. Comments are skipped today and
-    never reach the AST, so a printer built from the AST would silently delete all 241 comment
-    lines in `examples/`, including the 34-line header on `binarysearchtree.cufe`. That is a
-    change to the shared front end both backends sit on.
-
-    **When it is built**, prefer a **token-stream** formatter to an AST printer: it rewrites only
-    the whitespace between tokens, so comments are safe because it never moves them, and it gets
-    a mechanical oracle — `format(x)` must lex to the same token sequence as `x`, and `format`
-    must be idempotent. Both are checkable across every example and fixture.
-
-    **Still undecided:** whether continuation lines align to the open delimiter (today's style,
-    but the indent then depends on the name's length, so a rename reflows the block) or explode
-    to a fixed indent; and the width that makes a shape "large" — the corpus median is 43 and p90
-    is 82, so 90–100 leaves nearly everything alone.
-
-3. **Rabbits as actors.** Not a new mechanism so much as a NAME for what the region model already
+2. **Rabbits as actors.** Not a new mechanism so much as a NAME for what the region model already
    bought. A rabbit today owns an isolated arena, owns the tasks it spawns and joins them at
    `Done.`, shares nothing mutable across threads, and has escape rules the compiler enforces —
    isolated heap, owned lifetime, supervised children, no shared state. That is the actor
@@ -82,14 +54,14 @@ either.
    is a message-send shape that exists for other reasons (`Have hopper bury n.`,
    `Have hopper start a task`).
 
-4. **Documentation comments, and generated pages for a book.** What a reader gets when they pull a
+3. **Documentation comments, and generated pages for a book.** What a reader gets when they pull a
    book somebody else wrote.
 
-   **★ It shares its one blocker with the formatter, which is the argument for doing that blocker
+   **★ It shares its one blocker with editor hover, which is the argument for doing that blocker
    sooner than either feature alone would justify.** Comments are consumed inside the lexer's
    `SkipWhitespace` and never become tokens, so nothing downstream can see them. Teaching the lexer
-   to carry them as **trivia** unblocks the formatter, doc comments, and editor hover at once —
-   three features behind one change to the shared front end.
+   to carry them as **trivia** unblocks doc comments and editor hover at once — two features
+   behind one change to the shared front end.
 
    ★ Cufet makes this unusually cheap in two ways. A signature is **already English**, so a page's
    declaration line is the declaration, with no rendering of types into prose. And a book is an
