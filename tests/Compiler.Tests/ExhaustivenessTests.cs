@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using Cufet.Interpreter;
 using Xunit;
 
@@ -468,6 +470,76 @@ public class ExhaustivenessTests
     // Every hand-written source file of the front end and both backends. `obj/` and `bin/` are
     // excluded: they hold generated files (GlobalUsings, AssemblyInfo) that nobody wrote and
     // nobody can fix.
+    /// <summary>
+    /// Every word the lexer reserves must be a word the editor grammar has heard of.
+    /// </summary>
+    /// <remarks>
+    /// !! `Cite` shipped without being one. It went into TokenType, into the lexer's keyword
+    /// switch, and into GRAMMAR.md's table — and nothing said the TextMate grammar was a fourth
+    /// place, so it rendered as plain text with every keyword around it coloured. Nothing failed;
+    /// a reader noticed it in a screenshot.
+    ///
+    /// ★ What this proves and what it does not. It proves the grammar has an OPINION about every
+    /// reserved word — that adding one to the lexer cannot leave the editor silently unaware of it.
+    /// It does not prove the word is scoped WELL, or scoped at all: a word may legitimately appear
+    /// in a rule that scopes other things, which is how `the` and `a` reach the grammar (see the
+    /// articles-and-prepositions rule, whose whole job is to leave them unpainted so the words
+    /// that carry meaning stand out). Checking the scope a word RECEIVES cannot be done from the
+    /// JSON — an alternation inside a rule is not tied to a capture — so the weaker claim is made
+    /// honestly rather than the stronger one approximated.
+    ///
+    /// ⚠ No allow-list, deliberately. Every one of the reserved words is mentioned today, so an
+    /// exception here would be a new decision rather than a recorded one.
+    /// </remarks>
+    [Fact]
+    public void EveryReservedWord_IsKnownToTheEditorGrammar()
+    {
+        var lexer = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "Lexer", "Lexer.cs"));
+        var reserved = new Regex(@"""([a-z][a-z-]*)""\s*=>\s*TokenType\.")
+            .Matches(lexer).Select(m => m.Groups[1].Value).Distinct().OrderBy(w => w).ToList();
+
+        Assert.True(reserved.Count > 100,
+            $"only {reserved.Count} reserved words were found in Lexer.cs — the keyword switch has "
+            + "moved or been respelled, and this test is now checking almost nothing.");
+
+        var grammarPath = Path.Combine(
+            FindRepoRoot(), "editors", "vscode", "syntaxes", "cufet.tmLanguage.json");
+        Assert.True(File.Exists(grammarPath),
+            $"the editor grammar was not found at {grammarPath} — it has moved, and this test has "
+            + "stopped comparing anything.");
+
+        // Every `match` and `begin` in the file, whatever rule it belongs to.
+        var patterns = new List<string>();
+        void Collect(JsonElement node)
+        {
+            if (node.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var key in new[] { "match", "begin" })
+                    if (node.TryGetProperty(key, out var p) && p.ValueKind == JsonValueKind.String)
+                        patterns.Add(p.GetString()!);
+                foreach (var child in node.EnumerateObject()) Collect(child.Value);
+            }
+            else if (node.ValueKind == JsonValueKind.Array)
+                foreach (var child in node.EnumerateArray()) Collect(child);
+        }
+        using var grammar = JsonDocument.Parse(File.ReadAllText(grammarPath));
+        Collect(grammar.RootElement);
+
+        var blob = string.Join("\n", patterns);
+        var unknown = reserved
+            .Where(word => !Regex.IsMatch(blob, $@"(?<![\w-]){Regex.Escape(word)}(?![\w-])"))
+            .ToList();
+
+        Assert.True(unknown.Count == 0,
+            $"{unknown.Count} reserved word(s) the editor grammar has never heard of: "
+            + string.Join(", ", unknown)
+            + "\n\nA word the lexer reserves but the grammar does not mention renders as plain text "
+            + "while the keywords around it are coloured, and nothing else in this suite notices. "
+            + "Add it to the rule it belongs to in editors/vscode/syntaxes/cufet.tmLanguage.json "
+            + "— or, if it is an article or a preposition, to the rule that deliberately leaves "
+            + "those unpainted.");
+    }
+
     private static IEnumerable<string> SourceFiles()
     {
         var root = FindRepoRoot();
