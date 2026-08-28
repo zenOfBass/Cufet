@@ -110,9 +110,23 @@ public static class CiteExpansion
     /// ⚠ An empty splice is how a statement is removed here. It is the same rule that lets no
     /// template survive: what a backend cannot meet, it cannot get wrong.
     /// </remarks>
+    /// <remarks>
+    /// ⚠⚠ The GUARD is not an optimisation. Without it this walked the whole tree of every program
+    /// ever compiled, for nothing — and AstRebuilder's reflective rebuild asks each node's
+    /// constructor for its parameter NAMES, which the trimmed wasm build does not have. So the
+    /// playground answered every program, including a nine-line average, with "ObjectDefinition.
+    /// has no matching property — AstRebuilder can only rebuild positional records": an empty name
+    /// where a name should be, about a construct the program never used.
+    ///
+    /// ★ Expand guards itself the same way and always did. This is the same rule, and the reason it
+    /// is a rule: a pass that does nothing should touch nothing, because "does nothing" and "walks
+    /// every node doing nothing" are not the same on every platform.
+    /// </remarks>
     public static IReadOnlyList<IStatement> WithoutBlocks(IReadOnlyList<IStatement> statements) =>
-        AstRebuilder.Apply(statements, type => type,
-            splice: statement => statement is CufetAxiomDefinition ? [] : null);
+        AstSearch.Contains(statements, node => node is CufetAxiomDefinition)
+            ? AstRebuilder.Apply(statements, type => type,
+                  splice: statement => statement is CufetAxiomDefinition ? [] : null)
+            : statements;
 
     /// <summary>Reference identity, because two `Cite` statements that read alike are equal by value.</summary>
     private sealed class ByReference : IEqualityComparer<IStatement>

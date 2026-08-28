@@ -718,4 +718,49 @@ public class CufetAxiomTests
         Assert.Contains("cannot reach for 'secret'", error.Message);
         Assert.Equal(5, error.Line);     // inside the arm, not the subject on line 4
     }
+    // -- A pass that does nothing must TOUCH nothing ---------------------------
+
+    [Fact]
+    public void AProgramWithNoBlocks_IsNotRebuiltAtAll()
+    {
+        // !! The playground broke on a nine-line average with "ObjectDefinition. has no matching
+        // property — AstRebuilder can only rebuild positional records", about a construct the
+        // program never used. WithoutBlocks ran unconditionally, so every program went through the
+        // reflective rebuild — which asks each node's constructor for its parameter NAMES, and the
+        // trimmed wasm build does not have them. Hence the empty name in the message.
+        //
+        // ★ Reference equality is the assertion, because "returned an equal list" would pass with
+        // the walk still running. Expand has always guarded itself this way; this is the same rule.
+        var statements = new Parser(new CufetLexer("""
+            Define the scores as a series with (92, 85, 71, 88).
+            Define total as 0.
+
+            For each score in the scores, repeat:
+                The total becomes the total + the score.
+            Done.
+
+            State the total.
+            """).Tokenize()).Parse().Statements;
+
+        Assert.Same(statements, CiteExpansion.WithoutBlocks(statements));
+    }
+
+    [Fact]
+    public void AProgramWithABlock_IsRebuiltWithoutIt()
+    {
+        // ! The counter-test: the guard must not turn the pass off when there IS work. A block that
+        // survived into a backend is the thing WithoutBlocks exists to prevent.
+        var statements = new Parser(new CufetLexer("""
+            Pull a book on cufet.
+                Define cufet shape as [
+                    Define object vec2 with (the number x): Done.
+                ].
+                Cite shape.
+            Done.
+            """).Tokenize()).Parse().Statements;
+
+        var stripped = CiteExpansion.WithoutBlocks(statements);
+        Assert.NotSame(statements, stripped);
+        Assert.False(AstSearch.Contains(stripped, node => node is CufetAxiomDefinition));
+    }
 }

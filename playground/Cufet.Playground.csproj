@@ -50,6 +50,30 @@
 
   <ItemGroup>
     <ProjectReference Include="..\src\Interpreter\Cufet.Interpreter.csproj" />
+
+    <!--
+      ⚠⚠ The interpreter is ROOTED, and it is load-bearing rather than cautious.
+
+      Trimming strips PARAMETER NAMES. Measured on the published assembly: ObjectDefinition's
+      twelve-parameter constructor comes out of the linker with four unnamed rows. The front end
+      rebuilds AST nodes by matching constructor parameters to properties BY NAME (AstRebuilder,
+      and the same reflective shape in AstSearch and StashTransform), so once the names are gone
+      every rebuild throws — and the message carries the name it could not find, which is why the
+      playground answered a nine-line average with "ObjectDefinition. has no matching property",
+      an empty name where a name should be.
+
+      That reached everything the front end rewrites: generics, stashes and cufet blocks. Not a
+      hypothetical — it was how the playground behaved.
+
+      ★ MEASURED, on a clean publish each time, because an incremental one silently reuses the
+      old link and reports success:
+          trimmed (broken)   9,385,690 bytes
+          rooted   (works)   9,593,123 bytes    +207,433, or 2.2%
+      `TrimMode=partial` was tried alongside and is NOT needed — rooting alone preserves the names,
+      and adding it cost a further 12,721 bytes for nothing. The payload lives in the runtime and
+      the ICU data, not in this assembly.
+    -->
+    <TrimmerRootAssembly Include="Cufet.Interpreter" />
   </ItemGroup>
 
 </Project>
