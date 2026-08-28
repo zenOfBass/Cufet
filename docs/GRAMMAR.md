@@ -2579,6 +2579,19 @@ transformation, it goes *after*.
 subtraction. Write `x - y` with spaces. Digits cannot start an identifier, so `1-1`
 is unambiguous and works either way — the rule only bites between names.
 
+**The same spacing settles `the <name> -…` inside a record literal**, where `the` could
+begin either a named field or an expression:
+
+```
+a record with (the offset -1)      ← a named field 'offset' holding negative one
+a record with (the row - 1, 9)     ← the subtraction, a positional field
+```
+
+Every other operator is unambiguous there, because none of them can BEGIN a value:
+meeting one straight after the name means what came before it was an expression.
+`-` is the exception, and spacing is what tells the two apart — the same rule, in a
+second place.
+
 ### Functions and methods see other functions, but not top-level data
 
 `Bind void to f:` at the top level creates a **global procedure**, not a closure.

@@ -104,11 +104,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   reading that went wrong. An operator cannot begin a value, so meeting one straight after the name
   now settles which reading was meant.
 
-  ⚠ **`-` is deliberately excluded**, because it is the one operator that can also BEGIN a value:
-  `a record with (the offset -1)` is a named field holding negative one, `a record with (the offset
-  - 1)` wants the subtraction, and the two differ only by a space. Telling them apart from column
-  adjacency would be exactly the kind of lookahead the parser has been shedding, so `-` keeps the
-  named-field reading and the subtraction takes parentheses.
+  ★ **`-` is settled by the rule the language already states about it.** It is the one operator
+  that can also BEGIN a value, so `a record with (the offset -1)` is a named field holding negative
+  one while `a record with (the row - 1, 9)` is the subtraction. GRAMMAR has always said binary `-`
+  is written with spaces around it, because `grand-total` is one name — that rule settles this
+  position too, so the parser reads what was written rather than guessing what was meant.
 
 
 - **A generic type of your own could not be WRITTEN down.** It could be inferred anywhere —
