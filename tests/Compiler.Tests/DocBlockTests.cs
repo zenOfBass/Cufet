@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
 using Cufet.Interpreter;
 using Xunit;
@@ -8,29 +6,43 @@ using CufetLexer = Cufet.Lexer.Lexer;
 namespace Cufet.Compiler.Tests;
 
 /// <summary>
-/// Every runnable code block in the docs, held to the front end.
-///
-/// ★ A documented sample that no longer runs is worse than no sample: a reader copies it, it fails,
-/// and they conclude the language is broken rather than the doc. This session alone found four
-/// stale claims by executing samples and none by reading them.
-///
-/// This is a CHANGE DETECTOR, not a gate. Of ~238 runnable blocks, ~81 currently fail, and most of
-/// those failures are correct — GRAMMAR is a constraints reference full of deliberate
-/// counter-examples, and plenty of blocks are fragments that teach a shape rather than run. Judging
-/// those needs a fence convention the docs do not have yet (every one of their 534 fences is
-/// untagged), which is its own task. See ROADMAP.
-///
-/// So: the blocks that pass TODAY are recorded, and this fails if one of them stops passing while
-/// its text is unchanged. Editing a block changes its hash and drops it out of the baseline until
-/// someone regenerates — the known cost of the cheap version, and the reason the failure message
-/// says how to regenerate.
-///
-///     CUFET_DOC_BASELINE=1 dotnet test --filter DocBlockTests
+/// Every code block in the docs, held to what its fence says it is.
 /// </summary>
+/// <remarks>
+/// <para>
+/// ★ A documented sample that no longer runs is worse than no sample: a reader copies it, it
+/// fails, and they conclude the language is broken rather than the doc. Executing samples has
+/// found stale claims by the dozen; reading them has found almost none.
+/// </para>
+/// <para>
+/// ★★ Each fence declares its own promise, and this holds it to exactly that one:
+/// </para>
+/// <list type="bullet">
+/// <item><c>```cufet</c> — a program. It must check clean.</item>
+/// <item><c>```cufet-fragment</c> — an illustration. It must PARSE, or fail only by running out
+/// of input. The docs are full of statement heads (<c>If x is 5:</c>) and phrase catalogues
+/// (<c>nums sorted</c>) that teach a shape; completing them would bury the point. But a fragment
+/// that stops parsing for any OTHER reason has gone stale, and that is caught.</item>
+/// <item><c>```cufet-refused</c> — a counter-example. It must STAY refused. ⚠ This is the one
+/// nothing else could ever check: a counter-example that quietly starts working means the language
+/// moved under the doc, and it looks exactly like a counter-example that still fails.</item>
+/// <item><c>```output</c> — what the block above it prints. Not asserted yet.</item>
+/// </list>
+/// <para>
+/// ⚠ This REPLACED a hash baseline — a recorded list of blocks that happened to pass on some past
+/// day. That had two holes this does not: editing a block changed its hash, so it silently left
+/// coverage until someone regenerated the file; and it could not judge the ~155 blocks that fail,
+/// because it had no way to tell a deliberate counter-example from a broken sample. Seven doc bugs
+/// were sitting in that unjudged pile, all of them "a missing article inside an interpolation".
+/// </para>
+/// <para>
+/// ⚠ The fences are proposed by <c>tools/doc-tag.py</c> and corrected by hand. That tool only
+/// claims <c>cufet-refused</c> where a person wrote it in the annotation — a wrong `refused` is
+/// silent, a wrong `fragment` is loud, so it guesses only toward the one that announces itself.
+/// </para>
+/// </remarks>
 public class DocBlockTests
 {
-    // Paths are repo-root-relative with forward slashes: they are recorded in the baseline, so
-    // they must not vary by platform.
     private static readonly string[] DocFiles =
         ["README.md", "docs/BOOKS.md", "docs/GRAMMAR.md", "docs/REFERENCE.md"];
 
@@ -44,19 +56,28 @@ public class DocBlockTests
         return dir?.FullName ?? "";
     }
 
-    private static string BaselinePath =>
-        Path.Combine(RepoRoot, "tests", "Compiler.Tests", "doc-blocks.baseline.txt");
-
-    private sealed record Block(string File, int Line, string Source, string Hash, string Head);
+    private sealed record Block(string File, int Line, string Tag, string Source, string Head);
 
     // Docs annotate samples with a trailing arrow to show a value or a note. That is prose, not
     // code — and it points BOTH ways, which is easy to miss: handling only ← leaves every → sample
-    // failing to lex. (tools/doc-sweep.py learned this the hard way; same rule here.)
+    // failing to lex.
     private static readonly Regex Annotation = new(@"\s*[←→].*$", RegexOptions.Multiline);
+
+    // A parse failure caused by the sample simply STOPPING. See the fragment rule above.
+    private static readonly Regex RanOutOfInput = new(@"got Eof|the file ended before");
+
+    // ★ A fragment may also fail because of what is NOT around it. `Return the total.` is refused
+    // outside a function and `In case of failure:` outside a `Try`, and both are perfectly good
+    // illustrations of the statement they show — the docs put the enclosing block in the prose
+    // rather than repeating it in every sample. This is the same allowance the tagger makes, and
+    // it is narrow on purpose: only refusals that name the MISSING SURROUNDINGS, never a refusal
+    // about the statement itself.
+    private static readonly Regex NeedsSurroundings = new(
+        @"used outside a function|requires an active rabbit|got Case ""case""|got Close ""close""");
 
     // ── Extraction ────────────────────────────────────────────────────────
 
-    private static IEnumerable<Block> RunnableBlocks()
+    private static IEnumerable<Block> TaggedBlocks()
     {
         foreach (var file in DocFiles)
         {
@@ -68,6 +89,7 @@ public class DocBlockTests
             {
                 if (!lines[i].TrimStart().StartsWith("```")) continue;
                 int indent = lines[i].Length - lines[i].TrimStart().Length;
+                var tag = lines[i].TrimStart()[3..].Trim();
                 int start = i + 1;
                 var body = new List<string>();
                 i++;
@@ -78,135 +100,121 @@ public class DocBlockTests
                     i++;
                 }
 
-                var raw = string.Join("\n", body);
-                if (SkipReason(raw) is not null) continue;
+                if (tag is not ("cufet" or "cufet-fragment" or "cufet-refused")) continue;
 
+                var raw = string.Join("\n", body);
                 var source = Annotation.Replace(raw, "");
-                yield return new Block(file, start + 1, source, HashOf(source),
+                yield return new Block(file, start + 1, tag, source,
                                        raw.Trim().Split('\n')[0].Trim());
             }
         }
     }
 
-    /// <summary>Null if this looks like a Cufet program, else why it is not one. Mirrors
-    /// tools/doc-sweep.py's skip_reason — the two must agree or their counts stop meaning the
-    /// same thing.</summary>
-    private static string? SkipReason(string text)
-    {
-        var t = text.Trim();
-        if (t.Length == 0) return "empty";
-        if (t.StartsWith('#') || t.StartsWith('$') || t.StartsWith("PS ")) return "shell";
-        if (Regex.IsMatch(t, @"^\s*(cufet|dotnet|gcc|npm|git|Copy-Item|New-Item|cd |ls |mkdir)\b")) return "shell";
-        if (t.Contains("$PWD") || t.Contains("$env:")) return "shell";
-        if (t.Contains("#include") || t.Contains("typedef ") || t.Contains("int main(")) return "C";
-        if (t.StartsWith('{') && t.Contains('"')) return "json";
-        if (t.Contains('├') || t.Contains('└') || Regex.IsMatch(t, @"(?m)^\S+/\s*$")) return "tree";
-        if (t.Contains("──") || t.Contains('│')) return "diagram";
-        if (Regex.IsMatch(t, @"That doesn't work:|Here on line \d+|^\s*Line \d+, column")) return "diagnostic";
-        if (Regex.IsMatch(t, @"(^|\s)\.\.\.(\s|$)")) return "elided";
-        if (Regex.IsMatch(t, @"<[a-z][a-z -]*>") || Regex.IsMatch(t, @"\bitem N\b|\bN of\b")) return "metavariable";
-        // No statement word anywhere: almost certainly expected output or prose.
-        if (!Regex.IsMatch(t, @"\b(State|Define|If|For|While|Bind|Cast|Return|Add|Remove|Pull|Have|Send|" +
-                              @"With|Try|In|Write|Append|Repeat|Stop|Skip|Item|Run|Get|Set|Done|Output|Seed)\b",
-                           RegexOptions.IgnoreCase))
-            return "not-code";
-        return null;
-    }
+    // ── What each promise means ───────────────────────────────────────────
 
-    private static string HashOf(string source)
+    /// <summary>Null when the block kept its promise, else what went wrong.</summary>
+    private static string? Broken(Block block)
     {
-        // Whitespace-normalised so a reflow or re-indent does not silently drop a block from the
-        // baseline — only a real edit to the code should.
-        var normalised = string.Join("\n",
-            source.Split('\n').Select(l => l.TrimEnd()).Where(l => l.Trim().Length > 0));
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalised)))[..16].ToLowerInvariant();
-    }
-
-    private static bool Checks(string source)
-    {
-        try
+        switch (block.Tag)
         {
-            var program = new Parser(new CufetLexer(source).Tokenize()).Parse();
-            new TypeChecker().Check(program);
-            return true;
+            case "cufet":
+                try
+                {
+                    new TypeChecker().Check(new Parser(new CufetLexer(block.Source).Tokenize()).Parse());
+                    return null;
+                }
+                catch (Exception e) { return First(e.Message); }
+
+            case "cufet-fragment":
+                try
+                {
+                    new Parser(new CufetLexer(block.Source).Tokenize()).Parse();
+                    return null;   // parsed — whether it would type-check is not a fragment's promise
+                }
+                catch (Exception e)
+                {
+                    if (RanOutOfInput.IsMatch(e.Message) || NeedsSurroundings.IsMatch(e.Message))
+                        return null;
+                    // ★ Some illustrations are EXPRESSIONS, not statements — `nums sorted`,
+                    // `the length of s`, `false and cast f on ()`. The docs list them to show a
+                    // phrase, and a phrase is not a program. Giving one a home is the whole test:
+                    // if it reads as a value, it is still Cufet and still current.
+                    return ParsesAsAnExpression(block.Source) ? null : First(e.Message);
+                }
+
+            case "cufet-refused":
+                try
+                {
+                    new TypeChecker().Check(new Parser(new CufetLexer(block.Source).Tokenize()).Parse());
+                    return "it CHECKS CLEAN now — a counter-example that started working means "
+                         + "the language moved under the doc";
+                }
+                catch { return null; }
+
+            default:
+                return null;
         }
-        catch { return false; }
     }
+
+    /// <summary>
+    /// True when every line of the block reads as a VALUE — the shape a phrase catalogue has.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Each line is given its own home rather than the block as a whole, because these blocks
+    /// are LISTS: `nums sorted`, then `nums sorted by the age`, then `nums in reverse`, three
+    /// alternatives one under the other. Wrapping the lot would ask the parser to read them as one
+    /// expression, which they are not.
+    /// </remarks>
+    private static bool ParsesAsAnExpression(string source)
+    {
+        var lines = source.Split('\n')
+                          .Select(l => l.Trim())
+                          .Where(l => l.Length > 0 && !l.StartsWith("//"))
+                          .ToList();
+        if (lines.Count == 0) return false;
+
+        foreach (var line in lines)
+        {
+            // Trailing `//` note, and a trailing `.` if the phrase happened to carry one.
+            var phrase = Regex.Replace(line, @"\s*//.*$", "").TrimEnd('.').Trim();
+            if (phrase.Length == 0) continue;
+            try
+            {
+                new Parser(new CufetLexer($"Define doc-probe as {phrase}.").Tokenize()).Parse();
+            }
+            catch { return false; }
+        }
+        return true;
+    }
+
+    private static string First(string message) =>
+        message.Replace("\r\n", "\n").Split('\n')[0].Trim();
 
     // ── The test ──────────────────────────────────────────────────────────
 
     [Fact]
-    public void DocBlocksThatPassed_StillPass()
+    public void EveryDocBlock_KeepsThePromiseItsFenceMakes()
     {
-        var blocks = RunnableBlocks().ToList();
+        var blocks = TaggedBlocks().ToList();
 
-        // A change detector that stops finding its corpus reports perfect health. Guard it the same
-        // way the example and soundness suites do.
-        Assert.True(blocks.Count >= 150,
-            $"only {blocks.Count} runnable doc blocks found — extraction broke, or the docs shrank.");
+        // A checker that stops finding its corpus reports perfect health. Guard it the same way
+        // the example and soundness suites do.
+        Assert.True(blocks.Count >= 250,
+            $"only {blocks.Count} tagged doc blocks found — extraction broke, or the tags were lost.");
 
-        var passing = blocks.Where(b => Checks(b.Source))
-                            .GroupBy(b => b.Hash)
-                            .ToDictionary(g => g.Key, g => g.First());
-        var present = blocks.GroupBy(b => b.Hash).ToDictionary(g => g.Key, g => g.First());
-
-        if (Environment.GetEnvironmentVariable("CUFET_DOC_BASELINE") == "1")
-        {
-            WriteBaseline(passing.Values);
-            return;
-        }
-
-        Assert.True(File.Exists(BaselinePath),
-            $"no baseline at {BaselinePath} — generate it with:\n" +
-            "  CUFET_DOC_BASELINE=1 dotnet test --filter DocBlockTests");
-
-        var baselineLines = File.ReadAllLines(BaselinePath);
-        var baseline = baselineLines
-            .Where(l => l.Length > 0 && !l.StartsWith('#'))
-            .Select(l => l.Split('\t')[0])
-            .ToHashSet();
-
-        // FIRST, because it can NAME them. A recorded block still present with its text unchanged
-        // that no longer checks: the language moved underneath the doc. Blocks whose hash is gone
-        // were edited or deleted, which is legitimate and not this check's business.
-        var regressed = baseline
-            .Where(h => present.ContainsKey(h) && !passing.ContainsKey(h))
-            .Select(h => $"  {present[h].File}:{present[h].Line}  {present[h].Head}")
-            .OrderBy(s => s)
+        var broken = blocks
+            .Select(b => (Block: b, Why: Broken(b)))
+            .Where(x => x.Why is not null)
+            .Select(x => $"  [{x.Block.Tag}] {x.Block.File}:{x.Block.Line}\n" +
+                         $"      {x.Block.Head}\n" +
+                         $"      → {x.Why}")
             .ToList();
 
-        Assert.True(regressed.Count == 0,
-            $"{regressed.Count} documented sample(s) stopped checking, unchanged:\n" +
-            string.Join("\n", regressed.Take(20)) +
-            (regressed.Count > 20 ? $"\n  … and {regressed.Count - 20} more" : "") +
-            "\n\nEither the doc is now wrong, or the language changed under it. Fix it, then:\n" +
-            "  CUFET_DOC_BASELINE=1 dotnet test --filter DocBlockTests");
-
-        // ★ THEN the count, which is not redundant — it catches what hashing structurally cannot.
-        // Editing a block changes its hash, so it drops out of the baseline and the check above
-        // sees nothing: breaking a sample by rewriting it looked exactly like legitimately
-        // rewriting it, and the first version of this test passed happily while a sample was
-        // broken. The count has no such blind spot, at the price of not being able to say which.
-        Assert.True(passing.Count >= baseline.Count,
-            $"documented samples that check clean dropped from {baseline.Count} to {passing.Count}.\n" +
-            "No recorded block regressed, so an EDITED or DELETED one is responsible — a rewrite\n" +
-            "that no longer checks looks identical to a legitimate rewrite from here.\n" +
-            "If it was a deletion:\n" +
-            "  CUFET_DOC_BASELINE=1 dotnet test --filter DocBlockTests");
-    }
-
-    private static void WriteBaseline(IEnumerable<Block> passing)
-    {
-        var rows = passing
-            .OrderBy(b => b.File).ThenBy(b => b.Line)
-            .Select(b => $"{b.Hash}\t{b.File}:{b.Line}\t{b.Head}");
-        File.WriteAllText(BaselinePath,
-            "# Doc code blocks that check clean, recorded so a regression is visible.\n" +
-            "# Hash is of the block's whitespace-normalised text: edit a block and it drops out\n" +
-            "# until this is regenerated. The file/line are for reading, not for matching.\n" +
-            "#\n" +
-            "#   CUFET_DOC_BASELINE=1 dotnet test --filter DocBlockTests\n" +
-            "#\n" +
-            string.Join("\n", rows) + "\n");
+        Assert.True(broken.Count == 0,
+            $"{broken.Count} documented sample(s) no longer keep their fence's promise:\n\n" +
+            string.Join("\n\n", broken.Take(25)) +
+            (broken.Count > 25 ? $"\n\n  … and {broken.Count - 25} more" : "") +
+            "\n\nEither the doc is wrong, or its fence tag is. `tools/doc-tag.py` proposes tags;\n" +
+            "the tag is a claim about what the block is FOR, so a person decides it.");
     }
 }

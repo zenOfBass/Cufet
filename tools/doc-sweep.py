@@ -103,10 +103,13 @@ def skip_reason(text):
     if "──" in t or "│" in t:
         return "diagram"
     # A diagnostic quoted so a reader recognises it when they hit it.
-    if re.search(r"That doesn't work:|Here on line \d+|^\s*Line \d+, column", t):
+    if re.search(r"That doesn't work:|Here on line \d+|^\s*Line \d+, column|"
+                 r"^'[^']+' was modified during|CHECK ERROR|PARSE ERROR", t, re.M):
         return "diagnostic"
-    # `...` stands for code the sample deliberately is not showing.
-    if re.search(r"(^|\s)\.\.\.(\s|$)", t):
+    # `...` stands for code the sample deliberately is not showing. The single-character
+    # ellipsis means the same thing and is what the prose actually uses in places
+    # (`a catalogue of (hopper or thunderbird) with (…)`), so both spellings count.
+    if re.search(r"(^|\s)\.\.\.(\s|$)", t) or "…" in t:
         return "elided"
     if re.search(r"<[a-z][a-z -]*>", t) or re.search(r"\bitem N\b|\bN of\b", t):
         return "metavariable"
