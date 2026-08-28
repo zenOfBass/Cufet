@@ -254,18 +254,6 @@ the shape expressible, so this is unblocked rather than waiting; it simply has n
 yet. ★ Both settled decisions around it live in [DESIGN.md](DESIGN.md): no variance, and the
 Hadamard product as a named `collections` function if ever, because `*` means matrix product.
 
-**Parser-hardening.** `IsNamedAccessPattern()` decides whether `the <word> of <thing>`
-is a named-field access by **looking ahead**, and that guess once mis-parsed `the series of number
-board` in n-queens. Approach C shipped and closed the observed bug class: no keyword can be a
-user-defined field name, so the whole reserved set is excluded at once, with three narrow
-exceptions kept valid (`key`, `category`, `characters`). **Approach B removes the guess instead of
-enumerating where it fails** — give the parser explicit type-annotation contexts so it knows *from
-position* whether it is reading a type or an expression.
-
-The two decision points are small. The work is threading that context through every position where
-a type is parsed — parameters, field declarations, `Define … as a <type>`, `Bind <type> to`,
-element types — because missing one is exactly how a regression gets in. n-queens is the canary.
-
 **Map keys: a refusal that overreaches, and the predicate to replace it with.** Not a new feature —
 a rule that is too blunt and explains itself with something untrue.
 
@@ -299,8 +287,8 @@ holding a series is still refused, and objects are still refused.
 
 ⚠ Whatever the rule ends up being, the MESSAGE has to stop calling a record a reference type.
 
-**Named arguments at a call site — `cast area on (the width 3, the height 4)`.** ⚠ **Sequenced
-AFTER Approach B above**, and that is the whole reason this entry sits here rather than on its own.
+**Named arguments at a call site — `cast area on (the width 3, the height 4)`.** ★ **No longer
+sequenced behind anything** — Approach B shipped, which was its one stated prerequisite.
 
 The rule already exists and REFERENCE already states it generally: *"wherever a field could be
 positional instead, `the` is what says a name follows."* It is implemented in object literals and
@@ -312,14 +300,12 @@ one place the marker does nothing. `cast area on (the width 3)` does not parse t
 measured: named fields reorder freely (`{ the rank 7, the suit "hearts" }` works), and a record
 takes positional first then named. Named arguments would do both the same way.
 
-⚠ **The cost is that it adds a third case to the guess Approach B exists to remove.** `the width 3`
-(a named argument) and `the width of box` (a named field access) are told apart by looking ahead
-for `of` — which is `IsNamedAccessPattern()`, the lookahead that mis-parsed `the series of number
-board`. Adding this before the guess is gone makes that job bigger, in the position where it is
-hardest: inside a parenthesised list, where the comma and the `of` are both load-bearing.
-
-★ **Insurance, not repair, which is why it has no slot.** The previous approach closed every case anyone has actually hit; this closes the remaining theoretical fragility. Its precondition — a feature-complete parser syntax, so the hardening happens once against the final shape — **is met**, so it is unblocked rather than waiting on anything. It is written up as a contributor-sized task in
-CONTRIBUTING's *known debts*.
+⚠ **What is left of the cost.** `the width 3` (a named argument) and `the width of box` (a named
+field access) are still the same opening tokens, and an argument list is an EXPRESSION position, so
+position alone does not separate them the way it separates a type. The guess is gone from every
+type position, which is what made this entry wait; it still lives in expression positions, and this
+feature would add a case to it there — inside a parenthesised list, where the comma and the `of`
+are both load-bearing. Smaller than it was, not free.
 
 **A logic-gates book** — circuit composition over `bits`: gates as components you wire together,
 rather than the operators `bits` already shipped.

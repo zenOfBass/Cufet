@@ -681,4 +681,51 @@ public class PipelineRecordObjectTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    /// <summary>
+    /// A filled generic WRITTEN as a type — a `Define`'s annotation, a parameter, a return type —
+    /// holds the oracle, not just the checker.
+    /// </summary>
+    /// <remarks>
+    /// ★★ Every shape here was refused outright before this test existed, by the front end both
+    /// backends share, so the oracle could not have caught any of it: neither side ran. That is the
+    /// shape of blind spot worth naming — a program that does not reach either backend is not a
+    /// program the two backends can be compared on.
+    ///
+    /// ⚠ Nothing in the corpus wrote a USER-DEFINED generic in an annotation. Every generic
+    /// annotation anywhere in tests/ or examples/ is `series of number` — a built-in, which leads
+    /// with its own keyword and so never met the fault.
+    /// </remarks>
+    [Fact]
+    public void AFilledGeneric_WrittenAsAType_AgreesOnBothBackends()
+    {
+        const string src = """
+            Define object stack of element with (the series of element items):
+                Bind void to push, given (the element value):
+                    Insert value into one's items.
+                Done.
+                Bind number to how-many:
+                    Return the number of one's items.
+                Done.
+            Done.
+
+            Bind stack of number to make-counts:
+                Return a new stack of number { the items a series of number }.
+            Done.
+
+            Bind number to tally-up, given (the stack of number box):
+                Return cast how-many on (box).
+            Done.
+
+            Define the stack of number counts as cast make-counts on ().
+            Cast push on (counts, 5).
+            Cast push on (counts, 7).
+            State cast tally-up on (counts).
+
+            Define the stack of text names as a new stack of text { the items a series of text }.
+            Cast push on (names, "Ada").
+            State cast how-many on (names).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

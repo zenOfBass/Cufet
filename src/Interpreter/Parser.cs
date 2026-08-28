@@ -13,8 +13,51 @@ public sealed class Parser
     private int _rabbitDepth;     // incremented inside a Pull a rabbit. ... Done. scope
     private bool _inObjectDef;    // bypasses _nestDepth guard for Bind inside object method blocks
     private bool _inFreeFunction; // true inside a top-level (non-method) Bind body; allows nested Bind
+    private int _typeDepth;       // >0 while a TYPE is being read — see InTypePosition
 
     public Parser(IReadOnlyList<Token> tokens) => _tokens = tokens;
+
+    // ── Type position ─────────────────────────────────────────────────────────────────────
+    //
+    // ★ `the <name> of <thing>` is two different things and no amount of lookahead can tell them
+    // apart, because they are the same tokens:
+    //
+    //     State the city of alice.                      ← a named field access, an EXPRESSION
+    //     Define the stack of number counts as …        ← a filled generic, a TYPE
+    //
+    // What separates them is POSITION, which the parser knows and used to throw away: it guessed
+    // with `IsNamedAccessPattern()` instead, and the guess is wrong in every type position where
+    // the type is a user-defined generic. Approach B, long-tracked in CONTRIBUTING's known debts,
+    // is to stop guessing and consult the position — which is what this depth is.
+    //
+    // ⚠ The reason this was worth doing rather than excluding one more shape: the guess is
+    // consulted inside `SkipNoise()`, which is called 633 times in this file. It never fired at
+    // "two call sites" — it fired at every noise-skip in the parser, including all of them that
+    // precede a type. Exclusion lists were being asked to describe 633 positions.
+    private bool InTypePosition => _typeDepth > 0;
+
+    // Runs `parse` with the parser marked as reading a type. Restores on the way out even when the
+    // parse throws, because several type reads are SPECULATIVE (TryParseTypeBeforeName, the axiom
+    // result branch) and roll back by catching ParseException — a depth left raised by one of those
+    // would silently disable named-field access for the rest of the file.
+    private T InType<T>(Func<T> parse)
+    {
+        _typeDepth++;
+        try { return parse(); }
+        finally { _typeDepth--; }
+    }
+
+    // The noise-skip that PRECEDES a type, for the positions where the type is optional and so the
+    // skip cannot happen inside the type parse itself. `Define the stack of number counts as …`
+    // dies without this: the leading 'the' is preserved by the guess before any type parse begins.
+    // Safe wherever it is used because a named access can never be legal in these positions — you
+    // cannot declare, or name a parameter, `the city of alice`.
+    private void SkipNoiseBeforeType()
+    {
+        _typeDepth++;
+        try { SkipNoise(); }
+        finally { _typeDepth--; }
+    }
 
     public Program Parse()
     {
@@ -117,7 +160,10 @@ public sealed class Parser
         var lineTok = Consume(TokenType.Define);
         var line = lineTok.Line;
         var col = lineTok.Column;
-        SkipNoise(); // skips leading article ('a', 'an', 'the')
+        // What follows `Define` is an optional type and then a NAME, so this skip is in a type
+        // position — `Define the stack of number counts as …` needs its leading 'the' skipped
+        // rather than preserved as the start of a field access, which cannot be declared.
+        SkipNoiseBeforeType();
         if (Peek().Type == TokenType.Object)
             return ParseObjectDefinition(line, col);
         // "Define a shadow <name> as ..." — deliberate shadowing opt-in.
@@ -516,7 +562,7 @@ public sealed class Parser
     // A NAME still follows, which is what tells this apart from the plain form: in `Define x as 5.`
     // the annotation parse swallows `x` as a type name, then finds `as` instead of a name and the
     // whole attempt is rolled back, so `Define copy as src.` keeps meaning "copy src's value".
-    private CufetType? TryParseTypeBeforeName()
+    private CufetType? TryParseTypeBeforeName() => InType(() =>
     {
         int save = _pos;
         try
@@ -527,10 +573,15 @@ public sealed class Parser
         }
         catch (ParseException) { }
         _pos = save;
-        return null;
-    }
+        return (CufetType?)null;
+    });
 
-    private CufetType ParseTypeAnnotation()
+    // ★ The single funnel every one of this file's 37 type reads goes through, which is what makes
+    // the position markable in one place instead of at each of them. Nested reads (`a series of
+    // stack of number`) simply raise the depth again.
+    private CufetType ParseTypeAnnotation() => InType(ParseTypeAnnotationCore);
+
+    private CufetType ParseTypeAnnotationCore()
     {
         var tok = Peek();
 
@@ -3931,6 +3982,17 @@ public sealed class Parser
     // accessors in this shape, not record field names.
     private bool IsNamedAccessPattern()
     {
+        // ★ Position decides, so the guess is not consulted at all rather than asked to guess
+        // better. In a type, `the stack of number` is a filled generic and never a field access.
+        // This one line is what both consumers needed — ParsePrimary's check and, far more
+        // importantly, the one inside SkipNoise that reaches every type position in the parser.
+        if (InTypePosition) return false;
+
+        // ★ Position decides, so the guess is not consulted at all rather than asked to guess
+        // better. In a type, `the stack of number` is a filled generic and never a field access.
+        // This one line is what both consumers needed — ParsePrimary's check and, far more
+        // importantly, the one inside SkipNoise that reaches every type position in the parser.
+
         int i = _pos; // at 'the'
         i++; // directly at the field-name token — no noise-skip
         if (i >= _tokens.Count || !IsFieldNameToken(_tokens[i], forAccess: true)) return false;
@@ -4064,7 +4126,9 @@ public sealed class Parser
     // null return → void (this function returns nothing)
     // FunctionType return → this function returns a function
     // RecordType return → this function returns a record (optional label consumed and discarded)
-    private CufetType? ParseReturnType()
+    private CufetType? ParseReturnType() => InType(ParseReturnTypeCore);
+
+    private CufetType? ParseReturnTypeCore()
     {
         if (Peek().Type == TokenType.Void)
         {
@@ -4146,7 +4210,9 @@ public sealed class Parser
 
     private (CufetType Type, string Name) ParseParameter()
     {
-        SkipNoise();
+        // A parameter is `<type> <name>`, so this leading skip is a type position:
+        // `given (the stack of number box)` needs its 'the' skipped, not preserved.
+        SkipNoiseBeforeType();
 
         if (Peek().Type == TokenType.Record)
         {
@@ -4188,7 +4254,9 @@ public sealed class Parser
     // Parses a type inside a function-type annotation's given(...) list.
     // Simple types have no name. Function types include a placeholder name (required by grammar,
     // discarded after parsing — the name disambiguates the 'given' that belongs to the inner type).
-    private CufetType ParseFunctionParamType()
+    private CufetType ParseFunctionParamType() => InType(ParseFunctionParamTypeCore);
+
+    private CufetType ParseFunctionParamTypeCore()
     {
         SkipNoise();
 

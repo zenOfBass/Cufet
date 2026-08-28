@@ -285,7 +285,10 @@ public sealed partial class TypeChecker
         _recordingStashFn         = bind.UntoType == null && _buryingFunctions.Contains(bind.Name)
                                         ? bind.Name : null;
         _inFunction               = true;
-        _expectedReturnType       = bind.ReturnType;
+        // Resolved for the same reason the parameters above are (and the hoisted signature in
+        // Pass1Hoist): a written `stack of number` is the parser's shell until it is, and every
+        // `Return` in the body would be measured against something no value can be.
+        _expectedReturnType       = ResolvedDeclaredType(bind.ReturnType);
         _functionDeclarationLine  = bind.Line;
         _rabbitDepth              = 0; // function bodies start outside any rabbit region
 

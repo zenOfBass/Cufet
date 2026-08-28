@@ -1520,6 +1520,31 @@ public sealed partial class TypeChecker
                     $"define an object named '{od.Name}'",
                     $"Pick another name — 'Pull {od.Name}.' always finds the one the language ships.");
 
+            // ⚠ `unto` cannot target a TEMPLATE. Its name is matched by the three Remove calls
+            // below, which is what made this a CRASH rather than a message: the target was accepted
+            // here, and then CheckUntoMethod looked it up in `_objectDefs` — where a template never
+            // goes, because it is held aside in `_genericObjectDefs` and instantiated per filling.
+            // `Bind number to doubled unto stack:` died with a raw KeyNotFoundException and a stack
+            // trace, which is the one outcome no program should ever produce.
+            //
+            // ★ Refused rather than supported, deliberately: attaching one body to every filling of
+            // a template is a real feature with a real question behind it (a method written once
+            // for `stack of number` and `stack of text` cannot touch the blank), and that question
+            // has not been asked yet. Saying so is the fix; guessing an answer is not.
+            if (od.TypeParameters is { Count: > 0 })
+            {
+                var stray = FirstUntoAgainst(od.Name, untoMethodsByType, untoGettersByType, untoSettersByType);
+                if (stray is { } s)
+                    throw TypeError(
+                        $"'{od.Name}' leaves a blank, so 'unto' can't attach to it",
+                        $"'{od.Name}' is a template — `{od.Name} of {od.TypeParameters[0]}` — and it "
+                      + "becomes a type only once the blank is filled",
+                        s.Line, s.Column,
+                        $"attach a member unto the template '{od.Name}'",
+                        $"Write the member inside the 'Define object {od.Name} of {od.TypeParameters[0]}' body, "
+                      + "where it is written once and every filling gets it.");
+            }
+
             var methodSigs = od.Methods
                 .Select(m => (m.Name, MethodSignature(m, od.Name)))
                 .ToList();
@@ -1624,6 +1649,20 @@ public sealed partial class TypeChecker
                     ot.Methods.Where(m => !_genericMethods.ContainsKey((od.Name, m.MethodName))).ToList());
         }
 
+        // The first `unto` member aimed at `name`, whichever kind it is — used to put a refusal on
+        // the line the writer actually wrote rather than on the definition it names.
+        static (int Line, int Column)? FirstUntoAgainst(
+            string name,
+            Dictionary<string, List<BindStatement>>     methods,
+            Dictionary<string, List<GetterDeclaration>> getters,
+            Dictionary<string, List<SetterDeclaration>> setters)
+        {
+            if (methods.TryGetValue(name, out var m) && m.Count > 0) return (m[0].Line, m[0].Column);
+            if (getters.TryGetValue(name, out var g) && g.Count > 0) return (g[0].Line, g[0].Column);
+            if (setters.TryGetValue(name, out var s) && s.Count > 0) return (s[0].Line, s[0].Column);
+            return null;
+        }
+
         // Anything left in unto* dictionaries targets a name that isn't a defined object type.
         foreach (var (targetName, methods) in untoMethodsByType)
         {
@@ -1684,11 +1723,18 @@ public sealed partial class TypeChecker
                 continue;   // not an ordinary function: its signature names no types yet
             }
 
+            // ★ The DECLARED return type is resolved here, the same way a parameter's is at the
+            // body (CheckBind) and a constructor's is just below. Without it `Bind stack of number
+            // to make:` registered the parser's shell, so the call site got a blank-less `stack`
+            // and a correct `Return a new stack of number` was refused with "declared to give back
+            // a stack". Object definitions are registered above this loop, so the resolution has
+            // everything it needs. Blanks never reach here — a generic signature `continue`s.
+            var hoistedReturn = ResolvedDeclaredType(bind.ReturnType);
             Scope[bind.Name] = new TypeInfo(
                 new FunctionType(paramTypes,
-                    _buryingFunctions.Contains(bind.Name) && bind.ReturnType != null
-                        ? new StashType(bind.ReturnType)
-                        : bind.ReturnType),
+                    _buryingFunctions.Contains(bind.Name) && hoistedReturn != null
+                        ? new StashType(hoistedReturn)
+                        : hoistedReturn),
                 new VariableReference(bind.Name, 0, 0),
                 bind.Line);
             _freeBinds[bind.Name] = bind;   // so a pipe can re-check this body with a known input type
@@ -2255,7 +2301,7 @@ public sealed partial class TypeChecker
     {
         // ★ First, because an axiom has no type until the declaration gives it one. This also
         // resolves the shortened tag spelling, so `declared` below is an AxiomType either way.
-        var declaredType = TagAxiomDeclaration(define);
+        var declaredType = ResolvedDeclaredType(TagAxiomDeclaration(define));
         // `Define the number fd as cast open-file on (path, flags).` — running an axiom, where the
         // type declared HERE is what comes back. Asked before the value's type is inferred, for the
         // same reason CheckReturn asks: a cast of an axiom has no type of its own to infer.

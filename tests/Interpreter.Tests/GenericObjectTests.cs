@@ -279,4 +279,162 @@ public class GenericObjectTests
             State cast shown on (the count).
             """));
     }
+
+    // ── A filled generic WRITTEN as a type ────────────────────────────────────────────────────
+    //
+    // ★★ Every test below was a live failure. A filled generic could be INFERRED anywhere
+    // (`Define counts as a new stack of number { … }`) but could not be WRITTEN in an annotation,
+    // which is the half nothing in tests/ or examples/ had ever used: every generic annotation in
+    // the corpus is `series of number`, a BUILT-IN, and a built-in leads with its own keyword so
+    // none of the faults below can reach it. The whole user-defined half was unexercised.
+    //
+    // Two separate defects, one per stage:
+    //
+    //   PARSER — `the stack of number counts` is the same tokens as `the city of alice`, a named
+    //   field access. The parser guessed with lookahead, guessed access, and refused to skip the
+    //   leading article, so the type parse died on a `the` it should never have been shown. Fixed
+    //   by Approach B: the parser now consults its POSITION, which it always knew.
+    //
+    //   CHECKER — a WRITTEN type was never resolved (an inferred one always was), so a filled
+    //   generic stayed the shell the parser produced. `stack of number` compared unequal to the
+    //   instantiation of itself, and no value in the language could satisfy it.
+
+    [Fact]
+    public void AFilledGeneric_CanBeWritten_AsADefinesType()
+    {
+        // ! Was: parse error, "expected Identifier, got Article \"the\"" — pointing at the article,
+        // naming nothing about generics, types, or the actual problem.
+        Assert.Equal("2", Run(Stack + """
+            Define the stack of number counts as a new stack of number { the items a series of number }.
+            Cast push on (counts, 5).
+            Cast push on (counts, 7).
+            State cast how-many on (counts).
+            """));
+    }
+
+    [Fact]
+    public void AFilledGeneric_CanBeWritten_AsAParameterType()
+    {
+        // ! Was: parse error, "expected type name (number, text, fact, series of ..., or a defined
+        // type name), got Article \"the\"".
+        Assert.Equal("1", Run(Stack + """
+            Bind number to tally-up, given (the stack of number box):
+                Return cast how-many on (box).
+            Done.
+
+            Define counts as a new stack of number { the items a series of number }.
+            Cast push on (counts, 5).
+            State cast tally-up on (counts).
+            """));
+    }
+
+    [Fact]
+    public void AFilledGeneric_CanBeWritten_AsAReturnType()
+    {
+        // ! Was: parsed, then refused a CORRECT program — "this function is declared to give back a
+        // stack". The declared type had lost its filling, so nothing could be returned from it.
+        // This is the worse of the two shapes: a wrong parse reads as a type error in the body.
+        Assert.Equal("0", Run(Stack + """
+            Bind stack of number to make:
+                Return a new stack of number { the items a series of number }.
+            Done.
+
+            State cast how-many on (cast make on ()).
+            """));
+    }
+
+    [Fact]
+    public void AFilledGeneric_AsAReturnType_StillRefusesTheWrongFilling()
+    {
+        // ! The counter-test, and the one that proves the fix RESOLVED the type rather than merely
+        // stopping the comparison. The old message said "give back a stack" for every filling,
+        // which is what a blank-less shell prints.
+        var e = Refused(Stack + """
+            Bind stack of number to make:
+                Return a new stack of text { the items a series of text }.
+            Done.
+
+            State cast how-many on (cast make on ()).
+            """);
+        Assert.Contains("stack of number", e.Message);
+    }
+
+    [Fact]
+    public void AFilledGeneric_CanBeWritten_AsAnObjectFieldType()
+    {
+        // The one position that always worked: ParseRecordShapeBody consumes the article itself as
+        // its named-field marker, so it never asked the guess. Kept as the control that says the
+        // fix did not disturb the path that was already right.
+        Assert.Equal("1", Run(Stack + """
+            Define object holder with (the stack of number inner).
+
+            Define box as a new holder { the inner a new stack of number { the items a series of number } }.
+            Cast push on (box's inner, 5).
+            State cast how-many on (box's inner).
+            """));
+    }
+
+    [Fact]
+    public void ANamedFieldAccess_StillMeansFieldAccess_InAnExpression()
+    {
+        // ★ The guard on the other side. `the <name> of <thing>` in an EXPRESSION is what the
+        // lookahead existed to recognise, and the fix must not have bought type positions at its
+        // expense — the two are the same tokens, told apart only by where they sit.
+        Assert.Equal("Ada", Run("""
+            Define object person with (the text city).
+            Define alice as a new person { the city "Ada" }.
+            State the city of alice.
+            """));
+    }
+
+    [Fact]
+    public void TheNQueensCanary_StillParses()
+    {
+        // The shape that started all of this: a BUILT-IN generic written as a type. It was fixed
+        // once before by excluding keywords from field names, and that fix is what this one
+        // replaces — so this is the test that says the replacement kept what it replaced.
+        Assert.Equal("3", Run("""
+            Define the series of number board as a series of number.
+            Insert 1 into board.
+            Insert 2 into board.
+            Insert 3 into board.
+            State the number of board.
+            """));
+    }
+
+    [Fact]
+    public void AnUntoMember_AimedAtATemplate_IsRefusedRatherThanCrashing()
+    {
+        // ! Was an unhandled KeyNotFoundException with a stack trace — exit 82, no diagnostic. The
+        // template's NAME passed the "is this a defined object type" guard, because that guard
+        // matches definitions by name and a template has one; the lookup that followed went to
+        // `_objectDefs`, where a template is never registered. Accepted by one check and missing
+        // from the next.
+        //
+        // ★ Refused, not supported: what a single body would mean for every filling of a template
+        // is a design question nobody has asked. The fix is that the program is told, on its own
+        // line, instead of the host process dying.
+        var e = Refused(Stack + """
+            Bind number to doubled unto stack:
+                Return (the number of one's items) * 2.
+            Done.
+            """);
+        Assert.Contains("leaves a blank", e.Message);
+        Assert.Contains("stack", e.Message);
+    }
+
+    [Fact]
+    public void AnUntoMember_AimedAtAPlainObject_StillWorks()
+    {
+        // The control: the refusal above must be about templates specifically, not about `unto`.
+        Assert.Equal("6", Run("""
+            Define object tally with (the number total).
+
+            Bind number to doubled unto tally:
+                Return one's total * 2.
+            Done.
+
+            State cast doubled on (a new tally { the total 3 }).
+            """));
+    }
 }

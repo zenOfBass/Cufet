@@ -293,8 +293,20 @@ public sealed partial class TypeChecker
     }
 
     /// <summary>A `Define`'s written type, resolved — or null when it declared none.</summary>
+    /// <remarks>
+    /// ★ A WRITTEN type has to be resolved the way an INFERRED one is (see <c>InferType</c>), or a
+    /// filled generic stays the shell the parser produced and nothing can ever satisfy it:
+    /// `Define the stack of number counts as a new stack of number { … }` was refused with
+    /// *"declared as stack, but the value is a stack of number"* — the shell being compared against
+    /// the instantiation of itself.
+    /// </remarks>
+    /// <remarks>
+    /// ⚠ An <c>AxiomType</c> is handed back untouched, for the reason <c>InferType</c> gives: it is
+    /// REFUSED by <c>ResolveParamType</c>, and that refusal is what keeps "written down anywhere"
+    /// and "the type of the declaration that names it" two different things.
+    /// </remarks>
     private CufetType? ResolvedDeclaredType(CufetType? declared) =>
-        declared is null ? null : ResolveParamType(declared);
+        declared is null or AxiomType ? declared : ResolveParamType(declared);
 
     /// <summary>The axiom a `cast` reaches, or null when the call is an ordinary one.</summary>
     private AxiomLiteral? AxiomCalledBy(IExpression function) =>

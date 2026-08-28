@@ -8,6 +8,51 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A generic type of your own could not be WRITTEN down.** It could be inferred anywhere —
+  `Define counts as a new stack of number { … }` has always worked — but naming it as a type was
+  refused in three of the four places a type can go:
+
+  ```
+  Define the stack of number counts as …          ← expected Identifier, got Article "the"
+  given (the stack of number box)                 ← expected type name …, got Article "the"
+  Bind stack of number to make:                   ← parsed, then refused a CORRECT return
+  ```
+
+  Two separate defects, one per stage. The **parser** was guessing: `the stack of number counts`
+  and `the city of alice` are the same tokens, and a lookahead decided between them by scanning
+  for `of`. It guessed *field access*, so it preserved the leading article, and the type parse
+  then died on a `the` it should never have been shown. The **checker** never resolved a WRITTEN
+  type the way it resolves an inferred one, so a filled generic stayed the shell the parser
+  produced — `stack of number` compared unequal to the instantiation of itself, and no value in
+  the language could satisfy it. That one is the worse shape: it parses, and a correct program is
+  refused with *"declared to give back a stack"*, naming a type nobody wrote.
+
+  ★★ **The fix for the first is to stop guessing.** The parser now marks the positions where a
+  type is being read and does not consult the guess in any of them — long tracked as *Approach B*,
+  and the reason it was worth doing rather than excluding one more shape is that the guess lives
+  inside `SkipNoise()`, which is called **633 times**. It was never firing at "two call sites"; it
+  fired at every noise-skip in the parser, including all of them that precede a type. An exclusion
+  list was being asked to describe 633 positions.
+
+  ⚠ **Why nothing caught it:** every generic annotation in `tests/` and `examples/` is
+  `series of number` — a BUILT-IN, which leads with its own keyword and so never met the fault.
+  The user-defined half was unexercised, and the debt had been filed for two months as
+  "theoretical fragility" on the strength of that silence.
+
+- **`unto` a generic template killed the type checker.** `Bind number to doubled unto stack:`,
+  where `stack` is `Define object stack of element`, exited with a raw `KeyNotFoundException` and
+  a stack trace instead of a diagnostic. The template's NAME satisfied the "is this a defined
+  object type" guard — that guard matches definitions by name, and a template has one — and the
+  lookup immediately after went to the registry a template is never in, because a template is held
+  aside and instantiated once per filling. Accepted by one check and missing from the next.
+
+  It is now refused, on the line that wrote it, saying that `stack` becomes a type only once its
+  blank is filled and that the member belongs inside the template's own body. ★ Refused rather
+  than supported on purpose: what one body would mean across every filling of a template is a real
+  question, and it has not been asked yet.
+
 ## [0.17.0] — 2026-08-28
 
 **Code is a value, and one rule governs both languages you can hold.** Cufet calls C: an axiom

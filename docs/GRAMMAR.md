@@ -1677,11 +1677,17 @@ not see a repeat of the `the series of number board` n-queens mis-parse.
   of `from` after the keyword (which causes `IsNamedAccessPattern` to return false
   since it requires `of` immediately after the name)
 
-**Tracked debt:** the heuristic itself remains lookahead-based. The proper architectural fix —
-Approach B, explicit type-annotation contexts, so the parser knows *from position* whether it is
-reading a type or an expression — is still open. Its precondition was a feature-complete parser
-syntax, so the hardening happens once against the final shape rather than repeatedly; that
-condition is met, and the work is unblocked. See ROADMAP under *Ongoing, no fixed slot*.
+**The lookahead is no longer what decides.** Approach B shipped: the parser marks the positions
+where a TYPE is being read, and the `the <name> of …` guess is not consulted in any of them. The
+keyword exclusion above still stands as the rule for field NAMES, but it is no longer carrying the
+weight of telling a type from an expression — position does that, which is the one thing lookahead
+could never do. `the stack of number counts` and `the city of alice` are the same tokens; only
+where they sit differs.
+
+**What this fixed, which the exclusion could not:** a user-defined generic written as a type. A
+built-in leads with its own keyword (`series of number`), so the exclusion covered it — but
+`the stack of number counts` starts with an identifier, and no exclusion list can hold it without
+also taking away every field access. It was refused everywhere a type is written.
 
 ### ★ What a burying body may contain
 
