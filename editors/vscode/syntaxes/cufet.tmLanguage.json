@@ -292,7 +292,7 @@
         {
           "comment": "Statement verbs — the words that open a statement and say what it does. ★ 'output' and 'seed' are deliberately NOT in this list: they lex as identifiers, so a program may name a variable either one, and matching them case-insensitively here would repaint that variable as language syntax. The CAPITALISED spelling is handled by the rule below, and the lowercase one by the semantic-token pass.",
           "name": "keyword.control.statement.cufet",
-          "match": "(?<![\\w-])(?i:state|insert|increment|decrement|remove|replace|send|close|acknowledge|write|append|read|run|open|cast|pull|have|start)(?![\\w-])"
+          "match": "(?<![\\w-])(?i:state|insert|increment|decrement|remove|replace|send|close|acknowledge|write|append|read|run|open|cast|cite|pull|have|start)(?![\\w-])"
         },
         {
           "comment": "Words that introduce a definition.",
