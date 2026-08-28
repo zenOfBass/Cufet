@@ -159,6 +159,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A number literal meant different things on different machines — silently.** The interpreter
+  parsed literals and printed numbers with the AMBIENT culture, so on a German machine `1.5` was
+  read as fifteen and `1234.75` as 123475: wrong arithmetic, wrong output, no error. On a French
+  machine the same literal threw a raw FormatException out of the parser.
+
+  ⚠⚠ **The compiler never had the fault** — it emits a literal as raw decimal bits, and C's own
+  formatting is locale-independent — so one program printed `1.5` compiled and `15` interpreted.
+  A DIVERGENCE, and one no oracle here could have caught: every machine that runs the suite is
+  en-US. It was reachable by anyone outside the English-speaking world who typed a decimal point,
+  and by every visitor to the playground, where the culture is the browser's.
+
+  ★ Parsing, printing and the literal echoed back inside a refusal are all pinned to the invariant
+  culture now. The rule is the one the language already states about line endings: a program
+  cannot mean two things depending on where it is opened. `CultureTests` walks the interpreter
+  through three locales, and the oracle suite asserts the two backends agree under a comma one.
+
 - **The playground refused every program**, including a nine-line average, with *"ObjectDefinition.
   has no matching property — AstRebuilder can only rebuild positional records"* — an empty name
   where a name should be, about a construct the program never used. Two faults, one of each kind:
@@ -640,6 +656,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   not rewritten either, and its `bury` survived to a backend.
 
 ### Changed
+
+- **The playground drops ICU, and its download is 35% smaller** — 4.38 MB compressed down to
+  2.86 MB, a saving of 1.52 MB. The note that deferred this estimated "roughly 200 KB"; it counted
+  the two `.dat` files and missed that linking ICU out shrinks the native runtime as well.
+
+  ★ It had been deferred for two reasons and both had expired. The first was that it could not be
+  built locally, because the emscripten relink it forces cannot handle a space in the build path
+  — the checkout moved to a space-free path, so the blocker was the PATH, never the flag. The
+  second was that it "changes culture-sensitive formatting", which turned out to be pointing at
+  the number-literal fault above rather than at a risk: with parsing and printing pinned to the
+  invariant culture, there is nothing culture-sensitive left for it to change.
 
 - **The reference is split, and the four long docs moved into `docs/`.** Books have their own
   document now: [BOOKS.md](docs/BOOKS.md) holds `math`, `collections`, `chance`, `matrix`, and
