@@ -270,7 +270,10 @@ public class ExhaustivenessTests
         // walk a FUNCTION body for its returns, and what a block holds returns nowhere — it is
         // placed elsewhere and checked there. Linter.ChildBlocks now descends, because the linter
         // runs on the program as written and that is the only place the text exists. SemanticTokens
-        // deliberately does not: a block is one `Axiom` token in the stream it anchors names in.
+        // deliberately does not, and the reason is the SURFACE rather than any limitation: `[ … ]`
+        // means the text inside is not the program around it, and it has to mean that whichever tag
+        // it carries — foreign source cannot be highlighted, so Cufet source in the same brackets is
+        // not highlighted either. See SemanticTokenTests, which holds both kinds of block to it.
         "BindStatement", "ConditionArm", "CufetAxiomDefinition",
         "ForEachFromInputStatement", "ForEachStatement",
         "GetterDeclaration", "IfStatement", "JudgeArm", "JudgeStatement", "LambdaLiteral",

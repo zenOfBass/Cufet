@@ -451,4 +451,64 @@ public class SemanticTokenTests
         Assert.Contains((2, 40, 5, "property", false), tokens.Select(Shape));
         Assert.DoesNotContain(tokens, t => t.Line == 2 && t.Column >= 24 && t.Column <= 32);
     }
+    // -- Nothing inside an axiom is painted, whichever language it holds -------
+    //
+    // ⭐⭐ The rule is about the SURFACE, not about Cufet. `[ … ]` means the text inside is not
+    // the program around it, and it has to mean that whichever tag it carries. Foreign source
+    // cannot be highlighted — the brackets do not say which language, and a grammar injection per
+    // language is not on offer — so Cufet source inside the same brackets is not highlighted
+    // either. Axioms look alike because they ARE alike from the outside.
+    //
+    // ⚠ It stopped being true by accident. A runnable cufet axiom is lowered to a `Bind`, so the
+    // walk descended into its body; the lexer offset gave those statements real positions, so the
+    // tokens landed correctly and painted it. Both of those are right on their own — what was
+    // wrong was letting them decide how a block looks.
+    //
+    // ⚠ And it was never uniform even within one axiom: a `Define` inside a block emits through
+    // the token stream, where the whole block is a single `Axiom` token and nothing is found, while
+    // the next line emits from its AST position and painted. Half a block lit, which is why this
+    // reads as arbitrary rather than as a decision.
+
+    [Fact]
+    public void ARunnableCufetAxiom_PaintsItsDeclarationButNotItsBody()
+    {
+        var tokens = Classify("""
+            Pull a book on cufet.
+                Define cufet number doubled, given (the number value), as [
+                    Define the scratch as 2.
+                    Return the value * the scratch.
+                ].
+                State cast doubled on (21).
+            Done.
+            """);
+
+        // The declaration line is ordinary Cufet and is painted — it sits outside the brackets.
+        Assert.Contains(tokens, t => t.Line == 2
+            && SemanticTokenLegend.NameOf(t.Kind) == "function"
+            && t.Modifiers.HasFlag(SemanticTokenModifier.Declaration));
+        Assert.Contains(tokens, t => t.Line == 2
+            && SemanticTokenLegend.NameOf(t.Kind) == "parameter");
+
+        // Lines 3 and 4 are inside the brackets.
+        Assert.DoesNotContain(tokens, t => t.Line is 3 or 4);
+    }
+
+    [Fact]
+    public void ACufetSourceBlock_PaintsItsNameButNotItsBody()
+    {
+        // The other half of the pair. This one never painted its body — it is here so that the two
+        // kinds of block are held to one appearance by one test file, and widening either has to
+        // answer for both.
+        var tokens = Classify("""
+            Pull a book on cufet.
+                Define cufet shapes as [
+                    Define object vec2 with (the number x): Done.
+                ].
+                Cite shapes.
+            Done.
+            """);
+
+        Assert.Contains(tokens, t => t.Line == 2 && t.Column == 18);   // `shapes`, outside
+        Assert.DoesNotContain(tokens, t => t.Line == 3);               // inside the brackets
+    }
 }

@@ -602,6 +602,21 @@ public sealed class SemanticTokenizer
             EmitFound(cursor, paramName, SemanticTokenKind.Parameter, SemanticTokenModifier.Declaration);
         }
 
+        // ⭐⭐ A runnable `cufet` axiom's BODY is not walked, and the rule is about the SURFACE
+        // rather than about Cufet. `[ … ]` means the text inside is not the program around it, and
+        // it has to mean that whichever tag it carries — foreign source cannot be highlighted (the
+        // brackets do not say which language, and a grammar injection per language is not on
+        // offer), so Cufet source inside the same brackets is not highlighted either. One surface,
+        // one appearance. The declaration LINE is ordinary Cufet and is emitted above.
+        //
+        // ⚠ This body reaches here at all only because the parser lowers a runnable axiom to a
+        // `Bind`, and only paints correctly because the lexer offset gives its statements real
+        // positions. Both are right; what was wrong was letting them decide how a block LOOKS. And
+        // it was never even uniform within one axiom: a `Define` inside the block emits through the
+        // token stream, where the whole block is a single `Axiom` token and nothing is found, while
+        // a `becomes` on the next line emits from its AST position and painted. Half a block lit.
+        if (bind.FromCufetAxiom) return;
+
         EnterScope();
         foreach (var (_, paramName) in bind.Parameters)
             Bind(paramName, SemanticTokenKind.Parameter);

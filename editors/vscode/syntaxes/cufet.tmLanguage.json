@@ -98,7 +98,7 @@
     },
 
     "axiom": {
-      "comment": "Foreign source — [ ... ]. Nothing inside is Cufet, so like #raw-text there are deliberately NO inner patterns beyond the self-include that implements depth-counted bracket nesting (which is what lets 'argv[0]' survive). Scoped as a string so every theme colours it as the opaque literal it is; highlighting it AS C would need a grammar injection per language, and the brackets do not say which language this is.",
+      "comment": "An axiom — [ ... ]. Like #raw-text there are deliberately NO inner patterns beyond the self-include that implements depth-counted bracket nesting (which is what lets 'argv[0]' survive). Scoped as a string so every theme colours it as the opaque literal it is. ★ This holds for the `cufet` tag TOO, whose contents are Cufet and could in principle be painted: axioms have to look alike, because from the outside they are alike. Foreign source cannot be highlighted — the brackets do not say which language it is, and that would need a grammar injection per language — so Cufet source in the same brackets is not highlighted either. The semantic-token pass is held to the same rule; see SemanticTokenTests.",
       "name": "string.quoted.other.axiom.cufet",
       "begin": "\\[",
       "end": "\\]",
