@@ -152,6 +152,70 @@ public sealed partial class Interpreter
         public CufetType? DeclaredValue { get; init; }
     }
 
+    // ── How a map compares its keys ──────────────────────────────────────────────────────────
+    //
+    // ★ A map is a Dictionary, so it asks two questions of every key: are these equal, and what is
+    // the hash. The DEFAULT comparer answers the first with `object.Equals`, which for a record is
+    // REFERENCE equality — two records holding the same numbers are different keys, and a lookup
+    // silently misses. That is the failure the old refusal warned about; it was real, and it was
+    // about how RecordValue is written rather than about what a record IS.
+    //
+    // ★ Equality here is `ValuesEqual`, the same function `is` and `=` use. One definition, so a
+    // key that the language calls equal is a key the map finds. Anything else is a divergence
+    // waiting: the compiler's map does a linear scan calling its own `_eq`, which already compares
+    // records field by field, so the two agree only if this side asks the same question.
+    //
+    // ⚠⚠ THE HASH IS THE DANGEROUS HALF, and it has one job: values `ValuesEqual` calls equal MUST
+    // hash the same. Hashing more than equality looks at is the silent-wrong-answer bug — the map
+    // finds nothing and reports no error. `bits` is the trap: `ValuesEqual` compares bit patterns
+    // on VALUE ALONE, ignoring base and width, so 0xFF and 0b11111111 are one key and the hash may
+    // not read the other two fields. A test locks the pair together.
+    internal sealed class CufetKeyComparer : IEqualityComparer<object>
+    {
+        public static readonly CufetKeyComparer Instance = new();
+
+        public new bool Equals(object? a, object? b) => ValuesEqual(a, b);
+
+        public int GetHashCode(object value) => HashOf(value);
+
+        private static int HashOf(object? value) => value switch
+        {
+            null              => 0,
+            VoidValue         => 1,
+            // Value only — see the warning above. Reading Base or Width here would give 0xFF and
+            // 0b11111111 two hashes for one key.
+            BitsValue bits    => bits.Value.GetHashCode(),
+            RecordValue rec   => HashOfRecord(rec),
+            ObjectValue obj   => HashOfObject(obj),
+            // A series is not a legal key, but ValuesEqual compares one structurally, so anything
+            // that reaches here through an untyped path must still hash consistently with that.
+            List<object> list => list.Aggregate(17, (acc, item) => acc * 31 + HashOf(item)),
+            _                 => value.GetHashCode(),
+        };
+
+        // ⚠ Named fields are ORDER-INDEPENDENT under ValuesEqual — it sorts both sides by name
+        // before comparing — so they are combined with a commutative operation here. Folding them
+        // in positionally would give two equal records two hashes.
+        private static int HashOfRecord(RecordValue rec)
+        {
+            int hash = rec.PositionalFields.Aggregate(19, (acc, f) => acc * 31 + HashOf(f));
+            foreach (var (name, value) in rec.NamedFields)
+                hash ^= name.GetHashCode() * 31 + HashOf(value);
+            return hash;
+        }
+
+        private static int HashOfObject(ObjectValue obj)
+        {
+            int hash = obj.PositionalFields.Aggregate(obj.TypeName.GetHashCode(), (acc, f) => acc * 31 + HashOf(f));
+            foreach (var (name, value) in obj.NamedFields)
+                hash ^= name.GetHashCode() * 31 + HashOf(value);
+            return hash ^ HashOf(obj.EmbeddedObject);
+        }
+    }
+
+    /// <summary>A new, empty map — the ONE place a map is created, so every one compares alike.</summary>
+    internal static Dictionary<object, object> NewMap() => new(CufetKeyComparer.Instance);
+
     // Builds a series carrying `elem`. Used at every site that creates one.
     private static List<object> Series(IEnumerable<object> items, CufetType? elem) =>
         new CufetSeries(items) { DeclaredElement = elem };

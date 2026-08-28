@@ -42,9 +42,13 @@ public sealed partial class Interpreter
     private static object DeepCopyForChannel(object value) => value switch
     {
         List<object> list => list.Select(DeepCopyForChannel).ToList(),
+        // ⚠ The COMPARER travels with the copy. `ToDictionary` without it hands back a map using
+        // the default one, where a record key compares by reference — so a map that worked before
+        // the send would silently find nothing after it, on the far side of a thread boundary.
         Dictionary<object, object> dict => dict.ToDictionary(
             kvp => kvp.Key,
-            kvp => DeepCopyForChannel(kvp.Value)),
+            kvp => DeepCopyForChannel(kvp.Value),
+            CufetKeyComparer.Instance),
         ObjectValue ov => new ObjectValue(
             ov.TypeName,
             ov.PositionalFields.Select(DeepCopyForChannel),

@@ -2,35 +2,105 @@
 
 public sealed partial class TypeChecker
 {
-    // Map keys must be value types (text, number, fact). Reference types — objects, series,
-    // maps — can't be keys because their identity changes when copied (Define deep-copies
-    // ObjectValues; two List<object> instances with the same content are still different
-    // references), so lookups would silently always-miss (the map behaves empty, wrong answers,
-    // no error). Every systems language draws this line: Python non-hashable lists, Rust
-    // Hash+Eq bounds, Java hashCode/equals contract.
+    // ── What may be a map key ────────────────────────────────────────────────────────────────
+    //
+    // ★ A key has to answer two questions the same way every time it is asked: is this the same as
+    // that (compared by CONTENT, not by which copy you are holding), and will it still be what it
+    // was when you look the entry up again. So the rule is: **a scalar, or a record of keys.**
+    //
+    // ⚠ This replaced "text, number, or fact", which was too blunt in one direction and explained
+    // itself with something FALSE in the other: it told the reader that a record is a reference
+    // type whose identity changes when copied. A record is neither. `IsReferenceType` is
+    // series/map/object/matrix/channel/address, records are absent from it, they deep-copy on
+    // binding, and they compare structurally. The refusal was right about records by accident and
+    // wrong about the reason, which is why no workaround for it ever felt principled.
+    //
+    // ⚠⚠ NOT `IsRegionBearing`, though the two walk the same shape and it is the obvious reach.
+    // That predicate answers *"does the compiled representation hold an arena pointer"*, and it
+    // says TRUE of `text` — so keying by text, the commonest key there is and the one
+    // `examples/algorithms/dijkstra.cufe` is built on, would have been refused by it. Arena
+    // residence is not the question here. Text lives in an arena and is still a perfect key: it is
+    // compared by content and nothing can change it afterwards.
+    //
+    // ★ Why a series is refused, stated correctly: not because its identity changes, but because
+    // it is MUTABLE. Insert under a key, change the key, and the entry can never be found again.
+    // A record is safe for the mirrored reason — it is deep-copied on binding, so the map holds a
+    // key nobody else can reach in to alter. A record HOLDING a series is refused, because the
+    // series inside it is shared and mutable; that is what makes this a walk rather than a list.
+    private static bool IsValidMapKeyType(CufetType? t) => t switch
+    {
+        // Scalars. `bits` compares on its VALUE alone, ignoring base and width — 0xFF and
+        // 0b11111111 are one key written two ways, exactly as they are one value under `is`.
+        NumberType or TextType or FactType or BitsType => true,
+        RecordType rt => rt.PositionalTypes.All(IsValidMapKeyType)
+                      && rt.NamedFields.All(f => IsValidMapKeyType(f.Type)),
+        // Everything else, and deliberately by omission rather than by enumeration: a type that is
+        // not listed above is not a key, and a NEW type is not a key until someone decides it is.
+        // ⚠ The wrappers — voidable, union, failure — are refused here and that is a live question
+        // rather than a settled one. Each is comparable and immutable when what it holds is, so the
+        // principle above would admit them; nobody has asked for one yet, and admitting a shape is
+        // easier than taking it back.
+        _ => false,
+    };
+
     private static void RequireValidMapKeyType(CufetType keyType, int line, int col)
     {
-        if (keyType is NumberType or TextType or FactType) return;
+        if (IsValidMapKeyType(keyType)) return;
 
         var typeName = FormatType(keyType);
-        var kind = keyType switch
+
+        // A record is refused for what is INSIDE it, so the message has to name that part — being
+        // told "a record can't be a key" when a record of two numbers plainly can is the same dead
+        // end the old message was.
+        if (keyType is RecordType rt)
         {
-            ObjectType => "an object",
-            SeriesType => "a series",
-            MapType    => "a map",
-            RecordType => "a record",
-            _          => "a reference type"
+            var (badName, badType) = FirstUnkeyableField(rt);
+            throw TypeError(
+                $"a key has to be a scalar or a record of scalars, and this record holds {FormatType(badType)}",
+                $"a {FormatType(badType)} can be changed after it is used as a key, and then the "
+              + "entry it was stored under could never be found again",
+                line, col,
+                $"use '{typeName}' as a map key",
+                $"Leave {badName} out of the key — a record of numbers, text, facts or bit patterns "
+              + "is fine, and those are what can be compared and cannot change underneath the map.");
+        }
+
+        var why = keyType switch
+        {
+            SeriesType or MapType or MatrixType =>
+                "it can be changed after it is used as a key, and then the entry it was stored "
+              + "under could never be found again",
+            ObjectType =>
+                "an object's fields can be written after it is used as a key, and then the entry "
+              + "it was stored under could never be found again",
+            _ => "only a scalar, or a record of scalars, can be compared as a key",
         };
         throw TypeError(
-            "map keys must be value types (text, number, or fact)",
-            $"'{typeName}' is {kind} — reference types can't be map keys because their identity " +
-            "changes when copied, so lookups silently always-fail (the map behaves empty, " +
-            "computing wrong answers with no error)",
+            $"'{typeName}' can't be a map key",
+            why,
             line, col,
             $"use a '{typeName}' as a map key",
-            $"Key by a value field instead: e.g. 'map from text to ...' keyed by a name field, " +
-            "or 'map from number to ...' keyed by an id field.");
+            "A key is a number, text, a fact, a bit pattern, or a record of those. Key by a field "
+          + "that is one of them — a name, an id — or by a record of them, like a (row, column) pair.");
     }
+
+    /// <summary>The first field of `rt` that cannot be part of a key, named for the message.</summary>
+    private static (string Name, CufetType Type) FirstUnkeyableField(RecordType rt)
+    {
+        for (int i = 0; i < rt.PositionalTypes.Count; i++)
+            if (!IsValidMapKeyType(rt.PositionalTypes[i]))
+                return ($"the {Ordinal(i + 1)} field", rt.PositionalTypes[i]);
+        foreach (var (name, type) in rt.NamedFields)
+            if (!IsValidMapKeyType(type))
+                return ($"'{name}'", type);
+        return ("a field", rt);   // unreachable: only called when the record was refused
+    }
+
+    private static string Ordinal(int n) => n switch
+    {
+        1 => "first", 2 => "second", 3 => "third", 4 => "fourth", 5 => "fifth",
+        6 => "sixth", 7 => "seventh", 8 => "eighth", 9 => "ninth", _ => $"{n}th",
+    };
 
     private void CheckMapSet(MapSetStatement mapSet)
     {

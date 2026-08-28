@@ -774,4 +774,45 @@ public class PipelineRecordObjectTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    /// <summary>
+    /// A record and a bit pattern as map keys, held to the oracle.
+    /// </summary>
+    /// <remarks>
+    /// ⚠⚠ This is the test that matters most for this rule, because the two backends do NOT agree
+    /// by construction. The interpreter's map is a Dictionary — it HASHES the key, then compares.
+    /// The compiler's map is a linear scan calling its own `_eq`. Nothing whatsoever makes a hash
+    /// and a scan answer alike; they agree only if the hash is kept in step with the equality it
+    /// is paired with, and when it is not the interpreter finds NOTHING while the compiler finds
+    /// the entry. No error either side — just two different answers.
+    ///
+    /// ★ Every lookup below deliberately uses a value that is EQUAL to the stored key without
+    /// being the same one: a second record with the same contents, named fields written in the
+    /// other order, and a bit pattern written in a different base.
+    /// </remarks>
+    [Fact]
+    public void RecordAndBitPatternMapKeys_AgreeOnBothBackends()
+    {
+        const string src = """
+            Define spot as a record with (1, 2).
+            Define grid as a map with (spot : "here").
+            Define other as a record with (1, 2).
+            State the entry for other in grid.
+            State grid has a key for other.
+
+            Define cell as a record with (the row 3, the col 4).
+            Define board as a map with (cell : "corner").
+            Define flipped as a record with (the col 4, the row 3).
+            State the entry for flipped in board.
+
+            Define flags as a map with (0b1010 : "ten").
+            State the entry for 0xA in flags.
+
+            Define tag as a record with ("north", 3, true).
+            Define tags as a map with (tag : "found").
+            Define same as a record with ("north", 3, true).
+            State the entry for same in tags.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }
