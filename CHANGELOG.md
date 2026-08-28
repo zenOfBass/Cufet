@@ -159,6 +159,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **The playground refused every program**, including a nine-line average, with *"ObjectDefinition.
+  has no matching property — AstRebuilder can only rebuild positional records"* — an empty name
+  where a name should be, about a construct the program never used. Two faults, one of each kind:
+
+  ⚠ **A pass that did nothing walked everything.** `CiteExpansion.WithoutBlocks` ran
+  unconditionally at the end of every check, so every program went through the reflective rebuild
+  whether or not it held a cufet block. It now guards itself the way `Expand` always has. "Does
+  nothing" and "walks every node doing nothing" are not the same thing on every platform.
+
+  ⚠⚠ **And underneath it, that rebuild cannot work in a trimmed build at all.** Trimming strips
+  parameter NAMES, and the front end matches constructor parameters to properties by name.
+  Measured on the published assembly: `ObjectDefinition`'s twelve-parameter constructor comes out
+  of the linker with four unnamed rows. That reaches everything the front end rewrites — generics
+  and stashes as much as cufet blocks — so the playground has been unable to run any of them, and
+  was so before this release. The interpreter is now rooted against trimming, which costs 207,433
+  bytes of a 9.4 MB payload; the figures and the rejected alternative are in the playground csproj.
+
 - **`permanently` was unusable inside any block, and reading such a constant gave three different
   answers.** A rabbit block is where most programs put their constants, and this is the fix the
   language's own refusal for the non-constant case tells a reader to make — *"Declare it `Define x
