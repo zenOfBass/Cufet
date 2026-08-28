@@ -56,8 +56,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   felt principled.
 
   ```
-  Define origin as a record with (0, 0).
-  Define grid as a map with (origin : "start").
+  Define grid as a map from record like (number, number) to text.
   In grid, the entry for a record with (2, 3) becomes "treasure".
   State the entry for a record with (2, 3) in grid.          ← "treasure"
   ```
@@ -79,11 +78,38 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   a bit pattern hashes on value alone (ignoring base and width, as its equality does), and a
   record's named fields hash commutatively (because they compare regardless of written order).
 
-  ⚠ A record key type cannot yet be WRITTEN, only inferred, so a map keyed by one has to start
-  with an entry. There is no `a map from <record> to text` spelling — `ParseTypeAnnotation` has no
-  record arm.
+  ★ **A record shape can be written where a type goes**, as `record like (…)` — so a map keyed by
+  one can be declared empty, and a parameter or field can be annotated with one. `like` rather than
+  `with`, and the two are not rivals: `with` accompanies a NAME being declared, with the name
+  between the word and the shape (`given (the record spot with (…))`), while `like` is what a shape
+  uses standing alone — which is how `series of records like (…)` has always been written.
+
+  ★ **The wrappers are keys too** when what they hold is: `a map from voidable number to text`, and
+  `a map from (number or text) to text` for a table that files `7` and `"seven"` alike. An OPEN
+  union is refused — it can hold anything ever widened into it, so it is refused for exactly the
+  reason its cases would be, without being able to name which one. `T or failure` stays refused on
+  a judgement rather than on mechanics: a failure is what an operation hands back when it cannot
+  answer, not a value anyone looks something up by.
 
 ### Fixed
+- **`the number of` on a map or a text died at RUNTIME**, with *"Expected a series for 'the number
+  of'"* — a message thrown by the evaluator, carrying none of the writer's program. Both have their
+  own word (`the size of` for a map, `the length of` for a text) and the reverse direction has
+  always said so at check time: `the size of <series>` is a type error that names `the number of`.
+  Now both directions are, and both name the right word.
+
+- **An expression could not begin with `the` inside a record literal.** `a record with (the row + 1,
+  2)` did not parse: `the row` was read as the start of a NAMED FIELD, so `+ 1` had to be its value,
+  and the error pointed at the operator — *"expected expression, got Plus"* — rather than at the
+  reading that went wrong. An operator cannot begin a value, so meeting one straight after the name
+  now settles which reading was meant.
+
+  ⚠ **`-` is deliberately excluded**, because it is the one operator that can also BEGIN a value:
+  `a record with (the offset -1)` is a named field holding negative one, `a record with (the offset
+  - 1)` wants the subtraction, and the two differ only by a space. Telling them apart from column
+  adjacency would be exactly the kind of lookahead the parser has been shedding, so `-` keeps the
+  named-field reading and the subtraction takes parentheses.
+
 
 - **A generic type of your own could not be WRITTEN down.** It could be inferred anywhere —
   `Define counts as a new stack of number { … }` has always worked — but naming it as a type was

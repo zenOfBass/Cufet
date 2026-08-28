@@ -1346,14 +1346,19 @@ Typed key→value collections. Keys are one type, values are one type
 record whose every field is one of those — nested as deep as you like:
 
 ```
-Define origin as a record with (0, 0).
-Define grid as a map with (origin : "start").
+Define grid as a map from record like (number, number) to text.
 In grid, the entry for a record with (2, 3) becomes "treasure".
 State the entry for a record with (2, 3) in grid.               ← "treasure"
 ```
 
-⚠ A record key type cannot be **written**, only inferred, so a map keyed by one has to start with
-an entry — there is no `a map from <record> to text` spelling to declare an empty one with.
+**A record SHAPE is written `record like (…)`** wherever it stands on its own — as a map key here,
+and as a series element in `a series of records like (number, number)`. The `with` form is the one
+that carries a name, and the name sits between the word and the shape: `given (the record spot
+with (number, number))` declares a parameter called `spot`.
+
+**A wrapper is a key when what it holds is** — `a map from voidable number to text`, or
+`a map from (number or text) to text` for a table that files `7` and `"seven"` alike. An *open*
+union is refused, because it can hold anything ever widened into it.
 
 A record key is compared by its CONTENTS, so a second record holding the same values finds the
 same entry. Named fields compare regardless of the order they were written, exactly as they do
