@@ -1,4 +1,5 @@
 using Cufet.Lexer;
+using System.Globalization;
 
 namespace Cufet.Interpreter;
 
@@ -1965,7 +1966,10 @@ public sealed partial class Interpreter
     {
         VoidValue        => "void",
         bool b           => b ? "true" : "false",
-        decimal d        => NormalizeDecimal(d).ToString(),
+        // ⚠ INVARIANT, for the reason the parser's literal is: `State 1.5.` printed "1,5" on a
+        // machine whose culture uses a comma, where the compiled program printed "1.5". Output is
+        // half of what a program MEANS, so it cannot be the reader's locale's business.
+        decimal d        => NormalizeDecimal(d).ToString(CultureInfo.InvariantCulture),
         BitsValue bv     => bv.ToString(),   // prints in the base it was written in
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
         FunctionValue        => "<function>",

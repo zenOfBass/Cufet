@@ -1,4 +1,5 @@
 ﻿using Cufet.Lexer;
+using System.Globalization;
 
 namespace Cufet.Interpreter;
 
@@ -2855,7 +2856,18 @@ public sealed class Parser
         switch (EffectiveType(tok))
         {
             case TokenType.Number:
-                baseExpr = new NumberLiteral(decimal.Parse(Advance().Lexeme));
+                // ⭐⭐ INVARIANT, because a number literal is TEXT IN THE SOURCE and its meaning
+                // cannot depend on the machine reading it. Left to the ambient culture, `1.5` was
+                // read as fifteen on a German machine — silently, with the arithmetic and the
+                // printed answer both wrong — and threw a FormatException on a French one. The
+                // COMPILER never had the fault: it emits a literal as raw decimal bits, so the
+                // same program printed 1.5 compiled and 15 interpreted. That is a divergence no
+                // oracle here could catch, because every machine that runs the suite is en-US.
+                //
+                // ★ The same rule the language already states about line endings: a program cannot
+                // mean two things depending on where it is opened.
+                baseExpr = new NumberLiteral(
+                    decimal.Parse(Advance().Lexeme, CultureInfo.InvariantCulture));
                 break;
             case TokenType.Bits:
                 baseExpr = ParseBitsLiteral(Advance());

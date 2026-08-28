@@ -1,4 +1,5 @@
 ﻿using Cufet.Lexer;
+using System.Globalization;
 
 namespace Cufet.Interpreter;
 
@@ -3351,7 +3352,9 @@ public sealed partial class TypeChecker
 
     private static string FormatExpr(IExpression expr) => expr switch
     {
-        NumberLiteral    { Value: var v } => v.ToString(),
+        // Invariant here too: this quotes the literal back to the writer inside a refusal, and a
+        // message that echoes `1,5` at someone who typed `1.5` is a message about the wrong thing.
+        NumberLiteral    { Value: var v } => v.ToString(CultureInfo.InvariantCulture),
         StringLiteral    { Value: var v } => $"\"{v}\"",
         // Rebuilt from the parts rather than kept as source text, so it echoes back in the same
         // base and width the author wrote — quoting "0xFF" at them is only useful if it looks

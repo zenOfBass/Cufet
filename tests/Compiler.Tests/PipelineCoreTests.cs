@@ -401,4 +401,36 @@ public class PipelineCoreTests : PipelineTestBase
         Assert.Equal("5", Interpret(src));
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+    // -- The two backends agree under a comma locale --------------------------
+
+    [Fact]
+    public void ANumberLiteral_AgreesAcrossBackends_UnderACommaCulture()
+    {
+        // !! The divergence this suite structurally could not see. A number literal was parsed
+        // with the ambient culture, so on a German machine `1.5` was FIFTEEN — while the compiler,
+        // which emits a literal as raw decimal bits, went on printing 1.5. Same program, two
+        // answers, and the wrong one arrived silently with the arithmetic already done.
+        //
+        // ⚠ Every machine that runs this suite is en-US, which is exactly why nothing here caught
+        // it. Pinning the culture is the only way the oracle can be asked the question at all.
+        //
+        // ★ One culture rather than three: the compiled side does not vary (C's formatting is
+        // locale-independent), so this is asserting the INTERPRETER against a fixed answer, and
+        // CultureTests already walks the interpreter through the others far more cheaply.
+        const string src = """
+            Define the half as 1.5 + 1.5.
+            State the half.
+            State 1234.75.
+            """;
+
+        var saved = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture =
+                new System.Globalization.CultureInfo("de-DE");
+            Assert.Equal(InterpretRaw(src), CompileRaw(src));
+            Assert.Equal("3\n1234.75", Interpret(src));
+        }
+        finally { System.Globalization.CultureInfo.CurrentCulture = saved; }
+    }
 }
