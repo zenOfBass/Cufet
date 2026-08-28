@@ -1,6 +1,6 @@
 # Cufet Language Reference
 
-The complete reference for Cufet `0.16.0`. For a quick introduction and taste of
+The complete reference for Cufet `0.17.0`. For a quick introduction and taste of
 the language, see [README.md](../README.md). For the reasoning behind the
 design, see [DESIGN.md](DESIGN.md); for what comes next, see [ROADMAP.md](ROADMAP.md). For reserved words, sharp edges,
 and the constraints worth knowing before you hit them, see [GRAMMAR.md](GRAMMAR.md). The books

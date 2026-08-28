@@ -6,7 +6,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
-## [Unreleased]
+## [0.17.0] — 2026-08-28
+
+**Code is a value, and one rule governs both languages you can hold.** Cufet calls C: an axiom
+holds foreign source, takes parameters, hands back a number, a double, an unsigned word, text or
+an opaque address, and frees what it acquired. The same brackets hold Cufet, and the same rule
+decides what happens to either — **says what it gives back, so you run it; says nothing, so it
+is source, and `Cite` places it.** An axiom is a value in its own right: passed as a parameter,
+kept in a series, held in an object field, run wherever it lands. Coroutines finished alongside
+it, with `For each` over a stash and a method that can bury.
 
 ### Added
 
