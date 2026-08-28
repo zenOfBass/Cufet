@@ -402,25 +402,91 @@ public class GenericObjectTests
             """));
     }
 
+    // ── `unto` and a definition that leaves a blank ───────────────────────────────────────────
+    //
+    // ★★ Both forms below CRASHED the checker before this — an unhandled KeyNotFoundException, no
+    // diagnostic, exit 82. The template's name satisfied the "is this a defined object type" guard
+    // (that guard matches definitions by name, and a template has one) and the lookup right after
+    // went to the registry a template is never in.
+    //
+    // ★ They are permitted rather than refused because `unto` has always meant "this member,
+    // written elsewhere", and a body written against a blank is exactly what a method INSIDE a
+    // template already is. Refusing it was the one place the language broke that equivalence.
+
     [Fact]
-    public void AnUntoMember_AimedAtATemplate_IsRefusedRatherThanCrashing()
+    public void AnUntoMember_OnATemplate_ReachesEveryFilling()
     {
-        // ! Was an unhandled KeyNotFoundException with a stack trace — exit 82, no diagnostic. The
-        // template's NAME passed the "is this a defined object type" guard, because that guard
-        // matches definitions by name and a template has one; the lookup that followed went to
-        // `_objectDefs`, where a template is never registered. Accepted by one check and missing
-        // from the next.
-        //
-        // ★ Refused, not supported: what a single body would mean for every filling of a template
-        // is a design question nobody has asked. The fix is that the program is told, on its own
-        // line, instead of the host process dying.
-        var e = Refused(Stack + """
-            Bind number to doubled unto stack:
-                Return (the number of one's items) * 2.
+        // One body written outside the definition; both fillings get their own copy of it,
+        // with `element` substituted per filling exactly as a nested method's would be.
+        Assert.Equal("2\n1", Run(Stack + """
+            Bind number to counted unto stack:
+                Return the number of one's items.
             Done.
+
+            Define counts as a new stack of number { the items a series of number }.
+            Cast push on (counts, 5).
+            Cast push on (counts, 7).
+
+            Define names as a new stack of text { the items a series of text }.
+            Cast push on (names, "Ada").
+
+            State cast counted on (counts).
+            State cast counted on (names).
+            """));
+    }
+
+    [Fact]
+    public void AnUntoMember_OnOneFilling_BelongsToThatFillingAlone()
+    {
+        // ★ Adding up is right for a stack of numbers and meaningless for a stack of texts, which
+        // is the whole reason to attach to one filling. `element` never appears — the member is
+        // written against the concrete type, so nothing is substituted into it.
+        Assert.Equal("12", Run(Stack + """
+            Bind number to total unto stack of number:
+                Define the sum as 0.
+                For each item in one's items, repeat:
+                    The sum becomes the sum + item.
+                Done.
+                Return the sum.
+            Done.
+
+            Define counts as a new stack of number { the items a series of number }.
+            Cast push on (counts, 5).
+            Cast push on (counts, 7).
+            State cast total on (counts).
+            """));
+    }
+
+    [Fact]
+    public void AnUntoMember_OnOneFilling_IsNotOnItsSiblings()
+    {
+        // ! The half that makes the previous test mean something. Without it, "attached to one
+        // filling" and "attached to the template" pass the same tests.
+        var e = Refused(Stack + """
+            Bind number to total unto stack of number:
+                Return 42.
+            Done.
+
+            Define names as a new stack of text { the items a series of text }.
+            State cast total on (names).
             """);
-        Assert.Contains("leaves a blank", e.Message);
-        Assert.Contains("stack", e.Message);
+        Assert.Contains("'stack of text' has no method named 'total'", e.Message);
+    }
+
+    [Fact]
+    public void AnUntoMember_OnAFilling_CollidingWithTheTemplates_IsRefused()
+    {
+        // ⚠ Caught at INSTANTIATION, which is the first moment both member sets exist — the
+        // template's, and this filling's. There is no earlier point that could see the clash.
+        var e = Refused(Stack + """
+            Bind number to how-many unto stack of number:
+                Return 0.
+            Done.
+
+            Define counts as a new stack of number { the items a series of number }.
+            State cast how-many on (counts).
+            """);
+        Assert.Contains("already has a member 'how-many'", e.Message);
     }
 
     [Fact]

@@ -728,4 +728,50 @@ public class PipelineRecordObjectTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    /// <summary>
+    /// `unto` a template and `unto` one filling, held to the oracle.
+    /// </summary>
+    /// <remarks>
+    /// ★ Neither reaches the backends as anything unusual: a template's `unto` member is merged
+    /// into the template and substituted per filling, and a filling's is merged into that filling
+    /// when it is made. By the time either backend sees the program, both are ordinary methods on
+    /// ordinary objects — which is the same move monomorphization already makes, and the reason
+    /// this needed no compiler change at all.
+    /// </remarks>
+    [Fact]
+    public void UntoOnATemplateAndOnOneFilling_AgreeOnBothBackends()
+    {
+        const string src = """
+            Define object stack of element with (the series of element items):
+                Bind void to push, given (the element value):
+                    Insert value into one's items.
+                Done.
+            Done.
+
+            Bind number to counted unto stack:
+                Return the number of one's items.
+            Done.
+
+            Bind number to total unto stack of number:
+                Define the sum as 0.
+                For each item in one's items, repeat:
+                    The sum becomes the sum + item.
+                Done.
+                Return the sum.
+            Done.
+
+            Define counts as a new stack of number { the items a series of number }.
+            Cast push on (counts, 5).
+            Cast push on (counts, 7).
+
+            Define names as a new stack of text { the items a series of text }.
+            Cast push on (names, "Ada").
+
+            State cast counted on (counts).
+            State cast total on (counts).
+            State cast counted on (names).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

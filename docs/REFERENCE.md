@@ -2065,6 +2065,35 @@ Done.
 - **Satisfies interface conformance** exactly as a nested method would — the
   conformance check looks for "does the type have a matching method?", not
   "where was it declared?"
+- **A definition that leaves a blank takes `unto` two ways.** Naming the
+  template attaches the member to every filling; naming one filling attaches
+  it to that filling alone:
+
+  ```
+  Define object stack of element with (the series of element items).
+
+  Bind number to counted unto stack:              ← every filling gets this
+      Return the number of one's items.
+  Done.
+
+  Bind number to total unto stack of number:      ← only a stack of number
+      Define the sum as 0.
+      For each item in one's items, repeat:
+          The sum becomes the sum + item.
+      Done.
+      Return the sum.
+  Done.
+  ```
+
+  A member written unto the template is written against the blank, exactly
+  like one nested in the definition, and `element` is replaced per filling. A
+  member written unto one filling is written against the concrete type — which
+  is what lets `total` add its items up, something no body written for every
+  filling could do. `cast total on <a stack of text>` is refused: that type
+  does not have it.
+
+  A filling cannot redeclare a member the template already gives it — the same
+  "unique per type" rule as everywhere else, reported when the filling is made.
 
 #### Getters and setters
 

@@ -965,6 +965,41 @@ public sealed partial class TypeChecker
             template, name,
             blanks.Zip(arguments).ToDictionary(p => p.First, p => p.Second, StringComparer.Ordinal));
 
+        // ★ `unto stack of number` — members written for THIS filling and no other. They join after
+        // Fill, not before, and that is the whole difference from a template's own members: they
+        // were written against the concrete type, so there is no blank in them to substitute.
+        // A sibling filling never sees them, which is the point.
+        //
+        // ⚠ Collisions are caught here rather than at the hoist, because that is the first moment
+        // both member sets exist — the template's, and this filling's.
+        if (_untoFillingMethods.TryGetValue(name, out var fillMethods)
+            || _untoFillingGetters.TryGetValue(name, out _)
+            || _untoFillingSetters.TryGetValue(name, out _))
+        {
+            fillMethods ??= [];
+            _untoFillingGetters.TryGetValue(name, out var fillGetters);
+            _untoFillingSetters.TryGetValue(name, out var fillSetters);
+            foreach (var member in fillMethods.Select(m => m.Name)
+                        .Concat((fillGetters ?? []).Select(g => g.Name))
+                        .Concat((fillSetters ?? []).Select(t => t.Name)))
+            {
+                if (concrete.Methods.Any(m => m.Name == member)
+                    || concrete.Getters.Any(g => g.Name == member)
+                    || concrete.Setters.Any(t => t.Name == member))
+                    throw new TypeException(
+                        $"That doesn't work: '{name}' already has a member '{member}'."
+                      + Environment.NewLine + Environment.NewLine
+                      + $"'{template.Name}' declares '{member}' for every filling, so "
+                      + $"'{name}' has it already. Rename the one written unto '{name}'.");
+            }
+            concrete = concrete with
+            {
+                Methods = [.. concrete.Methods, .. fillMethods.Select(m => m with { UntoType = null })],
+                Getters = [.. concrete.Getters, .. (fillGetters ?? []).Select(g => g with { UntoType = null })],
+                Setters = [.. concrete.Setters, .. (fillSetters ?? []).Select(t => t with { UntoType = null })],
+            };
+        }
+
         // ★★ Every method of a filled OBJECT is refused, if it is refused, because of the filling —
         // its body is right for every other one. The literal that caused the filling left its
         // position in _fillingSite, because an object's blanks are filled during type resolution

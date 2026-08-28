@@ -690,6 +690,17 @@ public sealed partial class TypeChecker
 
     // How many times the check has been re-run to splice in filled-in definitions. One re-run is
     // the normal case; the cap turns an endlessly self-filling template into a clean refusal.
+    // ★ `unto stack of number` — a member attached to ONE filling, and not to its siblings. It
+    // cannot be merged at the hoist the way a template's or a plain object's is, because the type
+    // it names does not exist yet: a filling comes into being when something asks for it. So it is
+    // held here and applied by Instantiate, at the moment that type is made.
+    //
+    // ⚠ A filling nobody asks for is never instantiated, so members held for it are never applied
+    // — the same silence a template used nowhere gets, and for the same reason.
+    private readonly Dictionary<string, List<BindStatement>>     _untoFillingMethods = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<GetterDeclaration>> _untoFillingGetters = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<SetterDeclaration>> _untoFillingSetters = new(StringComparer.Ordinal);
+
     private int _instantiationDepth;
     private const int MaxInstantiationDepth = 16;
 
@@ -960,7 +971,8 @@ public sealed partial class TypeChecker
             var spliced = new List<IStatement>(_instantiated.Values);
             spliced.AddRange(_instantiatedFunctions.Values);
             spliced.AddRange(WithFilledMethods(
-                WithoutTemplates(program.Statements, _genericFunctions.Keys.ToHashSet(StringComparer.Ordinal))));
+                WithoutTemplates(program.Statements, _genericFunctions.Keys.ToHashSet(StringComparer.Ordinal),
+                                 UntoAbsorbedTargets())));
             return new TypeChecker
                    {
                        _instantiationDepth = _instantiationDepth + 1,
@@ -979,7 +991,8 @@ public sealed partial class TypeChecker
         // every program now carries `collections` and its generic `unique`, cast or not.
         if (_genericMethods.Count > 0 || _genericFunctions.Count > 0 || _genericObjectDefs.Count > 0)
             program = new Program(WithFilledMethods(
-                WithoutTemplates(program.Statements, _genericFunctions.Keys.ToHashSet(StringComparer.Ordinal))));
+                WithoutTemplates(program.Statements, _genericFunctions.Keys.ToHashSet(StringComparer.Ordinal),
+                                 UntoAbsorbedTargets())));
 
         // ⚠ BEFORE Expand, and that ordering is the feature. Inside a burying body a stash loop is
         // DELEGATION — `For each value in inner, repeat: Have helper bury value.` — and the machine
@@ -1372,8 +1385,31 @@ public sealed partial class TypeChecker
     }
 
     /// <summary>Drops templates — object and function alike — reaching through `Pull` bodies.</summary>
+    // Every `unto` target whose members have already been folded into the type they name: a
+    // TEMPLATE (merged at the hoist, so each filling carries a copy) or a FILLING (merged by
+    // Instantiate). The statements that declared them must not survive into the re-check — the
+    // template is being deleted out from under them, and the filling already holds them, so left
+    // behind they are either attached to nothing or attached twice.
+    private HashSet<string> UntoAbsorbedTargets()
+    {
+        var absorbed = _genericObjectDefs.Keys.ToHashSet(StringComparer.Ordinal);
+        absorbed.UnionWith(_untoFillingMethods.Keys);
+        absorbed.UnionWith(_untoFillingGetters.Keys);
+        absorbed.UnionWith(_untoFillingSetters.Keys);
+        return absorbed;
+    }
+
+    // `stack of number` is a filling of `stack` — the name the front end gives one, which no writer
+    // could type as an identifier because it has spaces in it.
+    private bool IsFillingOfKnownTemplate(string name)
+    {
+        int at = name.IndexOf(" of ", StringComparison.Ordinal);
+        return at > 0 && _genericObjectDefs.ContainsKey(name[..at]);
+    }
+
     private static IReadOnlyList<IStatement> WithoutTemplates(
-        IReadOnlyList<IStatement> statements, HashSet<string> genericFunctions)
+        IReadOnlyList<IStatement> statements, HashSet<string> genericFunctions,
+        HashSet<string>? templateNames = null)
     {
         var kept = new List<IStatement>(statements.Count);
         foreach (var stmt in statements)
@@ -1384,8 +1420,21 @@ public sealed partial class TypeChecker
                     continue;
                 case BindStatement bind when genericFunctions.Contains(bind.Name):
                     continue;
+                // ⚠ An `unto` member aimed at a TEMPLATE goes wherever the template goes. It was
+                // merged into the template at the hoist, so every filling already carries its own
+                // copy; the original statement names a type that this splice is in the middle of
+                // deleting. Left behind, it reaches the re-check as a member attached to nothing
+                // and is refused with "'stack' is not a defined object type" — a leftover of the
+                // same kind, and for the same reason, as the template struct this function exists
+                // to stop the backend from meeting.
+                case BindStatement { UntoType: { } bindUnto } when templateNames?.Contains(bindUnto) == true:
+                    continue;
+                case GetterDeclaration { UntoType: { } getUnto } when templateNames?.Contains(getUnto) == true:
+                    continue;
+                case SetterDeclaration { UntoType: { } setUnto } when templateNames?.Contains(setUnto) == true:
+                    continue;
                 case PullStatement pull:
-                    kept.Add(pull with { Body = WithoutTemplates(pull.Body, genericFunctions) });
+                    kept.Add(pull with { Body = WithoutTemplates(pull.Body, genericFunctions, templateNames) });
                     continue;
                 default:
                     kept.Add(stmt);
@@ -1520,38 +1569,14 @@ public sealed partial class TypeChecker
                     $"define an object named '{od.Name}'",
                     $"Pick another name — 'Pull {od.Name}.' always finds the one the language ships.");
 
-            // ⚠ `unto` cannot target a TEMPLATE. Its name is matched by the three Remove calls
-            // below, which is what made this a CRASH rather than a message: the target was accepted
-            // here, and then CheckUntoMethod looked it up in `_objectDefs` — where a template never
-            // goes, because it is held aside in `_genericObjectDefs` and instantiated per filling.
-            // `Bind number to doubled unto stack:` died with a raw KeyNotFoundException and a stack
-            // trace, which is the one outcome no program should ever produce.
-            //
-            // ★ Refused rather than supported, deliberately: attaching one body to every filling of
-            // a template is a real feature with a real question behind it (a method written once
-            // for `stack of number` and `stack of text` cannot touch the blank), and that question
-            // has not been asked yet. Saying so is the fix; guessing an answer is not.
-            if (od.TypeParameters is { Count: > 0 })
-            {
-                var stray = FirstUntoAgainst(od.Name, untoMethodsByType, untoGettersByType, untoSettersByType);
-                if (stray is { } s)
-                    throw TypeError(
-                        $"'{od.Name}' leaves a blank, so 'unto' can't attach to it",
-                        $"'{od.Name}' is a template — `{od.Name} of {od.TypeParameters[0]}` — and it "
-                      + "becomes a type only once the blank is filled",
-                        s.Line, s.Column,
-                        $"attach a member unto the template '{od.Name}'",
-                        $"Write the member inside the 'Define object {od.Name} of {od.TypeParameters[0]}' body, "
-                      + "where it is written once and every filling gets it.");
-            }
-
             var methodSigs = od.Methods
                 .Select(m => (m.Name, MethodSignature(m, od.Name)))
                 .ToList();
             var getterSigs = od.Getters.Select(g => (g.Name, g.ReturnType)).ToList();
             var setterSigs = od.Setters.Select(s => (s.Name, s.ParamType, s.ParamName)).ToList();
 
-            if (untoMethodsByType.Remove(od.Name, out var untoMethods))
+            untoMethodsByType.Remove(od.Name, out var untoMethods);
+            if (untoMethods is not null)
             {
                 foreach (var um in untoMethods)
                 {
@@ -1565,7 +1590,8 @@ public sealed partial class TypeChecker
                 }
             }
 
-            if (untoGettersByType.Remove(od.Name, out var untoGetters))
+            untoGettersByType.Remove(od.Name, out var untoGetters);
+            if (untoGetters is not null)
             {
                 foreach (var ug in untoGetters)
                 {
@@ -1579,7 +1605,8 @@ public sealed partial class TypeChecker
                 }
             }
 
-            if (untoSettersByType.Remove(od.Name, out var untoSetters))
+            untoSettersByType.Remove(od.Name, out var untoSetters);
+            if (untoSetters is not null)
             {
                 foreach (var us in untoSetters)
                 {
@@ -1599,7 +1626,25 @@ public sealed partial class TypeChecker
             // once per filling, the way an interface-taking function is specialised per conformer.
             if (od.TypeParameters is { Count: > 0 })
             {
-                _genericObjectDefs[od.Name] = od;
+                // ★★ An `unto` member aimed at a TEMPLATE joins the template itself, so every
+                // filling gets it. That is not a new capability: a body written against a blank is
+                // exactly what a method INSIDE the template already is, and `unto` has always meant
+                // "the same member, written elsewhere". Refusing it here was the one place the
+                // language broke that equivalence — and it broke it by crashing.
+                //
+                // ⚠ Merged BEFORE the template is stored, because `GenericInstantiation.Fill`
+                // substitutes the blank across whatever the template holds. A member added after
+                // would never have `element` replaced by the filling.
+                //
+                // ⚠ `UntoType` is cleared on the way in. Once merged the member IS a nested one,
+                // and leaving the marker set would send each filled copy back through
+                // CheckUntoMethod looking for a type named after the template.
+                _genericObjectDefs[od.Name] = od with
+                {
+                    Methods = [.. od.Methods, .. (untoMethods  ?? []).Select(m => m with { UntoType = null })],
+                    Getters = [.. od.Getters, .. (untoGetters  ?? []).Select(g => g with { UntoType = null })],
+                    Setters = [.. od.Setters, .. (untoSetters  ?? []).Select(t => t with { UntoType = null })],
+                };
                 continue;
             }
 
@@ -1649,18 +1694,17 @@ public sealed partial class TypeChecker
                     ot.Methods.Where(m => !_genericMethods.ContainsKey((od.Name, m.MethodName))).ToList());
         }
 
-        // The first `unto` member aimed at `name`, whichever kind it is — used to put a refusal on
-        // the line the writer actually wrote rather than on the definition it names.
-        static (int Line, int Column)? FirstUntoAgainst(
-            string name,
-            Dictionary<string, List<BindStatement>>     methods,
-            Dictionary<string, List<GetterDeclaration>> getters,
-            Dictionary<string, List<SetterDeclaration>> setters)
+        // ★ Before anything is called undefined: a name like `stack of number` is a FILLING of a
+        // template that does exist. It is not in _objectDefs yet and may never be, so it cannot be
+        // validated here — it is handed to Instantiate, which is where that type is made.
+        foreach (var fillingName in untoMethodsByType.Keys.Concat(untoGettersByType.Keys)
+                                                     .Concat(untoSettersByType.Keys)
+                                                     .Distinct(StringComparer.Ordinal).ToList())
         {
-            if (methods.TryGetValue(name, out var m) && m.Count > 0) return (m[0].Line, m[0].Column);
-            if (getters.TryGetValue(name, out var g) && g.Count > 0) return (g[0].Line, g[0].Column);
-            if (setters.TryGetValue(name, out var s) && s.Count > 0) return (s[0].Line, s[0].Column);
-            return null;
+            if (!IsFillingOfKnownTemplate(fillingName)) continue;
+            if (untoMethodsByType.Remove(fillingName, out var fm)) _untoFillingMethods[fillingName] = fm;
+            if (untoGettersByType.Remove(fillingName, out var fg)) _untoFillingGetters[fillingName] = fg;
+            if (untoSettersByType.Remove(fillingName, out var fs)) _untoFillingSetters[fillingName] = fs;
         }
 
         // Anything left in unto* dictionaries targets a name that isn't a defined object type.
@@ -2074,7 +2118,13 @@ public sealed partial class TypeChecker
                 CheckSeriesRemoveAt(removeAt);
                 break;
             case BindStatement { UntoType: { } } unto:
-                CheckUntoMethod(unto);
+                // ⚠ Aimed at a TEMPLATE or at a FILLING, this statement is not checked here at all.
+                // Either way its body was folded into a definition that gets checked in its own
+                // right — once per filling for a template, once for the filling itself — and there
+                // is nothing here to check it against: a template's `element` is a blank, and a
+                // filling may not have been made yet at this point in the program.
+                if (!UntoAbsorbedTargets().Contains(unto.UntoType!))
+                    CheckUntoMethod(unto);
                 break;
             case BindStatement { ConstructsTypeName: { } } ctor:
                 CheckConstructor(ctor);

@@ -4048,6 +4048,29 @@ public sealed class Parser
         return true;
     }
 
+    // `unto <type>` — the object a member declared outside its body attaches to.
+    //
+    // ★ A FILLING may be named here: `unto stack of number` attaches to that one filling and not to
+    // `stack of text`. It is spelled the way every other type is, and the name it produces is the
+    // one the front end already gives that filling — `stack of number`, spaces and all — so nothing
+    // downstream needs to know a template was involved.
+    //
+    // ⚠ The `of` chain is a TYPE position, which is what keeps `unto stack of number` from being
+    // read as the field access `the number of …` by the article guess. Same rule as everywhere
+    // else: position decides.
+    private string ParseUntoTargetName()
+    {
+        var name = Consume(TokenType.Identifier).Lexeme;
+        var arguments = new List<CufetType>();
+        while (Peek().Type == TokenType.Of)
+        {
+            Advance();
+            SkipNoiseBeforeType();
+            arguments.Add(ParseTypeAnnotation());
+        }
+        return arguments.Count == 0 ? name : GenericInstantiation.NameFor(name, arguments);
+    }
+
     // ── Functions ─────────────────────────────────────────────────────────
 
     private BindStatement ParseBindStatement()
@@ -4102,7 +4125,7 @@ public sealed class Parser
         {
             Advance(); // consume 'unto'
             SkipNoise();
-            untoType = Consume(TokenType.Identifier).Lexeme;
+            untoType = ParseUntoTargetName();
             SkipNoise();
         }
 
@@ -4547,7 +4570,7 @@ public sealed class Parser
         if (Peek().Type == TokenType.Unto)
         {
             Advance(); SkipNoise(); // consume 'unto'
-            untoType = Consume(TokenType.Identifier).Lexeme;
+            untoType = ParseUntoTargetName();
             SkipNoise();
         }
 
@@ -4588,7 +4611,7 @@ public sealed class Parser
         if (Peek().Type == TokenType.Unto)
         {
             Advance(); SkipNoise(); // consume 'unto'
-            untoType = Consume(TokenType.Identifier).Lexeme;
+            untoType = ParseUntoTargetName();
             SkipNoise();
         }
 

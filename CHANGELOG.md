@@ -8,6 +8,43 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+- **`unto` works on a definition that leaves a blank, both ways.** Naming the template attaches the
+  member to every filling; naming one filling attaches it to that filling alone:
+
+  ```
+  Define object stack of element with (the series of element items).
+
+  Bind number to counted unto stack:              ← every filling gets this
+      Return the number of one's items.
+  Done.
+
+  Bind number to total unto stack of number:      ← only a stack of number
+      Define the sum as 0.
+      For each item in one's items, repeat:
+          The sum becomes the sum + item.
+      Done.
+      Return the sum.
+  Done.
+  ```
+
+  ★ The template form is not a new capability — a body written against a blank is exactly what a
+  method INSIDE the template already is, and `unto` has always meant "this member, written
+  elsewhere". Refusing it was the one place the language broke that equivalence, and it broke it by
+  crashing (see *Fixed*).
+
+  ★ The filling form is the one that adds something: `total` can add its items up, which no body
+  written for every filling could do, because only there is `element` known to be a number.
+  `cast total on <a stack of text>` is refused — that type does not have it. A filling cannot
+  redeclare a member the template already gives it; that is reported when the filling is made,
+  which is the first moment both member sets exist.
+
+  ⚠ **Neither backend changed.** A template's `unto` member is merged into the template and
+  substituted per filling; a filling's is merged into that filling when it is made. By the time
+  either backend sees the program both are ordinary methods on ordinary objects — the same move
+  monomorphization already makes.
+
 ### Fixed
 
 - **A generic type of your own could not be WRITTEN down.** It could be inferred anywhere —
@@ -48,10 +85,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   lookup immediately after went to the registry a template is never in, because a template is held
   aside and instantiated once per filling. Accepted by one check and missing from the next.
 
-  It is now refused, on the line that wrote it, saying that `stack` becomes a type only once its
-  blank is filled and that the member belongs inside the template's own body. ★ Refused rather
-  than supported on purpose: what one body would mean across every filling of a template is a real
-  question, and it has not been asked yet.
+  ★ It is now **supported** rather than refused — see *Added* above. The refusal was drafted first
+  and then reconsidered: `unto` means "this member, written elsewhere", and a body written against
+  a blank is what a method inside a template already is, so refusing it was the language breaking
+  its own equivalence rather than protecting anything.
 
 ## [0.17.0] — 2026-08-28
 
