@@ -6,6 +6,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
+## [Unreleased]
+
 ## [0.17.0] — 2026-08-28
 
 **Code is a value, and one rule governs both languages you can hold.** Cufet calls C: an axiom
