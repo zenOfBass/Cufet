@@ -180,4 +180,143 @@ public class MapKeyTests
             Assert.DoesNotContain("identity changes", message);
         }
     }
+
+    // ── The wrappers ──────────────────────────────────────────────────────────────────────────
+    //
+    // ★ A wrapper travels with what it holds, for the same reason a record does: a `voidable
+    // number` is void or a number, a `(number or text)` is whichever case it holds, and neither
+    // adds a way for the key to shift underneath the map.
+
+    [Fact]
+    public void AUnionOfScalars_IsAKey()
+    {
+        // `7` and `"seven"` filed in one table — the case that motivated admitting these at all.
+        Assert.Equal("seven\n7", Run("""
+            Define lookup as a map from (number or text) to text.
+            In lookup, the entry for 7 becomes "seven".
+            In lookup, the entry for "seven" becomes "7".
+            State the entry for 7 in lookup.
+            State the entry for "seven" in lookup.
+            """));
+    }
+
+    [Fact]
+    public void AVoidableScalar_IsAKey()
+    {
+        Assert.Equal("seven", Run("""
+            Define lookup as a map from voidable number to text.
+            In lookup, the entry for 7 becomes "seven".
+            State the entry for 7 in lookup.
+            """));
+    }
+
+    [Fact]
+    public void AWrapperAroundSomethingUnkeyable_IsStillRefused()
+    {
+        // ! The half that makes the wrapper rule a walk rather than a blanket yes. A voidable
+        // SERIES is exactly as mutable as the series inside it.
+        var e = Refused("""
+            Define lookup as a map from voidable series of number to text.
+            State the size of lookup.
+            """);
+        Assert.Contains("can't be a map key", e.Message);
+    }
+
+    // ── Writing the key type down ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ARecordKeyType_CanBeWritten_SoAnEmptyMapCanBeDeclared()
+    {
+        // ! Before this, a record-keyed map could only be INFERRED from a literal with an entry in
+        // it — the rule admitted a key type that could not be written down, which is the same
+        // shape of gap as a generic that could not be annotated.
+        Assert.Equal("treasure", Run("""
+            Define grid as a map from record like (number, number) to text.
+            In grid, the entry for a record with (2, 3) becomes "treasure".
+            State the entry for a record with (2, 3) in grid.
+            """));
+    }
+
+    [Fact]
+    public void ARecordShape_IsWrittenWithLike_WhereverItStandsAlone()
+    {
+        // ★ `like` is the spelling for a shape with no name attached — which is how `series of
+        // records like (…)` has always been written, and now how a map key is written too. `with`
+        // is the form that carries a name (`given (the record spot with (…))`), and it is
+        // untouched.
+        Assert.Equal("1\n2", Run("""
+            Define pairs as a series of records like (number, number).
+            Insert a record with (1, 2) into pairs.
+            State the number of pairs.
+            State the second of the first of pairs.
+            """));
+    }
+
+    // ── `the number of` on something that has its own word ────────────────────────────────────
+
+    [Fact]
+    public void TheNumberOf_OnAMap_SaysToUseTheSizeOf_AtCheckTime()
+    {
+        // ! Was a RUNTIME exception — "Expected a series for 'the number of'" — thrown from the
+        // evaluator, with none of the writer's program in it. The reverse direction has always
+        // been a check-time error that names the right word; this is that sentence pointed back.
+        var e = Refused("""
+            Define ages as a map with ("alice" : 30).
+            State the number of ages.
+            """);
+        Assert.Contains("works on series, not maps", e.Message);
+        Assert.Contains("the size of", e.Message);
+    }
+
+    [Fact]
+    public void TheNumberOf_OnText_SaysToUseTheLengthOf_AtCheckTime()
+    {
+        var e = Refused("""
+            Define greeting as "hello".
+            State the number of greeting.
+            """);
+        Assert.Contains("works on series, not text", e.Message);
+        Assert.Contains("the length of", e.Message);
+    }
+
+    // ── `the <name>` in a value position ──────────────────────────────────────────────────────
+
+    [Fact]
+    public void AnExpression_CanStartWithThe_InsideARecordLiteral()
+    {
+        // ! Did not parse at all: `the row` was read as the start of a NAMED FIELD, so `+ 1` had
+        // to be its value and the message pointed at the operator — "expected expression, got
+        // Plus" — rather than at the reading that went wrong. An operator cannot begin a value, so
+        // meeting one right after the name settles which reading was meant.
+        Assert.Equal("2\n3", Run("""
+            Define the row as 1.
+            Define spot as a record with (the row + 1, the row * 3).
+            State the first of spot.
+            State the second of spot.
+            """));
+    }
+
+    [Fact]
+    public void ANamedField_IsStillANamedField()
+    {
+        // The control: nothing about the fix may cost the form it disambiguates from.
+        Assert.Equal("7\nhearts", Run("""
+            Define card as a record with (the rank 7, the suit "hearts").
+            State the rank of card.
+            State the suit of card.
+            """));
+    }
+
+    [Fact]
+    public void ANamedField_HoldingANegativeNumber_KeepsItsOldReading()
+    {
+        // ⚠ MINUS is the one operator left out, because it is the one that can also BEGIN a value.
+        // `the offset -1` is a named field holding negative one; `the offset - 1` wants the
+        // subtraction; the two differ only by a space. Guessing from column adjacency would be the
+        // kind of lookahead this parser has been shedding, so `-` keeps the named-field reading.
+        Assert.Equal("-1", Run("""
+            Define spot as a record with (the offset -1).
+            State the offset of spot.
+            """));
+    }
 }

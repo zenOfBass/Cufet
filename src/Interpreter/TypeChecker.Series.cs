@@ -433,6 +433,26 @@ public sealed partial class TypeChecker
                 null, sl.Line, sl.Column,
                 $"get the number of items in {FormatExpr(sl.Series)} (a record)",
                 "Records don't have a length. Access individual fields by name or position.");
+
+        // ⚠ A map and a text each have their OWN word for this, and both used to fall through here
+        // to a RUNTIME exception — "Expected a series for 'the number of'", thrown from the
+        // evaluator with no line of the writer's program in it. The reverse direction has said the
+        // helpful thing all along: `the size of <series>` is a check-time error that names
+        // `the number of`. This is that sentence, pointed back the other way.
+        if (containerType is MapType)
+            throw TypeError(
+                "'the number of' works on series, not maps",
+                null, sl.Line, sl.Column,
+                $"get the number of entries in {FormatExpr(sl.Series)} (a map)",
+                "For maps, use 'the size of'. For text, use 'the length of'.");
+
+        if (containerType is TextType)
+            throw TypeError(
+                "'the number of' works on series, not text",
+                null, sl.Line, sl.Column,
+                $"get the number of characters in {FormatExpr(sl.Series)} (a text)",
+                "For text, use 'the length of'. For maps, use 'the size of'.");
+
         return CufetType.Number;
     }
 

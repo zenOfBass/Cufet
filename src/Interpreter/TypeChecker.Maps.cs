@@ -34,12 +34,28 @@ public sealed partial class TypeChecker
         NumberType or TextType or FactType or BitsType => true,
         RecordType rt => rt.PositionalTypes.All(IsValidMapKeyType)
                       && rt.NamedFields.All(f => IsValidMapKeyType(f.Type)),
+
+        // ★ The WRAPPERS travel with what they hold, for the same reason a record does. A
+        // `voidable number` is void or a number, and both compare by value and cannot change; a
+        // `(number or text)` is whichever case it holds. Neither adds a way for a key to shift
+        // underneath the map, so neither has a reason to be refused — `7` and `"seven"` filed in
+        // one table is an ordinary thing to want.
+        VoidableType vt => IsValidMapKeyType(vt.Inner),
+
+        // ⚠ An OPEN union (Cases == null) can hold anything ever widened into it, including a
+        // series — so it is refused for exactly the reason its cases would be, without being able
+        // to name which one.
+        UnionType ut => ut.Cases is { } cases && cases.All(IsValidMapKeyType),
+
+        // ⚠⚠ `T or failure` is REFUSED, and not for the wrapper reason — a failure is what an
+        // operation hands back when it cannot answer, not a value anyone looks something up by.
+        // Admitting it would mean a map with an entry filed under "this went wrong", which is a
+        // sentence with no meaning behind it. This is a judgement about what a failure IS, and it
+        // is the one wrapper that stays out.
+        FailureType => false,
+
         // Everything else, and deliberately by omission rather than by enumeration: a type that is
         // not listed above is not a key, and a NEW type is not a key until someone decides it is.
-        // ⚠ The wrappers — voidable, union, failure — are refused here and that is a live question
-        // rather than a settled one. Each is comparable and immutable when what it holds is, so the
-        // principle above would admit them; nobody has asked for one yet, and admitting a shape is
-        // easier than taking it back.
         _ => false,
     };
 

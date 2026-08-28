@@ -585,6 +585,28 @@ public sealed class Parser
     {
         var tok = Peek();
 
+        // `record like (number, number)` — a record SHAPE written where a type goes, so a map can
+        // be keyed by one and a series element or field can be annotated with one.
+        //
+        // ★ `like`, not `with`, and the two are not rivals — they sit in different places. `with`
+        // accompanies a NAME being declared, and the name sits between the word and the shape:
+        // `given (the record spot with (number, number))` names a parameter, `Bind the record
+        // result with (…) to make:` carries a label. `like` is what the shape uses when it stands
+        // alone, which is how `series of records like (…)` has always been written. A map key has
+        // no name, so `like` is the form that fits.
+        //
+        // Both `record` and `records` are accepted for the same reason `series of records like`
+        // reads with the plural: the word agrees with what surrounds it, and refusing one of them
+        // would only be a spelling test.
+        if (tok.Type == TokenType.Record
+            || (tok.Type == TokenType.Identifier
+                && tok.Lexeme.Equals("records", StringComparison.OrdinalIgnoreCase)))
+        {
+            Advance(); SkipNoise();          // consume 'record' / 'records'
+            Consume(TokenType.Like); SkipNoise();
+            return ParseRecordShapeBody();
+        }
+
         // Union type: (A or B or C)
         // (T or void) normalizes to VoidableType(T).
         if (tok.Type == TokenType.LParen)
@@ -3973,7 +3995,27 @@ public sealed class Parser
         if (i >= _tokens.Count || !IsFieldNameToken(_tokens[i], forAccess: false)) return false;
         i++;
         while (i < _tokens.Count && _tokens[i].IsNoise) i++;
-        return i < _tokens.Count && _tokens[i].Type != TokenType.Of;
+        if (i >= _tokens.Count || _tokens[i].Type == TokenType.Of) return false;
+
+        // ★ `a record with (the row + 1, 2)` — `the row` here is the VARIABLE, not a field called
+        // `row` whose value is `+ 1`. An operator cannot begin a value, so meeting one straight
+        // after the name settles it: what came before was an expression. Without this the literal
+        // did not parse at all, and the message pointed at the operator — *"expected expression,
+        // got Plus"* — rather than at the reading that went wrong.
+        //
+        // ⚠ MINUS is deliberately absent, because it is the one that stays ambiguous: `-` can
+        // begin a value. `a record with (the offset -1)` is a named field holding negative one,
+        // and `a record with (the offset - 1)` wants the subtraction, and the two differ only by a
+        // space. Guessing from column adjacency would be exactly the kind of lookahead this parser
+        // has been getting rid of, so `-` keeps its old reading — the named field — and the
+        // subtraction needs parentheses: `((the offset) - 1)`.
+        if (_tokens[i].Type is TokenType.Plus or TokenType.Star or TokenType.Slash
+                            or TokenType.Percent or TokenType.Equal or TokenType.Lt
+                            or TokenType.Gt or TokenType.Lte or TokenType.Gte
+                            or TokenType.NotEqual)
+            return false;
+
+        return true;
     }
 
     // Returns true when the current position starts a named record access: 'the' <name> 'of'.
