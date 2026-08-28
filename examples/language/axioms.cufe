@@ -1,0 +1,108 @@
+/* Source held under a name, and placed where you say.
+
+   `[ ... ]` holds code the program around it is not reading yet, and the tag
+   says who reads it. `c-language` means a C compiler will; `cufet` means this
+   language will. One rule decides what happens to either: SAYS WHAT IT GIVES
+   BACK, so you run it — SAYS NOTHING, so it is source, and `Cite` places it.
+
+   What a block places goes where that kind of declaration belongs. A type
+   belongs to the whole program wherever it is written. A function belongs
+   where functions live. A value belongs to the block it is written in — so a
+   cited value lands at the site that cited it, and the same block cited twice
+   makes two of them. None of that is a rule this feature adds; it is what the
+   language already said about declarations, applied to a declaration you
+   chose the position of.
+
+   A block may only reach for names that belong to the PROGRAM — a function, a
+   type, a `permanently` constant, a pulled book. It can never quietly pick up
+   a local from wherever you happened to cite it, which is what makes citing
+   the same block in two places mean the same thing both times. */
+
+Pull a book on cufet.
+
+    /* Says nothing about a result, so it is SOURCE. Three declarations that
+       belong together: the type, the constant it is measured with, and the
+       helper that does the measuring. A function can hand back a value —
+       another function among them — but it cannot hand back a TYPE, and it
+       cannot leave three names behind for the code after it to use. */
+    Define cufet reading-vocabulary as [
+        Define object reading with (the text subject, the number letters, the number words):
+            Bind text to shown:
+                Return "{one's words} words, {one's letters} letters: {one's subject}".
+            Done.
+        Done.
+
+        Define the word-break as " " permanently.
+
+        Bind number to letters-in, given (the text line):
+            Define the total as 0.
+            For each word in the line split by the word-break, repeat:
+                The total becomes the total + the length of word.
+            Done.
+            Return the total.
+        Done.
+    ].
+
+    /* One line places all three. The type is now the program's, the helper is
+       an ordinary function, and the constant is a constant here. A block that
+       holds a function may only be cited where functions belong — at the top
+       level, or directly inside a `Pull` block like this one — because placed
+       inside another body it would close over that body, and a block must
+       mean the same thing wherever it is put. */
+    Cite reading-vocabulary.
+
+    /* Says what it gives back, so it is something you RUN. The body is a
+       body: it holds a loop, its own locals, and reads the constant the block
+       placed. This is the same shape a c-language axiom has, and the same
+       rule chose it — only the language inside the brackets differs. */
+    Define cufet number words-in, given (the text line), as [
+        Define the count as 0.
+        For each word in the line split by the word-break, repeat:
+            The count becomes the count + 1.
+        Done.
+        Return the count.
+    ].
+
+    /* Nothing crosses a boundary here, so anything Cufet has can come back —
+       a `series of text` among it. A c-language axiom is held to a number, a
+       fact or a voidable text, because those are what survive the crossing;
+       there is no crossing to survive. */
+    Define cufet series of text words-of, given (the text line), as [
+        Return the line split by the word-break.
+    ].
+
+    Define the line as "the quick brown fox".
+
+    Define the note as a new reading {
+        the subject the line,
+        the letters cast letters-in on (the line),
+        the words cast words-in on (the line)
+    }.
+    State cast shown on (the note).
+
+    For each word in cast words-of on (the line), repeat:
+        State "  {word} ({the length of word})".
+    Done.
+
+    /* And the part that is only true of values. Both functions cite one
+       block, and each gets its own tally — write the set-up once, place it
+       where it is needed. A function could have handed back a 0; it could not
+       have left the name `the tally` behind for the next line to use. */
+    Define cufet fresh-tally as [
+        Define the tally as 0.
+    ].
+
+    Bind number to counted-up:
+        Cite fresh-tally.
+        The tally becomes the tally + 5.
+        Return the tally.
+    Done.
+
+    Bind number to left-alone:
+        Cite fresh-tally.
+        Return the tally.
+    Done.
+
+    State "counted up: {cast counted-up on ()}".
+    State "left alone: {cast left-alone on ()}".
+Done.
