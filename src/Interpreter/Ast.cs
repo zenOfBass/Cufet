@@ -681,7 +681,32 @@ public sealed record TryStatement(
     IReadOnlyList<IStatement>? ExceptionHandler,  // null = no exception handler
     int Line,
     int Column
-) : IStatement;
+) : IStatement
+{
+    /// <summary>What the caught exception is called inside the handler — `exception` unless the
+    /// clause renamed it with `In case of exception (the trouble):`.</summary>
+    /// <remarks>
+    /// ★ A RENAME, not a synonym, which is what keeps this from being two spellings of one thing.
+    /// The pair already exists for loops: `For each x in xs` names the iterand, bare `it` is the
+    /// implicit one — and nesting is what earns it in both places, because two handlers deep the
+    /// implicit name says nothing about which one you mean.
+    ///
+    /// ⚠ An init property rather than a positional parameter: this record is rebuilt by name
+    /// elsewhere, and every existing construction site should keep meaning what it meant.
+    /// </remarks>
+    public string ExceptionName { get; init; } = "exception";
+
+    /// <summary>The scope key the handler's binding is stored under.</summary>
+    /// <remarks>
+    /// ⚠ The article is part of the key for the DEFAULT name and not for a chosen one, because the
+    /// two reach the parser differently: `exception` is a keyword, and its arm builds a reference
+    /// literally called `the exception`, while `the trouble` is an article — noise — followed by an
+    /// ordinary identifier. So the key has to match whichever reference the body will contain.
+    /// Computed here, once, rather than worked out again by the checker and the interpreter.
+    /// </remarks>
+    public string ExceptionBindingKey =>
+        ExceptionName == "exception" ? "the exception" : ExceptionName;
+}
 
 // Suppress the exception.
 // Valid only inside an 'In case of exception' handler block (static error elsewhere).

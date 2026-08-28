@@ -4511,6 +4511,8 @@ public sealed class Parser
             SkipNoise();
         }
 
+        string exceptionName = "exception";
+
         // Optional exception handler.
         if (PeekHandlerKind() == TokenType.Exception)
         {
@@ -4518,17 +4520,39 @@ public sealed class Parser
             Consume(TokenType.Case);      SkipNoise();
             Consume(TokenType.Of);        SkipNoise();
             Consume(TokenType.Exception); SkipNoise();
-            // Binding: '(the exception)' — 'the' is noise-skipped inside the parens.
-            Consume(TokenType.LParen);    SkipNoise();
-            Consume(TokenType.Exception); SkipNoise();
-            Consume(TokenType.RParen);    SkipNoise();
+
+            // ★ The binding is OPTIONAL, and when written it may choose the name.
+            //
+            //     In case of exception:                 ← `exception`, implicitly
+            //     In case of exception (the trouble):   ← `trouble`
+            //     In case of exception (the exception): ← the same, said out loud
+            //
+            // The bare form is what the sibling arm has always had — `In case of failure:` takes no
+            // binding and reaches its value as `the message of the failure` — so until now the two
+            // arms of one `Try` disagreed, and the one that DEMANDED more said less: the parens
+            // were mandatory and could hold only the word `exception`, a required phrase that said
+            // the same thing at every occurrence.
+            //
+            // ⚠ `exception` lexes as a KEYWORD rather than an identifier, and every existing
+            // program and doc writes `(the exception)`, so the slot has to accept both: an
+            // identifier, or that one keyword. Non-breaking either way.
+            exceptionName = "exception";
+            if (Peek().Type == TokenType.LParen)
+            {
+                Advance(); SkipNoise();          // '(' — SkipNoise eats the 'the'
+                if (Peek().Type == TokenType.Exception) Advance();
+                else exceptionName = Consume(TokenType.Identifier).Lexeme;
+                SkipNoise();
+                Consume(TokenType.RParen);    SkipNoise();
+            }
             Consume(TokenType.Colon);
             _nestDepth++;
             exceptionHandler = ParseLoopBody();
             _nestDepth--;
         }
 
-        return new TryStatement(body, failureHandler, exceptionHandler, line, col);
+        return new TryStatement(body, failureHandler, exceptionHandler, line, col)
+               { ExceptionName = exceptionName };
     }
 
     private SuppressStatement ParseSuppressStatement()

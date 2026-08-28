@@ -2046,6 +2046,18 @@ public sealed partial class Interpreter
         // secrecy: two backends are two processes, so the same program's handle is a different
         // number in each and printing it could never agree. The same shape as <function>.
         ForeignAddress       => "<address>",
+        // ★ A failure and an exception are OPAQUE the way a function is: what is worth reading out
+        // of one is reached by name — `the message of the failure`, `the category of the failure`,
+        // `the message of the exception` — so printing the value itself prints a placeholder, as
+        // every other value with nothing meaningful to show does.
+        //
+        // ⚠ These two were the only gaps in this list, and they fell to `val.ToString()` at the
+        // bottom, which printed `Cufet.Interpreter.Interpreter+FailureValue` — a C# class name, in
+        // a user's output. The compiler meanwhile REFUSED to build the same program, so the pair
+        // was a divergence as well as a leak. Same defect, same shape, and the same fix as `State`
+        // on a function had: the placeholder, matched on both sides.
+        FailureValue         => "<failure>",
+        ExceptionValue       => "<exception>",
         // A rabbit prints as the object it is, like every other module — `math()`,
         // `greeting-kit()`, `rabbit()`. It used to print its BINDING's name (`<rabbit hopper>`),
         // which nothing else in the language does: `Define x as 5. State x.` prints 5, not x.

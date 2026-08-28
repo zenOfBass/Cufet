@@ -404,7 +404,7 @@ public sealed partial class Interpreter
         if (caughtEx != null)
         {
             EnterScope();
-            Scope["the exception"] = new ExceptionValue(caughtEx.Message);
+            Scope[trySt.ExceptionBindingKey] = new ExceptionValue(caughtEx.Message);
             bool suppress = false;
             try
             {

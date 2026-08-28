@@ -86,4 +86,55 @@ public class PipelineExceptionUnwindTests : PipelineTestBase
         }
         finally { try { File.Delete(binPath); } catch { } }
     }
+
+    /// <summary>
+    /// The handler's binding — bare, renamed, and written out — plus what printing one does.
+    /// </summary>
+    /// <remarks>
+    /// ⚠⚠ Printing a failure or an exception was a LIVE DIVERGENCE, and the checker waved it
+    /// through: `cufet check` said "No problems found", the interpreter printed
+    /// `Cufet.Interpreter.Interpreter+FailureValue` — a C# class name — and the compiler refused to
+    /// build at all. Both arms, the same way.
+    ///
+    /// ⚠ The RENAME needed the compiler too, which is not obvious: it resolves `the exception` by
+    /// TYPE, from its own `_varTypes` table keyed by the name the body references. Keyed on the
+    /// literal `"the exception"`, a chosen name arrived untyped and `the message of the trouble`
+    /// was refused as "reading 'message' from a number".
+    /// </remarks>
+    [Fact]
+    public void TheExceptionBindingAndPrinting_AgreeOnBothBackends()
+    {
+        const string src = """
+            Try to:
+                State 1 / 0.
+            Done.
+            In case of exception:
+                State the message of the exception.
+                State the exception.
+                Suppress the exception.
+            Done.
+
+            Try to:
+                State 2 / 0.
+            Done.
+            In case of exception (the trouble):
+                State the message of the trouble.
+                Suppress the exception.
+            Done.
+
+            Bind number or failure to risky:
+                Return failure "nope".
+            Done.
+
+            Try to:
+                Define x as cast risky on ().
+                State x.
+            Done.
+            In case of failure:
+                State the message of the failure.
+                State the failure.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

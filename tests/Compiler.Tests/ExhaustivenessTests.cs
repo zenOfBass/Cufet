@@ -178,11 +178,9 @@ public class ExhaustivenessTests
         [("WriteCall", typeof(MappingType))] = "checker vocabulary for a map shape, not a runtime type",
         [("TypeSig", typeof(FailureMarkerType))] = "a caught failure has one fixed C struct, not a keyed one",
         [("EqCall", typeof(FailureMarkerType))] = "failures are inspected by message and category, never compared whole",
-        [("WriteCall", typeof(FailureMarkerType))] = "a failure is printed through its message, not as a value",
         [("EmitCType", typeof(ExceptionMarkerType))] = "an exception is a control path, not a value a slot holds",
         [("TypeSig", typeof(ExceptionMarkerType))] = "an exception is a control path, not a value a slot holds",
         [("EqCall", typeof(ExceptionMarkerType))] = "an exception is a control path, not a value a slot holds",
-        [("WriteCall", typeof(ExceptionMarkerType))] = "an exception is a control path, not a value a slot holds",
 
         // An interface is a shape a value CONFORMS to; the value itself is always some object.
         [("EmitCType", typeof(InterfaceType))] = "monomorphized away — a value is always the concrete object",

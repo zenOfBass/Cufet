@@ -4553,6 +4553,10 @@ static void* cufet_pipe_stage(void* argp) {
         // ★ Never the pointer itself — see the interpreter's Format. Two backends are two
         // processes, so a printed handle could not agree between them however correct both were.
         AddressType => $"printf(\"<address>\")",
+        // Opaque like the callables above, and for the same reason: what is worth reading is
+        // reached by name (`the message of the failure`). Matches the interpreter's Format.
+        FailureMarkerType   => $"printf(\"<failure>\")",
+        ExceptionMarkerType => $"printf(\"<exception>\")",
         UnionType uwo when uwo.Cases == null => $"{OpenUnionStruct}_write({valExpr})",
         UnionType uw when uw.Cases != null => $"{RegisterUnionStruct(uw)}_write({valExpr})",   // prints as the underlying value
         _ => throw new CompilerException(
@@ -5937,18 +5941,25 @@ static void* cufet_pipe_stage(void* argp) {
             sb.AppendLine($"{inner}while (cufet_arena_top > cf_xa{id}) cufet_arena_pop();");
             var savedExcH = _currentExcHandler;
             var savedExcV = _currentExcVar;
-            var savedExcT = _varTypes.TryGetValue("the exception", out var pex) ? pex : null;
+            // ⚠ The handler's binding may have been RENAMED — `In case of exception (the trouble):`
+            // — and this table is keyed by the name the body will actually reference. Reading
+            // `"the exception"` unconditionally left a chosen name untyped, and the reference then
+            // fell through to the default type: `the message of the trouble` was refused as
+            // "reading 'message' from a number". The AST computes the key, so both backends and
+            // the checker read one definition of it.
+            var excKey = trySt.ExceptionBindingKey;
+            var savedExcT = _varTypes.TryGetValue(excKey, out var pex) ? pex : null;
             // Marked at handler ENTRY — no statement of the handler has been emitted yet, so these
             // are the depths `Suppress` has to unwind back down to. The snapshot arrives from the
             // scoped block itself, which is the only place it exists.
             _currentExcHandler = (sup, doneL, HereCleanup());
             _currentExcVar = xmsg;
-            _varTypes["the exception"] = TExcMarker;
+            _varTypes[excKey] = TExcMarker;
             EmitScopedBlock(sb, trySt.ExceptionHandler!, inner,
                 snap => _currentExcHandler = (sup, doneL, HereCleanup(snap)));
             _currentExcHandler = savedExcH;
             _currentExcVar = savedExcV;
-            if (savedExcT != null) _varTypes["the exception"] = savedExcT; else _varTypes.Remove("the exception");
+            if (savedExcT != null) _varTypes[excKey] = savedExcT; else _varTypes.Remove(excKey);
             sb.AppendLine($"{inner}{doneL}:;");
             // RE-RAISE BY DEFAULT unless the handler executed `Suppress.` — the distinctive rule.
             sb.AppendLine($"{inner}if (!{sup}) cufet_raise({xmsg});");

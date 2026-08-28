@@ -335,8 +335,11 @@ public sealed partial class TypeChecker
         if (trySt.ExceptionHandler != null)
         {
             EnterScope();
-            Scope["the exception"] = new TypeInfo(CufetType.ExceptionMarker,
-                new VariableReference("the exception", trySt.Line, trySt.Column), trySt.Line);
+            // The clause chooses the name; `exception` is what it is called when nothing said
+            // otherwise. Bound with the article, the way `the failure` is beside it.
+            var exceptionBinding = trySt.ExceptionBindingKey;
+            Scope[exceptionBinding] = new TypeInfo(CufetType.ExceptionMarker,
+                new VariableReference(exceptionBinding, trySt.Line, trySt.Column), trySt.Line);
             var savedInEx = _inExceptionHandler;
             _inExceptionHandler = true;
             try { CheckBlock(trySt.ExceptionHandler); }
