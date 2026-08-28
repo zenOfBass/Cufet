@@ -124,7 +124,7 @@ every value of every type, with `x is not the phrase` answering true.
 
 ### ★ A bits width is data — readable and statable
 
-```
+```cufet-fragment
 State the width of 0x0F.        → 8
 State 0b0 at 3 bits.            → 0b000
 Define p as 0b1 at n bits.      ← the width may be computed
@@ -147,7 +147,7 @@ checker, since only a bits value can reach it, so `width` remains a legal field 
 
 ### ★ `Increment` / `Decrement` name the target once
 
-```
+```cufet-fragment
 Increment i by 1.
 Decrement remaining by 1.
 Increment one's tally by 3.
@@ -205,7 +205,7 @@ the form buys. A void body has no value to imply a return for, so it takes a sta
 **Loops are separated by `repeat:`, not by the comma**, because the comma is already spent on the
 loop's own header:
 
-```
+```cufet-fragment
 For each n in items, repeat: State n. Done.     ← block
 For each n in items, State n.                   ← inline
 While i is less than 3, the i becomes i + 1.    ← inline
@@ -215,7 +215,7 @@ While i is less than 3, the i becomes i + 1.    ← inline
 `in <series>` clause, so its header spends no comma and it uses the ordinary comma-versus-colon
 rule rather than `repeat:`:
 
-```
+```cufet
 for each s from input: output s. Done.          ← block
 for each s from input, output s.                ← inline
 ```
@@ -226,14 +226,14 @@ that declaration is exactly what lets the inline form drop `Return`. A task's he
 nothing: it may hand back a result or merely send on a channel. So `return` stays written out, and
 what the form buys is the `Done.`:
 
-```
+```cufet-fragment
 Have rabbit start a task as batch-1, return 1 + 2 + 3 + 4 + 5.
 Have rabbit start a task as producer, send 7 through nums.
 ```
 
 **A function with no parameters uses the same comma**, and `given` is what tells the two apart:
 
-```
+```cufet
 Define legs as 8 permanently.
 Bind number to leg-pairs, legs / 2.                 ← inline body, no parameters
 Bind number to double, given (the number n), n * 2.
@@ -546,7 +546,7 @@ hundred fifty-five" — so it is a separate type from `number`, with no implicit
 either direction. `0xFF = 255` is a type error; cross over with `converted to number` /
 `converted to hex`.
 
-```
+```cufet
 State 0xFF.   // 0xFF   — hex
 State 0b1010.   // 0b1010 — binary
 State 0o755.   // 0o755  — octal
@@ -573,7 +573,7 @@ rather than distorting this type.
 This is the one genuinely unfamiliar rule, and it is **unlike C, Java, Rust, Go and Python**,
 where `0x0F` and `0xF` are the same value and width is a property of the declared type.
 
-```
+```cufet
 State 0xF.   // 0xF   — 4 bits
 State 0x0F.   // 0x0F  — 8 bits
 State 0x000F.   // 0x000F — 16 bits
@@ -590,7 +590,7 @@ in the type. Zero-padding hex to a byte boundary is already a habit; here it car
 `bits` value (N of them) — the words are already the gate names, already English, and already
 Cufet keywords. Only `xor` is new.
 
-```
+```cufet
 State 0xFF and 0x0F.   // 0x0F
 State 0xF0 or 0x0F.   // 0xFF
 State 0b1100 xor 0b1010.   // 0b0110
@@ -610,7 +610,7 @@ comparisons — so `a and b xor c or d` groups as `((a and b) xor c) or d`.
 
 ### ★ The result takes the LEFT operand's base and width
 
-```
+```cufet
 State 0xFF and 0b1010.   // 0x0A     — hex on the left, so hex out
 State 0b1010 and 0xFF.   // 0b1010   — binary on the left, so binary out
 ```
@@ -626,7 +626,7 @@ truncates. Nothing silently falls off the end; narrow deliberately with an `and`
 
 There is no implicit conversion, so you say which you mean:
 
-```
+```cufet
 State 255 converted to hex.   // 0xFF
 State 10 converted to binary.   // 0b1010
 State 493 converted to octal.   // 0o755
@@ -644,7 +644,7 @@ condition, so a voidable would only force an unwrap at every crossing.
 This is also what makes a **computed** value showable in hex, which a literal-only notation
 could never do:
 
-```
+```cufet
 Define total as 200 + 55.
 State total converted to hex.   // 0xFF
 ```
@@ -660,7 +660,7 @@ only, so `Define hex as 5.` still works.
 **Shifting is wiring, not a gate** — it moves bits rather than combining them — so it is a
 trailing transform in the `sorted` / `trimmed` family, not an operator.
 
-```
+```cufet
 State 0b0001 shifted left by 3.   // 0b1000
 State 0xFF shifted left by 4.   // 0xFF0  — widened, nothing lost
 State 0xFF shifted right by 4.   // 0x0F
@@ -680,7 +680,7 @@ Shifting left past the 64-bit ceiling raises, like a multiply overflow.
 `the left of node` and `Define left as 7.` both keep working — a binary tree should not have to
 give up its field names to spell one operator.
 
-```
+```cufet
 Define n as 8.
 State (0b1 shifted left by n) - 0x1.   // 0b011111111 — the standard n-bit mask
 ```
@@ -690,7 +690,7 @@ State (0b1 shifted left by n) - 0x1.   // 0b011111111 — the standard n-bit mas
 `+ - * / %` work on two bit patterns. **`/` is integer division**, unlike on numbers — the same
 surface with a different meaning per operand type, as matrix arithmetic already does.
 
-```
+```cufet
 State 0x0F + 0x01.   // 0x10
 State 0xFF * 0x02.   // 0x1FE  — widened to hold it
 State 0xFF / 0x10.   // 0x0F   — integer division
@@ -704,7 +704,7 @@ the VALUE**, so base and width are ignored: `0xFF = 0x00FF` and `0o377 = 0xFF` a
 
 **A result with no representation raises**, exactly as division by zero does:
 
-```
+```cufet
 State 0x00 - 0x1.   // would be negative, and bits are unsigned
 State 0xFFFFFFFFFFFFFFFF + 0x1.   // does not fit in 64 bits
 ```
@@ -729,7 +729,7 @@ are on the roadmap.
 
 ### ★ `and`/`or` short-circuit on facts, and cannot on bits
 
-```
+```cufet-fragment
 false and cast f on ()   // f never runs
 0x00  and cast f on ()   // f always runs
 ```
@@ -744,7 +744,7 @@ short-circuits, on facts either: both sides always decide the answer.)
 In C, `a & b == c` silently parses as `a & (b == c)` and computes nonsense. Cufet has the same
 precedence — but the mis-parse produces `bits and fact`, which is **refused at compile time**:
 
-```
+```cufet-refused
 State 0xFF and 0x0F = 0x0F.   // type error, not a wrong answer
 ```
 
@@ -754,7 +754,7 @@ Keeping bit patterns out of `number` closes that footgun for free.
 
 The lexer strips both forms before tokenizing — comment content produces no tokens and is never parsed.
 
-```
+```cufet
 // to the end of the line
 /* a block, which
    may span lines */
@@ -792,7 +792,7 @@ at both type-check and runtime.
 
 **Always access fields via `one's fieldname`:**
 
-```
+```cufet
 Define object stack with (the series of number items):
     Bind void to push, given (the number val):
         Insert val into one's items.
@@ -819,7 +819,7 @@ That restriction is gone: **all** series operations now accept any expression th
 evaluates to a series, including `one's field`, `alice's cards`, etc.
 
 The old pattern:
-```
+```cufet-fragment
 Define my-items as one's items.    ← was required; now unnecessary
 Insert val into my-items.
 ```
@@ -950,7 +950,7 @@ series itself.
 
 **Value-typed element (record, object, number, text, fact) — you get a copy:**
 
-```
+```cufet
 Define deck as a series of records like (the text suit, the text rank) with (
     a record with (the suit "Clubs",    the rank "Ace"),
     a record with (the suit "Diamonds", the rank "2")
@@ -963,7 +963,7 @@ State the suit of item 1 of deck.    ← "Clubs"  — card is a copy; deck is un
 `card` received a full copy of the record at position 1. Mutating `card` does not
 touch the series. To actually replace the element, use `item N of series becomes`:
 
-```
+```cufet-fragment
 Define updated as a record with (the suit "Spades", the rank "Ace").
 item 1 of deck becomes updated.
 State the suit of item 1 of deck.    ← "Spades"  — the series element was replaced
@@ -1007,7 +1007,7 @@ the choice is purely stylistic.
 
 `=`, `<`, `>`, `<=`, `>=` — terse, math-style:
 
-```
+```cufet-fragment
 Define same as x = y.
 Define big  as x > 100.
 Define ok   as x >= 0 and x <= 10.
@@ -1022,7 +1022,7 @@ While count < bound, repeat:
 `is`, `is not`, `is greater than`, `is less than`, `is 5 or more`, `is 5 or less`
 — verbose, sentence-style:
 
-```
+```cufet-fragment
 If x is 5:
 If x is not 3:
 If x is greater than 10:
@@ -1038,7 +1038,7 @@ they read like English sentences. Symbol forms are natural in expression positio
 — they read like math. But either form is accepted everywhere; reach for whichever
 reads better in context.
 
-```
+```cufet-fragment
 If x < 10, State "small".              ← symbol in condition — works, terse
 If x is less than 10, State "small".   ← word in condition — idiomatic, recommended
 
@@ -1051,7 +1051,7 @@ Define big as (x is greater than 100). ← word in expression — works, verbose
 `=` and `is` (without a following `greater`/`less`/`not`) both perform equality
 comparison — they produce identical AST nodes. Use whichever reads better:
 
-```
+```cufet-fragment
 If x = 5, State "five".    ← symbol equality in condition — works
 If x is 5, State "five".   ← word equality in condition — idiomatic
 State (x = 5).             ← symbol equality in expression — idiomatic
@@ -1069,7 +1069,7 @@ The negated word forms are valid — they map to the corresponding comparison:
 | `is not X` | `!= X` | inequality |
 | `is not equal to X` | `!= X` | inequality (verbose form) |
 
-```
+```cufet-fragment
 If count is not greater than 10:           ← count <= 10
 While x is not less than 0, repeat:        ← x >= 0
 If name is not "admin":                    ← inequality
@@ -1085,7 +1085,7 @@ reads more naturally in context.
 **`is more than` is a compile error — use `is greater than` instead.** The parser
 catches `is more than` and emits: *"did you mean 'is greater than'?"*
 
-```
+```cufet-refused
 While count is greater than 0, repeat:   ← CORRECT
 While count is more than 0, repeat:      ← COMPILE ERROR
 ```
@@ -1111,7 +1111,7 @@ that yields a `fact` — but `true`/`false` are the natural forms.
 
 `not (fact-expr)` negates a boolean expression:
 
-```
+```cufet-fragment
 While not (cast is-empty on pq), repeat:
 If not (visited has a key for neighbor):
 ```
@@ -1119,7 +1119,7 @@ If not (visited has a key for neighbor):
 `is false` and `is true` also work as direct comparisons now that `false`/`true`
 are keywords:
 
-```
+```cufet-fragment
 While (cast is-empty on pq) is false, repeat:   ← NOW CORRECT
 If result is true, State "ok".                   ← NOW CORRECT
 ```
@@ -1206,7 +1206,7 @@ from an `m×n` left and an `n×p` right). It is NOT element-wise multiplication.
 **Strict-fallible rule applies** — using any of these operators outside a `Try to:` block or
 without `but on failure <default>` is a static type error:
 
-```
+```cufet-refused
 Pull a book on collections.
     Define lhs as a matrix with ((1, 2), (3, 4)).
     Define rhs as a matrix with ((5, 6), (7, 8)).
@@ -1245,7 +1245,7 @@ pull is a **static type error** (TypeException).
 
 **Seed statement** — reseeds the per-interpreter RNG:
 
-```
+```cufet-fragment
 Seed the chance with 42.
 ```
 
@@ -1256,7 +1256,7 @@ explicit seed the RNG is entropy-seeded on interpreter creation.
 are parsed at addition level (same precedence as `the characters from N to M of text`).
 Arithmetic works; logical/comparison forms do not:
 
-```
+```cufet-fragment
 State a random number from 1 to n + 5.    ← OK
 State a random number from 1 to 6.        ← OK
 ```
@@ -1268,7 +1268,7 @@ parse their target with `ParseCorePrimary`. Identifiers, possessive access
 **Type-matching `but void is`** — `a random item from series` returns `voidable T`.
 The fallback in `but void is` must match the element type `T`:
 
-```
+```cufet-fragment
 Define picked as a random item from xs but void is 0.   ← OK for series of number
 Define picked as a random item from xs but void is "".  ← OK for series of text
 ```
@@ -1284,7 +1284,7 @@ could be checked; a function reaching an unpulled module name is refused where i
 ⚠ A body written *inside* a pull is unaffected and is the ordinary way to write this — the pulled
 names are in its lexical scope like any others:
 
-```
+```cufet
 Pull a book on math.
     Bind number to rooted, given (the number x):
         Return (math's square-root of (x)) but void is 0.
@@ -1299,14 +1299,14 @@ A function written outside one pulls what it needs itself.
 `Pull` opens a scope; `Done.` closes it and frees whatever was pulled.
 
 **Single book:**
-```
+```cufet
 Pull a book on math.
     Define r as math's square-root of 16.
 Done.
 ```
 
 **Multiple books (shared scope, one `Done.`):**
-```
+```cufet
 Pull books on math, collections, and chance.
     Define m as a matrix with ((1, 2), (3, 4)).
     Define n as a random number from 1 to 6.
@@ -1322,7 +1322,7 @@ Done.
 ```
 
 **Module — the general form:**
-```
+```cufet-fragment
 Pull greeting-kit.
 Pull greeting-kit as kit.
 ```
@@ -1332,7 +1332,7 @@ article is noise, so `Pull a greeting-kit.` is the same statement.
 ★ **This is not a fourth form — it is the form the others are special cases of.** `Pull a
 rabbit.` was always `Pull <name>`:
 
-```
+```cufet-fragment
 Pull greeting-kit.
 Pull greeting-kit as kit.
 Pull rabbit.
@@ -1343,7 +1343,7 @@ Pull rabbit.
 was never a decision — the general branch swallowed the name on its way past, and a test pinned
 the accident. Reversed 2026-08-21.
 
-```
+```cufet-fragment
 Pull a book on math.                      ← a library the language ships
 Pull a book on math as m.
 Pull books on math, and collections.
@@ -1384,7 +1384,7 @@ module's method say `math's pi` and leave `math` to whoever pulls it.
 
 A name that is neither is refused **when the program is checked**, not when the line runs:
 
-```
+```cufet-refused
 Bind number to sneaky:
     Return borrowed + 1.        ← `borrowed` is a local of the CALLER — refused
 Done.
@@ -1499,7 +1499,7 @@ parallelism, at which point unsynchronized mutation becomes a data race. Slice 2
 constraint but does not enforce it; native-era tooling will.
 
 **Example:**
-```
+```cufet
 Pull a rabbit.
     Have rabbit start a task:
         State "task A".
@@ -1539,7 +1539,7 @@ When fields have types like `series of T` or `map from K to V`, you cannot write
 `a new graph` to create an empty instance — you must supply all field values.
 Use a `Bind making a` constructor to hide that:
 
-```
+```cufet-fragment
 Bind making a graph to new-graph:
     Define empty-nodes as a series of node.
     Define empty-adj   as a map from node to series of edge.
@@ -1555,7 +1555,7 @@ Computed properties are declared inside an object body with `Get name as type:`.
 The body has access to `one` (the receiver). Accessed via `obj's name` or
 `the name of obj` — uniform access, same syntax as stored fields.
 
-```
+```cufet
 Define object card with (the text suit, the text rank):
     Get label as text:
         Return one's rank joined to " of " joined to one's suit.
@@ -1569,7 +1569,7 @@ State the label of c.           ← same thing
 
 Getters access fields through `one` exactly like methods:
 
-```
+```cufet
 Get count as number:
     Return the number of one's items.
 Done.
@@ -1579,7 +1579,7 @@ Done.
 
 Operator overload declarations cannot appear inside any block:
 
-```
+```cufet-fragment
 Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):
     Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.
 Done.
@@ -1603,7 +1603,7 @@ blocks.
 A series literal (empty or pre-populated) can appear anywhere an expression is
 expected:
 
-```
+```cufet-fragment
 Define xs as a series of number.
 Define suits as a series of text with ("Spades", "Hearts", "Diamonds", "Clubs").
 Define primes as a series of number with (2, 3, 5, 7, 11).
@@ -1618,7 +1618,7 @@ But `a series of T with ()` cannot be the fallback in `but void is` when nested
 in certain positions (it parses ambiguously as a type rather than a value literal
 in some contexts). Use a local variable:
 
-```
+```cufet-fragment
 Define empty as a series of edge.
 Define edges as the entry for src in adjacency but void is empty.
 ```
@@ -1628,7 +1628,7 @@ Define edges as the entry for src in adjacency but void is empty.
 `map` in expression position always requires a `with (...)` clause. The optional
 `from K to V` annotation controls whether types are explicit or inferred:
 
-```
+```cufet-fragment
 Define m as a map from text to number.                 ← empty, typed
 Define m as a map from text to number with ("k": 1).   ← typed + populated
 Define m as a map with ("k": 1).                       ← inferred types
@@ -1768,7 +1768,7 @@ over."*
 
 The stash form is a **front-end rewrite**, not a third loop. This:
 
-```
+```cufet-fragment
 For each value in counter, repeat:
     State value.
 Done.
@@ -1776,7 +1776,7 @@ Done.
 
 *is* this — the drain that was written by hand before the loop existed:
 
-```
+```cufet-fragment
 Repeat:
     Define value as unbury counter.
     If value is not void:
@@ -1841,7 +1841,7 @@ Source in another language, held as a value. `axiom` names the **contract**: it 
 without proof, which is exactly what Cufet does with it — it cannot check a C listing and does not
 try.
 
-```
+```cufet
 Pull a book on the c-language.
     Define c-language number get-pid as [getpid()].
     State cast get-pid.
@@ -1880,7 +1880,7 @@ which, once.
 ★★ **An axiom that says NOTHING about its result is SOURCE, and cannot be run.** It is pasted once,
 above every wrapper, so anything it declares is in scope for the axioms that come after it:
 
-```
+```cufet
 Pull a book on the c-language.
     Define c-language helpers as [static int twice(int x) { return x * 2; }].
     Define c-language number four as [twice(2)].
@@ -1905,7 +1905,7 @@ mistake in it is reported as the author's C — which it is.
 An axiom declares what it takes the way every Cufet body does, and reaches those values inside the
 foreign text **by the article**:
 
-```
+```cufet-fragment
 Define c-language open-read-only, given (the text file-path), as [open(the file-path, O_RDONLY)].
 
 Define the number fd as cast open-read-only on ("/etc/hostname").
@@ -1977,7 +1977,7 @@ An axiom **that says what it gives back** may be passed, stored and run wherever
 is written as the declaration reads, and `given (…)` says what running it takes — the same spelling
 and the same parser as a function type's, so the two cannot drift apart:
 
-```
+```cufet-fragment
 Bind number to measure, given (the c-language number axiom given (the text) job, the text what):
     Return cast job on (what).
 Done.
@@ -2102,7 +2102,7 @@ mechanism behind it: `[ … ]` still says *the text inside is not the program ar
 says what it gives back ⇒ something you RUN; says nothing ⇒ SOURCE.** One rule, read off the
 declaration, for both tags.
 
-```
+```cufet
 Pull a book on cufet.
     // Says it gives back a number ⇒ something you run. Called like any other.
     Define cufet number sum-to, given (the number top), as [
@@ -2120,7 +2120,7 @@ Done.
 condition, its own locals. C reaches the same capability through a statement-expression, which is
 C's way of putting statements where an expression goes:
 
-```
+```cufet-fragment
 Define c-language number sum-to, given (the number top),
     as [({ int s = 0; for (int i = 1; i <= (int)the top; i++) s += i; s; })].
 ```
@@ -2131,7 +2131,7 @@ crosses a boundary here, so any Cufet type comes back — `Define cufet series o
 
 **It is a value, like any function.** Bind it to another name, pass it, store it, run it there.
 
-```
+```cufet
 Pull a book on cufet.
     Define cufet vector-shape as [
         Define object vec2 with (the number x, the number y):
@@ -2156,7 +2156,7 @@ them is the whole point of `Cite`: a TYPE belongs to the program wherever it is 
 object is program-scope however deeply the `Cite` sits, while a VALUE lands as a local at the site
 that cited it. One block cited twice therefore makes two independent locals:
 
-```
+```cufet
 Pull a book on cufet.
     Define cufet counters as [
         Define the tally as 0.
@@ -2246,7 +2246,7 @@ in expression position — a `PipeExpression` in expression context is a static 
 
 ### Task pipe
 
-```
+```cufet
 Bind void to producer:
   Output 1.
   Output 2.
@@ -2264,7 +2264,7 @@ producer | consumer.
 
 Multi-stage (any number of stages):
 
-```
+```output
 producer | doubler | consumer.
 ```
 
@@ -2290,7 +2290,7 @@ Neither `output` nor the word `input` in `from the input` is a globally reserved
 first word of a statement and is followed by an expression — specifically, when the next
 token is NOT `becomes`, `'s`, `=`, or `|`. This means:
 
-```
+```cufet-fragment
 Define output as 42.      ← variable declaration — works
 Output becomes 99.        ← reassignment — works
 Output | consumer.        ← left side of a pipe — 'output' is the variable, not a keyword
@@ -2324,8 +2324,8 @@ Done.
 
 ### Subprocess pipe
 
-```
-run "echo" "hello" | run "cat".
+```cufet-fragment
+run "echo" with arguments ("hello") | run "cat".
 ```
 
 All stages must be `run` expressions. The `|` operator chains stdout → stdin between
@@ -2380,7 +2380,7 @@ producing a false positive.
 
 ### ★ A function or method sees other functions and CONSTANTS — not top-level data
 
-```
+```cufet-refused
 Define max-retries as 3 permanently.
 Define counter as 3.
 
@@ -2398,7 +2398,7 @@ constant declared inside `Pull a rabbit.` or `Pull a book on …` is a shared co
 written at the top of the file is, and a function declared in the same block is a free function for
 the same reason. That matters because a rabbit block is where most programs put both:
 
-```
+```cufet
 Pull a rabbit.
     Define the limit as 10 permanently.
     Bind number to bumped:
@@ -2417,7 +2417,7 @@ overload**, a **pipe stage**. There is one rule, not one per body kind.
 A **lambda literal is not in that list** — it *captures* its enclosing scope, so a lambda sitting
 beside a binding closes over it normally:
 
-```
+```cufet
 Pull a rabbit.
     Define nums as a series of number with (1, 2, 3).
     Define f as a function: Return the number of nums. Done.   ← captures nums
@@ -2434,7 +2434,7 @@ runs, not by `check`.
 
 ### ★ A `permanently` field is refused down EVERY write route, not just the obvious one
 
-```
+```cufet
 Define object user with (the text id permanently, the text name).
 ```
 
@@ -2499,7 +2499,7 @@ The condition must be `true` or `false`; there is no truthiness.
 
 Both of these are declarations, and the difference is whether a name follows the type:
 
-```
+```cufet-fragment
 Define the text greeting as "hello".      ← declares greeting as text
 Define copy as src.                       ← copies src's value; src is not a type
 ```
@@ -2512,7 +2512,7 @@ before the name only counts when a name comes after it.**
 **This is the only way to write a union-typed variable.** Without a declared type, a binding's
 type is whatever its first value was, and `42` is a number, not `(number or text)`:
 
-```
+```cufet-fragment
 Define the (number or text) x as 42.      ← x holds either; `x becomes "hi"` is legal
 Define x as 42.                           ← x holds numbers, and only numbers
 ```
@@ -2582,7 +2582,7 @@ is unambiguous and works either way — the rule only bites between names.
 **The same spacing settles `the <name> -…` inside a record literal**, where `the` could
 begin either a named field or an expression:
 
-```
+```cufet-fragment
 a record with (the offset -1)      ← a named field 'offset' holding negative one
 a record with (the row - 1, 9)     ← the subtraction, a positional field
 ```
@@ -2624,7 +2624,7 @@ Or pass 'total' as a parameter, or define your function inside a scope where
 **Fix 1 — `permanently`, when the value never changes** (see the shared-constants
 rule above): the binding becomes a constant and every function and method may read it.
 
-```
+```cufet
 Define total as 42 permanently.
 
 Bind void to show:
@@ -2636,7 +2636,7 @@ Cast show.
 **Fix 2 — pass as a parameter** (preferred for pure helpers, and the only option
 when the value changes):
 
-```
+```cufet
 Define total as 42.
 
 Bind void to show, given (the number total):
@@ -2647,7 +2647,7 @@ Cast show on (total).
 
 **Fix 3 — nested closure** (when multiple helpers share the same *mutable* data):
 
-```
+```cufet
 Define total as 42.
 
 Bind void to run-report, given (the number t):
@@ -2811,7 +2811,7 @@ is needed.
 `=` is **comparison only** in Cufet — assignment is `becomes` (update) or `Define ... as` (introduce).
 Writing `x = 5.` as a statement is a **parse-time educational error**:
 
-```
+```cufet-refused
 x = 5.
 → Line N: '=' is comparison, not assignment.
   Did you mean 'x becomes 5.' (update) or 'Define x as 5.' (introduce)?
@@ -2819,7 +2819,7 @@ x = 5.
 
 `=` still works as comparison in its valid positions:
 
-```
+```cufet-fragment
 If x = 5, State "five".        ← OK: comparison in condition
 Define b as (x = 5).           ← OK: comparison in expression
 ```
@@ -2899,7 +2899,7 @@ are provided positionally in `{ val1, val2 }`.
 When iterating a map with `For each pair in m`, the iteration variable is a
 pseudo-record with fields `key` and `value`:
 
-```
+```cufet-fragment
 For each pair in m, repeat:
     Define k as the key of pair.
     Define v as the value of pair.
@@ -2919,7 +2919,7 @@ infers how the return value's lifetime relates to the arguments and the receiver
 
 **Free function depth laundering is caught:**
 
-```
+```cufet-refused
 Bind series of number to smuggle, given (the series of number s):
     Return s.
 Done.
@@ -2933,7 +2933,7 @@ Done.
 
 **Method depth laundering is caught:**
 
-```
+```cufet-refused
 Define object bag with (the series of number items).
 Bind series of number to get-items unto bag:
     Return one's items.
@@ -2949,7 +2949,7 @@ Done.
 
 **Getter depth laundering is caught:**
 
-```
+```cufet-refused
 Define object bag with (the series of number items):
     Get payload as series of number:
         return one's items.
@@ -2967,12 +2967,12 @@ Done.
 **Same-depth calls are still legal** (storing within the same rabbit, or into a
 longer-lived container):
 
-```
+```cufet-fragment
 Pull a rabbit.
-    Define a as a series of number with (1).
-    Define b as a series of number with (2).
-    Define chain as a series of series of number with (a, b).   ← OK: all depth 1
-    Define first as Cast head on (chain).    ← OK if result stored at depth 1 or deeper
+    Define ones as a series of number with (1).
+    Define twos as a series of number with (2).
+    Define chain as a series of series of number with (ones, twos).   ← OK: all depth 1
+    Define first as cast head on (chain).    ← OK if result stored at depth 1 or deeper
 Done.
 ```
 
@@ -2989,7 +2989,7 @@ function's own perspective), but callers may pass rabbit-allocated (depth-N) val
 The checker treats captured reference-type parameters as maximally deep so that any
 outward store is rejected:
 
-```
+```cufet-refused
 Bind void to run-with, given (the series of number s):
     Define sink as a series of number.
     Bind void to tuck, given ():
@@ -3045,7 +3045,7 @@ possessive-set (`one's field becomes X`) or in-place map operations.
 
 ### Empty collection idioms
 
-```
+```cufet
 Define xs as a series of number.             ← empty series
 Define m  as a map from text to number.      ← empty map
 ```
@@ -3068,7 +3068,7 @@ to encapsulate initialization of objects that have collection fields.
 `Add` and `Remove` operations that change the series' length, or any entry-add /
 entry-remove on the iterated map. Both are caught at runtime with a named error:
 
-```
+```output
 'items' was modified during a for-each loop on line 5 — collect into a separate series,
 or use a While loop if you need to change it while looping.
 ```

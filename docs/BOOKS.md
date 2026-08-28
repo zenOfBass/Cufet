@@ -49,36 +49,36 @@ yet — the bundled books are `math`, `collections`, and `chance`.
 **Several at once** — `Pull books on …` (plural) takes a comma-separated list, with an
 optional `and` before the last. One `Done.` closes the block for all of them:
 
-```
+```cufet
 Pull books on math, collections, and chance.
     State math's square-root of (16).
     State collections's maximum of (a series of number with (5, 3, 9)).
 Done.
 ```
-```
+```output
 4
 9
 ```
 
 Each entry may carry its own alias:
 
-```
+```cufet
 Pull books on math as m, and collections as c.
     State m's square-root of (25).
 Done.
 ```
-```
+```output
 5
 ```
 
-```
+```cufet
 Pull a book on math.
     State math's square-root of (144).
     State math's absolute-value of (0 - 7).
     State math's pi.
 Done.
 ```
-```
+```output
 12
 7
 3.1415926535897932384626433833
@@ -96,7 +96,7 @@ accepts. Because both backends run the same algorithm on the same arithmetic, th
 same answer everywhere — a fractional `power` used to differ in its last digit between
 platforms, since the library underneath *was* the platform's own, and that is now gone.
 
-```
+```cufet
 Pull a book on collections.
     Define scores as a series of number with (5, 3, 9, 3).
     State collections's maximum of (scores).
@@ -104,7 +104,7 @@ Pull a book on collections.
     State collections's unique of (scores).
 Done.
 ```
-```
+```output
 9
 5
 (5, 3, 9)
@@ -128,7 +128,7 @@ Arithmetic is exact decimal, and is **fallible** — dimensions have to agree, s
 and `*` on matrices must be handled with `Try to:`, `but on failure`, or `or pass the
 failure off`. Using one bare is a static type error.
 
-```
+```cufet
 Pull a book on collections.
     Define m as a matrix with ((1, 2), (3, 4)).
     Define n as a matrix with ((5, 6), (7, 8)).
@@ -139,7 +139,7 @@ Pull a book on collections.
         State m * n.
     Done.
     In case of failure:
-        State "failed: {message of the failure}".
+        State "failed: {the message of the failure}".
     Done.
 
     Define bad as a matrix with ((1, 2, 3)).
@@ -147,11 +147,11 @@ Pull a book on collections.
         State m + bad.
     Done.
     In case of failure:
-        State "failed: {message of the failure}".
+        State "failed: {the message of the failure}".
     Done.
 Done.
 ```
-```
+```output
 matrix((1, 2), (3, 4))
 matrix((6, 8), (10, 12))
 matrix((19, 22), (43, 50))
@@ -166,7 +166,7 @@ deliberately not provided.
 indices are **1-based**, like every other position in Cufet. The same phrase on the left of
 `becomes` writes the cell. `the rows of m` and `the columns of m` are the dimensions.
 
-```
+```cufet
 Pull a book on collections.
     Define grid as a matrix with 2 by 3 filled with 0.
     The item at (1, 2) of grid becomes 7.
@@ -177,7 +177,7 @@ Pull a book on collections.
     State the columns of grid.
 Done.
 ```
-```
+```output
 matrix((0, 7, 0), (0, 0, 9))
 7
 2
@@ -190,7 +190,7 @@ A cell holds a number and nothing else — that is what keeps matrix arithmetic 
 matrix handed to a function is the caller's matrix rather than a copy. That is what lets a
 function update a board in place:
 
-```
+```cufet
 Pull a book on collections.
     Bind void to light, given (the matrix board, the number r, the number c):
         The item at (r, c) of board becomes 1.
@@ -201,7 +201,7 @@ Pull a book on collections.
     State board.
 Done.
 ```
-```
+```output
 matrix((0, 0), (1, 0))
 ```
 
@@ -221,7 +221,7 @@ Row index 3 is out of range — this matrix has 2 row(s) (line 3).
 **An axiom is source in another language, held as a value.** Cufet cannot check a C listing
 and does not pretend to — it takes it as given, which is what the word means.
 
-```
+```cufet
 Pull a book on the c-language.
     Define c-language number get-pid as [getpid()].
     State cast get-pid.
@@ -241,7 +241,7 @@ Three parts, and each does one job:
 **The result is declared where the axiom is written**, by the person who knows. Cufet cannot read
 a C listing: an `int` might be a count, a truth, or a file handle, and only you can say which.
 
-```
+```cufet
 Pull a book on the c-language.
     Define c-language number greeting-length as [(int)strlen("hello, world")].
     State cast greeting-length.        ← 12
@@ -253,14 +253,14 @@ A call composes anywhere an ordinary call does.
 **The source is spliced where an expression goes**, so a loop needs C's own way of putting
 statements there — a statement-expression, `({ ... })`, whose last expression is its value:
 
-```
+```cufet
 Pull a book on the c-language.
     Define c-language number sum-to, given (the number top),
         as [({ int s = 0; for (int i = 1; i <= (int)the top; i++) s += i; s; })].
     State cast sum-to on (10).
 Done.
 ```
-```
+```output
 55
 ```
 
@@ -273,14 +273,14 @@ placed where a value is expected rather than where a body is.
 is **source**: it is pasted once, above everything else foreign in the program, and what it declares
 is in scope for every axiom after it.
 
-```
+```cufet
 Pull a book on the c-language.
     Define c-language helpers as [static int twice(int x) { return x * 2; }].
     Define c-language number four as [twice(2)].
     State cast four.
 Done.
 ```
-```
+```output
 4
 ```
 
@@ -299,7 +299,7 @@ declaration produces nothing, so what you write reaches the C compiler exactly a
 in a series, held in an object's field — and run wherever it lands. The type is written the way its
 declaration reads, with `given (…)` saying what it takes exactly as a function type does:
 
-```
+```cufet
 Pull a book on the c-language.
     Define c-language number length-of, given (the text subject), as [(int)strlen(the subject)].
     Define c-language number first-byte, given (the text subject), as [(int)(the subject)[0]].
@@ -311,7 +311,7 @@ Pull a book on the c-language.
     Done.
 Done.
 ```
-```
+```output
 5
 104
 ```
@@ -338,7 +338,7 @@ something a program reads back.
 An axiom declares what it takes the way every Cufet body does, and reaches those values inside
 the foreign text **by the article**:
 
-```
+```cufet
 Pull a book on the c-language.
     Define c-language number text-length, given (the text subject), as [(int)strlen(the subject)].
 
@@ -369,7 +369,7 @@ a misspelling would otherwise reach the C compiler as a stray `the`.
 
 **Call one as a statement when you only want the effect**, and the answer is discarded:
 
-```
+```cufet-fragment
 Cast close-dir on (handle).
 ```
 
@@ -389,7 +389,7 @@ Five things, and each says what it needs on the declaration:
 | `voidable address` | a pointer of any kind | held opaquely, never read through; nothing becomes void |
 | `voidable text` | a `char*` or `const char*` | **copied**; nothing becomes void |
 
-```
+```cufet
 Pull a book on the c-language.
     Define c-language voidable text home as [getenv("HOME")].
     Define c-language voidable text describe, given (the number code), as [strerror(the code)].
@@ -423,7 +423,7 @@ that is not, so which you meant is worth saying rather than guessing.
 Some C is a handle you get, use, and give back: `opendir`/`readdir`/`closedir`, `fopen`/`fclose`.
 That handle crosses as an **`address`** — opaque, held, and handed back, never read through:
 
-```
+```cufet
 Pull a book on the c-language.
     Define c-language voidable address open-dir, given (the text folder), as [opendir(the folder)].
     Define c-language voidable text next-name, given (the address handle),
@@ -464,7 +464,7 @@ process, so printing it could tell you nothing you could rely on.
 
 **`the text at <address>` reads through one**, and it is the only read there is:
 
-```
+```cufet
 Pull a book on the c-language.
     Define c-language number shut, given (the address held), as [closedir((DIR*)the held)].
     Define c-language voidable address open-dir, given (the text folder),
@@ -528,7 +528,7 @@ unsigned 64-bit value, and that is a whole number like any other here — the bo
 value's signedness along with its bits, so a large one arrives as the number it is rather than as a
 negative one:
 
-```
+```cufet
 Pull a book on the c-language.
     Define c-language number length-of, given (the text subject), as [strlen(the subject)].
     Define c-language number widest as [(unsigned long long)-1].
@@ -542,7 +542,7 @@ Done.
 base-10 and a `double` is base-2, so 17 significant digits — what a `double` round-trips in — is
 what arrives:
 
-```
+```cufet
 Pull a book on the c-language.
     Define c-language voidable number root-two as [sqrt(2.0)].
     Define c-language voidable number a-third as [1.0 / 3.0].
@@ -613,7 +613,7 @@ and that stays true here — the source is parsed, but nothing happens to it unt
 **Which kind it is comes from the same rule the C tag follows: says what it gives back, and it is
 something you run; says nothing, and it is source.**
 
-```
+```cufet
 Pull a book on cufet.
     Define cufet number sum-to, given (the number top), as [
         Define the total as 0.
@@ -625,7 +625,7 @@ Pull a book on cufet.
     State cast sum-to on (10).
 Done.
 ```
-```
+```output
 55
 ```
 
@@ -634,7 +634,7 @@ it to another name and run it there. It has no crossing restriction either: C is
 number, a fact and a voidable text because those are what survive the boundary, and nothing crosses
 one here.
 
-```
+```cufet
 Pull a book on cufet.
     Define cufet vector-shape as [
         Define object vec2 with (the number x, the number y):
@@ -650,7 +650,7 @@ Pull a book on cufet.
     State cast length-squared on (the arrow).
 Done.
 ```
-```
+```output
 25
 ```
 

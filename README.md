@@ -15,7 +15,7 @@ implementation, and a **native compiler** that emits C and produces a real
 executable — threads, signals, subprocesses and all. The compiler is held to the
 interpreter as an oracle: compiled output must match interpreted output.
 
-```
+```cufet
 For each counter in the range 1 to 100, repeat:
     If the counter % 15 is 0, state "FizzBuzz".
     Otherwise if the counter % 3 is 0, state "Fizz".
@@ -29,7 +29,7 @@ Done.
 ## A taste
 
 **Sum a series — and let it know its own length:**
-```
+```cufet
 Define the scores as a series with (92, 85, 71, 88).
 Define total as 0.
 
@@ -42,7 +42,7 @@ State the average.
 ```
 
 **Recursion reads like what it is:**
-```
+```cufet
 Bind number to factorial, given (the number n):
     If n is less than 2, return 1.
     Return n * cast factorial on (n - 1).
@@ -52,7 +52,7 @@ State cast factorial on (10).
 ```
 
 **Functions are values — collect them and apply each:**
-```
+```cufet
 Bind number to double, given (the number x): return x * 2. Done.
 Bind number to triple, given (the number x): return x * 3. Done.
 
@@ -64,7 +64,7 @@ Done.
 ```
 
 **Closures and lambdas — make a specialized function on the fly:**
-```
+```cufet
 Bind number function given (the number) to make-adder, given (the number n):
     Return a function given (the number x): Return x + n. Done.
 Done.
@@ -74,7 +74,7 @@ State cast add-five on (10).        → 15
 ```
 
 **Objects with data and behavior:**
-```
+```cufet
 Define object vehicle with (the text make, the number year):
     Bind void to describe:
         State one's make.
@@ -86,14 +86,14 @@ Cast describe on car.
 ```
 
 **Value equality for records and objects:**
-```
+```cufet-fragment
 Define car1 as a new vehicle { the make "Honda", the year 2021 }.
 Define car2 as a new vehicle { the make "Honda", the year 2021 }.
 If car1 is car2, state "same car".
 ```
 
 **Maps, and absence without null:**
-```
+```cufet
 Define ages as a map with ("alice" : 30, "bob" : 25).
 
 Define alice-age as the entry for "alice" in ages.
@@ -102,7 +102,7 @@ Otherwise, state "no entry for alice".
 ```
 
 **Failures are values — carry them, handle them, propagate them:**
-```
+```cufet
 Bind number or failure to parse-age, given (the text raw):
     Define n as raw converted to number.
     If n is void, return a failure "not a number" of category "validation".
@@ -118,7 +118,7 @@ Done.
 ```
 
 **Read files. Run programs. Cufet now touches the world:**
-```
+```cufet
 With the file "log.txt" open for writing as log:
     Write "Starting.\n" to the log.
 
@@ -133,7 +133,7 @@ Done.
 ```
 
 **Structured concurrency — tasks, channels, and pipes:**
-```
+```cufet
 Define ch as a channel of number.
 
 Pull a rabbit.
@@ -154,7 +154,7 @@ Done.
 ```
 
 **Pipe stages — producer feeds consumer directly:**
-```
+```cufet
 Bind void to emit-numbers:
     Output 10.
     Output 20.
@@ -171,7 +171,7 @@ emit-numbers | print-doubled.
 ```
 
 **Command substitution — compose shell commands:**
-```
+```cufet
 Try to:
     Define result as run "git" with arguments ("log", "--oneline", "-5").
     State the output of result.

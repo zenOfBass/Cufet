@@ -83,7 +83,7 @@ they are large, not because they are waiting — the order among them means noth
      project has a rule about. Either generated pages are for USER books only, or that part of
      REFERENCE becomes generated. Decide before building, not after.
 
-   ⚠ **Whatever is generated must be pinned and tested**, the way `doc-blocks.baseline.txt` and
+   ⚠ **Whatever is generated must be pinned and tested**, the way the doc-block fence tags and
    `examples/expected/` already are — generated output that nothing checks is the same staleness
    in a new place, and a hand-edited "generated" page is the second lying copy immediately.
 
