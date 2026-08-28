@@ -1340,8 +1340,29 @@ Series are **reference-typed** — assigning a series to a new name shares it
 Typed key→value collections. Keys are one type, values are one type
 (homogeneous, like series).
 
-**Type:** `a map from text to number` — text keys, number values. Keys are
-`number` or `text`.
+**Type:** `a map from text to number` — text keys, number values.
+
+**What may be a key: a scalar, or a record of keys.** A number, text, a fact, a bit pattern, or a
+record whose every field is one of those — nested as deep as you like:
+
+```
+Define origin as a record with (0, 0).
+Define grid as a map with (origin : "start").
+In grid, the entry for a record with (2, 3) becomes "treasure".
+State the entry for a record with (2, 3) in grid.               ← "treasure"
+```
+
+⚠ A record key type cannot be **written**, only inferred, so a map keyed by one has to start with
+an entry — there is no `a map from <record> to text` spelling to declare an empty one with.
+
+A record key is compared by its CONTENTS, so a second record holding the same values finds the
+same entry. Named fields compare regardless of the order they were written, exactly as they do
+under `is`, and a bit pattern compares on its value alone — `0xA` finds what `0b1010` stored.
+
+A series, a map, an object or a matrix cannot be a key, and a record holding one cannot either.
+The reason is that they can be **changed** after they are used as a key: alter the key and the
+entry it was stored under can never be found again. A record is safe for the mirrored reason —
+it is deep-copied when bound, so the map holds a key nobody else can reach in and alter.
 
 **Construction:**
 ```

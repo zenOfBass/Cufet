@@ -45,6 +45,44 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   either backend sees the program both are ordinary methods on ordinary objects — the same move
   monomorphization already makes.
 
+### Changed
+
+- **A map key is now "a scalar, or a record of keys".** It was "text, number, or fact", which was
+  too blunt in one direction and explained itself with something FALSE in the other — it told the
+  reader that a record is a reference type whose identity changes when copied. A record is neither:
+  the checker's own `IsReferenceType` is series/map/object/matrix/channel/address, records are
+  absent from it, they deep-copy on binding, and they compare structurally. The refusal was right
+  about records by accident and wrong about the reason, which is why no workaround for it ever
+  felt principled.
+
+  ```
+  Define origin as a record with (0, 0).
+  Define grid as a map with (origin : "start").
+  In grid, the entry for a record with (2, 3) becomes "treasure".
+  State the entry for a record with (2, 3) in grid.          ← "treasure"
+  ```
+
+  A `(row, column)` pair is the commonest compound key there is and it was refused. Bit patterns
+  are keys too, and compare on value alone: `0xA` finds what `0b1010` stored.
+
+  ★ **The reason a series is refused, stated correctly:** not that its identity changes, but that
+  it is MUTABLE — alter the key after storing under it and the entry can never be found again. A
+  record is safe for the mirrored reason: it is deep-copied when bound, so the map holds a key
+  nobody else can reach in and alter. A record HOLDING a series is still refused, and the message
+  names the offending field rather than blaming the record.
+
+  ⚠⚠ **The hash is the load-bearing part, and the two backends do not agree by construction.** The
+  interpreter's map is a Dictionary — it hashes, then compares — while the compiler's is a linear
+  scan calling its own `_eq`. Equality here is `ValuesEqual`, the same function `is` uses, so a key
+  the language calls equal is a key the map finds; the hash has to be kept in step with it or the
+  map finds NOTHING and reports no error. Two cases carry the risk and both are locked by tests:
+  a bit pattern hashes on value alone (ignoring base and width, as its equality does), and a
+  record's named fields hash commutatively (because they compare regardless of written order).
+
+  ⚠ A record key type cannot yet be WRITTEN, only inferred, so a map keyed by one has to start
+  with an entry. There is no `a map from <record> to text` spelling — `ParseTypeAnnotation` has no
+  record arm.
+
 ### Fixed
 
 - **A generic type of your own could not be WRITTEN down.** It could be inferred anywhere —
