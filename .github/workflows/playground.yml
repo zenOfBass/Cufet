@@ -91,11 +91,11 @@ jobs:
         working-directory: playground
         run: npm ci
 
-      # NOTE: InvariantGlobalization is deliberately NOT set here yet, though CI is the one place
-      # it would work (it forces an emscripten relink that cannot handle the space in the local
-      # checkout path — see the csproj). It would save roughly 200 KB of ICU data, but it also
-      # changes culture-sensitive formatting, and this is the first deploy. Turn it on as its own
-      # change, once there is a published site to compare against.
+      # InvariantGlobalization is ON now, in the csproj rather than here — CI and a local build
+      # do the same thing, which is the point. The note that used to sit here estimated it would
+      # save "roughly 200 KB of ICU data"; measured, it takes 1.52 MB off the COMPRESSED download,
+      # 35% of it, because linking ICU out shrinks the native runtime as well as dropping the two
+      # .dat files. It was also the safer setting, not a trade: see the csproj.
       - name: Publish the interpreter to WebAssembly
         run: dotnet publish playground/Cufet.Playground.csproj -c Release
 

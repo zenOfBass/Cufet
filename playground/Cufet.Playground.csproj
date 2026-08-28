@@ -34,18 +34,25 @@
     <UseSystemResourceKeys>true</UseSystemResourceKeys>
 
     <!--
-      InvariantGlobalization is DELIBERATELY ABSENT, and it is not an oversight.
+      ★★ No ICU. It is the biggest payload win available here, and it is now the SAFER setting
+      rather than a trade against safety.
 
-      Setting it forces emscripten to relink the native runtime instead of using the prebuilt
-      dotnet.native.wasm — and that relink cannot handle a space in the build path. This
-      repository lives under "…\My Stuff\…", so turning it on fails locally with a wasm-ld
-      "cannot open output file" that names a directory which demonstrably exists. Bisected:
-      the same project builds with it in a space-free path, and builds without it here.
+      The note this replaces said it could not be turned on locally: the emscripten relink it
+      forces cannot handle a space in the build path, and the repository lived under a path with
+      one. The checkout has moved to a space-free path, so that reason expired — the blocker was
+      the PATH, never the flag.
 
-      It WOULD shrink the payload (ICU data is a real chunk of it), and a CI runner has no
-      spaces in its checkout path, so a publish workflow can turn it back on. Measure the
-      difference before deciding it matters.
+      ⚠ The other recorded worry was that it "changes culture-sensitive formatting". Measured, and
+      it was pointing at a real FAULT rather than at a risk: the interpreter parsed number literals
+      and printed numbers with the ambient culture, so `1.5` was fifteen on a German machine and
+      threw on a French one, while the compiled program printed 1.5 either way. Both are pinned to
+      the invariant culture now (see CultureTests), which is what makes this flag a no-op for
+      behaviour — there is nothing culture-sensitive left for it to change.
+
+      ★ The playground is where that mattered most, because here the culture is the VISITOR's
+      browser locale: one page could print two different answers to two readers.
     -->
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>
