@@ -223,12 +223,17 @@ what rules it out.
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary · design patterns as a book · an in-memory filesystem for the playground
 
-**Mixed-type operator dispatch, and with it `matrix * number` scalar scaling.** Overloading
-resolves by exact nominal match today, so an operator whose two sides are different types has
-nowhere to land — which is the whole reason scaling a matrix by a number is unbuilt. Blanks made
-the shape expressible, so this is unblocked rather than waiting; it simply has not been wanted
-yet. ★ Both settled decisions around it live in [DESIGN.md](DESIGN.md): no variance, and the
-Hadamard product as a named `collections` function if ever, because `*` means matrix product.
+**`matrix * number` scalar scaling.** ⚠ This does NOT go through operator overloading, which was
+the standing assumption here and was wrong. `matrix` is a BUILT-IN type the `collections` book puts
+in scope, not an object type, and overloads only register on object types — so mixed-type dispatch
+(shipped) does not reach it. Matrix arithmetic is a built-in rule in the checker with native
+evaluation beside it, and scaling would be one more arm in those same three places.
+
+★ One decision to make first: `matrix + matrix` is fallible because dimensions can mismatch, and
+scaling cannot fail. So `m * 2` should almost certainly give a plain `matrix` rather than forcing a
+`Try` around something with no failure in it — which would make `*` on matrices fallible in one
+direction and not the other. ★ The settled decision nearby lives in [DESIGN.md](DESIGN.md): the
+Hadamard product would be a named `collections` function if ever, because `*` means matrix product.
 
 **Named arguments at a call site — `cast area on (the width 3, the height 4)`.** ★ **No longer
 sequenced behind anything** — Approach B shipped, which was its one stated prerequisite.

@@ -81,6 +81,32 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   monomorphization already makes.
 
 ### Changed
+- **An operator overload names an ORDERED PAIR of operand types.** Both operands had to be the
+  same object type, so `u * 2` — scaling the very `vec2` REFERENCE uses in its own overload
+  example — was refused. That is the next thing anyone tries after the documented `u * w` dot
+  product.
+
+  ```
+  Bind overloading *, given (the lhs is a vec2, the rhs is a number):   ← u * 3
+  Bind overloading *, given (the lhs is a number, the rhs is a vec2):   ← 3 * u
+  ```
+
+  ★★ **Ordered, deliberately.** Declaring one does not declare the other. Making a single
+  declaration cover both orders would have to special-case `+` and `*`, because `2 - u` is not
+  `u - 2` and `2 / u` is not `u / 2` — a second rule to remember in exchange for saving a line.
+  Ordered pairs also keep the property REFERENCE already claimed: never more than one candidate,
+  and never any ambiguity about which applies.
+
+  ⚠ **At least one side must be an object type you defined.** Two built-ins are refused, which is
+  what keeps `number * number` meaning multiplication — REFERENCE has always said built-ins cannot
+  be shadowed, and mixed-type dispatch would otherwise open that door.
+
+  "One overload per type and operator" is now "one per ordered pair and operator", so a type may
+  take part in several: `vec2 * number`, `number * vec2` and `vec2 * vec2` coexist.
+
+  ⚠ The parser already read both operand type names and merely ASSERTED they matched — that
+  assertion was the feature's entire absence.
+
 - **Every code block in the docs now says what it is, and the suite holds it to that.** All 388
   fences were untagged, so nothing could tell a runnable program from expected output from an
   illustration from a deliberate counter-example — and 155 of them failed `check` with no way to
@@ -173,6 +199,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   answer, not a value anyone looks something up by.
 
 ### Fixed
+- **The compiler emitted one C symbol per operand type, not per PAIR.** With mixed-type
+  overloads that is a duplicate definition the moment two of them share a left type and
+  operator — `vec2 * number` and `vec2 * vec2` both became `cop_vec2_mul`, and gcc refused the
+  program with *"conflicting types"*. The symbol carries both operand names now.
+
 - **Eleven documented samples were wrong, and the fence tags found all of them.** Seven were a
   missing article inside an interpolation — `{message of the failure}` and `{errors of result}`,
   where the named-access form is `the message of …`; those do not parse, and they sat in the docs

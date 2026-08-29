@@ -2411,10 +2411,22 @@ The rules are deliberately narrow, which is what keeps the feature predictable:
 
 - **Only `+ - * /`.** Comparisons and `is` are not overloadable, so equality keeps one
   meaning everywhere — including inside `unique`, map keys, and `sorted`.
-- **Both operands must be the same object type**, and it must be an object type. There
-  is no conversion or promotion, so there is never more than one candidate and never any
-  ambiguity about which one applies.
-- **One overload per type and operator**, enforced by the type checker.
+- **The operand types are an ORDERED PAIR**, and at least one of them must be an object
+  type you defined. `vec2 * number` declares that and only that — `number * vec2` is a
+  separate declaration, written when you want it:
+
+  ```
+  Bind overloading *, given (the lhs is a vec2, the rhs is a number):   ← u * 3
+  Bind overloading *, given (the lhs is a number, the rhs is a vec2):   ← 3 * u
+  ```
+
+  Ordered, because swapping is not a shorthand anyone could have: `2 - u` is not `u - 2`,
+  and `2 / u` is not `u / 2`. There is still no conversion or promotion, so there is never
+  more than one candidate and never any ambiguity about which one applies.
+- **Two built-ins cannot be a pair.** One side has to be an object type, which is what
+  keeps `number * number` meaning multiplication.
+- **One overload per ordered pair and operator**, enforced by the type checker. A type may
+  take part in several — `vec2 * number`, `number * vec2` and `vec2 * vec2` coexist.
 - **Built-ins cannot be shadowed** — `number + number` always means addition.
 - **The return type is whatever the body returns.** A dot product returning `number`, as
   above, is fine.
