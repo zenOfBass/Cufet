@@ -97,9 +97,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   Ordered pairs also keep the property REFERENCE already claimed: never more than one candidate,
   and never any ambiguity about which applies.
 
-  ⚠ **At least one side must be an object type you defined.** Two built-ins are refused, which is
-  what keeps `number * number` meaning multiplication — REFERENCE has always said built-ins cannot
-  be shadowed, and mixed-type dispatch would otherwise open that door.
+  ⚠ **The one restriction: a pair that already means something cannot be overloaded** — exactly
+  `number op number` and `bits op bits`, which are built-in arithmetic. The overload lookup runs
+  before the numeric path, so declaring one would capture `1 * 2` and multiplication would stop
+  meaning multiplication.
+
+  ★ No wider than that. `text * number` and `text + text` are errors today, so a program that
+  wants them may have them; `"ab" * 3` giving `ababab` is a program's business. Whether `+` on
+  text is good style when `joined to` exists is the writer's call, not the checker's.
 
   "One overload per type and operator" is now "one per ordered pair and operator", so a type may
   take part in several: `vec2 * number`, `number * vec2` and `vec2 * vec2` coexist.

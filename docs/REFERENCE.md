@@ -2423,8 +2423,11 @@ The rules are deliberately narrow, which is what keeps the feature predictable:
   Ordered, because swapping is not a shorthand anyone could have: `2 - u` is not `u - 2`,
   and `2 / u` is not `u / 2`. There is still no conversion or promotion, so there is never
   more than one candidate and never any ambiguity about which one applies.
-- **Two built-ins cannot be a pair.** One side has to be an object type, which is what
-  keeps `number * number` meaning multiplication.
+- **A pair that already means something cannot be overloaded.** That is exactly two:
+  `number op number` and `bits op bits`, which are built-in arithmetic. Everything else
+  is free — `text * number` and `text + text` are errors today, so nothing is shadowed by
+  giving them a meaning. Whether `+` on text is good style when `joined to` exists is the
+  writer's call, not the checker's.
 - **One overload per ordered pair and operator**, enforced by the type checker. A type may
   take part in several — `vec2 * number`, `number * vec2` and `vec2 * vec2` coexist.
 - **Built-ins cannot be shadowed** — `number + number` always means addition.
