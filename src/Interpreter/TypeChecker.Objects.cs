@@ -888,20 +888,26 @@ public sealed partial class TypeChecker
             var left  = ResolveOperandType(oad, oad.LeftTypeName);
             var right = ResolveOperandType(oad, oad.RightTypeName);
 
-            // ⚠ At least one side must be an object the program defined. Two built-ins would
-            // SHADOW arithmetic — `number * number` already means multiplication everywhere, and
-            // REFERENCE has always said built-ins cannot be shadowed. Requiring one object is what
-            // keeps that true while letting `vec2 * number` exist.
-            if (left is not ObjectType && right is not ObjectType)
+            // ⚠ The one thing an overload may not take is a pair that ALREADY MEANS something.
+            // `number * number` and `bits * bits` are built-in arithmetic, and the overload lookup
+            // runs before the numeric path — so declaring one would capture `1 * 2` and
+            // multiplication would stop meaning multiplication. REFERENCE has always said built-ins
+            // cannot be shadowed; this is that sentence, and nothing more.
+            //
+            // ★ Deliberately no wider than its reason. `text * number` and `text + text` shadow
+            // NOTHING — arithmetic on them is an error today — so a program that wants them may
+            // have them. Whether concatenating with `+` when `joined to` exists is good style is
+            // the writer's business, not the checker's.
+            if (AlreadyMeansSomething(left, right))
                 throw TypeError(
-                    $"'{oad.LeftTypeName} {FormatOp(oad.Operator)} {oad.RightTypeName}' has no object "
-                  + "type in it, so there is nothing to overload on",
-                    "Both sides are built-in, and a built-in operator cannot be shadowed — "
-                  + $"'{oad.LeftTypeName} {FormatOp(oad.Operator)} {oad.RightTypeName}' already means "
-                  + "what it means",
+                    $"'{oad.LeftTypeName} {FormatOp(oad.Operator)} {oad.RightTypeName}' already means "
+                  + "something, so it cannot be overloaded",
+                    "That is built-in arithmetic, and a built-in cannot be shadowed — otherwise "
+                  + $"'{FormatOp(oad.Operator)}' would mean one thing here and another everywhere else",
                     oad.Line, oad.Column,
-                    $"overload '{FormatOp(oad.Operator)}' for two built-in types",
-                    "An overload needs one of its sides to be an object type you defined.");
+                    $"overload '{FormatOp(oad.Operator)}' for '{oad.LeftTypeName}' and '{oad.RightTypeName}'",
+                    "Overload a pair that has no meaning yet — one with an object type in it, or "
+                  + "something like 'text * number'.");
 
             var key = (oad.LeftTypeName, oad.RightTypeName, oad.Operator);
             if (!seen.Add(key))
@@ -916,6 +922,16 @@ public sealed partial class TypeChecker
             CheckOperatorOverload(oad, left, right);
         }
     }
+
+    /// <summary>True when this operand pair is already built-in arithmetic.</summary>
+    /// <remarks>
+    /// ⚠ Exactly two pairs, and they are the whole of what an overload may not take. Everything
+    /// else — `text * number`, `text + text`, `fact + fact` — is an error today, so nothing is
+    /// shadowed by giving it a meaning.
+    /// </remarks>
+    private static bool AlreadyMeansSomething(CufetType left, CufetType right) =>
+        (left == CufetType.Number && right == CufetType.Number)
+     || (left == CufetType.Bits   && right == CufetType.Bits);
 
     /// <summary>One operand's written type name, resolved.</summary>
     /// <remarks>

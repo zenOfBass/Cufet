@@ -119,18 +119,53 @@ public class MixedOperandOverloadTests
     // ── What is still refused ─────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void TwoBuiltInsCannotBeOverloaded()
+    public void APairThatAlreadyMeansSomething_CannotBeOverloaded()
     {
-        // ⚠⚠ The rule that keeps mixed-type dispatch from opening a door REFERENCE closed:
-        // built-ins cannot be shadowed. One side has to be an object the program defined, or
-        // `number * number` could be redefined and arithmetic would stop meaning one thing.
-        var e = Refused("""
-            Bind overloading *, given (the lhs is a number, the rhs is a number):
-                Return 0.
+        // ⚠⚠ The one restriction: the overload lookup runs BEFORE the numeric path, so declaring
+        // `number * number` would capture `1 * 2` and multiplication would stop meaning
+        // multiplication. REFERENCE has always said built-ins cannot be shadowed.
+        foreach (var pair in new[] { ("number", "number", "*", "1 * 2"), ("bits", "bits", "+", "0b1 + 0b1") })
+        {
+            var e = Refused($"""
+                Bind overloading {pair.Item3}, given (the lhs is a {pair.Item1}, the rhs is a {pair.Item2}):
+                    Return {(pair.Item1 == "bits" ? "0b0" : "0")}.
+                Done.
+                State {pair.Item4}.
+                """);
+            Assert.Contains("already means something", e.Message);
+        }
+    }
+
+    [Fact]
+    public void APairWithNoMeaningYet_MayHaveOne_EvenWithNoObjectInIt()
+    {
+        // ★ The restriction is exactly as wide as its reason and no wider. `text * number` is an
+        // ERROR today — "arithmetic requires numbers on both sides" — so nothing is shadowed by
+        // giving it a meaning. Only `number op number` and `bits op bits` are taken.
+        Assert.Equal("ababab", Run("""
+            Bind overloading *, given (the lhs is a text, the rhs is a number):
+                Define out as "".
+                For each n in range 1 to rhs, repeat:
+                    The out becomes out joined to lhs.
+                Done.
+                Return out.
             Done.
-            State 1 * 2.
-            """);
-        Assert.Contains("no object type in it", e.Message);
+            State "ab" * 3.
+            """));
+    }
+
+    [Fact]
+    public void OverloadingPlusOnTextIsTheWritersBusiness()
+    {
+        // ⚠ `joined to` is how text concatenates, and "one canonical way" is a design value — but
+        // it is a value about what the LANGUAGE offers, not a rule the checker enforces on a
+        // program. Nothing is shadowed here, so nothing refuses it.
+        Assert.Equal("hello, world", Run("""
+            Bind overloading +, given (the lhs is a text, the rhs is a text):
+                Return lhs joined to rhs.
+            Done.
+            State "hello, " + "world".
+            """));
     }
 
     [Fact]
