@@ -463,35 +463,6 @@ indistinguishable from having forgotten.
 
 ### Tooling
 
-- **Self-verifying docs — tagged fences, checked output, checked refusals.** Every code block in
-  REFERENCE and GRAMMAR would be run, its **output block asserted to match**, and its
-  counter-examples asserted to be *still refused*. A block marked REFUSED that starts passing means
-  the language moved under the doc, and nothing catches that today.
-
-  `DocBlockTests` already runs the ~238 runnable blocks and pins the 157 that pass, so a sample
-  the language breaks is caught now. What it cannot do is judge the other 81: most of those
-  failures are correct — GRAMMAR is a constraints reference full of deliberate counter-examples,
-  and many blocks are fragments teaching a shape rather than programs.
-
-  ⚠⚠ **MEASURED 2026-08-20, and it is the number this item needs: 54 of the 190 pinned blocks
-  are FRAGMENTS, not programs.** Making an unresolved name a static error in final scope dropped
-  the baseline from 190 to 136 in one step — every block that fell out is an illustration
-  referencing names no fence defines (`Increment i by 1.`, `Define n as the length of greeting.`).
-  They never ran; they passed `check` only because unresolved names were tolerated, so the
-  baseline had been pinning "checks clean" for samples that could not execute. That is exactly the
-  confusion below, now with a count attached — and it means the tagging work would recover 54
-  samples' worth of real coverage rather than merely tidying.
-
-  *Blocker:* the docs cannot say which is which. **All 534 fences are untagged**, so nothing can
-  distinguish a runnable program from expected output from a fragment from a counter-example. The
-  work is a fence convention (` ```cufet `, ` ```output `, ` ```cufet-fragment `,
-  ` ```cufet-refused `) applied across both files — mechanical but large, and `tools/doc-sweep.py`
-  already knows enough from pass/fail and adjacency to propose a first pass to review as a diff.
-
-  The payoff is the output assertion. Executing a sample proves it runs; comparing its printed
-  result to the block underneath is what catches a doc that is merely *wrong* — the failure mode
-  that has actually recurred.
-
 - **An LSP.** A run stops at its first error, so the front end reports at most one — plus any
   warnings it collected on the way, each with a line, a column and a long prose explanation. LSP's
   incremental machinery has nothing to earn back on a report that small.

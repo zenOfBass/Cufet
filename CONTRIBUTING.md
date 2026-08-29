@@ -169,15 +169,33 @@ until it listed shipped features as planned.
 | **A backend divergence found or closed** | **CHANGELOG.md, and the rule below** |
 | Released (minor version bump) | CHANGELOG.md, README.md line 1, docs/REFERENCE.md header, **all four `.csproj` files**, `playground/package.json`, `editors/vscode/package.json` |
 
-**Run any code sample you write into a doc.** `python tools/doc-sweep.py` extracts every fenced
-block from README, GRAMMAR, REFERENCE and BOOKS and runs `cufet check` on it. It has found samples naming
-variables with reserved words, a form documented but never implemented, and possessive access used
-on a record — none of which reading had caught, over many readings. A sample that does not run is
-worse than no sample: a reader copies it, it fails, and they conclude the language is broken.
+**Every code block in the docs says what it is, and the suite holds it to that.** A sample that
+does not run is worse than no sample: a reader copies it, it fails, and they conclude the language
+is broken. `DocBlockTests` is the gate, and the fence tag is the promise:
 
-Not every failure it reports is a bug. Fragments (a block opening without its `Done.`), GRAMMAR's
-deliberate counter-examples, and non-Cufet blocks are expected; the output groups failures by error
-shape so the real ones stand out. `--strict` exits 1 for CI, once those are driven out.
+| Fence | Promise |
+|---|---|
+| ` ```cufet ` | a program — it must check clean, and if an ` ```output ` block follows it, it must PRINT that |
+| ` ```cufet-fragment ` | an illustration — it must PARSE, or fail only by running out of input, needing surroundings it does not show, or being an expression rather than a statement |
+| ` ```cufet-refused ` | a counter-example — it must STAY refused |
+| ` ```output ` | what the block immediately above it prints |
+
+Anything that is not Cufet — shell, C, JSON, trees, diagrams, phrase tables laid out in columns —
+is left untagged and not checked.
+
+**Tag a new block when you write it.** `python tools/doc-tag.py` proposes tags for untagged fences
+and `--apply` writes them, but it is a first pass to review, not an oracle. ⚠ It only claims
+`cufet-refused` where a person wrote it in the annotation, because the two mistakes are not
+symmetric: a wrong `refused` asserts a block keeps failing and is silent forever, while a wrong
+`fragment` fails on the next run with the reason attached. Guess only toward the loud one.
+
+★ **The output assertion is the part that catches a doc that is merely WRONG**, as opposed to one
+that no longer compiles. It found a channels sample documented as printing 30 that printed 20 — an
+extra delivery swallowed the first value — and eleven other doc bugs in one pass, seven of them a
+missing article inside an interpolation.
+
+`python tools/doc-sweep.py` still exists for a quick pass over everything with failures grouped by
+error shape; it is the exploratory tool, and `DocBlockTests` is the gate.
 
 **docs/ROADMAP.md records only what is *not yet done*.** When an item ships, delete it from
 the roadmap — its record is the CHANGELOG entry, and its rationale is docs/DESIGN.md. Leaving

@@ -3386,7 +3386,6 @@ Pull a rabbit.
         Close results.
     Done.
     Define total as 0.
-    Define got as the delivery from results.
     Define arrival as the delivery from results.
     While arrival is not void, repeat:
         The total becomes total + (arrival but void is 0).

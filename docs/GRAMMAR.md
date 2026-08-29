@@ -2264,7 +2264,7 @@ producer | consumer.
 
 Multi-stage (any number of stages):
 
-```output
+```cufet-fragment
 producer | doubler | consumer.
 ```
 
@@ -3068,7 +3068,7 @@ to encapsulate initialization of objects that have collection fields.
 `Add` and `Remove` operations that change the series' length, or any entry-add /
 entry-remove on the iterated map. Both are caught at runtime with a named error:
 
-```output
+```
 'items' was modified during a for-each loop on line 5 — collect into a separate series,
 or use a While loop if you need to change it while looping.
 ```

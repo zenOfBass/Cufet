@@ -46,6 +46,34 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   monomorphization already makes.
 
 ### Changed
+- **Every code block in the docs now says what it is, and the suite holds it to that.** All 388
+  fences were untagged, so nothing could tell a runnable program from expected output from an
+  illustration from a deliberate counter-example — and 155 of them failed `check` with no way to
+  judge which failures were correct.
+
+  | Fence | Promise |
+  |---|---|
+  | ` ```cufet ` | a program: it must check clean, and if an ` ```output ` block follows, it must PRINT that |
+  | ` ```cufet-fragment ` | an illustration: it must PARSE, or fail only by running out of input, needing surroundings it does not show, or being an expression rather than a statement |
+  | ` ```cufet-refused ` | a counter-example: it must STAY refused |
+  | ` ```output ` | what the block immediately above it prints |
+
+  ★★ **The output assertion is what catches a doc that is merely WRONG**, as opposed to one that
+  stopped compiling — the failure mode nothing could see before. It found a channels sample
+  documented as printing `30` that printed `20`: a stray `Define got as the delivery from results.`
+  swallowed the first value before the loop ever saw it.
+
+  ★ **The counter-example assertion is the other thing nothing could check**: a block that
+  demonstrates a refusal and quietly starts working looks exactly like one that still fails.
+
+  ⚠ This REPLACED a hash baseline of blocks that happened to pass on some past day, now deleted.
+  It had two holes: editing a block changed its hash, so it silently left coverage until someone
+  regenerated the file; and it could not judge a failure at all.
+
+  `tools/doc-tag.py` proposes tags for untagged fences. ⚠ It claims `cufet-refused` only where a
+  person wrote it in the annotation, because the mistakes are not symmetric — a wrong `refused` is
+  silent forever, a wrong `fragment` fails on the next run with its reason attached.
+
 - **`In case of exception:` takes no binding, and names one when you want it to.** The parentheses
   were mandatory and could hold exactly one word, so a required phrase said the same thing at every
   occurrence:
@@ -110,6 +138,19 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   answer, not a value anyone looks something up by.
 
 ### Fixed
+- **Eleven documented samples were wrong, and the fence tags found all of them.** Seven were a
+  missing article inside an interpolation — `{message of the failure}` and `{errors of result}`,
+  where the named-access form is `the message of …`; those do not parse, and they sat in the docs
+  invisibly because 155 other blocks also failed. The rest:
+
+  - a channels example documented as printing `30` that printed `20`
+  - `is a directorys, tate "directory"` — two typos in one line
+  - `run "echo" "hello"`, where arguments need `with arguments (…)`
+  - `Define x as (number or text).` — a type written where a value goes
+  - `Define a as …` and `Define b as …` — `a` and `b` are ARTICLES, so `Define a as` reads as
+    `Define <article> as` and the name is never seen. (Single-letter names are against the house
+    style anyway, which is why nothing else in the corpus hit this.)
+
 - **Printing a failure or an exception leaked a C# class name, and the two backends disagreed.**
   `State the failure.` checked clean — *"No problems found"* — then the interpreter printed
   `Cufet.Interpreter.Interpreter+FailureValue` while the compiler refused to build at all. Both
