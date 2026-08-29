@@ -2763,6 +2763,33 @@ required is refused — correctly, since an open union has no fixed set of confo
 for. The refusal names a type you never wrote, which is the confusing part: you get told you
 passed "an open union" without having typed the word `union` anywhere. Name the element type.
 
+### ★ `with one of each` reads the ANNOTATION, never a variable
+
+`a catalogue of (red or green or blue) with one of each` expands, **in the parser**, into the
+`a new red, a new green, a new blue` a writer used to type. No backend learns the phrase exists,
+and the expansion keeps the union's order.
+
+**The union has to be written out at that spot.** It is never read off a subject's type, and that
+is a hazard rather than a preference: a `Judge` arm narrows a variable, so `one of each` on one
+would answer differently inside an arm than outside it, and the answer would depend on where the
+writer happened to be standing.
+
+**Refused in two places, and the split is deliberate:**
+
+| Refused by | For | Because |
+|---|---|---|
+| Parser | `a catalogue with one of each` (no union), or a case that is not a type name — `(number or text)` | Visible in the writing; no definitions needed to see it |
+| Checker | a case that names a type carrying fields, or names nothing | Needs the object definitions |
+
+**One per CASE, not per mention.** `(red or red)` names one case, and the language already says so
+— a single `A red` arm satisfies `Judge` over that union, because object types are nominal and
+compare by name. Repeated cases are collapsed so the two cannot disagree about how many cases a
+union has.
+
+⚠ The `OneOfEach` flag on `SeriesLiteral` exists only for the checker's half. Without it the writer
+is told a literal they never wrote is missing a field they never saw, on a line whose text reads
+`one of each`.
+
 ### `Return a failure.` re-propagates; `Return a failure "msg".` originates
 
 The parser checks whether a **string literal** immediately follows `failure`:
