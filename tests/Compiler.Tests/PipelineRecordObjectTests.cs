@@ -849,40 +849,6 @@ public class PipelineRecordObjectTests : PipelineTestBase
     }
 
     /// <summary>
-    /// `with one of each` — the catalogue's values read off its own union — on both backends.
-    /// </summary>
-    /// <remarks>
-    /// ★ Neither backend learns the phrase. The parser expands it into the very `a new red, a new
-    /// green, a new blue` a writer used to type, so what this asks is whether the expansion lands
-    /// on the same program the long form did — including the ORDER, which a catalogue is entitled
-    /// to keep and which the compiler stores as a tag per element.
-    /// </remarks>
-    [Fact]
-    public void OneOfEach_AgreesOnBothBackends()
-    {
-        const string src = """
-            Define object red.
-            Define object green.
-            Define object blue.
-
-            Bind text to name-of, given (the (red or green or blue) light):
-                Judge light, where it is:
-                    A red, return "red".
-                    A green, return "green".
-                    A blue, return "blue".
-                Done.
-            Done.
-
-            Define lights as a catalogue of (red or green or blue) with one of each.
-            State the number of lights.
-            For each light in lights, repeat:
-                State cast name-of on (light).
-            Done.
-            """;
-        Assert.Equal(InterpretRaw(src), CompileRaw(src));
-    }
-
-    /// <summary>
     /// Mixed-type operator overloads, in both orders, on both backends.
     /// </summary>
     /// <remarks>

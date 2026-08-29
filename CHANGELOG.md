@@ -9,46 +9,6 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 ## [Unreleased]
 
 ### Added
-- **A catalogue can hold one of each case of its union** — `with one of each` instead of a
-  hand-written list of values:
-
-  ```
-  Define object red.
-  Define object green.
-  Define object blue.
-
-  Define lights as a catalogue of (red or green or blue) with one of each.
-  State the number of lights.
-  ```
-  ```
-  3
-  ```
-
-  ★★ **The problem was DRIFT, not typing.** Writing the three values out was never hard; it was
-  that adding a fourth case is checked wherever the union is judged — `Judge` refuses every
-  judgement that misses it — and silently ignored by a list of values beside it, so the list
-  quietly stops meaning "every case". The values now come from the union written next to them, and
-  the two cannot fall out of step.
-
-  ★ **It costs no new reserved word.** `one` and `each` are both already keywords, and the phrase
-  is the one the language's own prose was already using for this collection. The first spelling
-  considered, `the cases of (…)`, would have taken the name `cases` forever and needed a type in
-  expression position.
-
-  ★★ **Read off the ANNOTATION, never off a variable.** A `Judge` arm narrows a variable, so
-  `one of each` on a subject would answer differently inside an arm than outside one, and the
-  answer would depend on where the writer happened to be standing. Written-out unions only.
-
-  ⚠ Refused where a case has no single value to stand for it: a scalar like `number`, a type that
-  carries fields, or a catalogue that names no cases at all. Each refusal says which case and why.
-
-  ⚠ **One per case, not per mention.** `(red or red)` names one case — a single `A red` arm
-  satisfies `Judge` over that union, because object types compare by name — so repeated cases are
-  collapsed rather than counted twice.
-
-  ⚠ **Neither backend learns the phrase.** The parser expands it into the `a new red, a new green,
-  a new blue` a writer used to type, so the compiler needed nothing.
-
 - **A matrix scales by a number** — `m * 2` and `2 * m` — and needs no failure handling:
 
   ```

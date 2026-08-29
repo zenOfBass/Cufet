@@ -45,14 +45,7 @@ public sealed record BinaryExpression(IExpression Left, TokenType Op, IExpressio
 
 // Annotation == null → infer element type from elements; must have elements.
 // Annotation != null → element type declared; elements (if any) must agree.
-//
-// OneOfEach records that the elements were DERIVED from the annotation — `a catalogue of
-// (red or green or blue) with one of each`. The parser has already expanded them, so no backend
-// ever learns the phrase exists; the flag is carried only so the checker can refuse a case that
-// carries fields in the writer's own words rather than complaining about a missing field on a
-// literal nobody wrote.
-public sealed record SeriesLiteral(IReadOnlyList<IExpression> Elements, CufetType? Annotation, int Line, int Column,
-                                   bool OneOfEach = false) : IExpression;
+public sealed record SeriesLiteral(IReadOnlyList<IExpression> Elements, CufetType? Annotation, int Line, int Column) : IExpression;
 
 // Index == null → last element; Target is typically VariableReference but can be any expression
 // (e.g., nested ordinal access for chained 'the first of the first of s').

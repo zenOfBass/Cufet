@@ -295,51 +295,8 @@ public sealed partial class TypeChecker
                 "Only a series can be the target of 'Remove first/last/item N from'.");
     }
 
-    /// <summary>
-    /// The half of `with one of each` that needs the object definitions: every case has to be a
-    /// type that carries nothing, because only such a type has ONE value to stand for its case.
-    /// </summary>
-    /// <remarks>
-    /// ⚠ Runs BEFORE the ordinary element check below, and that ordering is the whole reason it
-    /// exists. The parser has already turned the phrase into `a new light`, so without this the
-    /// writer is told a literal they never wrote is missing a field they never saw, at a line whose
-    /// text says `one of each`.
-    /// </remarks>
-    private void CheckOneOfEach(SeriesLiteral lit)
-    {
-        if (lit.Annotation is not UnionType { Cases: { } cases }) return;
-
-        foreach (var one in cases)
-        {
-            if (one is not ObjectType named) continue;   // the parser refuses these already
-            if (!_objectDefs.TryGetValue(named.Name, out var def))
-                throw TypeError(
-                    $"'one of each' can't make a {named.Name}",
-                    $"'{named.Name}' isn't a defined object type",
-                    lit.Line, lit.Column,
-                    $"put one {named.Name} in the catalogue",
-                    $"Define it — 'Define object {named.Name}.' — or take it out of the union.");
-
-            if (def.PositionalTypes.Count == 0 && def.NamedFields.Count == 0) continue;
-
-            var carried = def.NamedFields.Count > 0
-                ? string.Join(", ", def.NamedFields.Select(f => f.FieldName))
-                : $"{def.PositionalTypes.Count} value(s)";
-            throw TypeError(
-                $"'one of each' can't make a {named.Name}",
-                $"A {named.Name} carries {carried}, so there is no ONE {named.Name} to stand for its case",
-                lit.Line, lit.Column,
-                $"let the union say which {named.Name} it means",
-                $"'one of each' works where every case carries nothing, the way 'Define object red.' " +
-                $"declares one. Write the values out with 'with (...)' instead, saying which " +
-                $"{named.Name} you mean.");
-        }
-    }
-
     private CufetType InferSeriesLiteral(SeriesLiteral lit)
     {
-        if (lit.OneOfEach) CheckOneOfEach(lit);
-
         // When the annotation is a union type, elements don't need to be homogeneous —
         // check each element is assignable to the union instead.
         if (lit.Annotation is UnionType unionAnnotation)

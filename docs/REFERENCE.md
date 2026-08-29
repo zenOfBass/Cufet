@@ -1550,25 +1550,6 @@ All series operations apply: ordinal and parametric access, `the number of`,
 union type; adding a value outside the union is a static type error. Open
 catalogues accept any element type.
 
-**One of each** — where every case of the union carries nothing, `with one of each`
-holds one value per case, in the order the union names them:
-
-```cufet
-Define object red.
-Define object green.
-Define object blue.
-
-Define lights as a catalogue of (red or green or blue) with one of each.
-State the number of lights.
-```
-```output
-3
-```
-
-The values come from the union written beside them, so the two cannot fall out of
-step: add a case and the catalogue holds it. Refused where a case has no single
-value to stand for it — a scalar like `number`, or a type that carries fields.
-
 ---
 
 **Atlas** — a map whose value type is a union: a heterogeneous typed key→value
@@ -1852,9 +1833,6 @@ State cast name-of on (a new green).
 ```output
 green
 ```
-
-To walk every case, a catalogue of that same union takes
-[`with one of each`](#catalogue-and-atlas-heterogeneous-collections).
 
 **Instantiation** — `{}` literal:
 ```cufet-fragment
