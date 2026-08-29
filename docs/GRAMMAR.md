@@ -2763,6 +2763,35 @@ required is refused — correctly, since an open union has no fixed set of confo
 for. The refusal names a type you never wrote, which is the confusing part: you get told you
 passed "an open union" without having typed the word `union` anywhere. Name the element type.
 
+### ★ Named arguments: what tells them from an expression
+
+`the width 3` is a named argument; `the width of box` is a field access; `the width` on its own is
+the variable `width` with `the` as the noise it is everywhere else. All three open with the same
+two tokens, and an argument list is an EXPRESSION position, so position alone does not separate
+them the way it separates a type.
+
+The parser uses `IsNamedFieldStart` — the predicate object and record literals already use for the
+identical ambiguity — plus **one rule an argument list needs and a literal does not**: a named
+argument must have a VALUE after the name. A `,` or `)` there means the whole thing was an
+expression. `(the width)` inside a record literal has no other reading, but `cast twice on (the
+width)` is an ordinary call passing a variable and always was.
+
+The minus rule comes with the predicate: binary `-` is written with spaces, so `(the offset -1)`
+passes negative one and `(the offset - 1)` is a subtraction.
+
+**Positional first, then named.** Once a name has been given, position no longer says which
+parameter is meant, so a positional argument after a named one is a parse error.
+
+**The names come from the declaration, not the type.** `FunctionType.ParameterNames` is set
+wherever a declaration registers its signature and left null wherever a function type was WRITTEN —
+`the number function given (the number)` names nothing. It is not part of type equality, so
+`given (the number width)` and `given (the number w)` stay the same type. A call whose callee has
+no names is refused rather than matched against a nearby declaration.
+
+⚠ The checker reorders into `CastExpression.Args` and empties `NamedArgs`, **before** the generic
+machinery, which reads arguments by position to decide which body a call reaches. Emptying is also
+what makes the second checking pass over a filled generic safe.
+
 ### `Return a failure.` re-propagates; `Return a failure "msg".` originates
 
 The parser checks whether a **string literal** immediately follows `failure`:

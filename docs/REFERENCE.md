@@ -2472,6 +2472,30 @@ Cast greet on ("hello").           ← as a statement (void or discarded result)
 `Cast` works on any expression that evaluates to a function — a name, a variable,
 a series element, or a method.
 
+**Named arguments** — the same `the <name> <value>` form object and record literals use.
+They may be given in any order:
+
+```cufet
+Bind number to take-half, given (the number whole, the number divisor):
+    Return whole / divisor.
+Done.
+
+State cast take-half on (the divisor 2, the whole 16).
+State cast take-half on (16, the divisor 2).
+```
+```output
+8
+8
+```
+
+Positional arguments must all come first; once one is named, the ones after it must be
+too, because position no longer says which parameter is meant. Naming one that is not a
+parameter, giving one twice, or leaving one out is a static error naming the parameter.
+
+The names come from the **declaration**, so a call reaching its function through a value
+— a parameter, a field, another call's result — stays positional: the value carries the
+parameter types, but not what they are called.
+
 **Early exit:**
 ```cufet-fragment
 Return value.    ← return a value

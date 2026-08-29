@@ -158,11 +158,7 @@ problem and is nobody's contract.
 
 ### Cufet in Cufet
 
-Three programs in increasing size, ending with the compiler. The ordering is not ceremonial:
-this tier's real blocker is stated below as **ergonomic rather than capability**, and the only
-way to find ergonomic blockers is to write large Cufet programs. These are the two largest
-realistic ones, so they are the instrument as much as they are the goal — better to meet the
-gaps across a REPL and a shell than to meet all of them at once inside a compiler.
+The ordering is not ceremonial: this tier's real blocker is stated below as **ergonomic rather than capability**, and the only way to find ergonomic blockers is to write large Cufet programs. These are the two largest realistic ones, so they are the instrument as much as they are the goal — better to meet the gaps across a REPL and a shell than to meet all of them at once inside a compiler.
 
 1. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
 
@@ -192,56 +188,28 @@ gaps across a REPL and a shell than to meet all of them at once inside a compile
     compiler becoming Cufet is what makes every last part of the language Cufet-written. The
     arc above deliberately did not borrow this promise; this item owns it.
 
-**And what the three of them unblock: compile-time macros — the `cufet` tag's expander.** Not a
-fourth program. It is here rather than in *Deferred* because its blocker is now a numbered item
-above, which is the one rule that section states about itself.
+4. **Compile-time macros — the `cufet` tag's expander.** Not a fourth program. It is here 
+    rather than in *Deferred* because its blocker is now a numbered item above, which is the one rule that section states about itself.
 
-Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and
-runtime. It is one tag of the BLOCKS type rather than a feature of its own: quoted Cufet and
-embedded foreign source live under one type name, and a macro is what consumes the `cufet` tag. See
-[DESIGN.md](DESIGN.md#foreign-interoperability) — including why hygiene and SQL injection turn out
-to be the same problem, which is what makes the unification real rather than cosmetic.
+    Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and
+    runtime. It is one tag of the BLOCKS type rather than a feature of its own: quoted Cufet and
+    embedded foreign source live under one type name, and a macro is what consumes the `cufet` tag. See [DESIGN.md](DESIGN.md#foreign-interoperability) — including why hygiene and SQL injection turn out to be the same problem, which is what makes the unification real rather than cosmetic.
 
-★ **The type shipped in 0.17.0, and a deliberately small consumer with it.** `Cite` places what a
-block holds, and a block that says what it gives back is lowered to an ordinary function. What is
-NOT built is the expander this entry means: syntax parameters, and generating AST from them.
+    ★ **The type shipped in 0.17.0, and a deliberately small consumer with it.** `Cite` places what a
+    block holds, and a block that says what it gives back is lowered to an ordinary function. What is
+    NOT built is the expander this entry means: syntax parameters, and generating AST from them.
 
-⚠ **Its blocker is item 3 above.** An expander generates Cufet AST, so building one in C# now means
-building it again in Cufet later. Macro errors are the worst part of every language that has them,
-and clear errors are this language's distinguishing feature — that tax is still paid deliberately,
-not early.
+    ⚠ **Its blocker is item 3 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately,not early.
 
-★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
-ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that a
-compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet
-interpreter *written in C* — a third implementation, or a divergence. Note also that an explicit
-`eval` is not a fexpr and would cost neither `check` nor monomorphization; the C-interpreter bill is
-what rules it out.
+    ★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
+    ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that a compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet
+    interpreter *written in C* — a third implementation, or a divergence. Note also that an explicit
+    `eval` is not a fexpr and would cost neither `check` nor monomorphization; the C-interpreter bill is what rules it out.
 
 ### Ongoing, no fixed slot
 
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary · design patterns as a book · an in-memory filesystem for the playground
-
-**Named arguments at a call site — `cast area on (the width 3, the height 4)`.** ★ **No longer
-sequenced behind anything** — Approach B shipped, which was its one stated prerequisite.
-
-The rule already exists and REFERENCE already states it generally: *"wherever a field could be
-positional instead, `the` is what says a name follows."* It is implemented in object literals and
-record literals — `a new card { the suit "hearts" }`, `a record with ("hatchback", the make
-"Honda")` — and an argument list is the third place a value could be positional or named, and the
-one place the marker does nothing. `cast area on (the width 3)` does not parse today.
-
-★ **The semantics need no invention**, because the analogous cases are already decided and
-measured: named fields reorder freely (`{ the rank 7, the suit "hearts" }` works), and a record
-takes positional first then named. Named arguments would do both the same way.
-
-⚠ **What is left of the cost.** `the width 3` (a named argument) and `the width of box` (a named
-field access) are still the same opening tokens, and an argument list is an EXPRESSION position, so
-position alone does not separate them the way it separates a type. The guess is gone from every
-type position, which is what made this entry wait; it still lives in expression positions, and this
-feature would add a case to it there — inside a parenthesised list, where the comma and the `of`
-are both load-bearing. Smaller than it was, not free.
 
 **A logic-gates book** — circuit composition over `bits`: gates as components you wire together,
 rather than the operators `bits` already shipped.

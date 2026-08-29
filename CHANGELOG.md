@@ -9,6 +9,50 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 ## [Unreleased]
 
 ### Added
+- **Named arguments at a call site** — `cast area on (the width 3, the height 4)`, in any order:
+
+  ```
+  Bind number to take-half, given (the number whole, the number divisor):
+      Return whole / divisor.
+  Done.
+
+  State cast take-half on (the divisor 2, the whole 16).
+  State cast take-half on (16, the divisor 2).
+  ```
+  ```
+  8
+  8
+  ```
+
+  ★ **No new surface.** REFERENCE already stated the rule generally — *"wherever a field could be
+  positional instead, `the` is what says a name follows"* — and object and record literals already
+  implemented it. An argument list was the third place a value could be positional or named, and
+  the one place the marker did nothing.
+
+  ★ **The ambiguity was already solved.** `IsNamedFieldStart`, which literals use, tells `the width
+  3` from `the width of box`, including the case where `-` decides it: `(the offset -1)` passes
+  negative one and `(the offset - 1)` is a subtraction, on the spacing rule GRAMMAR already states.
+
+  ⚠ **One rule an argument list needs and a literal does not:** a named argument must have a value
+  after the name. `(the width)` in a literal has no other reading, but `cast twice on (the width)`
+  is an ordinary call passing a variable and always was — so a `,` or `)` after the name means the
+  whole thing was an expression.
+
+  ★★ **The names come from the DECLARATION, not the type.** `FunctionType` carries them as a
+  non-equality field, so `given (the number width)` and `given (the number w)` are still the same
+  type. A call reaching its function through a value — a parameter, a field, another call's result
+  — carries the parameter types but not their names, and is refused with that said plainly rather
+  than matched against whichever declaration happened to be nearby.
+
+  ⚠ **Neither backend learns them.** The checker reorders into the callee's parameter order and
+  empties the named list, so the compiler emits the positional call it always has. That ordering is
+  also required: it happens before the generic machinery, which reads arguments by position to
+  decide which body a call reaches.
+
+  Works on free functions, constructors, and methods in both call forms — `cast crate's scaled on
+  (the bias 1, the factor 10)` and `cast scaled on (crate, the bias 1, the factor 10)` — and on
+  `Cast` as a statement.
+
 - **A matrix scales by a number** — `m * 2` and `2 * m` — and needs no failure handling:
 
   ```
