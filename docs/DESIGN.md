@@ -158,6 +158,39 @@ What it means for a value not to be there, and how types relate.
   nobody can explain to a learner, and a teaching language that ships
   `IEnumerable<out T>` has lost the plot.
 
+- **No enums. A closed union already is one, and a stronger one.** The property worth having is
+  not the syntax — it is that the compiler proves every case is handled, and `Judge` over a closed
+  union proves exactly that: `Otherwise` becomes optional and a missing case is a static error
+  naming the case. An enum would be a second closed-set mechanism doing what the first already
+  does, and it would fork `Judge` into two stories about exhaustiveness instead of one.
+
+  ```cufet
+  Define object red.
+  Define object green.
+  Define object blue.
+
+  Bind text to name-of, given (the (red or green or blue) light):
+      Judge light, where it is:
+          A red, return "red".
+          A green, return "green".
+          A blue, return "blue".
+      Done.
+  Done.
+
+  State cast name-of on (a new green).
+  ```
+  ```output
+  green
+  ```
+
+  ★ A case that carries nothing says so once — `Define object red.` and `a new red`, with no
+  `with ()` and no `{ }`. That ceremony was the friction that would have made someone ask for
+  enums, and removing it was a parser tweak rather than a feature.
+
+  ⚠ **No ordinal or ordering either**, and that is the same decision rather than a separate gap.
+  It is rarely what anyone actually wants from an enum, and a method on the object gives it to
+  whoever does.
+
 ---
 
 ## Objects: lifetime and accessors

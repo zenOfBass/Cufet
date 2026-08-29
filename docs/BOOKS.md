@@ -124,6 +124,10 @@ the same sequence in both.
 ### Matrix
 
 `matrix` is a rectangular grid of numbers, available inside `Pull a book on collections.`
+
+★ **Scaling by a number needs no failure handling.** `m * 2` and `2 * m` multiply every element,
+and there are no dimensions to disagree — so scaling gives a plain `matrix`, unlike `+`, `-` and
+matrix product, which are fallible because two matrices can be the wrong shapes for each other.
 Arithmetic is exact decimal, and is **fallible** — dimensions have to agree, so `+`, `-`
 and `*` on matrices must be handled with `Try to:`, `but on failure`, or `or pass the
 failure off`. Using one bare is a static type error.

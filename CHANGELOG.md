@@ -9,6 +9,37 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 ## [Unreleased]
 
 ### Added
+- **A matrix scales by a number** — `m * 2` and `2 * m` — and needs no failure handling:
+
+  ```
+  Pull a book on collections.
+      Define m as a matrix with ((1, 2), (3, 4)).
+      State m * 2.
+  Done.
+  ```
+  ```
+  matrix((2, 4), (6, 8))
+  ```
+
+  ★★ **Scaling is the one matrix operation that cannot fail**, because there are no dimensions to
+  disagree — so it gives a plain `matrix` rather than `matrix or failure`. `+`, `-` and the matrix
+  product stay fallible, and that asymmetry is deliberate: making scaling fallible for consistency
+  with its neighbours would force a `Try` around an operation with no failure in it, which teaches
+  a reader the opposite of the truth. Nothing about `*` promises a failure; the dimensions do.
+
+  ★ Both orders, because `2M` and `M2` are the same thing wherever matrices are written. ⚠ That is
+  not the operator-overload rule, which names an ORDERED pair — a writer's `-` and `/` are not
+  commutative and the language cannot know which of theirs is. This is built-in multiplication by
+  a scalar, commutative by definition.
+
+  ⚠ It does NOT go through operator overloading, which the roadmap had assumed for a long
+  time. `matrix` is a BUILT-IN the `collections` book puts in scope, not an object type, and
+  overloads only register on object types — so mixed-type dispatch never reached it. Matrix
+  arithmetic is a built-in rule with native evaluation beside it, and this is one more arm.
+
+  ⚠ Only `*`. `m + 2` has no meaning — adding a scalar to every element is a different operation
+  with a different name in every language that has both.
+
 - **A type that carries nothing says so once.** `with ()` may be dropped from a definition with no
   fields, and `{ }` from a literal with nothing in it:
 

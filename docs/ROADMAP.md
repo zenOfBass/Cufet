@@ -223,18 +223,6 @@ what rules it out.
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary · design patterns as a book · an in-memory filesystem for the playground
 
-**`matrix * number` scalar scaling.** ⚠ This does NOT go through operator overloading, which was
-the standing assumption here and was wrong. `matrix` is a BUILT-IN type the `collections` book puts
-in scope, not an object type, and overloads only register on object types — so mixed-type dispatch
-(shipped) does not reach it. Matrix arithmetic is a built-in rule in the checker with native
-evaluation beside it, and scaling would be one more arm in those same three places.
-
-★ One decision to make first: `matrix + matrix` is fallible because dimensions can mismatch, and
-scaling cannot fail. So `m * 2` should almost certainly give a plain `matrix` rather than forcing a
-`Try` around something with no failure in it — which would make `*` on matrices fallible in one
-direction and not the other. ★ The settled decision nearby lives in [DESIGN.md](DESIGN.md): the
-Hadamard product would be a named `collections` function if ever, because `*` means matrix product.
-
 **Named arguments at a call site — `cast area on (the width 3, the height 4)`.** ★ **No longer
 sequenced behind anything** — Approach B shipped, which was its one stated prerequisite.
 
@@ -412,37 +400,13 @@ indistinguishable from having forgotten.
   Casing a buffer in place is therefore a plain per-element map, with no resize and no special
   case. The growth problem is real only for *full* case mapping, which neither backend does.
 
-- **★ Enums — DECLINED. A closed union already is one, and a stronger one.** The
-  property worth having is not the syntax, it is that the compiler proves every case is handled,
-  and `Judge` over a closed union proves exactly that: `Otherwise` becomes optional and a missing
-  case is a static error. Adding enums would be a second closed-set mechanism doing what the first
-  already does, and it would fork `Judge` — some closed sets unions, some enums, two stories about
-  exhaustiveness instead of one. This works today:
-
-  ```
-  Define object red.
-  Define object green.
-  Define object blue.
-
-  Bind text to name-of, given (the (red or green or blue) c):
-      Judge c, where it is:
-          A red, return "red".
-          A green, return "green".
-          A blue, return "blue".
-      Done.
-  Done.
-  ```
-
-  Two gaps remain, each an addition to UNIONS rather than a reason for a new construct. Recorded
-  so the enum question does not have to be re-argued to reach them. (The third — that an empty
-  case had to be written `with ()` and built with `{ }` — shipped; it was the friction that would
-  have made someone ask for enums, and it was a parser tweak.)
-
-  - **A union cannot be asked for its members**, so there is no way to walk every case. Real,
-    occasionally missed. *Blocker:* what it would even return — the members are different types,
-    so a series of them is not a type the language can currently spell.
-  - **No ordinal or ordering.** Rarely what anyone actually wants from an enum, and easy to fake
-    with a method. Listed for completeness; would decline again.
+- **A hand-written list of a union's cases can fall out of step with it.** Walking every case
+  works today — `a catalogue of (red or green or blue)` holds one of each, and `For each` runs
+  them — but that list is written by hand. Add a fourth case and `Judge` refuses every judgement
+  that misses it, while the catalogue silently stays three long. What is missing is a way to ASK
+  the union, so the list cannot drift.
+  ⚠ Only meaningful where every case is constructible with no arguments; `(number or text)` has no
+  "one of each", and neither does a union whose members carry fields.
 
 - **Reference-semantics opt-in.** Objects and map values are value-typed. An explicit way to
   ask for shared semantics has no syntax. *Blocker:* its own design session; it interacts with
