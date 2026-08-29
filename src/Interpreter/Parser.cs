@@ -597,6 +597,51 @@ public sealed class Parser
     // ★ The single funnel every one of this file's 37 type reads goes through, which is what makes
     // the position markable in one place instead of at each of them. Nested reads (`a series of
     // stack of number`) simply raise the depth again.
+    /// <summary>
+    /// The elements `a catalogue of (red or green or blue) with one of each` stands for — `a new
+    /// red`, `a new green`, `a new blue`, in the order the union names them.
+    /// </summary>
+    /// <remarks>
+    /// ★ Read off the ANNOTATION, which is a written-out type, never off a variable's type. A
+    /// variable's type at a point is not its declared type — a `Judge` arm narrows it — so
+    /// `one of each` on a subject would answer differently inside an arm than outside it, and the
+    /// answer would depend on where the writer happened to stand.
+    /// <para>
+    /// ⚠ Refused here only for what is visible in the writing: the union has to be spelled out, and
+    /// each case has to be a type NAME. Whether that name turns out to carry fields is the
+    /// checker's half — see <c>CheckOneOfEach</c>.
+    /// </para>
+    /// </remarks>
+    private static List<IExpression> OneOfEachElements(CufetType annotation, int line, int column)
+    {
+        if (annotation is not UnionType { Cases: { } cases })
+            throw new ParseException(line, column,
+                "'one of each' needs the catalogue to say which cases it holds.\n\n" +
+                "Write the union it is a catalogue of, and the values follow from it:\n" +
+                "    a catalogue of (red or green or blue) with one of each");
+
+        var elements = new List<IExpression>();
+        var seen     = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var one in cases)
+        {
+            if (one is not ObjectType obj)
+                throw new ParseException(line, column,
+                    $"'one of each' can't make a {TypeChecker.FormatType(one)}.\n\n" +
+                    "Every case has to be a type you can name and make with nothing in it, the way " +
+                    "'Define object red.' does. There is no one particular " +
+                    $"{TypeChecker.FormatType(one)} to put in the catalogue.");
+
+            // ⚠ One per CASE, not per mention. `(red or red)` names one case and the language
+            // already agrees: a single `A red` arm satisfies `Judge` over it. Without this, the
+            // two would disagree about how many cases that union has.
+            if (!seen.Add(obj.Name)) continue;
+
+            elements.Add(new ObjectLiteral(obj.Name, [], [], line, column,
+                                           obj.TypeArguments.Count > 0 ? obj.TypeArguments : null));
+        }
+        return elements;
+    }
+
     private CufetType ParseTypeAnnotation() => InType(ParseTypeAnnotationCore);
 
     private CufetType ParseTypeAnnotationCore()
@@ -3442,22 +3487,43 @@ public sealed class Parser
                 }
                 catAnnotation ??= UnionType.Open;
                 var catElems = new List<IExpression>();
+                var catOneOfEach = false;
                 if (Peek().Type == TokenType.With)
                 {
                     Advance(); SkipNoise(); // consume 'with'
-                    Consume(TokenType.LParen); SkipNoise();
-                    if (Peek().Type != TokenType.RParen)
+
+                    // `with one of each` — the annotation beside it already names every case, so
+                    // the values are read off it instead of written out a second time. That second
+                    // writing is the thing that drifts: adding a case to the union is checked
+                    // wherever the union is judged, and silently ignored by a list of values.
+                    //
+                    // ★ No new keyword. `one` and `each` are both already reserved, and the phrase
+                    // is the one the language's own prose uses for this collection — "a catalogue
+                    // of (red or green or blue) holds one of each".
+                    if (Peek().Type == TokenType.One)
                     {
-                        catElems.Add(ParseExpression()); SkipNoise();
-                        while (Peek().Type == TokenType.Comma)
-                        {
-                            Advance(); SkipNoise();
-                            catElems.Add(ParseExpression()); SkipNoise();
-                        }
+                        Advance(); SkipNoise();          // consume 'one'
+                        Consume(TokenType.Of); SkipNoise();
+                        Consume(TokenType.Each);
+                        catElems.AddRange(OneOfEachElements(catAnnotation, catLine, catCol));
+                        catOneOfEach = true;
                     }
-                    Consume(TokenType.RParen);
+                    else
+                    {
+                        Consume(TokenType.LParen); SkipNoise();
+                        if (Peek().Type != TokenType.RParen)
+                        {
+                            catElems.Add(ParseExpression()); SkipNoise();
+                            while (Peek().Type == TokenType.Comma)
+                            {
+                                Advance(); SkipNoise();
+                                catElems.Add(ParseExpression()); SkipNoise();
+                            }
+                        }
+                        Consume(TokenType.RParen);
+                    }
                 }
-                baseExpr = new SeriesLiteral(catElems, catAnnotation, catLine, catCol);
+                baseExpr = new SeriesLiteral(catElems, catAnnotation, catLine, catCol, catOneOfEach);
                 break;
             }
             case TokenType.AtlasKw:
