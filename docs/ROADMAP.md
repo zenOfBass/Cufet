@@ -415,9 +415,9 @@ indistinguishable from having forgotten.
   exhaustiveness instead of one. This works today:
 
   ```
-  Define object red with ().
-  Define object green with ().
-  Define object blue with ().
+  Define object red.
+  Define object green.
+  Define object blue.
 
   Bind text to name-of, given (the (red or green or blue) c):
       Judge c, where it is:
@@ -428,13 +428,11 @@ indistinguishable from having forgotten.
   Done.
   ```
 
-  Three real gaps remain, and each is an addition to UNIONS rather than a reason for a new
-  construct. Recorded so the enum question does not have to be re-argued to reach them:
+  Two gaps remain, each an addition to UNIONS rather than a reason for a new construct. Recorded
+  so the enum question does not have to be re-argued to reach them. (The third — that an empty
+  case had to be written `with ()` and built with `{ }` — shipped; it was the friction that would
+  have made someone ask for enums, and it was a parser tweak.)
 
-  - **`Define object red.` is a parse error** — a case that carries nothing still needs
-    `with ()`, and `a new green` still needs `{ }`. This is the friction that would make someone
-    ask for enums in the first place, and it is a parser tweak rather than a feature. The
-    cheapest of the three by far.
   - **A union cannot be asked for its members**, so there is no way to walk every case. Real,
     occasionally missed. *Blocker:* what it would even return — the members are different types,
     so a series of them is not a type the language can currently spell.

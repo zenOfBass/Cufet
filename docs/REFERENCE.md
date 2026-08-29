@@ -1802,6 +1802,38 @@ Done.
 
 Inside a method body, `one` refers to the receiver object (`one's make`).
 
+**A type that carries nothing says so once.** `with ()` may be dropped when there are no fields,
+and so may the `{ }` when there is nothing to put in it — the same rule maps already follow, where
+`a map from text to number.` is an empty typed map:
+
+```cufet
+Define object red.
+Define light as a new red.
+```
+
+★ That is what makes a closed union usable as an **enumeration**, and a stronger one than a
+separate `enum` construct would be — `Judge` over a closed union proves every case is handled, so
+`Otherwise` is optional and a missing case is a static error:
+
+```cufet
+Define object red.
+Define object green.
+Define object blue.
+
+Bind text to name-of, given (the (red or green or blue) light):
+    Judge light, where it is:
+        A red, return "red".
+        A green, return "green".
+        A blue, return "blue".
+    Done.
+Done.
+
+State cast name-of on (a new green).
+```
+```output
+green
+```
+
 **Instantiation** — `{}` literal:
 ```cufet-fragment
 Define car as a new vehicle { the make "Honda", the year 2021 }.

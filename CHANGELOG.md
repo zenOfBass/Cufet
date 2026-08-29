@@ -9,6 +9,41 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 ## [Unreleased]
 
 ### Added
+- **A type that carries nothing says so once.** `with ()` may be dropped from a definition with no
+  fields, and `{ }` from a literal with nothing in it:
+
+  ```
+  Define object red.
+  Define light as a new red.
+  ```
+
+  Both were parse errors — *"expected With, got Dot"* and *"expected LBrace, got Dot"*. The long
+  forms still mean what they meant; this is a shorthand, not a replacement. ★ It is the same rule
+  maps already follow, where `a map from text to number.` is an empty typed map.
+
+  ★★ **What it is for: a closed union of empty objects is an enumeration**, and a stronger one than
+  a separate `enum` construct would be, because `Judge` over a closed union PROVES every case is
+  handled — `Otherwise` becomes optional and a missing case is a static error naming the case:
+
+  ```
+  Define object red.
+  Define object green.
+  Define object blue.
+
+  Bind text to name-of, given (the (red or green or blue) light):
+      Judge light, where it is:
+          A red, return "red".
+          A green, return "green".
+          A blue, return "blue".
+      Done.
+  Done.
+  ```
+
+  DESIGN records enums as declined for exactly that reason — a second closed-set mechanism would
+  fork `Judge` and give the language two stories about exhaustiveness instead of one. The `with ()`
+  on every empty case was the friction that would have made someone ask for them anyway, and it
+  turned out to be a parser tweak rather than a feature.
+
 
 - **`unto` works on a definition that leaves a blank, both ways.** Naming the template attaches the
   member to every filling; naming one filling attaches it to that filling alone:
