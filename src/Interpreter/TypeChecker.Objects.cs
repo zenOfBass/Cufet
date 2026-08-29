@@ -880,38 +880,75 @@ public sealed partial class TypeChecker
     // Called after Pass1Hoist so all ObjectTypes are registered before body-checking.
     private void Pass2CheckOverloads(Program program)
     {
-        var seen = new HashSet<(string, TokenType)>();
+        var seen = new HashSet<(string, string, TokenType)>();
         foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is not OperatorOverloadDeclaration oad) continue;
 
-            if (!_objectDefs.TryGetValue(oad.OperandTypeName, out var objType))
-                throw TypeError(
-                    $"'{oad.OperandTypeName}' is not a defined object type — operator overload has no type to register on",
-                    null, oad.Line, oad.Column,
-                    $"declare an overload for '{oad.OperandTypeName}'",
-                    $"Define 'object {oad.OperandTypeName}' before declaring operator overloads for it, or check the spelling.");
+            var left  = ResolveOperandType(oad, oad.LeftTypeName);
+            var right = ResolveOperandType(oad, oad.RightTypeName);
 
-            var key = (oad.OperandTypeName, oad.Operator);
+            // ⚠ At least one side must be an object the program defined. Two built-ins would
+            // SHADOW arithmetic — `number * number` already means multiplication everywhere, and
+            // REFERENCE has always said built-ins cannot be shadowed. Requiring one object is what
+            // keeps that true while letting `vec2 * number` exist.
+            if (left is not ObjectType && right is not ObjectType)
+                throw TypeError(
+                    $"'{oad.LeftTypeName} {FormatOp(oad.Operator)} {oad.RightTypeName}' has no object "
+                  + "type in it, so there is nothing to overload on",
+                    "Both sides are built-in, and a built-in operator cannot be shadowed — "
+                  + $"'{oad.LeftTypeName} {FormatOp(oad.Operator)} {oad.RightTypeName}' already means "
+                  + "what it means",
+                    oad.Line, oad.Column,
+                    $"overload '{FormatOp(oad.Operator)}' for two built-in types",
+                    "An overload needs one of its sides to be an object type you defined.");
+
+            var key = (oad.LeftTypeName, oad.RightTypeName, oad.Operator);
             if (!seen.Add(key))
                 throw TypeError(
-                    $"'{oad.OperandTypeName}' already has an overload for '{FormatOp(oad.Operator)}'",
+                    $"'{oad.LeftTypeName} {FormatOp(oad.Operator)} {oad.RightTypeName}' already has an overload",
                     null, oad.Line, oad.Column,
-                    $"declare a second '{FormatOp(oad.Operator)}' overload for '{oad.OperandTypeName}'",
-                    "Each operator can only be overloaded once per type. Remove the duplicate.");
+                    $"declare a second '{FormatOp(oad.Operator)}' overload for that pair",
+                    "Each operator can only be overloaded once per ORDERED pair of types. "
+                  + $"'{oad.RightTypeName} {FormatOp(oad.Operator)} {oad.LeftTypeName}' is a "
+                  + "different pair and may be declared separately.");
 
-            CheckOperatorOverload(oad, objType);
+            CheckOperatorOverload(oad, left, right);
         }
     }
 
-    private void CheckOperatorOverload(OperatorOverloadDeclaration oad, ObjectType objType)
+    /// <summary>One operand's written type name, resolved.</summary>
+    /// <remarks>
+    /// ⚠ Only the shapes an operand can actually BE: an object the program defined, or a built-in
+    /// scalar. A series or a map cannot be an operand type — nothing would be gained and the
+    /// dispatch key is a name, which those do not have a single one of.
+    /// </remarks>
+    private CufetType ResolveOperandType(OperatorOverloadDeclaration oad, string typeName)
+    {
+        if (_objectDefs.TryGetValue(typeName, out var objType)) return objType;
+        return typeName.ToLowerInvariant() switch
+        {
+            "number" => CufetType.Number,
+            "text"   => CufetType.Text,
+            "fact"   => CufetType.Fact,
+            "bits"   => CufetType.Bits,
+            _ => throw TypeError(
+                    $"'{typeName}' is not a defined object type — an operator overload has no type to register on",
+                    null, oad.Line, oad.Column,
+                    $"declare an overload for '{typeName}'",
+                    $"Define 'object {typeName}' before declaring operator overloads for it, or check the spelling."),
+        };
+    }
+
+    private void CheckOperatorOverload(OperatorOverloadDeclaration oad, CufetType leftType, CufetType rightType)
     {
         bool isFallible = HasDirectFailureReturn(oad.Body);
 
         var saved = SaveScopes();
         ImportTopLevelVisible(saved);
-        Scope[oad.LeftName]  = new TypeInfo(objType, new VariableReference(oad.LeftName, 0, 0), oad.Line);
-        Scope[oad.RightName] = new TypeInfo(objType, new VariableReference(oad.RightName, 0, 0), oad.Line);
+        // Each operand carries ITS OWN type — the two may differ, which is the whole point.
+        Scope[oad.LeftName]  = new TypeInfo(leftType,  new VariableReference(oad.LeftName, 0, 0), oad.Line);
+        Scope[oad.RightName] = new TypeInfo(rightType, new VariableReference(oad.RightName, 0, 0), oad.Line);
 
         var prevInFunction       = _inFunction;
         var prevReturnType       = _expectedReturnType;
@@ -934,7 +971,8 @@ public sealed partial class TypeChecker
 
             if (!DefinitelyReturns(oad.Body))
                 throw TypeError(
-                    $"'{FormatOp(oad.Operator)}' overload for '{oad.OperandTypeName}' can reach its end without returning a value",
+                    $"the '{oad.LeftTypeName} {FormatOp(oad.Operator)} {oad.RightTypeName}' overload can reach its "
+                  + "end without returning a value",
                     null, oad.Line, oad.Column,
                     "define an operator overload that might not return a value",
                     "Make sure every path through the overload ends with a return statement.");
@@ -952,7 +990,7 @@ public sealed partial class TypeChecker
             RestoreScopes(saved);
 
             if (inferredReturn != null)
-                _overloadReturnTypes[(oad.OperandTypeName, oad.Operator)] = inferredReturn;
+                _overloadReturnTypes[(oad.LeftTypeName, oad.RightTypeName, oad.Operator)] = inferredReturn;
         }
     }
 

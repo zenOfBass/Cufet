@@ -4799,6 +4799,29 @@ public sealed class Parser
     // Bind overloading <op>, given (the <left> is a <type>, the <right> is a <type>): ... Done.
     // Top-level only. No name — invoked by the operator. Same-type binary; arithmetic ops only.
     // Fallibility inferred from body (TypeChecker pass); return type inferred from body.
+    /// <summary>One operand's type in an overload declaration — an object type, or a built-in.</summary>
+    /// <remarks>
+    /// ★ A built-in is allowed on ONE side, which is what `vec2 * number` needs. The checker is
+    /// what refuses two built-ins: `number * number` would shadow arithmetic, and REFERENCE has
+    /// always said built-ins cannot be shadowed.
+    ///
+    /// ⚠ `number` lexes as a KEYWORD while `text`, `fact` and `bits` are contextual identifiers,
+    /// so this cannot simply consume an Identifier — it matches the WORD, which is the same way
+    /// every other contextual type name is recognised in this parser.
+    /// </remarks>
+    private string ParseOverloadOperandTypeName()
+    {
+        var tok = Peek();
+        bool builtIn = tok.Lexeme.Equals("number", StringComparison.OrdinalIgnoreCase)
+                    || tok.Lexeme.Equals("text",   StringComparison.OrdinalIgnoreCase)
+                    || tok.Lexeme.Equals("fact",   StringComparison.OrdinalIgnoreCase)
+                    || tok.Lexeme.Equals("bits",   StringComparison.OrdinalIgnoreCase);
+        if (tok.Type != TokenType.Identifier && !builtIn)
+            throw new ParseException(tok, "a type name for this operand");
+        Advance();
+        return tok.Lexeme;
+    }
+
     private OperatorOverloadDeclaration ParseOverloadDeclaration()
     {
         if (_nestDepth > 0)
@@ -4838,7 +4861,7 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Is);
         SkipNoise(); // eats 'a' article
-        var typeName = Consume(TokenType.Identifier).Lexeme;
+        var leftTypeName = ParseOverloadOperandTypeName();
         SkipNoise();
 
         Consume(TokenType.Comma);
@@ -4849,15 +4872,11 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Is);
         SkipNoise(); // eats 'a' article
-        var rightTypeName = Consume(TokenType.Identifier).Lexeme;
+        var rightTypeName = ParseOverloadOperandTypeName();
         SkipNoise();
 
         Consume(TokenType.RParen);
         SkipNoise();
-
-        if (typeName != rightTypeName)
-            throw new ParseException(Peek(),
-                $"— both operands of an operator overload must be the same type (left is '{typeName}', right is '{rightTypeName}')");
 
         _functionDepth++;
         var body = ParseValueBodyOrBlock();   // an overload always returns, so its inline form is an expression
@@ -4866,7 +4885,8 @@ public sealed class Parser
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
 
-        return new OperatorOverloadDeclaration(op, leftName, rightName, typeName, body, line, col);
+        return new OperatorOverloadDeclaration(op, leftName, rightName, leftTypeName, rightTypeName,
+                                              body, line, col);
     }
 
     // Returns the handler keyword (Failure or Exception) following 'In case of' at

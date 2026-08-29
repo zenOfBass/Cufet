@@ -11665,16 +11665,21 @@ public class InterpreterTests
             "Done.\n"));
     }
 
-    // Both operand types must match (parse-time check).
+    // ! This asserted the OPPOSITE until 2026-08-28: mixed operand types were a parse error, and
+    // the parser read both type names only to refuse them when they differed. Operand types are an
+    // ORDERED PAIR now, so two different ones are the point rather than the mistake.
     [Fact]
-    public void OverloadOp_ParseError_MixedOperandTypes()
+    public void OverloadOp_MixedOperandTypes_AreAllowed()
     {
-        Assert.Throws<ParseException>(() => Run(
+        Assert.Equal("7", Run(
             OverloadPreamble +
             "Define object other with (the number v).\n" +
             "Bind overloading +, given (the lhs is a vec2, the rhs is a other):\n" +
-            "    Return a new vec2 { the x 0, the y 0 }.\n" +
-            "Done.\n"));
+            "    Return lhs's x + rhs's v.\n" +
+            "Done.\n" +
+            "Define u as a new vec2 { the x 3, the y 0 }.\n" +
+            "Define o as a new other { the v 4 }.\n" +
+            "State u + o.\n"));
     }
 
     // ── Chance book ───────────────────────────────────────────────────────────

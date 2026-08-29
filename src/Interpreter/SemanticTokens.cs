@@ -357,9 +357,9 @@ public sealed class SemanticTokenizer
             {
                 var cursor = Cursor.At(_tokens, o.Line, o.Column);
                 EmitFound(cursor, o.LeftName,  SemanticTokenKind.Parameter, SemanticTokenModifier.Declaration);
-                EmitFound(cursor, o.OperandTypeName, SemanticTokenKind.Type);
+                EmitFound(cursor, o.LeftTypeName, SemanticTokenKind.Type);
                 EmitFound(cursor, o.RightName, SemanticTokenKind.Parameter, SemanticTokenModifier.Declaration);
-                EmitFound(cursor, o.OperandTypeName, SemanticTokenKind.Type);
+                EmitFound(cursor, o.RightTypeName, SemanticTokenKind.Type);
                 EnterScope();
                 Bind(o.LeftName,  SemanticTokenKind.Parameter);
                 Bind(o.RightName, SemanticTokenKind.Parameter);

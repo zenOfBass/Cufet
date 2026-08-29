@@ -847,4 +847,46 @@ public class PipelineRecordObjectTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    /// <summary>
+    /// Mixed-type operator overloads, in both orders, on both backends.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ The compiler's C symbol for an overload used to be built from ONE operand type
+    /// (`cop_vec2_star`). With `vec2 * number` and `number * vec2` both declarable that emits the
+    /// same symbol twice, so the name carries both sides now. This test is what would catch a
+    /// regression there: `vec2 * number` and `vec2 * vec2` SHARE a left type and operator, which
+    /// is exactly the pair a left-name-only symbol would collapse into one function.
+    /// </remarks>
+    [Fact]
+    public void MixedTypeOperatorOverloads_AgreeOnBothBackends()
+    {
+        const string src = """
+            Define object vec2 with (the number x, the number y).
+
+            Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):
+                Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.
+            Done.
+
+            Bind overloading *, given (the lhs is a vec2, the rhs is a number):
+                Return a new vec2 { the x lhs's x * rhs, the y lhs's y * rhs }.
+            Done.
+
+            Bind overloading *, given (the lhs is a number, the rhs is a vec2):
+                Return a new vec2 { the x lhs * rhs's x, the y lhs * rhs's y }.
+            Done.
+
+            Bind overloading *, given (the lhs is a vec2, the rhs is a vec2):
+                Return lhs's x * rhs's x + lhs's y * rhs's y.
+            Done.
+
+            Define u as a new vec2 { the x 1, the y 2 }.
+            Define w as a new vec2 { the x 3, the y 4 }.
+            State u + w.
+            State u * 3.
+            State 10 * u.
+            State u * w.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

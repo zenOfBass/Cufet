@@ -116,6 +116,11 @@ def classify(cufet, scratch, raw, previous_tag):
 
     # A catalogue of statement HEADS — `If x is 5:`, `While count < bound, repeat:`,
     # `In case of failure:`. The docs list these to show surface forms; a body would be noise.
+    #
+    # ⚠ TWO block-opening heads in a row is NOT this shape, even though it looks like it: the
+    # second lands inside the first, and a construct with a placement rule (an operator overload
+    # is top-level only) then refuses it for a reason that has nothing to do with being cut short.
+    # Those belong untagged, like the phrase tables laid out in columns.
     if body and all(l.rstrip().endswith((":", ",")) or l.lstrip().startswith("←") for l in body):
         return "cufet-fragment"
 

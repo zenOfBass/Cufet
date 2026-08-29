@@ -755,7 +755,20 @@ public sealed partial class TypeChecker
 
     // Registered operator overload return types: (typeName, op) → return type (T or FailureType(T)).
     // Populated by Pass2CheckOverloads before any expression type-checking begins.
-    private readonly Dictionary<(string TypeName, TokenType Op), CufetType> _overloadReturnTypes = new();
+    // Keyed on the ORDERED pair: `vec2 * number` and `number * vec2` are different entries.
+    private readonly Dictionary<(string Left, string Right, TokenType Op), CufetType> _overloadReturnTypes = new();
+
+    /// <summary>The name an operand type is keyed under in the overload table, or null when it
+    /// is a shape that cannot appear in one.</summary>
+    private static string? OperandTypeName(CufetType? t) => t switch
+    {
+        ObjectType ot => ot.Name,
+        NumberType    => "number",
+        TextType      => "text",
+        FactType      => "fact",
+        BitsType      => "bits",
+        _             => null,
+    };
 
     // ── Scope chain helpers ────────────────────────────────────────────────
     // The current (innermost) scope.
@@ -2902,20 +2915,25 @@ public sealed partial class TypeChecker
         var l = left;
         var r = right;
 
-        // Operator overload: same-type object operands with a registered overload take
-        // priority over the numeric path. Dispatch before the switch.
+        // Operator overload: an operand PAIR with a registered overload takes priority over the
+        // numeric path. Dispatch before the switch.
+        //
+        // ★ The lookup is on the ordered pair, so `vec2 * number` and `number * vec2` are found
+        // separately and neither implies the other. One of the two names always belongs to an
+        // object (the checker refuses a pair of built-ins), so a built-in operator can never be
+        // reached this way.
         if (bin.Op is TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash)
         {
-            if (l is ObjectType lo && r is ObjectType ro && lo.Name == ro.Name &&
-                _overloadReturnTypes.TryGetValue((lo.Name, bin.Op), out var overloadReturn))
+            if (OperandTypeName(l) is { } ln && OperandTypeName(r) is { } rn &&
+                _overloadReturnTypes.TryGetValue((ln, rn, bin.Op), out var overloadReturn))
             {
                 if (overloadReturn is FailureType ft)
                 {
                     if (!_inTryBlock && !_inFailureHandledContext)
                         throw TypeError(
-                            $"'{FormatOp(bin.Op)}' on '{lo.Name}' can fail — you must handle the failure",
+                            $"'{ln} {FormatOp(bin.Op)} {rn}' can fail — you must handle the failure",
                             null, bin.Line, bin.Column,
-                            $"use '{FormatOp(bin.Op)}' on '{lo.Name}' without handling the potential failure",
+                            $"use '{FormatOp(bin.Op)}' on '{ln}' and '{rn}' without handling the potential failure",
                             "Wrap this in a 'Try to: / In case of failure:' block, or use 'but on failure <default>'.");
                     return _inTryBlock ? ft.Inner : (CufetType)ft;
                 }

@@ -246,11 +246,21 @@ public sealed record BindStatement(
 // No name — invoked by writing the operator. Same-type binary only.
 // Fallible when the body contains 'return a failure'; the type checker infers this and
 // makes `a <op> b` a fallible expression (FailureType(T)) subject to the strict-fallible rule.
+// ★ The operand types are an ORDERED PAIR, and the order is the whole rule: `vec2 * number`
+// declares that and only that. `number * vec2` is a separate declaration, written when it is
+// wanted.
+//
+// ⚠ Swapping is not a shorthand anyone could have: `2 - u` is not `u - 2`, and `2 / u` is not
+// `u / 2`, so a rule that made one declaration cover both orders would have to special-case `+`
+// and `*` — a second rule to remember, in exchange for saving one line. Ordered pairs also keep
+// the property REFERENCE already claims for overloads: never more than one candidate, and never
+// any ambiguity about which applies.
 public sealed record OperatorOverloadDeclaration(
     TokenType Operator,       // Plus, Minus, Star, or Slash
     string LeftName,          // parameter name for the left operand
     string RightName,         // parameter name for the right operand
-    string OperandTypeName,   // type name string (both operands; resolved in TypeChecker)
+    string LeftTypeName,      // type name of the LEFT operand  (resolved in TypeChecker)
+    string RightTypeName,     // type name of the RIGHT operand (resolved in TypeChecker)
     IReadOnlyList<IStatement> Body,
     int Line,
     int Column

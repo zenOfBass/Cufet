@@ -474,7 +474,21 @@ public sealed partial class Interpreter
 
     private readonly Dictionary<string, ObjectDefinition> _objectDefs = new();
     private readonly Dictionary<string, UnmakerDeclaration> _unmakeDefs = new();
-    private readonly Dictionary<(string TypeName, TokenType Op), OperatorOverloadDeclaration> _overloadDefs = new();
+    // Keyed on the ORDERED operand pair — `vec2 * number` and `number * vec2` are separate.
+    private readonly Dictionary<(string Left, string Right, TokenType Op), OperatorOverloadDeclaration> _overloadDefs = new();
+
+    /// <summary>The overload-table name for a runtime value — the checker's `OperandTypeName`,
+    /// asked of a value instead of a type. ⚠ The two must agree, or a program that checks one
+    /// way runs another.</summary>
+    private static string? RuntimeOperandName(object? v) => v switch
+    {
+        ObjectValue ov => ov.TypeName,
+        decimal        => "number",
+        string         => "text",
+        bool           => "fact",
+        BitsValue      => "bits",
+        _              => null,
+    };
 
     private int _callDepth = 0;
     private readonly int _maxCallDepth;
@@ -571,7 +585,7 @@ public sealed partial class Interpreter
         foreach (var stmt in AstSearch.EveryStatement(program.Statements))
         {
             if (stmt is OperatorOverloadDeclaration oad)
-                _overloadDefs[(oad.OperandTypeName, oad.Operator)] = oad;
+                _overloadDefs[(oad.LeftTypeName, oad.RightTypeName, oad.Operator)] = oad;
         }
 
         // Merge 'unto' methods/getters/setters (declared outside the object body) into their
@@ -1817,10 +1831,11 @@ public sealed partial class Interpreter
         var lv2 = Evaluate(b.Left);
         var rv2 = Evaluate(b.Right);
 
-        // Operator overload dispatch: same-type object operands take priority over numeric path.
+        // Operator overload dispatch: a registered operand PAIR takes priority over the numeric
+        // path. The pair is ordered, so `vec2 * number` is found by that key alone.
         if (b.Op is TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash &&
-            lv2 is ObjectValue loV && rv2 is ObjectValue roV && loV.TypeName == roV.TypeName &&
-            _overloadDefs.TryGetValue((loV.TypeName, b.Op), out var oad))
+            RuntimeOperandName(lv2) is { } lname && RuntimeOperandName(rv2) is { } rname &&
+            _overloadDefs.TryGetValue((lname, rname, b.Op), out var oad))
             return ExecuteOperatorOverload(oad, lv2, rv2, b.Line);
 
         // Matrix arithmetic: +, -, * built-in for (matrix, matrix) operands.
@@ -1865,7 +1880,8 @@ public sealed partial class Interpreter
         {
             _callDepth--;
             throw new RuntimeException(
-                $"Operator '{OpSymbol(oad.Operator)}' overload for '{oad.OperandTypeName}' caused infinite recursion (line {line}).");
+                $"The '{oad.LeftTypeName} {OpSymbol(oad.Operator)} {oad.RightTypeName}' overload caused infinite " +
+                $"recursion (line {line}).");
         }
 
         var saved      = SaveScopes();
@@ -1895,7 +1911,8 @@ public sealed partial class Interpreter
 
         if (returnValue == null)
             throw new RuntimeException(
-                $"Operator '{OpSymbol(oad.Operator)}' overload for '{oad.OperandTypeName}' did not return a value (line {line}).");
+                $"The '{oad.LeftTypeName} {OpSymbol(oad.Operator)} {oad.RightTypeName}' overload did not return " +
+                $"a value (line {line}).");
         return returnValue;
     }
 
