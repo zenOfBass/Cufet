@@ -1838,6 +1838,14 @@ public sealed partial class Interpreter
             _overloadDefs.TryGetValue((lname, rname, b.Op), out var oad))
             return ExecuteOperatorOverload(oad, lv2, rv2, b.Line);
 
+        // Scaling: every element times a number. Cannot fail — no dimensions to disagree — so it
+        // hands back a plain matrix, and both orders mean the same thing.
+        if (b.Op is TokenType.Star)
+        {
+            if (lv2 is MatrixValue smL && rv2 is decimal sfR) return MatrixScale(smL, sfR);
+            if (lv2 is decimal sfL && rv2 is MatrixValue smR) return MatrixScale(smR, sfL);
+        }
+
         // Matrix arithmetic: +, -, * built-in for (matrix, matrix) operands.
         if (b.Op is TokenType.Plus or TokenType.Minus or TokenType.Star &&
             lv2 is MatrixValue lmv && rv2 is MatrixValue rmv)

@@ -1898,6 +1898,13 @@ static CufetMatrix* cufet_mat_sub(CufetMatrix* a, CufetMatrix* b) {
     for (int i = 0; i < a->rows * a->cols; i++) m->data[i] = cufet_sub(a->data[i], b->data[i]);
     return m;
 }
+/* Scaling: every element times a scalar. Returns non-NULL always — there are no dimensions to
+   disagree, which is why the emit site does not wrap it in a failable the way the others are. */
+static CufetMatrix* cufet_mat_scale(CufetMatrix* a, CufetDec f) {
+    CufetMatrix* m = cufet_mat_new(a->rows, a->cols);
+    for (int i = 0; i < a->rows * a->cols; i++) m->data[i] = cufet_mul(a->data[i], f);
+    return m;
+}
 static CufetMatrix* cufet_mat_mul(CufetMatrix* a, CufetMatrix* b) {   /* real matrix product, m×n · n×p */
     if (a->cols != b->rows) return NULL;
     CufetMatrix* m = cufet_mat_new(a->rows, b->cols);
@@ -4472,6 +4479,23 @@ static void* cufet_pipe_stage(void* argp) {
         b.Op is TokenType.Plus or TokenType.Minus or TokenType.Star
         && TypeOf(b.Left) is MatrixType && TypeOf(b.Right) is MatrixType;
 
+    // ★ `m * 2` / `2 * m`. Separate from IsMatrixOp because it CANNOT FAIL: no failable wrapper,
+    // no `Try` required of the writer, and a plain `CufetMatrix*` comes back.
+    private bool IsMatrixScale(BinaryExpression b) =>
+        b.Op is TokenType.Star
+        && ((TypeOf(b.Left) is MatrixType && TypeOf(b.Right) is NumberType)
+         || (TypeOf(b.Left) is NumberType && TypeOf(b.Right) is MatrixType));
+
+    // The scaled matrix, inline — the matrix operand first, whichever side it was written on.
+    private string EmitMatrixScale(BinaryExpression b)
+    {
+        _usesMatrix = true;
+        bool matrixOnLeft = TypeOf(b.Left) is MatrixType;
+        string mat    = EmitExpr(matrixOnLeft ? b.Left  : b.Right);
+        string factor = EmitExpr(matrixOnLeft ? b.Right : b.Left);
+        return $"cufet_mat_scale({mat}, {factor})";
+    }
+
     // The raw `matrix or failure` (cfl) for a matrix binary op: the runtime fn returns NULL on a
     // dimension mismatch; the emit site wraps that into the cfl with the interpreter's exact
     // deterministic message + "dimension-mismatch" category.
@@ -6337,7 +6361,7 @@ static void* cufet_pipe_stage(void* argp) {
         // An overloaded operator's VALUE type is the overload's declared return — which may be ANY
         // type, not the operand type (a `vec2 * vec2` dot product returns a number). A fallible
         // overload unwraps to its success type, the same convention as a fallible call.
-        BinaryExpression b    => IsMatrixOp(b) ? MatrixType.Instance
+        BinaryExpression b    => IsMatrixOp(b) || IsMatrixScale(b) ? MatrixType.Instance
                                : OverloadFor(b) is { } ov ? OverloadValueType(ov, b.Op)
                                // A gate over bit patterns yields a bit pattern; over facts, a
                                // fact. Checked before the arithmetic/comparison split, which
@@ -9080,6 +9104,11 @@ static void* cufet_pipe_stage(void* argp) {
 
         // Matrix arithmetic is FALLIBLE (dimension mismatch → failure): a bare matrix op routes
         // through the standard fallible machinery — check-goto in a Try, exactly like a fallible call.
+        // Scaling cannot fail, so it is a plain expression — no failable, no check-goto. It is
+        // tested BEFORE IsMatrixOp because `matrix * matrix` and `matrix * number` share an
+        // operator and only the operand types tell them apart.
+        if (IsMatrixScale(b)) return EmitMatrixScale(b);
+
         if (IsMatrixOp(b))
             return EmitFallibleCheckGoto(EmitMatrixOpRaw(b), RegisterFailableStruct(new FailureType(MatrixType.Instance)));
 

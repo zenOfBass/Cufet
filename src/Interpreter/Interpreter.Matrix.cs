@@ -103,6 +103,17 @@ public sealed partial class Interpreter
         _ => throw new RuntimeException($"Unsupported matrix operator on line {line}."),
     };
 
+    // ★ Scaling. No dimension check, because there is nothing to check against — which is why it
+    // is the one matrix operation that returns a plain matrix rather than a fallible one.
+    private static object MatrixScale(MatrixValue m, decimal factor)
+    {
+        var data = new decimal[m.Rows * m.Cols];
+        for (int r = 1; r <= m.Rows; r++)
+            for (int c = 1; c <= m.Cols; c++)
+                data[(r - 1) * m.Cols + (c - 1)] = m.GetItem(r, c) * factor;
+        return new MatrixValue(m.Rows, m.Cols, data);
+    }
+
     private static object MatrixAdd(MatrixValue a, MatrixValue b)
     {
         if (a.Rows != b.Rows || a.Cols != b.Cols)

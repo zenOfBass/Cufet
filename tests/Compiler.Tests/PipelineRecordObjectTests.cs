@@ -889,4 +889,33 @@ public class PipelineRecordObjectTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    /// <summary>Scaling a matrix by a number, on both backends.</summary>
+    /// <remarks>
+    /// ⚠ The compiler had to grow a SEPARATE path for this, not a variant of the existing one:
+    /// `matrix + matrix` routes through a failable struct and a check-goto because a dimension
+    /// mismatch is a failure, and scaling has none — so it is a plain expression returning a plain
+    /// `CufetMatrix*`. Sending it through the fallible machinery would have compiled and then
+    /// demanded a `Try` the front end never asked for.
+    /// </remarks>
+    [Fact]
+    public void ScalingAMatrix_AgreesOnBothBackends()
+    {
+        const string src = """
+            Pull a book on collections.
+                Define m as a matrix with ((1, 2), (3, 4)).
+                State m * 2.
+                State 3 * m.
+                Define doubled as m * 2.
+                State doubled * 2.
+                Try to:
+                    State m * m.
+                Done.
+                In case of failure:
+                    State the message of the failure.
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

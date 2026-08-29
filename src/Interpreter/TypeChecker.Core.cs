@@ -2940,6 +2940,24 @@ public sealed partial class TypeChecker
                 return overloadReturn;
             }
 
+            // ★ SCALING — `m * 2` and `2 * m`. Multiplying every element by a number, and the one
+            // matrix operation that CANNOT FAIL: there are no dimensions to disagree. So it gives a
+            // plain `matrix` rather than `matrix or failure`, and needs no `Try` around it.
+            //
+            // ⚠ That asymmetry is deliberate and is the whole design question this settled: making
+            // scaling fallible for consistency with its neighbours would force a failure handler
+            // around an operation with no failure in it, which teaches a reader the opposite of the
+            // truth. `*` is fallible on two matrices because the dimensions can disagree; nothing
+            // about the operator promises that.
+            //
+            // ⚠ Both orders, because `2M` and `M2` are the same thing wherever matrices are
+            // written. That is not the overload rule — an OVERLOAD names an ordered pair, because a
+            // writer's `-` and `/` are not commutative and the language cannot know which of theirs
+            // is. This is built-in multiplication by a scalar, and it is commutative by definition.
+            if (bin.Op is TokenType.Star &&
+                ((l is MatrixType && r == CufetType.Number) || (l == CufetType.Number && r is MatrixType)))
+                return MatrixType.Instance;
+
             // Matrix arithmetic: +, -, * are defined for (matrix, matrix) and always fallible
             // (dimension mismatch → failure). The matrix type is only in scope inside a
             // Pull a book on collections block, so scope-locality is enforced by the type itself.
