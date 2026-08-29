@@ -360,7 +360,25 @@ public sealed class Parser
             SkipNoise();
         }
 
-        var shape = ParseRecordShapeAnnotation(out var permanentFields); // consumes "with (...)"
+        // ★ `with (…)` is OPTIONAL, because a type that carries nothing should not have to say so
+        // twice. `Define object red.` is the whole declaration of a case that holds no data, and
+        // `Define object red with ().` is the same thing written the long way.
+        //
+        // ★ This is what makes a closed union usable as an enumeration — `(red or green or blue)`,
+        // with `Judge` proving every case is handled. The ceremony of `with ()` on each empty case
+        // is the friction that makes people ask for a separate `enum` construct, and the language
+        // already has the stronger mechanism; it just made the cheap shape expensive to write.
+        RecordType shape;
+        List<string> permanentFields;
+        if (Peek().Type == TokenType.With)
+        {
+            shape = ParseRecordShapeAnnotation(out permanentFields); // consumes "with (...)"
+        }
+        else
+        {
+            shape = new RecordType([], []);
+            permanentFields = [];
+        }
         SkipNoise();
 
         // Optional trailing 'and' clauses:
@@ -3376,10 +3394,23 @@ public sealed class Parser
                     newTypeArgs.Add(ParseTypeAnnotation());
                     SkipNoise();
                 }
-                Consume(TokenType.LBrace);
+                // ★ The braces are OPTIONAL when there is nothing to put in them: `a new red` is
+                // `a new red { }`. The same reason the shape is optional at the definition — a
+                // value that carries nothing should not have to say so twice — and the parser
+                // already reads an interface both ways, braced and bare.
+                //
+                // ⚠ Nothing else can begin with `{` here, so seeing one is unambiguous and its
+                // absence needs no lookahead: this is position deciding, not a guess.
                 var positionals2 = new List<IExpression>();
                 var namedFields2 = new List<(string Name, IExpression Value)>();
                 bool namedStarted2 = false;
+                if (Peek().Type != TokenType.LBrace)
+                {
+                    baseExpr = new ObjectLiteral(typeName, positionals2, namedFields2,
+                                                 newLine, newCol, newTypeArgs);
+                    break;
+                }
+                Consume(TokenType.LBrace);
                 if (Peek().Type != TokenType.RBrace)
                 {
                     ParseOneRecordField(positionals2, namedFields2, ref namedStarted2);

@@ -815,4 +815,36 @@ public class PipelineRecordObjectTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    /// <summary>
+    /// A closed union of empty objects, used as an enumeration, on both backends.
+    /// </summary>
+    /// <remarks>
+    /// ★ Neither backend learns anything new here: an object with no fields was always legal, and
+    /// `Judge` over a closed union already dispatched on a tag. What changed is only that the
+    /// empty shape and the empty literal no longer have to be written out — so this test is really
+    /// asking whether the SHORTHAND lowers to the same program the long form did.
+    /// </remarks>
+    [Fact]
+    public void AnEnumerationOfEmptyObjects_AgreesOnBothBackends()
+    {
+        const string src = """
+            Define object red.
+            Define object green.
+            Define object blue.
+
+            Bind text to name-of, given (the (red or green or blue) light):
+                Judge light, where it is:
+                    A red, return "red".
+                    A green, return "green".
+                    A blue, return "blue".
+                Done.
+            Done.
+
+            State cast name-of on (a new red).
+            State cast name-of on (a new green).
+            State cast name-of on (a new blue).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }
