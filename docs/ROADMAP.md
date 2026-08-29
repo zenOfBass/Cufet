@@ -368,14 +368,6 @@ indistinguishable from having forgotten.
   Casing a buffer in place is therefore a plain per-element map, with no resize and no special
   case. The growth problem is real only for *full* case mapping, which neither backend does.
 
-- **A hand-written list of a union's cases can fall out of step with it.** Walking every case
-  works today — `a catalogue of (red or green or blue)` holds one of each, and `For each` runs
-  them — but that list is written by hand. Add a fourth case and `Judge` refuses every judgement
-  that misses it, while the catalogue silently stays three long. What is missing is a way to ASK
-  the union, so the list cannot drift.
-  ⚠ Only meaningful where every case is constructible with no arguments; `(number or text)` has no
-  "one of each", and neither does a union whose members carry fields.
-
 - **Reference-semantics opt-in.** Objects and map values are value-typed. An explicit way to
   ask for shared semantics has no syntax. *Blocker:* its own design session; it interacts with
   the region model, which is what currently makes value semantics free.
