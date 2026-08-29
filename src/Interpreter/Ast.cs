@@ -287,6 +287,23 @@ public sealed record CastExpression(
     int Column
 ) : IExpression
 {
+    /// <summary>The arguments, in the order the callee declares its parameters.</summary>
+    /// <remarks>
+    /// ⚠ Settable because a call written with NAMED arguments arrives out of order, and the
+    /// checker puts it in order once it knows what the callee calls its parameters. Both backends
+    /// read this and only this, so neither learns that named arguments exist — the same way a
+    /// filled-in generic reaches them as an ordinary named function.
+    /// </remarks>
+    public IReadOnlyList<IExpression> Args { get; set; } = Args;
+
+    /// <summary>Arguments written as `the &lt;name&gt; &lt;value&gt;`, in the order they were written.</summary>
+    /// <remarks>
+    /// Emptied by the checker once they have been merged into <see cref="Args"/>, so a second
+    /// checking pass over the same tree — which happens whenever a generic is filled — meets a
+    /// call that is already in order and leaves it alone.
+    /// </remarks>
+    public IReadOnlyList<(string Name, IExpression Value)> NamedArgs { get; set; } = [];
+
     // The filled-in function this call actually reaches — `unique of text` for `cast unique on
     // (names)` where names is a series of text. A side channel written by the checker, the same way
     // ObjectLiteral.ResolvedTypeName is, because both backends resolve a named call BY NAME and a
@@ -320,6 +337,12 @@ public sealed record CastStatement(
     int Column
 ) : IStatement
 {
+    /// <inheritdoc cref="CastExpression.Args"/>
+    public IReadOnlyList<IExpression> Args { get; set; } = Args;
+
+    /// <inheritdoc cref="CastExpression.NamedArgs"/>
+    public IReadOnlyList<(string Name, IExpression Value)> NamedArgs { get; set; } = [];
+
     /// <inheritdoc cref="CastExpression.ResolvedFunctionName"/>
     public string? ResolvedFunctionName { get; set; }
 

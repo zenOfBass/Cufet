@@ -98,7 +98,12 @@ internal static class AstRebuilder
                 // ⚠ Carried, not dropped — the checker writes it to propagate rabbit depth through a
                 // call, and a rebuilt FunctionType without it silently claims depth 0.
                 return new FunctionType(parameters, returned)
-                    { ReturnDepthSignature = function.ReturnDepthSignature };
+                    {
+                        ReturnDepthSignature = function.ReturnDepthSignature,
+                        // Carried for the same reason: a rebuilt type with its parameter names
+                        // dropped would silently stop accepting named arguments at every call.
+                        ParameterNames = function.ParameterNames,
+                    };
             }
             default:
                 return type;   // scalars, ObjectType, InterfaceType, matrices, markers

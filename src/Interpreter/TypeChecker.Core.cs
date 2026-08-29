@@ -222,6 +222,22 @@ public sealed class FunctionType : CufetType
     // Not part of type equality — same signature with different depth signatures are still the same type.
     public IReadOnlyList<int>? ReturnDepthSignature { get; set; } = null;
 
+    /// <summary>What the parameters are CALLED, when this type came from a declaration.</summary>
+    /// <remarks>
+    /// <para>
+    /// Null wherever a function type was WRITTEN rather than declared — `the number function given
+    /// (the number)` names no parameters, and neither does a function arriving through a field or
+    /// another call's result. A named argument needs a declaration to name, so a call through one
+    /// of those stays positional.
+    /// </para>
+    /// <para>
+    /// ⚠ Not part of equality, for the same reason the depth signature is not: two functions with
+    /// the same signature are the same type however they spell their parameters. Folding names into
+    /// equality would make `given (the number width)` and `given (the number w)` different types.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string>? ParameterNames { get; set; } = null;
+
     public FunctionType(IReadOnlyList<CufetType> parameterTypes, CufetType? returnType)
     {
         ParameterTypes = parameterTypes;
@@ -608,7 +624,9 @@ public sealed partial class TypeChecker
     private FunctionType MethodSignature(BindStatement method, string owner)
     {
         var paramTypes = method.Parameters.Select(p => p.Type).ToList();
-        if (!BuriesValues(method)) return new FunctionType(paramTypes, method.ReturnType);
+        var paramNames = method.Parameters.Select(p => p.Name).ToList();
+        if (!BuriesValues(method))
+            return new FunctionType(paramTypes, method.ReturnType) { ParameterNames = paramNames };
 
         if (method.ReturnType == null)
             throw TypeError(
@@ -619,7 +637,7 @@ public sealed partial class TypeChecker
                 + $"'Bind number to {method.Name}' hands back a stash of number.");
 
         _buryingMethods.Add((owner, method.Name));
-        return new FunctionType(paramTypes, new StashType(method.ReturnType));
+        return new FunctionType(paramTypes, new StashType(method.ReturnType)) { ParameterNames = paramNames };
     }
 
     /// <summary>
@@ -1791,7 +1809,8 @@ public sealed partial class TypeChecker
                 new FunctionType(paramTypes,
                     _buryingFunctions.Contains(bind.Name) && hoistedReturn != null
                         ? new StashType(hoistedReturn)
-                        : hoistedReturn),
+                        : hoistedReturn)
+                { ParameterNames = bind.Parameters.Select(p => p.Name).ToList() },
                 new VariableReference(bind.Name, 0, 0),
                 bind.Line);
             _freeBinds[bind.Name] = bind;   // so a pipe can re-check this body with a known input type
@@ -1834,7 +1853,8 @@ public sealed partial class TypeChecker
                     : ot;
                 var paramTypes = ctor.Parameters.Select(p => p.Type).ToList();
                 Scope[ctor.Name] = new TypeInfo(
-                    new FunctionType(paramTypes, resolvedReturn),
+                    new FunctionType(paramTypes, resolvedReturn)
+                    { ParameterNames = ctor.Parameters.Select(p => p.Name).ToList() },
                     new VariableReference(ctor.Name, 0, 0),
                     ctor.Line);
             }
@@ -2165,7 +2185,8 @@ public sealed partial class TypeChecker
                         new FunctionType(paramTypes,
                             _buryingFunctions.Contains(bind.Name) && bind.ReturnType != null
                                 ? new StashType(bind.ReturnType)
-                                : bind.ReturnType),
+                                : bind.ReturnType)
+                        { ParameterNames = bind.Parameters.Select(p => p.Name).ToList() },
                         new VariableReference(bind.Name, 0, 0),
                         bind.Line);
                 }
@@ -2173,6 +2194,15 @@ public sealed partial class TypeChecker
                 break;
             case CastStatement cs:
             {
+                // ⚠ First, for the same reason it is first in InferCastExpr: everything below reads
+                // the arguments by position.
+                if (cs.NamedArgs.Count > 0)
+                {
+                    cs.Args = MergeNamedArgs(cs.Function, cs.ResolvedFunctionName,
+                                             cs.Args, cs.NamedArgs, cs.Line, cs.Column);
+                    cs.NamedArgs = [];
+                }
+
                 // ★ An axiom called for its EFFECT — `Cast close-dir on (handle).` The expression
                 // form has always had this hook (InferCastExpr); the statement form did not, so a
                 // discarded axiom call fell through to ResolveForCast and was refused as "not a

@@ -849,6 +849,40 @@ public class PipelineRecordObjectTests : PipelineTestBase
     }
 
     /// <summary>
+    /// Named arguments at a call site, on both backends.
+    /// </summary>
+    /// <remarks>
+    /// ★ Neither backend learns them. The checker puts the call in the order the callee declares
+    /// and empties the named list, so what reaches the compiler is the ordinary positional call it
+    /// has always emitted. What this asks is whether the reorder lands on the same program.
+    /// ⚠ Division, not multiplication: swapping the arguments of a commutative operation prints
+    /// the same thing either way, so it would agree even with the reorder broken on both sides.
+    /// </remarks>
+    [Fact]
+    public void NamedArguments_AgreeOnBothBackends()
+    {
+        const string src = """
+            Define object box with (the number w):
+                Bind number to scaled, given (the number factor, the number bias):
+                    Return one's w * factor + bias.
+                Done.
+            Done.
+
+            Bind number to take-half, given (the number whole, the number divisor):
+                Return whole / divisor.
+            Done.
+
+            State cast take-half on (the divisor 2, the whole 16).
+            State cast take-half on (16, the divisor 2).
+
+            Define crate as a new box { the w 2 }.
+            State cast crate's scaled on (the bias 1, the factor 10).
+            State cast scaled on (crate, the bias 1, the factor 10).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    /// <summary>
     /// Mixed-type operator overloads, in both orders, on both backends.
     /// </summary>
     /// <remarks>

@@ -3923,20 +3923,10 @@ public sealed class Parser
             var ofCol = ofLineTok.Column;
             SkipNoise();
             List<IExpression> callArgs;
+            List<(string Name, IExpression Value)> callNamed = [];
             if (Peek().Type == TokenType.LParen)
             {
-                Advance(); SkipNoise(); // consume '('
-                callArgs = [];
-                if (Peek().Type != TokenType.RParen)
-                {
-                    callArgs.Add(ParseExpression()); SkipNoise();
-                    while (Peek().Type == TokenType.Comma)
-                    {
-                        Advance(); SkipNoise();
-                        callArgs.Add(ParseExpression()); SkipNoise();
-                    }
-                }
-                Consume(TokenType.RParen);
+                (callArgs, callNamed) = ParseCallArguments();
             }
             else
             {
@@ -3947,7 +3937,7 @@ public sealed class Parser
                 // Arithmetic still binds outside: math's log of x / math's log of 10 → log(x)/log(10).
                 callArgs = [ParseNegation()];
             }
-            baseExpr = new CastExpression(baseExpr, callArgs, ofLine, ofCol);
+            baseExpr = new CastExpression(baseExpr, callArgs, ofLine, ofCol) { NamedArgs = callNamed };
             SkipNoise();
         }
 
@@ -4010,6 +4000,104 @@ public sealed class Parser
                     "positional fields must come before named fields — move all 'the name value' fields to the end");
             positionals.Add(ParseExpression());
         }
+    }
+
+    /// <summary>
+    /// A call's argument list, `(…)`, where an argument may be positional or named.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ★ The named form reuses <see cref="IsNamedFieldStart"/> — the very predicate object and
+    /// record literals use — because the ambiguity is the same one, in the same kind of position:
+    /// `the width 3` is a named argument and `the width of box` is a field access, and both open
+    /// with `the width`. Everything that predicate already settles is settled here for free,
+    /// including the minus rule, where `(the offset -1)` passes negative one and `(the offset - 1)`
+    /// is a subtraction.
+    /// </para>
+    /// <para>
+    /// ⚠ No SkipNoise before an argument. `the` is noise everywhere else, and skipping it would
+    /// eat the very token that says a name follows — which is why the record literal carries the
+    /// same warning above its own loop.
+    /// </para>
+    /// <para>
+    /// ⚠ Named arguments may be written in any order, but positional ones must all come first.
+    /// Once a name has been given, position no longer says anything about what follows it.
+    /// </para>
+    /// </remarks>
+    private (List<IExpression> Positional, List<(string Name, IExpression Value)> Named) ParseCallArguments()
+    {
+        Consume(TokenType.LParen);
+        // No SkipNoise — IsNamedFieldStart must see a leading 'the'.
+
+        var positional = new List<IExpression>();
+        var named      = new List<(string Name, IExpression Value)>();
+
+        if (PeekSkippingNoise() != TokenType.RParen)
+        {
+            ParseOneCallArgument(positional, named);
+            SkipNoise();
+            while (Peek().Type == TokenType.Comma)
+            {
+                Advance();   // consume ',' — no SkipNoise, for the reason above
+                ParseOneCallArgument(positional, named);
+                SkipNoise();
+            }
+        }
+
+        SkipNoise();
+        Consume(TokenType.RParen);
+        return (positional, named);
+    }
+
+    /// <summary>
+    /// Whether an argument begins `the &lt;name&gt; &lt;value&gt;` rather than being an expression.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ IsNamedFieldStart alone is not enough HERE, and a record literal is why it looks like it
+    /// would be. `(the width)` inside a record literal has no other reading — a field with no
+    /// value is simply wrong — but `cast twice on (the width)` is an ordinary call passing the
+    /// variable `width`, with `the` as the noise it is everywhere else, and that has always been
+    /// legal. So a named ARGUMENT additionally has to have something after the name: a `,` or a
+    /// `)` there means the whole thing was an expression.
+    /// </remarks>
+    private bool IsNamedArgumentStart()
+    {
+        if (!IsNamedFieldStart()) return false;
+
+        int i = _pos + 2;                                    // past 'the' and the name
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count
+            && _tokens[i].Type is not (TokenType.Comma or TokenType.RParen);
+    }
+
+    private void ParseOneCallArgument(
+        List<IExpression> positional,
+        List<(string Name, IExpression Value)> named)
+    {
+        if (IsNamedArgumentStart())
+        {
+            Advance();                       // consume 'the'
+            var name = Advance().Lexeme;     // no SkipNoise — 'a'/'an' are valid names
+            SkipNoise();
+            named.Add((name, ParseExpression()));
+            return;
+        }
+
+        if (named.Count > 0)
+            throw new ParseException(Peek(),
+                "a named argument — once one argument is named, the ones after it must be too, "
+                + "because position no longer says which parameter is meant");
+
+        SkipNoise();
+        positional.Add(ParseExpression());
+    }
+
+    /// <summary>The token type at the current position, looking past noise without consuming it.</summary>
+    private TokenType PeekSkippingNoise()
+    {
+        int i = _pos;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count ? _tokens[i].Type : TokenType.Eof;
     }
 
     // Returns true when the current position starts a named field: 'the' <name> <non-of>.
@@ -4453,7 +4541,7 @@ public sealed class Parser
         var cast = (CastExpression)ParseCastExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new CastStatement(cast.Function, cast.Args, cast.Line, cast.Column);
+        return new CastStatement(cast.Function, cast.Args, cast.Line, cast.Column) { NamedArgs = cast.NamedArgs };
     }
 
     // Returns a CastExpression for both free-function calls and method dispatch.
@@ -4484,23 +4572,8 @@ public sealed class Parser
             }
 
             // Function call: Cast func on (<args>)
-            Consume(TokenType.LParen);
-            SkipNoise();
-            var args = new List<IExpression>();
-            if (Peek().Type != TokenType.RParen)
-            {
-                args.Add(ParseExpression());
-                SkipNoise();
-                while (Peek().Type == TokenType.Comma)
-                {
-                    Advance();
-                    SkipNoise();
-                    args.Add(ParseExpression());
-                    SkipNoise();
-                }
-            }
-            Consume(TokenType.RParen);
-            return new CastExpression(funcExpr, args, line, col);
+            var (args, namedArgs) = ParseCallArguments();
+            return new CastExpression(funcExpr, args, line, col) { NamedArgs = namedArgs };
         }
 
         // 'cast collections's transpose of (m)' — the book-of loop inside ParsePostfix already

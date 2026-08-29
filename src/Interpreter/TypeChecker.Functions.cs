@@ -410,7 +410,149 @@ public sealed partial class TypeChecker
                 "Make sure every path through the lambda ends with a return statement.");
 
         var paramTypes = lambda.Parameters.Select(p => (CufetType)ResolveParamType(p.Type)).ToList();
-        return new FunctionType(paramTypes, inferredReturn);
+        return new FunctionType(paramTypes, inferredReturn)
+               { ParameterNames = lambda.Parameters.Select(p => p.Name).ToList() };
+    }
+
+    /// <summary>
+    /// Puts a call written with named arguments into the order its callee declares.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ★ Done once, in the front end, and the named list is emptied afterwards — so everything
+    /// downstream, both backends included, meets an ordinary call in parameter order and never
+    /// learns that named arguments exist. Emptying it is also what makes a second checking pass
+    /// safe: filling a generic re-checks the same tree, and a call already in order is left alone.
+    /// </para>
+    /// <para>
+    /// ⚠ Before the generic machinery in InferCastExpr, not after, because filling a blank reads
+    /// the arguments BY POSITION to decide which body the call reaches. Out-of-order arguments
+    /// would fill the blanks from the wrong values.
+    /// </para>
+    /// </remarks>
+    private IReadOnlyList<IExpression> MergeNamedArgs(
+        IExpression function, string? resolvedName,
+        IReadOnlyList<IExpression> positional,
+        IReadOnlyList<(string Name, IExpression Value)> named,
+        int line, int col)
+    {
+        var display = function switch
+        {
+            VariableReference vr => $"'{vr.Name}'",
+            PossessiveAccess pa  => $"'{pa.Member}'",
+            _                    => "this function",
+        };
+
+        var (names, receiverArgs) = CalleeParameterNames(function, resolvedName, positional);
+        if (names is null)
+            throw TypeError(
+                $"{display} can't be called with named arguments",
+                "A name has to match a parameter the function DECLARES, and this call reaches its "
+                + "function through a value — a parameter, a field, or another call's result — "
+                + "which carries the parameter types but not what they are called",
+                line, col,
+                "name an argument here",
+                "Pass the arguments in order instead.");
+
+        // The receiver of a method called in the free form — `cast greet on (alice, "hi")` — is
+        // argument one and is not a declared parameter, so it is carried through untouched and the
+        // names are matched against what follows it.
+        var slots  = new IExpression?[names.Count];
+        var filled = new string?[names.Count];
+
+        for (int i = receiverArgs; i < positional.Count; i++)
+        {
+            int slot = i - receiverArgs;
+            if (slot >= slots.Length)
+                throw TypeError(
+                    $"{display} takes {names.Count} argument(s), but you passed more",
+                    null, line, col,
+                    $"pass {positional.Count - receiverArgs + named.Count} argument(s)",
+                    "Remove the extra argument(s).");
+            slots[slot]  = positional[i];
+            filled[slot] = "position";
+        }
+
+        foreach (var (name, value) in named)
+        {
+            int slot = IndexOfName(names, name);
+            if (slot < 0)
+                throw TypeError(
+                    $"{display} has no parameter called '{name}'",
+                    null, line, col,
+                    $"pass a value for '{name}'",
+                    names.Count > 0
+                        ? $"Its parameters are {string.Join(", ", names.Select(n => $"'{n}'"))}."
+                        : "It takes no parameters.");
+
+            if (filled[slot] == "position")
+                throw TypeError(
+                    $"'{name}' was already given as argument {slot + receiverArgs + 1}",
+                    null, line, col,
+                    $"give '{name}' twice",
+                    $"Remove either the positional argument or 'the {name}'.");
+            if (filled[slot] == "name")
+                throw TypeError(
+                    $"'{name}' was given twice",
+                    null, line, col,
+                    $"give '{name}' twice",
+                    $"Remove one of the two 'the {name}' arguments.");
+
+            slots[slot]  = value;
+            filled[slot] = "name";
+        }
+
+        for (int i = 0; i < slots.Length; i++)
+            if (slots[i] is null)
+                throw TypeError(
+                    $"{display} has no value for '{names[i]}'",
+                    null, line, col,
+                    $"call {display} without a value for '{names[i]}'",
+                    $"Add 'the {names[i]} <value>', or pass it in position {i + 1}.");
+
+        var ordered = new List<IExpression>(positional.Take(receiverArgs));
+        ordered.AddRange(slots!);
+        return ordered;
+    }
+
+    private static int IndexOfName(IReadOnlyList<string> names, string name)
+    {
+        for (int i = 0; i < names.Count; i++)
+            if (string.Equals(names[i], name, StringComparison.Ordinal)) return i;
+        return -1;
+    }
+
+    /// <summary>
+    /// What the callee calls its parameters, and how many leading arguments are its receiver.
+    /// </summary>
+    /// <remarks>
+    /// Null names mean the call reaches a function type that was WRITTEN rather than declared, so
+    /// there is nothing to match a name against. The order here mirrors ResolveForCast — method
+    /// dispatch first, then an ordinary binding — so the two cannot disagree about which callee a
+    /// name is being matched against.
+    /// </remarks>
+    private (IReadOnlyList<string>? Names, int ReceiverArgs) CalleeParameterNames(
+        IExpression function, string? resolvedName, IReadOnlyList<IExpression> positional)
+    {
+        if (function is VariableReference vr)
+        {
+            string called = resolvedName ?? vr.Name;
+            if (TryMethodDispatch(called, positional, 0, 0) is { } md)
+                return (md.funcType.ParameterNames, 1);
+            if (TryLookup(called, out var info) && info!.Type is FunctionType ft)
+                return (ft.ParameterNames, 0);
+            return (null, 0);
+        }
+
+        if (function is PossessiveAccess pa && MemberOwnerType(InferType(pa.Target)) is ObjectType owner)
+        {
+            var member = resolvedName ?? pa.Member;
+            foreach (var (methodName, signature) in owner.Methods)
+                if (string.Equals(methodName, member, StringComparison.Ordinal))
+                    return (signature.ParameterNames, 0);
+        }
+
+        return (null, 0);
     }
 
     // Validates arg count and types against a resolved FunctionType.
@@ -495,6 +637,15 @@ public sealed partial class TypeChecker
             return reached.ReturnType is null
                 ? throw AxiomSourceNotReachable(reached, cast.Line, cast.Column)
                 : RunAxiomValueOnCast(cast, reached);
+
+        // ⚠ BEFORE the filling below, which reads the arguments by POSITION to decide which body
+        // this call reaches. Named arguments arrive in whatever order they were written.
+        if (cast.NamedArgs.Count > 0)
+        {
+            cast.Args = MergeNamedArgs(cast.Function, cast.ResolvedFunctionName,
+                                       cast.Args, cast.NamedArgs, cast.Line, cast.Column);
+            cast.NamedArgs = [];
+        }
 
         // A function that left blanks is filled from THIS call's arguments before anything is
         // resolved — the filling is what decides which body the call reaches.
@@ -803,7 +954,8 @@ public sealed partial class TypeChecker
         _freeBinds[filled] = concrete;
         Scope[filled] = new TypeInfo(
             new FunctionType(concrete.Parameters.Select(p => ResolveParamType(p.Type)).ToList(),
-                             concrete.ReturnType is null ? null : ResolveParamType(concrete.ReturnType)),
+                             concrete.ReturnType is null ? null : ResolveParamType(concrete.ReturnType))
+            { ParameterNames = concrete.Parameters.Select(p => p.Name).ToList() },
             new VariableReference(filled, line, column),
             concrete.Line);
         return filled;
@@ -868,7 +1020,8 @@ public sealed partial class TypeChecker
 
         var signature = new FunctionType(
             concrete.Parameters.Select(p => ResolveParamType(p.Type)).ToList(),
-            concrete.ReturnType is null ? null : ResolveParamType(concrete.ReturnType));
+            concrete.ReturnType is null ? null : ResolveParamType(concrete.ReturnType))
+            { ParameterNames = concrete.Parameters.Select(p => p.Name).ToList() };
         _objectDefs[owner.Name] = WithMethods(_objectDefs[owner.Name],
             [.. _objectDefs[owner.Name].Methods, (filled, signature)]);
 
@@ -1049,7 +1202,8 @@ public sealed partial class TypeChecker
         MappingType mt          => new MappingType(ResolveParamType(mt.KeyType), ResolveParamType(mt.ValueType)),
         FunctionType ft         => new FunctionType(
                                     ft.ParameterTypes.Select(ResolveParamType).ToList(),
-                                    ft.ReturnType is null ? null : ResolveParamType(ft.ReturnType)),
+                                    ft.ReturnType is null ? null : ResolveParamType(ft.ReturnType))
+                                   { ParameterNames = ft.ParameterNames },
         ReadableStreamType rst  => new ReadableStreamType(ResolveParamType(rst.ElementType)),
         WritableStreamType wst  => new WritableStreamType(ResolveParamType(wst.ElementType)),
         UnionType { Cases: { } cases } => new UnionType(cases.Select(ResolveParamType).ToList()),

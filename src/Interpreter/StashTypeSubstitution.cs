@@ -108,7 +108,10 @@ internal static class StashTypeSubstitution
                 // ⚠ Carried, not dropped. The checker writes this to propagate rabbit depth through
                 // a call, and a rebuilt FunctionType without it would silently claim depth 0.
                 return new FunctionType(parameters, returned)
-                    { ReturnDepthSignature = function.ReturnDepthSignature };
+                    {
+                        ReturnDepthSignature = function.ReturnDepthSignature,
+                        ParameterNames       = function.ParameterNames,
+                    };
             }
 
             default:
