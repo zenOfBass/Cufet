@@ -22,11 +22,7 @@ version, and 1.0.0 will mark the point at which the language is considered stabl
 All need a design session before they can be ordered against anything. They are here because
 they are large, not because they are waiting — the order among them means nothing yet.
 
-1. **Multi-directional predicate dispatch.** Watch the no-subtyping invariant. It is on the critical 
-    path to self-hosting. A lexer, parser and type checker are one enormous dispatch on node type;
-    written as `is a` chains, a Cufet-in-Cufet compiler is miserable to write and worse to read.
-
-2. **Rabbits as actors.** Not a new mechanism so much as a NAME for what the region model already
+1. **Rabbits as actors.** Not a new mechanism so much as a NAME for what the region model already
    bought. A rabbit today owns an isolated arena, owns the tasks it spawns and joins them at
    `Done.`, shares nothing mutable across threads, and has escape rules the compiler enforces —
    isolated heap, owned lifetime, supervised children, no shared state. That is the actor
@@ -54,7 +50,7 @@ they are large, not because they are waiting — the order among them means noth
    is a message-send shape that exists for other reasons (`Have hopper bury n.`,
    `Have hopper start a task`).
 
-3. **Documentation comments, and generated pages for a book.** What a reader gets when they pull a
+2. **Documentation comments, and generated pages for a book.** What a reader gets when they pull a
    book somebody else wrote.
 
    **★ It shares its one blocker with editor hover, which is the argument for doing that blocker
@@ -101,6 +97,14 @@ problem and is nobody's contract.
 1. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
    open-union representation is sound *because* the whole program compiles at once. Either
    feature forces revisiting it.
+
+   ⚠⚠ **Dispatch now rides on the same property, so this entry's central choice decides its
+   cost.** Versions of a name are gathered whole-program, coverage is PROVED because every version
+   is visible, and the tag dispatch works because the tag set is bounded. A loader that resolves
+   files and then compiles them together needs no design change for versions across files. If
+   compilation is genuinely separate, none of those three survive — which is CLOS's actual
+   problem, and the one this design sidesteps rather than solves.
+   
 2. **What a module exports.** Every member is public API, permanently, because there is no way to
    mark one internal. A module author has no way to say *this is my helper, do not call it*.
 
