@@ -19,47 +19,32 @@ version, and 1.0.0 will mark the point at which the language is considered stabl
 
 ### Shipping a book, strictly in this order
 
-The `module` interface itself is the language seam and shipped with the arc above. What is left
-here is everything about code that is **not already in the program**, which is a separate hard
-problem and is nobody's contract.
+The `module` interface and the loader that reaches a book in another file are both shipped. What
+is left is what happens once a book is worth handing to someone else: what you hand out, and how
+it travels.
 
-1. **What a module exports.** Every member is public API, permanently, because there is no way to
-   mark one internal. A module author has no way to say *this is my helper, do not call it*.
+1. **What a module exports.** Every MEMBER is public API, permanently. A module author has no way
+   to say *this is my helper, do not call it* about a method.
 
-   ★ **It bites when a module can be DEPENDED ON, and not before.** Nothing is distributable —
-   there is no loader and no package manager (the items either side of this one) — so no one can
-   rely on your helper yet.
+   ★ **Half of it is already gone.** A loaded file’s top level is private to that file, so a
+   helper that never wanted to be a member does not become one. What is left is the member that
+   genuinely has to be one — it needs `one`, or it belongs to the type — and is still handed out.
 
-   ⚠⚠ **AMENDED 2026-08-19: that precondition is now PARTLY MET, and it arrived from an
-   unexpected direction.** Writing the bundled books in Cufet (the 0.16.0 arc) made the prelude
-   ship with the language and travel into every program, so **the books are modules that really
-   are depended on — by everyone, permanently, with no distribution mechanism needed.** A helper
-   added to `math` is in every Cufet program forever.
+   ⚠⚠ **The decision is due now, not later.** An earlier version of this entry said it bites
+   only when a module can be DEPENDED ON, and that nothing was distributable. Both were true when
+   written and neither is now: an external book loader ships, so anyone’s book can be depended on
+   by anyone.
 
-   It bit once while `power` was being written: an overflow-guarded multiply was wanted in two
-   places, and factoring it out would have made `guarded-times` a permanent member of `math`, so
-   **it was inlined twice instead** — the magic constant with it. That is the predicted failure
-   exactly: not "could not be done", but "written worse to avoid the API". One duplicated guard
-   does not justify reordering this item, and the fix here is still the right one — but the next
-   person writing a bundled book will meet the same wall, and should know it was expected. This item belongs here, next to the things that make distribution real.
+   ⚠ **Bundled books do not get the file privacy external ones do.** `WithPrelude` splices them
+   before the loader runs, so a top-level declaration in `math.cufe` would be global to every
+   Cufet program. Latent today — the bundled books open straight with their module and declare
+   nothing beside it — but it is why `guarded-times` had nowhere to go and was inlined twice,
+   magic constant and all, while an external book’s author now has somewhere to put it. Whatever
+   this item decides, the two kinds of book should agree.
 
-   ⚠ **Corrected 2026-08-15.** An earlier version of this entry claimed the decision could not wait
-   and had to be made before a module could be shared. That was wrong twice over, and the reasoning
-   is worth keeping so it is not repeated:
-   - **The urgency was borrowed from a world that does not exist yet.** "Everything is public
-     becomes permanent" is true of a published package, not of a program you can only run.
-   - **The obvious fix would undo the unification.** An object exposes all its methods; a module IS
-     an object; so a module exposing all its methods is not an accidental default, it is the
-     consistent behaviour. Requiring modules to declare an export surface would make them behave
-     differently from ordinary objects — the special-casing the arc above exists to delete. It also cuts
-     against the language's temper: you *should* keep your helpers to yourself, and we do not make
-     you, the same way we do not stop you writing a magic number.
-
-   ★ **When it is time, no new concept is needed — and this is the part worth keeping.** Measured
-   2026-08-15: **an interface already restricts what is reachable.** Calling a method that is not on
-   the interface, through the interface, is refused with *"interface 'greeter' has no method named
-   'helper'. Available methods: 'greet'."* So export control is: bind the pulled name at a declared
-   interface instead of at the object type.
+   ★ **No new concept is needed, and this is the part worth keeping.** Measured 2026-08-15: an
+   interface already restricts what is reachable through it. So export control is binding the
+   pulled name at a declared interface rather than at the object type.
 
    ```
    Define greeter as an interface for { The text function greet }.
@@ -71,10 +56,11 @@ problem and is nobody's contract.
    Done.
    ```
 
-   No `private` keyword, no visibility modifiers, no per-member markers — a positive declaration of
-   what you hand out, which is how Cufet says things elsewhere (`a shadow` announces rather than
-   hides). Whether a module with no declared surface then exports everything or nothing is the one
-   real decision, and it is due when distribution is, not now.
+   ⚠ **A module IS an object, and an object exposes its methods** — so exposing everything is the
+   consistent behaviour, not an accidental default. That is the argument against requiring an
+   export surface, and it is why the interface form is a positive declaration of what you hand out
+   rather than a marker on what you keep. Whether a module with no declared interface then exports
+   everything or nothing is the one real decision left.
 
 2. **A package manager for books.**
 
