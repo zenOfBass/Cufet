@@ -849,6 +849,49 @@ public class PipelineRecordObjectTests : PipelineTestBase
     }
 
     /// <summary>
+    /// Dispatch on one argument's type, on both backends.
+    /// </summary>
+    /// <remarks>
+    /// ★ Neither backend learns dispatch exists. The front end renames each version and builds a
+    /// dispatcher whose body is an ordinary `Judge`, so what reaches the compiler is functions and
+    /// a tag switch it has emitted since closed unions shipped.
+    /// ⚠ The `For each` is the half that matters: every element is statically the union, so the
+    /// version is chosen from the tag the value carries rather than from anything at the call site.
+    /// </remarks>
+    [Fact]
+    public void DispatchOnArgumentType_AgreesOnBothBackends()
+    {
+        const string src = """
+            Define object num-node with (the number value).
+            Define object add-node with (the number left, the number right).
+            Define object neg-node with (the number operand).
+
+            Bind number to eval, given (the num-node node):
+                Return node's value.
+            Done.
+
+            Bind number to eval, given (the add-node node):
+                Return node's left + node's right.
+            Done.
+
+            Bind number to eval, given (the neg-node node):
+                Return 0 - node's operand.
+            Done.
+
+            State cast eval on (a new add-node { the left 3, the right 4 }).
+
+            Define nodes as a catalogue of (num-node or add-node or neg-node) with (
+                a new num-node { the value 1 },
+                a new add-node { the left 2, the right 3 },
+                a new neg-node { the operand 4 }).
+            For each n in nodes, repeat:
+                State cast eval on (n).
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    /// <summary>
     /// Named arguments at a call site, on both backends.
     /// </summary>
     /// <remarks>

@@ -16,11 +16,9 @@ namespace Cufet.Interpreter.Tests;
 /// was not.
 /// </para>
 /// <para>
-/// ★ ALL duplicates, not only identical signatures. Different parameter types is the shape open
-/// dispatch will eventually give a meaning to; until it does, letting it through leaves exactly
-/// the silent trap this closes — the later declaration winning while the writer believes both are
-/// reachable. That is not speculation about a future feature: the old behaviour is measured in
-/// <see cref="DifferentParameterTypesAreStillTheSameName"/>.
+/// ★ What is refused here is a name with nothing to tell its declarations apart. Declarations
+/// that DIFFER in one argument's type are no longer duplicates at all — they are versions, and
+/// <see cref="DispatchTests"/> covers them.
 /// </para>
 /// </remarks>
 public class DuplicateFunctionNameTests
@@ -51,30 +49,6 @@ public class DuplicateFunctionNameTests
             Done.
 
             State cast eval on (5).
-            """);
-        Assert.Contains("'eval' is declared twice", e.Message);
-    }
-
-    [Fact]
-    public void DifferentParameterTypesAreStillTheSameName()
-    {
-        // ⚠ The behaviour being replaced, recorded so the reason survives: with two `eval`s of
-        // different parameter types, EVERY call reached the second one. Passing a num-node was
-        // refused with "argument 1 of 'eval' must be a add-node" — an error about the declaration
-        // the writer wasn't calling.
-        var e = Refused("""
-            Define object num-node with (the number value).
-            Define object add-node with (the number left, the number right).
-
-            Bind number to eval, given (the num-node node):
-                Return node's value.
-            Done.
-
-            Bind number to eval, given (the add-node node):
-                Return node's left + node's right.
-            Done.
-
-            State cast eval on (a new num-node { the value 7 }).
             """);
         Assert.Contains("'eval' is declared twice", e.Message);
     }

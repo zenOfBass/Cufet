@@ -953,6 +953,12 @@ public sealed partial class TypeChecker
         var placed = CiteExpansion.Expand(program.Statements);
         if (!ReferenceEquals(placed, program.Statements)) program = new Program(placed);
 
+        // ⭐ After citing, before the hoist. A cited block may itself declare a version of a name,
+        // so the versions have to be all present before they can be gathered; and the hoist is
+        // what would otherwise meet two declarations under one name and refuse them.
+        var dispatched = DispatchExpansion.Expand(program.Statements);
+        if (!ReferenceEquals(dispatched, program.Statements)) program = new Program(dispatched);
+
         Pass1Hoist(program);
         Pass2ResolveTypes();          // resolve all placeholder ObjectType refs in _objectDefs + global scope
         Pass2HoistSharedConstants(program); // top-level `permanently` — visible to bodies checked below
