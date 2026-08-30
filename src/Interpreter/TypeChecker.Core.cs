@@ -1762,10 +1762,34 @@ public sealed partial class TypeChecker
                 $"declare a setter unto '{targetName}'",
                 $"'unto' only attaches setters to object types defined in this program. Define 'object {targetName}' first, or check the spelling.");
 
+        // ⚠⚠ Two free functions with one name used to be ACCEPTED, silently, and the later one
+        // won — this loop writes `Scope[bind.Name]` with no occupancy check, and `check` reported
+        // "No problems found" for a file declaring the same signature twice. That is the one place
+        // in the language where two readings quietly collapsed into one, everywhere else being a
+        // refusal: two overloads on an ordered pair, a name that is both method and free function,
+        // a `Judge` that misses a case.
+        //
+        // ★ ALL duplicates, not just identical signatures. Different parameter types is the shape
+        // dispatch will eventually give a meaning to, and until it does, letting it through leaves
+        // exactly the silent trap this closes — the later one winning while the writer believes
+        // both are reachable.
+        var declaredHere = new Dictionary<string, BindStatement>(StringComparer.Ordinal);
+
         foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is not BindStatement bind) continue;
             if (bind.UntoType != null) continue; // 'unto' methods are not free functions
+
+            if (declaredHere.TryGetValue(bind.Name, out var alreadyDeclared))
+                throw TypeError(
+                    $"'{bind.Name}' is declared twice",
+                    $"It was already declared on line {alreadyDeclared.Line}",
+                    bind.Line, bind.Column,
+                    $"declare '{bind.Name}' again",
+                    "Two functions cannot share a name — the second would silently replace the "
+                    + "first. Rename one of them.");
+            declaredHere[bind.Name] = bind;
+
             var paramTypes = bind.Parameters.Select(p => p.Type).ToList();
 
             // ★ A burying function's CALL type is `stash of T`, not T. Recording it here rather than
