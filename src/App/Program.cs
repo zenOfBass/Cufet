@@ -82,12 +82,24 @@ static IEnumerable<string> UnknownFlags(IEnumerable<string> rest, params string[
 // A file inside a `Prelude` directory IS (a draft of) the bundled prelude — check it as such,
 // or the guards protecting bundled-book names would refuse the prelude's own source, and the
 // embedded copy prepended on top would make its definitions duplicates.
-static TypeChecker MakeChecker(string sourcePath) => new()
+static TypeChecker MakeChecker(string sourcePath)
 {
-    TreatProgramAsPrelude = string.Equals(
-        Path.GetFileName(Path.GetDirectoryName(Path.GetFullPath(sourcePath)) ?? ""),
-        "Prelude", StringComparison.OrdinalIgnoreCase),
-};
+    var checker = new TypeChecker
+    {
+        TreatProgramAsPrelude = string.Equals(
+            Path.GetFileName(Path.GetDirectoryName(Path.GetFullPath(sourcePath)) ?? ""),
+            "Prelude", StringComparison.OrdinalIgnoreCase),
+
+        // A book in another file is looked for beside the one being run.
+        SourceDirectory = Path.GetDirectoryName(Path.GetFullPath(sourcePath)),
+    };
+
+    // ★ The reporter needs this to turn a loaded line back into a file a person can open, and
+    // an error is thrown from inside Check rather than handed back — so it is registered here,
+    // where every caller passes, rather than at each of the six that catch one.
+    SourceMap.Current = checker.Sources;
+    return checker;
+}
 
 static void Help()
 {
@@ -346,6 +358,12 @@ static void WriteWarnings(string file, DiagnosticBag bag)
 static void Report(bool json, string file, (int Line, int Column) at, string severity, string message)
 {
     var (line, column) = at;
+
+    // ★ A line past the host file’s own space came from a book in another file. Reporting the
+    // file it was RUN from, with a line number out of that file’s range, is the one thing a
+    // multi-file error must not do.
+    if (SourceMap.Current?.Resolve(line) is { } origin)
+        (file, line) = (origin.Path, origin.Line);
     if (json)
     {
         Console.Out.WriteLine(JsonSerializer.Serialize(new { file, line, column, severity, message }));

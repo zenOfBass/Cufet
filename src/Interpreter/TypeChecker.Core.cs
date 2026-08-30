@@ -941,6 +941,20 @@ public sealed partial class TypeChecker
     /// to run or compile must use the returned program. Both backends refuse a stray `bury` loudly
     /// rather than misbehaving, so forgetting fails at once instead of silently.
     /// </remarks>
+    /// <summary>Where to look for a book that lives in another file. Null loads nothing.</summary>
+    /// <remarks>
+    /// ⚠ Set only by the CLI, which is the one caller that knows what file it was handed. A test
+    /// checking a program built from a string has no directory and loads nothing, which is right.
+    /// </remarks>
+    public string? SourceDirectory { get; init; }
+
+    /// <summary>Which file each loaded line came from, for the reporter.</summary>
+    public SourceMap Sources { get; } = new();
+
+    /// <summary>Whether a pulled name is already resolvable without going to disk.</summary>
+    private bool IsKnownPullName(string name) =>
+        BuiltinBooks.ContainsKey(name) || _objectDefs.ContainsKey(name);
+
     public Program Check(Program program)
     {
         _scopes[0]["input"] = BuiltinInput;
@@ -950,6 +964,16 @@ public sealed partial class TypeChecker
         // ordinary statement of the program by the time types are gathered, or it is a type nobody
         // declared — and the whole point of `Cite` is that it is the placement that counts, not the
         // block. Nothing later in this method knows cufet blocks exist.
+        // ⭐⭐ FIRST of the front-end passes. A book in another file has to be part of the
+        // program before anything looks for it — the hoist, `Cite`, dispatch and the checker all
+        // assume every declaration is already here.
+        if (SourceDirectory is not null)
+        {
+            var withBooks = BookLoading.Expand(
+                program.Statements, SourceDirectory, Sources, IsKnownPullName);
+            if (!ReferenceEquals(withBooks, program.Statements)) program = new Program(withBooks);
+        }
+
         var placed = CiteExpansion.Expand(program.Statements);
         if (!ReferenceEquals(placed, program.Statements)) program = new Program(placed);
 
@@ -3437,7 +3461,7 @@ public sealed partial class TypeChecker
     {
         var est = established != null ? $"\n{established}." : "";
         return new TypeException(
-            $"That doesn't work: {context}.{est}\nHere on line {violationLine}, you're trying to {action}.\n\n{fix}",
+            SourceMap.Rewrite($"That doesn't work: {context}.{est}\nHere on line {SourceMap.Display(violationLine)}, you're trying to {action}.\n\n{fix}"),
             violationLine,
             violationColumn);
     }
