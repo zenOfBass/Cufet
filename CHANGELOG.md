@@ -37,6 +37,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠ A ring of books is refused and the message names the ring. A book pulled by two others loads
   once. A missing file falls through to the refusal `Pull` already had.
 
+- **A loaded file’s top level belongs to that file.** What it declares beside its module — a
+  helper function, a constant, a type — is reachable inside that file and nowhere else.
+
+  ★★ **No `private` keyword; the file is what hides.** A module’s members are reached through its
+  name because a module is an object, and everything else is the author’s working material. This
+  is the case that already bit once: an overflow-guarded multiply wanted in two places inside
+  `math` was inlined twice, magic constant and all, rather than become a permanent public member.
+
+  ★ Two books may each have a `helper`. Before this both hoisted to program scope and the
+  duplicate-name refusal fired on two declarations in two files a reader never saw together.
+
+  ⚠ Done by renaming to something unwritable — the trick monomorphization and dispatch versions
+  both use — so the checker learns no new scope. The file’s own references are renamed with it,
+  and the rewrite rides on the reflection walk rather than a hand-written list of node kinds.
+
 ## [0.18.0] — 2026-08-30
 
 **One name can have several answers, and the language never guesses which you meant.** Several

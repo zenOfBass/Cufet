@@ -3816,6 +3816,19 @@ That file declares its module the same way any file would, and nothing else chan
 reached through the name, and the binding ends at `Done.` A book may pull another book; a ring of
 them is refused, and the message names the ring.
 
+**A file’s top level belongs to that file.** What a loaded file declares beside its module — a
+helper function, a constant, a type — is reachable inside that file and nowhere else:
+
+```cufet-fragment
+Pull a book on kit.
+    State cast kit's use on (1).       ← the module: yours to call
+Done.
+State cast helper on (10).             ← refused: kit.cufe’s own helper
+```
+
+So a book author keeps working material without marking anything private, and two books may
+each have a `helper` without colliding. There is no `private` keyword — the file is what hides.
+
 ⚠ The files are resolved and compiled **together**, as one program. Cufet has no separate
 compilation, and multi-file is about writing a program across files rather than building them
 independently.

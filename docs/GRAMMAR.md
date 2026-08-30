@@ -2777,6 +2777,17 @@ program. Rings are refused by name; a book pulled by two others is loaded once.
 AST nodes and exceptions carry a line and a column and no FILE — giving them one would touch every
 position in the front end. The reporter maps a virtual line back to its file and line.
 
+★★ **A loaded file’s top level is private to it**, and by RENAMING rather than by a new scope:
+everything the file declares beside a `module`-conforming object is renamed to something with a
+space in it, which no identifier can contain. The file’s own references are renamed with it, so
+its module still reaches its helpers; the host cannot name what it cannot spell.
+
+⚠ The rewrite rides on `AstSearch`, which walks every property of every node by reflection. A
+hand-written walk that forgot a node kind would leave a reference pointing at a name that no
+longer exists — loud at check time, which is the right direction, but the reflection walk means
+it cannot happen. Types are substituted separately, because that walk deliberately does not
+descend into a `CufetType`.
+
 ★★ **The line appears twice in an error, and both have to agree.** Once in the reporter’s header,
 and once in the prose — 163 places in the front end write a line number into a message. So the
 resolution is applied to the COMPOSED message, not at each of them, and only rewrites a number

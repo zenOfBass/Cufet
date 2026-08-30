@@ -23,22 +23,7 @@ The `module` interface itself is the language seam and shipped with the arc abov
 here is everything about code that is **not already in the program**, which is a separate hard
 problem and is nobody's contract.
 
-1. **What a loaded book may declare beside its module.** `Pull a book on …` now finds
-   `‹name›.cufe` beside the file being run, and loading works: rings refused, a book pulled twice
-   loaded once, errors reporting the loaded file’s own path and line. What is NOT decided is what
-   else that file may contain.
-
-   ★ **A module’s members are namespaced; anything beside it is not.** A free function declared
-   at the top of a loaded file hoists to program scope like any other, so two files can now
-   collide on a name a reader never saw together — the duplicate-name refusal fires, correctly,
-   and names two lines in two files without saying which is which.
-
-   **The fork:** either a loaded file is one module and nothing else, and collisions are
-   impossible by construction, or it may declare freely and the refusal has to name files as well
-   as lines. The first keeps the namespace claim true all the way down; the second is more
-   permissive and costs a pass over every message that names a position.
-
-2. **What a module exports.** Every member is public API, permanently, because there is no way to
+1. **What a module exports.** Every member is public API, permanently, because there is no way to
    mark one internal. A module author has no way to say *this is my helper, do not call it*.
 
    ★ **It bites when a module can be DEPENDED ON, and not before.** Nothing is distributable —
@@ -91,7 +76,7 @@ problem and is nobody's contract.
    hides). Whether a module with no declared surface then exports everything or nothing is the one
    real decision, and it is due when distribution is, not now.
 
-3. **A package manager for books.**
+2. **A package manager for books.**
 
 ### Cufet in Cufet
 
