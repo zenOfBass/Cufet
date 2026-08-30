@@ -75,18 +75,18 @@ public class BookLoadingTests : IDisposable
         // ★ The namespace claim, and it needed nothing new — a module is an object, so its members
         // live on it. A bare `greet` is not in scope, which is the whole point of pulling.
         //
-        // ⚠⚠ Refused at RUN time, not at check time, and that is a PRE-EXISTING gap rather than
-        // anything loading introduces: the identical shape written in one file, with the module
-        // defined beside the pull, also passes `cufet check` with "No problems found" and then
-        // dies. Recorded as what actually happens rather than what ought to — if the checker ever
-        // catches it, this test goes red and says so.
+        // ★★ Refused at CHECK time. It was not when this test was written — an unknown name in a
+        // free cast handed back a null type and was left to run time, so `cufet check` reported
+        // "No problems found" for a program that died. Closing that hole is what moved this test
+        // from a RuntimeException to a TypeException, and the comment is kept because the test
+        // going red is how the change announced itself.
         Write("greeting-kit", Kit);
-        var e = Assert.Throws<RuntimeException>(() => Run("""
+        var e = Refused("""
             Pull a book on greeting-kit.
                 State cast greet on ("world").
             Done.
-            """));
-        Assert.Contains("'greet' is not a method", e.Message);
+            """);
+        Assert.Contains("'greet' isn't defined", e.Message);
     }
 
     [Fact]

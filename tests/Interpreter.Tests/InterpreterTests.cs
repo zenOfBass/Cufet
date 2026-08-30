@@ -6473,11 +6473,15 @@ public class InterpreterTests
     [Fact]
     public void Unto_NotCallableAsFreeFunction()
     {
-        // An 'unto' method must not leak into the free-function namespace. A zero-arg call to
-        // an undefined name is a runtime error in Cufet generally (not statically provable —
-        // same as calling any other undefined free function with no args), so that's the
-        // exception this throws; the point is it's NOT resolved as a callable free function.
-        Assert.Throws<RuntimeException>(() => Run(
+        // An 'unto' method must not leak into the free-function namespace, and does not.
+        //
+        // ★★ This used to assert a RuntimeException, on a comment claiming a zero-arg call to an
+        // undefined name was "not statically provable". That was wrong: nothing about the name
+        // resolves later — axioms, generic fillings, method dispatch and ordinary bindings are all
+        // settled before the checker reaches this point. The claim held only because the checker
+        // declined to look, which is also why `cufet check` reported "No problems found" for a
+        // program that died on an undefined name.
+        Assert.Throws<TypeException>(() => Run(
             "Define object person with (the text name).\n" +
             "Bind void to greet unto person:\n" +
             "    State one's name.\n" +

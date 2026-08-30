@@ -652,14 +652,20 @@ public class PipelineTextFailureTests : PipelineTestBase
     [Fact]
     public void UnknownFunction_StillSaysItIsUnknown()
     {
-        // The other half of the same branch: a name that really is bound nowhere must keep the
-        // blunt message, or the fix would have traded one misleading sentence for another.
-        var ex = Assert.Throws<CompilerException>(() => Compile("""
+        // The other half of the same branch: a name that really is bound nowhere must still say
+        // so, or the fix would have traded one misleading sentence for another.
+        //
+        // ★★ It is now the CHECKER that says it, not the compiler. An unknown name in a free cast
+        // used to hand back a null type and be left to run time — so `cufet check` reported "No
+        // problems found" for a program that could not run, and the blunt message came from the
+        // backend that met it later. Both backends are spared it now, which is why this asserts a
+        // TypeException.
+        var ex = Assert.Throws<TypeException>(() => Compile("""
             Pull a rabbit.
                 State Cast no-such-function on (1).
             Done.
             """));
-        Assert.Contains("not a known function or method", ex.Message);
+        Assert.Contains("'no-such-function' isn't defined", ex.Message);
         Assert.DoesNotContain("declared further down", ex.Message);
     }
 

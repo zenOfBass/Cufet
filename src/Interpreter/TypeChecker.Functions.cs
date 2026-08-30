@@ -835,8 +835,23 @@ public sealed partial class TypeChecker
                 }
             }
 
-            // Unknown identifier with non-object first arg (or no args) — runtime catches it.
-            return (null, $"'{vr.Name}'", callLine, args);
+            // ⚠⚠ Refused here rather than left to run time. This used to hand back a null type and
+            // a note saying "runtime catches it" — so `cast nowhere on (5).` passed `cufet check`
+            // with "No problems found" and then died with "'nowhere' is not a method on this
+            // value". A checker that reports nothing about a program that cannot run is the one
+            // thing this language is for, and the hole was wide: any name at all, so long as the
+            // first argument was not an object.
+            //
+            // ★ Everything that legitimately resolves late has already been taken by the time
+            // this is reached — axioms, generic fillings, method dispatch and ordinary bindings
+            // are each handled above, and a template’s name is resolved before any of them.
+            throw TypeError(
+                $"'{vr.Name}' isn't defined, so there is nothing to cast",
+                "A cast reaches a function, a method, or an axiom, and no declaration of this name "
+              + "was found",
+                callLine, callCol,
+                $"cast '{vr.Name}'",
+                $"Check the spelling, or declare it: 'Bind <type> to {vr.Name}, given (…):'.");
         }
 
         // General path: PossessiveAccess → FunctionType for method ref, etc.
