@@ -2496,6 +2496,43 @@ The names come from the **declaration**, so a call reaching its function through
 — a parameter, a field, another call's result — stays positional: the value carries the
 parameter types, but not what they are called.
 
+**Several versions of one name** — when exactly one argument's type tells them apart:
+
+```cufet
+Define object num-node with (the number value).
+Define object add-node with (the number left, the number right).
+
+Bind number to eval, given (the num-node node):
+    Return node's value.
+Done.
+
+Bind number to eval, given (the add-node node):
+    Return node's left + node's right.
+Done.
+
+Define nodes as a catalogue of (num-node or add-node) with (
+    a new num-node { the value 1 },
+    a new add-node { the left 2, the right 3 }).
+
+For each n in nodes, repeat:
+    State cast eval on (n).
+Done.
+```
+```output
+1
+5
+```
+
+Each element of that catalogue is a `(num-node or add-node)` — nothing at the call says
+which — so the version is chosen from what the value actually is.
+
+Every version must take the same number of arguments and give back the same type, so a
+caller knows what it gets without knowing which version ran. Two versions claiming one
+type is an error, and so is telling versions apart by more than one argument.
+
+The versions decide what the name accepts: `eval` above takes a `(num-node or add-node)`,
+and passing anything else is an ordinary type error naming the case that has no version.
+
 **Early exit:**
 ```cufet-fragment
 Return value.    ← return a value

@@ -9,6 +9,40 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 ## [Unreleased]
 
 ### Added
+- **Several functions may share a name when one argument's type tells them apart:**
+
+  ```
+  Bind number to eval, given (the num-node node): Return node's value. Done.
+  Bind number to eval, given (the add-node node): Return node's left + node's right. Done.
+  Bind number to eval, given (the neg-node node): Return 0 - node's operand. Done.
+
+  For each n in nodes, repeat:        // nodes: a catalogue of (num-node or add-node or neg-node)
+      State cast eval on (n).
+  Done.
+  ```
+
+  ★★ **The union case is the feature**, as opposed to overloading. Every element above is
+  statically the union — nothing at the call site says which node it holds — so the version is
+  chosen from the tag the value carries. That is the shape a lexer, parser or type checker is made
+  of, and writing one was the reason this was on the roadmap.
+
+  ★★ **Expanded in the front end, before the hoist.** Each version becomes an ordinary function
+  under an unwritable name (`eval given num-node` — spaces, the same trick monomorphization uses),
+  and the name the writer called becomes an ordinary function whose body is a `Judge` over the
+  union of the versions' types. Neither backend learns that dispatch exists.
+
+  ★ **The dispatcher is a `Judge` because `Judge` already does this job** — it reads the tag, it
+  narrows the subject per arm, and it proves the arms cover every case. The arms are generated from
+  the versions, so coverage cannot fall out of step with them, and a call passing a wider union than
+  the versions cover is refused by ordinary assignability, naming the case that has no version.
+
+  ⚠ Every version must agree on arity and on what it gives back. The return type is not an
+  implementation convenience: a caller has to know what it gets back without knowing which version
+  ran, and the alternative is handing every caller a union to judge.
+
+  ⚠ Refused: two versions claiming one type, and versions differing in **more than one** argument —
+  that is the product of their cases, a nested `Judge`, and its own question.
+
 - **Named arguments at a call site** — `cast area on (the width 3, the height 4)`, in any order:
 
   ```
@@ -293,10 +327,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   Everywhere else is a refusal — two overloads on an ordered pair, a name that is both a method
   and a free function, a `Judge` that misses a case of a closed union.
 
-  ★ **Different parameter types are refused too**, not only identical signatures. That shape had
-  the same silent behaviour and a worse symptom: with `eval` declared for two node types, passing
-  the first one was refused with *"argument 1 of 'eval' must be a add-node"* — an error about the
-  declaration the writer was not calling.
+  ★ That silent behaviour had a worse symptom on differing parameter types, which is the shape
+  dispatch now gives a meaning to: with `eval` declared for two node types, passing the first one
+  was refused with *"argument 1 of 'eval' must be a add-node"* — an error about the declaration the
+  writer was not calling.
 
   ★★ It also surfaced a collision nobody could see. Two `Pull` blocks each declaring a `helper`
   are hoisted into the same top-level scope, so a call inside the FIRST block reached the SECOND

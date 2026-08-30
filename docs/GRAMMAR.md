@@ -2763,19 +2763,41 @@ required is refused — correctly, since an open union has no fixed set of confo
 for. The refusal names a type you never wrote, which is the confusing part: you get told you
 passed "an open union" without having typed the word `union` anywhere. Name the element type.
 
-### ★ Two free functions cannot share a name
+### ★ Several functions may share a name when one argument tells them apart
 
-A name declares one function. A second `Bind` of the same name is refused, naming both lines —
-**whatever its parameters are.** Different parameter types is the shape open dispatch would give a
-meaning to; until something does, accepting it means the later declaration silently replaces the
-earlier one.
+Two `Bind`s of one name are **versions** when exactly one parameter's type differs between them.
+The call picks the version by that argument's type — statically when the type is known, and from
+the tag the value carries when the argument is a closed union.
+
+**Expanded in the front end, before the hoist.** Each version becomes an ordinary function under an
+unwritable name (`eval given num-node` — spaces, the same trick monomorphization uses), and the
+name the writer called becomes an ordinary function whose body is a `Judge` over the union of the
+versions' types. Neither backend learns dispatch exists.
+
+⚠ **The dispatcher's arms are generated from the versions**, so coverage cannot fall out of step
+with them, and a call passing a wider union than the versions cover is refused by ordinary
+assignability — naming exactly which case has no version.
+
+Every version must agree on **arity** and on **what it gives back**. The return type is not an
+implementation convenience: a caller has to know what it gets back without knowing which version
+ran, and the alternative is handing every caller a union to judge.
+
+Refused: two versions claiming one type, versions differing in **more than one** argument (that is
+the product of their cases — a nested `Judge`, and its own question), and a name whose declarations
+have nothing at all to tell them apart.
+
+### ★ A name with nothing to tell its declarations apart
+
+Where no argument type differs, a second `Bind` of the same name is refused, naming both lines.
+Before this it was accepted silently and the later declaration won.
 
 Compared on the **hoisted** declarations, which has two consequences worth knowing:
 
 | Shape | Verdict | Why |
 |---|---|---|
-| Two top-level `Bind`s of one name | Refused | One name, one function |
-| The same name in two separate `Pull` blocks | Refused | Both bodies hoist into the SAME top-level scope, so a call in the first block reached the second block's body |
+| Two top-level `Bind`s of one name, same parameter types | Refused | Nothing could pick between them |
+| Two top-level `Bind`s of one name, one parameter type differing | Allowed | Versions — see above |
+| The same name in two separate `Pull` blocks | Refused | Both bodies hoist into the SAME top-level scope, so a call in the first block reached the second block's body. Versions spanning blocks is a separate question, not yet settled |
 | A `Bind` inside a body, shadowing a top-level one | Allowed | Not hoisted. An ordinary local declaration, shadowing the way a local binding does |
 | Two types each declaring a `speak` method | Allowed | A method is not a free function — it is reached through its owner |
 | A `Bind … unto <type>` sharing a free function's name | Allowed | `unto` declares a method, reached through its owner — `cast rex's speak on ()` and `cast speak on (3)` are different calls |
