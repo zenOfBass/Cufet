@@ -17,6 +17,140 @@ version, and 1.0.0 will mark the point at which the language is considered stabl
 
 ## What's next
 
+### Shipping a book, strictly in this order
+
+The `module` interface itself is the language seam and shipped with the arc above. What is left
+here is everything about code that is **not already in the program**, which is a separate hard
+problem and is nobody's contract.
+
+1. **An external book loader.** A program is one file. `Pull a book on …` reaches the three
+   bundled books; `Pull …` reaches an object defined in the same file; nothing is read from disk.
+
+   ★ **The tier below is what needs it.** Writing large Cufet programs is how ergonomic blockers
+   get found, and the largest program that exists is 193 lines against a 2,815-line corpus. A REPL
+   with a terminal layer and an evaluator is several times that. The one-file limit would be the
+   first blocker met, and it is one already known — which makes it a poor instrument for finding
+   the rest.
+
+   ★ **Resolve and compile TOGETHER, not separately.** That keeps whole-program visibility, which
+   dispatch coverage, the bounded open-union tag set and monomorphization all depend on — and
+   versions of a name across files then need no design change at all. Compiling files
+   independently is a different feature with a different payoff, and it is deferred.
+
+2. **What a module exports.** Every member is public API, permanently, because there is no way to
+   mark one internal. A module author has no way to say *this is my helper, do not call it*.
+
+   ★ **It bites when a module can be DEPENDED ON, and not before.** Nothing is distributable —
+   there is no loader and no package manager (the items either side of this one) — so no one can
+   rely on your helper yet.
+
+   ⚠⚠ **AMENDED 2026-08-19: that precondition is now PARTLY MET, and it arrived from an
+   unexpected direction.** Writing the bundled books in Cufet (the 0.16.0 arc) made the prelude
+   ship with the language and travel into every program, so **the books are modules that really
+   are depended on — by everyone, permanently, with no distribution mechanism needed.** A helper
+   added to `math` is in every Cufet program forever.
+
+   It bit once while `power` was being written: an overflow-guarded multiply was wanted in two
+   places, and factoring it out would have made `guarded-times` a permanent member of `math`, so
+   **it was inlined twice instead** — the magic constant with it. That is the predicted failure
+   exactly: not "could not be done", but "written worse to avoid the API". One duplicated guard
+   does not justify reordering this item, and the fix here is still the right one — but the next
+   person writing a bundled book will meet the same wall, and should know it was expected. This item belongs here, next to the things that make distribution real.
+
+   ⚠ **Corrected 2026-08-15.** An earlier version of this entry claimed the decision could not wait
+   and had to be made before a module could be shared. That was wrong twice over, and the reasoning
+   is worth keeping so it is not repeated:
+   - **The urgency was borrowed from a world that does not exist yet.** "Everything is public
+     becomes permanent" is true of a published package, not of a program you can only run.
+   - **The obvious fix would undo the unification.** An object exposes all its methods; a module IS
+     an object; so a module exposing all its methods is not an accidental default, it is the
+     consistent behaviour. Requiring modules to declare an export surface would make them behave
+     differently from ordinary objects — the special-casing the arc above exists to delete. It also cuts
+     against the language's temper: you *should* keep your helpers to yourself, and we do not make
+     you, the same way we do not stop you writing a magic number.
+
+   ★ **When it is time, no new concept is needed — and this is the part worth keeping.** Measured
+   2026-08-15: **an interface already restricts what is reachable.** Calling a method that is not on
+   the interface, through the interface, is refused with *"interface 'greeter' has no method named
+   'helper'. Available methods: 'greet'."* So export control is: bind the pulled name at a declared
+   interface instead of at the object type.
+
+   ```
+   Define greeter as an interface for { The text function greet }.
+   Define object greeting-kit with () and greeter and module: ... Done.
+
+   Pull greeting-kit.
+       State cast greeting-kit's greet on ().    ← in `greeter`, so reachable
+       State cast greeting-kit's helper on ().   ← refused, by machinery that exists today
+   Done.
+   ```
+
+   No `private` keyword, no visibility modifiers, no per-member markers — a positive declaration of
+   what you hand out, which is how Cufet says things elsewhere (`a shadow` announces rather than
+   hides). Whether a module with no declared surface then exports everything or nothing is the one
+   real decision, and it is due when distribution is, not now.
+
+3. **A package manager for books.**
+
+### Cufet in Cufet
+
+The ordering is not ceremonial: this tier's real blocker is stated below as **ergonomic rather than capability**, and the only way to find ergonomic blockers is to write large Cufet programs. These are the two largest realistic ones, so they are the instrument as much as they are the goal — better to meet the gaps across a REPL and a shell than to meet all of them at once inside a compiler.
+
+1. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+
+    ★ **First because the shell inherits its terminal layer.** Raw mode, reading a line with
+    editing, history, completion — both programs need all of it, and the shell entry below names
+    raw terminal mode as one of its two remaining pieces. Built once here, it is already done
+    there.
+
+    ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
+    for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
+    and is a good program; the second is literally self-hosting's front half. Only the second
+    makes this a stepping stone rather than a stop along the way, and the choice should be made
+    when the work starts rather than assumed now.
+
+    ⚠ That question does NOT affect the ordering: an evaluator carries nothing to a shell, which
+    parses a different grammar for a different job. What carries is the terminal layer either way,
+    so the fork can be decided on its own merits.
+
+2. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
+    dispatches and launches, and now changes directory too.
+
+    ★ **No longer blocked.** Job control needs process groups and signalling a child; completion
+    needs raw terminal mode. Neither is in the language and neither should become a language
+    feature — they are exactly the "call a C function" family, and axioms now reach them. What is
+    left is writing the calls, not adding to the language. Globbing and history need nothing new.
+
+3. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+    data model, text handling and I/O are already sufficient, and emitting C is a route a
+    Cufet-written compiler can take too.
+
+    ★ The test oracle already exists. A self-hosted compiler can be validated by asserting
+    its C output matches this compiler's — a third implementation held against the other two.
+
+    ★ **This is where "written in Cufet, no exceptions" is finally discharged.** The language's
+    floor — `If`, arithmetic, `bury`'s state-machine transform — is compiler-implemented, so the
+    compiler becoming Cufet is what makes every last part of the language Cufet-written. The
+    arc above deliberately did not borrow this promise; this item owns it.
+
+4. **Compile-time macros — the `cufet` tag's expander.** Not a fourth program. It is here 
+    rather than in *Deferred* because its blocker is now a numbered item above, which is the one rule that section states about itself.
+
+    Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and
+    runtime. It is one tag of the BLOCKS type rather than a feature of its own: quoted Cufet and
+    embedded foreign source live under one type name, and a macro is what consumes the `cufet` tag. See [DESIGN.md](DESIGN.md#foreign-interoperability) — including why hygiene and SQL injection turn out to be the same problem, which is what makes the unification real rather than cosmetic.
+
+    ★ **The type shipped in 0.17.0, and a deliberately small consumer with it.** `Cite` places what a
+    block holds, and a block that says what it gives back is lowered to an ordinary function. What is
+    NOT built is the expander this entry means: syntax parameters, and generating AST from them.
+
+    ⚠ **Its blocker is item 3 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately,not early.
+
+    ★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
+    ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that a compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet
+    interpreter *written in C* — a third implementation, or a divergence. Note also that an explicit
+    `eval` is not a fexpr and would cost neither `check` nor monomorphization; the C-interpreter bill is what rules it out.
+
 ### The design mountains
 
 All need a design session before they can be ordered against anything. They are here because
@@ -87,128 +221,6 @@ they are large, not because they are waiting — the order among them means noth
    a thing takes and gives, so a comment that restates it is a second copy that drifts. What is
    left is *why*, and *what can go wrong* — which is what this codebase's own ★/⚠ convention
    carries in its C# and C.
-
-### Shipping a book, strictly in this order
-
-The `module` interface itself is the language seam and shipped with the arc above. What is left
-here is everything about code that is **not already in the program**, which is a separate hard
-problem and is nobody's contract.
-
-1. **Separate compilation and an external book loader.** ⚠ Known collision: the bounded
-   open-union representation is sound *because* the whole program compiles at once. Either
-   feature forces revisiting it.
-
-   ⚠⚠ **Dispatch now rides on the same property, so this entry's central choice decides its
-   cost.** Versions of a name are gathered whole-program, coverage is PROVED because every version
-   is visible, and the tag dispatch works because the tag set is bounded. A loader that resolves
-   files and then compiles them together needs no design change for versions across files. If
-   compilation is genuinely separate, none of those three survive — which is CLOS's actual
-   problem, and the one this design sidesteps rather than solves.
-   
-2. **What a module exports.** Every member is public API, permanently, because there is no way to
-   mark one internal. A module author has no way to say *this is my helper, do not call it*.
-
-   ★ **It bites when a module can be DEPENDED ON, and not before.** Nothing is distributable —
-   there is no loader and no package manager (the items either side of this one) — so no one can
-   rely on your helper yet.
-
-   ⚠⚠ **AMENDED 2026-08-19: that precondition is now PARTLY MET, and it arrived from an
-   unexpected direction.** Writing the bundled books in Cufet (the 0.16.0 arc) made the prelude
-   ship with the language and travel into every program, so **the books are modules that really
-   are depended on — by everyone, permanently, with no distribution mechanism needed.** A helper
-   added to `math` is in every Cufet program forever.
-
-   It bit once while `power` was being written: an overflow-guarded multiply was wanted in two
-   places, and factoring it out would have made `guarded-times` a permanent member of `math`, so
-   **it was inlined twice instead** — the magic constant with it. That is the predicted failure
-   exactly: not "could not be done", but "written worse to avoid the API". One duplicated guard
-   does not justify reordering this item, and the fix here is still the right one — but the next
-   person writing a bundled book will meet the same wall, and should know it was expected. This item belongs here, next to the things that make distribution real.
-
-   ⚠ **Corrected 2026-08-15.** An earlier version of this entry claimed the decision could not wait
-   and had to be made before a module could be shared. That was wrong twice over, and the reasoning
-   is worth keeping so it is not repeated:
-   - **The urgency was borrowed from a world that does not exist yet.** "Everything is public
-     becomes permanent" is true of a published package, not of a program you can only run.
-   - **The obvious fix would undo the unification.** An object exposes all its methods; a module IS
-     an object; so a module exposing all its methods is not an accidental default, it is the
-     consistent behaviour. Requiring modules to declare an export surface would make them behave
-     differently from ordinary objects — the special-casing the arc above exists to delete. It also cuts
-     against the language's temper: you *should* keep your helpers to yourself, and we do not make
-     you, the same way we do not stop you writing a magic number.
-
-   ★ **When it is time, no new concept is needed — and this is the part worth keeping.** Measured
-   2026-08-15: **an interface already restricts what is reachable.** Calling a method that is not on
-   the interface, through the interface, is refused with *"interface 'greeter' has no method named
-   'helper'. Available methods: 'greet'."* So export control is: bind the pulled name at a declared
-   interface instead of at the object type.
-
-   ```
-   Define greeter as an interface for { The text function greet }.
-   Define object greeting-kit with () and greeter and module: ... Done.
-
-   Pull greeting-kit.
-       State cast greeting-kit's greet on ().    ← in `greeter`, so reachable
-       State cast greeting-kit's helper on ().   ← refused, by machinery that exists today
-   Done.
-   ```
-
-   No `private` keyword, no visibility modifiers, no per-member markers — a positive declaration of
-   what you hand out, which is how Cufet says things elsewhere (`a shadow` announces rather than
-   hides). Whether a module with no declared surface then exports everything or nothing is the one
-   real decision, and it is due when distribution is, not now.
-
-3. **A package manager for books.**
-
-### Cufet in Cufet
-
-The ordering is not ceremonial: this tier's real blocker is stated below as **ergonomic rather than capability**, and the only way to find ergonomic blockers is to write large Cufet programs. These are the two largest realistic ones, so they are the instrument as much as they are the goal — better to meet the gaps across a REPL and a shell than to meet all of them at once inside a compiler.
-
-1. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
-
-    ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
-    for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
-    and is a good program; the second is literally self-hosting's front half. Only the second
-    makes this a stepping stone rather than a stop along the way, and the choice should be made
-    when the work starts rather than assumed now.
-
-2. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
-    dispatches and launches, and now changes directory too.
-
-    ★ **No longer blocked.** Job control needs process groups and signalling a child; completion
-    needs raw terminal mode. Neither is in the language and neither should become a language
-    feature — they are exactly the "call a C function" family, and axioms now reach them. What is
-    left is writing the calls, not adding to the language. Globbing and history need nothing new.
-
-3. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
-    data model, text handling and I/O are already sufficient, and emitting C is a route a
-    Cufet-written compiler can take too.
-
-    ★ The test oracle already exists. A self-hosted compiler can be validated by asserting
-    its C output matches this compiler's — a third implementation held against the other two.
-
-    ★ **This is where "written in Cufet, no exceptions" is finally discharged.** The language's
-    floor — `If`, arithmetic, `bury`'s state-machine transform — is compiler-implemented, so the
-    compiler becoming Cufet is what makes every last part of the language Cufet-written. The
-    arc above deliberately did not borrow this promise; this item owns it.
-
-4. **Compile-time macros — the `cufet` tag's expander.** Not a fourth program. It is here 
-    rather than in *Deferred* because its blocker is now a numbered item above, which is the one rule that section states about itself.
-
-    Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and
-    runtime. It is one tag of the BLOCKS type rather than a feature of its own: quoted Cufet and
-    embedded foreign source live under one type name, and a macro is what consumes the `cufet` tag. See [DESIGN.md](DESIGN.md#foreign-interoperability) — including why hygiene and SQL injection turn out to be the same problem, which is what makes the unification real rather than cosmetic.
-
-    ★ **The type shipped in 0.17.0, and a deliberately small consumer with it.** `Cite` places what a
-    block holds, and a block that says what it gives back is lowered to an ordinary function. What is
-    NOT built is the expander this entry means: syntax parameters, and generating AST from them.
-
-    ⚠ **Its blocker is item 3 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately,not early.
-
-    ★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
-    ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that a compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet
-    interpreter *written in C* — a third implementation, or a divergence. Note also that an explicit
-    `eval` is not a fexpr and would cost neither `check` nor monomorphization; the C-interpreter bill is what rules it out.
 
 ### Ongoing, no fixed slot
 
@@ -393,6 +405,19 @@ indistinguishable from having forgotten.
   the object is built.
 
 ### Tooling
+
+- **Separate compilation.** Compiling files independently and linking the results, rather than
+  resolving them and compiling together. *Blocker:* there is no build-speed problem to solve —
+  the whole example corpus is 2,815 lines, and a full build plus 2,782 tests runs in minutes.
+
+  ⚠⚠ **This is the half that carries the collision**, and the loader above does not. Three things
+  are sound only because the whole program compiles at once: dispatch proves coverage by seeing
+  every version of a name, the open-union representation bounds its tag set whole-program, and a
+  generic is monomorphized from every filling the program contains. Separate compilation reopens
+  all three at once.
+
+  **The trigger:** builds getting slow enough to notice. Not before — buying incremental rebuilds
+  with three invariants is a bad trade at any corpus size that fits on one screen.
 
 - **An LSP.** A run stops at its first error, so the front end reports at most one — plus any
   warnings it collected on the way, each with a line, a column and a long prose explanation. LSP's
