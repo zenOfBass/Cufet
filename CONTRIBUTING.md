@@ -201,14 +201,27 @@ error shape; it is the exploratory tool, and `DocBlockTests` is the gate.
 the roadmap — its record is the CHANGELOG entry, and its rationale is docs/DESIGN.md. Leaving
 a shipped item behind is how the file becomes fiction.
 
-**The version lives in eight files.** Four `.csproj`s, two `package.json`s, and a line each in
-README and REFERENCE. The two `package.json` files were both missed on the 0.11.0 pass and found
-only by grepping the whole tree for the outgoing version — so do that grep as the last step of any
-release, rather than trusting this list to be complete:
+**The version lives in nine files.** Four `.csproj`s, two `package.json`s, the playground's
+`package-lock.json`, and a line each in README and REFERENCE. The lockfile is generated — `npm
+version` writes it — so bumping `package.json` by hand leaves it behind.
+
+Do not trust that list. Grep the whole tree as the last step of any release, for **any**
+version-shaped string:
 
 ```
-grep -rn "0\.11\.0" --exclude-dir={node_modules,site,bin,obj,.git} --exclude=CHANGELOG.md .
+grep -rEn "0\.[0-9]+\.[0-9]+" --exclude-dir={node_modules,site,bin,obj,.git} --exclude=CHANGELOG.md .
 ```
+
+⚠⚠ **Grep for the shape, not for the outgoing version.** The obvious check — searching for the
+version you are replacing — can only find files that were correct last time, so a file that
+drifted once stays invisible forever after. That is not hypothetical: the playground lockfile
+sat at `0.10.0` through seven releases, and every outgoing-version grep from 0.11.0 to 0.17.0
+passed clean over it. The two `package.json` files missed on the 0.11.0 pass were caught by the
+narrow grep only because they had been right the release before.
+
+★ Expect hits that are HISTORY and must stay: ROADMAP and code comments say things like *"shipped
+in 0.17.0"* and *"the 0.16.0 arc"*. The grep is a prompt to look, not a list of edits — what it is
+checking for is a version asserted as CURRENT in a place nobody remembered.
 
 Docs that go stale are worse than no docs. If code and docs disagree, the code
 is the truth — but the docs should always catch up before merging.
