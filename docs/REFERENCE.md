@@ -2533,6 +2533,43 @@ type is an error, and so is telling versions apart by more than one argument.
 The versions decide what the name accepts: `eval` above takes a `(num-node or add-node)`,
 and passing anything else is an ordinary type error naming the case that has no version.
 
+**A version may carry a condition** with `when`, and one version must carry none — it
+runs when no condition holds:
+
+```cufet
+Define object add-node with (the number left, the number right).
+
+Bind number to fold, given (the add-node node) when node's left is 0 and node's right is not 0:
+    Return node's right.
+Done.
+
+Bind number to fold, given (the add-node node) when node's right is 0:
+    Return node's left.
+Done.
+
+Bind number to fold, given (the add-node node):
+    Return node's left + node's right.
+Done.
+
+State cast fold on (a new add-node { the left 0, the right 9 }).
+State cast fold on (a new add-node { the left 2, the right 3 }).
+```
+```output
+9
+5
+```
+
+**Two conditions that could both hold are an error.** Above, `left is 0` on its own
+would overlap `right is 0` — both hold on `0 + 0` — so the first says `and node's
+right is not 0` to exclude it. The language never decides which of two overlapping
+versions wins; it refuses them.
+
+A condition is built from equality against a literal (`node's left is 0`), a type
+test (`node is a num-lit`), either of them negated, and `and`, `or` and `xor`.
+Ordering and arithmetic are not part of it: `when node's left is greater than 3` is
+refused, because whether two such conditions overlap is not something the checker
+can decide by comparing them.
+
 **Early exit:**
 ```cufet-fragment
 Return value.    ← return a value

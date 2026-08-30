@@ -2786,6 +2786,52 @@ Refused: two versions claiming one type, versions differing in **more than one**
 the product of their cases — a nested `Judge`, and its own question), and a name whose declarations
 have nothing at all to tell them apart.
 
+### ★ `when` on a version: the fragment, and why it is bounded
+
+A version may carry `when <condition>` after its `given (…)`. Versions sharing one signature are
+told apart by their conditions; **exactly one per signature must carry none**, and that one is the
+fallback.
+
+**Overlap is refused, never resolved.** Two versions whose conditions can both hold is a compile
+error naming both lines. There is no priority rule, no declaration-order tiebreak and no
+specificity system, because the question "which of these two wins" is never asked — which is the
+same answer this language gives every other ambiguity.
+
+**Which makes the fragment the design, not a limitation of it.** Deciding whether two arbitrary
+boolean expressions can both hold is undecidable; deciding it for these atoms is a comparison:
+
+| Allowed | Example |
+|---|---|
+| Equality against a literal | `node's left is 0` |
+| Inequality against a literal | `tok's kind is not "eof"` |
+| Type test | `node is a num-lit` |
+| Negated type test | `node is not a num-lit` |
+| `and`, `or`, `xor` over those | `left is 0 xor right is 0` |
+
+⚠ **The atom set is closed under negation, and that is load-bearing.** Overlap being refused means
+a writer excludes the narrower case by hand — and excluding a conjunction needs a disjunction, so
+without `or` the design would refuse overlap and withhold the only way to write around it.
+
+⚠ `xor` carries no expressive power (the atoms already negate) and is in for consistency: `and`,
+`xor` and `or` are one family on one precedence line. It normalises by doubling conjuncts, where
+`or` only adds.
+
+**Out:** ordering and arithmetic. Those need interval reasoning rather than atom comparison.
+
+⚠ **The check is sound and deliberately incomplete.** Over a `(red or green)`, `is not a red` and
+`is not a green` are disjoint by exhaustion and no atom pair says so, so they are refused. Erring
+toward refusal is the safe direction — a refused program is a message, an accepted ambiguous one is
+a silent wrong answer.
+
+**A fallback is required rather than inferred**, even when the conditions look complementary:
+proving a SET of them covers every case is tautology checking, which the fragment does not promise.
+Widening either boundary later is additive.
+
+⚠ **The generated `If` chain is order-dependent; the dispatch is not.** Because no two conditions
+can hold at once, the chain answers the same in any order, so the order it happens to be generated
+in carries no meaning. The condition is also rewritten onto the narrowed subject before it reaches
+the chain — inside the generated `Judge` arm the parameter still holds the whole union.
+
 ### ★ A name with nothing to tell its declarations apart
 
 Where no argument type differs, a second `Bind` of the same name is refused, naming both lines.

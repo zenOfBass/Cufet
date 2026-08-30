@@ -43,6 +43,48 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠ Refused: two versions claiming one type, and versions differing in **more than one** argument —
   that is the product of their cases, a nested `Judge`, and its own question.
 
+- **A version may carry a `when` condition**, and the versions of one signature are told apart by
+  theirs:
+
+  ```
+  Bind number to fold, given (the add-node node) when node's left is 0 and node's right is not 0:
+      Return node's right.
+  Done.
+
+  Bind number to fold, given (the add-node node) when node's right is 0:
+      Return node's left.
+  Done.
+
+  Bind number to fold, given (the add-node node):
+      Return node's left + node's right.
+  Done.
+  ```
+
+  ★★ **Overlap is REFUSED, never resolved.** `left is 0` on its own would overlap `right is 0` —
+  both hold on `0 + 0` — so the first excludes it by hand. There is no priority rule, no
+  declaration-order tiebreak and no specificity system: CLOS resolves this with `prefer-method`
+  and Julia with a subtype lattice, and Cufet refuses, which is the answer it already gives every
+  other ambiguity. The question "which of these two wins" is never asked.
+
+  ★★ **Which turns an undecidable problem into a bounded one.** Whether two arbitrary boolean
+  expressions can both hold is undecidable; for the fragment allowed here it is a comparison of
+  atoms — equality against a literal, a type test, either negated, combined with `and`, `or` and
+  `xor`. Ordering and arithmetic are out: they need interval reasoning rather than comparison.
+
+  ⚠ **The atom set is closed under negation, and that is load-bearing.** Refusing overlap means a
+  writer excludes the narrower case by hand, and excluding a conjunction needs a disjunction — so
+  without `or` the design would refuse overlap and then withhold the only way to write around it.
+  `xor` carries no expressive power and is in for consistency: `and`, `xor` and `or` are one family
+  on one precedence line.
+
+  ⚠ **A fallback is required rather than inferred**, even when the conditions look complementary.
+  Proving a set of them covers every case is tautology checking, which the fragment does not
+  promise. Both boundaries can be widened later without changing what any program means today.
+
+  ⚠ The check is sound and deliberately incomplete — it refuses some genuinely disjoint pairs, such
+  as `is not a red` beside `is not a green` over a `(red or green)`. A refused program is a message;
+  an accepted ambiguous one is a silent wrong answer.
+
 - **Named arguments at a call site** — `cast area on (the width 3, the height 4)`, in any order:
 
   ```
