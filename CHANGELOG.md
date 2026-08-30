@@ -8,6 +8,33 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Fixed
+- **`cufet check` said "No problems found" for a program that died on an undefined name.**
+
+  ```
+  State cast totally-undefined-name on (5).
+
+  $ cufet check gap.cufe
+  No problems found.                                          ← exit 0
+  $ cufet gap.cufe
+  'totally-undefined-name' is not a method on this value.     ← dies
+  ```
+
+  ⚠⚠ A free cast of a name bound nowhere handed back a null type and a note saying run time
+  would catch it. The hole was wide — ANY name, so long as the first argument was not an object.
+  A checker reporting nothing about a program that cannot run is the one thing this language is
+  for.
+
+  ★ **The reason recorded for leaving it was wrong.** A test comment said a zero-argument call to
+  an undefined name was "not statically provable". Nothing about such a name resolves later:
+  axioms, generic fillings, method dispatch and ordinary bindings are each settled before the
+  checker reaches that point. It held only because the checker declined to look.
+
+  ★★ **Closing it found two wrong samples in REFERENCE**, both of which had type-checked only
+  because of the hole — a "Calling:" block tagged as a runnable program while calling functions
+  declared in a different block, and a lambda example calling an `apply` that was never declared
+  anywhere. The doc fence gate caught both the moment the checker started looking.
+
 ### Added
 - **A book may live in another file.** `Pull a book on ‹name›.` now resolves a bundled book, then
   a module defined here, then `‹name›.cufe` beside the file being run:

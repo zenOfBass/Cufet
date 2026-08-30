@@ -2464,7 +2464,7 @@ or a function type). Parameters follow `given`. Functions with no parameters omi
 any order and may recurse.
 
 **Calling:**
-```cufet
+```cufet-fragment
 State cast plus on (3, 4).         ← in expression position
 Cast greet on ("hello").           ← as a statement (void or discarded result)
 ```
@@ -2669,10 +2669,19 @@ A function literal written inline, with no name — usable anywhere a function
 value goes: assigned, passed as an argument, returned, or stored in a series.
 
 ```cufet
-Define double as a function given (the number x): Return x * 2. Done.
-State cast double on (5).                                       → 10
+Bind number to apply, given (the number value,
+                            the number function transform given (the number)):
+    Return cast transform on (value).
+Done.
 
-Cast apply on (10, a function given (the number x): Return x * 2. Done).
+Define double as a function given (the number x): Return x * 2. Done.
+State cast double on (5).
+
+State cast apply on (10, a function given (the number x): Return x * 2. Done).
+```
+```output
+10
+20
 ```
 
 The body is always `Done`-terminated (there's no inline single-statement
