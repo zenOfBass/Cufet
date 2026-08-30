@@ -8,6 +8,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-08-30
+
+**One name can have several answers, and the language never guesses which you meant.** Several
+functions may share a name when the type of an argument tells them apart, when a `when` condition
+does, or when both do across more than one argument — and the whole of it is built out of `Judge`
+and `If`, so neither backend learns that dispatch exists. Two versions that could both apply are
+refused rather than ranked, which is the answer Cufet already gives every ambiguity: there is no
+priority rule to learn, because the question of which one wins is never asked. Around it, rules
+the language had already stated reach the last places they did not — `the` marks a named argument
+the way it marks a field, an overload names an ORDERED pair of operand types, a map key is a
+scalar or a record of them, and a type that carries nothing says so once. Two of the defects
+closed here were divergences between the backends, and one was a name silently overwriting
+another with nothing said.
+
 ### Added
 - **Several functions may share a name when one argument's type tells them apart:**
 
