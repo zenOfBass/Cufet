@@ -194,8 +194,85 @@ public static class BookLoading
                 Gather(inner.Statements, directory, map, alreadyKnown, loaded, brought, chain);
                 chain.RemoveAt(chain.Count - 1);
 
-                brought.AddRange(inner.Statements);
+                brought.AddRange(MakePrivate(inner.Statements, bookName));
             }
         }
+    }
+
+    /// <summary>
+    /// Puts everything a loaded file declares BESIDE its modules out of the host’s reach.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ A file is what does the hiding, and no marker does. A module’s members are reached
+    /// through its name because a module is an object; everything else in the file is the
+    /// author’s own working material, and pulling their book should not hand you it. This is the
+    /// case that already bit once — an overflow-guarded multiply wanted in two places inside
+    /// `math`, which was inlined twice rather than become a permanent public member.
+    /// </para>
+    /// <para>
+    /// ★ Done by RENAMING to something unwritable, which is the trick monomorphization and
+    /// dispatch versions both use — a space cannot appear in an identifier. So there is no new
+    /// scope for the checker to learn: the host cannot name what it cannot spell, and the file’s
+    /// own references were renamed with it.
+    /// </para>
+    /// <para>
+    /// ⚠ The rewrite rides on AstSearch, which walks every property of every node by reflection
+    /// rather than by a hand-written list. A walk that forgets a node kind would leave a reference
+    /// pointing at a name that no longer exists — loud at check time, which is the direction to
+    /// fail in, but the reflection walk means it cannot happen at all.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<IStatement> MakePrivate(
+        IReadOnlyList<IStatement> statements, string bookName)
+    {
+        // What the host is meant to see: the modules. Everything else the file declares at its
+        // top level is its own.
+        var hidden = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var statement in statements)
+        {
+            string? name = statement switch
+            {
+                ObjectDefinition o when !o.ConformedInterfaces.Contains(
+                    TypeChecker.ModuleInterface, StringComparer.OrdinalIgnoreCase) => o.Name,
+                BindStatement { UntoType: null } b => b.Name,
+                DefineStatement d => d.Name,
+                _ => null,
+            };
+            // A space keeps it unwritable, and naming the book keeps two books’ helpers apart.
+            if (name is not null) hidden[name] = $"{name} in {bookName}";
+        }
+        if (hidden.Count == 0) return statements;
+
+        // Types first — AstSearch deliberately does not descend into a CufetType, so the two
+        // rewrites do not overlap.
+        var rebuilt = AstRebuilder.Apply(statements,
+            t => AstRebuilder.SubstituteDeep(t, leaf =>
+                leaf is ObjectType o && hidden.TryGetValue(o.Name, out var to)
+                    ? new ObjectType(to, o.PositionalTypes, o.NamedFields, o.Methods)
+                    : leaf));
+
+        AstSearch.Visit(rebuilt, node =>
+        {
+            switch (node)
+            {
+                case VariableReference v when hidden.TryGetValue(v.Name, out var to):
+                    v.Name = to; break;
+                case ObjectLiteral lit when hidden.TryGetValue(lit.TypeName, out var to):
+                    lit.TypeName = to; break;
+            }
+        });
+
+        // The declarations themselves, renamed to match what now refers to them.
+        var renamed = new List<IStatement>(rebuilt.Count);
+        foreach (var statement in rebuilt)
+            renamed.Add(statement switch
+            {
+                ObjectDefinition o when hidden.TryGetValue(o.Name, out var to) => o with { Name = to },
+                BindStatement b when hidden.TryGetValue(b.Name, out var to) => b with { Name = to },
+                DefineStatement d when hidden.TryGetValue(d.Name, out var to) => d with { Name = to },
+                _ => statement,
+            });
+        return renamed;
     }
 }

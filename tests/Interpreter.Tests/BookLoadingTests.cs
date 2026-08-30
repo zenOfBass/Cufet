@@ -168,6 +168,88 @@ public class BookLoadingTests : IDisposable
         Assert.DoesNotContain("100", e.Message);
     }
 
+    // ── A file’s top level is its own ───────────────────────────────────────────
+
+    private const string KitWithHelpers = """
+        Bind number to helper, given (the number n): Return n + 1. Done.
+
+        Define kit-secret as 42 permanently.
+
+        Define object node with (the number value).
+
+        Define object kit with () and module:
+            Bind number to use, given (the number n): Return cast helper on (n). Done.
+        Done.
+        """;
+
+    [Fact]
+    public void AModuleStillReachesItsOwnHelpers()
+    {
+        // ★ The half that must not break. Hiding is done by RENAMING to something unwritable, and
+        // the file’s own references are renamed with it — so the module’s method still calls the
+        // helper it was written against.
+        Write("kit", KitWithHelpers);
+        Assert.Equal("2", Run("""
+            Pull a book on kit.
+                State cast kit's use on (1).
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void WhatTheFileDeclaresBesideItsModuleIsOutOfReach()
+    {
+        // ★★ The decision this slice settled: a file is what does the hiding, and no marker does.
+        // Pulling someone’s book hands you their module, not their working material — which is the
+        // case that already bit once, when an overflow-guarded multiply wanted twice inside `math`
+        // was inlined twice rather than become a permanent public member.
+        Write("kit", KitWithHelpers);
+
+        var constant = Refused("""
+            Pull a book on kit.
+                State "in".
+            Done.
+            State kit-secret.
+            """);
+        Assert.Contains("'kit-secret' isn't defined", constant.Message);
+
+        var type = Refused("""
+            Pull a book on kit.
+                State "in".
+            Done.
+            Define spot as a new node { the value 7 }.
+            """);
+        Assert.Contains("'node' is not a defined object type", type.Message);
+    }
+
+    [Fact]
+    public void TwoBooksMayEachHaveAHelperOfTheSameName()
+    {
+        // ★★ The payoff. Before this, both helpers hoisted to program scope and the duplicate-name
+        // refusal fired on two declarations in two files a reader never saw together. Now neither
+        // is in the host’s scope at all, and the name each author chose is their own business.
+        Write("first", """
+            Bind text to helper: Return "first". Done.
+            Define object first with () and module:
+                Bind text to speak: Return cast helper on (). Done.
+            Done.
+            """);
+        Write("second", """
+            Bind text to helper: Return "second". Done.
+            Define object second with () and module:
+                Bind text to speak: Return cast helper on (). Done.
+            Done.
+            """);
+        Assert.Equal("first" + LF + "second", Run("""
+            Pull books on first, and second.
+                State cast first's speak on ().
+                State cast second's speak on ().
+            Done.
+            """));
+    }
+
+    private const string LF = "\n";
+
     [Fact]
     public void ASingleFileProgramIsUntouched()
     {

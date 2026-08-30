@@ -39,7 +39,12 @@ public sealed record BitsConvert(IExpression Target, char ToBase, int Line, int 
 
 public sealed record StringLiteral(string Value) : IExpression;
 public sealed record BooleanLiteral(bool Value, int Line, int Column) : IExpression;
-public sealed record VariableReference(string Name, int Line, int Column) : IExpression;
+// Name is settable so a loaded book’s private declarations can be renamed out of the host’s
+// reach in one pass — see BookLoading. Nothing else writes it.
+public sealed record VariableReference(string Name, int Line, int Column) : IExpression
+{
+    public string Name { get; set; } = Name;
+}
 public sealed record UnaryExpression(TokenType Op, IExpression Operand, int Line, int Column) : IExpression;
 public sealed record BinaryExpression(IExpression Left, TokenType Op, IExpression Right, int Line, int Column) : IExpression;
 
@@ -595,6 +600,9 @@ public sealed record ObjectLiteral(
     // IsTypeCheck.StaticTargetType is, because both backends look the definition up BY NAME and the
     // template's own name names no type. Null for an ordinary object, which is nearly all of them.
     public string? ResolvedTypeName { get; set; }
+
+    /// <inheritdoc cref="VariableReference.Name"/>
+    public string TypeName { get; set; } = TypeName;
 }
 
 // alice's greet  /  one's name  — possessive field or method reference
