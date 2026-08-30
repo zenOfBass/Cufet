@@ -2763,6 +2763,26 @@ required is refused — correctly, since an open union has no fixed set of confo
 for. The refusal names a type you never wrote, which is the confusing part: you get told you
 passed "an open union" without having typed the word `union` anywhere. Name the element type.
 
+### ★ A book in another file, and where its errors point
+
+`Pull a book on ‹name›.` resolves in three steps: a bundled book, then a module defined in this
+file, then `‹name›.cufe` beside the file being run. A missing file is not an error of its own —
+the name falls through to the refusal `Pull` already had, which names what is available.
+
+**Loaded in a front-end pass, ahead of `Cite` and the hoist.** After it the loaded file does not
+exist: its statements are the program’s, and the checker and both backends meet one longer
+program. Rings are refused by name; a book pulled by two others is loaded once.
+
+⚠⚠ **Positions.** A loaded file is lexed at an OFFSET into a virtual line space, because tokens,
+AST nodes and exceptions carry a line and a column and no FILE — giving them one would touch every
+position in the front end. The reporter maps a virtual line back to its file and line.
+
+★★ **The line appears twice in an error, and both have to agree.** Once in the reporter’s header,
+and once in the prose — 163 places in the front end write a line number into a message. So the
+resolution is applied to the COMPOSED message, not at each of them, and only rewrites a number
+that falls inside a block actually allocated to a loaded file. A single-file program allocates
+none, so nothing it prints can change.
+
 ### ★ Several functions may share a name when one argument tells them apart
 
 Two `Bind`s of one name are **versions** when exactly one parameter's type differs between them.

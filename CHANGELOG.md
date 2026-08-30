@@ -8,6 +8,35 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+- **A book may live in another file.** `Pull a book on ‹name›.` now resolves a bundled book, then
+  a module defined here, then `‹name›.cufe` beside the file being run:
+
+  ```
+  Pull a book on greeting-kit.
+      State cast greeting-kit's greet on ("world").
+  Done.
+  ```
+
+  ★★ **Not a new mechanism.** `Pull` already resolved a bundled book and a module defined in the
+  same file — and a module is an object claiming the `module` interface, while a book is a module
+  the language ships with. This adds a third place to look for the same object. The namespace, the
+  member access and the scope ending at `Done.` were all decided when modules were.
+
+  ★ **Resolved and compiled TOGETHER**, as one program. That keeps whole-program visibility, which
+  dispatch coverage, the bounded open-union tag set and monomorphization all depend on — so
+  versions of a name across files needed no design change. Separate compilation is a different
+  feature, buys only build speed, and is deferred.
+
+  ⚠⚠ **A loaded file is lexed at an offset**, because tokens and exceptions carry a line and no
+  file. The line then appears twice in an error — the reporter’s header and the prose — and 163
+  places in the front end write one into a message, so the resolution is applied to the composed
+  message rather than at each of them. A single-file program allocates no block, so nothing it
+  prints can change.
+
+  ⚠ A ring of books is refused and the message names the ring. A book pulled by two others loads
+  once. A missing file falls through to the refusal `Pull` already had.
+
 ## [0.18.0] — 2026-08-30
 
 **One name can have several answers, and the language never guesses which you meant.** Several

@@ -3803,6 +3803,23 @@ Done.
 This is not new syntax. `Pull a rabbit.` was always this form; what changed is that the
 name in it no longer has to be one the language shipped.
 
+**A book may live in another file.** `Pull a book on ‹name›.` looks for a bundled book, then for
+a module defined here, then for `‹name›.cufe` beside the file being run:
+
+```cufet-fragment
+Pull a book on greeting-kit.        ← loads greeting-kit.cufe if nothing here is called that
+    State cast greeting-kit's greet on ("world").
+Done.
+```
+
+That file declares its module the same way any file would, and nothing else changes: members are
+reached through the name, and the binding ends at `Done.` A book may pull another book; a ring of
+them is refused, and the message names the ring.
+
+⚠ The files are resolved and compiled **together**, as one program. Cufet has no separate
+compilation, and multi-file is about writing a program across files rather than building them
+independently.
+
 ⚠ **A bundled book is pulled as a book**, not with this form:
 
 ```cufet

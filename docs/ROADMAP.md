@@ -23,19 +23,20 @@ The `module` interface itself is the language seam and shipped with the arc abov
 here is everything about code that is **not already in the program**, which is a separate hard
 problem and is nobody's contract.
 
-1. **An external book loader.** A program is one file. `Pull a book on …` reaches the three
-   bundled books; `Pull …` reaches an object defined in the same file; nothing is read from disk.
+1. **What a loaded book may declare beside its module.** `Pull a book on …` now finds
+   `‹name›.cufe` beside the file being run, and loading works: rings refused, a book pulled twice
+   loaded once, errors reporting the loaded file’s own path and line. What is NOT decided is what
+   else that file may contain.
 
-   ★ **The tier below is what needs it.** Writing large Cufet programs is how ergonomic blockers
-   get found, and the largest program that exists is 193 lines against a 2,815-line corpus. A REPL
-   with a terminal layer and an evaluator is several times that. The one-file limit would be the
-   first blocker met, and it is one already known — which makes it a poor instrument for finding
-   the rest.
+   ★ **A module’s members are namespaced; anything beside it is not.** A free function declared
+   at the top of a loaded file hoists to program scope like any other, so two files can now
+   collide on a name a reader never saw together — the duplicate-name refusal fires, correctly,
+   and names two lines in two files without saying which is which.
 
-   ★ **Resolve and compile TOGETHER, not separately.** That keeps whole-program visibility, which
-   dispatch coverage, the bounded open-union tag set and monomorphization all depend on — and
-   versions of a name across files then need no design change at all. Compiling files
-   independently is a different feature with a different payoff, and it is deferred.
+   **The fork:** either a loaded file is one module and nothing else, and collisions are
+   impossible by construction, or it may declare freely and the refusal has to name files as well
+   as lines. The first keeps the namespace claim true all the way down; the second is more
+   permissive and costs a pass over every message that names a position.
 
 2. **What a module exports.** Every member is public API, permanently, because there is no way to
    mark one internal. A module author has no way to say *this is my helper, do not call it*.
