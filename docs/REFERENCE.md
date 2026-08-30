@@ -2527,8 +2527,12 @@ Each element of that catalogue is a `(num-node or add-node)` — nothing at the 
 which — so the version is chosen from what the value actually is.
 
 Every version must take the same number of arguments and give back the same type, so a
-caller knows what it gets without knowing which version ran. Two versions claiming one
-type is an error, and so is telling versions apart by more than one argument.
+caller knows what it gets without knowing which version ran. Two versions claiming the
+same types is an error.
+
+**More than one argument may tell them apart**, and then every combination needs a
+version — four of them for two arguments carrying two types each. A missing combination
+is an error naming it, because a call could pass that pair and nothing would run.
 
 The versions decide what the name accepts: `eval` above takes a `(num-node or add-node)`,
 and passing anything else is an ordinary type error naming the case that has no version.

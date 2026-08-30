@@ -2782,9 +2782,21 @@ Every version must agree on **arity** and on **what it gives back**. The return 
 implementation convenience: a caller has to know what it gets back without knowing which version
 ran, and the alternative is handing every caller a union to judge.
 
-Refused: two versions claiming one type, versions differing in **more than one** argument (that is
-the product of their cases — a nested `Judge`, and its own question), and a name whose declarations
-have nothing at all to tell them apart.
+**More than one argument may dispatch.** Each one becomes a `Judge`, nested, with the innermost
+arm running that combination's versions.
+
+⚠ **Coverage stops being free at two.** With one dispatched argument the versions ARE the cases
+and the dispatcher's parameter is their union, so nothing callable is unclaimed. With two, the
+parameters admit every PAIR and only the pairs someone wrote have a version — so every combination
+of the dispatched types must have one, and the missing one is named at the declaration.
+
+⚠⚠ **Each level binds its narrowed subject to a local before descending.** `Judge` narrows `it`
+and nothing else — the subject variable keeps the union — so without the binding the inner `Judge`
+rebinds `it` and the outer argument's narrowed type is gone by the time the leaf calls the version
+that declared it.
+
+Refused: two versions claiming one combination, and a name whose declarations have nothing at all
+to tell them apart.
 
 ### ★ `when` on a version: the fragment, and why it is bounded
 

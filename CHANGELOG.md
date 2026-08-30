@@ -40,8 +40,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   implementation convenience: a caller has to know what it gets back without knowing which version
   ran, and the alternative is handing every caller a union to judge.
 
-  ⚠ Refused: two versions claiming one type, and versions differing in **more than one** argument —
-  that is the product of their cases, a nested `Judge`, and its own question.
+  ★★ **More than one argument may dispatch.** Each becomes a `Judge`, nested, with the innermost
+  arm running that combination's versions — so a type checker can dispatch on (node, expected type)
+  with neither known at the call.
+
+  ⚠ **Coverage stops being free at two.** With one dispatched argument the versions ARE the cases
+  and the dispatcher's parameter is their union, so nothing callable is unclaimed. With two, the
+  parameters admit every PAIR and only the pairs someone wrote have a version — so every
+  combination must have one, and a missing pair is named at the declaration rather than surfacing
+  as a `Judge` that fails to cover its union.
+
+  ⚠⚠ Each nested level binds its narrowed subject to a local before descending: `Judge` narrows
+  `it` and nothing else, so the inner one rebinds it and the outer argument's narrowed type would
+  otherwise be gone by the time the leaf runs.
+
+  ⚠ Refused: two versions claiming one combination.
 
 - **A version may carry a `when` condition**, and the versions of one signature are told apart by
   theirs:
@@ -355,6 +368,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   answer, not a value anyone looks something up by.
 
 ### Fixed
+- **A nested `Judge` whose inner arm used `it` did not compile.** `Judge` binds its subject to
+  `it`, so nesting two rebinds the name — but the compiler's narrowing table is keyed by name and
+  COMPOSES accesses, which is right for one binding narrowed twice and wrong for a rebinding. The
+  outer arm's `.val.c0` was prefixed onto the inner arm's, emitting `(cv_it).val.c0.val.c0` and
+  reaching for a member of a type that has none; gcc refused the program.
+
+  ★★ **Only ever visible as a divergence.** The interpreter shadows `it` properly and ran these
+  correctly, so no interpreter test could have gone red. The generator's own note says C's scoping
+  carries the shadowing for a nested `Judge` — true of the emitted local, and these side tables
+  were the part of it C could not carry.
+
+  ⚠ The inner arm has to USE `it` to hit it. Reading a local bound from the outer arm compiles
+  fine, which is why existing nested-`Judge` coverage never met it.
+
 - **Two functions could share a name, and the later one silently won.** The hoist wrote the
   scope entry with no occupancy check, so a file declaring `eval` twice type-checked clean —
   `check` reported *"No problems found"* — and every call reached the second declaration:
