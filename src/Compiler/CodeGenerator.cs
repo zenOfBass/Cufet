@@ -5521,6 +5521,22 @@ static void* cufet_pipe_stage(void* argp) {
         bool hadIt = _varTypes.TryGetValue("it", out var prevIt);
         _varTypes["it"] = subjType;
 
+        // ⚠⚠ `it` is REBOUND here, not narrowed further, and the side tables are keyed by NAME.
+        // _narrowedVars COMPOSES accesses — correct for one binding narrowed twice, wrong for a
+        // nested Judge, whose inner `it` is a different value living in a different C local. Left
+        // in place, an outer arm's `.val.c0` was prefixed onto the inner arm's, emitting
+        // `(cv_it).val.c0.val.c0` and reaching for a member of a type that has none. _armCases is
+        // the same hazard: an outer grouped arm's surviving cases are not the inner subject's.
+        //
+        // ★★ The note above says C's own scoping carries the shadowing, and for the emitted local
+        // it does. These tables are the part of the shadowing C could not carry, and they are why
+        // the defect could only ever appear as a DIVERGENCE — the interpreter shadows properly, so
+        // no interpreter test could go red for it.
+        bool hadItNarrow = _narrowedVars.TryGetValue("it", out var prevItNarrow);
+        _narrowedVars.Remove("it");
+        bool hadItCases = _armCases.TryGetValue("it", out var prevItCases);
+        _armCases.Remove("it");
+
         var covered = new HashSet<int>();
         string keyword = "if";
 
@@ -5566,6 +5582,8 @@ static void* cufet_pipe_stage(void* argp) {
         sb.AppendLine($"{indent}}}");
 
         if (hadIt) _varTypes["it"] = prevIt!; else _varTypes.Remove("it");
+        if (hadItNarrow) _narrowedVars["it"] = prevItNarrow; else _narrowedVars.Remove("it");
+        if (hadItCases)  _armCases["it"]     = prevItCases!;  else _armCases.Remove("it");
     }
 
     private void EmitIf(StringBuilder sb, IfStatement ifStmt, string indent)

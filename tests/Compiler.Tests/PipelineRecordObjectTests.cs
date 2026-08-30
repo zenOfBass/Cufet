@@ -849,6 +849,110 @@ public class PipelineRecordObjectTests : PipelineTestBase
     }
 
     /// <summary>
+    /// A nested `Judge` whose inner arm uses `it` — hand-written, no dispatch involved.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ A COMPILER bug this feature uncovered, and older than it. `Judge` binds its subject to
+    /// `it`, so nesting two rebinds the name — but the compiler's narrowing table is keyed by name
+    /// and COMPOSES accesses, which is right for one binding narrowed twice and wrong here. The
+    /// outer arm's `.val.c0` was prefixed onto the inner arm's, emitting `(cv_it).val.c0.val.c0`
+    /// and reaching for a member of a type that has none. gcc refused the program.
+    /// </para>
+    /// <para>
+    /// ★★ Only ever visible as a DIVERGENCE. The interpreter shadows `it` properly, so it runs
+    /// this correctly and no interpreter test could go red — which is what the oracle is for. The
+    /// inner arm has to USE `it`: reading only a local bound from the outer arm compiles fine, and
+    /// that is why the existing nested-Judge coverage never caught it.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void ANestedJudgeUsingIt_AgreesOnBothBackends()
+    {
+        const string src = """
+            Define object num-node with (the number value).
+            Define object add-node with (the number left, the number right).
+            Define object int-type.
+            Define object text-type.
+
+            Bind text to want-int, given (the int-type w): Return "int". Done.
+            Bind text to want-text, given (the text-type w): Return "text". Done.
+
+            Bind text to check, given (the (num-node or add-node) node, the (int-type or text-type) want):
+                Judge node, where it is:
+                    A num-node:
+                        Define held as it.
+                        Judge want, where it is:
+                            A int-type, return "num/{cast want-int on (it)} {held's value}".
+                            A text-type, return "num/{cast want-text on (it)}".
+                        Done.
+                    Done.
+                    A add-node:
+                        Judge want, where it is:
+                            A int-type, return "add/{cast want-int on (it)}".
+                            A text-type, return "add/{cast want-text on (it)}".
+                        Done.
+                    Done.
+                Done.
+            Done.
+
+            State cast check on (a new num-node { the value 7 }, a new int-type).
+            State cast check on (a new num-node { the value 7 }, a new text-type).
+            State cast check on (a new add-node { the left 1, the right 2 }, a new int-type).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    /// <summary>
+    /// Dispatch on TWO arguments' types, on both backends.
+    /// </summary>
+    /// <remarks>
+    /// ★ Neither argument's type is known at the call — both are catalogue elements — so the
+    /// version comes from two tags read in turn, which the front end lowers to nested `Judge`s.
+    /// ⚠ Each nested `Judge` rebinds `it`, so the outer argument's narrowed value is bound to a
+    /// local before descending. This test is what would catch that binding being dropped: the
+    /// versions declare narrow types, and only the bound local still carries one.
+    /// </remarks>
+    [Fact]
+    public void DispatchOnTwoArguments_AgreesOnBothBackends()
+    {
+        const string src = """
+            Define object num-lit with (the number value).
+            Define object text-lit with (the text value).
+            Define object int-type.
+            Define object text-type.
+
+            Bind text to check, given (the num-lit node, the int-type want):
+                Return "num/int {node's value}".
+            Done.
+
+            Bind text to check, given (the num-lit node, the text-type want):
+                Return "want text, got {node's value}".
+            Done.
+
+            Bind text to check, given (the text-lit node, the int-type want):
+                Return "want number, got {node's value}".
+            Done.
+
+            Bind text to check, given (the text-lit node, the text-type want):
+                Return "text/text {node's value}".
+            Done.
+
+            Define nodes as a catalogue of (num-lit or text-lit) with (
+                a new num-lit { the value 7 }, a new text-lit { the value "x" }).
+            Define wants as a catalogue of (int-type or text-type) with (
+                a new int-type, a new text-type).
+
+            For each n in nodes, repeat:
+                For each w in wants, repeat:
+                    State cast check on (n, w).
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    /// <summary>
     /// Dispatch by a `when` condition, composed with dispatch on type, on both backends.
     /// </summary>
     /// <remarks>

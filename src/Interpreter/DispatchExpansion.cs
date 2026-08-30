@@ -36,9 +36,11 @@ public static class DispatchExpansion
     /// The name a single version is given. Spaces make it unwritable as an identifier, which is
     /// the same trick monomorphization uses for `unique of text`.
     /// </summary>
-    private static string VersionName(string name, CufetType dispatchOn, int ordinal) =>
-        ordinal == 0 ? $"{name} given {TypeChecker.FormatType(dispatchOn)}"
-                     : $"{name} given {TypeChecker.FormatType(dispatchOn)} {ordinal}";
+    private static string VersionName(string name, Signature sig, int ordinal)
+    {
+        var types = string.Join(", ", sig.Types.Select(TypeChecker.FormatType));
+        return ordinal == 0 ? $"{name} given {types}" : $"{name} given {types} {ordinal}";
+    }
 
     /// <summary>
     /// Hands back the very same list when nothing shares a name and nothing carries a condition,
@@ -122,62 +124,44 @@ public static class DispatchExpansion
 
         var signatures = GroupBySignature(name, versions);
 
-        // ── Which argument is dispatched on ───────────────────────────────────────────────────
-        int at = -1;
-        if (signatures.Count > 1)
-        {
-            var varying = new List<int>();
-            for (int i = 0; i < first.Parameters.Count; i++)
-                if (signatures.Select(sig => sig.Types[i]).Distinct().Count() > 1) varying.Add(i);
+        // ── Which arguments are dispatched on ─────────────────────────────────────────────────
+        var varying = new List<int>();
+        for (int i = 0; i < first.Parameters.Count; i++)
+            if (signatures.Select(sig => sig.Types[i]).Distinct().Count() > 1) varying.Add(i);
 
-            if (varying.Count > 1)
-                throw TypeChecker.TypeError(
-                    $"the versions of '{name}' differ in more than one argument",
-                    $"Arguments {string.Join(" and ", varying.Select(i => i + 1))} vary between them",
-                    versions[1].Line, versions[1].Column,
-                    $"tell the versions of '{name}' apart by more than one argument",
-                    "Versions are told apart by ONE argument's type. Make the others agree, or "
-                  + "give these different names.");
-
-            at = varying[0];
-        }
-
-        // ── The pieces ────────────────────────────────────────────────────────────────────────
         var built = new List<IStatement>();
 
-        if (signatures.Count == 1)
+        if (varying.Count == 0)
         {
             // Told apart by condition alone — no type to judge, so the body is the chain itself.
             var only = signatures[0];
-            var on   = first.Parameters.Count > 0 ? first.Parameters[0].Type : CufetType.Void;
-            built.AddRange(RenamedVersions(name, only, on));
+            built.AddRange(RenamedVersions(name, only));
             built.Add(Dispatcher(name, first, first.Parameters,
-                ConditionChain(name, only, first, on, dispatchedArg: null, at: -1)));
+                ConditionChain(name, only, first, _ => null)));
             return built;
         }
 
-        var arms = new List<JudgeArm>();
+        // ★ Every combination must have a version. Two positions each carrying two cases makes
+        // FOUR callable combinations, and the dispatcher's parameters admit all of them — so the
+        // versions covering only the pairs someone happened to write would leave a call with
+        // nothing to run. Checked here, where the missing pair can be named, rather than left to
+        // surface as a `Judge` that fails to cover its union.
+        var casesAt = varying.Select(pos => signatures.Select(s => s.Types[pos]).Distinct().ToList())
+                             .ToList();
+        RequireEveryCombination(name, first, versions, signatures, varying, casesAt);
+
         foreach (var sig in signatures)
-        {
-            var on = sig.Types[at];
-            built.AddRange(RenamedVersions(name, sig, on));
-            var anchor = sig.Fallback ?? sig.Conditioned[0];
-            arms.Add(new JudgeArm(
-                [on],
-                ConditionChain(name, sig, first, on, dispatchedArg: "it", at: at),
-                anchor.Line, anchor.Column));
-        }
+            built.AddRange(RenamedVersions(name, sig));
 
         var dispatcherParams = first.Parameters
-            .Select((p, i) => i == at
-                ? (Type: (CufetType)new UnionType(signatures.Select(s => s.Types[at]).ToList()), p.Name)
+            .Select((p, i) => varying.Contains(i)
+                ? (Type: (CufetType)new UnionType(signatures.Select(s => s.Types[i]).Distinct().ToList()), p.Name)
                 : p)
             .ToList();
 
         built.Add(Dispatcher(name, first, dispatcherParams,
-            [new JudgeStatement(
-                new VariableReference(first.Parameters[at].Name, first.Line, first.Column),
-                arms, OtherwiseBody: null, first.Line, first.Column)]));
+            JudgeLevel(name, first, signatures, varying, casesAt, depth: 0,
+                       remaining: signatures, bound: new Dictionary<int, string>())));
         return built;
     }
 
@@ -260,15 +244,123 @@ public static class DispatchExpansion
                       + "and a version for the rest — or fold the two bodies into one.");
     }
 
-    // ── Building ──────────────────────────────────────────────────────────────────────────────
+    // ── Coverage of the product ────────────────────────────────────
 
-    private static IEnumerable<IStatement> RenamedVersions(string name, Signature sig, CufetType on)
+    /// <summary>Refuses when some combination of the dispatched arguments has no version.</summary>
+    /// <remarks>
+    /// ⚠ Only needed once more than ONE argument dispatches. With a single one the versions ARE
+    /// the cases and the dispatcher's parameter is their union, so there is nothing a caller can
+    /// pass that no version claims. With two, the parameters admit every pair, and only the pairs
+    /// someone wrote have a version.
+    /// </remarks>
+    private static void RequireEveryCombination(
+        string name, BindStatement first, List<BindStatement> versions,
+        List<Signature> signatures, List<int> varying, List<List<CufetType>> casesAt)
+    {
+        var declared = new HashSet<string>(
+            signatures.Select(sig => Combination(sig.Types, varying)), StringComparer.Ordinal);
+
+        foreach (var combination in EveryCombination(casesAt))
+        {
+            var key = string.Join(" | ", combination.Select(TypeChecker.FormatType));
+            if (declared.Contains(key)) continue;
+
+            var spelled = string.Join(", ", combination.Select((t, i) =>
+                $"argument {varying[i] + 1} a {TypeChecker.FormatType(t)}"));
+            throw TypeChecker.TypeError(
+                $"'{name}' has no version for {spelled}",
+                $"{varying.Count} arguments tell its versions apart, so every combination of them "
+              + "has to have one",
+                versions[^1].Line, versions[^1].Column,
+                $"leave a call to '{name}' with nothing to run",
+                "Add that version, or tell the versions apart by one argument instead of "
+              + $"{varying.Count}.");
+        }
+    }
+
+    private static string Combination(IReadOnlyList<CufetType> types, List<int> varying) =>
+        string.Join(" | ", varying.Select(pos => TypeChecker.FormatType(types[pos])));
+
+    private static IEnumerable<List<CufetType>> EveryCombination(List<List<CufetType>> casesAt)
+    {
+        var indices = new int[casesAt.Count];
+        while (true)
+        {
+            yield return casesAt.Select((cases, i) => cases[indices[i]]).ToList();
+
+            int at = casesAt.Count - 1;
+            while (at >= 0 && ++indices[at] == casesAt[at].Count) indices[at--] = 0;
+            if (at < 0) yield break;
+        }
+    }
+
+    // ── Building ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// One <c>Judge</c> per dispatched argument, nested, the leaf running that combination.
+    /// </summary>
+    /// <remarks>
+    /// ⚠⚠ Each level binds its narrowed subject to a local before descending, because
+    /// <c>Judge</c> narrows <c>it</c> and nothing else — the subject VARIABLE keeps the union, as
+    /// `node's value` inside an arm will tell you. Without the binding, the inner <c>Judge</c>
+    /// rebinds <c>it</c> and the outer argument's narrowed type is gone by the time the leaf calls
+    /// the version that declared it.
+    /// </remarks>
+    private static IReadOnlyList<IStatement> JudgeLevel(
+        string name, BindStatement shape, List<Signature> all, List<int> varying,
+        List<List<CufetType>> casesAt, int depth, List<Signature> remaining,
+        Dictionary<int, string> bound)
+    {
+        int pos     = varying[depth];
+        bool isLast = depth == varying.Count - 1;
+        var arms    = new List<JudgeArm>();
+
+        for (int c = 0; c < casesAt[depth].Count; c++)
+        {
+            var one   = casesAt[depth][c];
+            var inner = remaining.Where(sig => Equals(sig.Types[pos], one)).ToList();
+            if (inner.Count == 0) continue;   // RequireEveryCombination has already refused this
+
+            var body       = new List<IStatement>();
+            var innerBound = new Dictionary<int, string>(bound);
+
+            if (isLast)
+            {
+                // The innermost arm's `it` IS the narrowed value the version wants.
+                innerBound[pos] = "it";
+                body.AddRange(ConditionChain(name, inner[0], shape,
+                    p => innerBound.GetValueOrDefault(p)));
+            }
+            else
+            {
+                // ⚠ A name per (depth, case) rather than per depth: sibling arms are separate
+                // scopes today, and relying on that would make this quietly wrong if they ever
+                // stopped being. Spaces keep it unwritable, so it can shadow nothing.
+                var held = $"{shape.Parameters[pos].Name} at {TypeChecker.FormatType(one)} {depth}.{c}";
+                innerBound[pos] = held;
+                body.Add(new DefineStatement(
+                    held, new VariableReference("it", shape.Line, shape.Column),
+                    Permanent: false, Shadow: false, shape.Line, shape.Column));
+                body.AddRange(JudgeLevel(name, shape, all, varying, casesAt,
+                                         depth + 1, inner, innerBound));
+            }
+
+            var anchor = inner[0].Fallback ?? inner[0].Conditioned[0];
+            arms.Add(new JudgeArm([one], body, anchor.Line, anchor.Column));
+        }
+
+        return [new JudgeStatement(
+            new VariableReference(shape.Parameters[pos].Name, shape.Line, shape.Column),
+            arms, OtherwiseBody: null, shape.Line, shape.Column)];
+    }
+
+    private static IEnumerable<IStatement> RenamedVersions(string name, Signature sig)
     {
         int ordinal = 0;
         foreach (var version in sig.Conditioned)
-            yield return version with { Name = VersionName(name, on, ordinal++), When = null };
+            yield return version with { Name = VersionName(name, sig, ordinal++), When = null };
         if (sig.Fallback is not null)
-            yield return sig.Fallback with { Name = VersionName(name, on, ordinal), When = null };
+            yield return sig.Fallback with { Name = VersionName(name, sig, ordinal), When = null };
     }
 
     /// <summary>
@@ -280,21 +372,17 @@ public static class DispatchExpansion
     /// in. That is what lets an ordinary `If` chain stand for order-independent dispatch.
     /// </remarks>
     private static IReadOnlyList<IStatement> ConditionChain(
-        string name, Signature sig, BindStatement shape, CufetType on, string? dispatchedArg, int at)
+        string name, Signature sig, BindStatement shape, Func<int, string?> boundAt)
     {
         IReadOnlyList<IStatement> CallTo(int ordinal, BindStatement version)
         {
             var args = new List<IExpression>();
             for (int i = 0; i < shape.Parameters.Count; i++)
                 args.Add(new VariableReference(
-                    // ⚠ `it` at the dispatched position when a Judge is above us. The parameter
-                    // still holds the whole union; the arm's `it` carries the narrowed type the
-                    // version was declared for.
-                    i == at && dispatchedArg is not null ? dispatchedArg : shape.Parameters[i].Name,
-                    version.Line, version.Column));
+                    boundAt(i) ?? shape.Parameters[i].Name, version.Line, version.Column));
 
             var call = new CastExpression(
-                new VariableReference(VersionName(name, on, ordinal), version.Line, version.Column),
+                new VariableReference(VersionName(name, sig, ordinal), version.Line, version.Column),
                 args, version.Line, version.Column);
 
             return shape.ReturnType is null
@@ -308,14 +396,15 @@ public static class DispatchExpansion
         int n = 0;
         foreach (var version in sig.Conditioned)
         {
-            // ⚠⚠ The condition needs the same rewrite the argument does, and for a sharper
-            // reason. Inside a `Judge` arm the PARAMETER still holds the whole union — only `it`
-            // carries the narrowed type — so a condition written as `node's left is 0` would be
-            // asking for a field of a union and refused outright. The version's body is untouched:
-            // it is a separate function whose own parameter is already the narrow type.
-            var condition = dispatchedArg is null || at < 0
-                ? version.When!
-                : Rename(version.When!, shape.Parameters[at].Name, dispatchedArg);
+            // ⚠⚠ The condition needs the same rewrite the arguments do. Inside a `Judge` arm the
+            // PARAMETER still holds the whole union — only `it`, or the local an outer level bound
+            // it to, carries the narrowed type — so `node's left is 0` would be asking for a field
+            // of a union and refused outright. The version's body is untouched: it is a separate
+            // function whose own parameter is already the narrow type.
+            var condition = version.When!;
+            for (int i = 0; i < shape.Parameters.Count; i++)
+                if (boundAt(i) is { } held && held != shape.Parameters[i].Name)
+                    condition = Rename(condition, shape.Parameters[i].Name, held);
             arms.Add(new ConditionArm(condition, CallTo(n++, version)));
         }
 

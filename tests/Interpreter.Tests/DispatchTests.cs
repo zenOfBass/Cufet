@@ -38,6 +38,8 @@ public class DispatchTests
         return output.ToString().Replace("\r\n", "\n").TrimEnd('\n');
     }
 
+    private const string LF = "\n";
+
     private static TypeException Refused(string source) =>
         Assert.Throws<TypeException>(() => Run(source));
 
@@ -45,6 +47,22 @@ public class DispatchTests
         Define object num-node with (the number value).
         Define object add-node with (the number left, the number right).
         Define object neg-node with (the number operand).
+
+        """;
+
+    private const string Typed = """
+        Define object num-lit with (the number value).
+        Define object text-lit with (the text value).
+        Define object int-type.
+        Define object text-type.
+
+        """;
+
+    private const string Check = """
+        Bind text to check, given (the num-lit node, the int-type want): Return "num/int". Done.
+        Bind text to check, given (the num-lit node, the text-type want): Return "num/text". Done.
+        Bind text to check, given (the text-lit node, the int-type want): Return "text/int". Done.
+        Bind text to check, given (the text-lit node, the text-type want): Return "text/text". Done.
 
         """;
 
@@ -251,6 +269,73 @@ public class DispatchTests
             """));
     }
 
+    // ── More than one argument ──────────────────────────────────────────
+
+    [Fact]
+    public void TwoArgumentsCanTellVersionsApart()
+    {
+        Assert.Equal("num/int|num/text|text/int|text/text", Run(Typed + Check + """
+            Define out as "".
+            The out becomes cast check on (a new num-lit { the value 1 }, a new int-type).
+            The out becomes out joined to "|" joined to cast check on (a new num-lit { the value 1 }, a new text-type).
+            The out becomes out joined to "|" joined to cast check on (a new text-lit { the value "x" }, a new int-type).
+            The out becomes out joined to "|" joined to cast check on (a new text-lit { the value "x" }, a new text-type).
+            State out.
+            """));
+    }
+
+    [Fact]
+    public void BothArgumentsArePickedAtRunTime()
+    {
+        // ★★ The feature. Neither argument's type is known at the call — both are elements of a
+        // catalogue — so the version comes from two tags read in turn. That is what a type
+        // checker dispatching on (node, expected) is made of.
+        //
+        // ⚠⚠ Each nested `Judge` rebinds `it`, so the outer argument's narrowed value has to be
+        // bound to a local before descending, or it is gone by the time the leaf calls a version
+        // that declared the narrow type.
+        Assert.Equal("num/int" + LF + "num/text" + LF + "text/int" + LF + "text/text",
+            Run(Typed + Check + """
+            Define nodes as a catalogue of (num-lit or text-lit) with (
+                a new num-lit { the value 1 }, a new text-lit { the value "x" }).
+            Define wants as a catalogue of (int-type or text-type) with (
+                a new int-type, a new text-type).
+            For each n in nodes, repeat:
+                For each w in wants, repeat:
+                    State cast check on (n, w).
+                Done.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ConditionsComposeWithTwoArgumentDispatch()
+    {
+        // The condition is rewritten onto whatever holds the narrowed value at its position —
+        // `it` at the innermost level, the bound local at an outer one.
+        Assert.Equal("zero is fine" + LF + "num/int 5" + LF + "text/int", Run(Typed + """
+            Bind text to check, given (the num-lit node, the int-type want) when node's value is 0:
+                Return "zero is fine".
+            Done.
+
+            Bind text to check, given (the num-lit node, the int-type want):
+                Return "num/int {node's value}".
+            Done.
+
+            Bind text to check, given (the num-lit node, the text-type want): Return "num/text". Done.
+            Bind text to check, given (the text-lit node, the int-type want): Return "text/int". Done.
+            Bind text to check, given (the text-lit node, the text-type want): Return "text/text". Done.
+
+            Define nodes as a catalogue of (num-lit or text-lit) with (
+                a new num-lit { the value 0 },
+                a new num-lit { the value 5 },
+                a new text-lit { the value "x" }).
+            For each n in nodes, repeat:
+                State cast check on (n, a new int-type).
+            Done.
+            """));
+    }
+
     // ── What is refused ───────────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -338,14 +423,19 @@ public class DispatchTests
     }
 
     [Fact]
-    public void OnlyOneArgumentMayTellVersionsApart()
+    public void EveryCombinationMustHaveAVersion()
     {
-        // ⚠ Two varying positions is the product of their cases — a nested Judge, and a wider
-        // question. Refused rather than half-built.
-        var e = Refused(Nodes + """
-            Bind number to eval, given (the num-node node, the number k): Return 1. Done.
-            Bind number to eval, given (the add-node node, the text k): Return 2. Done.
+        // ★★ Coverage stops being free once TWO arguments dispatch. With one, the versions ARE
+        // the cases and the dispatcher's parameter is their union, so nothing callable is
+        // unclaimed. With two, the parameters admit every pair and only the pairs someone wrote
+        // have a version — so the missing one is named at the declaration rather than left to
+        // surface as a `Judge` that fails to cover its union.
+        var e = Refused(Typed + """
+            Bind text to check, given (the num-lit node, the int-type want): Return "num/int". Done.
+            Bind text to check, given (the text-lit node, the text-type want): Return "text/text". Done.
             """);
-        Assert.Contains("more than one argument", e.Message);
+        Assert.Contains("has no version for", e.Message);
+        Assert.Contains("argument 1 a num-lit", e.Message);
+        Assert.Contains("argument 2 a text-type", e.Message);
     }
 }
