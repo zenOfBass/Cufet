@@ -1,0 +1,32 @@
+Describing each node:
+  the number 42
+  the text "hello"
+  0 + 9
+  4 + 0
+  0 + 0
+  2 + 3
+
+Folding the sums:
+  0 + 9 folds to 9
+  4 + 0 folds to 4
+  0 + 0 folds to 0
+  2 + 3 folds to 5
+
+Checking each node against 'number':
+  the number 42 — ok
+  the text "hello" — wanted number, found a text
+  0 + 9 — ok
+  4 + 0 — ok
+  0 + 0 — ok
+  2 + 3 — ok
+
+Checking the first node against 'text', by name:
+  wanted text, found a number
+
+The hand-written pass, on the same nodes:
+  a leaf, against number
+  a leaf, against number
+  a sum of 0, against number
+  a sum of 4, against number
+  a sum of 0, against number
+  a sum of 2, against number

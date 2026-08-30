@@ -1,0 +1,155 @@
+// Several functions under one name.
+//
+// A lexer, a parser and a type checker are all one enormous question: what kind of node is this,
+// and what do I do about it? Written as a chain of type tests, that question is answered the same
+// way in every pass, at length, and the chain has to be kept in step by hand.
+//
+// This program answers it by declaring several versions of a name and letting the call pick. Three
+// things are worth watching:
+//
+//   - The version is chosen from what the value IS, not from what the call site knows. Everything
+//     below walks a catalogue, so at the call site every node is one-of-three and nothing more.
+//   - A version may add a `when`, and two conditions that could BOTH hold are refused rather than
+//     ranked. `left is 0` alone would overlap `right is 0` on `0 + 0`, so the narrower one says so.
+//   - Two arguments can tell versions apart, which is what a type checker actually needs: the
+//     answer depends on the node AND on the type it is being checked against.
+
+// ── The nodes, and the types they might be checked against ─────────────────────────────────────
+
+Define object number-literal with (the number value).
+Define object text-literal with (the text value).
+Define object sum with (the number left, the number right).
+
+// A type that carries nothing says so once — no `with ()`, and no `{ }` to make one.
+Define object wants-number.
+Define object wants-text.
+
+// ── One argument: a version per node ───────────────────────────────────────────────────────────
+
+Bind text to describe, given (the number-literal node):
+    Return "the number {node's value}".
+Done.
+
+Bind text to describe, given (the text-literal node):
+    Return "the text \"{node's value}\"".
+Done.
+
+Bind text to describe, given (the sum node):
+    Return "{node's left} + {node's right}".
+Done.
+
+// ── A condition: constant folding ──────────────────────────────────────────────────────────────
+//
+// All three take a `sum`, so nothing about the TYPE tells them apart — the `when` does. The last
+// one carries none, and runs when neither condition holds.
+//
+// ⚠ The first says `and node's right is not 0` for a reason: without it, `left is 0` and
+// `right is 0` would both hold on `0 + 0`, and the language refuses two versions that can both
+// apply rather than deciding which wins.
+
+Bind number to fold, given (the sum node) when node's left is 0 and node's right is not 0:
+    Return node's right.
+Done.
+
+Bind number to fold, given (the sum node) when node's right is 0:
+    Return node's left.
+Done.
+
+Bind number to fold, given (the sum node):
+    Return node's left + node's right.
+Done.
+
+// ── Two arguments: the node AND what it is checked against ─────────────────────────────────────
+//
+// Every combination needs a version. Three node types against two wanted types is six, and leaving
+// one out is refused — a call could pass that pair, and nothing would run.
+
+Bind text to check, given (the number-literal node, the wants-number want):
+    Return "ok".
+Done.
+
+Bind text to check, given (the number-literal node, the wants-text want):
+    Return "wanted text, found a number".
+Done.
+
+Bind text to check, given (the text-literal node, the wants-number want):
+    Return "wanted number, found a text".
+Done.
+
+Bind text to check, given (the text-literal node, the wants-text want):
+    Return "ok".
+Done.
+
+Bind text to check, given (the sum node, the wants-number want):
+    Return "ok".
+Done.
+
+Bind text to check, given (the sum node, the wants-text want):
+    Return "wanted text, found a sum".
+Done.
+
+// ── The same question, written by hand ─────────────────────────────────────────────────────────
+//
+// What the versions above stand for. One `Judge` per argument, nested, with the outer subject held
+// in a name before descending — `it` belongs to the nearest `Judge`, so the inner one takes it.
+//
+// The grouped arm is the part that reads better here than as versions: two node types share an
+// answer, and saying so once is the point.
+
+Bind text to shape-of, given (the (number-literal or text-literal or sum) node,
+                              the (wants-number or wants-text) want):
+    Judge node, where it is:
+        A number-literal or a text-literal:
+            Judge want, where it is:
+                A wants-number, return "a leaf, against number".
+                A wants-text, return "a leaf, against text".
+            Done.
+        Done.
+        A sum:
+            Define held as it.
+            Judge want, where it is:
+                A wants-number, return "a sum of {held's left}, against number".
+                A wants-text, return "a sum of {held's left}, against text".
+            Done.
+        Done.
+    Done.
+Done.
+
+// ── Walking them ───────────────────────────────────────────────────────────────────────────────
+
+Define nodes as a catalogue of (number-literal or text-literal or sum) with (
+    a new number-literal { the value 42 },
+    a new text-literal { the value "hello" },
+    a new sum { the left 0, the right 9 },
+    a new sum { the left 4, the right 0 },
+    a new sum { the left 0, the right 0 },
+    a new sum { the left 2, the right 3 }).
+
+State "Describing each node:".
+For each node in nodes, repeat:
+    State "  {cast describe on (node)}".
+Done.
+
+State "".
+State "Folding the sums:".
+For each node in nodes, repeat:
+    If node is a sum, state "  {cast describe on (node)} folds to {cast fold on (node)}".
+Done.
+
+State "".
+State "Checking each node against 'number':".
+Define wanted as a new wants-number.
+For each node in nodes, repeat:
+    State "  {cast describe on (node)} — {cast check on (node, wanted)}".
+Done.
+
+// The arguments may be named instead of ordered, and named ones may come in any order.
+State "".
+State "Checking the first node against 'text', by name:".
+State "  {cast check on (the want a new wants-text, the node the first of nodes)}".
+
+State "".
+State "The hand-written pass, on the same nodes:".
+For each node in nodes, repeat:
+    State "  {cast shape-of on (node, wanted)}".
+Done.
