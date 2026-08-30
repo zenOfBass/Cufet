@@ -162,7 +162,148 @@ public class DispatchTests
             """));
     }
 
+    // ── Conditions ────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void AConditionTellsVersionsOfOneSignatureApart()
+    {
+        // ★ The conditions must EXCLUDE each other — `left is 0` and `right is 0` would both hold
+        // on `0 + 0` and are refused, so the narrower case says so itself. That is the design: the
+        // language never decides which of two overlapping versions wins.
+        Assert.Equal("9\n4\n0\n5", Run(Nodes + """
+            Bind number to fold, given (the add-node node) when node's left is 0 and node's right is not 0:
+                Return node's right.
+            Done.
+
+            Bind number to fold, given (the add-node node) when node's right is 0:
+                Return node's left.
+            Done.
+
+            Bind number to fold, given (the add-node node):
+                Return node's left + node's right.
+            Done.
+
+            State cast fold on (a new add-node { the left 0, the right 9 }).
+            State cast fold on (a new add-node { the left 4, the right 0 }).
+            State cast fold on (a new add-node { the left 0, the right 0 }).
+            State cast fold on (a new add-node { the left 2, the right 3 }).
+            """));
+    }
+
+    [Fact]
+    public void ConditionsAndTypeDispatchCompose()
+    {
+        // ⚠⚠ The condition has to be rewritten onto the narrowed subject, not the parameter.
+        // Inside the generated `Judge` arm the parameter still holds the whole union, so
+        // `node's value is 0` would be asking for a field of a union and refused outright.
+        Assert.Equal("zero\nnumber 7\nleft-identity\nsum", Run(Nodes + """
+            Bind text to describe, given (the num-node node) when node's value is 0:
+                Return "zero".
+            Done.
+
+            Bind text to describe, given (the num-node node):
+                Return "number {node's value}".
+            Done.
+
+            Bind text to describe, given (the add-node node) when node's left is 0:
+                Return "left-identity".
+            Done.
+
+            Bind text to describe, given (the add-node node):
+                Return "sum".
+            Done.
+
+            Define nodes as a catalogue of (num-node or add-node) with (
+                a new num-node { the value 0 },
+                a new num-node { the value 7 },
+                a new add-node { the left 0, the right 3 },
+                a new add-node { the left 1, the right 3 }).
+
+            For each n in nodes, repeat:
+                State cast describe on (n).
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void XorIsPartOfTheFragment()
+    {
+        // ★ `xor` carries no expressive power — the atoms already negate — but leaving it out
+        // would be arbitrary: `and`, `xor` and `or` are one family on one precedence line. It
+        // normalises to a disjunction, which is how `left is 0 xor right is 0` is shown disjoint
+        // from `left is 0 and right is 0`.
+        Assert.Equal("1\n2\n3", Run(Nodes + """
+            Bind number to fold, given (the add-node node) when node's left is 0 xor node's right is 0:
+                Return 1.
+            Done.
+
+            Bind number to fold, given (the add-node node) when node's left is 0 and node's right is 0:
+                Return 2.
+            Done.
+
+            Bind number to fold, given (the add-node node):
+                Return 3.
+            Done.
+
+            State cast fold on (a new add-node { the left 0, the right 5 }).
+            State cast fold on (a new add-node { the left 0, the right 0 }).
+            State cast fold on (a new add-node { the left 1, the right 5 }).
+            """));
+    }
+
     // ── What is refused ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ConditionsThatCanBothHoldAreRefused()
+    {
+        // ★★ The whole design in one test. `left is 0` and `right is 0` both hold on `0 + 0`, and
+        // the language does not pick — CLOS resolves this with prefer-method, Julia with a
+        // specificity lattice, and Cufet refuses. There is no priority rule to learn because the
+        // question is never asked.
+        var e = Refused(Nodes + """
+            Bind number to fold, given (the add-node node) when node's left is 0: Return 1. Done.
+            Bind number to fold, given (the add-node node) when node's right is 0: Return 2. Done.
+            Bind number to fold, given (the add-node node): Return 3. Done.
+            """);
+        Assert.Contains("can both apply", e.Message);
+    }
+
+    [Fact]
+    public void ConditionsWithNoFallbackAreRefused()
+    {
+        // ⚠ Even when the conditions look complementary. Proving a SET of them covers every case
+        // is tautology checking, which the fragment does not promise — so the coverage is written
+        // rather than inferred. Widening this later would be additive.
+        var e = Refused(Nodes + """
+            Bind number to fold, given (the add-node node) when node's left is 0: Return 1. Done.
+            Bind number to fold, given (the add-node node) when node's left is not 0: Return 2. Done.
+            """);
+        Assert.Contains("carries a condition", e.Message);
+    }
+
+    [Fact]
+    public void ALoneVersionWithAConditionIsRefused()
+    {
+        // The same rule reaching the case that has no second version at all — without it, the
+        // condition would be quietly ignored on an ordinary function.
+        var e = Refused(Nodes + """
+            Bind number to fold, given (the add-node node) when node's left is 0: Return 1. Done.
+            """);
+        Assert.Contains("carries a condition", e.Message);
+    }
+
+    [Fact]
+    public void AConditionOutsideTheFragmentIsRefused()
+    {
+        // ⚠ Ordering needs interval reasoning rather than an atom comparison, so it is out — and
+        // refused by name rather than accepted and left unchecked for overlap.
+        var e = Refused(Nodes + """
+            Bind number to fold, given (the add-node node) when node's left is greater than 3: Return 1. Done.
+            Bind number to fold, given (the add-node node): Return 2. Done.
+            """);
+        Assert.Contains("outside what can be checked", e.Message);
+    }
+
 
     [Fact]
     public void TwoVersionsClaimingOneTypeAreRefused()

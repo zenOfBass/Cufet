@@ -849,6 +849,53 @@ public class PipelineRecordObjectTests : PipelineTestBase
     }
 
     /// <summary>
+    /// Dispatch by a `when` condition, composed with dispatch on type, on both backends.
+    /// </summary>
+    /// <remarks>
+    /// ★ The conditions are shown pairwise disjoint at check time, so the `If` chain the front end
+    /// generates gives the same answer in any order — which is what makes lowering order-independent
+    /// dispatch to an ordinary ordered chain honest.
+    /// ⚠ The condition is rewritten onto the narrowed subject before it reaches the chain: inside
+    /// the generated `Judge` arm the parameter still holds the whole union.
+    /// </remarks>
+    [Fact]
+    public void DispatchByCondition_AgreesOnBothBackends()
+    {
+        const string src = """
+            Define object num-node with (the number value).
+            Define object add-node with (the number left, the number right).
+
+            Bind text to describe, given (the num-node node) when node's value is 0:
+                Return "zero".
+            Done.
+
+            Bind text to describe, given (the num-node node):
+                Return "number {node's value}".
+            Done.
+
+            Bind text to describe, given (the add-node node) when node's left is 0 xor node's right is 0:
+                Return "one-identity".
+            Done.
+
+            Bind text to describe, given (the add-node node):
+                Return "sum".
+            Done.
+
+            Define nodes as a catalogue of (num-node or add-node) with (
+                a new num-node { the value 0 },
+                a new num-node { the value 7 },
+                a new add-node { the left 0, the right 3 },
+                a new add-node { the left 0, the right 0 },
+                a new add-node { the left 1, the right 3 }).
+
+            For each n in nodes, repeat:
+                State cast describe on (n).
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    /// <summary>
     /// Dispatch on one argument's type, on both backends.
     /// </summary>
     /// <remarks>

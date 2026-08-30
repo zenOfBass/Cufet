@@ -4317,6 +4317,20 @@ public sealed class Parser
 
         var parameters = TryParseGivenClause() ?? [];
 
+        // `when <condition>` — what tells this VERSION of a name from the others sharing it.
+        //
+        // ★ Unambiguous here without a lookahead: a `:` or a `,` is what follows a signature
+        // today, so `when` in this position can only open a condition. And it costs no keyword —
+        // `when` already means "this holds under this condition" in `x when c, otherwise y`.
+        IExpression? whenClause = null;
+        SkipNoise();
+        if (Peek().Type == TokenType.When)
+        {
+            Advance(); SkipNoise();
+            whenClause = ParseExpression();
+            SkipNoise();
+        }
+
         // True for free functions, false for method bodies (nested or 'unto').
         _inFreeFunction = untoType == null && constructsTypeName == null && !savedInObjectDef;
 
@@ -4329,7 +4343,8 @@ public sealed class Parser
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
 
-        return new BindStatement(name, returnType, parameters, body, untoType, constructsTypeName, bindTok.Line, bindTok.Column);
+        return new BindStatement(name, returnType, parameters, body, untoType, constructsTypeName, bindTok.Line, bindTok.Column)
+               { When = whenClause };
     }
 
     // null return → void (this function returns nothing)

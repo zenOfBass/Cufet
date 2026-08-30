@@ -227,6 +227,22 @@ public sealed record BindStatement(
     int Column
 ) : IStatement
 {
+    /// <summary>The `when` clause telling this version of a name from the others.</summary>
+    /// <remarks>
+    /// <para>
+    /// ★ Null on every ordinary function, which is nearly all of them. Non-null makes this one
+    /// VERSION of its name: several may share a name and a signature when their conditions are
+    /// provably disjoint, and exactly one of them may leave this null — the fallback.
+    /// </para>
+    /// <para>
+    /// ⚠ Restricted to a decidable fragment — equality against a literal, a type test, either
+    /// negated, combined with `and`, `or` and `xor`. Disjointness of two such clauses is a
+    /// comparison of atoms rather than a proof, which is what lets overlap be REFUSED instead of
+    /// resolved by a priority rule nobody can predict.
+    /// </para>
+    /// </remarks>
+    public IExpression? When { get; init; }
+
     /// <summary>Whether this function was written as a runnable `cufet` axiom.</summary>
     /// <remarks>
     /// ★ A cufet axiom that says what it gives back IS a function, and the parser lowers it to one
