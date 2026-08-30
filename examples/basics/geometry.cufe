@@ -1,0 +1,135 @@
+// Operators you declare, and keys that are more than one number.
+//
+// Three things a small geometry program wants, and each of them used to have a sharp edge:
+//
+//   - `u * 2` on a type you defined. An overload names an ORDERED PAIR of operand types, so
+//     `vec2 * number` and `number * vec2` are two declarations, not one. That is not ceremony:
+//     `2 - u` is not `u - 2`, and the language cannot know which of yours is which.
+//   - `m * 2` on a matrix. Scaling is the one matrix operation that CANNOT fail — there are no
+//     dimensions to disagree — so it gives back a plain matrix, with no failure to handle.
+//   - A grid keyed by a position. A map key may be a record of keys, so a pair of numbers is a
+//     key without inventing a text encoding of one.
+
+// ── A vector, and the operators it declares ────────────────────────────────────────────────────
+
+Define object vec2 with (the number x, the number y).
+
+Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):
+    Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.
+Done.
+
+// Scaling, both ways round. Two declarations, because the pair is ordered.
+Bind overloading *, given (the lhs is a vec2, the rhs is a number):
+    Return a new vec2 { the x lhs's x * rhs, the y lhs's y * rhs }.
+Done.
+
+Bind overloading *, given (the lhs is a number, the rhs is a vec2):
+    Return a new vec2 { the x rhs's x * lhs, the y rhs's y * lhs }.
+Done.
+
+// The same type takes part in a third pair, and none of them collide — a pair is what must be
+// unique, not a type.
+Bind overloading *, given (the lhs is a vec2, the rhs is a vec2):
+    Return lhs's x * rhs's x + lhs's y * rhs's y.
+Done.
+
+// An object cannot go in a text hole — a hole takes what `converted to text` takes, and that is
+// text, number, fact and bits. So a vector says how to spell itself.
+Bind text to spelt, given (the vec2 point):
+    Return "({point's x}, {point's y})".
+Done.
+
+Define here as a new vec2 { the x 3, the y 4 }.
+Define step as a new vec2 { the x 1, the y 2 }.
+
+State "A vector and its operators:".
+State "  here          = {cast spelt on (here)}".
+State "  here + step   = {cast spelt on (here + step)}".
+State "  here * 2      = {cast spelt on (here * 2)}".
+State "  2 * here      = {cast spelt on (2 * here)}".
+State "  here * step   = {here * step}          (the dot product — a number, not a vector)".
+
+// ── A function called by name ──────────────────────────────────────────────────────────────────
+//
+// `the` says a name follows, the same way it does in an object literal. Named arguments may be
+// given in any order; positional ones have to come first, because once a name is given, position
+// no longer says which parameter is meant.
+
+Bind number to area, given (the number width, the number height):
+    Return width * height.
+Done.
+
+State "".
+State "The same call, three ways:".
+State "  cast area on (3, 4)                        = {cast area on (3, 4)}".
+State "  cast area on (the width 3, the height 4)   = {cast area on (the width 3, the height 4)}".
+State "  cast area on (the height 4, the width 3)   = {cast area on (the height 4, the width 3)}".
+
+// ── A matrix, scaled ───────────────────────────────────────────────────────────────────────────
+
+Pull a book on collections.
+    Define grid-2 as a matrix with ((1, 2), (3, 4)).
+
+    State "".
+    State "A matrix, scaled — no failure to handle:".
+    State "  m     →".
+    State grid-2.
+    State "  m * 2 →".
+    State grid-2 * 2.
+    State "  3 * m →".
+    State 3 * grid-2.
+
+    // ⚠ The PRODUCT of two matrices can fail — their dimensions may disagree — so it needs the
+    // handling that scaling does not. Nothing about `*` promises a failure; the dimensions do.
+    Define wide as a matrix with ((1, 2, 3), (4, 5, 6)).
+
+    State "  m * wide →          (2×2 times 2×3 — the inner sizes agree)".
+    Try to:
+        State grid-2 * wide.
+    Done.
+    In case of failure:
+        State "  it failed: {the message of the failure}".
+    Done.
+
+    State "  wide * m →          (2×3 times 2×2 — they do not)".
+    Try to:
+        State wide * grid-2.
+    Done.
+    In case of failure:
+        State "  it failed: {the message of the failure}".
+    Done.
+
+    // ★ And the same two matrices scale without any of that, because scaling has no dimensions
+    // to disagree about.
+    State "  wide * 10 →".
+    State wide * 10.
+Done.
+
+// ── A grid keyed by a position ─────────────────────────────────────────────────────────────────
+//
+// The key is a record of two numbers. Two records with equal fields are the same key, so a
+// position looked up is the position that was stored — no text encoding of a pair, and nothing to
+// keep in step.
+
+Define terrain as a map from record like (number, number) to text.
+In terrain, the entry for a record with (0, 0) becomes "start".
+In terrain, the entry for a record with (3, 4) becomes "treasure".
+In terrain, the entry for a record with (1, 2) becomes "water".
+
+State "".
+State "A grid keyed by a pair of numbers:".
+State "  the number of squares = {the size of terrain}".
+
+Define places as a series of records like (number, number) with (
+    a record with (0, 0),
+    a record with (3, 4),
+    a record with (9, 9)).
+
+For each place in places, repeat:
+    State "  ({the first of place}, {the second of place}) — {the entry for place in terrain but void is "nothing here"}".
+Done.
+
+// The vector above lands on a square, and the record built from it finds the same entry.
+State "".
+State "Where `here` lands:".
+State "  ({here's x}, {here's y}) — {the entry for a record with (here's x, here's y) in terrain but void is "nothing here"}".

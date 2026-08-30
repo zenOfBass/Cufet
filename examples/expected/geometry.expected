@@ -1,0 +1,34 @@
+A vector and its operators:
+  here          = (3, 4)
+  here + step   = (4, 6)
+  here * 2      = (6, 8)
+  2 * here      = (6, 8)
+  here * step   = 11          (the dot product — a number, not a vector)
+
+The same call, three ways:
+  cast area on (3, 4)                        = 12
+  cast area on (the width 3, the height 4)   = 12
+  cast area on (the height 4, the width 3)   = 12
+
+A matrix, scaled — no failure to handle:
+  m     →
+matrix((1, 2), (3, 4))
+  m * 2 →
+matrix((2, 4), (6, 8))
+  3 * m →
+matrix((3, 6), (9, 12))
+  m * wide →          (2×2 times 2×3 — the inner sizes agree)
+matrix((9, 12, 15), (19, 26, 33))
+  wide * m →          (2×3 times 2×2 — they do not)
+  it failed: left matrix columns must equal right matrix rows for matrix product
+  wide * 10 →
+matrix((10, 20, 30), (40, 50, 60))
+
+A grid keyed by a pair of numbers:
+  the number of squares = 3
+  (0, 0) — start
+  (3, 4) — treasure
+  (9, 9) — nothing here
+
+Where `here` lands:
+  (3, 4) — treasure
