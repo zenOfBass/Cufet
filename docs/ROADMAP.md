@@ -30,10 +30,14 @@ it travels.
    helper that never wanted to be a member does not become one. What is left is the member that
    genuinely has to be one — it needs `one`, or it belongs to the type — and is still handed out.
 
-   ⚠⚠ **The decision is due now, not later.** An earlier version of this entry said it bites
-   only when a module can be DEPENDED ON, and that nothing was distributable. Both were true when
-   written and neither is now: an external book loader ships, so anyone’s book can be depended on
-   by anyone.
+   ⚠⚠ **Still not due, and the reason is worth keeping because it has now been got wrong
+   twice.** The loader shipping makes it TRUE that anyone’s book can be depended on, and that
+   reads like the trigger — but nothing travels yet. There is no package manager, so loading
+   reaches a file you wrote, beside the one you are running. "Everything is public becomes
+   permanent" is a fact about a published package, not about a program only you can run.
+
+   **The trigger is distribution, or a second author** — the item below, or somebody else’s book
+   in your program. Not the ability to split your own program across files.
 
    ⚠ **Bundled books do not get the file privacy external ones do.** `WithPrelude` splices them
    before the loader runs, so a top-level declaration in `math.cufe` would be global to every
