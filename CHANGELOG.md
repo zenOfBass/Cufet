@@ -279,6 +279,33 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   answer, not a value anyone looks something up by.
 
 ### Fixed
+- **Two functions could share a name, and the later one silently won.** The hoist wrote the
+  scope entry with no occupancy check, so a file declaring `eval` twice type-checked clean —
+  `check` reported *"No problems found"* — and every call reached the second declaration:
+
+  ```
+  Bind number to eval, given (the number n): Return n. Done.
+  Bind number to eval, given (the number n): Return n * 2. Done.
+  State cast eval on (5).          → 10
+  ```
+
+  ⚠⚠ It was the one place in the language where two readings collapsed into one without a word.
+  Everywhere else is a refusal — two overloads on an ordered pair, a name that is both a method
+  and a free function, a `Judge` that misses a case of a closed union.
+
+  ★ **Different parameter types are refused too**, not only identical signatures. That shape had
+  the same silent behaviour and a worse symptom: with `eval` declared for two node types, passing
+  the first one was refused with *"argument 1 of 'eval' must be a add-node"* — an error about the
+  declaration the writer was not calling.
+
+  ★★ It also surfaced a collision nobody could see. Two `Pull` blocks each declaring a `helper`
+  are hoisted into the same top-level scope, so a call inside the FIRST block reached the SECOND
+  block's body. The blocks look independent and were not.
+
+  ⚠ Methods are untouched — two types may each have a `speak`, since a method is reached through
+  its owner. So is a function declared inside a body, which is not hoisted and shadows the way a
+  local binding does.
+
 - **The compiler emitted one C symbol per operand type, not per PAIR.** With mixed-type
   overloads that is a duplicate definition the moment two of them share a left type and
   operator — `vec2 * number` and `vec2 * vec2` both became `cop_vec2_mul`, and gcc refused the

@@ -2763,6 +2763,23 @@ required is refused — correctly, since an open union has no fixed set of confo
 for. The refusal names a type you never wrote, which is the confusing part: you get told you
 passed "an open union" without having typed the word `union` anywhere. Name the element type.
 
+### ★ Two free functions cannot share a name
+
+A name declares one function. A second `Bind` of the same name is refused, naming both lines —
+**whatever its parameters are.** Different parameter types is the shape open dispatch would give a
+meaning to; until something does, accepting it means the later declaration silently replaces the
+earlier one.
+
+Compared on the **hoisted** declarations, which has two consequences worth knowing:
+
+| Shape | Verdict | Why |
+|---|---|---|
+| Two top-level `Bind`s of one name | Refused | One name, one function |
+| The same name in two separate `Pull` blocks | Refused | Both bodies hoist into the SAME top-level scope, so a call in the first block reached the second block's body |
+| A `Bind` inside a body, shadowing a top-level one | Allowed | Not hoisted. An ordinary local declaration, shadowing the way a local binding does |
+| Two types each declaring a `speak` method | Allowed | A method is not a free function — it is reached through its owner |
+| A `Bind … unto <type>` sharing a free function's name | Allowed | `unto` declares a method, reached through its owner — `cast rex's speak on ()` and `cast speak on (3)` are different calls |
+
 ### ★ Named arguments: what tells them from an expression
 
 `the width 3` is a named argument; `the width of box` is a field access; `the width` on its own is
