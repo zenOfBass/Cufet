@@ -138,6 +138,22 @@ public class ExampleOracleTests
     /// A corpus ID back to an absolute path. Root-relative IDs make this a combine.
     private static string Resolve(string file) => Path.Combine(RepoRoot, file);
 
+    /// <summary>
+    /// A checker that can find a book in another file, the way the CLI's does.
+    /// </summary>
+    /// <remarks>
+    /// ★ A bare <c>new TypeChecker()</c> has no source directory, so <c>Pull a book on ‹name›.</c>
+    /// cannot reach <c>‹name›.cufe</c> beside the program — every multi-file example would be
+    /// refused here and run fine under <c>cufet</c>. It went unnoticed until the corpus had a
+    /// program written across two files, which is the first thing that could ever have shown it.
+    ///
+    /// ⚠ Deliberately does NOT set <c>SourceMap.Current</c>, which the CLI does. That static turns
+    /// a loaded line back into a file for a person to open, and this suite has no reader — while
+    /// xUnit runs these classes in parallel, so writing it here would be a race for no gain.
+    /// </remarks>
+    private static TypeChecker MakeChecker(string file) =>
+        new() { SourceDirectory = Path.GetDirectoryName(Resolve(file)) };
+
     /// A root as it appears at the front of an ID, forward-slashed and with its separator.
     private static string RootPrefix(string root) =>
         Path.GetRelativePath(RepoRoot, root).Replace('\\', '/') + "/";
@@ -183,7 +199,7 @@ public class ExampleOracleTests
         // A floor far below the count is not a guard. Raise it when you add examples; it only ever
         // fails for a deletion or a broken scan, never for an addition.
         var files = ExampleFiles().ToList();
-        Assert.True(files.Count >= 38,
+        Assert.True(files.Count >= 39,
             $"only {files.Count} examples found — the corpus has shrunk or the enumeration broke.");
 
         // ★ Every category folder must contribute. Found by listing directories rather than by
@@ -247,7 +263,7 @@ public class ExampleOracleTests
 
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        program = new TypeChecker().Check(program);
+        program = MakeChecker(file).Check(program);
 
         string compiled;
         try
@@ -339,7 +355,7 @@ public class ExampleOracleTests
     {
         var source = File.ReadAllText(Resolve(file));
         var program = new Parser(new CufetLexer(source).Tokenize()).Parse();
-        new TypeChecker().Check(program);   // throws on failure — that IS the assertion
+        MakeChecker(file).Check(program);   // throws on failure — that IS the assertion
     }
 
     /// <summary>
@@ -360,7 +376,7 @@ public class ExampleOracleTests
 
         var source  = File.ReadAllText(Resolve(file));
         var program = new Parser(new CufetLexer(source).Tokenize()).Parse();
-        program = new TypeChecker().Check(program);
+        program = MakeChecker(file).Check(program);
 
         Assert.NotEmpty(Interpret(program));
         Assert.NotEmpty(CompileAndRun(program));
