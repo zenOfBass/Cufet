@@ -36,6 +36,10 @@
     The trailing colon is the only guess in here, and it can only ever cost an extra blank line,
     never a swallowed one, because the blank line is what actually submits.
 
+    A line that is not a statement is tried again as a question, so `2 + 2` answers `4` rather than
+    being refused. The REPL does not judge which one you meant — it offers the compiler both and
+    keeps the reading the compiler accepts, which is the same refusal to hold an opinion as above.
+
     Up and Down walk back through what you have typed, when there is a terminal to read keys from
     one at a time. Without one there is no editor and no history — a pipe has nothing to recall.
 
@@ -206,9 +210,9 @@ Pull a book on terminal.
         If raw is not void:
             Define line as raw trimmed.
 
-        /* Remembered whether or not it works. Recalling a line to fix it is most of what a
-           history is for, and a refused line is the one you most want back. */
-        If the length of line is greater than 0, insert line into past.
+            /* Remembered whether or not it works. Recalling a line to fix it is most of what a
+               history is for, and a refused line is the one you most want back. */
+            If the length of line is greater than 0, insert line into past.
 
             If building is false and line is "Leave.":
                 The running becomes false.
@@ -237,24 +241,60 @@ Pull a book on terminal.
             If the length of ready is greater than 0:
                 Define attempt as "{session}{ready}".
 
+                /*  The same thing said as an answer rather than an instruction. `2 + 2` is not a
+                    statement in Cufet and never will be, so typing it alone is refused — but it is
+                    obviously a question, and a REPL that cannot answer a question is a text editor.
+
+                    ★ The REPL still decides NOTHING. It does not look at the line and judge it an
+                    expression; it offers the compiler both readings and keeps whichever one the
+                    compiler accepts. Asking twice is what lets it stay ignorant of Cufet, which is
+                    the whole reason it shells out.
+
+                    The trailing stop comes off first because the wrap puts one back. That makes a
+                    forgotten stop free on an expression — `2 + 2` and `2 + 2.` are both questions
+                    with the same answer. */
+                Define inner as ready trimmed.
+                If the length of inner is greater than 0 and the last 1 characters of inner is ".":
+                    Define without-stop as (the length of inner) - 1.
+                    The inner becomes the characters from 1 to without-stop of inner.
+                Done.
+                Define asked as "{session}State ({inner}).\n".
+
                 /* Writing and launching can each fail — a full disk, or no `cufet` on the PATH. Both
                    are failure values, so a bad line costs a message and not the session. */
                 Try to:
                     Write attempt to the file scratch.
                     Define answered as run "cufet" with arguments (scratch).
 
-                    /* Nonzero means it did not get through: a refusal, or a death part way. Either
-                       way it does not join the session, and what the compiler said about it is the
-                       whole of what there is to show. */
-                    If the exit-code of answered is not 0:
-                        State (the errors of answered) trimmed.
+                    Define verdict as the exit-code of answered.
+                    Define said as the output of answered.
+                    Define complaint as the errors of answered.
+                    Define kept as attempt.
+
+                    /*  Refused as an instruction, so try it as a question. If THAT is refused too,
+                        the complaint held onto is the FIRST one — it is about the line that was
+                        actually typed, where the second is about a line the REPL made up. */
+                    If verdict is not 0:
+                        Write asked to the file scratch.
+                        Define answered-again as run "cufet" with arguments (scratch).
+                        If the exit-code of answered-again is 0:
+                            The verdict becomes 0.
+                            The said becomes the output of answered-again.
+                            The complaint becomes the errors of answered-again.
+                            The kept becomes asked.
+                        Done.
                     Done.
-                    If the exit-code of answered is 0:
-                        The session becomes attempt.
-                        Define spoke as cast beyond on (the output of answered, shown).
-                        Define grumbled as cast beyond on (the errors of answered, warned).
-                        The shown becomes the output of answered.
-                        The warned becomes the errors of answered.
+
+                    /* Nonzero still means it did not get through: a refusal, or a death part way.
+                       Either way it does not join the session, and what the compiler said about it
+                       is the whole of what there is to show. */
+                    If verdict is not 0, state complaint trimmed.
+                    If verdict is 0:
+                        The session becomes kept.
+                        Define spoke as cast beyond on (said, shown).
+                        Define grumbled as cast beyond on (complaint, warned).
+                        The shown becomes said.
+                        The warned becomes complaint.
 
                         /* Warnings first, because one of them is usually why the output is not what
                            was expected. */
