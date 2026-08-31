@@ -147,6 +147,99 @@ public class ModulePullTests
         Assert.Contains("nothing named 'nowhere-thing' to pull", ex.Message);
     }
 
+    // ── `book` is a subtype of `module`, and the spelling must match ───────
+
+    /// <summary>
+    /// A book is a module you CONSULT; a module is one you have one of. Both are pulled, and the
+    /// words say which.
+    /// </summary>
+    /// <remarks>
+    /// ★★ The rule is not new — the bundled books enforced it from the start, and
+    /// ABundledBook_IsRefusedByThePlainForm above is the same assertion about `math`. What was
+    /// missing was any way for a WRITER to say which kind theirs was, so it could not generalise.
+    /// `book` is that claim, and the bundled books stop being a privileged category.
+    /// </remarks>
+    [Fact]
+    public void ABook_IsRefusedByThePlainForm()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define object trigonometry with () and book:
+                Bind number to answer: Return 1. Done.
+            Done.
+
+            Pull a trigonometry.
+                State cast trigonometry's answer.
+            Done.
+            """));
+        Assert.Contains("is a book, so it is pulled as one", ex.Message);
+        Assert.Contains("Pull a book on trigonometry.", ex.Message);   // the message names the fix
+    }
+
+    [Fact]
+    public void AModule_IsRefusedByTheBookForm()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define object terminal with () and module:
+                Bind number to answer: Return 1. Done.
+            Done.
+
+            Pull a book on terminal.
+                State cast terminal's answer.
+            Done.
+            """));
+        Assert.Contains("is not a book", ex.Message);
+        Assert.Contains("Pull a terminal.", ex.Message);
+        Assert.Contains("and book", ex.Message);   // …or say it is one
+    }
+
+    [Fact]
+    public void ABookConformsToModuleToo()
+    {
+        // The subtype half: `and book` alone is enough to be pullable, with no `and module`
+        // beside it. If it were not, every book would have to say both.
+        Assert.Equal("1", Run("""
+            Define object trigonometry with () and book:
+                Bind number to answer: Return 1. Done.
+            Done.
+
+            Pull a book on trigonometry.
+                State cast trigonometry's answer.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ThePluralFormAppliesOneSpellingToEveryName()
+    {
+        // ⚠ So a book and a module you hold one of cannot share a statement — they nest instead.
+        // This is the wrinkle the rule brings, and it turned up in this file's own fixtures within
+        // minutes of the rule landing.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define object held with () and module:
+                Bind number to answer: Return 1. Done.
+            Done.
+
+            Pull books on math, and held.
+                State cast held's answer.
+            Done.
+            """));
+        Assert.Contains("is not a book", ex.Message);
+    }
+
+    [Fact]
+    public void AModulesUnmetNeed_IsAdvisedInAWritableSpelling()
+    {
+        // ⚠ REGRESSION. The advice used to be `Pull books on math, and <module>.` — which the rule
+        // above refuses the moment a reader follows it. One wrong answer replacing another.
+        var ex = Assert.Throws<TypeException>(() => Run(ModuleNeedingMath + """
+            Pull a needs-math.
+                State cast needs-math's pi-times-square on (2).
+            Done.
+            """));
+        Assert.Contains("Each is pulled by its own kind, so they nest", ex.Message);
+        Assert.DoesNotContain("Pull books on math, and needs-math.", ex.Message);
+    }
+
     // ── The bundled books are unchanged ────────────────────────────────────
 
     [Fact]
