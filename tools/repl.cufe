@@ -40,6 +40,9 @@
     being refused. The REPL does not judge which one you meant — it offers the compiler both and
     keeps the reading the compiler accepts, which is the same refusal to hold an opinion as above.
 
+    The line is editable where the cursor is: Left and Right move through it, Ctrl-A and Ctrl-E go
+    to its ends, Backspace takes the character before the cursor and Ctrl-U throws the line away.
+
     Up and Down walk back through what you have typed, when there is a terminal to read keys from
     one at a time. Without one there is no editor and no history — a pipe has nothing to recall.
 
@@ -88,25 +91,60 @@ Pull a book on terminal.
     State "Cufet REPL, evaluating with {which}. Type Leave. to go, or close the input".
 
 
-    /* Take a number of characters back off the line. Recalling a line means rubbing out what is
-       already there before drawing what came instead. */
-    Bind void to rub-out, given (the number many):
+    /* A run of spaces, for painting over what a line used to be. */
+    Bind text to blanks, given (the number many):
+        Define room as "".
         Define left as many.
         While left is greater than 0, repeat:
-            Cast terminal's erase.
+            The room becomes "{room} ".
             Decrement left by 1.
         Done.
+        Return room.
     Done.
 
-    /*  One line, typed. Raw mode means every key arrives here one at a time and the echo is ours
-        to do; without it the terminal does its own editing and hands over a line already finished.
-        Both give back `voidable text` and both give back void at end of input, so the loop below
-        cannot tell which one it got — which is the point. The editor is an improvement to how a
-        line is collected, not a second way for the REPL to behave. */
+    /*  Replace the line on screen, and leave the cursor where the caret says.
+
+        ★ ONE routine draws every edit — typing, deleting, moving, recalling, throwing the line
+        away. Each of those only has to work out what the line now IS and where in it the caret
+        belongs; none of them knows how to draw. The alternative is a bespoke sequence per key,
+        which is how a line editor ends up with the cursor a column adrift after some combination
+        nobody tried — there is no combination here, because there is only one drawing.
+
+        It repaints the whole line on every keystroke. At a terminal that is nothing, and it buys
+        the property above outright. */
+    Bind void to redraw, given (the text gone, the number gone-caret, the text drawn, the number drawn-caret):
+        /* Back to the first column of what is showing. */
+        Define to-the-start as gone-caret - 1.
+        Cast terminal's back-up on (to-the-start).
+
+        Cast terminal's put on (drawn).
+
+        /* Whatever the old line was longer by is still sitting there. Paint over it, then step
+           back across the paint. */
+        Define over as (the length of gone) - (the length of drawn).
+        If over is greater than 0:
+            Cast terminal's put on (cast blanks on (over)).
+            Cast terminal's back-up on (over).
+        Done.
+
+        Define to-the-caret as (the length of drawn) + 1 - drawn-caret.
+        Cast terminal's back-up on (to-the-caret).
+    Done.
+
+    /*  One line, typed. Raw mode — the TERMINAL kind, nothing to do with Cufet’s raw text — means
+        every key arrives here one at a time and the echo is ours to do; without it the terminal
+        does its own editing and hands over a line already finished. Both give back `voidable text`
+        and both give back void at end of input, so the loop below cannot tell which one it got —
+        which is the point. The editor is an improvement to how a line is collected, not a second
+        way for the REPL to behave. */
     Bind voidable text to typed, given (the fact editing, the series of text past):
         If editing is false, return read a line from the input.
 
+        /*  The line, and where in it the next character would go. `caret` is 1 at the start and
+            one past the last character at the end, which is the same counting `the characters
+            from` uses — so an edit at either end needs no special case. */
         Define built as "".
+        Define caret as 1.
 
         /*  Where in the history the line on screen came from. `limit` is one past the last
             recalled line, and means the line being typed now — so walking up stops at 1 and
@@ -122,7 +160,12 @@ Pull a book on terminal.
             If tapped is -1, return void.
             If tapped is 4 and the length of built is 0, return void.
 
+            /* Finishing and abandoning both step out to the END of the line first. The caret may
+               be sitting in the middle of it, and a newline printed from there would leave the
+               tail of what was typed above the cursor rather than behind it. */
             If tapped is 10:
+                Define after-caret as the characters from caret to the end of built.
+                Cast terminal's put on (after-caret).
                 Cast terminal's put on ("\n").
                 Return built.
             Done.
@@ -130,31 +173,52 @@ Pull a book on terminal.
             /* Ctrl-C throws the line away and starts again, the way every shell does. An empty
                line is nothing to do, so the loop below prints a fresh prompt and waits. */
             If tapped is 3:
+                Define abandoned as the characters from caret to the end of built.
+                Cast terminal's put on (abandoned).
                 Cast terminal's put on ("^C\n").
                 Return "".
             Done.
 
+            /*  Everything from here only works out what the line IS and where the caret belongs.
+                What was showing is kept so the one drawing routine below can replace it. */
+            Define gone as built.
+            Define gone-caret as caret.
+            Define ending as (the length of built) + 1.
+
             /* Up walks back through what was typed; Down walks forward, and off the end into an
-               empty line. Both rub out what is showing before drawing what replaced it. */
+               empty line. A recalled line arrives with the caret at its end, ready to add to. */
             If tapped is 11 and showing is greater than 1:
-                Cast rub-out on (the length of built).
                 The showing becomes showing - 1.
                 The built becomes item showing of past.
-                Cast terminal's put on (built).
+                The caret becomes (the length of built) + 1.
             Done.
 
             If tapped is 12 and showing is less than limit:
-                Cast rub-out on (the length of built).
                 The showing becomes showing + 1.
                 If showing is limit, the built becomes "".
                 If showing is not limit, the built becomes item showing of past.
-                Cast terminal's put on (built).
+                The caret becomes (the length of built) + 1.
             Done.
 
-            If tapped is 8 and the length of built is greater than 0:
-                Define shorter as (the length of built) - 1.
-                The built becomes the characters from 1 to shorter of built.
-                Cast terminal's erase.
+            /* Moving touches the caret and nothing else — which is the point of having a caret. */
+            If tapped is 13 and caret is greater than 1, the caret becomes caret - 1.
+            If tapped is 14 and caret is less than ending, the caret becomes caret + 1.
+            If tapped is 1, the caret becomes 1.
+            If tapped is 5, the caret becomes ending.
+
+            /* Ctrl-U: start over without leaving the prompt. */
+            If tapped is 21:
+                The built becomes "".
+                The caret becomes 1.
+            Done.
+
+            /* Backspace takes the character BEFORE the caret, wherever the caret is. */
+            If tapped is 8 and caret is greater than 1:
+                Define up-to as caret - 2.
+                Define kept-head as the characters from 1 to up-to of built.
+                Define kept-tail as the characters from caret to the end of built.
+                The built becomes "{kept-head}{kept-tail}".
+                The caret becomes caret - 1.
             Done.
 
             /* Typing lands on the line you are building, not on the one you recalled — so `showing`
@@ -163,9 +227,14 @@ Pull a book on terminal.
             If tapped is greater than 31 and tapped is less than 127:
                 The showing becomes limit.
                 Define letter as cast terminal's letter-for on (tapped).
-                The built becomes "{built}{letter}".
-                Cast terminal's put on (letter).
+                Define before-caret as caret - 1.
+                Define head as the characters from 1 to before-caret of built.
+                Define tail as the characters from caret to the end of built.
+                The built becomes "{head}{letter}{tail}".
+                The caret becomes caret + 1.
             Done.
+
+            Cast redraw on (gone, gone-caret, built, caret).
         Until false.
 
         /* Unreachable: the loop above only ends by returning. The checker cannot know that, and

@@ -130,13 +130,23 @@ Define object terminal with () and module:
 
             -1          end of input
              0          a key with nothing to do: a function key, anything unhandled
+             1          Ctrl-A, the start of the line
              3          Ctrl-C
              4          Ctrl-D, and Ctrl-Z, which is the Windows spelling of it
+             5          Ctrl-E, the end of the line
              8          Backspace
             10          Enter
             11          Up
             12          Down
+            13          Left
+            14          Right
+            21          Ctrl-U, throw the line away
             32 to 126   that printable character
+
+        ⚠ The numbers above 10 are this book’s own, not ASCII — 11 is a vertical tab and 13 is a
+        carriage return to anybody else. Nothing here ever gives back a byte as itself except a
+        printable one and the three control keys that already sit where they belong, so there is no
+        byte left over to be confused with.
 
         ⚠ ASCII only. A byte at or above 128 is part of a UTF-8 character arriving in pieces, and
         appending the pieces one at a time would build text that is not any character at all — so
@@ -155,12 +165,15 @@ Define object terminal with () and module:
                         int extended = _getch();
                         if (extended == 72) return 11;
                         if (extended == 80) return 12;
+                        if (extended == 75) return 13;
+                        if (extended == 77) return 14;
                         return 0;
                     }
                     if (pressed == 13) return 10;
                     if (pressed == 8 || pressed == 127) return 8;
                     if (pressed == 3) return 3;
                     if (pressed == 4 || pressed == 26) return 4;
+                    if (pressed == 1 || pressed == 5 || pressed == 21) return pressed;
                     if (pressed >= 32 && pressed < 127) return pressed;
                     return 0;
                 }
@@ -176,12 +189,15 @@ Define object terminal with () and module:
                         while (read(0, &next, 1) > 0 && !(next >= 64 && next <= 126)) { }
                         if (next == 65) return 11;
                         if (next == 66) return 12;
+                        if (next == 68) return 13;
+                        if (next == 67) return 14;
                         return 0;
                     }
                     if (byte == 13 || byte == 10) return 10;
                     if (byte == 8 || byte == 127) return 8;
                     if (byte == 3) return 3;
                     if (byte == 4) return 4;
+                    if (byte == 1 || byte == 5 || byte == 21) return byte;
                     if (byte >= 32 && byte < 127) return byte;
                     return 0;
                 }
@@ -207,11 +223,19 @@ Define object terminal with () and module:
         Done.
     Done.
 
-    /*  Rub out the character before the cursor. Built on `put` rather than reaching for C again:
-        backspace, a space over what was there, backspace again — which is the whole of what every
-        terminal means by erasing, and needs no platform to say it. */
-    Bind void to erase:
-        Define back as cast one's letter-for on (8).
-        Cast one's put on ("{back} {back}").
+    /*  Walk the cursor back, without disturbing what it walks over. A backspace MOVES; it is not
+        a delete, and that is the whole reason a line editor can put the cursor in the middle of a
+        line and still redraw the line around it.
+
+        Built as one string and written once. The obvious loop of single writes would be the same
+        bytes and a flush between every one of them, which is what makes a redraw visibly crawl. */
+    Bind void to back-up, given (the number many):
+        Define stick as "".
+        Define left as many.
+        While left is greater than 0, repeat:
+            The stick becomes "{stick}{cast one's letter-for on (8)}".
+            Decrement left by 1.
+        Done.
+        If the length of stick is greater than 0, cast one's put on (stick).
     Done.
 Done.
