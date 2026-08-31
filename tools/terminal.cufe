@@ -50,5 +50,157 @@ Define object terminal with () and module:
             Define c-language number attached as [cufet_terminal_interactive()].
             Return cast attached is 1.
         Done.
+        Done.
+
+    /*  Put the terminal into raw mode: keys arrive one at a time, nothing is echoed, and Ctrl-C
+        comes through as a byte instead of killing the program. Gives back whether it worked, and
+        a caller is expected to believe the answer — a pipe, a redirect, a Windows console with no
+        handle, and a machine with no termios all say no, and all mean the same thing: read lines
+        the ordinary way instead.
+
+        ⚠ It does NOT save the old settings to put back. `raw-off` rebuilds a sane cooked
+        terminal rather than restoring a remembered one, which is worse for somebody who had
+        deliberately turned echo off and better for everyone else — and it is what lets these two
+        be separate axioms. Each method gets its own C block, because an object body takes only
+        methods, so nothing can be shared between them but the shape of the terminal itself.
+
+        ⚠⚠ An abnormal exit leaves the terminal raw, because nothing runs `raw-off` on the way
+        out. `reset` fixes it. Every line editor that disables ISIG has this. */
+    Bind fact to raw-on:
+        Pull a book on the c-language.
+            Define c-language raw-on-support as [#if defined(_WIN32)
+                #include <windows.h>
+                static int cufet_terminal_raw_on(void) {
+                    HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+                    DWORD mode;
+                    if (input == INVALID_HANDLE_VALUE || !GetConsoleMode(input, &mode)) return 0;
+                    mode &= ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT);
+                    return SetConsoleMode(input, mode) ? 1 : 0;
+                }
+                #else
+                #include <termios.h>
+                #include <unistd.h>
+                static int cufet_terminal_raw_on(void) {
+                    struct termios settings;
+                    if (tcgetattr(0, &settings) != 0) return 0;
+                    settings.c_lflag &= ~(ICANON | ECHO | ISIG);
+                    settings.c_cc[VMIN] = 1;
+                    settings.c_cc[VTIME] = 0;
+                    return tcsetattr(0, TCSANOW, &settings) == 0 ? 1 : 0;
+                }
+                #endif].
+            Define c-language number engaged as [cufet_terminal_raw_on()].
+            Return cast engaged is 1.
+        Done.
+    Done.
+
+    /* Hand the terminal back the way a program that never touched it would leave one. */
+    Bind void to raw-off:
+        Pull a book on the c-language.
+            Define c-language raw-off-support as [#if defined(_WIN32)
+                #include <windows.h>
+                static int cufet_terminal_raw_off(void) {
+                    HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+                    DWORD mode;
+                    if (input == INVALID_HANDLE_VALUE || !GetConsoleMode(input, &mode)) return 0;
+                    mode |= (ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT);
+                    return SetConsoleMode(input, mode) ? 1 : 0;
+                }
+                #else
+                #include <termios.h>
+                #include <unistd.h>
+                static int cufet_terminal_raw_off(void) {
+                    struct termios settings;
+                    if (tcgetattr(0, &settings) != 0) return 0;
+                    settings.c_lflag |= (ICANON | ECHO | ISIG);
+                    return tcsetattr(0, TCSANOW, &settings) == 0 ? 1 : 0;
+                }
+                #endif].
+            Define c-language number restored as [cufet_terminal_raw_off()].
+            Cast restored.
+        Done.
+    Done.
+
+    /*  One keypress, as a number the Cufet above can read without knowing what machine it is on.
+        The normalising is the whole point of doing it here: POSIX sends an arrow key as an escape
+        sequence and Windows sends it as a two-byte extended code, and a line editor written on the
+        raw bytes would have both of those spellings inside it.
+
+            -1          end of input
+             0          a key with nothing to do: an arrow, a function key, anything unhandled
+             3          Ctrl-C
+             4          Ctrl-D, and Ctrl-Z, which is the Windows spelling of it
+             8          Backspace
+            10          Enter
+            32 to 126   that printable character
+
+        ⚠ ASCII only. A byte at or above 128 is part of a UTF-8 character arriving in pieces, and
+        appending the pieces one at a time would build text that is not any character at all — so
+        they are ignored rather than mangled. Typing an accent is a gap, not a silent corruption.
+
+        ⚠ Reads with `read` rather than `getchar` deliberately. The interpreter calls this from
+        .NET, which has its own view of standard input; two buffers taking turns on one descriptor
+        is how bytes go missing. Unbuffered, there is nothing for either side to hold on to. */
+    Bind number to read-key:
+        Pull a book on the c-language.
+            Define c-language key-support as [#if defined(_WIN32)
+                #include <conio.h>
+                static int cufet_terminal_read_key(void) {
+                    int pressed = _getch();
+                    if (pressed == 0 || pressed == 224) { _getch(); return 0; }
+                    if (pressed == 13) return 10;
+                    if (pressed == 8 || pressed == 127) return 8;
+                    if (pressed == 3) return 3;
+                    if (pressed == 4 || pressed == 26) return 4;
+                    if (pressed >= 32 && pressed < 127) return pressed;
+                    return 0;
+                }
+                #else
+                #include <unistd.h>
+                static int cufet_terminal_read_key(void) {
+                    unsigned char byte;
+                    if (read(0, &byte, 1) <= 0) return -1;
+                    if (byte == 27) {
+                        unsigned char next;
+                        if (read(0, &next, 1) <= 0) return 0;
+                        if (next == 91 || next == 79)
+                            while (read(0, &next, 1) > 0 && !(next >= 64 && next <= 126)) { }
+                        return 0;
+                    }
+                    if (byte == 13 || byte == 10) return 10;
+                    if (byte == 8 || byte == 127) return 8;
+                    if (byte == 3) return 3;
+                    if (byte == 4) return 4;
+                    if (byte >= 32 && byte < 127) return byte;
+                    return 0;
+                }
+                #endif].
+            Define c-language number pressed as [cufet_terminal_read_key()].
+            Return cast pressed.
+        Done.
+    Done.
+
+    /*  The one-character text for a character code, which is what turns a key back into something
+        that can be added to a line. Crossing back as `voidable text` means it is COPIED out of the
+        static buffer at the boundary, so the next call reusing that buffer cannot reach it. */
+    Bind text to letter-for, given (the number code):
+        Pull a book on the c-language.
+            Define c-language letter-support as [static const char *cufet_terminal_letter(long long code) {
+                    static char one[2];
+                    one[0] = (char)code;
+                    one[1] = 0;
+                    return one;
+                }].
+            Define c-language voidable text spelled, given (the number which), as [cufet_terminal_letter(the which)].
+            Return cast spelled on (code) but void is "".
+        Done.
+    Done.
+
+    /*  Rub out the character before the cursor. Built on `put` rather than reaching for C again:
+        backspace, a space over what was there, backspace again — which is the whole of what every
+        terminal means by erasing, and needs no platform to say it. */
+    Bind void to erase:
+        Define back as cast one's letter-for on (8).
+        Cast one's put on ("{back} {back}").
     Done.
 Done.
