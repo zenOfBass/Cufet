@@ -74,8 +74,9 @@ Bind text to beyond, given (the text whole, the text already):
     Return "".
 Done.
 
-/* The terminal layer is a book because the shell needs the same one. */
-Pull a book on terminal.
+/* A terminal is something you have one of, not something you consult — so it is pulled as the
+   module it is. It lives in its own file because the shell needs the same one. */
+Pull a terminal.
     /* Which compiler is going to answer. A REPL that evaluated with a different `cufet` than the
        one on the PATH would be lying about the language, so it uses that one and says which — and
        says it up front, because an install two releases behind refuses today's language line by
