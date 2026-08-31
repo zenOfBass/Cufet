@@ -337,14 +337,23 @@ public sealed partial class TypeChecker
 
         if (lit.Annotation != null)
         {
-            if (inferred != null && inferred != lit.Annotation)
+            // ⚠ RESOLVED, not taken as written. The parser hands back a bare `ObjectType` for a
+            // name it cannot know, and a type a pulled module CARRIES lives at a lifted name — so
+            // an unresolved annotation compares a short name against an element that resolved to
+            // the long one and refuses a series of exactly the right thing.
+            //
+            // `matrix` hid this: the parser produces MatrixType.Instance directly, so the one
+            // book-introduced type there has ever been needed no resolution here.
+            var annotation = ResolveParamType(lit.Annotation);
+
+            if (inferred != null && inferred != annotation)
                 throw TypeError(
-                    $"you said this is a series of {FormatTypePlural(lit.Annotation)}",
-                    $"That annotation fixes the element type as {FormatType(lit.Annotation)}",
+                    $"you said this is a series of {FormatTypePlural(annotation)}",
+                    $"That annotation fixes the element type as {FormatType(annotation)}",
                     lit.Line, lit.Column,
                     $"put a {FormatType(inferred)} item in it",
                     "Fix the annotation to match the elements, or change the elements to match the annotation.");
-            return new SeriesType(lit.Annotation);
+            return new SeriesType(annotation);
         }
 
         if (inferred == null)
