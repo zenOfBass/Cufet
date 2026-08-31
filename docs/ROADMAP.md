@@ -15,15 +15,39 @@ Where Cufet is going.
 Cufet is pre-1.0 and may still change. Versioning is semantic: feature arcs bump the minor
 version, and 1.0.0 will mark the point at which the language is considered stable.
 
-## What's next
-
-### Shipping a book, strictly in this order
+## Shipping a book, strictly in this order
 
 The `module` interface and the loader that reaches a book in another file are both shipped. What
 is left is what happens once a book is worth handing to someone else: what you hand out, and how
 it travels.
 
-1. **What a module exports.** Every MEMBER is public API, permanently. A module author has no way
+1. **What a module can carry.** A module holds members — `Bind`, `Get`, `Set` — and nothing else.
+   Measured 2026-08-31: a loaded file shares exactly one thing, its module object. A constant or
+   a free function can bend into a member. **A type cannot**, because an object body takes only
+   methods, so there is no way to declare an object type in one file and use it in another.
+
+   ★ **First, because it decides what the item below is even about.** What a module hands out is
+   not answerable while what a module can hold is still open.
+
+   ★ The shape agreed: types become something a **module** specifically can carry. That keeps one
+   door — the thing you pull is the thing that holds the types — and gives `module` a meaning it
+   does not have today, where it is a marker interface carrying nothing. A framing worth testing
+   the surface against: *members are what an object has, declarations are what a module carries.*
+
+   ⚠ **The surface is NOT settled.** If `shapes` carries `point`, a puller writes either
+   `a new shapes’s point { }` — regular, and reads badly for a type — or a bare `a new point { }`,
+   which reads right and means pulling puts bare names in your scope. That is the namespace
+   behaviour the import/namespace merge exists to avoid, arriving from behind.
+
+   ⚠ **Hold any proposal to this:** does the rule state itself for every kind of declaration at
+   once — types, interfaces, unions, axioms — or does it need a list? A rule that only reaches
+   object types leaves the same hole in a smaller shape.
+
+   **The trigger is a program sharing a data model across files.** The shell may; the compiler in
+   Cufet certainly will, because an AST is types. `tools/terminal.cufe` did not, being a pure bag
+   of methods — the one shape that fits today, which is why nothing had shown this before.
+
+2. **What a module exports.** Every MEMBER is public API, permanently. A module author has no way
    to say *this is my helper, do not call it* about a method.
 
    ★ **Half of it is already gone.** A loaded file’s top level is private to that file, so a
@@ -36,7 +60,7 @@ it travels.
    reaches a file you wrote, beside the one you are running. "Everything is public becomes
    permanent" is a fact about a published package, not about a program only you can run.
 
-   **The trigger is distribution, or a second author** — the item below, or somebody else’s book
+   **The trigger is distribution, or a second author** — the package manager below, or somebody else’s book
    in your program. Not the ability to split your own program across files.
 
    ⚠ **Bundled books do not get the file privacy external ones do.** `WithPrelude` splices them
@@ -66,40 +90,35 @@ it travels.
    rather than a marker on what you keep. Whether a module with no declared interface then exports
    everything or nothing is the one real decision left.
 
-2. **A package manager for books.**
+3. **A package manager for books.**
 
-### Cufet in Cufet
+## Cufet in Cufet
 
-The ordering is not ceremonial: this tier's real blocker is stated below as **ergonomic rather than capability**, and the only way to find ergonomic blockers is to write large Cufet programs. These are the two largest realistic ones, so they are the instrument as much as they are the goal — better to meet the gaps across a REPL and a shell than to meet all of them at once inside a compiler.
+The ordering is not ceremonial: this tier's real blocker is stated below as **ergonomic rather than capability**, and the only way to find ergonomic blockers is to write large Cufet programs. They are the instrument as much as they are the goal — better to meet the gaps one program at a time than to meet all of them at once inside a compiler.
 
-1. **A REPL, written in Cufet.** Read a line, evaluate it, print the result, keep the bindings.
+★ **The REPL is written, and it worked as the instrument.** `tools/repl.cufe` and the `tools/terminal.cufe` book it pulls found four things nothing else had: the oracle could not type-check a multi-file program at all, `cufet check` passed programs that died on an undefined name, a module can carry no types — the numbered item above — and a released version can be correct in all nine source places while the installed tool is two releases behind.
 
-    ★ **First because the shell inherits its terminal layer.** Raw mode, reading a line with
-    editing, history, completion — both programs need all of it, and the shell entry below names
-    raw terminal mode as one of its two remaining pieces. Built once here, it is already done
-    there.
-
-    ★ **An open design question, deliberately unresolved here:** does it *shell out* to `cufet`
-    for each line, or evaluate Cufet with a Cufet-written evaluator? The first is buildable today
-    and is a good program; the second is literally self-hosting's front half. Only the second
-    makes this a stepping stone rather than a stop along the way, and the choice should be made
-    when the work starts rather than assumed now.
-
-    ⚠ That question does NOT affect the ordering: an evaluator carries nothing to a shell, which
-    parses a different grammar for a different job. What carries is the terminal layer either way,
-    so the fork can be decided on its own merits.
-
-2. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
+1. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
-    ★ **No longer blocked.** Job control needs process groups and signalling a child; completion
-    needs raw terminal mode. Neither is in the language and neither should become a language
-    feature — they are exactly the "call a C function" family, and axioms now reach them. What is
-    left is writing the calls, not adding to the language. Globbing and history need nothing new.
+    ★ **Half of what it needed is now written.** `tools/terminal.cufe` is a book: raw mode, a key
+    at a time, and a line editor with history over the top of it, built for the REPL and pulled
+    here unchanged. That was the reason for doing the REPL first and it paid.
 
-3. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+    ★ **What is left is job control** — process groups and signalling a child. Not in the
+    language and it should not become a language feature; it is the "call a C function" family,
+    and axioms reach it. Globbing needs nothing new.
+
+2. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
+
+    ★ **The Cufet-written evaluator lands here, and nowhere earlier.** The REPL weighed writing
+    one against shelling out to `cufet`, and shelled out: `cufet` already holds the type checker,
+    and a hand-written evaluator would say something worse about a bad line than the compiler
+    already says. An evaluator is also a THIRD implementation — and unlike a self-hosted compiler,
+    which the oracle checks for free by diffing its C against this one, an evaluator emits nothing
+    to diff. It gets validated here or it gets validated twice.
 
     ★ The test oracle already exists. A self-hosted compiler can be validated by asserting
     its C output matches this compiler's — a third implementation held against the other two.
@@ -109,7 +128,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     compiler becoming Cufet is what makes every last part of the language Cufet-written. The
     arc above deliberately did not borrow this promise; this item owns it.
 
-4. **Compile-time macros — the `cufet` tag's expander.** Not a fourth program. It is here 
+3. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
     rather than in *Deferred* because its blocker is now a numbered item above, which is the one rule that section states about itself.
 
     Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and
@@ -120,14 +139,14 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     block holds, and a block that says what it gives back is lowered to an ordinary function. What is
     NOT built is the expander this entry means: syntax parameters, and generating AST from them.
 
-    ⚠ **Its blocker is item 3 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately,not early.
+    ⚠ **Its blocker is item 2 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately,not early.
 
     ★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
     ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that a compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet
     interpreter *written in C* — a third implementation, or a divergence. Note also that an explicit
     `eval` is not a fexpr and would cost neither `check` nor monomorphization; the C-interpreter bill is what rules it out.
 
-### The design mountains
+## The design mountains
 
 All need a design session before they can be ordered against anything. They are here because
 they are large, not because they are waiting — the order among them means nothing yet.
@@ -198,7 +217,7 @@ they are large, not because they are waiting — the order among them means noth
    left is *why*, and *what can go wrong* — which is what this codebase's own ★/⚠ convention
    carries in its C# and C.
 
-### Ongoing, no fixed slot
+## Ongoing, no fixed slot
 
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary · design patterns as a book · an in-memory filesystem for the playground
