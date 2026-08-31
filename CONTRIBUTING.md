@@ -167,7 +167,7 @@ until it listed shipped features as planned.
 | A codebase invariant a future change could break | CONTRIBUTING.md, *Implementation invariants* |
 | An accepted limitation | CONTRIBUTING.md, *Known limitations* |
 | **A backend divergence found or closed** | **CHANGELOG.md, and the rule below** |
-| Released (minor version bump) | CHANGELOG.md, README.md line 1, docs/REFERENCE.md header, **all four `.csproj` files**, `playground/package.json`, `editors/vscode/package.json` |
+| Released (minor version bump) | CHANGELOG.md, README.md line 1, docs/REFERENCE.md header, **all four `.csproj` files**, `playground/package.json`, `editors/vscode/package.json`, **and then reinstall the global tool** — see *the tenth place* below |
 
 **Every code block in the docs says what it is, and the suite holds it to that.** A sample that
 does not run is worse than no sample: a reader copies it, it fails, and they conclude the language
@@ -222,6 +222,22 @@ narrow grep only because they had been right the release before.
 ★ Expect hits that are HISTORY and must stay: ROADMAP and code comments say things like *"shipped
 in 0.17.0"* and *"the 0.16.0 arc"*. The grep is a prompt to look, not a list of edits — what it is
 checking for is a version asserted as CURRENT in a place nobody remembered.
+
+⚠⚠ **The tenth place is not a file, and no grep can reach it.** Cufet ships as a .NET global tool,
+so `cufet` on the `PATH` is a *build*, not a line in the tree. Getting all nine right and tagging
+the release leaves the installed command sitting on the old version until it is rebuilt:
+
+```
+dotnet pack src\App\Cufet.App.csproj -c Release
+dotnet tool update --global --add-source src\App\bin\Release Cufet
+```
+
+★★ **And `cufet --version` is not the check for this — it is the trap.** It reports the INSTALLED
+build, so run after a release it answers a different question than the one being asked and reads as
+confirmation. Measured 2026-08-31: `cufet --version` said `0.16.0` while the tree said `0.18.0` —
+two releases stale, with every source place correct. It surfaced only because `tools/repl.cufe`
+hands each line to `cufet` and started refusing 0.18.0 syntax that the same program compiled fine.
+The check that means anything is `dotnet run --project src/App -- --version`, which reads the tree.
 
 Docs that go stale are worse than no docs. If code and docs disagree, the code
 is the truth — but the docs should always catch up before merging.
