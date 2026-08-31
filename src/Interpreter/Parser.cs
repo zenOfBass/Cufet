@@ -607,7 +607,7 @@ public sealed class Parser
             }
             Consume(TokenType.RParen);
         }
-        return new SeriesLiteral(elements, annotation, seriesTok.Line, seriesTok.Column);
+        return new SeriesLiteral(elements, seriesTok.Line, seriesTok.Column) { Annotation = annotation };
     }
 
     // Parses the element-type annotation after "of":
@@ -3494,7 +3494,7 @@ public sealed class Parser
                     }
                     Consume(TokenType.RParen);
                 }
-                baseExpr = new SeriesLiteral(catElems, catAnnotation, catLine, catCol);
+                baseExpr = new SeriesLiteral(catElems, catLine, catCol) { Annotation = catAnnotation };
                 break;
             }
             case TokenType.AtlasKw:

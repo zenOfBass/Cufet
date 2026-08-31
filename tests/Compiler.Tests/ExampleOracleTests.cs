@@ -199,7 +199,7 @@ public class ExampleOracleTests
         // A floor far below the count is not a guard. Raise it when you add examples; it only ever
         // fails for a deletion or a broken scan, never for an addition.
         var files = ExampleFiles().ToList();
-        Assert.True(files.Count >= 39,
+        Assert.True(files.Count >= 41,
             $"only {files.Count} examples found — the corpus has shrunk or the enumeration broke.");
 
         // ★ Every category folder must contribute. Found by listing directories rather than by

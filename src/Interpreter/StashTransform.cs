@@ -272,14 +272,14 @@ public static class StashTransform
             {
                 // Region-typed, so the closure SHARES it rather than snapshotting it — which is the
                 // whole reason the step survives from one resumption to the next.
-                Define(FrameName, new SeriesLiteral([Num(0)], CufetType.Number, _line, _col)),
+                Define(FrameName, new SeriesLiteral([Num(0)], _line, _col) { Annotation = CufetType.Number }),
             };
             foreach (var h in hoisted)
                 factoryBody.Add(Define(SlotPrefix + h.Name, new SeriesLiteral(
                     // A hoisted PARAMETER starts life holding the argument. A hoisted local starts
                     // empty, and its first write fills it — which is why a store has two arms.
                     _bind.Parameters.Any(p => p.Name == h.Name) ? [Var(h.Name)] : [],
-                    h.Type, _line, _col)));
+                    _line, _col) { Annotation = h.Type }));
 
             // ★ A METHOD's dispatch is cast on `one`, which the closure therefore captures. That is
             // what gives each INSTANCE its own generator: two tickers hand back two closures, each

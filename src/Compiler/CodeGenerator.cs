@@ -6399,6 +6399,13 @@ static void* cufet_pipe_stage(void* argp) {
                                : _closureSelf is { } cs && vr.Name == cs.Name ? cs.Type   // recursive self-reference
                                : _varTypes.TryGetValue(vr.Name, out var t) ? t
                                : _funcTypes.TryGetValue(vr.Name, out var ftv) ? ftv   // a bare named function used as a value
+                               // ★ A module NAMED but not pulled in this file. A module's methods run
+                               // inside the block that pulled the module, so they inherit what THAT
+                               // block pulled — the checker allows the debt and settles it at the pull.
+                               // Without this the name fell through to `number` and reading a member
+                               // off it blamed the member, which is exactly what the fallback's own
+                               // note warns a scoping mistake looks like.
+                               : DeferredModuleType(vr.Name) is { } deferred ? deferred
                                : TNumber,
         CastExpression c      => CastReturnType(c),
         LambdaLiteral lam     => LambdaFunctionType(lam),
@@ -6621,6 +6628,21 @@ static void* cufet_pipe_stage(void* argp) {
         }
         throw new CompilerException($"'{objName}' has no method '{method}'.");
     }
+
+    /// <summary>
+    /// The type of a MODULE named where it was not pulled, or null when the name is not one.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ A rule the interpreter implemented and the compiler did not — a documented language
+    /// behaviour with one back end. Nothing in the corpus met it, because every module that uses
+    /// `math` today pulls it in its own file, and ModulePullTests covers the rule thoroughly on the
+    /// interpreter alone. Found 2026-08-31 by a two-file example whose module rounds with `math`.
+    /// </remarks>
+    private CufetType? DeferredModuleType(string name) =>
+        _objectDefs.TryGetValue(name, out var def)
+        && TypeChecker.IsModuleConformer(def.ConformedInterfaces)
+            ? ObjType(def.Name)
+            : null;
 
     private CufetType FieldType(CufetType t, string fieldName)
     {
@@ -7000,6 +7022,11 @@ static void* cufet_pipe_stage(void* argp) {
                                // it is used. An axiom that arrived through a parameter is not in
                                // this map — it is an ordinary local already holding the struct.
                                 : _axiomLiterals.TryGetValue(v.Name, out var axiomSource) ? EmitAxiomValue(axiomSource, v.Line)
+                               // A deferred module name as a VALUE. A module carries no state — the
+                               // pull emits a zero-initialised struct for exactly this reason — so the
+                               // receiver can be built here rather than threaded in from the caller.
+                                : !_varTypes.ContainsKey(v.Name) && DeferredModuleType(v.Name) is { } dm
+                                    ? $"({EmitCType(dm)}){{0}}"
                                 : MangleName(v.Name),
         CastExpression cast   => EmitCastExpr(cast),
         LambdaLiteral lam     => EmitLambda(lam),

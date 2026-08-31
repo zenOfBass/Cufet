@@ -346,6 +346,11 @@ public sealed partial class TypeChecker
             // book-introduced type there has ever been needed no resolution here.
             var annotation = ResolveParamType(lit.Annotation);
 
+            // ⚠ Written BACK, not just used here. The compiler re-derives types from the AST rather
+            // than from this pass, so a resolution kept locally leaves the back end looking up a
+            // name that was never declared — it crashed on the short name of a carried type.
+            lit.Annotation = annotation;
+
             if (inferred != null && inferred != annotation)
                 throw TypeError(
                     $"you said this is a series of {FormatTypePlural(annotation)}",
