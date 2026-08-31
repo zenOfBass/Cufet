@@ -1405,9 +1405,19 @@ public sealed partial class TypeChecker
         var kept = new List<IStatement>(statements.Count);
         foreach (var statement in statements)
         {
+            // ⚠ NEEDED is wider than PULLED, and the difference is a whole file. A module's method
+            // may name a book its own file never pulls — it inherits what the pulling block pulled
+            // — so a library file defers `math` and pulls nothing. Dropping the layer there threw
+            // away the only definition its code refers to, and the name then fell through to
+            // `number`: `cufet check --native` reported `'round' can't be read from a number` on a
+            // file that compiles perfectly as part of the program that pulls it.
+            //
+            // Keeping a layer nothing ends up using costs a definition nobody calls. Dropping one
+            // something needs costs a false refusal on a valid file.
             if (statement is ObjectDefinition od
                 && BuiltinBooks.ContainsKey(od.Name)
-                && !_pulledBooks.Contains(od.Name))
+                && !_pulledBooks.Contains(od.Name)
+                && !_moduleNeeds.Values.Any(needs => needs.Contains(od.Name)))
                 continue;
             kept.Add(statement);
         }

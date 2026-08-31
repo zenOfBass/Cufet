@@ -54,9 +54,14 @@ public sealed record BinaryExpression(IExpression Left, TokenType Op, IExpressio
 // writes the resolved type back here. A type a pulled module carries lives at a lifted name, and
 // the compiler re-derives types from this AST rather than from the checker — so an unresolved
 // annotation left here is a name the back end cannot find.
-public sealed record SeriesLiteral(IReadOnlyList<IExpression> Elements, int Line, int Column) : IExpression
+public sealed record SeriesLiteral(IReadOnlyList<IExpression> Elements, CufetType? Annotation, int Line, int Column) : IExpression
 {
-    public CufetType? Annotation { get; set; }
+    // ⚠⚠ POSITIONAL and settable, the same shape VariableReference.Name uses. It has to stay a
+    // constructor parameter: AstRebuilder decides whether a node changed by walking the
+    // CONSTRUCTOR's arguments, so an annotation moved out of it stopped being substituted in any
+    // series with nothing else to rebuild — `a series of element` with no elements filled `element`
+    // with nothing, and every empty generic series was refused.
+    public CufetType? Annotation { get; set; } = Annotation;
 }
 
 // Index == null → last element; Target is typically VariableReference but can be any expression

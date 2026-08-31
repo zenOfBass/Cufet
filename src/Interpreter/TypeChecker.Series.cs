@@ -337,19 +337,25 @@ public sealed partial class TypeChecker
 
         if (lit.Annotation != null)
         {
-            // ⚠ RESOLVED, not taken as written. The parser hands back a bare `ObjectType` for a
-            // name it cannot know, and a type a pulled module CARRIES lives at a lifted name — so
-            // an unresolved annotation compares a short name against an element that resolved to
-            // the long one and refuses a series of exactly the right thing.
+            // ⚠ A name a pulled module CARRIES lives at a lifted name, so an annotation taken as
+            // written compares a short name against elements that resolved to the long one, and
+            // refuses a series of exactly the right thing.
             //
             // `matrix` hid this: the parser produces MatrixType.Instance directly, so the one
             // book-introduced type there has ever been needed no resolution here.
-            var annotation = ResolveParamType(lit.Annotation);
+            //
+            // ⚠⚠ ONLY names that are scoped RIGHT NOW, and through the substitution walk rather
+            // than ResolveParamType — which THROWS on a generic blank. A template body is checked
+            // with `element` still unfilled, so resolving every annotation refused every generic
+            // that annotates a series, and `Collections_Unique_NoDuplicates` went with it.
+            var annotation = AstRebuilder.SubstituteDeep(lit.Annotation, leaf =>
+                leaf is ObjectType o && !_objectDefs.ContainsKey(o.Name)
+                && TryLookupScopedType(o.Name, out var scoped) ? scoped : leaf);
 
             // ⚠ Written BACK, not just used here. The compiler re-derives types from the AST rather
             // than from this pass, so a resolution kept locally leaves the back end looking up a
             // name that was never declared — it crashed on the short name of a carried type.
-            lit.Annotation = annotation;
+            if (!ReferenceEquals(annotation, lit.Annotation)) lit.Annotation = annotation;
 
             if (inferred != null && inferred != annotation)
                 throw TypeError(
