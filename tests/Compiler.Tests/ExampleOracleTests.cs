@@ -10,7 +10,8 @@ using CufetLexer = Cufet.Lexer.Lexer;
 namespace Cufet.Compiler.Tests;
 
 /// <summary>
-/// Every program in <c>examples/</c>, run on BOTH backends, output compared.
+/// Every Cufet program in the corpus — <c>examples/</c> and <c>tools/</c> — run on BOTH backends,
+/// output compared.
 ///
 /// ★ These were the most productive bug-finders the project has — ordinary programs, written to do
 /// a thing, that turned up a compiler crash, a live divergence and a type the compiler could not
@@ -37,6 +38,17 @@ public class ExampleOracleTests
     }
 
     private static string ExampleDir => Path.Combine(RepoRoot, "examples");
+
+    /// <summary>
+    /// The roots this corpus is drawn from. `examples/` is the corpus proper; `tools/` holds Cufet
+    /// programs that are tools rather than examples — the REPL, and whatever follows it.
+    /// </summary>
+    /// <remarks>
+    /// ★ A program earns this suite by being written in Cufet, not by which folder it was filed
+    /// under. The REPL is not an example of anything, but it is a real program on both backends,
+    /// and that is what everything below actually tests.
+    /// </remarks>
+    private static string[] Roots => [ExampleDir, Path.Combine(RepoRoot, "tools")];
 
     // Pinned outputs live in their own directory rather than beside the programs. `examples/` is
     // read by people looking for programs, and interleaving a fixture with every example halves
@@ -68,6 +80,7 @@ public class ExampleOracleTests
     {
         ["shell.cufe"]            = "subprocess — fork/exec",
         ["subprocess-pipes.cufe"] = "subprocess pipes — fork/exec",
+        ["repl.cufe"]             = "subprocess — fork/exec; it hands each line to `cufet`",
     };
 
     /// <summary>
@@ -105,19 +118,29 @@ public class ExampleOracleTests
             || NonDeterministicSkips.ContainsKey(name);
     }
 
-    /// Paths relative to ExampleDir, forward-slashed, so a test ID reads `algorithms/dijkstra.cufe`
-    /// and looks the same on both platforms.
+    /// Paths relative to the REPOSITORY ROOT, forward-slashed, so a test ID reads
+    /// `examples/algorithms/dijkstra.cufe` and looks the same on both platforms.
+    ///
+    /// ★ Root-relative rather than relative to one corpus root, because there is more than one
+    /// root now. Every ID says which root it came from, resolving one back to a path is a plain
+    /// combine with no probing, and two roots can never answer to the same ID.
     ///
     /// ★ RECURSIVE. Examples live in category folders, and the non-recursive scan this replaced
     /// would have dropped an entire folder from the corpus without failing anything — the theories
     /// below simply would not have been handed those files. `expected/` and `assets/` hold no
     /// `.cufe`, so nothing needs excluding; if that ever changes, exclude them here.
     private static IEnumerable<string> ExampleFiles() =>
-        Directory.Exists(ExampleDir)
-            ? Directory.GetFiles(ExampleDir, "*.cufe", SearchOption.AllDirectories)
-                       .Select(p => Path.GetRelativePath(ExampleDir, p).Replace('\\', '/'))
-                       .OrderBy(p => p, StringComparer.Ordinal)
-            : [];
+        Roots.Where(Directory.Exists)
+             .SelectMany(root => Directory.GetFiles(root, "*.cufe", SearchOption.AllDirectories))
+             .Select(p => Path.GetRelativePath(RepoRoot, p).Replace('\\', '/'))
+             .OrderBy(p => p, StringComparer.Ordinal);
+
+    /// A corpus ID back to an absolute path. Root-relative IDs make this a combine.
+    private static string Resolve(string file) => Path.Combine(RepoRoot, file);
+
+    /// A root as it appears at the front of an ID, forward-slashed and with its separator.
+    private static string RootPrefix(string root) =>
+        Path.GetRelativePath(RepoRoot, root).Replace('\\', '/') + "/";
 
     private static IEnumerable<object[]> AllExamples() =>
         ExampleFiles().Select(p => new object[] { p });
@@ -151,7 +174,8 @@ public class ExampleOracleTests
     [Fact]
     public void ExampleCorpus_IsPresent()
     {
-        Assert.True(Directory.Exists(ExampleDir), $"examples/ not found from {AppContext.BaseDirectory}");
+        foreach (var root in Roots)
+            Assert.True(Directory.Exists(root), $"{root} not found from {AppContext.BaseDirectory}");
 
         // ★ The floor has to track the corpus. It sat at 20 while 29 examples existed, which meant
         // nine could stop being enumerated and this still passed — and the enumeration was
@@ -159,19 +183,29 @@ public class ExampleOracleTests
         // A floor far below the count is not a guard. Raise it when you add examples; it only ever
         // fails for a deletion or a broken scan, never for an addition.
         var files = ExampleFiles().ToList();
-        Assert.True(files.Count >= 29,
+        Assert.True(files.Count >= 38,
             $"only {files.Count} examples found — the corpus has shrunk or the enumeration broke.");
 
         // ★ Every category folder must contribute. Found by listing directories rather than by
         // filtering the enumeration above, so this fails if the scan stops descending into one —
         // which asserting against the same enumeration could never catch.
-        var folders = Directory.GetDirectories(ExampleDir)
-            .Select(d => Path.GetFileName(d)!)
-            .Where(d => Directory.GetFiles(Path.Combine(ExampleDir, d), "*.cufe", SearchOption.AllDirectories).Length > 0)
+        var folders = Roots.Where(Directory.Exists)
+            .SelectMany(Directory.GetDirectories)
+            .Where(d => Directory.GetFiles(d, "*.cufe", SearchOption.AllDirectories).Length > 0)
+            .Select(d => Path.GetRelativePath(RepoRoot, d).Replace('\\', '/'))
             .ToList();
         var missing = folders.Where(d => !files.Any(f => f.StartsWith(d + "/", StringComparison.Ordinal))).ToList();
         Assert.True(missing.Count == 0,
-            $"these example folders hold .cufe files that the enumeration did not return: {string.Join(", ", missing)}");
+            $"these folders hold .cufe files that the enumeration did not return: {string.Join(", ", missing)}");
+
+        // ★ And every ROOT must contribute, which the folder check above cannot see. A program at
+        // the top of a root — `tools/repl.cufe` — sits in no category folder, so dropping that root
+        // from the scan would leave the check above with nothing to find missing.
+        var barren = Roots.Where(root => !files.Any(f => f.StartsWith(RootPrefix(root), StringComparison.Ordinal)))
+            .Select(root => Path.GetRelativePath(RepoRoot, root))
+            .ToList();
+        Assert.True(barren.Count == 0,
+            $"these corpus roots returned no .cufe files: {string.Join(", ", barren)}");
 
         // ★ Basenames are the key for skips and pins, so two examples sharing one in different
         // folders would silently make a skip or a pinned output apply to whichever was found first.
@@ -208,7 +242,7 @@ public class ExampleOracleTests
     [MemberData(nameof(OracleExamples))]
     public void Example_CompilesAndAgreesWithTheInterpreter(string file)
     {
-        var path   = Path.Combine(ExampleDir, file);
+        var path   = Resolve(file);
         var source = File.ReadAllText(path);
 
         var tokens  = new CufetLexer(source).Tokenize();
@@ -303,7 +337,7 @@ public class ExampleOracleTests
     [MemberData(nameof(SkippedExamples))]
     public void SkippedExample_StillTypeChecks(string file)
     {
-        var source = File.ReadAllText(Path.Combine(ExampleDir, file));
+        var source = File.ReadAllText(Resolve(file));
         var program = new Parser(new CufetLexer(source).Tokenize()).Parse();
         new TypeChecker().Check(program);   // throws on failure — that IS the assertion
     }
@@ -324,7 +358,7 @@ public class ExampleOracleTests
     {
         if (file == NoSuchExample) return;   // nothing registered yet — see NonDeterministicExamples
 
-        var source  = File.ReadAllText(Path.Combine(ExampleDir, file));
+        var source  = File.ReadAllText(Resolve(file));
         var program = new Parser(new CufetLexer(source).Tokenize()).Parse();
         program = new TypeChecker().Check(program);
 
