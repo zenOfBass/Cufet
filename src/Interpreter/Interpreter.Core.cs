@@ -2144,7 +2144,7 @@ public sealed partial class Interpreter
         foreach (var v in ov.PositionalFields)                                        parts.Add(Format(v));
         foreach (var (name, v) in ov.NamedFields.OrderBy(f => f.Name, StringComparer.Ordinal)) parts.Add($"{name}: {Format(v)}");
         if (ov.EmbeddedObject != null)                                                parts.Add(Format(ov.EmbeddedObject));
-        return $"{ov.TypeName}(" + string.Join(", ", parts) + ")";
+        return $"{ModuleTypeLifting.DisplayName(ov.TypeName)}(" + string.Join(", ", parts) + ")";
     }
 
     // ISA.2a — `is a` is answered TYPE-DIRECTED, mirroring the compiler exactly: the declared type

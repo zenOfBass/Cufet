@@ -406,6 +406,13 @@ public sealed class Parser
         var methods = new List<BindStatement>();
         var getters = new List<GetterDeclaration>();
         var setters = new List<SetterDeclaration>();
+        var carried = new List<ObjectDefinition>();
+
+        // ★ Only a MODULE may carry a type. Members are what an object has; declarations are what a
+        // module carries, and a module is the only thing a `Pull` reaches — so this is the one place
+        // a type can be put where another file could ever see it.
+        bool isModule = conformedInterfaces.Any(i => string.Equals(i, "module", StringComparison.OrdinalIgnoreCase));
+
         if (Peek().Type == TokenType.Colon)
         {
             Advance(); // consume ':'
@@ -421,6 +428,20 @@ public sealed class Parser
                     getters.Add(ParseGetterDeclaration());
                 else if (Peek().Type == TokenType.SetKw)
                     setters.Add(ParseSetterDeclaration());
+                else if (Peek().Type == TokenType.Define && isModule)
+                {
+                    // ⚠ Saved and restored around the nested parse. The recursive call clears the
+                    // flag on its way out, and without this the rest of THIS body would be parsed
+                    // as though it were not inside an object at all.
+                    bool wasInObject = _inObjectDef;
+                    carried.Add(ParseCarriedObjectDefinition());
+                    _inObjectDef = wasInObject;
+                }
+                else if (Peek().Type == TokenType.Define)
+                    throw new ParseException(Peek(),
+                        $"Bind, Get, or Set — only a module may declare a type inside its body, and " +
+                        $"'{name}' is not one. Add 'and module' to its declaration, or move the type " +
+                        $"outside this body");
                 else
                     throw new ParseException(Peek(),
                         "Bind, Get, or Set — only method, getter, and setter definitions are allowed inside an object body");
@@ -435,7 +456,23 @@ public sealed class Parser
             Consume(TokenType.Dot);
         }
 
-        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, getters, setters, embeddedTypeName, conformedInterfaces, line, col, permanentFields, typeParameters);
+        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, getters, setters, embeddedTypeName, conformedInterfaces, line, col, permanentFields, typeParameters, carried);
+    }
+
+    /// <summary>
+    /// A type declared inside a module's body: `Define object point with (…): … Done.`
+    /// </summary>
+    /// <remarks>
+    /// Consumes the `Define` and hands the rest to the ordinary object parser — which consumes the
+    /// `Object` token itself — so a carried type is the same thing as a top-level one in every
+    /// respect, including being refused a carried type of its own, by the same rule, since it is
+    /// not a module.
+    /// </remarks>
+    private ObjectDefinition ParseCarriedObjectDefinition()
+    {
+        var start = Consume(TokenType.Define);
+        SkipNoiseBeforeType();
+        return ParseObjectDefinition(start.Line, start.Column);
     }
 
     // Define <name> as an interface for { <method-sigs> } / single method without {}

@@ -3613,7 +3613,7 @@ static void* cufet_pipe_stage(void* argp) {
 
         var specs = new Dictionary<string, (List<FieldSpec> Fields, string WritePrefix)>();
         foreach (var (name, rt) in _recordStructs) specs[name] = (RecordFields(rt), "record");
-        foreach (var def in _objectDefs.Values)    specs[ObjStructName(def.Name)] = (ObjectFields(def), def.Name);
+        foreach (var def in _objectDefs.Values)    specs[ObjStructName(def.Name)] = (ObjectFields(def), ModuleTypeLifting.DisplayName(def.Name));
         var voidables = new Dictionary<string, CufetType>();
         foreach (var (name, inner) in _voidableStructs) voidables[name] = inner;
         // Failable tagged structs (cfl_N): like voidables but 4-field, and no write/eq

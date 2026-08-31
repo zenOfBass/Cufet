@@ -579,7 +579,15 @@ public sealed record ObjectDefinition(
     // ★ The name is the writer's to choose, and `of` is what marks it: the slot after the type's
     // own name is a declaration by position, so nothing has to be inferred and a mistyped type
     // name elsewhere stays an error rather than quietly becoming a blank.
-    IReadOnlyList<string>? TypeParameters = null
+    IReadOnlyList<string>? TypeParameters = null,
+    // Object types declared INSIDE this one's body. Only a module may carry them, and a module is
+    // the only thing a `Pull` can reach — so this is how a type crosses a file boundary, which
+    // nothing could do before. Empty for every ordinary object.
+    //
+    // ★ Carried, not owned. `ModuleTypeLifting` moves each one to the top level under a name with
+    // a space in it, and the pull registers the short name as a scoped alias — so both backends
+    // see an ordinary top-level object type and neither learns that modules can hold types.
+    IReadOnlyList<ObjectDefinition>? Carried = null
 ) : IStatement;
 
 // a new <TypeName> [of <type> ...] {<fields>}

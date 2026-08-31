@@ -571,6 +571,14 @@ public sealed partial class TypeChecker
     private readonly Dictionary<string, ObjectType>          _objectDefs    = new();
 
     /// <summary>
+    /// What each module carries, as <c>module → (short name → lifted name)</c>. Filled by
+    /// <see cref="ModuleTypeLifting"/> before the hoist; read at a pull, to put the short names back
+    /// in scope for the length of the block.
+    /// </summary>
+    private IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> _moduleCarriedTypes =
+        new Dictionary<string, IReadOnlyDictionary<string, string>>();
+
+    /// <summary>
     /// The interface that says "this can be pulled" — and says nothing else.
     /// </summary>
     /// <remarks>
@@ -973,6 +981,13 @@ public sealed partial class TypeChecker
                 program.Statements, SourceDirectory, Sources, IsKnownPullName);
             if (!ReferenceEquals(withBooks, program.Statements)) program = new Program(withBooks);
         }
+
+        // ⭐ After loading, before everything else. A carried type has to be an ordinary top-level
+        // declaration before the hoist meets it — and a loaded book's module is the whole reason
+        // this exists, so it must run on what the loader brought in as well as on what was written
+        // here. Nothing after this point knows a module can hold a type.
+        program = ModuleTypeLifting.Expand(program, out var moduleCarried);
+        _moduleCarriedTypes = moduleCarried;
 
         var placed = CiteExpansion.Expand(program.Statements);
         if (!ReferenceEquals(placed, program.Statements)) program = new Program(placed);

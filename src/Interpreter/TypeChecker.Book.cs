@@ -275,12 +275,22 @@ public sealed partial class TypeChecker
                     bound, new VariableReference(localName, ps.Line, ps.Column), ps.Line,
                     IsPulledModule: true);
 
-                // A book may introduce a type name for the length of the block — `matrix` is the
-                // only one. Looked up BY NAME rather than off the bound type, which is no longer
-                // a BookType once the layer is what gets bound.
+                // A book may introduce a type name for the length of the block. Looked up BY NAME
+                // rather than off the bound type, which is no longer a BookType once the layer is
+                // what gets bound.
                 if (BuiltinBooks.TryGetValue(moduleName, out var bookType))
                     foreach (var (typeName, typeObj) in bookType.IntroducedTypes)
                         RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
+
+                // ★ And so may a module anyone wrote — which is the whole of what carrying a type
+                // buys. `matrix` was the only introduced type in the language until now, and the
+                // machinery under it was already general; a user's module reaches the same
+                // registration by the same name-keyed route, so a carried `point` is in scope
+                // exactly as long, and refused outside for the same reason and in the same words.
+                if (_moduleCarriedTypes.TryGetValue(moduleName, out var mine))
+                    foreach (var (shortName, liftedName) in mine)
+                        if (_objectDefs.TryGetValue(liftedName, out var lifted))
+                            RegisterScopedType(shortName.ToLowerInvariant(), lifted);
             }
 
             // ★ Every pulled module's requirements must be satisfiable HERE, because here is

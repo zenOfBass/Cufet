@@ -723,7 +723,17 @@ public sealed partial class TypeChecker
             finally { _fillingSite = previousSite; }
             lit.ResolvedTypeName = objType.Name;
         }
-        else if (!_objectDefs.TryGetValue(lit.TypeName, out objType!))
+        // ★ A type a pulled module CARRIES is in scope by its short name for the length of the
+        // block, and is not in `_objectDefs` under that name — it was lifted to one with a space in
+        // it. Annotations already reached scoped types through ResolveParamType; this is the
+        // literal, which went straight to the definitions and so could not see one.
+        else if (!_objectDefs.TryGetValue(lit.TypeName, out objType!)
+                 && TryLookupScopedType(lit.TypeName, out var scoped) && scoped is ObjectType scopedObject)
+        {
+            objType = scopedObject;
+            lit.ResolvedTypeName = objType.Name;
+        }
+        else if (objType is null)
             throw _genericObjectDefs.TryGetValue(lit.TypeName, out var template)
                 // ⚠ It IS defined — it just names nothing on its own. Saying "not a defined object
                 // type" here sends the reader off to define something they already have.
