@@ -1,0 +1,31 @@
+/*  A program written across two files, holding a type that belongs to the other one.
+
+    `charge` is declared inside the `bookkeeping` module in bookkeeping.cufe. Pulling the module
+    brings the type into scope BY ITS SHORT NAME, for the length of the block — the same way
+    `matrix` arrives with `Pull a book on collections.` Outside the block the name is gone.
+
+    ★ Two pulls, nested, because they are different kinds of thing. `math` is a book: you consult
+    it, and it says `and book`. `bookkeeping` is a module you have one of. One statement cannot
+    pull both — `Pull books on …` is the book spelling and applies to every name in it — so they
+    nest, outermost first.
+
+    ★ The nesting is not ceremony here: `bookkeeping`'s `rounded-total` names `math` without
+    pulling it, and this block is what supplies it. Take the outer pull away and the program is
+    refused AT THE PULL, naming what is missing, rather than dying part way through.  */
+
+Pull a book on math.
+    Pull a bookkeeping.
+        Define spending as a series of charge with (
+            a new charge { the note "coffee", the amount 3.5 },
+            a new charge { the note "notebook", the amount 24.99 },
+            a new charge { the note "train fare", the amount 8.256 }).
+
+        For each item in spending, repeat:
+            State cast item's line.
+        Done.
+
+        State "".
+        State "exact:   {cast bookkeeping's total on (spending)}".
+        State "rounded: {cast bookkeeping's rounded-total on (spending)}".
+    Done.
+Done.

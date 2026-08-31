@@ -1,0 +1,35 @@
+/*  A book of account, as a module that carries its own type.
+
+    The point of this file is the `charge` type. It is declared INSIDE the module, which is the only
+    place a type can be put where another file will ever see it — a file's top level is private to
+    that file, and an object body otherwise takes only methods.
+
+    Members are what an object HAS; declarations are what a module CARRIES. A type is neither
+    reached with `'s` nor requirable by an interface, so it is not a member, and only a module may
+    hold one.
+
+    ★ Nothing here pulls `math`, and `rounded-total` uses it anyway. A module's methods run inside
+    the block that pulled the module, so they inherit what THAT block pulled — the debt is recorded
+    here and settled at the pull. Run ledger.cufe, which is where it gets paid.  */
+
+Define object bookkeeping with () and module:
+    Define object charge with (the text note, the number amount):
+        Bind text to line:
+            Return "{one's note}: {one's amount}".
+        Done.
+    Done.
+
+    Bind number to total, given (the series of charge charges):
+        Define sum as 0.
+        For each item in charges, repeat:
+            Increment sum by item's amount.
+        Done.
+        Return sum.
+    Done.
+
+    /* Whole pennies. `math` is named but not pulled — see the note above. */
+    Bind number to rounded-total, given (the series of charge charges):
+        Define exact as cast one's total on (charges).
+        Return (cast math's round on (exact * 100)) / 100.
+    Done.
+Done.
