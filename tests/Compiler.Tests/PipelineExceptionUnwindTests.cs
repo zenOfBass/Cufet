@@ -23,9 +23,19 @@ namespace Cufet.Compiler.Tests;
 /// </remarks>
 public class PipelineExceptionUnwindTests : PipelineTestBase
 {
-    // At the measured 4% rate, 300 runs miss it with probability 0.96^300 ≈ 5 in a million. Each
-    // run is a process launch of a program that prints two lines, so the whole test is seconds.
-    private const int Runs = 300;
+    // At the measured 4% failure rate, 100 runs miss a full regression with probability
+    // 0.96^100 ≈ 1.7%, against 5 in a million at the 300 this used to be.
+    //
+    // ⚠ **Cut from 300 on 2026-08-31 because the cost estimate that justified it was wrong by
+    // thirty times.** The note here said "a process launch of a program that prints two lines, so
+    // the whole test is seconds"; measured, the two tests were 96s and 85s — 600 process launches,
+    // 6% of the entire compiler suite's work in three tests, and the two slowest tests in it by a
+    // factor of three. A launch on Windows is not free the way the estimate assumed.
+    //
+    // ★ The trade is stated rather than hidden: 1.7% is a regression walking past this once in
+    // sixty, and it is bought with two minutes. Raise it if that ever feels like the wrong side —
+    // the arithmetic is right here, and the number is the only thing that changes.
+    private const int Runs = 100;
 
     [Fact]
     public void RaiseAndCatch_SurvivesRepeatedRuns()

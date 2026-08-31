@@ -114,8 +114,11 @@ Requires [.NET 10 SDK](https://dotnet.microsoft.com/download), plus **gcc on `PA
 for the compiler tests — they emit C and shell out to it.
 
 ```
-# Run all tests (the green baseline)
+# Run all tests (the green baseline) — around 8 minutes
 dotnet test Cufet.sln
+
+# The fast loop while working — the whole shared front end, 42 seconds
+dotnet test Cufet.sln --filter "FullyQualifiedName!~Compiler.Tests"
 
 # Run a Cufet program
 dotnet run --project src\App\Cufet.App.csproj -- myprogram.cufe
@@ -126,6 +129,20 @@ dotnet run --project src\App\Cufet.App.csproj -- build myprogram.cufe
 # Emit the generated C without compiling (cross-toolchain builds, inspection)
 dotnet run --project src\App\Cufet.App.csproj -- emit-c myprogram.cufe myprogram.c
 ```
+
+★ **Use the fast loop while working, and the full suite before pushing.** The compiler
+suite compiles and runs 852 programs through gcc — measured 2026-08-31 at **52 minutes of
+work in 7.6 minutes of wall clock**, a 6.9× overlap that already saturates a four-core
+machine. There is no parallelism left to win and no single slow class to split: the cost is
+spread evenly across thirty-odd pipeline classes at one gcc invocation each. The lexer and
+interpreter are 1,942 of those tests in 42 seconds, and they cover the entire shared front
+end — where most changes land, since both backends are downstream of it. Nothing is skipped,
+only deferred to the moment it can still catch you.
+
+⚠ **Do not buy the time back by lowering `-O2` in the harness.** It would work, and it costs
+the two things the suite exists for: `-O2` is what turns latent undefined behaviour into a
+wrong answer instead of a forgiving one, and a harness that compiles differently from `cufet
+build` stops testing what ships.
 
 The test baseline is roughly **1200 interpreter + 150 lexer + 300 compiler**, all
 green. The exact total wobbles with feature churn; what matters is the floor —
