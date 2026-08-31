@@ -128,12 +128,22 @@ Define object terminal with () and module:
         swallowed because history is the one thing a line editor uses them for; every other key in
         both families still comes back as 0.
 
+        ★ Home and End arrive as the codes Ctrl-A and Ctrl-E already have, because they mean the
+        same thing. Two keys for one idea is the terminal’s business, not the editor’s — and it is
+        what lets a host that swallows one of them still leave the other working. VS Code takes
+        Ctrl-E for its command palette before the terminal ever sees the byte, which is exactly
+        the case this covers.
+
+        ⚠ Home and End have four spellings between them on POSIX. Two put the key in the FINAL
+        byte (`H` and `F`) and two put it in the first parameter with `~` at the end — which is why
+        the first byte of the sequence is kept as well as the last. An arrow needs only the last.
+
             -1          end of input
              0          a key with nothing to do: a function key, anything unhandled
-             1          Ctrl-A, the start of the line
+             1          the start of the line: Ctrl-A, or Home
              3          Ctrl-C
              4          Ctrl-D, and Ctrl-Z, which is the Windows spelling of it
-             5          Ctrl-E, the end of the line
+             5          the end of the line: Ctrl-E, or End
              8          Backspace
             10          Enter
             11          Up
@@ -167,6 +177,8 @@ Define object terminal with () and module:
                         if (extended == 80) return 12;
                         if (extended == 75) return 13;
                         if (extended == 77) return 14;
+                        if (extended == 71) return 1;
+                        if (extended == 79) return 5;
                         return 0;
                     }
                     if (pressed == 13) return 10;
@@ -183,14 +195,24 @@ Define object terminal with () and module:
                     unsigned char byte;
                     if (read(0, &byte, 1) <= 0) return -1;
                     if (byte == 27) {
-                        unsigned char next;
+                        unsigned char next, first;
                         if (read(0, &next, 1) <= 0) return 0;
                         if (next != 91 && next != 79) return 0;
-                        while (read(0, &next, 1) > 0 && !(next >= 64 && next <= 126)) { }
+                        if (read(0, &next, 1) <= 0) return 0;
+                        first = next;
+                        while (!(next >= 64 && next <= 126)) {
+                            if (read(0, &next, 1) <= 0) return 0;
+                        }
                         if (next == 65) return 11;
                         if (next == 66) return 12;
                         if (next == 68) return 13;
                         if (next == 67) return 14;
+                        if (next == 72) return 1;
+                        if (next == 70) return 5;
+                        if (next == 126) {
+                            if (first == 49 || first == 55) return 1;
+                            if (first == 52 || first == 56) return 5;
+                        }
                         return 0;
                     }
                     if (byte == 13 || byte == 10) return 10;
