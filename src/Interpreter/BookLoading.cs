@@ -142,7 +142,11 @@ public static class BookLoading
     {
         foreach (var statement in AstSearch.EveryStatement(statements))
         {
-            if (statement is not PullStatement { ViaBookForm: true } pull) continue;
+            // ⚠ EITHER spelling reaches a file. The form says what the thing IS — a book you
+            // consult, or a module you hold one of — and where it happens to live is a separate
+            // question. Gating the loader on the book form made one word carry both, so a module
+            // could only be split into its own file by calling it something it was not.
+            if (statement is not PullStatement pull) continue;
 
             foreach (var (bookName, _) in pull.Books)
             {
@@ -233,8 +237,7 @@ public static class BookLoading
         {
             string? name = statement switch
             {
-                ObjectDefinition o when !o.ConformedInterfaces.Contains(
-                    TypeChecker.ModuleInterface, StringComparer.OrdinalIgnoreCase) => o.Name,
+                ObjectDefinition o when !TypeChecker.IsModuleConformer(o.ConformedInterfaces) => o.Name,
                 BindStatement { UntoType: null } b => b.Name,
                 DefineStatement d => d.Name,
                 _ => null,

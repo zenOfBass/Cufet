@@ -385,7 +385,7 @@ public sealed partial class TypeChecker
         // NoteUnresolvedName. Only for a module, because only a module is later PULLED somewhere
         // that can be told what is missing.
         var prevModule   = _checkingModuleName;
-        _checkingModuleName = od.ConformedInterfaces.Contains(ModuleInterface) ? od.Name : null;
+        _checkingModuleName = IsModuleConformer(od.ConformedInterfaces) ? od.Name : null;
         if (isBookLayer)
         {
             EnterScope();

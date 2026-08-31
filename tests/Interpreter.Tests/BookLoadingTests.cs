@@ -51,7 +51,7 @@ public class BookLoadingTests : IDisposable
         Assert.Throws<TypeException>(() => Run(source));
 
     private const string Kit = """
-        Define object greeting-kit with () and module:
+        Define object greeting-kit with () and book:
             Bind text to greet, given (the text who):
                 Return "hello, " joined to who.
             Done.
@@ -93,7 +93,7 @@ public class BookLoadingTests : IDisposable
     public void OneBookMayPullAnother()
     {
         Write("inner", """
-            Define object inner with () and module:
+            Define object inner with () and book:
                 Bind number to double, given (the number n): Return n * 2. Done.
             Done.
             """);
@@ -102,7 +102,7 @@ public class BookLoadingTests : IDisposable
                 State "outer loaded".
             Done.
 
-            Define object outer with () and module:
+            Define object outer with () and book:
                 Bind number to quadruple, given (the number n): Return n * 4. Done.
             Done.
             """);
@@ -153,7 +153,7 @@ public class BookLoadingTests : IDisposable
         // prose. 163 places in the front end put a line into prose, so the resolution happens to
         // the composed message rather than at each of them.
         Write("broken", """
-            Define object broken with () and module:
+            Define object broken with () and book:
                 Bind number to bad, given (the number n):
                     Return n joined to "oops".
                 Done.
@@ -177,7 +177,7 @@ public class BookLoadingTests : IDisposable
 
         Define object node with (the number value).
 
-        Define object kit with () and module:
+        Define object kit with () and book:
             Bind number to use, given (the number n): Return cast helper on (n). Done.
         Done.
         """;
@@ -230,13 +230,13 @@ public class BookLoadingTests : IDisposable
         // is in the host’s scope at all, and the name each author chose is their own business.
         Write("first", """
             Bind text to helper: Return "first". Done.
-            Define object first with () and module:
+            Define object first with () and book:
                 Bind text to speak: Return cast helper on (). Done.
             Done.
             """);
         Write("second", """
             Bind text to helper: Return "second". Done.
-            Define object second with () and module:
+            Define object second with () and book:
                 Bind text to speak: Return cast helper on (). Done.
             Done.
             """);

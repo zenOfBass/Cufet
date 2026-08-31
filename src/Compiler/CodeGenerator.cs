@@ -584,6 +584,7 @@ public sealed class CodeGenerator
     private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new()
     {
         [TypeChecker.ModuleInterface] = new InterfaceDefinition(TypeChecker.ModuleInterface, [], 0, 0),
+        [TypeChecker.BookInterface]   = new InterfaceDefinition(TypeChecker.BookInterface, [], 0, 0),
     };
     // Interface-taking callables are NEVER emitted unspecialized (their param has no concrete C type).
     private readonly Dictionary<string, BindStatement> _ifaceFuncs = new();

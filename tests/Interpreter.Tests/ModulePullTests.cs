@@ -512,9 +512,9 @@ public class ModulePullTests
     // program: `check` said nothing, the interpreter died pointing INSIDE the module, and the
     // compiler blamed itself. These pin the one answer.
 
-    private const string GeometryNeedingMath = """
-        Define object geometry with () and module:
-            Bind number to circle-area, given (the number radius):
+    private const string ModuleNeedingMath = """
+        Define object needs-math with () and module:
+            Bind number to pi-times-square, given (the number radius):
                 Return math's pi * radius * radius.
             Done.
         Done.
@@ -524,21 +524,27 @@ public class ModulePullTests
     [Fact]
     public void AMissingDependency_IsRefusedAtThePull()
     {
-        var ex = Assert.Throws<TypeException>(() => Run(GeometryNeedingMath + """
-            Pull geometry.
-                State cast geometry's circle-area on (2).
+        var ex = Assert.Throws<TypeException>(() => Run(ModuleNeedingMath + """
+            Pull a needs-math.
+                State cast needs-math's pi-times-square on (2).
             Done.
             """));
-        Assert.Contains("'geometry' uses 'math', which isn't pulled here", ex.Message);
-        Assert.Contains("Pull books on math, and geometry.", ex.Message);
+        Assert.Contains("'needs-math' uses 'math', which isn't pulled here", ex.Message);
+        // ★ The advice has to be writable. `math` is a book and `needs-math` is a module you hold
+        // one of, so there is no one statement that pulls both — the old hint said `Pull books on
+        // math, and needs-math.`, which is now refused the moment a reader follows it.
+        Assert.Contains("Each is pulled by its own kind, so they nest", ex.Message);
+        Assert.Contains("'Pull a book on math.' around 'Pull a needs-math.'", ex.Message);
     }
 
     [Fact]
     public void ADependencyPulledAlongside_Satisfies()
     {
-        Assert.Equal("12.566370614359172953850573533", Run(GeometryNeedingMath + """
-            Pull books on math, and geometry.
-                State cast geometry's circle-area on (2).
+        Assert.Equal("12.566370614359172953850573533", Run(ModuleNeedingMath + """
+            Pull a book on math.
+                Pull a needs-math.
+                    State cast needs-math's pi-times-square on (2).
+                Done.
             Done.
             """));
     }
@@ -552,17 +558,17 @@ public class ModulePullTests
         // advising `Define math as <value>` for something you pull. Verification is deferred to
         // the end of checking now, when every module's needs are known.
         var ex = Assert.Throws<TypeException>(() => Run("""
-            Pull geometry.
-                State cast geometry's circle-area on (2).
+            Pull a needs-math.
+                State cast needs-math's pi-times-square on (2).
             Done.
 
-            Define object geometry with () and module:
-                Bind number to circle-area, given (the number radius):
+            Define object needs-math with () and module:
+                Bind number to pi-times-square, given (the number radius):
                     Return math's pi * radius * radius.
                 Done.
             Done.
             """));
-        Assert.Contains("'geometry' uses 'math', which isn't pulled here", ex.Message);
+        Assert.Contains("'needs-math' uses 'math', which isn't pulled here", ex.Message);
     }
 
     // -- A free function's needs: refused where it is written -----------------
@@ -725,17 +731,19 @@ public class ModulePullTests
     [Fact]
     public void AModuleNameStillReachesABodyWrittenOutsideAnyPull()
     {
-        // The case the deferral is FOR, and it keeps working: `geometry` names `math` without
-        // pulling it, and the block that uses `geometry` supplies it.
+        // The case the deferral is FOR, and it keeps working: `needs-math` names `math` without
+        // pulling it, and the block that uses `needs-math` supplies it.
         Assert.Equal("12.566370614359172953850573533", Run("""
-            Define object geometry with () and module:
-                Bind number to circle-area, given (the number radius):
+            Define object needs-math with () and module:
+                Bind number to pi-times-square, given (the number radius):
                     Return math's pi * radius * radius.
                 Done.
             Done.
 
-            Pull books on math, and geometry.
-                State cast geometry's circle-area on (2).
+            Pull a book on math.
+                Pull a needs-math.
+                    State cast needs-math's pi-times-square on (2).
+                Done.
             Done.
             """));
     }

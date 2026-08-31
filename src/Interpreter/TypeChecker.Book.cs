@@ -174,7 +174,7 @@ public sealed partial class TypeChecker
             if (!ps.ViaBookForm)
                 throw TypeError(
                     $"'{name}' is a book, so it is pulled as one",
-                    "The plain form is for a module you defined; a book is a library the language ships",
+                    "The plain form is for a module you hold one of; a book is one you consult",
                     ps.Line, ps.Column,
                     $"pull '{name}' with the plain form",
                     $"Write 'Pull a book on {name}.' — or 'Pull books on {name}, and <other>.' "
@@ -193,7 +193,7 @@ public sealed partial class TypeChecker
             // ★ The marker requires no methods, but it does require the CLAIM. Being pullable is
             // something an author says, not something every object accidentally is — otherwise the
             // interface would be decorative and `Pull` would take anything with a name.
-            if (!moduleType.ConformedInterfaces.Contains(ModuleInterface))
+            if (!IsModuleConformer(moduleType.ConformedInterfaces))
                 throw TypeError(
                     $"'{name}' is not a module, so it can't be pulled",
                     $"Pulling brings a module into scope, and '{name}' doesn't say it is one",
@@ -201,6 +201,28 @@ public sealed partial class TypeChecker
                     $"pull '{name}'",
                     $"Add 'and {ModuleInterface}' to its definition: "
                     + $"'Define object {name} with (...) and {ModuleInterface}:'.");
+
+            // ★ The spelling has to match what the thing IS. A book is something you consult and a
+            // module is something you hold, and that difference is the whole of what `book` adds —
+            // so a pull that reads the wrong way is refused rather than quietly accepted, which is
+            // what "the surface says which KIND of thing you are pulling" was always claiming and
+            // could not enforce while the two forms took anything.
+            bool isBook = IsBookConformer(moduleType.ConformedInterfaces);
+            if (isBook && !ps.ViaBookForm)
+                throw TypeError(
+                    $"'{name}' is a book, so it is pulled as one",
+                    $"A book is consulted rather than held — '{name}' says so with 'and {BookInterface}'",
+                    ps.Line, ps.Column,
+                    $"pull '{name}' as though you had one of it",
+                    $"Write 'Pull a book on {name}.' instead.");
+            if (!isBook && ps.ViaBookForm)
+                throw TypeError(
+                    $"'{name}' is not a book",
+                    $"'{name}' is a module you have one of, not one you consult",
+                    ps.Line, ps.Column,
+                    $"pull '{name}' as a book",
+                    $"Write 'Pull a {name}.' instead — or add 'and {BookInterface}' to its "
+                    + $"definition if it is meant to be consulted.");
             return moduleType;
         }
 
@@ -342,7 +364,7 @@ public sealed partial class TypeChecker
     /// </remarks>
     private bool IsModuleName(string name) =>
         BuiltinBooks.ContainsKey(name)
-     || (_objectDefs.TryGetValue(name, out var ot) && ot.ConformedInterfaces.Contains(ModuleInterface));
+     || (_objectDefs.TryGetValue(name, out var ot) && IsModuleConformer(ot.ConformedInterfaces));
 
     /// <summary>Verifies every recorded pull, now that every module's needs are known.</summary>
     internal void CheckPendingPulls()
@@ -352,6 +374,15 @@ public sealed partial class TypeChecker
         _pendingPullChecks.Clear();
     }
 
+    /// <summary>Whether a name is the kind of module you CONSULT — bundled, or declared `and book`.</summary>
+    private bool IsBookName(string name) =>
+        BuiltinBooks.ContainsKey(name)
+        || (_objectDefs.TryGetValue(name, out var ot) && IsBookConformer(ot.ConformedInterfaces));
+
+    /// <summary>How a name is written at a pull, given what it is.</summary>
+    private string PullSpelling(string name) =>
+        IsBookName(name) ? $"Pull a book on {name}." : $"Pull a {name}.";
+
     private void CheckModuleNeedsAreInScope(string moduleName, PullStatement ps, HashSet<string> visible)
     {
         if (!_moduleNeeds.TryGetValue(moduleName, out var needs)) return;
@@ -360,13 +391,22 @@ public sealed partial class TypeChecker
         if (missing.Count == 0) return;
 
         var names = string.Join(", ", missing.Select(m => $"'{m}'"));
-        var together = string.Join(", and ", missing.Concat([moduleName]));
+
+        // ⚠ The advice has to match what each name IS. `Pull books on …` is the book spelling, and
+        // suggesting it for a module you hold one of hands the reader a line that is refused the
+        // moment they write it — one wrong answer replacing another.
+        var everyName = missing.Concat([moduleName]).ToList();
+        string hint = everyName.All(IsBookName)
+            ? $"Pull them together: 'Pull books on {string.Join(", and ", everyName)}.'"
+            : "Each is pulled by its own kind, so they nest: "
+              + string.Join(" around ", everyName.Select(n => $"'{PullSpelling(n)}'"));
+
         throw TypeError(
             $"'{moduleName}' uses {names}, which {(missing.Count == 1 ? "isn't" : "aren't")} pulled here",
             "A module's dependencies come from the block it is used in, not the one it is written in",
             ps.Line, ps.Column,
             $"pull '{moduleName}' without {names}",
-            $"Pull them together: 'Pull books on {together}.'");
+            hint);
     }
 
     private CufetType InferBookPossessiveAccess(PossessiveAccess poss, BookType bt)

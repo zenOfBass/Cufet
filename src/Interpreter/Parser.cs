@@ -411,7 +411,7 @@ public sealed class Parser
         // ★ Only a MODULE may carry a type. Members are what an object has; declarations are what a
         // module carries, and a module is the only thing a `Pull` reaches — so this is the one place
         // a type can be put where another file could ever see it.
-        bool isModule = conformedInterfaces.Any(i => string.Equals(i, "module", StringComparison.OrdinalIgnoreCase));
+        bool isModule = TypeChecker.IsModuleConformer(conformedInterfaces);
 
         if (Peek().Type == TokenType.Colon)
         {

@@ -594,10 +594,32 @@ public sealed partial class TypeChecker
     /// </remarks>
     public const string ModuleInterface = "module";
 
+    /// <summary>
+    /// A module you CONSULT rather than one you hold — what another language would have made a
+    /// header file. A subtype of <see cref="ModuleInterface"/>: every book is a module, and the
+    /// spelling at the pull is what the difference buys.
+    /// </summary>
+    /// <remarks>
+    /// ★ Not a second mechanism. Headers and modules are one thing here, and `book` is the narrower
+    /// job rather than a separate kind — which is why `IsModuleConformer` accepts either marker and
+    /// nothing downstream of a pull has to know which it got.
+    /// </remarks>
+    public const string BookInterface = "book";
+
     private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new()
     {
         [ModuleInterface] = new InterfaceDefinition(ModuleInterface, [], 0, 0),
+        [BookInterface]   = new InterfaceDefinition(BookInterface, [], 0, 0),
     };
+
+    /// <summary>Whether an object claims to be pullable at all — as a module, or as a book.</summary>
+    public static bool IsModuleConformer(IReadOnlyList<string> conformed) =>
+        conformed.Contains(ModuleInterface, StringComparer.OrdinalIgnoreCase)
+        || conformed.Contains(BookInterface, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Whether an object claims to be the kind you consult.</summary>
+    public static bool IsBookConformer(IReadOnlyList<string> conformed) =>
+        conformed.Contains(BookInterface, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Free functions whose bodies contain a `bury`, so calling one yields a stash.</summary>
     private readonly HashSet<string> _buryingFunctions = new(StringComparer.Ordinal);
@@ -961,7 +983,13 @@ public sealed partial class TypeChecker
 
     /// <summary>Whether a pulled name is already resolvable without going to disk.</summary>
     private bool IsKnownPullName(string name) =>
-        BuiltinBooks.ContainsKey(name) || _objectDefs.ContainsKey(name);
+        BuiltinBooks.ContainsKey(name)
+        || _objectDefs.ContainsKey(name)
+        // ⚠ The rabbit resolves in its own branch of CheckPullStatement and is in neither table, so
+        // without naming it here the loader would go looking for a `rabbit.cufe` that will never
+        // exist. Harmless — a missing file is not an error — but it is a disk hit per pull and a
+        // baffling thing to find in a trace.
+        || string.Equals(name, RabbitModuleName, StringComparison.OrdinalIgnoreCase);
 
     public Program Check(Program program)
     {
