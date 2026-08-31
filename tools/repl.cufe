@@ -1,0 +1,63 @@
+/*  A read-eval-print loop for Cufet, written in Cufet.
+
+    Slice 1: every line you type is a whole program. It is written to a scratch file and handed to
+    `cufet`, and whatever that prints comes back here. Nothing is remembered between lines yet —
+    `Define x as 5.` on one line and `State x.` on the next are two programs, and the second has
+    never heard of the first. Keeping the bindings is the next slice.
+
+    Why it shells out rather than evaluating here: `cufet` already holds the type checker, and its
+    refusals are the point of the language. An evaluator written in this file would have to say
+    something worse about a bad line than the compiler already says about it.
+
+    `Quit!!!` on a line by itself exits; so does end of input.
+
+    Run it interpreted. Compiling it needs POSIX, because `run` is fork + execvp — the same
+    constraint the shell carries.  */
+
+/* Somewhere to put the line before handing it over. TMPDIR is POSIX, TEMP is Windows, and /tmp is
+   the answer that is still right when a program is started with neither set. */
+Bind text to scratch-file:
+    Define folder as the environment variable "TMPDIR" but void is "".
+    If the length of folder is 0, folder becomes the environment variable "TEMP" but void is "".
+    If the length of folder is 0, folder becomes "/tmp".
+    Return "{folder}/cufet-repl-line.cufe".
+Done.
+
+/* Errors before output, because a refusal is what explains an empty result. Both arrive already
+   captured, so this is the only place either is shown. */
+Bind void to show, given (the text printed, the text complained):
+    If the length of complained is greater than 0, state complained trimmed.
+    If the length of printed is greater than 0, state printed trimmed.
+Done.
+
+/* Writing the file and launching can each fail — a full disk, or no `cufet` on the PATH. Both are
+   failure values, so a bad line costs a message and not the session. */
+Bind void to evaluate, given (the text line, the text scratch):
+    Try to:
+        Write line to the file scratch.
+        Define answered as run "cufet" with arguments (scratch).
+        Cast show on (the output of answered, the errors of answered).
+    Done.
+    In case of failure:
+        State "cufet-repl: {the message of the failure}".
+    Done.
+Done.
+
+State "Cufet. Type Quit!!! to leave, or close the input".
+
+Define scratch as cast scratch-file.
+Define running as true.
+While running, repeat:
+    Define raw as read a line from the input.
+
+    /* Void is end of input — the stream closed instead of anyone saying Quit!!! */
+    If raw is void, running becomes false.
+    If raw is not void:
+        Define line as raw trimmed.
+        If line is "Quit!!!", running becomes false.
+        /* A blank line is not an error, it is just nothing to do. */
+        If line is not "Quit!!!" and the length of line is greater than 0:
+            Cast evaluate on (line, scratch).
+        Done.
+    Done.
+Done.
