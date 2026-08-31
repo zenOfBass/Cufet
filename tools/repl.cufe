@@ -1,51 +1,67 @@
 /*  A read-eval-print loop for Cufet, written in Cufet.
 
-    Slice 1: every line you type is a whole program. It is written to a scratch file and handed to
-    `cufet`, and whatever that prints comes back here. Nothing is remembered between lines yet —
-    `Define x as 5.` on one line and `State x.` on the next are two programs, and the second has
-    never heard of the first. Keeping the bindings is the next slice.
+    The session is one growing program. Every line you type is appended to it, the whole thing is
+    handed to `cufet`, and what comes back that the previous run did not produce is printed. So the
+    bindings keep, and so does anything you do to them:
 
-    Why it shells out rather than evaluating here: `cufet` already holds the type checker, and its
-    refusals are the point of the language. An evaluator written in this file would have to say
-    something worse about a bad line than the compiler already says about it.
+        Define total as 0.
+        Increment total by 5.
+        State total.            → 5
+
+    ★ The REPL classifies nothing. It does not know a declaration from a statement, and that is
+    deliberate — the moment it holds an opinion about Cufet syntax it can hold a WRONG one, and the
+    whole reason it shells out is that `cufet` already holds the right one. Replaying the session
+    means the REPL and the compiler cannot disagree about what your program means, because the REPL
+    never forms a second view of it.
+
+    ⚠ The cost, stated plainly: your session runs from the top on every line. Bindings and
+    arithmetic replay harmlessly, but anything reaching the outside world does not — `Write` writes
+    again, `run` launches again. And a session using `chance` prints differently each run, so the
+    comparison against the previous output stops meaning anything.
+
+    ⚠ A session line that reads standard input eats the REPL's own, since the child inherits it.
+    Every shell-out REPL has this, and it is the one thing replaying makes worse rather than only
+    repetitive.
+
+    ⚠ A line that fails is rolled back out of the session. Keeping it would refuse every line after
+    it for the same reason, and there would be no way back.
+
+    ⚠ Errors report against the ASSEMBLED program, so "line 4" counts your session, not the line
+    you just typed. The book loader solved this by mapping positions inside the front end; from out
+    here the only lever would be rewriting the compiler's prose, and prose is not a position.
 
     `Quit!!!` on a line by itself exits; so does end of input.
 
     Run it interpreted. Compiling it needs POSIX, because `run` is fork + execvp — the same
     constraint the shell carries.  */
 
-/* Somewhere to put the line before handing it over. TMPDIR is POSIX, TEMP is Windows, and /tmp is
-   the answer that is still right when a program is started with neither set. */
+/* Somewhere to put the session before handing it over. TMPDIR is POSIX, TEMP is Windows, and /tmp
+   is the answer that is still right when a program is started with neither set. */
 Bind text to scratch-file:
     Define folder as the environment variable "TMPDIR" but void is "".
     If the length of folder is 0, folder becomes the environment variable "TEMP" but void is "".
     If the length of folder is 0, folder becomes "/tmp".
-    Return "{folder}/cufet-repl-line.cufe".
+    Return "{folder}/cufet-repl-session.cufe".
 Done.
 
-/* Errors before output, because a refusal is what explains an empty result. Both arrive already
-   captured, so this is the only place either is shown. */
-Bind void to show, given (the text printed, the text complained):
-    If the length of complained is greater than 0, state complained trimmed.
-    If the length of printed is greater than 0, state printed trimmed.
-Done.
-
-/* Writing the file and launching can each fail — a full disk, or no `cufet` on the PATH. Both are
-   failure values, so a bad line costs a message and not the session. */
-Bind void to evaluate, given (the text line, the text scratch):
-    Try to:
-        Write line to the file scratch.
-        Define answered as run "cufet" with arguments (scratch).
-        Cast show on (the output of answered, the errors of answered).
+/* What a run said that the run before it had not said yet. The old output is a prefix of the new
+   one — the same program, with a line on the end — so the new part is whatever sits past where the
+   old one stopped. A shorter result means the program changed rather than grew, and there is
+   nothing honest to show. */
+Bind text to beyond, given (the text whole, the text already):
+    If the length of whole is greater than the length of already:
+        Define first-new as (the length of already) + 1.
+        Return the characters from first-new to the end of whole.
     Done.
-    In case of failure:
-        State "cufet-repl: {the message of the failure}".
-    Done.
+    Return "".
 Done.
 
 State "Cufet. Type Quit!!! to leave, or close the input".
 
 Define scratch as cast scratch-file.
+Define session as "".
+Define shown as "".
+Define warned as "".
 Define running as true.
 While running, repeat:
     Define raw as read a line from the input.
@@ -57,7 +73,36 @@ While running, repeat:
         If line is "Quit!!!", running becomes false.
         /* A blank line is not an error, it is just nothing to do. */
         If line is not "Quit!!!" and the length of line is greater than 0:
-            Cast evaluate on (line, scratch).
+            Define attempt as "{session}{line}\n".
+
+            /* Writing and launching can each fail — a full disk, or no `cufet` on the PATH. Both
+               are failure values, so a bad line costs a message and not the session. */
+            Try to:
+                Write attempt to the file scratch.
+                Define answered as run "cufet" with arguments (scratch).
+
+                /* Nonzero means it did not get through: a refusal, or a death part way. Either
+                   way the line does not join the session, and what the compiler said about it is
+                   the whole of what there is to show. */
+                If the exit-code of answered is not 0:
+                    State (the errors of answered) trimmed.
+                Done.
+                If the exit-code of answered is 0:
+                    The session becomes attempt.
+                    Define spoke as cast beyond on (the output of answered, shown).
+                    Define grumbled as cast beyond on (the errors of answered, warned).
+                    The shown becomes the output of answered.
+                    The warned becomes the errors of answered.
+
+                    /* Warnings first, because one of them is usually why the output is not what
+                       was expected. */
+                    If the length of grumbled is greater than 0, state grumbled trimmed.
+                    If the length of spoke is greater than 0, state spoke trimmed.
+                Done.
+            Done.
+            In case of failure:
+                State "cufet-repl: {the message of the failure}".
+            Done.
         Done.
     Done.
 Done.
