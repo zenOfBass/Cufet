@@ -64,79 +64,107 @@ Bind text to beyond, given (the text whole, the text already):
     Return "".
 Done.
 
-State "Cufet. Type Leave. to go, or close the input".
+/* The terminal layer is a book because the shell needs the same one. */
+Pull a book on terminal.
+    /* Which compiler is going to answer. A REPL that evaluated with a different `cufet` than the
+       one on the PATH would be lying about the language, so it uses that one and says which — and
+       says it up front, because an install two releases behind refuses today's language line by
+       line and never explains why. */
+    Define which as "no cufet on the PATH".
+    Try to:
+        Define reported as run "cufet" with arguments ("--version").
+        If the exit-code of reported is 0, which becomes (the output of reported) trimmed.
+    Done.
+    In case of failure:
+        The which becomes "no cufet on the PATH".
+    Done.
+    State "Cufet REPL, evaluating with {which}. Type Leave. to go, or close the input".
 
-Define scratch as cast scratch-file.
-Define session as "".
-Define shown as "".
-Define warned as "".
-Define pending as "".
-Define running as true.
-While running, repeat:
-    Define raw as read a line from the input.
 
-    /* Void is end of input — the stream closed instead of anyone saying Leave. */
-    If raw is void, running becomes false.
-    If raw is not void:
-        Define line as raw trimmed.
+    /* Prompts are for somebody typing. Piped or redirected, they would land in the output. */
+    Define asking as cast terminal's interactive.
+
+    Define scratch as cast scratch-file.
+    Define session as "".
+    Define shown as "".
+    Define warned as "".
+    Define pending as "".
+    Define running as true.
+    While running, repeat:
         Define building as false.
         If the length of pending is greater than 0, building becomes true.
 
-        If building is false and line is "Leave.":
-            The running becomes false.
-            The line becomes "".
+        /* A different prompt while a construct is open, so it is never a mystery why Enter is
+           not running anything. */
+        If asking:
+            If building, cast terminal's put on ("... ").
+            If building is false, cast terminal's put on ("> ").
         Done.
 
-        /* What is finished and ready to run. Empty until something is. */
-        Define ready as "".
+        Define raw as read a line from the input.
 
-        /* Mid-construct. The raw line joins rather than the trimmed one, so what gets assembled
-           is indented the way it was typed. */
-        If building:
-            If the length of line is 0:
-                The ready becomes pending.
-                The pending becomes "".
+        /* Void is end of input — the stream closed instead of anyone saying Leave. */
+        If raw is void, running becomes false.
+        If raw is not void:
+            Define line as raw trimmed.
+
+            If building is false and line is "Leave.":
+                The running becomes false.
+                The line becomes "".
             Done.
-            If the length of line is greater than 0, the pending becomes "{pending}{raw}\n".
-        Done.
 
-        /* Nothing half typed: a trailing colon says more is coming, anything else stands alone. */
-        If building is false and the length of line is greater than 0:
-            If the last 1 characters of line is ":", the pending becomes "{raw}\n".
-            If the last 1 characters of line is not ":", the ready becomes "{raw}\n".
-        Done.
+            /* What is finished and ready to run. Empty until something is. */
+            Define ready as "".
 
-        If the length of ready is greater than 0:
-            Define attempt as "{session}{ready}".
-
-            /* Writing and launching can each fail — a full disk, or no `cufet` on the PATH. Both
-               are failure values, so a bad line costs a message and not the session. */
-            Try to:
-                Write attempt to the file scratch.
-                Define answered as run "cufet" with arguments (scratch).
-
-                /* Nonzero means it did not get through: a refusal, or a death part way. Either
-                   way it does not join the session, and what the compiler said about it is the
-                   whole of what there is to show. */
-                If the exit-code of answered is not 0:
-                    State (the errors of answered) trimmed.
+            /* Mid-construct. The raw line joins rather than the trimmed one, so what gets assembled
+               is indented the way it was typed. */
+            If building:
+                If the length of line is 0:
+                    The ready becomes pending.
+                    The pending becomes "".
                 Done.
-                If the exit-code of answered is 0:
-                    The session becomes attempt.
-                    Define spoke as cast beyond on (the output of answered, shown).
-                    Define grumbled as cast beyond on (the errors of answered, warned).
-                    The shown becomes the output of answered.
-                    The warned becomes the errors of answered.
-
-                    /* Warnings first, because one of them is usually why the output is not what
-                       was expected. */
-                    If the length of grumbled is greater than 0, state grumbled trimmed.
-                    If the length of spoke is greater than 0, state spoke trimmed.
-                Done.
+                If the length of line is greater than 0, the pending becomes "{pending}{raw}\n".
             Done.
-            In case of failure:
-                State "cufet-repl: {the message of the failure}".
+
+            /* Nothing half typed: a trailing colon says more is coming, anything else stands alone. */
+            If building is false and the length of line is greater than 0:
+                If the last 1 characters of line is ":", the pending becomes "{raw}\n".
+                If the last 1 characters of line is not ":", the ready becomes "{raw}\n".
+            Done.
+
+            If the length of ready is greater than 0:
+                Define attempt as "{session}{ready}".
+
+                /* Writing and launching can each fail — a full disk, or no `cufet` on the PATH. Both
+                   are failure values, so a bad line costs a message and not the session. */
+                Try to:
+                    Write attempt to the file scratch.
+                    Define answered as run "cufet" with arguments (scratch).
+
+                    /* Nonzero means it did not get through: a refusal, or a death part way. Either
+                       way it does not join the session, and what the compiler said about it is the
+                       whole of what there is to show. */
+                    If the exit-code of answered is not 0:
+                        State (the errors of answered) trimmed.
+                    Done.
+                    If the exit-code of answered is 0:
+                        The session becomes attempt.
+                        Define spoke as cast beyond on (the output of answered, shown).
+                        Define grumbled as cast beyond on (the errors of answered, warned).
+                        The shown becomes the output of answered.
+                        The warned becomes the errors of answered.
+
+                        /* Warnings first, because one of them is usually why the output is not what
+                           was expected. */
+                        If the length of grumbled is greater than 0, state grumbled trimmed.
+                        If the length of spoke is greater than 0, state spoke trimmed.
+                    Done.
+                Done.
+                In case of failure:
+                    State "cufet-repl: {the message of the failure}".
+                Done.
             Done.
         Done.
     Done.
+
 Done.

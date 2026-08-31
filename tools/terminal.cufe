@@ -1,0 +1,54 @@
+/*  The terminal, as a book.
+
+    It is a separate file because the shell needs the same things — a prompt that leaves the cursor
+    where it is, and later raw mode, keys and history. Written once here, pulled there.
+
+    Everything in it goes through C, because these are the parts of a terminal that are not in any
+    language: they are calls, and axioms are how Cufet makes a call.  */
+
+Define object terminal with () and module:
+    /*  Write without a newline. `State` always ends a line, which is right for a program saying
+        something and wrong for a prompt — a prompt has to leave the cursor sitting after it.
+
+        ⚠ Flushed on the spot, and that is not fussiness. The interpreter prints through .NET and
+        the compiler through C stdio: two buffers over one file descriptor. Whichever of them holds
+        output back is the one whose text arrives in the wrong place, and it would arrive in a
+        DIFFERENT wrong place on each backend — an oracle divergence rather than a cosmetic bug. */
+    Bind void to put, given (the text letters):
+        Pull a book on the c-language.
+            Define c-language put-support as [#include <stdio.h>
+                static int cufet_terminal_put(const char *text) {
+                    fputs(text, stdout);
+                    fflush(stdout);
+                    return 0;
+                }].
+            Define c-language number written, given (the text bytes), as [cufet_terminal_put(the bytes)].
+
+            /* The count is not interesting — `fputs` wrote it all or the stream is broken, and a
+               broken stdout is not something a prompt can do anything about. */
+            Cast written on (letters).
+        Done.
+        Done.
+
+    /*  Whether standard input is a person at a terminal, rather than a file or a pipe. A prompt
+        is for somebody who is about to type; printed into a redirect it is just noise in the
+        output, and every REPL that gets this right asks the same question.
+
+        ⚠ The first axiom here that has to know what machine it is on. POSIX spells it `isatty`
+        in <unistd.h> and Windows spells it `_isatty` in <io.h> — one call, two names, and a
+        header that does not exist on the other side. Guarding inside the C is what keeps the
+        Cufet above it from having a platform in it at all. */
+    Bind fact to interactive:
+        Pull a book on the c-language.
+            Define c-language tty-support as [#if defined(_WIN32)
+                #include <io.h>
+                static int cufet_terminal_interactive(void) { return _isatty(0) ? 1 : 0; }
+                #else
+                #include <unistd.h>
+                static int cufet_terminal_interactive(void) { return isatty(0) ? 1 : 0; }
+                #endif].
+            Define c-language number attached as [cufet_terminal_interactive()].
+            Return cast attached is 1.
+        Done.
+    Done.
+Done.
