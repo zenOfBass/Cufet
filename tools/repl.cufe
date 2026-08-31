@@ -30,7 +30,15 @@
     you just typed. The book loader solved this by mapping positions inside the front end; from out
     here the only lever would be rewriting the compiler's prose, and prose is not a position.
 
-    `Quit!!!` on a line by itself exits; so does end of input.
+    A line ending in `:` opens a construct, and every line after it joins on until a BLANK line
+    finishes it — not until `Done.`, because a `Done.` can be followed by `In case of failure:` or
+    `Otherwise:`, and stopping at the first one would submit half a construct and have it refused.
+    The trailing colon is the only guess in here, and it can only ever cost an extra blank line,
+    never a swallowed one, because the blank line is what actually submits.
+
+    `Leave.` on a line by itself exits; so does end of input. It is the REPL's own word rather than
+    Cufet, so it is only heard when nothing is half typed — inside a construct it is just a line
+    somebody wrote.
 
     Run it interpreted. Compiling it needs POSIX, because `run` is fork + execvp — the same
     constraint the shell carries.  */
@@ -56,24 +64,50 @@ Bind text to beyond, given (the text whole, the text already):
     Return "".
 Done.
 
-State "Cufet. Type Quit!!! to leave, or close the input".
+State "Cufet. Type Leave. to go, or close the input".
 
 Define scratch as cast scratch-file.
 Define session as "".
 Define shown as "".
 Define warned as "".
+Define pending as "".
 Define running as true.
 While running, repeat:
     Define raw as read a line from the input.
 
-    /* Void is end of input — the stream closed instead of anyone saying Quit!!! */
+    /* Void is end of input — the stream closed instead of anyone saying Leave. */
     If raw is void, running becomes false.
     If raw is not void:
         Define line as raw trimmed.
-        If line is "Quit!!!", running becomes false.
-        /* A blank line is not an error, it is just nothing to do. */
-        If line is not "Quit!!!" and the length of line is greater than 0:
-            Define attempt as "{session}{line}\n".
+        Define building as false.
+        If the length of pending is greater than 0, building becomes true.
+
+        If building is false and line is "Leave.":
+            The running becomes false.
+            The line becomes "".
+        Done.
+
+        /* What is finished and ready to run. Empty until something is. */
+        Define ready as "".
+
+        /* Mid-construct. The raw line joins rather than the trimmed one, so what gets assembled
+           is indented the way it was typed. */
+        If building:
+            If the length of line is 0:
+                The ready becomes pending.
+                The pending becomes "".
+            Done.
+            If the length of line is greater than 0, the pending becomes "{pending}{raw}\n".
+        Done.
+
+        /* Nothing half typed: a trailing colon says more is coming, anything else stands alone. */
+        If building is false and the length of line is greater than 0:
+            If the last 1 characters of line is ":", the pending becomes "{raw}\n".
+            If the last 1 characters of line is not ":", the ready becomes "{raw}\n".
+        Done.
+
+        If the length of ready is greater than 0:
+            Define attempt as "{session}{ready}".
 
             /* Writing and launching can each fail — a full disk, or no `cufet` on the PATH. Both
                are failure values, so a bad line costs a message and not the session. */
@@ -82,8 +116,8 @@ While running, repeat:
                 Define answered as run "cufet" with arguments (scratch).
 
                 /* Nonzero means it did not get through: a refusal, or a death part way. Either
-                   way the line does not join the session, and what the compiler said about it is
-                   the whole of what there is to show. */
+                   way it does not join the session, and what the compiler said about it is the
+                   whole of what there is to show. */
                 If the exit-code of answered is not 0:
                     State (the errors of answered) trimmed.
                 Done.
