@@ -102,6 +102,23 @@ Pull a book on terminal.
         Return room.
     Done.
 
+    /* How many characters two lines share from the left, which is how much of the screen does
+       NOT need repainting. */
+    Bind number to shared-start, given (the text earlier, the text later):
+        Define reach as the length of earlier.
+        If the length of later is less than reach, reach becomes the length of later.
+
+        Define same as 0.
+        While same is less than reach, repeat:
+            Define step as same + 1.
+            Define from-earlier as the characters from step to step of earlier.
+            Define from-later as the characters from step to step of later.
+            If from-earlier is not from-later, stop.
+            The same becomes step.
+        Done.
+        Return same.
+    Done.
+
     /*  Replace the line on screen, and leave the cursor where the caret says.
 
         ★ ONE routine draws every edit — typing, deleting, moving, recalling, throwing the line
@@ -110,14 +127,27 @@ Pull a book on terminal.
         which is how a line editor ends up with the cursor a column adrift after some combination
         nobody tried — there is no combination here, because there is only one drawing.
 
-        It repaints the whole line on every keystroke. At a terminal that is nothing, and it buys
-        the property above outright. */
+        ⚠⚠ It repaints only from the first column that DIFFERS, and that is not an optimisation —
+        it is the difference between working and unusable. Repainting the whole line meant walking
+        the cursor to column one and back on every keystroke, and at a terminal you SEE that: the
+        cursor visibly slides to the start of the line and returns before each character appears.
+        The text was always right, which is what made it look like a mystery rather than a bug.
+
+        ★ Typing at the end of a line now costs nothing at all: the shared prefix is everything
+        before the caret, so there is no movement to make and one character to print. */
     Bind void to redraw, given (the text gone, the number gone-caret, the text drawn, the number drawn-caret):
-        /* Back to the first column of what is showing. */
-        Define to-the-start as gone-caret - 1.
+        /*  Back to the first column that has to change — or to the caret, if the caret is already
+            left of it. Printing from the caret is safe either way, because everything between the
+            caret and the divergence is identical in both lines. */
+        Define same as cast shared-start on (gone, drawn).
+        Define from-here as same + 1.
+        If gone-caret is less than from-here, from-here becomes gone-caret.
+
+        Define to-the-start as gone-caret - from-here.
         Cast terminal's back-up on (to-the-start).
 
-        Cast terminal's put on (drawn).
+        Define fresh as the characters from from-here to the end of drawn.
+        If the length of fresh is greater than 0, cast terminal's put on (fresh).
 
         /* Whatever the old line was longer by is still sitting there. Paint over it, then step
            back across the paint. */
