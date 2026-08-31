@@ -1338,16 +1338,50 @@ Pull greeting-kit as kit.
 Pull rabbit.
 ```
 
-⚠ **A BUNDLED BOOK IS NOT PULLED THIS WAY.** `Pull math.` is refused; write
-`Pull a book on math.` The plain form is for a module you defined. `Pull math.` used to work and
-was never a decision — the general branch swallowed the name on its way past, and a test pinned
-the accident. Reversed 2026-08-21.
+⚠ **A BOOK IS NOT PULLED THIS WAY.** `Pull math.` is refused; write `Pull a book on math.` The
+plain form is for a module you hold one of. `Pull math.` used to work and was never a decision —
+the general branch swallowed the name on its way past, and a test pinned the accident. Reversed
+2026-08-21.
 
 ```cufet-fragment
-Pull a book on math.                      ← a library the language ships
+Pull a book on math.                      ← something you consult
 Pull a book on math as m.
 Pull books on math, and collections.
 ```
+
+### ★ `book` is a subtype of `module`
+
+A **book** is a module you CONSULT rather than one you have one of — what another language would
+have made a header file. It is declared with `and book`, and every book is a module:
+
+```cufet-fragment
+Define object shapes with () and module:      ← you have one of these
+Define object trigonometry with () and book:  ← you consult this one
+```
+
+★ **There is one mechanism, not two.** Headers and modules are the same thing here; `book` is the
+narrower job rather than a separate kind. Everything downstream of a pull — members, scope,
+privacy, the loader — treats a book exactly as it treats any module.
+
+⚠ **The spelling must match what the thing is.** A book pulled plainly, or a module pulled as a
+book, is refused and the message names the fix. This is what *"the surface says which KIND of thing
+you are pulling"* always claimed; until `book` existed it could only be enforced for the bundled
+ones, because a writer had no way to say which kind theirs was.
+
+⚠ **`Pull books on …` applies ONE spelling to every name in it**, so they must all be books. A book
+and a module you hold one of cannot be pulled in a single statement — they nest:
+
+```cufet-fragment
+Pull a book on math.
+    Pull a shapes.
+        State cast shapes's scaled on (math's pi).
+    Done.
+Done.
+```
+
+★ **Either form reaches another file.** The loader used to run only for the book form, which made
+one word carry two things — what the thing IS, and where it happens to live. Splitting a module
+into its own file no longer means calling it something it is not.
 
 ★ **No module's NAME is reserved, and neither is `book` or `books`** (both freed 2026-08-19).
 `math`, `collections`, `chance`, `rabbit`, `book` and `books` are all ordinary identifiers, so
@@ -1360,16 +1394,16 @@ parser still *recognises* these words where they do a job — pulling a rabbit o
 `Have rabbit …` addresses the enclosing one, and `book`/`books` open the `… on <name>` spelling
 when `on` follows — because recognising a word is not reserving it.
 
-`book on <name>` is **required** for a bundled book, and it is required because it is what
-reads: *a book on math* is natural English and *a math* is not. Pulling is one mechanism — the
-same question is asked at every pull site — but the surface says which KIND of thing is being
-pulled, because a library and the writer's own object are not the same thing.
+`book on <name>` is **required** for a book, and it is required because it is what reads: *a book
+on math* is natural English and *a math* is not. Pulling is one mechanism — the same question is
+asked at every pull site — but the surface says which KIND of thing is being pulled, because
+something you consult and something you have one of are not the same thing.
 
 ⚠ A book used to be described as conforming by CONSTRUCTION, "its members are native, so there
 is no `Define object` to carry `and module`". **That stopped being true in 0.16.0**: `math` has
 no native part left at all and `collections`'s only native piece is the `matrix` type. Both are
-written in Cufet now, behind a Cufet layer. What makes something a book is that it is a
-**library**, not how it happens to be implemented.
+written in Cufet now, behind a Cufet layer. What makes something a book is that it says `and
+book`, not how it happens to be implemented — and nothing about the bundled ones is privileged.
 
 `module` is a **marker interface**: it requires no methods, only the claim. An object that
 does not conform is refused at the pull site. Pulling **instantiates**, so a module with

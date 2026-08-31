@@ -102,6 +102,8 @@ deliberate differences are marked where they arise and summarised under
     - [Signal handling](#signal-handling)
   - [Part VIII. Modules and books](#part-viii-modules-and-books)
     - [Modules (`Pull`)](#modules-pull)
+      - [What a module carries](#what-a-module-carries)
+      - [Books and modules](#books-and-modules)
     - [Books, matrices, and foreign source](#books-matrices-and-foreign-source)
   - [Part IX. Compiling](#part-ix-compiling)
     - [Compiling to a native binary](#compiling-to-a-native-binary)
@@ -3812,8 +3814,8 @@ Done.
 This is not new syntax. `Pull a rabbit.` was always this form; what changed is that the
 name in it no longer has to be one the language shipped.
 
-**A book may live in another file.** `Pull a book on ‹name›.` looks for a bundled book, then for
-a module defined here, then for `‹name›.cufe` beside the file being run:
+**A module may live in another file.** A pull looks for a bundled book, then for a module defined
+here, then for `‹name›.cufe` beside the file being run:
 
 ```cufet-fragment
 Pull a book on greeting-kit.        ← loads greeting-kit.cufe if nothing here is called that
@@ -3821,8 +3823,12 @@ Pull a book on greeting-kit.        ← loads greeting-kit.cufe if nothing here 
 Done.
 ```
 
+★ **Either spelling reaches a file.** `Pull a book on ‹name›.` and `Pull a ‹name›.` both load one;
+which you write depends on what the thing IS, not on where it lives — see
+[Books and modules](#books-and-modules) below.
+
 That file declares its module the same way any file would, and nothing else changes: members are
-reached through the name, and the binding ends at `Done.` A book may pull another book; a ring of
+reached through the name, and the binding ends at `Done.` A module may pull another; a ring of
 them is refused, and the message names the ring.
 
 **A file’s top level belongs to that file.** What a loaded file declares beside its module — a
@@ -3838,11 +3844,52 @@ State cast helper on (10).             ← refused: kit.cufe’s own helper
 So a book author keeps working material without marking anything private, and two books may
 each have a `helper` without colliding. There is no `private` keyword — the file is what hides.
 
+#### What a module carries
+
+**A module may hold TYPE declarations as well as members**, and that is the only way a type crosses
+a file boundary — a file's top level is private, and an object body otherwise takes only `Bind`,
+`Get` and `Set`:
+
+```cufet-fragment
+Define object shapes with () and module:
+    Define object point with (the number across, the number up):
+        Bind number to sum:
+            Return one's across + one's up.
+        Done.
+    Done.
+
+    Bind point to origin:
+        Return a new point { the across 0, the up 0 }.
+    Done.
+Done.
+```
+
+Pulling it brings the type into scope **by its short name**, for the length of the block — the same
+way `matrix` arrives with `collections`:
+
+```cufet-fragment
+Pull a shapes.
+    Define here as a new point { the across 3, the up 4 }.
+    State cast here's sum.                                   → 7
+Done.
+
+Define there as a new point { the across 1, the up 1 }.      ← refused: not in scope
+```
+
+★ **Members are what an object HAS; declarations are what a module CARRIES.** A type is not a
+member — it is not reached with `'s` and no interface can require one — so only a module may carry
+one, and an ordinary object that tries is refused with a message naming the fix.
+
+⚠ Two modules may each carry a `point` without colliding.
+
 ⚠ The files are resolved and compiled **together**, as one program. Cufet has no separate
 compilation, and multi-file is about writing a program across files rather than building them
 independently.
 
-⚠ **A bundled book is pulled as a book**, not with this form:
+#### Books and modules
+
+**A book is a module you CONSULT rather than one you have one of** — what another language would
+have made a header file. It says so with `and book`, and every book is a module:
 
 ```cufet
 Pull a book on math.
@@ -3850,9 +3897,16 @@ Pull a book on math.
 Done.
 ```
 
-`Pull math.` is refused. Pulling is one mechanism and asks the same question everywhere, but
-the surface says which KIND of thing you are pulling — a library the language ships, or an
-object you defined. The noun is also what reads: *a book on math* is English, *a math* is not.
+`Pull math.` is refused, and so is `Pull a book on ‹a module you hold one of›.` Pulling is one
+mechanism and asks the same question everywhere, but the surface says which KIND of thing you are
+pulling. The noun is what reads: *a book on math* is English, *a math* is not.
+
+★ Nothing about the bundled books is privileged here — `math` is a book because it says it is one,
+and anybody's module can say the same.
+
+⚠ `Pull books on ‹a›, and ‹b›.` applies one spelling to every name, so all of them must be books.
+A book and a module you hold one of are pulled by different words, so they nest rather than
+sharing a statement.
 
 **Pulling instantiates.** `Pull a rabbit as hopper.` makes a region rather than naming a shared
 one, and a module is the same — so a module with fields is refused, because a pull site has

@@ -8,7 +8,62 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+- **A module can carry a type, so a type can cross a file boundary.** An object body took only
+  `Bind`, `Get` and `Set`, and a loaded file shares nothing but its module — so a type declared in
+  one file could not be used in another by any route.
+
+  ```cufet-fragment
+  Define object shapes with () and module:
+      Define object point with (the number across, the number up):
+          Bind number to sum:
+              Return one's across + one's up.
+          Done.
+      Done.
+  Done.
+  ```
+  ```cufet-fragment
+  Pull a shapes.
+      Define here as a new point { the across 3, the up 4 }.   ← bare, exactly like `matrix`
+  Done.
+  ```
+
+  ★ **The surface came from the language.** `matrix` already arrived bare inside
+  `Pull a book on collections.` and was refused outside it, so a carried type reads the same way
+  and needed no new spelling. The machinery under it was already general: `RegisterScopedType`
+  and `TryLookupScopedType` had one entry, and now take any module's.
+
+  ★ **Members are what an object HAS; declarations are what a module CARRIES.** A type is not
+  reached with `'s` and no interface can require one, so only a module may carry one. Lifted to
+  the top level under a name with a space in it — the loader's unwritable-name trick — so both
+  backends see an ordinary object type and neither learns modules can hold types.
+
+- **`book` is a subtype of `module`, and either spelling reaches another file.** A book is a module
+  you consult; a module is one you have one of. Declared `and book`, and the spelling at the pull
+  must match what the thing is.
+
+  ⚠⚠ **Breaking.** A module pulled with `Pull a book on ‹name›.` must now declare `and book`, or be
+  pulled with the plain form. The bundled books already enforced this half — `Pull math.` has been
+  refused since 0.15.0 — but a writer had no way to say which kind theirs was, so the rule could
+  not generalise.
+
+  ★ **The loader stopped being gated on the book form.** One word was carrying two things: what the
+  thing IS, and whether it might live elsewhere. Splitting a module into its own file no longer
+  means calling it a book.
+
+  ⚠ `Pull books on ‹a›, and ‹b›.` applies one spelling to every name, so they must all be books.
+  Mixed kinds nest instead — and the refusal for a module's unmet dependency now spells each pull
+  by what it is, because it used to advise `Pull books on math, and ‹module›.`, which the new rule
+  refuses the moment a reader follows it.
+
 ### Fixed
+- **A private type printed its internal name.** A type declared beside a module in a loaded file
+  showed as `tally in privkit(count: 5)` — the file-privacy rename leaking into output, since
+  0.18.0.
+
+  ⚠⚠ **Both backends leaked identically, so the oracle was structurally blind to it.** Agreement
+  was never the thing that was wrong. Fixed in one shared `DisplayName` both backends call, trimmed
+  at the last `" in "` so a carried generic keeps its real name.
 - **`cufet check` said "No problems found" for a program that died on an undefined name.**
 
   ```

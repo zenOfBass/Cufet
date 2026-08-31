@@ -17,37 +17,12 @@ version, and 1.0.0 will mark the point at which the language is considered stabl
 
 ## Shipping a book, strictly in this order
 
-The `module` interface and the loader that reaches a book in another file are both shipped. What
-is left is what happens once a book is worth handing to someone else: what you hand out, and how
-it travels.
+The `module` interface, the loader that reaches a module in another file, and the types a module
+carries are all shipped — so a program can be split across files and a type can cross between
+them. What is left is what happens once a module is worth handing to someone else: what you hand
+out, and how it travels.
 
-1. **What a module can carry.** A module holds members — `Bind`, `Get`, `Set` — and nothing else.
-   Measured 2026-08-31: a loaded file shares exactly one thing, its module object. A constant or
-   a free function can bend into a member. **A type cannot**, because an object body takes only
-   methods, so there is no way to declare an object type in one file and use it in another.
-
-   ★ **First, because it decides what the item below is even about.** What a module hands out is
-   not answerable while what a module can hold is still open.
-
-   ★ The shape agreed: types become something a **module** specifically can carry. That keeps one
-   door — the thing you pull is the thing that holds the types — and gives `module` a meaning it
-   does not have today, where it is a marker interface carrying nothing. A framing worth testing
-   the surface against: *members are what an object has, declarations are what a module carries.*
-
-   ⚠ **The surface is NOT settled.** If `shapes` carries `point`, a puller writes either
-   `a new shapes’s point { }` — regular, and reads badly for a type — or a bare `a new point { }`,
-   which reads right and means pulling puts bare names in your scope. That is the namespace
-   behaviour the import/namespace merge exists to avoid, arriving from behind.
-
-   ⚠ **Hold any proposal to this:** does the rule state itself for every kind of declaration at
-   once — types, interfaces, unions, axioms — or does it need a list? A rule that only reaches
-   object types leaves the same hole in a smaller shape.
-
-   **The trigger is a program sharing a data model across files.** The shell may; the compiler in
-   Cufet certainly will, because an AST is types. `tools/terminal.cufe` did not, being a pure bag
-   of methods — the one shape that fits today, which is why nothing had shown this before.
-
-2. **What a module exports.** Every MEMBER is public API, permanently. A module author has no way
+1. **What a module exports.** Every MEMBER is public API, permanently. A module author has no way
    to say *this is my helper, do not call it* about a method.
 
    ★ **Half of it is already gone.** A loaded file’s top level is private to that file, so a
@@ -90,7 +65,7 @@ it travels.
    rather than a marker on what you keep. Whether a module with no declared interface then exports
    everything or nothing is the one real decision left.
 
-3. **A package manager for books.**
+2. **A package manager for books.**
 
 ## Cufet in Cufet
 
