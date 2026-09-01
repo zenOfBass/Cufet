@@ -56,6 +56,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   by what it is, because it used to advise `Pull books on math, and ‹module›.`, which the new rule
   refuses the moment a reader follows it.
 
+- **The line editor moved into `tools/terminal.cufe`, and the shell uses it.** Arrows, Home/End,
+  Ctrl-U and a history of what was typed were written for the REPL and lived inside it; they are
+  methods on the `terminal` book now, and `tools/shell.cufe` pulls the same ones. The shell also
+  has a prompt, printed only when `interactive` says a person is actually typing.
+
+  ★ **This is what the book was FOR**, in its own header: "a separate file because the shell needs
+  the same things — a prompt that leaves the cursor where it is, and later raw mode, keys and
+  history. Written once here, pulled there." The shell contains no editing code.
+
+  ⚠ **Raw mode is released around every launch and on the way out.** It is a property of the
+  TERMINAL, not of this process, so a child launched while it is on inherits no echo, no line
+  editing and no Ctrl-C — `cat` would take keys one at a time in silence and could not be
+  interrupted. Handing the terminal to a child means handing it over as found.
+
 - **`run` takes its arguments as a series, so a program can build a command line it could not
   know in advance.** `with arguments` still accepts a written-out list; it now also accepts one
   expression of type `series of text`.
@@ -116,6 +130,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   output. Windows structurally cannot see this — it was caught compiling under WSL gcc.
 
 ### Fixed
+- **A flaky interpreter test, diagnosed rather than retried.** `BookLoadingTests` reported a
+  loaded book’s error as `line 100003` — the raw virtual line — instead of `line 3`, on some runs
+  of the full suite and never in isolation.
+
+  ★★ **Not a product bug, and not parallelism in general.** `SourceMap.Current` is a mutable
+  static, which is right for the CLI: one program is checked per process. Tests are not one
+  program per process, and xUnit runs test CLASSES in parallel — so a second class assigning it
+  while the first composed a message left that message unresolved. Both classes now share one
+  xUnit collection.
+
+  ★ **It was not a race until there were two writers.** `BookLoadingTests` had the static to
+  itself until `ModuleCarriedTypeTests` landed the day before, which dates the flake exactly.
+  Measured: 3 of 6 runs red with the classes free to overlap, 5 of 5 green once serialised.
+
 - **`cufet emit-c <file.cufe>` crashed instead of emitting.** The output name is optional, and the
   check for extra arguments sliced past a third argument that a two-argument command does not
   have — so the documented spelling threw an `ArgumentOutOfRangeException` before reaching the
