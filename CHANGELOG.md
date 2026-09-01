@@ -56,6 +56,19 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   by what it is, because it used to advise `Pull books on math, and ‹module›.`, which the new rule
   refuses the moment a reader follows it.
 
+- **`tools/shell.cufe` expands patterns.** `*` for any run of characters, `?` for exactly one, in
+  any argument. Written in Cufet, in the shell — no language change: `the contents of the
+  directory` was already there, and `run` learned to take a series of arguments this morning,
+  which is what a pattern needs when nobody knows yet how many names it stands for.
+
+  ★ **A word that matches nothing stands as itself**, which looks like giving up and is what every
+  shell does: a pattern meant for the program rather than for the shell has to survive the trip,
+  and a typo is better reported by whatever was asked for the file.
+
+  ⚠ A leading dot matches only when it was asked for — the one place the pattern language
+  deliberately does not mean what it says. Results are sorted, because the listing promises no
+  order and a command line that shuffles between runs is its own kind of bug.
+
 - **The line editor moved into `tools/terminal.cufe`, and the shell uses it.** Arrows, Home/End,
   Ctrl-U and a history of what was typed were written for the REPL and lived inside it; they are
   methods on the `terminal` book now, and `tools/shell.cufe` pulls the same ones. The shell also
