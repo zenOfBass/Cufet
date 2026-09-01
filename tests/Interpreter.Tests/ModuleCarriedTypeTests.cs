@@ -145,6 +145,64 @@ public class ModuleCarriedTypeTests : IDisposable
     }
 
     [Fact]
+    public void TheLiftedNameNeverShowsInAnErrorEither()
+    {
+        // ⚠ The leak had TWO halves and the first fix caught one. Printed values went through
+        // `DisplayName`; type names in DIAGNOSTICS did not, so a refusal said
+        // `(red in kinds or green in kinds)` — the internal name, in the place a reader is most
+        // likely to meet it. `'s` on a union is refused (it needs `Judge` to narrow), which is what
+        // makes this a cheap way to ask a message what it calls a carried type.
+        var ex = Refused("""
+            Define object kinds with () and module:
+                Define object red with ():
+                    Bind text to name: Return "red". Done.
+                Done.
+                Define object green with ():
+                    Bind text to name: Return "green". Done.
+                Done.
+                Bind text to describe, given ((red or green) which):
+                    Return cast which's name.
+                Done.
+            Done.
+
+            Pull a kinds.
+                State cast kinds's describe on (a new red { }).
+            Done.
+            """);
+        Assert.Contains("(red or green)", ex.Message);
+        Assert.DoesNotContain(" in kinds", ex.Message);
+    }
+
+    [Fact]
+    public void AUnionOfCarriedTypesNarrowsWithJudge()
+    {
+        // ★ Unions come FREE. A union is built from object types, and those are carried — so the
+        // rule reaches further than it was built for. Interfaces and axioms do NOT: a module body
+        // takes `Define object` and nothing else, so "which declarations can a module carry" is
+        // answered "object types, and whatever composes from them."
+        Assert.Equal("it is red", Run("""
+            Define object kinds with () and module:
+                Define object red with ():
+                    Bind text to name: Return "red". Done.
+                Done.
+                Define object green with ():
+                    Bind text to name: Return "green". Done.
+                Done.
+                Bind text to describe, given ((red or green) which):
+                    Judge which, where it is:
+                        A red, return "it is red".
+                        A green, return "it is green".
+                    Done.
+                Done.
+            Done.
+
+            Pull a kinds.
+                State cast kinds's describe on (a new red { }).
+            Done.
+            """));
+    }
+
+    [Fact]
     public void TwoModulesMayEachCarryTheSameName()
     {
         // Falls out of the lift rather than being arranged: the module's own name is in the lifted

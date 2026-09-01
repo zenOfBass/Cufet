@@ -810,7 +810,7 @@ public sealed partial class TypeChecker
     /// is a shape that cannot appear in one.</summary>
     private static string? OperandTypeName(CufetType? t) => t switch
     {
-        ObjectType ot => ot.Name,
+        ObjectType ot => ModuleTypeLifting.DisplayName(ot.Name),
         NumberType    => "number",
         TextType      => "text",
         FactType      => "fact",
@@ -3534,7 +3534,7 @@ public sealed partial class TypeChecker
         AxiomType at                         => FormatAxiomType(at),
         FunctionType ft                      => FormatFunctionType(ft),
         RecordType rt                        => FormatRecordType(rt),
-        ObjectType ot                        => ot.Name,
+        ObjectType ot                        => ModuleTypeLifting.DisplayName(ot.Name),
         InterfaceType it                     => it.Name,
         ReadableStreamType { ElementType: var elem } => $"readable stream of {FormatTypePlural(elem)}",
         WritableStreamType { ElementType: var elem } => $"writable stream of {FormatTypePlural(elem)}",
@@ -3600,7 +3600,7 @@ public sealed partial class TypeChecker
         StashType { ElementType: var held }  => $"stashes of {FormatTypePlural(held)}",
         FunctionType                         => "functions",
         RecordType rt                        => FormatRecordType(rt),
-        ObjectType ot                        => $"{ot.Name} objects",
+        ObjectType ot                        => $"{ModuleTypeLifting.DisplayName(ot.Name)} objects",
         InterfaceType it                     => $"{it.Name} values",
         ReadableStreamType { ElementType: var elem } => $"readable streams of {FormatTypePlural(elem)}",
         WritableStreamType { ElementType: var elem } => $"writable streams of {FormatTypePlural(elem)}",

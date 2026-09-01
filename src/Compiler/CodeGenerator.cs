@@ -551,7 +551,7 @@ public sealed class CodeGenerator
     // a divergence by construction.
     private static string? OperandName(CufetType? t) => t switch
     {
-        ObjectType ot => ot.Name,
+        ObjectType ot => ModuleTypeLifting.DisplayName(ot.Name),
         NumberType    => "number",
         TextType      => "text",
         FactType      => "fact",
@@ -4287,7 +4287,7 @@ static void* cufet_pipe_stage(void* argp) {
         NumberType => "number", TextType => "text", FactType => "fact", BitsType => "bits",
         SeriesType => "series", MapType => "map", RecordType => "record", MatrixType => "matrix",
         StashType s     => $"stash of {FormatTypeName(s.ElementType)}",
-        ObjectType o    => o.Name,
+        ObjectType o    => ModuleTypeLifting.DisplayName(o.Name),
         VoidType        => "void",
         VoidableType v  => $"voidable {FormatTypeName(v.Inner)}",
         FailureType f   => $"{FormatTypeName(f.Inner)} or failure",
