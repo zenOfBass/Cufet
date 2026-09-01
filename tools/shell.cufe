@@ -112,6 +112,16 @@ Pull a terminal.
                             State "cufetsh: {the message of the failure}".
                         Done.
 
+                        /*  ⚠⚠ Ctrl-C during a child is the CHILD’s, not the shell’s. The terminal signals every
+                            process attached to it, so the interrupt arrives here as well — and a shell that let
+                            that end it would exit every time you stopped a `ping`. Noticing and acknowledging it
+                            is what says "that was not for me".
+                        
+                            ★ Mentioning interrupts anywhere is what puts a program in charge of its own; a
+                            program that never mentions them is stopped by Ctrl-C, which is right for a script
+                            and wrong for a shell. So this poll is not decoration — it is the whole difference. */
+                        If an interrupt is requested, acknowledge the interrupt.
+
                         /* Taken back for the next line. A child that changed the terminal and did not change
                            it back is why this asks again rather than assuming. */
                         If editing, editing becomes cast terminal's raw-on.
