@@ -3331,7 +3331,7 @@ Failure categories, and the message each produces:
 - **It affects relative paths** for everything afterwards — file reads and writes, directory
   listings, and subprocesses launched with `run`, which inherit it.
 - **A failure is recoverable.** A bad path costs you a handled failure, not the program, which is
-  what lets [`examples/systems/shell.cufe`](../examples/systems/shell.cufe) implement `cd` without a typo ending the
+  what lets [`tools/shell.cufe`](../tools/shell.cufe) implement `cd` without a typo ending the
   session.
 - **Not allowed inside a task.** A process has exactly one working directory, so changing it from
   a task would race every other task resolving a relative path. The compiler refuses with an

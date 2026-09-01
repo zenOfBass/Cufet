@@ -293,10 +293,14 @@ examples/                             — runnable programs, by category
   structures/                         — trees, objects, unions
   parsing/                            — json, a recursive-descent parser, config files
   concurrency/                        — tasks and channels
-  systems/                            — `shell.cufe` is a working command shell in ~60 lines
+  systems/                            — reaching the OS: C axioms, permissions, subprocess pipes
   language/                           — programs that showcase one feature
   assets/                             — data files the programs read (paths are repo-root-relative)
   expected/                           — pinned outputs, flat and keyed on the program's file name
+tools/                                — programs written IN Cufet, and the scripts that maintain the repo
+  repl.cufe                           — a read-eval-print loop; hands each line to `cufet`
+  terminal.cufe                       — the terminal book: raw mode, keys, a line editor
+  shell.cufe                          — a working command shell in ~60 lines
 docs/                                 — REFERENCE, BOOKS, GRAMMAR, DESIGN, ROADMAP
 ```
 

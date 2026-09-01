@@ -73,7 +73,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
 
 ★ **The REPL is written, and it worked as the instrument.** `tools/repl.cufe` and the `tools/terminal.cufe` book it pulls found four things nothing else had: the oracle could not type-check a multi-file program at all, `cufet check` passed programs that died on an undefined name, a module could carry no types, and a released version can be correct in all nine source places while the installed tool is two releases behind.
 
-1. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
+1. **A shell, written in Cufet.** `tools/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
 
     ★ **Half of what it needed is now written.** `tools/terminal.cufe` is a book: raw mode, a key
