@@ -97,14 +97,22 @@ public sealed partial class Interpreter
 
                 while (!proc.WaitForExit(50))
                 {
-                    if (_interruptRequested)
+                    // ★ A program in charge of its own interrupts is not in charge of the CHILD’s. The terminal
+                    // delivered the signal to it too, and what it does about that is its own business — a shell
+                    // waits for it to go and prints a fresh prompt, which is what bash does. Killing it here
+                    // would override the child’s own answer.
+                    if (_interruptRequested && !_programHandlesInterrupts)
                     {
                         proc.Kill(entireProcessTree: true);
                         break;
                     }
                 }
                 Task.WaitAll(stdoutTask, stderrTask);
-                if (_interruptRequested) throw new InterruptUnwind();
+                // ⚠⚠ The rule the statement checkpoint in Interpreter.Core.cs states, which this path used
+                // to skip: unwinding unconditionally tore a program down before it could poll, so
+                // `If an interrupt is requested:` could never survive a launch. Ignore interrupts and Ctrl-C
+                // behaves as it does everywhere else; handle them and you are in charge of them here too.
+                if (_interruptRequested && !_programHandlesInterrupts) throw new InterruptUnwind();
 
                 var stderrOutput = stderrTask.Result;
                 if (stderrOutput.Length > 0)
@@ -174,14 +182,22 @@ public sealed partial class Interpreter
 
                 while (!proc.WaitForExit(50))
                 {
-                    if (_interruptRequested)
+                    // ★ A program in charge of its own interrupts is not in charge of the CHILD’s. The terminal
+                    // delivered the signal to it too, and what it does about that is its own business — a shell
+                    // waits for it to go and prints a fresh prompt, which is what bash does. Killing it here
+                    // would override the child’s own answer.
+                    if (_interruptRequested && !_programHandlesInterrupts)
                     {
                         proc.Kill(entireProcessTree: true);
                         break;
                     }
                 }
                 Task.WaitAll(stdoutTask, stderrTask);
-                if (_interruptRequested) throw new InterruptUnwind();
+                // ⚠⚠ The rule the statement checkpoint in Interpreter.Core.cs states, which this path used
+                // to skip: unwinding unconditionally tore a program down before it could poll, so
+                // `If an interrupt is requested:` could never survive a launch. Ignore interrupts and Ctrl-C
+                // behaves as it does everywhere else; handle them and you are in charge of them here too.
+                if (_interruptRequested && !_programHandlesInterrupts) throw new InterruptUnwind();
 
                 var stderrChunk = stderrTask.Result;
                 if (stderrChunk.Length > 0)

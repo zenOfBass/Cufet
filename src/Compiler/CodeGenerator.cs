@@ -1778,6 +1778,14 @@ static CufetFailure cufet_launch_failure(const char* program, int e) {
    (the process ran — a nonzero exit is still success), 0 on a launch failure (*err set). The
    child is always reaped (waitpid) and all fds closed before returning, so no zombies / leaked
    fds outlive the call — process cleanup is atomic within the primitive, not a later concern. */
+/* ⚠⚠ Reap a child across an INTERRUPT. The SIGINT handler is installed with no SA_RESTART, so a
+   Ctrl-C makes waitpid return -1/EINTR — and the old code ignored the return value entirely,
+   reporting the launch as finished while the child was very possibly still alive. Retrying is
+   also what makes a shell work: the terminal signalled the child too, so the next wait reaps it
+   and the parent carries on to its own interrupt checkpoint instead of being torn down there. */
+static void cufet_wait_for(pid_t pid, int* st) {
+    while (waitpid(pid, st, 0) < 0 && errno == EINTR) { }
+}
 /* `run <program>.` as a STATEMENT — the child INHERITS this process’s stdio.
 
    ★★ The whole difference from cufet_run_capture is the pipes that are not here. No dup2, so the
@@ -1809,11 +1817,11 @@ static int cufet_run_inherit(const char* program, char* const argv[], CufetFailu
     ssize_t xn = read(xp[0], &child_errno, sizeof(child_errno));
     close(xp[0]);
     if (xn > 0) {   /* exec failed in the child → launch failure */
-        int st; waitpid(pid, &st, 0);
+        int st; cufet_wait_for(pid, &st);
         *err = cufet_launch_failure(program, child_errno);
         return 0;
     }
-    int st; waitpid(pid, &st, 0);
+    int st; cufet_wait_for(pid, &st);
     return 1;
 }
 
@@ -1844,7 +1852,7 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
     ssize_t xn = read(xp[0], &child_errno, sizeof(child_errno));
     close(xp[0]);
     if (xn > 0) {   /* exec failed in the child → launch failure */
-        int st; waitpid(pid, &st, 0);
+        int st; cufet_wait_for(pid, &st);
         close(outp[0]); close(errp[0]);
         *err = cufet_launch_failure(program, child_errno);
         return 0;
@@ -1868,7 +1876,7 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
             }
         }
     }
-    int st; waitpid(pid, &st, 0);
+    int st; cufet_wait_for(pid, &st);
     *out_exit = WIFEXITED(st) ? WEXITSTATUS(st) : (WIFSIGNALED(st) ? 128 + WTERMSIG(st) : -1);
     char* os = (char*)cufet_arena_alloc(ol + 1); memcpy(os, ob, ol); os[ol] = '\0';
     char* es = (char*)cufet_arena_alloc(el + 1); memcpy(es, eb, el); es[el] = '\0';

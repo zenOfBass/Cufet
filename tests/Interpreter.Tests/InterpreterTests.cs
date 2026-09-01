@@ -8746,6 +8746,46 @@ public class InterpreterTests
     // task, a subprocess, or an explicit poll. A loop that printed and did arithmetic reached none
     // of them, so the program could not be stopped from its own terminal at all.
 
+    // ── A launch, when the program is in charge of its own interrupts ─────────
+    //
+    // ★★ The `run` family used to unwind on the flag UNCONDITIONALLY, skipping the rule the
+    // statement checkpoint states — so a program that polls interrupts was torn down the moment it
+    // launched anything, and `If an interrupt is requested:` could never survive a launch. A shell
+    // is the program that needs this: Ctrl-C during a child is the CHILD’s, and a shell that took
+    // it as its own would exit every time you stopped a `ping`.
+
+    [Fact]
+    public void Signal_ProgramThatHandlesInterrupts_SurvivesALaunch()
+    {
+        // The flag is already set when the launch happens, exactly as it is when the terminal
+        // signals both this program and its child. Reaching the line after the launch is the
+        // assertion — before the fix, nothing after it ran at all.
+        Assert.Equal("still here", RunInterrupted(
+            "Try to:" + "\n" +
+            $"    Run \"{Shell}\" with arguments (\"{ShellFlag}\", \"{ExitWith(0)}\").\n" +
+            "Done." + "\n" +
+            "In case of failure:" + "\n" +
+            "    State \"could not launch\"." + "\n" +
+            "Done." + "\n" +
+            "If an interrupt is requested, acknowledge the interrupt." + "\n" +
+            "State \"still here\"."));
+    }
+
+    [Fact]
+    public void Signal_ProgramThatIgnoresInterrupts_IsStillUnwoundByALaunch()
+    {
+        // ⚠ The other half of the same rule, and the half that must not change: a program that
+        // never mentions interrupts is stopped by one, launch or no launch.
+        Assert.Equal("", RunInterrupted(
+            "Try to:" + "\n" +
+            $"    Run \"{Shell}\" with arguments (\"{ShellFlag}\", \"{ExitWith(0)}\").\n" +
+            "Done." + "\n" +
+            "In case of failure:" + "\n" +
+            "    State \"could not launch\"." + "\n" +
+            "Done." + "\n" +
+            "State \"never reached\"."));
+    }
+
     [Fact]
     public void Signal_ProgramThatIgnoresInterrupts_IsUnwoundAtTheNextStatement()
     {
