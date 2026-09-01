@@ -31,6 +31,135 @@
     POSIX, so a compiled shell needs Linux, macOS, or WSL. */
 
 
+/*  Does a name fit a pattern? `*` stands for any run of characters including none, `?` for
+    exactly one.
+
+    ★ Recursive rather than a loop, because `*` is the only hard case and recursion states it
+    exactly: either the star matches nothing and the rest of the pattern must fit here, or it
+    swallows one more character and the same question is asked again. A loop over this needs a
+    backtracking index that says the same thing less clearly. */
+Bind fact to matches, given (the text pattern, the text name):
+    If the length of pattern is 0, return the length of name is 0.
+
+    Define head as the characters from 1 to 1 of pattern.
+    Define rest-pattern as the characters from 2 to the end of pattern.
+
+    If head is "*":
+        If cast matches on (rest-pattern, name), return true.
+        If the length of name is 0, return false.
+        Define shorter as the characters from 2 to the end of name.
+        Return cast matches on (pattern, shorter).
+    Done.
+
+    If the length of name is 0, return false.
+    Define first as the characters from 1 to 1 of name.
+    Define rest-name as the characters from 2 to the end of name.
+
+    If head is "?", return cast matches on (rest-pattern, rest-name).
+    If head is first, return cast matches on (rest-pattern, rest-name).
+    Return false.
+Done.
+
+/* Where the last path separator sits, or 0 for a bare name. Both separators count, so a pattern
+   typed the Windows way finds its directory too. */
+Bind number to last-separator, given (the text word):
+    Define found as 0.
+    Define at as 1.
+    Define past as (the length of word) + 1.
+    While at is less than past, repeat:
+        Define here as the characters from at to at of word.
+        If here is "/", found becomes at.
+        If here is "\\", found becomes at.
+        Increment at by 1.
+    Done.
+    Return found.
+Done.
+
+/* Whether a word is a pattern at all. A word with no `*` and no `?` is never looked up. */
+Bind fact to wild, given (the text word):
+    Define at as 1.
+    Define past as (the length of word) + 1.
+    While at is less than past, repeat:
+        Define here as the characters from at to at of word.
+        If here is "*", return true.
+        If here is "?", return true.
+        Increment at by 1.
+    Done.
+    Return false.
+Done.
+
+/*  ⚠ A listing hands back JOINED paths — `tools/shell.cufe`, not `shell.cufe` — so the name has to
+    be cut back out of one before it can be matched against a pattern. */
+Bind text to base-name, given (the text whole):
+    Define cut as cast last-separator on (whole).
+    If cut is 0, return whole.
+    Define from-here as cut + 1.
+    Return the characters from from-here to the end of whole.
+Done.
+
+/*  One word, expanded into the names it stands for.
+
+    ★★ A word that matches NOTHING stands as itself. That looks like giving up and is the rule every
+    shell follows: a pattern meant for the program rather than for the shell has to survive the trip,
+    and a typo is better reported by whatever was asked for the file than guessed at here.
+
+    ★ The directory part is kept exactly as it was typed and put back in front of each match, so
+    a pattern with a directory written in front of it answers names carrying that same directory,
+    while a bare `*.cufe` answers `shell.cufe`. Reading the
+    current directory to answer the bare case would spell every name `./shell.cufe` — the same file,
+    and not what anyone typed.
+
+    ⚠ A leading dot is matched only when it was asked for. `*` skipping hidden names is not an
+    accident of the matcher; it is the one place the pattern language deliberately does not mean
+    what it says, and every shell agrees to it. */
+Bind series of text to expanded, given (the text word):
+    Define answer as a series of text.
+
+    If cast wild on (word) is false:
+        Insert word into answer.
+        Return answer.
+    Done.
+
+    Define cut as cast last-separator on (word).
+    Define here as ".".
+    Define carrying as "".
+    Define pattern as word.
+    If cut is greater than 0:
+        Define up-to as cut - 1.
+        The here becomes the characters from 1 to up-to of word.
+        /* A leading separator: the directory IS the separator, and cutting it away would look here
+           instead of at the root. */
+        If the length of here is 0, here becomes the characters from cut to cut of word.
+        The carrying becomes the characters from 1 to cut of word.
+        Define from-here as cut + 1.
+        The pattern becomes the characters from from-here to the end of word.
+    Done.
+
+    Try to:
+        Define listed as the contents of the directory here.
+        /* Sorted, so one pattern gives one order twice over. The listing does not promise an order,
+           and a command line that shuffles between runs is its own kind of bug. */
+        Define ordered as listed sorted.
+        For each whole in ordered, repeat:
+            Define name as cast base-name on (whole).
+            Define hidden as (the characters from 1 to 1 of name) is ".".
+            Define asked as (the characters from 1 to 1 of pattern) is ".".
+            If hidden is false or asked:
+                If cast matches on (pattern, name), insert "{carrying}{name}" into answer.
+            Done.
+        Done.
+    Done.
+    In case of failure:
+        /* A missing or unreadable directory expands to nothing, and says nothing: the word then
+           stands, and whatever was asked for it reports what is actually wrong. */
+        Define unreadable as true.
+    Done.
+
+    If the number of answer is 0, insert word into answer.
+    Return answer.
+Done.
+
+
 Pull a terminal.
     /* Prompts are for somebody typing. Piped or redirected, they would land in the output. */
     Define asking as cast terminal's interactive.
@@ -91,7 +220,12 @@ Pull a terminal.
                         Define argv as a series of text.
                         Define seen as 0.
                         For each word in parts, repeat:
-                            If seen is greater than 0, insert word into argv.
+                            If seen is greater than 0:
+                                Define standing-for as cast expanded on (word).
+                                For each one-name in standing-for, repeat:
+                                    Insert one-name into argv.
+                                Done.
+                            Done.
                             Increment seen by 1.
                         Done.
 
