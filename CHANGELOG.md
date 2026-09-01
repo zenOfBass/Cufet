@@ -130,6 +130,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   output. Windows structurally cannot see this — it was caught compiling under WSL gcc.
 
 ### Fixed
+- **Ctrl-C during a launched program tore down a shell that was handling it.** The `run` family
+  unwound on the interrupt flag unconditionally, skipping the rule the statement checkpoint
+  states: *handle interrupts and you are in charge of them; ignore them and Ctrl-C behaves the way
+  it does everywhere else.* So a program that polls `an interrupt is requested` was torn down the
+  moment it launched anything, and the documented `If an interrupt is requested:` pattern could
+  never survive a launch.
+
+  ⚠⚠ It showed up as `tools/shell.cufe` EXITING when Ctrl-C stopped a child — the terminal signals
+  every process attached to it, so the interrupt arrives at the shell too. A shell that takes that
+  as its own quits every time you stop a `ping`.
+
+  ★ **Nothing was decided here that the language had not already decided.** A program that never
+  mentions interrupts is stopped by one, launch or no launch — unchanged, and right for a script.
+  Five sites in `Interpreter.Failures.cs` and `Interpreter.Pipes.cs` now ask the same question the
+  checkpoint asks. The child is no longer killed on the parent’s behalf either: the terminal
+  already signalled it, and what it does about that is its own answer.
+
+  ⚠ **Compiled, the wait was worse.** The SIGINT handler is installed without `SA_RESTART`, so an
+  interrupt makes `waitpid` return `EINTR` — and the return value was ignored, reporting the launch
+  as finished while the child was very possibly still running. `cufet_wait_for` retries.
+
 - **A flaky interpreter test, diagnosed rather than retried.** `BookLoadingTests` reported a
   loaded book’s error as `line 100003` — the raw virtual line — instead of `line 3`, on some runs
   of the full suite and never in isolation.
