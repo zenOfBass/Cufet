@@ -45,3 +45,11 @@ publish/
 
 # Shell probe scripts
 *.sh
+
+# Compiled Cufet programs — `cufet build <file>.cufe` writes an extensionless binary next to its
+# source, so it lands in the tree beside the file it was built from. One per buildable file here,
+# named explicitly rather than by pattern: git has no way to say "extensionless", and a broad rule
+# would swallow a future directory of the same name.
+/tools/shell
+/tools/repl
+/tools/terminal
