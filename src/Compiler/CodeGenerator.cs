@@ -1778,6 +1778,45 @@ static CufetFailure cufet_launch_failure(const char* program, int e) {
    (the process ran — a nonzero exit is still success), 0 on a launch failure (*err set). The
    child is always reaped (waitpid) and all fds closed before returning, so no zombies / leaked
    fds outlive the call — process cleanup is atomic within the primitive, not a later concern. */
+/* `run <program>.` as a STATEMENT — the child INHERITS this process’s stdio.
+
+   ★★ The whole difference from cufet_run_capture is the pipes that are not here. No dup2, so the
+   child keeps fds 0/1/2: its output streams live rather than arriving all at once when it exits,
+   and a program that asks stdout "what terminal are you?" gets a real answer. Capturing and then
+   discarding could never have produced either — by then the child has already been handed a pipe.
+
+   ⚠ The exec-status pipe stays. It is the only way to tell "the program does not exist" from "the
+   program ran and failed", and a launch failure is a Cufet failure while a nonzero exit is not. */
+static int cufet_run_inherit(const char* program, char* const argv[], CufetFailure* err) {
+    /* ⚠⚠ FLUSHED BEFORE THE FORK, and this is not tidiness. The child writes straight to fd 1 while
+       anything this program has printed may still be sitting in stdio’s buffer — so without it the
+       child’s output OVERTAKES text that was printed first. Measured: `State "before".` then a
+       launch printed the child’s line above "before". Only visible when stdout is not a terminal,
+       which is exactly how the test harness runs it. */
+    fflush(NULL);
+    int xp[2];
+    if (pipe(xp) < 0) { *err = cufet_launch_failure(program, EIO); return 0; }
+    fcntl(xp[1], F_SETFD, FD_CLOEXEC);   /* exec closes it → parent reads EOF = exec ok */
+    pid_t pid = fork();
+    if (pid < 0) { close(xp[0]); close(xp[1]); *err = cufet_launch_failure(program, EIO); return 0; }
+    if (pid == 0) {
+        close(xp[0]);
+        execvp(program, argv);
+        int e = errno; ssize_t w = write(xp[1], &e, sizeof(e)); (void)w; _exit(127);
+    }
+    close(xp[1]);
+    int child_errno = 0;
+    ssize_t xn = read(xp[0], &child_errno, sizeof(child_errno));
+    close(xp[0]);
+    if (xn > 0) {   /* exec failed in the child → launch failure */
+        int st; waitpid(pid, &st, 0);
+        *err = cufet_launch_failure(program, child_errno);
+        return 0;
+    }
+    int st; waitpid(pid, &st, 0);
+    return 1;
+}
+
 static int cufet_run_capture(const char* program, char* const argv[], const char* stdin_data,
                              const char** out_stdout, const char** out_stderr, int* out_exit,
                              CufetFailure* err) {
@@ -5060,6 +5099,30 @@ static void* cufet_pipe_stage(void* argp) {
                 else
                     sb.AppendLine($"{indent}if ({raw}.is_failure) {{ fprintf(stderr, \"%s\\n\", {raw}.message); exit(1); }}");
                 sb.AppendLine($"{indent}fputs({raw}.val.{fErr}, stderr); fputs({raw}.val.{fOut}, stdout);");
+                break;
+            }
+
+            case RunStatement runStmt:
+            {
+                // ★ Launched for its effect: the child inherits stdio, so nothing is captured and
+                // there is no record to build. Only the launch can fail — a nonzero exit is an
+                // ordinary outcome the statement form simply does not report.
+                _usesProcess = true;
+                int rid = _freshId++;
+                string prog = $"cf_rp{rid}";
+                _preEmits.Add($"const char* {prog} = {EmitExpr(runStmt.Program)};");
+                var argv = new List<string> { $"(char*){prog}" };
+                foreach (var arg in runStmt.Args) argv.Add($"(char*){EmitExpr(arg)}");
+                argv.Add("(char*)0");
+                _preEmits.Add($"char* cf_ra{rid}[] = {{ {string.Join(", ", argv)} }};");
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}{{ CufetFailure cf_re{rid};");
+                sb.AppendLine($"{indent}  if (!cufet_run_inherit({prog}, cf_ra{rid}, &cf_re{rid})) {{");
+                if (_currentTryHandler is { } rh)
+                    sb.AppendLine($"{indent}    {FailureGotoBody(rh, $"cf_re{rid}.message", $"cf_re{rid}.category")}");
+                else
+                    sb.AppendLine($"{indent}    fprintf(stderr, \"%s\n\", cf_re{rid}.message); exit(1);");
+                sb.AppendLine($"{indent}  }} }}");
                 break;
             }
 

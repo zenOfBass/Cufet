@@ -289,6 +289,54 @@ public sealed partial class Interpreter
         }
     }
 
+    /// <summary>
+    /// `run &lt;program&gt;.` — launch it, let it have the terminal, wait, keep nothing.
+    /// </summary>
+    /// <remarks>
+    /// ★★ The whole difference from the expression form is the three lines NOT here: no
+    /// <c>RedirectStandardOutput</c>, no <c>RedirectStandardError</c>, no reader tasks. The child
+    /// inherits this process’s console, so its output streams as it happens and a program that draws
+    /// — vim, less, top — has a real terminal to ask about. Capturing and discarding would have done
+    /// neither: by the time there is text to discard, the child has already been handed a pipe.
+    /// </remarks>
+    private void ExecuteRunStatement(RunStatement run)
+    {
+        var program = (string)Evaluate(run.Program);
+        var args    = run.Args.Select(a => (string)Evaluate(a)).ToArray();
+        try
+        {
+            // ⚠ Same hazard as the compiled path: the child writes to the same descriptor this
+            // program writes through, so anything still buffered here would arrive after the
+            // child’s output rather than before it.
+            _out.Flush();
+
+            var psi = new ProcessStartInfo(program) { UseShellExecute = false };
+            // Each argument added individually — no shell, no injection possible.
+            foreach (var arg in args)
+                psi.ArgumentList.Add(arg);
+
+            using var proc = Process.Start(psi)
+                ?? throw new InvalidOperationException($"Process.Start returned null for '{program}'");
+
+            // ⚠ Polled rather than blocked, for the same reason the expression form polls: a blocked
+            // wait cannot notice Ctrl-C, and the child must be taken down with the program.
+            while (!proc.WaitForExit(50))
+            {
+                if (_interruptRequested)
+                {
+                    proc.Kill(entireProcessTree: true);
+                    break;
+                }
+            }
+            if (_interruptRequested) throw new InterruptUnwind();
+        }
+        catch (Exception ex) when (ex is Win32Exception or FileNotFoundException
+                                    or DirectoryNotFoundException or UnauthorizedAccessException)
+        {
+            throw LaunchFailure(program, ex);
+        }
+    }
+
     // Maps .NET process-launch exceptions to Cufet failure values at the launch boundary.
     // Host launch-exceptions must not propagate into Cufet — a missing program is recoverable.
     private static FailureUnwind LaunchFailure(string program, Exception ex)

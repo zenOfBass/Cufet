@@ -1524,8 +1524,23 @@ public sealed class Parser
         int line = lineTok.Line;
         int col = lineTok.Column;
         IExpression left = ParsePipeOperand();
+
+        // ★ No `|` following means this is a LAUNCH, not a pipe: `run "vim".` runs it for its
+        // effect and keeps no answer, exactly as `Cast f on (x).` does beside its expression form.
+        // The two are told apart by lookahead alone, so neither has to be spelled differently.
+        //
+        // This position used to be a parse error, and the message sent readers to "a Try block or
+        // expression context" — which only ever offered the CAPTURING form back. It is still
+        // fallible and still must be handled; the checker enforces that, not the parser.
         if (Peek().Type != TokenType.Pipe)
-            throw new ParseException(Peek(), "'|' — 'run' at statement level must be piped ('run X | run Y.'); use a Try block or expression context for standalone process execution");
+        {
+            if (left is not RunExpression solo)
+                throw new ParseException(Peek(),
+                    "'|' — a pipe stage that is not a `run` must be piped to something");
+            SkipNoise();
+            Consume(TokenType.Dot);
+            return new RunStatement(solo.Program, solo.Args, solo.Line, solo.Column);
+        }
         while (Peek().Type == TokenType.Pipe)
         {
             var pipeLineTok = Advance(); // consume '|'

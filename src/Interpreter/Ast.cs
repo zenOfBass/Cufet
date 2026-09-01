@@ -930,6 +930,23 @@ public sealed record WriteToStreamStatement(IExpression Value, IExpression Strea
 // Args is empty when no 'with arguments' clause is present.
 public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpression> Args, int Line, int Column) : IExpression;
 
+// `run <program> [with arguments (…)].` as a STATEMENT — launch it and let it have the terminal.
+//
+// ★ The same distinction Cufet draws everywhere else: a statement runs something for its EFFECT and
+// keeps no answer, an expression runs it for its VALUE. `Cast f on (x).` beside
+// `Define y as cast f on (x).` is the pair this copies, so nothing new had to be invented — the
+// position was simply a parse error before.
+//
+// ★★ The difference is not what happens to the text, it is who gets the TERMINAL. The expression
+// form hands the child a pipe, which is why nothing appears until it exits and why anything that
+// draws — vim, less, top — cannot start. This form redirects nothing, so output streams live and an
+// interactive program works. Discarding the captured text would not have bought either.
+//
+// ⚠ Still fallible, and still must be handled: launching can fail whether or not anyone wanted the
+// result. It gives back nothing, so there is no exit status here — a future `$?` is its own
+// decision rather than something guessed at now.
+public sealed record RunStatement(IExpression Program, IReadOnlyList<IExpression> Args, int Line, int Column) : IStatement;
+
 // Pull a rabbit [as <name>]. ... Done.
 // Opens a Done.-delimited arena scope. Reference-typed values created in the scope live in
 // the rabbit's region; freed at Done. (ExitScope fires destructors.) Name is optional —

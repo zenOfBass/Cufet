@@ -303,6 +303,46 @@ public sealed partial class TypeChecker
         return new FailureType(RunResultType);
     }
 
+    /// <summary>
+    /// `run &lt;program&gt;.` as a statement — launched for its effect, nothing kept.
+    /// </summary>
+    /// <remarks>
+    /// ★ The same rules as the expression form, minus the result: the program and each argument
+    /// must be text, and the launch can fail so it must be handled. Sharing the checks rather than
+    /// restating them is the point — the two forms differ in what they GIVE BACK and in who gets the
+    /// terminal, not in what they will accept.
+    /// </remarks>
+    private void CheckRunStatement(RunStatement run)
+    {
+        var programType = InferType(run.Program);
+        if (programType != null && programType != CufetType.Text)
+            throw TypeError(
+                "the program to run must be text",
+                null, run.Line, run.Column,
+                $"use a {FormatType(programType)} as the program name",
+                "Write the program name as a text literal like \"vim\", or use a text variable.");
+
+        foreach (var arg in run.Args)
+        {
+            var argType = InferType(arg);
+            if (argType != null && argType != CufetType.Text)
+                throw TypeError(
+                    "each argument must be text",
+                    null, run.Line, run.Column,
+                    $"use a {FormatType(argType)} as a program argument",
+                    "Arguments are passed directly to the program — each must be a text value.");
+        }
+
+        // ⚠ Handled the same way as the expression form. Wanting no result does not make a launch
+        // infallible — the program may not exist either way.
+        if (_inTryBlock || _inFailureHandledContext) return;
+        throw TypeError(
+            "running a program can fail — you must handle the failure",
+            null, run.Line, run.Column,
+            "run a program without handling the launch failure",
+            "Wrap it in 'Try to: / In case of failure:'.");
+    }
+
     private void CheckTryStatement(TryStatement trySt)
     {
         if (trySt.FailureHandler == null && trySt.ExceptionHandler == null)

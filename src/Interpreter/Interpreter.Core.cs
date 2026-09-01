@@ -1033,6 +1033,8 @@ public sealed partial class Interpreter
                 _rng = new Random((int)(decimal)Evaluate(ss.Seed));
                 break;
 
+            case RunStatement runStmt: ExecuteRunStatement(runStmt); break;
+
             case PipeExpression pipe:
                 ExecutePipe(pipe);
                 break;

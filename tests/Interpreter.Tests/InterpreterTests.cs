@@ -7551,6 +7551,67 @@ public class InterpreterTests
     // The programs these launch are chosen per-OS in PlatformCommands — see that file for why
     // `run` cannot just use a shell of its own.
 
+    // ── `run <program>.` as a STATEMENT — launched for its effect ─────────
+    //
+    // ★ The same distinction Cufet draws everywhere: a statement runs something for its EFFECT,
+    // an expression for its VALUE — `Cast f on (x).` beside `Define y as cast f on (x).` The
+    // position was a parse error before, so nothing was renamed and nothing existing changed.
+    //
+    // ★★ The difference is WHO GETS THE TERMINAL, not what happens to the text. The expression
+    // form hands the child a pipe, which is why nothing appears until it exits and why anything
+    // that draws cannot start. Discarding the captured text would have bought neither.
+
+    [Fact]
+    public void IO_RunStatement_LaunchesWithoutCapturing()
+    {
+        // Nothing is captured, so nothing is returned to print — reaching the line after it is
+        // the assertion. A launch that failed would take the handler instead.
+        Assert.Equal("after", Run(
+            "Try to:" + "\n" +
+            $"    run \"{Shell}\" with arguments (\"{ShellFlag}\", \"{ExitWith(0)}\").\n" +
+            "Done." + "\n" +
+            "In case of failure:" + "\n" +
+            "    State \"could not launch\"." + "\n" +
+            "Done." + "\n" +
+            "State \"after\"."));
+    }
+
+    [Fact]
+    public void IO_RunStatement_LaunchFailureIsHandled()
+    {
+        // A nonzero exit is an ordinary outcome the statement form does not report; a program
+        // that does not EXIST is still a failure, exactly as it is for the expression form.
+        Assert.Equal("could not launch\nafter", Run(
+            "Try to:" + "\n" +
+            "    run \"no-such-program-zzz\"." + "\n" +
+            "Done." + "\n" +
+            "In case of failure:" + "\n" +
+            "    State \"could not launch\"." + "\n" +
+            "Done." + "\n" +
+            "State \"after\"."));
+    }
+
+    [Fact]
+    public void IO_RunStatement_UnhandledIsRefused()
+    {
+        // ⚠ Wanting no result does not make a launch infallible. The must-handle rule is the
+        // reason this position used to be a parse error at all.
+        var ex = Assert.Throws<TypeException>(() => Run("run \"echo\"."));
+        Assert.Contains("you must handle the failure", ex.Message);
+    }
+
+    [Fact]
+    public void IO_RunStatement_ProgramMustBeText()
+    {
+        Assert.Throws<TypeException>(() => Run(
+            "Try to:" + "\n" +
+            "    run 42." + "\n" +
+            "Done." + "\n" +
+            "In case of failure:" + "\n" +
+            "    State \"failed\"." + "\n" +
+            "Done."));
+    }
+
     [Fact]
     public void IO_Run_ExitCode_Zero()
     {

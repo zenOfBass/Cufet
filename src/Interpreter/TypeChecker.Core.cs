@@ -2485,6 +2485,8 @@ public sealed partial class TypeChecker
                 break;
             case OperatorOverloadDeclaration:
                 break; // already body-checked in Pass2CheckOverloads
+            case RunStatement runStmt: CheckRunStatement(runStmt); break;
+
             case PipeExpression pipe:
                 CheckPipe(pipe);
                 break;
