@@ -14,6 +14,32 @@ public sealed class Lexer
     private readonly int _lineOffset;
     private readonly int _columnOffset;
 
+    // Comments read since the last token was produced, waiting for the one they lead.
+    //
+    // ★ A comment is not a token and never becomes one — see Comment.cs for why that is the whole
+    // point. It sits here between being read and being handed to whatever comes next.
+    private readonly List<Comment> _pending = [];
+
+    /// <summary>Hands over the comments read since the last token, and empties the buffer.</summary>
+    private IReadOnlyList<Comment> TakePending()
+    {
+        if (_pending.Count == 0) return [];
+        var taken = _pending.ToArray();
+        _pending.Clear();
+        return taken;
+    }
+
+    /// <summary>Gives the pending comments to the token at <paramref name="index"/>.</summary>
+    /// <remarks>
+    /// ⚠ The FIRST token of what was just read, because one read can produce several — an
+    /// interpolated string is a whole sequence. The comment led the string, not its third piece.
+    /// </remarks>
+    private void AttachPending(List<Token> tokens, int index)
+    {
+        if (_pending.Count == 0 || index >= tokens.Count) return;
+        tokens[index] = tokens[index] with { Leading = TakePending() };
+    }
+
     public Lexer(string source) : this(source, 0, 0) { }
 
     /// <summary>Lexes a fragment held inside another file, reported where it actually sits.</summary>
@@ -53,9 +79,13 @@ public sealed class Lexer
             {
                 SkipWhitespace();
                 if (AtEnd()) break;
+                int before = tokens.Count;
                 ReadOneToken(tokens);
+                AttachPending(tokens, before);
             }
-            tokens.Add(new Token(TokenType.Eof, "", _line, ColumnAt(_pos)));
+            // ⚠ Comments after the last token still have a token to lead: this one. Nothing a
+            // reader wrote is dropped for being at the end of the file.
+            tokens.Add(new Token(TokenType.Eof, "", _line, ColumnAt(_pos)) { Leading = TakePending() });
         }
         // ⚠ A refusal carries a position too, and it is thrown rather than returned — so rebasing
         // only the tokens would leave the one message a reader is most likely to see pointing at
@@ -72,6 +102,14 @@ public sealed class Lexer
             {
                 Line   = token.Line + _lineOffset,
                 Column = token.Line == 1 ? token.Column + _columnOffset : token.Column,
+                // ⚠ A comment carries its own position and so needs the same rebasing. Skipping it
+                // would put a fragment's comments in a file that does not exist — the exact bug
+                // this rebasing exists to prevent, in the one place it would be easy to forget.
+                Leading = [.. token.Leading.Select(c => c with
+                {
+                    Line   = c.Line + _lineOffset,
+                    Column = c.Line == 1 ? c.Column + _columnOffset : c.Column,
+                })],
             });
         return rebased;
     }
@@ -765,8 +803,8 @@ public sealed class Lexer
             char c = Peek();
             if (c == '\n') { _line++; _lineStart = _pos + 1; Advance(); }
             else if (char.IsWhiteSpace(c)) Advance();
-            else if (c == '/' && Next() == '/') SkipLineComment();
-            else if (c == '/' && Next() == '*') SkipBlockComment();
+            else if (c == '/' && Next() == '/') ReadLineComment();
+            else if (c == '/' && Next() == '*') ReadBlockComment();
             else break;
         }
     }
@@ -779,9 +817,14 @@ public sealed class Lexer
     // There is no ambiguity with division. '/' is a single-character token with no lookahead of
     // its own, so a source '//' could only ever have parsed as division by a unary slash, which
     // is not an expression Cufet has. Nothing valid is being taken away.
-    private void SkipLineComment()
+    private void ReadLineComment()
     {
+        int line = _line, column = ColumnAt(_pos);
+        Advance(); // consume the first '/'
+        Advance(); // consume the second
+        int from = _pos;
         while (!AtEnd() && Peek() != '\n') Advance();
+        _pending.Add(new Comment(CommentKind.Line, _source[from.._pos], line, column));
     }
 
     // Consumes a /* ... */ comment.
@@ -798,13 +841,14 @@ public sealed class Lexer
     //
     // Unterminated (depth never returns to zero before EOF) is a lexer error naming the line
     // the OUTERMOST comment opened on — that is the one the author has to go find.
-    private void SkipBlockComment()
+    private void ReadBlockComment()
     {
         int startLine = _line;
         int startCol  = ColumnAt(_pos);
         int depth = 1;
         Advance(); // consume '/'
         Advance(); // consume '*'
+        int from = _pos;
         while (true)
         {
             if (AtEnd())
@@ -821,7 +865,15 @@ public sealed class Lexer
             {
                 Advance(); // consume '*'
                 Advance(); // consume '/'
-                if (--depth == 0) return;
+                // ⚠ Two back from here, so the closing marker is not part of the inside. A nested
+                // comment's markers ARE kept: the text is what was written between the outermost
+                // pair, and an inner opener is something its author typed on purpose.
+                if (--depth == 0)
+                {
+                    _pending.Add(new Comment(CommentKind.Block, _source[from..(_pos - 2)],
+                                             startLine, startCol));
+                    return;
+                }
             }
             else Advance();
         }

@@ -299,4 +299,93 @@ public class CommentTests
         Assert.Equal("foo", tokens[0].Lexeme);
         Assert.Equal("bar", tokens[1].Lexeme);
     }
+    // ── Kept, not discarded ──────────────────────────────────────────────
+    //
+    // ★★ Every test above says a comment produces NO TOKEN, and all of them still hold — that is
+    // the design. A comment rides on the token that follows it instead, so the parser cannot
+    // notice this exists, and no `SkipNoise` site had to learn a new thing to skip.
+    //
+    // ⚠ What is under test here is that the text survives at all. It was being eaten inside
+    // SkipWhitespace and thrown away, so the sentence an author wrote above a declaration could
+    // not be read by anything downstream.
+
+    [Fact]
+    public void ALineComment_IsCarriedOnTheTokenAfterIt()
+    {
+        var tokens = LexTokens("// why this exists\nfoo");
+        var carried = Assert.Single(tokens[0].Leading);
+        Assert.Equal(CommentKind.Line, carried.Kind);
+        Assert.Equal(" why this exists", carried.Text);
+    }
+
+    [Fact]
+    public void ABlockComment_IsCarriedOnTheTokenAfterIt()
+    {
+        var tokens = LexTokens("/* why this exists */ foo");
+        var carried = Assert.Single(tokens[0].Leading);
+        Assert.Equal(CommentKind.Block, carried.Kind);
+        Assert.Equal(" why this exists ", carried.Text);
+    }
+
+    [Fact]
+    public void SeveralComments_AllArriveInSourceOrder()
+    {
+        // A paragraph written as consecutive line comments is one explanation, and the order it
+        // was written in is the whole of its meaning.
+        var tokens = LexTokens("// first\n// second\n/* third */\nfoo");
+        Assert.Equal(3, tokens[0].Leading.Count);
+        Assert.Equal(" first",  tokens[0].Leading[0].Text);
+        Assert.Equal(" second", tokens[0].Leading[1].Text);
+        Assert.Equal(" third ", tokens[0].Leading[2].Text);
+    }
+
+    [Fact]
+    public void AComment_ReportsWhereItsMarkerOpened()
+    {
+        var tokens = LexTokens("foo\n   // indented\nbar");
+        var carried = Assert.Single(tokens[1].Leading);
+        Assert.Equal(2, carried.Line);
+        Assert.Equal(4, carried.Column);
+    }
+
+    [Fact]
+    public void ANestedBlockComment_KeepsTheInnerMarkers()
+    {
+        // ⚠ The text is what was written between the OUTERMOST pair. An inner opener is something
+        // its author typed on purpose — and commenting out a block that already has comments in it
+        // is the reason nesting exists at all.
+        var tokens = LexTokens("/* outer /* inner */ still outer */ foo");
+        var carried = Assert.Single(tokens[0].Leading);
+        Assert.Equal(" outer /* inner */ still outer ", carried.Text);
+    }
+
+    [Fact]
+    public void ACommentAfterTheLastToken_IsCarriedOnEof()
+    {
+        // Nothing an author wrote is dropped for sitting at the end of the file.
+        var all = Lex("foo\n// trailing note");
+        var eof = all[^1];
+        Assert.Equal(TokenType.Eof, eof.Type);
+        Assert.Equal(" trailing note", Assert.Single(eof.Leading).Text);
+    }
+
+    [Fact]
+    public void ATokenWithNoCommentBeforeIt_CarriesNone()
+    {
+        var tokens = LexTokens("foo bar");
+        Assert.Empty(tokens[0].Leading);
+        Assert.Empty(tokens[1].Leading);
+    }
+
+    [Fact]
+    public void AFragmentsComment_IsRebasedLikeItsTokens()
+    {
+        // ⚠⚠ A fragment starts at line 1 of nowhere, and a comment carries a position exactly as a
+        // token does. Rebasing one and not the other would point a reader at a file that does not
+        // exist — which is the whole reason the rebasing is there.
+        var all = new Lexer("// note\nfoo", lineOffset: 10, columnOffset: 4).Tokenize();
+        var carried = Assert.Single(all[0].Leading);
+        Assert.Equal(11, carried.Line);     // 1 + 10
+        Assert.Equal(5,  carried.Column);   // first line, so the column shifts too
+    }
 }
