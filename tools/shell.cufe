@@ -1,7 +1,7 @@
 /*  A simplified command shell, read-eval-loop over standard input.
 
     Six permitted commands (clear, pwd, time, date, ls, which), arguments passed
-    through, anything else refused. `Quit!!!` on a line by itself exits; so does
+    through, anything else refused. `Leave.` on a line by itself exits; so does
     end of input.
 
     Two things worth noticing:
@@ -39,13 +39,13 @@ Define running as true.
 While running, repeat:
     Define raw as read a line from the input.
 
-    /* Void means end of input — the user closed the stream instead of saying Quit!!! */
+    /* Void means end of input — the user closed the stream instead of saying Leave. */
     If raw is void, the running becomes false.
     If raw is not void:
         Define line as raw trimmed.
 
-        If line is "Quit!!!", running becomes false.
-        If line is not "Quit!!!":
+        If line is "Leave.", running becomes false.
+        If line is not "Leave.":
             /* A blank line is not an error; it is just nothing to do. */
             If the length of line is greater than 0:
                 Define parts as line split by " ".
