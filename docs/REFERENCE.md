@@ -4006,6 +4006,22 @@ cufet emit-c program.cufe out.c     emit the C, without invoking gcc
 self-contained, with no external libraries and no flags beyond `-O2`, `-pthread`
 and `-lm`.
 
+**A file with nothing to run is refused, by both verbs.** Cufet has no `main` — the top-level
+statements are the program — so a file whose top level is only declarations would start and finish
+having done nothing:
+
+```
+$ cufet build terminal.cufe
+build: 'terminal.cufe' declares things but never does anything — there is nothing to run.
+  Every item at its top level is a declaration, so the program would start and finish
+  having done nothing. A file like this is a library: pull it from the program you are
+  building, and build that.                                              ← exit 2
+```
+
+`check` still accepts such a file, and that is deliberate: checking a library is exactly what a
+library author wants, and a book is compiled as part of whatever pulls it. The mistake is in asking
+that file to BE a program, never in the file.
+
 **Builds are always optimized.** There is no debug build and no `--release`: a
 compiled Cufet program is the fast one, every time. If you need an unoptimized
 build — stepping through the generated C in a debugger, say — use `emit-c` and

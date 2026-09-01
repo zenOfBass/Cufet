@@ -204,6 +204,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   itself until `ModuleCarriedTypeTests` landed the day before, which dates the flake exactly.
   Measured: 3 of 6 runs red with the classes free to overlap, 5 of 5 green once serialised.
 
+- **A file that declares things and does nothing built a do-nothing binary.** `cufet build` on a
+  book produced an executable that started and finished, and running one printed nothing and
+  exited 0 — the same silence a program that worked would give. Both verbs now refuse it and say
+  why, exiting 2 with the other usage mistakes.
+
+  ★★ **Cufet has no `main`: the top-level statements ARE the program.** So "every item at the top
+  level is a declaration" is not a heuristic about intent — it is the literal statement that there
+  is nothing to execute.
+
+  ★ **`check` deliberately still accepts it**, and that is what makes the rule right rather than
+  merely strict. Checking a library is exactly what a library author wants, and a book is compiled
+  as part of whatever pulls it. The mistake is only ever in asking THIS file to be a program, never
+  in the file — put the rule in the checker instead and `cufet check` would stop working on every
+  book in the repo.
+
 - **`cufet emit-c <file.cufe>` crashed instead of emitting.** The output name is optional, and the
   check for extra arguments sliced past a third argument that a two-argument command does not
   have — so the documented spelling threw an `ArgumentOutOfRangeException` before reaching the
