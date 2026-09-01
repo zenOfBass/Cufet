@@ -112,14 +112,15 @@ Pull a terminal.
                             State "cufetsh: {the message of the failure}".
                         Done.
 
-                        /*  ⚠⚠ Ctrl-C during a child is the CHILD’s, not the shell’s. The terminal signals every
-                            process attached to it, so the interrupt arrives here as well — and a shell that let
-                            that end it would exit every time you stopped a `ping`. Noticing and acknowledging it
-                            is what says "that was not for me".
+                        /*  ⚠⚠ DO NOT DELETE THIS LINE BECAUSE IT LOOKS LIKE IT DOES NOTHING. Mentioning interrupts
+                            ANYWHERE in a program is what puts that program in charge of its own — a program that
+                            never mentions them is stopped by Ctrl-C, which is right for a script and fatal for a
+                            shell. The mention is the opt-in; the poll is what it is spelled with.
                         
-                            ★ Mentioning interrupts anywhere is what puts a program in charge of its own; a
-                            program that never mentions them is stopped by Ctrl-C, which is right for a script
-                            and wrong for a shell. So this poll is not decoration — it is the whole difference. */
+                            ★ It is usually a no-op, and that is correct. While a launched child holds the
+                            terminal the interrupt is the CHILD’s, so nothing is recorded here for this line to
+                            find. It earns its place when a Ctrl-C lands anywhere else — at the prompt with the
+                            line editor unavailable, say — where it stops that from ending the session. */
                         If an interrupt is requested, acknowledge the interrupt.
 
                         /* Taken back for the next line. A child that changed the terminal and did not change

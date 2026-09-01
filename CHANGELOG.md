@@ -147,6 +147,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   checkpoint asks. The child is no longer killed on the parent’s behalf either: the terminal
   already signalled it, and what it does about that is its own answer.
 
+  ⚠⚠ **And the second press killed it anyway.** The escape that lets the OS have a process on a
+  second Ctrl-C rested on an assumption written in its own comment — *a program that handles
+  interrupts acknowledges, so it never reaches this path*. A launch is exactly when it cannot: the
+  shell has nothing to acknowledge until the child it is WAITING FOR has gone, so every press after
+  the first was counted as a second one. While a launched child holds the terminal, an interrupt is
+  now neither recorded nor counted by the parent.
+
+  ⚠ That narrows a guarantee, deliberately: "a second Ctrl-C always terminates" does not hold while
+  a child has the terminal. It is what bash does — bash does not die from Ctrl-C either — but a
+  child that ignores the signal and never exits is one the parent waits with.
+
   ⚠ **Compiled, the wait was worse.** The SIGINT handler is installed without `SA_RESTART`, so an
   interrupt makes `waitpid` return `EINTR` — and the return value was ignored, reporting the launch
   as finished while the child was very possibly still running. `cufet_wait_for` retries.
