@@ -57,6 +57,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   refuses the moment a reader follows it.
 
 ### Fixed
+- **An interface escaped a loaded file’s privacy.** A file’s top level belongs to that file — its
+  helper functions, constants and types are renamed out of reach when it is loaded. Interfaces were
+  not: the privacy pass had a case for every other declaration kind and none for them, so one
+  written beside a module was visible to whoever loaded the file.
+
+  ⚠ **Breaking**, for a program that had come to rely on it — declare the interface in the file
+  that uses it.
+
+  ★ Three places, not one, and the first two each looked like a fix. Adding it to the hide list
+  changed nothing (a second switch does the renaming); renaming the declaration closed the escape
+  and left the file unable to use its OWN interface, because conformance is a list of STRINGS that
+  neither the type substitution nor the reflective walk reaches. Interfaces in type position needed
+  a third.
+
 - **A private type printed its internal name.** A type declared beside a module in a loaded file
   showed as `tally in privkit(count: 5)` — the file-privacy rename leaking into output, since
   0.18.0.

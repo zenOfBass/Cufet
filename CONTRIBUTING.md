@@ -456,12 +456,6 @@ fail quietly rather than loudly, which is why they are written down.
 Behaviour that is understood, deliberate or accepted — not bugs waiting to be found.
 User-facing sharp edges are also called out in [docs/GRAMMAR.md](docs/GRAMMAR.md) §8.
 
-- **An interface escapes a loaded file’s privacy.** `MakePrivate` renames a loaded file’s object
-  types, functions and constants, and has no case for an interface — so one written beside a module
-  is visible to whoever loads the file, against the rule that a file’s top level is its own.
-  Measured 2026-08-31. Left alone on purpose: making it private is a one-line change, and
-  *What a module exports* may want exactly this to hand a module out THROUGH. Decide it there.
-
 - **`converted to text` precedence in named-access position** — `the value of
   person converted to text` parses as `the value of (person converted to text)`,
   because the named-access path's inner expression parse absorbs the postfix
