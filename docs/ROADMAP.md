@@ -22,6 +22,17 @@ carries are all shipped — so a program can be split across files and a type ca
 them. What is left is what happens once a module is worth handing to someone else: what you hand
 out, and how it travels.
 
+⚠ **A module carries OBJECT TYPES, and nothing else.** Measured 2026-08-31, after the feature
+shipped: a union over carried types works and narrows with `Judge`, because a union is built from
+object types and those are carried. An **interface** or an **axiom** does not — a module body takes
+`Define object` and nothing else, so `Define speaker as an interface for …` inside one is a parse
+error.
+
+So the rule does not state itself for every kind of declaration; it is a list of one, plus whatever
+composes from it. Whether that is the answer or a gap is undecided, and the trigger is somebody
+wanting to hand out an interface — which is the same question as the item below, since an interface
+is what that item proposes to hand a module out THROUGH.
+
 1. **What a module exports.** Every MEMBER is public API, permanently. A module author has no way
    to say *this is my helper, do not call it* about a method.
 
@@ -71,7 +82,7 @@ out, and how it travels.
 
 The ordering is not ceremonial: this tier's real blocker is stated below as **ergonomic rather than capability**, and the only way to find ergonomic blockers is to write large Cufet programs. They are the instrument as much as they are the goal — better to meet the gaps one program at a time than to meet all of them at once inside a compiler.
 
-★ **The REPL is written, and it worked as the instrument.** `tools/repl.cufe` and the `tools/terminal.cufe` book it pulls found four things nothing else had: the oracle could not type-check a multi-file program at all, `cufet check` passed programs that died on an undefined name, a module can carry no types — the numbered item above — and a released version can be correct in all nine source places while the installed tool is two releases behind.
+★ **The REPL is written, and it worked as the instrument.** `tools/repl.cufe` and the `tools/terminal.cufe` book it pulls found four things nothing else had: the oracle could not type-check a multi-file program at all, `cufet check` passed programs that died on an undefined name, a module could carry no types, and a released version can be correct in all nine source places while the installed tool is two releases behind.
 
 1. **A shell, written in Cufet.** `examples/systems/shell.cufe` is the seed: it already reads, parses,
     dispatches and launches, and now changes directory too.
