@@ -240,6 +240,10 @@ public static class BookLoading
                 ObjectDefinition o when !TypeChecker.IsModuleConformer(o.ConformedInterfaces) => o.Name,
                 BindStatement { UntoType: null } b => b.Name,
                 DefineStatement d => d.Name,
+                // ⚠ An interface was the one declaration kind missing here, so one written beside a
+                // module escaped the file it belongs to — silently, and against the rule stated just
+                // above. Nobody decided that; the switch simply had no case for it.
+                InterfaceDefinition i => i.Name,
                 _ => null,
             };
             // A space keeps it unwritable, and naming the book keeps two books’ helpers apart.
@@ -250,10 +254,14 @@ public static class BookLoading
         // Types first — AstSearch deliberately does not descend into a CufetType, so the two
         // rewrites do not overlap.
         var rebuilt = AstRebuilder.Apply(statements,
-            t => AstRebuilder.SubstituteDeep(t, leaf =>
-                leaf is ObjectType o && hidden.TryGetValue(o.Name, out var to)
-                    ? new ObjectType(to, o.PositionalTypes, o.NamedFields, o.Methods)
-                    : leaf));
+            t => AstRebuilder.SubstituteDeep(t, leaf => leaf switch
+            {
+                ObjectType o when hidden.TryGetValue(o.Name, out var to)
+                    => new ObjectType(to, o.PositionalTypes, o.NamedFields, o.Methods),
+                // An interface is a type as well as a declaration — `given (the speaker who)`.
+                InterfaceType i when hidden.TryGetValue(i.Name, out var ito) => new InterfaceType(ito),
+                _ => leaf,
+            }));
 
         AstSearch.Visit(rebuilt, node =>
         {
@@ -271,9 +279,18 @@ public static class BookLoading
         foreach (var statement in rebuilt)
             renamed.Add(statement switch
             {
-                ObjectDefinition o when hidden.TryGetValue(o.Name, out var to) => o with { Name = to },
+                // ⚠ ConformedInterfaces is a list of STRINGS, so neither the type substitution nor
+                // the reflective walk reaches it — renaming a private interface without this left the
+                // file unable to use its OWN, claiming to satisfy something no longer defined.
+                ObjectDefinition o => o with
+                {
+                    Name = hidden.TryGetValue(o.Name, out var to) ? to : o.Name,
+                    ConformedInterfaces = [.. o.ConformedInterfaces.Select(
+                        name => hidden.TryGetValue(name, out var ito) ? ito : name)],
+                },
                 BindStatement b when hidden.TryGetValue(b.Name, out var to) => b with { Name = to },
                 DefineStatement d when hidden.TryGetValue(d.Name, out var to) => d with { Name = to },
+                InterfaceDefinition i when hidden.TryGetValue(i.Name, out var to) => i with { Name = to },
                 _ => statement,
             });
         return renamed;

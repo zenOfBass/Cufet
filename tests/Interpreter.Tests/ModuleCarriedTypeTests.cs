@@ -266,6 +266,59 @@ public class ModuleCarriedTypeTests : IDisposable
     }
 
     [Fact]
+    public void AFilesOwnInterfaceDoesNotCrossEither()
+    {
+        // ⚠ It used to. `MakePrivate` had cases for object types, functions and constants and none
+        // for an interface, so one written beside a module was visible to whoever loaded the file —
+        // silently, and against the rule the rest of that pass exists to enforce.
+        Write("kit", """
+            Define speaker as an interface for the text function say.
+
+            Define object kit with () and module:
+                Bind text to name: Return "kit". Done.
+            Done.
+            """);
+        var ex = Refused("""
+            Pull a kit.
+                State cast kit's name.
+            Done.
+
+            Define object mimic with () and speaker:
+                Bind text to say: Return "copy". Done.
+            Done.
+            """);
+        Assert.Contains("speaker", ex.Message);
+    }
+
+    [Fact]
+    public void AFileStillUsesItsOwnInterface()
+    {
+        // ★ The other half, and the one the first fix broke. Hiding the DECLARATION is not enough:
+        // conformance is a list of STRINGS on the object and an interface is also a TYPE, so a
+        // rename that misses either leaves the file claiming to satisfy something it can no longer
+        // name — private to the point of being unusable by its owner.
+        Write("kit", """
+            Define speaker as an interface for the text function say.
+
+            Define object parrot with () and speaker:
+                Bind text to say: Return "squawk". Done.
+            Done.
+
+            Define object kit with () and module:
+                Bind text to relay, given (the speaker who):
+                    Return cast who's say.
+                Done.
+                Bind text to own: Return cast one's relay on (a new parrot { }). Done.
+            Done.
+            """);
+        Assert.Equal("squawk", Run("""
+            Pull a kit.
+                State cast kit's own.
+            Done.
+            """));
+    }
+
+    [Fact]
     public void AFilesOwnTypesStillDoNotCross()
     {
         // The privacy rule is unchanged: what a loaded file declares BESIDE its module is its own.
