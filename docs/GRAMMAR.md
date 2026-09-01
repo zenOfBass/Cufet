@@ -2374,8 +2374,26 @@ Failures (missing program, permission denied) surface as Cufet failures with the
 categories as standalone `run` expressions. The must-handle requirement is **waived**
 for `run` expressions inside a pipe — the pipe itself is considered an implicit handler.
 
-`run X.` at statement level (without `|`) is a **parse error**: use a `Try to:` block
-or a `But on failure` expression for standalone process execution.
+`Run X.` at statement level (without `|`) **launches the program with this terminal** instead of
+capturing it. It is a statement, so it hands back nothing — no result record, and so no exit code
+to read. It can still fail to launch, so it still must be handled: put it in a `Try to:` block.
+The expression form is unchanged.
+
+```cufet-fragment
+Try to:
+    Run "git" with arguments ("log", "--oneline", "-5").   ← streams; nothing comes back
+    Define r as run "git" with arguments ("rev-parse", "HEAD").
+    State the output of r trimmed.                          ← captured; nothing is shown
+Done.
+In case of failure:
+    State "git not available".
+Done.
+```
+
+★ The difference is **who gets the terminal**, not what happens to the text. An expression `run`
+hands the child a pipe, which is why nothing appears until it exits and why a program that draws —
+`less`, `vim`, `top` — cannot start. Capturing the result and discarding it would have bought
+neither.
 
 ### Execution model, and what is still restricted
 

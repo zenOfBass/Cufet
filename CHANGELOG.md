@@ -56,6 +56,37 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   by what it is, because it used to advise `Pull books on math, and ‹module›.`, which the new rule
   refuses the moment a reader follows it.
 
+- **`Run <program>.` in statement position launches it with this terminal.** Written on its own,
+  nothing is captured: the child inherits this program’s stdin and stdout, so its output streams as
+  it happens and a program that draws — `vim`, `less`, `top` — has a real terminal to ask about.
+
+  ```cufet
+  Try to:
+      Run "vim" with arguments ("notes.txt").
+  Done.
+  In case of failure:
+      State "vim is not installed".
+  Done.
+  ```
+
+  ★ **The distinction the language already draws.** A statement runs something for its effect, an
+  expression for its value — `Cast f on (x).` beside `Define y as cast f on (x).` is the pair this
+  copies. Nothing was renamed and no existing program changed meaning: the position was a parse
+  error before, so the form added no surface.
+
+  ★★ **The difference is who gets the terminal, not what happens to the text.** The expression form
+  hands the child a pipe, which is why its output arrives all at once when it exits and why an
+  interactive program cannot start. Capturing the result and discarding it would have bought
+  neither.
+
+  ⚠ Still fallible and still must be handled — the program may not exist either way. It hands back
+  nothing, so there is no exit code to read: a program that runs and exits nonzero is an ordinary
+  outcome this form does not report.
+
+  ⚠ Output ordering needed a flush on both backends. A parent’s `printf` sits in a buffer that the
+  child does not share, so anything stated before the launch could appear after the child’s own
+  output. Windows structurally cannot see this — it was caught compiling under WSL gcc.
+
 ### Fixed
 - **An interface escaped a loaded file’s privacy.** A file’s top level belongs to that file — its
   helper functions, constants and types are renamed out of reach when it is loaded. Interfaces were

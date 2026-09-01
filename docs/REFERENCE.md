@@ -3277,6 +3277,34 @@ Arguments are passed as individual strings to the OS — no shell is invoked and
 shell injection is structurally impossible. The program name is any text
 expression.
 
+**As a statement, it launches the program with this terminal.** Written on its own —
+`Run <program>.` — nothing is captured and nothing comes back:
+
+```cufet
+Try to:
+    Run "vim" with arguments ("notes.txt").
+Done.
+In case of failure:
+    State "vim is not installed".
+Done.
+```
+
+This is the same distinction the language draws everywhere else: a statement runs something for
+its **effect**, an expression for its **value** — `Cast f on (x).` beside
+`Define y as cast f on (x).` is the pair it copies.
+
+The difference between the two forms is **who gets the terminal**, not what happens to the text.
+The expression form hands the child a pipe, so its output arrives all at once when it exits and a
+program that draws — `vim`, `less`, `top` — has no terminal to ask about. The statement form gives
+the child this program’s own stdin and stdout, so output streams as it happens and an interactive
+program works.
+
+Both wait for the child, and both are fallible for the same reason — the program may not exist —
+so the statement form must be handled too. What it does **not** give back is the result record, so
+there is no exit code to read: a program that runs and exits nonzero is an ordinary outcome the
+statement form does not report. Use the expression form when the output is data or the exit code
+matters.
+
 #### Environment variables
 
 `the environment variable "NAME"` reads a process environment variable by name,
