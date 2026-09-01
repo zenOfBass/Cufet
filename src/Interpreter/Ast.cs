@@ -1,4 +1,5 @@
-﻿using Cufet.Lexer;
+﻿using System.Linq;
+using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
 
@@ -1116,6 +1117,42 @@ public sealed record ForEachFromInputStatement(
 ) : IStatement;
 
 public sealed record Program(IReadOnlyList<IStatement> Statements);
+
+/// <summary>
+/// Whether a parsed program has anything to DO — asked by the two verbs that run one.
+/// </summary>
+/// <remarks>
+/// <para>
+/// ★★ Cufet has no `main`: the top-level statements ARE the program. So a file whose top level is
+/// nothing but declarations would start and finish having done nothing, and asking for it to be a
+/// program is a mistake worth saying out loud rather than a do-nothing binary.
+/// </para>
+/// <para>
+/// ⚠ Asked by `build` and by running a file, and deliberately NOT by `check`. Checking a library
+/// is exactly what a library author wants, and a book is compiled as part of whatever pulls it —
+/// so the mistake is only ever in asking THIS file to be a program, never in the file.
+/// </para>
+/// <para>
+/// ★ The list below is the executor’s own: every arm it treats as "already hoisted / no runtime
+/// action", plus a top-level `Bind`, which declares a function and runs nothing. A declaration
+/// kind added later and forgotten here costs a missing refusal, never a wrong one.
+/// </para>
+/// </remarks>
+public static class Runnable
+{
+    public static bool NothingToRun(Program program) =>
+        program.Statements.All(IsDeclaration);
+
+    private static bool IsDeclaration(IStatement statement) => statement
+        is ObjectDefinition
+        or InterfaceDefinition
+        or GetterDeclaration
+        or SetterDeclaration
+        or UnmakerDeclaration
+        or OperatorOverloadDeclaration
+        or CufetAxiomDefinition
+        or BindStatement;
+}
 
 // Whole-tree search, shared by both backends.
 //

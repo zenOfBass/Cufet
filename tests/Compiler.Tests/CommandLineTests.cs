@@ -112,6 +112,58 @@ public class CommandLineTests
         finally { File.Delete(file); }
     }
 
+    // ── A file with nothing to run ────────────────────────────────────────
+    //
+    // ★★ Cufet has no `main`, so the top-level statements ARE the program. A file that only
+    // declares would start and finish having done nothing, and `cufet build` used to answer that
+    // with a do-nothing binary — measured on `tools/terminal.cufe`, a book, which built happily.
+
+    /// <summary>A declaration and nothing else: a top-level function, no statements.</summary>
+    private const string NothingToRun =
+        "Bind number to doubled, given (the number n):\n"
+      + "    Return n * 2.\n"
+      + "Done.\n";
+
+    [Fact]
+    public void Build_AFileWithNothingToRun_IsRefused()
+    {
+        string file = WriteProgram(NothingToRun);
+        try
+        {
+            var (exit, _, err) = Run("build", file);
+            Assert.Equal(2, exit);
+            Assert.Contains("there is nothing to run", err);
+        }
+        finally { File.Delete(file); }
+    }
+
+    [Fact]
+    public void Running_AFileWithNothingToRun_IsRefused()
+    {
+        // ⚠ The same answer from both verbs. Running one printed nothing and exited 0, which is
+        // the same silence a program that worked would give.
+        string file = WriteProgram(NothingToRun);
+        try
+        {
+            var (exit, _, err) = Run(file);
+            Assert.Equal(2, exit);
+            Assert.Contains("there is nothing to run", err);
+        }
+        finally { File.Delete(file); }
+    }
+
+    [Fact]
+    public void Check_AFileWithNothingToRun_IsAccepted()
+    {
+        // ★★ The half that makes the rule right. Checking a library is exactly what a library
+        // author wants, and a book is compiled as part of whatever pulls it — so the mistake is
+        // only ever in asking THIS file to be a program, never in the file. Refuse it here and
+        // `cufet check` would stop working on every book in the repo.
+        string file = WriteProgram(NothingToRun);
+        try { Assert.Equal(0, Run("check", file).Exit); }
+        finally { File.Delete(file); }
+    }
+
     // ── What it still accepts ─────────────────────────────────────────────
 
     /// <remarks>

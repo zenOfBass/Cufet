@@ -377,6 +377,29 @@ static void Report(bool json, string file, (int Line, int Column) at, string sev
         Console.Error.WriteLine("  " + l);
 }
 
+/// <summary>
+/// Refuses a file that declares things and does nothing, for the two verbs that run one.
+/// </summary>
+/// <remarks>
+/// ⚠ NOT asked by `check`. Checking a library is what a library author wants, and a book is
+/// compiled as part of whatever pulls it — the mistake is in asking THIS file to be a program.
+/// Exit 2, with the other usage mistakes: 0 and 1 are the program’s own answers, and a script has
+/// to be able to tell "it ran and said no" from "you asked for the wrong thing".
+/// </remarks>
+static void RefuseIfNothingToRun(string verb, string shown, Cufet.Interpreter.Program program)
+{
+    if (!Runnable.NothingToRun(program)) return;
+    Console.Error.WriteLine(
+        $"{verb}: '{shown}' declares things but never does anything — there is nothing to run.");
+    Console.Error.WriteLine(
+        "  Every item at its top level is a declaration, so the program would start and finish");
+    Console.Error.WriteLine(
+        "  having done nothing. A file like this is a library: pull it from the program you are");
+    Console.Error.WriteLine(
+        "  building, and build that.");
+    Environment.Exit(2);
+}
+
 static void Build(string sourcePath)
 {
     string source;
@@ -393,6 +416,7 @@ static void Build(string sourcePath)
         // into a closure factory by then. (`check` and `tokens` deliberately keep the
         // original — a reader is shown what THEY wrote, not the lowering.)
         program = checker.Check(program);
+        RefuseIfNothingToRun("build", sourcePath, program);
     }
     catch (LexerException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
     catch (ParseException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
@@ -472,6 +496,8 @@ static void Interpret(string[] args)
         // into a closure factory by then. (`check` and `tokens` deliberately keep the
         // original — a reader is shown what THEY wrote, not the lowering.)
         program = checker.Check(program);
+        RefuseIfNothingToRun("cufet", args.Length > 0 ? args[0] : "the program on standard input",
+                             program);
         // To stderr, and before the program starts, so a warning never lands in the middle of the
         // output and never gets mistaken for something the program printed.
         WriteWarnings(args.Length > 0 ? args[0] : "<stdin>", checker.Diagnostics);
