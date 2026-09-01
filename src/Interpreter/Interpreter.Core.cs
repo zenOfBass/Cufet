@@ -545,11 +545,24 @@ public sealed partial class Interpreter
     /// </remarks>
     internal bool InterruptArrived()
     {
-        // ★★ Not ours to take, and not ours to COUNT. A child holding the terminal was signalled
-        // by that terminal directly; what it does about that is its own answer, and a shell has to
-        // survive as many Ctrl-Cs as anyone cares to press. Only for a program in charge of its own
-        // interrupts — one that never mentions them still stops, launch or no launch.
-        if (_childHasTerminal > 0 && _programHandlesInterrupts) return true;
+        // ★★ Recorded, but not COUNTED. A child holding the terminal was signalled by that terminal
+        // directly; what it does about that is its own answer, and a shell has to survive as many
+        // Ctrl-Cs as anyone cares to press. Only for a program in charge of its own interrupts —
+        // one that never mentions them still stops, launch or no launch.
+        //
+        // ⚠⚠ RECORDED is the load-bearing word, and skipping it was a measured backend DIVERGENCE:
+        // the compiled runtime has no second-press escape at all, so its handler had gone on
+        // setting the flag while this one had stopped. The same program, interrupted at the same
+        // moment, then answered `an interrupt is requested` differently on the two backends — and
+        // the oracle cannot see it, because no test in the suite sends a signal.
+        //
+        // ★ The escape was the only thing that ever needed narrowing. Not taking the flag as well
+        // was a rule wider than its own reason.
+        if (_childHasTerminal > 0 && _programHandlesInterrupts)
+        {
+            _interruptRequested = true;
+            return true;
+        }
 
         // The second press is left alone, so the OS terminates. Taking the kill away is only
         // defensible while something can still act on the flag.

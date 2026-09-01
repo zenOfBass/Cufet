@@ -8785,16 +8785,22 @@ public class InterpreterTests
         interp.EnterForegroundChild();
         try
         {
-            // However many arrive while the child holds the terminal, none is this program's.
+            // However many arrive while the child holds the terminal, not one of them is handed to
+            // the OS — which is the whole point: the shell has to still be here afterwards.
             Assert.True(interp.InterruptArrived());
             Assert.True(interp.InterruptArrived());
-            Assert.False(interp.InterruptIsPending);
+
+            // ⚠⚠ And each one is still RECORDED. Skipping that was a measured divergence: the
+            // compiled runtime keeps setting its flag, so the same program interrupted at the same
+            // moment answered `an interrupt is requested` differently on the two backends. Only the
+            // second-press escape ever needed narrowing.
+            Assert.True(interp.InterruptIsPending);
         }
         finally { interp.LeaveForegroundChild(); }
 
-        // ★ Outside a launch the escape is exactly as it was: the first press is taken and
-        // recorded, and a second one unanswered is left to the OS.
-        Assert.True(interp.InterruptArrived());
+        // ★ And outside a launch nothing is shielded. The presses above were recorded and nothing
+        // has acknowledged them, so the very next one is handed to the OS — the escape working
+        // exactly as it always did, which is the half of this that had to survive the fix.
         Assert.True(interp.InterruptIsPending);
         Assert.False(interp.InterruptArrived());
     }
