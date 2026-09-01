@@ -56,6 +56,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   by what it is, because it used to advise `Pull books on math, and ‹module›.`, which the new rule
   refuses the moment a reader follows it.
 
+- **The prompt lands on a fresh line after an interrupted command.** The terminal echoes `^C`
+  wherever the cursor was and nothing ends that line, so the next prompt was drawn onto the end of
+  it: `^Ccufetsh$`.
+
+  ★ **It needs no exit status.** bash knows to do this by reading the child’s wait status and
+  seeing it was killed — which Cufet’s launching form cannot report, and giving it a way to would
+  be a language question with no spelling yet. The shell already knows a different way: the
+  interrupt flag is recorded during a child, so the poll it already runs is enough.
+
 - **`tools/shell.cufe` expands patterns.** `*` for any run of characters, `?` for exactly one, in
   any argument. Written in Cufet, in the shell — no language change: `the contents of the
   directory` was already there, and `run` learned to take a series of arguments this morning,
