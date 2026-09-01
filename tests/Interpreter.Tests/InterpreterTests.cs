@@ -7551,7 +7551,7 @@ public class InterpreterTests
     // The programs these launch are chosen per-OS in PlatformCommands — see that file for why
     // `run` cannot just use a shell of its own.
 
-    // ── `run <program>.` as a STATEMENT — launched for its effect ─────────
+    // ── `Run <program>.` as a STATEMENT — launched for its effect ─────────
     //
     // ★ The same distinction Cufet draws everywhere: a statement runs something for its EFFECT,
     // an expression for its VALUE — `Cast f on (x).` beside `Define y as cast f on (x).` The
@@ -7568,7 +7568,7 @@ public class InterpreterTests
         // the assertion. A launch that failed would take the handler instead.
         Assert.Equal("after", Run(
             "Try to:" + "\n" +
-            $"    run \"{Shell}\" with arguments (\"{ShellFlag}\", \"{ExitWith(0)}\").\n" +
+            $"    Run \"{Shell}\" with arguments (\"{ShellFlag}\", \"{ExitWith(0)}\").\n" +
             "Done." + "\n" +
             "In case of failure:" + "\n" +
             "    State \"could not launch\"." + "\n" +
@@ -7583,7 +7583,7 @@ public class InterpreterTests
         // that does not EXIST is still a failure, exactly as it is for the expression form.
         Assert.Equal("could not launch\nafter", Run(
             "Try to:" + "\n" +
-            "    run \"no-such-program-zzz\"." + "\n" +
+            "    Run \"no-such-program-zzz\"." + "\n" +
             "Done." + "\n" +
             "In case of failure:" + "\n" +
             "    State \"could not launch\"." + "\n" +
@@ -7596,7 +7596,7 @@ public class InterpreterTests
     {
         // ⚠ Wanting no result does not make a launch infallible. The must-handle rule is the
         // reason this position used to be a parse error at all.
-        var ex = Assert.Throws<TypeException>(() => Run("run \"echo\"."));
+        var ex = Assert.Throws<TypeException>(() => Run("Run \"echo\"."));
         Assert.Contains("you must handle the failure", ex.Message);
     }
 
@@ -7605,7 +7605,7 @@ public class InterpreterTests
     {
         Assert.Throws<TypeException>(() => Run(
             "Try to:" + "\n" +
-            "    run 42." + "\n" +
+            "    Run 42." + "\n" +
             "Done." + "\n" +
             "In case of failure:" + "\n" +
             "    State \"failed\"." + "\n" +
