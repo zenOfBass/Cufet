@@ -27,6 +27,7 @@ namespace Cufet.Interpreter.Tests;
 /// the kind of fault the oracle cannot see.
 /// </para>
 /// </remarks>
+[Collection("SourceMap")]
 public class ModuleCarriedTypeTests : IDisposable
 {
     private readonly string _dir = Path.Combine(

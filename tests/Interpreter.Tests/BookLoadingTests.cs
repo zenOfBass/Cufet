@@ -21,6 +21,7 @@ namespace Cufet.Interpreter.Tests;
 /// every filling — compiling files independently would reopen all three, and buys only build speed.
 /// </para>
 /// </remarks>
+[Collection("SourceMap")]
 public class BookLoadingTests : IDisposable
 {
     private readonly string _dir = Path.Combine(
