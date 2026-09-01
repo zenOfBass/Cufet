@@ -22,24 +22,6 @@ carries are all shipped — so a program can be split across files and a type ca
 them. What is left is what happens once a module is worth handing to someone else: what you hand
 out, and how it travels.
 
-⚠ **A module carries OBJECT TYPES, and nothing else.** Measured 2026-08-31, after the feature
-shipped: a union over carried types works and narrows with `Judge`, because a union is built from
-object types and those are carried. An **interface** does not: a module body takes `Define object`
-and nothing else, so `Define speaker as an interface for …` inside one is a parse error.
-
-★ **Axioms are not a gap.** A module’s METHODS hold them freely — `tools/terminal.cufe` is a module
-and every method of it opens a `Pull a book on the c-language.` block. Only a module-level axiom is
-impossible, and that is structural rather than missing: an axiom needs a pull around it and an
-object body cannot contain one.
-
-⚠ **Interfaces already cross a file boundary anyway**, by escaping the privacy rule rather than by
-being carried. `MakePrivate` renames a loaded file’s object types, functions and constants and has
-no case for an interface, so one written beside a module is visible to whoever loads it — measured
-2026-08-31. That contradicts *a file’s top level belongs to that file*, and it is almost certainly
-an oversight rather than a decision. Left alone deliberately: making interfaces private is a
-one-line change that could take away the very thing this item may want to hand out, so it is worth
-deciding WITH this item rather than before it.
-
 1. **What a module exports.** Every MEMBER is public API, permanently. A module author has no way
    to say *this is my helper, do not call it* about a method.
 

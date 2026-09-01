@@ -1349,6 +1349,11 @@ Pull a book on math as m.
 Pull books on math, and collections.
 ```
 
+⚠ **A module carries OBJECT TYPES only.** A union of them works and narrows with `Judge`, because
+a union is built from object types. An interface does not — a module body takes `Define object` and
+nothing else. Axioms need no home here: a module’s METHODS hold them, which is how
+`tools/terminal.cufe` reaches `termios`.
+
 ### ★ `book` is a subtype of `module`
 
 A **book** is a module you CONSULT rather than one you have one of — what another language would
