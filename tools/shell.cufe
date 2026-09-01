@@ -255,7 +255,17 @@ Pull a terminal.
                             terminal the interrupt is the CHILD’s, so nothing is recorded here for this line to
                             find. It earns its place when a Ctrl-C lands anywhere else — at the prompt with the
                             line editor unavailable, say — where it stops that from ending the session. */
-                        If an interrupt is requested, acknowledge the interrupt.
+                        If an interrupt is requested:
+                            /*  The terminal echoed `^C` where the cursor happened to be, and nothing has ended the
+                                line since — so the next prompt would be drawn onto the end of it. One blank line
+                                puts it back at the left, which is the whole of what bash does here.
+                        
+                                ★ It knows because the flag is RECORDED during a child now. Reading the child’s exit
+                                status would be the other way to know, and is a language question with no spelling
+                                yet — this needs none of it. */
+                            State "".
+                            Acknowledge the interrupt.
+                        Done.
 
                         /* Taken back for the next line. A child that changed the terminal and did not change
                            it back is why this asks again rather than assuming. */
