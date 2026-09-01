@@ -1,38 +1,30 @@
 /*  A simplified command shell, read-eval-loop over standard input.
 
-    Six permitted commands (clear, pwd, time, date, ls, which), arguments passed
-    through, anything else refused. `Leave.` on a line by itself exits; so does
-    end of input.
+    Anything on your PATH is launched, with as many arguments as you type. `Leave.` on a line by
+    itself exits; so does end of input. `cd` is the one built-in.
 
-    Two things worth noticing:
+    Three things worth noticing:
 
     - There is no shell underneath this shell. `run` is fork + execvp directly —
         the program name and each argument cross to the child as separate OS-level
         arguments, so nothing is ever re-parsed by /bin/sh and quoting cannot bite.
 
-    - `run` here is the STATEMENT form: the child inherits this terminal. Its output streams as
+    - `Run` here is the STATEMENT form: the child inherits this terminal. Its output streams as
         it happens rather than arriving all at once when it exits, and a program that draws —
         `less`, `vim`, `top` — has a real terminal to ask about. The expression form
         (`Define r as run …`) hands the child a pipe instead and gives back what it said, which is
         what you want when the output is DATA and exactly wrong for a shell.
 
-    - `run` takes its arguments as a fixed list, so the dispatch below branches on
-        how many words were typed rather than building an array. That is the whole
-        shape of the program: split the line, look at what you got, choose a call.
+    - The arguments are a SERIES, not a written-out list. A shell cannot know how many arguments
+        it will be handed until it has read the line, so a list fixed when the shell was compiled
+        could only ever be a guess with a ceiling on it — and this one had a ceiling of three.
 
-    Run it interpreted, or compile it — `cufet build examples/systems/shell.cufe` produces
+    There is no list of permitted commands. A program that does not exist is a launch failure and
+    says so, which is the same answer a whitelist gave and one fewer thing to keep current.
+
+    Run it interpreted, or compile it — `cufet build tools/shell.cufe` produces
     a native binary with no managed runtime under it. The subprocess machinery is
     POSIX, so a compiled shell needs Linux, macOS, or WSL. */
-
-Bind fact to permitted, given (the text name):
-    If name is "clear", return true.
-    If name is "pwd",   return true.
-    If name is "time",  return true.
-    If name is "date",  return true.
-    If name is "ls",    return true.
-    If name is "which", return true.
-    Return false.
-Done.
 
 
 Define running as true.
@@ -54,7 +46,7 @@ While running, repeat:
 
                 /* `cd` is the shell's own, not a program to launch. A child process cannot change
                    its parent's directory, which is why every real shell builds this one in. With
-                   it, the permitted `pwd` finally reports somewhere you chose. A bad path is a
+                   it, `pwd` finally reports somewhere you chose. A bad path is a
                    failure value, so a typo costs you a line of output and not the session. */
                 If cmd is "cd":
                     Try to:
@@ -71,24 +63,25 @@ While running, repeat:
                     Done.
                 Done.
 
-                If cast permitted on (cmd):
-                    /* Launching can fail — the program may not exist, or may not be
-                       executable. That is a failure value, not a crash, so it is
-                       handled here and the loop carries on. */
+                /* Everything after the command word is an argument, however many there are. */
+                If cmd is not "cd":
+                    Define argv as a series of text.
+                    Define seen as 0.
+                    For each word in parts, repeat:
+                        If seen is greater than 0, insert word into argv.
+                        Increment seen by 1.
+                    Done.
+
+                    /* Launching can fail — the program may not exist, or may not be executable.
+                       That is a failure value, not a crash, so it is handled here and the loop
+                       carries on. */
                     Try to:
-                        If n is 1, run cmd.
-                        If n is 2, run cmd with arguments (item 2 of parts).
-                        If n is 3, run cmd with arguments (item 2 of parts, item 3 of parts).
-                        If n is greater than 3, state "cufetsh: too many arguments".
+                        Run cmd with arguments argv.
                     Done.
                     In case of failure:
                         State "cufetsh: {the message of the failure}".
                     Done.
                 Done.
-
-                /* 'cd' is handled above and is not a program, so it must not fall through to the
-                   refusal — it is not permitted to LAUNCH, which is a different thing. */
-                If cast permitted on (cmd) is false and cmd is not "cd", state "cufetsh: {cmd}: command not permitted".
             Done.
         Done.
     Done.

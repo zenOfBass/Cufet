@@ -161,6 +161,44 @@ public class PipelineStreamTests : PipelineTestBase
     }
 
     [Fact]
+    public void Subprocess_RunWithArgumentSeries_MatchesInterpreter()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+        // `with arguments <series>` — the list is decided at RUN time, so the C argv is an arena
+        // block sized from the series rather than an array literal. Covers all three emitters that
+        // build one: the capturing form, a PIPE STAGE, and the launching statement.
+        //
+        // ★★ The pipe stage is the one that mattered. The interpreter builds a stage's arguments in
+        // its own loop in Interpreter.Pipes.cs, separately from the standalone form, so it went on
+        // passing NO arguments after the standalone form learned the series — while the compiler,
+        // whose stages share one argv builder, was already right. A divergence only the oracle sees.
+        const string src = """
+            Try to:
+                Define argv as a series of text with ("hello", "world").
+                Define r as run "echo" with arguments argv.
+                State "output=[" joined to (the output of r trimmed) joined to "]".
+
+                Define built as a series of text.
+                Insert "one" into built.
+                Insert "two" into built.
+                Define r2 as run "echo" with arguments built | run "cat".
+                State "piped=[" joined to (the output of r2 trimmed) joined to "]".
+
+                Define none as a series of text.
+                Define t as run "true" with arguments none.
+                State "empty-exit=" joined to (the exit-code of t converted to text).
+
+                Run "echo" with arguments argv.
+            Done.
+            In case of failure:
+                State "launch-failed".
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
     public void Subprocess_Pipe_MatchesInterpreter()
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))

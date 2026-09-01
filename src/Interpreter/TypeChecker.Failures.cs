@@ -269,6 +269,55 @@ public sealed partial class TypeChecker
     // Inside a Try body (_inTryBlock): auto-unwrap to RunResultType.
     // Inside handled context (_inFailureHandledContext): return FailureType (caller handles it).
     // Otherwise: static error — must handle the launch failure.
+    /// <summary>
+    /// The argument half of both `run` forms, checked in one place.
+    /// </summary>
+    /// <remarks>
+    /// ★ The expression and the statement differ in what they GIVE BACK, never in what they will
+    /// accept. Two copies of this drifted apart once already — the statement form was written by
+    /// restating the expression form’s checks rather than sharing them.
+    /// </remarks>
+    private void CheckRunArguments(IReadOnlyList<IExpression> args, IExpression? argsSeries,
+                                   int line, int column)
+    {
+        if (argsSeries != null)
+        {
+            var seriesType = InferType(argsSeries);
+            if (seriesType != null &&
+                (seriesType is not SeriesType series || series.ElementType != CufetType.Text))
+                throw TypeError(
+                    "the arguments must be a series of text",
+                    null, line, column,
+                    $"use a {FormatType(seriesType)} as a program’s argument list",
+                    "Every argument crosses to the program as a separate text value, so the list "
+                  + "must be a series of text.");
+            return;
+        }
+
+        foreach (var arg in args)
+        {
+            var argType = InferType(arg);
+            if (argType == null || argType == CufetType.Text) continue;
+
+            // ⚠ `with arguments (args)` is a one-element LIST holding a series, not the series
+            // form — the two are told apart by the `(`, never by the type. Refusing it by name is
+            // the whole reason the parser is allowed to decide on one token.
+            if (args.Count == 1 && argType is SeriesType { ElementType: var only } && only == CufetType.Text)
+                throw TypeError(
+                    "the parentheses make this one argument, not the whole argument list",
+                    null, line, column,
+                    "pass a series of text inside the parentheses",
+                    "Write 'with arguments <the series>' with no parentheses to pass the whole "
+                  + "list, or 'with arguments (<one>, <two>)' to write the arguments out.");
+
+            throw TypeError(
+                "each argument must be text",
+                null, line, column,
+                $"use a {FormatType(argType)} as a program argument",
+                "Arguments are passed directly to the program — each must be a text value.");
+        }
+    }
+
     private CufetType InferRunExpr(RunExpression run)
     {
         var programType = InferType(run.Program);
@@ -279,16 +328,7 @@ public sealed partial class TypeChecker
                 $"use a {FormatType(programType)} as the program name",
                 "Write the program name as a text literal like \"ls\", or use a text variable.");
 
-        foreach (var arg in run.Args)
-        {
-            var argType = InferType(arg);
-            if (argType != null && argType != CufetType.Text)
-                throw TypeError(
-                    "each argument must be text",
-                    null, run.Line, run.Column,
-                    $"use a {FormatType(argType)} as a program argument",
-                    "Arguments are passed directly to the program — each must be a text value.");
-        }
+        CheckRunArguments(run.Args, run.ArgsSeries, run.Line, run.Column);
 
         if (_inTryBlock)
             return RunResultType;
@@ -322,16 +362,7 @@ public sealed partial class TypeChecker
                 $"use a {FormatType(programType)} as the program name",
                 "Write the program name as a text literal like \"vim\", or use a text variable.");
 
-        foreach (var arg in run.Args)
-        {
-            var argType = InferType(arg);
-            if (argType != null && argType != CufetType.Text)
-                throw TypeError(
-                    "each argument must be text",
-                    null, run.Line, run.Column,
-                    $"use a {FormatType(argType)} as a program argument",
-                    "Arguments are passed directly to the program — each must be a text value.");
-        }
+        CheckRunArguments(run.Args, run.ArgsSeries, run.Line, run.Column);
 
         // ⚠ Handled the same way as the expression form. Wanting no result does not make a launch
         // infallible — the program may not exist either way.

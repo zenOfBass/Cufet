@@ -923,12 +923,20 @@ public sealed record WithOpenStatement(
 // Failures (disk full, etc.) propagate as Cufet failures.
 public sealed record WriteToStreamStatement(IExpression Value, IExpression Stream, int Line, int Column) : IStatement;
 
-// run <program> [with arguments (<arg1>, <arg2>, ...)]
+// run <program> [with arguments (<arg1>, <arg2>, ...)]   — a literal list, fixed at compile time
+// run <program> with arguments <series of text>          — a list decided at RUN time
 // Blocks until the process exits (synchronous). Returns a record or failure.
 // Launch failure (executable not found, permission denied) → Cufet failure.
 // Process ran but exited nonzero → normal result (check exit-code field).
-// Args is empty when no 'with arguments' clause is present.
-public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpression> Args, int Line, int Column) : IExpression;
+//
+// ★★ The two forms are told apart by ONE token: a `(` after `arguments` opens the literal list,
+// anything else is an expression yielding the whole list. Exactly one of `Args` and `ArgsSeries`
+// is ever populated — a program that could not know its own command line until it read one is why
+// the second exists, and a shell is the program that cannot.
+//
+// ⚠ `with arguments (args)` is therefore a ONE-element literal list holding a series, not the
+// series form. The checker refuses that by name rather than letting the types quietly decide.
+public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpression> Args, IExpression? ArgsSeries, int Line, int Column) : IExpression;
 
 // `run <program> [with arguments (…)].` as a STATEMENT — launch it and let it have the terminal.
 //
@@ -945,7 +953,7 @@ public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpressio
 // ⚠ Still fallible, and still must be handled: launching can fail whether or not anyone wanted the
 // result. It gives back nothing, so there is no exit status here — a future `$?` is its own
 // decision rather than something guessed at now.
-public sealed record RunStatement(IExpression Program, IReadOnlyList<IExpression> Args, int Line, int Column) : IStatement;
+public sealed record RunStatement(IExpression Program, IReadOnlyList<IExpression> Args, IExpression? ArgsSeries, int Line, int Column) : IStatement;
 
 // Pull a rabbit [as <name>]. ... Done.
 // Opens a Done.-delimited arena scope. Reference-typed values created in the scope live in

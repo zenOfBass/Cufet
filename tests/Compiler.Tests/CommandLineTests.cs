@@ -114,18 +114,36 @@ public class CommandLineTests
 
     // ── What it still accepts ─────────────────────────────────────────────
 
+    /// <remarks>
+    /// ⚠ `emit-c` was missing from this list, and that is exactly how its two-argument form
+    /// came to CRASH: the output name is optional, so `args[3..]` had nothing to slice. Every verb
+    /// the docs spell belongs here, in every spelling the docs give it — an accepted form nobody
+    /// runs is an unrun form.
+    /// </remarks>
     [Fact]
     public void EveryDocumentedFormStillWorks()
     {
-        string file = WriteProgram("State 1.\n");
+        string file    = WriteProgram("State 1.\n");
+        string dir     = Path.GetDirectoryName(file)!;
+        string emitted = Path.ChangeExtension(file, ".c");
+        string named   = Path.Combine(dir, "cufet-cli-named.c");
         try
         {
             Assert.Equal(0, Run(file).Exit);                                        // run
             Assert.Equal(0, Run("check", file).Exit);                               // check
             Assert.Equal(0, Run("check", "--json", "--native", "--strict", file).Exit);
             Assert.Equal(0, Run("tokens", "--json", file).Exit);
+            Assert.Equal(0, Run("emit-c", file).Exit);                              // emit-c
+            Assert.Equal(0, Run("emit-c", file, named).Exit);                       // emit-c <out.c>
         }
-        finally { File.Delete(file); }
+        finally
+        {
+            File.Delete(file);
+            foreach (var leftover in new[] { emitted, named,
+                                             Path.Combine(dir, "cufet-runtime.c"),
+                                             Path.Combine(dir, "cufet-runtime.h") })
+                if (File.Exists(leftover)) File.Delete(leftover);
+        }
     }
 
     /// <summary>

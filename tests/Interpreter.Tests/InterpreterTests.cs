@@ -7612,6 +7612,99 @@ public class InterpreterTests
             "Done."));
     }
 
+    // ── `with arguments <series>` — an argument list decided at RUN time ──────
+    //
+    // ★★ The literal list is fixed when the program is COMPILED, which is fine for a program that
+    // knows what it runs and impossible for one that reads a command line and then obeys it. The
+    // shell branched on `n is 1 / 2 / 3` for exactly this reason and could go no further.
+    //
+    // ★ One token tells the forms apart: a `(` after `arguments` opens the literal list, anything
+    // else is the whole list. Never the TYPE — see ParenthesisedSeries_IsRefusedByName below.
+
+    [Fact]
+    public void IO_Run_ArgumentsFromASeries()
+    {
+        Assert.Equal("passed-arg", Run(
+            "Try to:" + "\n" +
+            $"    Define argv as a series of text with ({EchoArgList("passed-arg")}).\n" +
+            $"    Define result as run \"{EchoArgProgram}\" with arguments argv.\n" +
+            "    State the output of result trimmed." + "\n" +
+            "Done." + "\n" +
+            "In case of failure:" + "\n" +
+            "    State \"failed\"." + "\n" +
+            "Done."));
+    }
+
+    [Fact]
+    public void IO_RunStatement_ArgumentsFromASeries()
+    {
+        // ⚠ The child inherits the REAL stdout, not this harness's captured console, so its own
+        // line is unreachable from here — reaching the statement after it is the assertion, as it
+        // is for every other statement-form test. That the arguments actually cross as separate OS
+        // arguments is what IO_Run_ArgumentsFromASeries above proves, through the capturing form.
+        Assert.Equal("after", Run(
+            "Try to:" + "\n" +
+            $"    Define argv as a series of text with ({EchoArgList("passed-arg")}).\n" +
+            $"    Run \"{EchoArgProgram}\" with arguments argv.\n" +
+            "Done." + "\n" +
+            "In case of failure:" + "\n" +
+            "    State \"could not launch\"." + "\n" +
+            "Done." + "\n" +
+            "State \"after\"."));
+    }
+
+    [Fact]
+    public void IO_Run_ArgumentsFromAnEmptySeries()
+    {
+        // An empty list is not a missing list — the program is still launched, with no arguments.
+        // A shell reaches this every time someone types a single word. Reaching the LAUNCH is what
+        // is under test, so the program is one that cannot exist: a real one with no arguments is
+        // an interactive shell on Windows and would hang the suite.
+        Assert.Equal("could not launch\nafter", Run(
+            "Try to:" + "\n" +
+            "    Define argv as a series of text." + "\n" +
+            "    Run \"no-such-program-zzz\" with arguments argv." + "\n" +
+            "Done." + "\n" +
+            "In case of failure:" + "\n" +
+            "    State \"could not launch\"." + "\n" +
+            "Done." + "\n" +
+            "State \"after\"."));
+    }
+
+    [Fact]
+    public void IO_Run_ArgumentSeriesMustHoldText()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Try to:" + "\n" +
+            "    Define argv as a series of number with (1, 2)." + "\n" +
+            "    Define result as run \"echo\" with arguments argv." + "\n" +
+            "    State the output of result." + "\n" +
+            "Done." + "\n" +
+            "In case of failure:" + "\n" +
+            "    State \"failed\"." + "\n" +
+            "Done."));
+        Assert.Contains("must be a series of text", ex.Message);
+    }
+
+    [Fact]
+    public void IO_Run_ParenthesisedSeries_IsRefusedByName()
+    {
+        // ⚠ `with arguments (argv)` is a one-element LIST holding a series. The parser decides on
+        // the `(` alone, so the checker has to say what happened rather than let the types pick —
+        // the failure mode this refusal exists for is a reader who wrote the parentheses out of
+        // habit and would otherwise be told only "each argument must be text".
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Try to:" + "\n" +
+            "    Define argv as a series of text with (\"a\")." + "\n" +
+            "    Define result as run \"echo\" with arguments (argv)." + "\n" +
+            "    State the output of result." + "\n" +
+            "Done." + "\n" +
+            "In case of failure:" + "\n" +
+            "    State \"failed\"." + "\n" +
+            "Done."));
+        Assert.Contains("the parentheses make this one argument", ex.Message);
+    }
+
     [Fact]
     public void IO_Run_ExitCode_Zero()
     {

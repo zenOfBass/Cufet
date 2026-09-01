@@ -1539,7 +1539,7 @@ public sealed class Parser
                     "'|' — a pipe stage that is not a `run` must be piped to something");
             SkipNoise();
             Consume(TokenType.Dot);
-            return new RunStatement(solo.Program, solo.Args, solo.Line, solo.Column);
+            return new RunStatement(solo.Program, solo.Args, solo.ArgsSeries, solo.Line, solo.Column);
         }
         while (Peek().Type == TokenType.Pipe)
         {
@@ -3739,6 +3739,7 @@ public sealed class Parser
                 var programExpr = ParseExprOr();
                 SkipNoise();
                 var runArgs = new List<IExpression>();
+                IExpression? runArgsSeries = null;
                 if (Peek().Type == TokenType.With)
                 {
                     Advance(); // consume 'with'
@@ -3748,23 +3749,39 @@ public sealed class Parser
                             "expected 'arguments' after 'with' in a run expression");
                     Advance(); // consume 'arguments' (contextual)
                     SkipNoise();
-                    Consume(TokenType.LParen);
-                    SkipNoise();
-                    if (Peek().Type != TokenType.RParen)
+                    // ★★ ONE token decides which form this is. A `(` opens the literal list that
+                    // has always been here; anything else is an expression yielding the whole list,
+                    // for a program that cannot know its command line until it has read one.
+                    // Deciding by token and not by TYPE is what keeps the two forms tellable apart
+                    // by a reader — `with arguments (args)` stays a one-element list, and the
+                    // checker refuses it by name.
+                    if (Peek().Type == TokenType.LParen)
                     {
-                        runArgs.Add(ParseExpression());
+                        Consume(TokenType.LParen);
                         SkipNoise();
-                        while (Peek().Type == TokenType.Comma)
+                        if (Peek().Type != TokenType.RParen)
                         {
-                            Advance();
-                            SkipNoise();
                             runArgs.Add(ParseExpression());
                             SkipNoise();
+                            while (Peek().Type == TokenType.Comma)
+                            {
+                                Advance();
+                                SkipNoise();
+                                runArgs.Add(ParseExpression());
+                                SkipNoise();
+                            }
                         }
+                        Consume(TokenType.RParen);
                     }
-                    Consume(TokenType.RParen);
+                    else
+                    {
+                        // ParseExprOr, matching the program name above: a trailing
+                        // 'but on failure'/'or pass the failure off' belongs to the run, not to
+                        // the argument list.
+                        runArgsSeries = ParseExprOr();
+                    }
                 }
-                baseExpr = new RunExpression(programExpr, runArgs, runLine, runCol);
+                baseExpr = new RunExpression(programExpr, runArgs, runArgsSeries, runLine, runCol);
                 break;
             }
             case TokenType.Read:

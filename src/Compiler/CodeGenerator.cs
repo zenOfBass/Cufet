@@ -3476,7 +3476,41 @@ static void* cufet_pipe_stage(void* argp) {
         return name;
     }
 
-    // The C series-struct name for a series-typed expression (used to pick the per-type ops).
+    /// <summary>
+    /// Emits the argv for one `run`, and returns the C variable holding it.
+    /// </summary>
+    /// <remarks>
+    /// ★★ The two forms differ only in whether the LENGTH is known here. A literal list becomes a
+    /// C array literal exactly as it always did; a series becomes an arena block sized at run time
+    /// and filled by a loop. Both decay to <c>char* const argv[]</c>, so neither
+    /// <c>cufet_run_inherit</c> nor <c>cufet_run_capture</c> can tell them apart.
+    /// </remarks>
+    private string EmitRunArgv(string progVar, IReadOnlyList<IExpression> args,
+                               IExpression? argsSeries, string argvVar)
+    {
+        if (argsSeries == null)
+        {
+            var elems = new List<string> { $"(char*){progVar}" };
+            foreach (var arg in args) elems.Add($"(char*){EmitExpr(arg)}");
+            elems.Add("(char*)0");
+            _preEmits.Add($"char* {argvVar}[] = {{ {string.Join(", ", elems)} }};");
+            return argvVar;
+        }
+
+        string ser = RegisterSeriesStruct(new SeriesType(TText));
+        string src = EmitExpr(argsSeries);
+        // ⚠ The series is read into a temp first: it may be a call, and evaluating it three times
+        // (size, loop bound, terminator) would run it three times.
+        _preEmits.Add($"{ser}* {argvVar}_s = {src};");
+        _preEmits.Add($"char** {argvVar} = (char**)cufet_arena_alloc((size_t)({argvVar}_s->len + 2) * sizeof(char*));");
+        _preEmits.Add($"{argvVar}[0] = (char*){progVar};");
+        _preEmits.Add($"for (int {argvVar}_i = 0; {argvVar}_i < {argvVar}_s->len; {argvVar}_i++) "
+                    + $"{argvVar}[{argvVar}_i + 1] = (char*){argvVar}_s->data[{argvVar}_i];");
+        _preEmits.Add($"{argvVar}[{argvVar}_s->len + 1] = (char*)0;");
+        return argvVar;
+    }
+
+    /// <summary>The C series-struct name for a series-typed expression (used to pick the per-type ops).</summary>
     private string SeriesStructOf(IExpression seriesExpr) =>
         TypeOf(seriesExpr) is SeriesType st
             ? RegisterSeriesStruct(st)
@@ -5111,10 +5145,7 @@ static void* cufet_pipe_stage(void* argp) {
                 int rid = _freshId++;
                 string prog = $"cf_rp{rid}";
                 _preEmits.Add($"const char* {prog} = {EmitExpr(runStmt.Program)};");
-                var argv = new List<string> { $"(char*){prog}" };
-                foreach (var arg in runStmt.Args) argv.Add($"(char*){EmitExpr(arg)}");
-                argv.Add("(char*)0");
-                _preEmits.Add($"char* cf_ra{rid}[] = {{ {string.Join(", ", argv)} }};");
+                EmitRunArgv(prog, runStmt.Args, runStmt.ArgsSeries, $"cf_ra{rid}");
                 FlushPreEmits(sb, indent);
                 sb.AppendLine($"{indent}{{ CufetFailure cf_re{rid};");
                 sb.AppendLine($"{indent}  if (!cufet_run_inherit({prog}, cf_ra{rid}, &cf_re{rid})) {{");
@@ -7587,10 +7618,7 @@ static void* cufet_pipe_stage(void* argp) {
         {
             string pg = $"cf_pg{id}_{s}";
             _preEmits.Add($"const char* {pg} = {EmitExpr(stages[s].Program)};");
-            var elems = new List<string> { $"(char*){pg}" };
-            foreach (var arg in stages[s].Args) elems.Add($"(char*){EmitExpr(arg)}");
-            elems.Add("(char*)0");
-            _preEmits.Add($"char* cf_av{id}_{s}[] = {{ {string.Join(", ", elems)} }};");
+            EmitRunArgv(pg, stages[s].Args, stages[s].ArgsSeries, $"cf_av{id}_{s}");
             progVars.Add(pg);
         }
 

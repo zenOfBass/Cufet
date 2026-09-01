@@ -31,7 +31,9 @@ else if (args.Length >= 2 && args[0].Equals("build", StringComparison.OrdinalIgn
 }
 else if (args.Length >= 2 && args[0].Equals("emit-c", StringComparison.OrdinalIgnoreCase))
 {
-    RefuseExtraArguments("emit-c", args[3..], "cufet emit-c <file.cufe> [out.c]");
+    // ⚠ The output name is OPTIONAL, so there may be no third argument to slice past —
+    // `args[3..]` on a two-argument command threw before reaching the compiler at all.
+    RefuseExtraArguments("emit-c", args.Length >= 3 ? args[3..] : [], "cufet emit-c <file.cufe> [out.c]");
     EmitC(args[1], args.Length >= 3 ? args[2] : Path.ChangeExtension(args[1], ".c"));
 }
 else if (args.Length >= 2 && args[0].Equals("check", StringComparison.OrdinalIgnoreCase))

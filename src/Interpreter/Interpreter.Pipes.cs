@@ -69,7 +69,7 @@ public sealed partial class Interpreter
         {
             var run     = (RunExpression)stage;
             var program = (string)Evaluate(run.Program);
-            var args    = run.Args.Select(a => (string)Evaluate(a)).ToArray();
+            var args    = RunArguments(run.Args, run.ArgsSeries);
 
             var psi = new ProcessStartInfo(program)
             {
@@ -146,7 +146,7 @@ public sealed partial class Interpreter
         {
             var run     = (RunExpression)stage;
             var program = (string)Evaluate(run.Program);
-            var args    = run.Args.Select(a => (string)Evaluate(a)).ToArray();
+            var args    = RunArguments(run.Args, run.ArgsSeries);
 
             var psi = new ProcessStartInfo(program)
             {

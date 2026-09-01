@@ -556,6 +556,15 @@ public sealed class SemanticTokenizer
                 Walk((IExpression)pipe);
                 break;
 
+            // `Run <program>.` — the launch form. It is not a PipeExpression and reaches no
+            // other case, so without this the program name and its arguments are the one
+            // corner of the language the editor cannot see.
+            case RunStatement run:
+                Walk(run.Program);
+                foreach (var a in run.Args) Walk(a);
+                if (run.ArgsSeries != null) Walk(run.ArgsSeries);
+                break;
+
             // No names: Stop., Skip., Suppress., Acknowledge., Yield.
             default:
                 break;
@@ -774,6 +783,7 @@ public sealed class SemanticTokenizer
             case RunExpression run:
                 Walk(run.Program);
                 foreach (var a in run.Args) Walk(a);
+                if (run.ArgsSeries != null) Walk(run.ArgsSeries);
                 break;
 
             case MatrixLiteral mtl:

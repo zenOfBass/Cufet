@@ -235,10 +235,21 @@ public sealed partial class Interpreter
 
     // ── Process execution ─────────────────────────────────────────────────────
 
+    /// <summary>
+    /// The argument list of either `run` form. Exactly one of the two is populated: a literal
+    /// list written at the call, or one expression yielding the whole list at run time.
+    /// </summary>
+    private string[] RunArguments(IReadOnlyList<IExpression> args, IExpression? argsSeries)
+    {
+        if (argsSeries == null) return args.Select(a => (string)Evaluate(a)).ToArray();
+        var series = (CufetSeries)Evaluate(argsSeries);
+        return series.Select(v => (string)v).ToArray();
+    }
+
     private object EvaluateRunExpr(RunExpression run)
     {
         var program = (string)Evaluate(run.Program);
-        var args    = run.Args.Select(a => (string)Evaluate(a)).ToArray();
+        var args    = RunArguments(run.Args, run.ArgsSeries);
         try
         {
             var psi = new ProcessStartInfo(program)
@@ -302,7 +313,7 @@ public sealed partial class Interpreter
     private void ExecuteRunStatement(RunStatement run)
     {
         var program = (string)Evaluate(run.Program);
-        var args    = run.Args.Select(a => (string)Evaluate(a)).ToArray();
+        var args    = RunArguments(run.Args, run.ArgsSeries);
         try
         {
             // ⚠ Same hazard as the compiled path: the child writes to the same descriptor this
