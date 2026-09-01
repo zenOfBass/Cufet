@@ -56,6 +56,34 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   by what it is, because it used to advise `Pull books on math, and ‹module›.`, which the new rule
   refuses the moment a reader follows it.
 
+- **`run` takes its arguments as a series, so a program can build a command line it could not
+  know in advance.** `with arguments` still accepts a written-out list; it now also accepts one
+  expression of type `series of text`.
+
+  ```cufet
+  Try to:
+      Define argv as a series of text with ("--oneline", "-5").
+      Define result as run "git" with arguments argv.
+      State the output of result.
+  Done.
+  In case of failure:
+      State "git not available".
+  Done.
+  ```
+
+  ★★ **The list used to be fixed when the program was COMPILED**, which is no constraint at all
+  for a program that knows what it runs, and fatal for one that reads a command line and then
+  obeys it. `tools/shell.cufe` branched on `n is 1 / 2 / 3` and answered a fourth word with
+  "too many arguments"; it is now four lines with no ceiling, and the whitelist of six permitted
+  commands went with it — a program that does not exist is a launch failure and already says so.
+
+  ★ **One token tells the two forms apart**: a `(` after `arguments` opens the written-out list,
+  anything else is the whole list. Never the TYPE — so `with arguments (argv)` is a one-element
+  list holding a series, and is refused by name rather than quietly meaning the other thing. A
+  reader can tell which form is written without knowing what `argv` holds.
+
+  ⚠ Empty is not missing: an empty series launches the program with no arguments.
+
 - **`Run <program>.` in statement position launches it with this terminal.** Written on its own,
   nothing is captured: the child inherits this program’s stdin and stdout, so its output streams as
   it happens and a program that draws — `vim`, `less`, `top` — has a real terminal to ask about.
@@ -88,6 +116,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   output. Windows structurally cannot see this — it was caught compiling under WSL gcc.
 
 ### Fixed
+- **`cufet emit-c <file.cufe>` crashed instead of emitting.** The output name is optional, and the
+  check for extra arguments sliced past a third argument that a two-argument command does not
+  have — so the documented spelling threw an `ArgumentOutOfRangeException` before reaching the
+  compiler. `cufet emit-c <file.cufe> <out.c>` was unaffected, which is why it survived.
+
 - **An interface escaped a loaded file’s privacy.** A file’s top level belongs to that file — its
   helper functions, constants and types are renamed out of reach when it is loaded. Interfaces were
   not: the privacy pass had a case for every other declaration kind and none for them, so one

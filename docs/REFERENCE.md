@@ -3277,6 +3277,40 @@ Arguments are passed as individual strings to the OS — no shell is invoked and
 shell injection is structurally impossible. The program name is any text
 expression.
 
+**The argument list may be a series instead**, when the program does not know until it runs how
+many arguments there will be:
+
+```cufet
+Try to:
+    Define argv as a series of text with ("--oneline", "-5").
+    Define result as run "git" with arguments argv.
+    State the output of result.
+Done.
+In case of failure:
+    State "git not available".
+Done.
+```
+
+The series must be a `series of text`, and an empty one is not a missing one — the program still
+launches, with no arguments.
+
+⚠ **A `(` after `arguments` always opens the written-out list.** So `with arguments (argv)` is a
+list of ONE argument that happens to be a series, not the series form, and is refused as such:
+
+```cufet-refused
+Try to:
+    Define argv as a series of text with ("a").
+    Define result as run "echo" with arguments (argv).
+    State the output of result.
+Done.
+In case of failure:
+    State "no".
+Done.
+```
+
+The forms are told apart by that one token and never by the type, so that a reader can see which
+one is written without knowing what `argv` holds.
+
 **As a statement, it launches the program with this terminal.** Written on its own —
 `Run <program>.` — nothing is captured and nothing comes back:
 

@@ -2374,6 +2374,30 @@ Failures (missing program, permission denied) surface as Cufet failures with the
 categories as standalone `run` expressions. The must-handle requirement is **waived**
 for `run` expressions inside a pipe — the pipe itself is considered an implicit handler.
 
+### An argument list that is not written out
+
+`with arguments` takes either a parenthesised list of expressions or a single expression of type
+`series of text`. **One token decides which:** a `(` immediately after `arguments` opens the
+written-out list, and anything else is read as the whole list.
+
+```cufet-fragment
+Try to:
+    Define argv as a series of text with ("-l", "/tmp").
+    Run "ls" with arguments argv.          ← the series form
+    Run "ls" with arguments ("-l", "/tmp").  ← the written-out form
+Done.
+In case of failure:
+    State "no ls".
+Done.
+```
+
+⚠ **`with arguments (argv)` is therefore the written-out form with one element in it**, not the
+series form. The checker refuses it by name rather than letting the element type decide, because a
+reader has to be able to tell the two apart without knowing what `argv` holds. The same rule is why
+the parser may commit on a single token.
+
+Both `run` forms accept both spellings, in a pipe stage as well as standalone.
+
 `Run X.` at statement level (without `|`) **launches the program with this terminal** instead of
 capturing it. It is a statement, so it hands back nothing — no result record, and so no exit code
 to read. It can still fail to launch, so it still must be handled: put it in a `Try to:` block.

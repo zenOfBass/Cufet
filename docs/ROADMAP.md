@@ -73,16 +73,20 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
 
 ★ **The REPL is written, and it worked as the instrument.** `tools/repl.cufe` and the `tools/terminal.cufe` book it pulls found four things nothing else had: the oracle could not type-check a multi-file program at all, `cufet check` passed programs that died on an undefined name, a module could carry no types, and a released version can be correct in all nine source places while the installed tool is two releases behind.
 
-1. **A shell, written in Cufet.** `tools/shell.cufe` is the seed: it already reads, parses,
-    dispatches and launches, and now changes directory too.
+1. **A shell, written in Cufet.** `tools/shell.cufe` reads, parses, dispatches, launches with the
+    terminal, changes directory, and takes as many arguments as you type.
 
-    ★ **Half of what it needed is now written.** `tools/terminal.cufe` is a book: raw mode, a key
-    at a time, and a line editor with history over the top of it, built for the REPL and pulled
-    here unchanged. That was the reason for doing the REPL first and it paid.
+    ★ **What is left, in order:** globbing (ordinary Cufet now that arguments are a series);
+    an exit status, which needs a spelling — the launching form gives back nothing by design;
+    then pipelines and `<`, which need a pipe built from a count known at run time and a way to
+    feed a child’s stdin.
 
-    ★ **What is left is job control** — process groups and signalling a child. Not in the
-    language and it should not become a language feature; it is the "call a C function" family,
-    and axioms reach it. Globbing needs nothing new.
+    ★ **Job control is last and is not sized.** Process groups and signalling need a way to name a
+    running child, and the language has none. Not a language feature when it comes — it is the
+    "call a C function" family, and axioms reach it.
+
+    ⚠ The line editor in `tools/repl.cufe` is NOT shared with the shell. Moving it into
+    `tools/terminal.cufe` is deferred until the shell genuinely needs rich editing.
 
 2. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
