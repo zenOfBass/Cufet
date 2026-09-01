@@ -3,6 +3,10 @@
     Anything on your PATH is launched, with as many arguments as you type. `Leave.` on a line by
     itself exits; so does end of input. `cd` is the one built-in.
 
+    Arrows, Home/End, Ctrl-U and a history of what you typed all come from `tools/terminal.cufe`,
+    which the REPL uses too. Not one line of editing is written here — that is the whole reason
+    the terminal is a book and not a part of the REPL.
+
     Three things worth noticing:
 
     - There is no shell underneath this shell. `run` is fork + execvp directly —
@@ -27,62 +31,97 @@
     POSIX, so a compiled shell needs Linux, macOS, or WSL. */
 
 
-Define running as true.
-While running, repeat:
-    Define raw as read a line from the input.
+Pull a terminal.
+    /* Prompts are for somebody typing. Piped or redirected, they would land in the output. */
+    Define asking as cast terminal's interactive.
 
-    /* Void means end of input — the user closed the stream instead of saying Leave. */
-    If raw is void, the running becomes false.
-    If raw is not void:
-        Define line as raw trimmed.
+    /* Raw mode is asked for, never assumed. A pipe, a redirect, or a machine without termios all
+       say no, and the answer is believed — the reader falls back to letting the terminal collect
+       the line, which is what this shell did before it had an editor at all. */
+    Define editing as false.
+    If asking, editing becomes cast terminal's raw-on.
 
-        If line is "Leave.", running becomes false.
-        If line is not "Leave.":
-            /* A blank line is not an error; it is just nothing to do. */
-            If the length of line is greater than 0:
-                Define parts as line split by " ".
-                Define cmd   as the first of parts.
-                Define n     as the number of parts.
+    /* Everything typed, in order, for the up arrow to walk back through. */
+    Define past as a series of text.
 
-                /* `cd` is the shell's own, not a program to launch. A child process cannot change
-                   its parent's directory, which is why every real shell builds this one in. With
-                   it, `pwd` finally reports somewhere you chose. A bad path is a
-                   failure value, so a typo costs you a line of output and not the session. */
-                If cmd is "cd":
-                    Try to:
-                        If n is 1:
-                            Define home as the environment variable "HOME" but void is "".
-                            If the length of home is 0, home becomes the environment variable "USERPROFILE" but void is "/".
-                            The current directory becomes home.
+    Define running as true.
+    While running, repeat:
+        If asking, cast terminal's put on ("cufetsh$ ").
+
+        Define raw as cast terminal's typed on (editing, past).
+
+        /* Void means end of input — the user closed the stream instead of saying Leave. */
+        If raw is void, the running becomes false.
+        If raw is not void:
+            Define line as raw trimmed.
+
+            /* Remembered whether or not it worked. Recalling a line to fix it is most of what a
+               history is for, and the line that failed is the one you most want back. */
+            If the length of line is greater than 0, insert line into past.
+
+            If line is "Leave.", running becomes false.
+            If line is not "Leave.":
+                /* A blank line is not an error; it is just nothing to do. */
+                If the length of line is greater than 0:
+                    Define parts as line split by " ".
+                    Define cmd   as the first of parts.
+                    Define n     as the number of parts.
+
+                    /* `cd` is the shell's own, not a program to launch. A child process cannot change
+                       its parent's directory, which is why every real shell builds this one in. With
+                       it, `pwd` finally reports somewhere you chose. A bad path is a
+                       failure value, so a typo costs you a line of output and not the session. */
+                    If cmd is "cd":
+                        Try to:
+                            If n is 1:
+                                Define home as the environment variable "HOME" but void is "".
+                                If the length of home is 0, home becomes the environment variable "USERPROFILE" but void is "/".
+                                The current directory becomes home.
+                            Done.
+                            If n is 2, the current directory becomes item 2 of parts.
+                            If n is greater than 2, state "cufetsh: cd: too many arguments".
                         Done.
-                        If n is 2, the current directory becomes item 2 of parts.
-                        If n is greater than 2, state "cufetsh: cd: too many arguments".
-                    Done.
-                    In case of failure:
-                        State "cufetsh: cd: {the message of the failure}".
-                    Done.
-                Done.
-
-                /* Everything after the command word is an argument, however many there are. */
-                If cmd is not "cd":
-                    Define argv as a series of text.
-                    Define seen as 0.
-                    For each word in parts, repeat:
-                        If seen is greater than 0, insert word into argv.
-                        Increment seen by 1.
+                        In case of failure:
+                            State "cufetsh: cd: {the message of the failure}".
+                        Done.
                     Done.
 
-                    /* Launching can fail — the program may not exist, or may not be executable.
-                       That is a failure value, not a crash, so it is handled here and the loop
-                       carries on. */
-                    Try to:
-                        Run cmd with arguments argv.
-                    Done.
-                    In case of failure:
-                        State "cufetsh: {the message of the failure}".
+                    /* Everything after the command word is an argument, however many there are. */
+                    If cmd is not "cd":
+                        Define argv as a series of text.
+                        Define seen as 0.
+                        For each word in parts, repeat:
+                            If seen is greater than 0, insert word into argv.
+                            Increment seen by 1.
+                        Done.
+
+                        /*  ⚠ The terminal goes back to normal for the child, and this is not a courtesy.
+                            Raw mode is a property of the TERMINAL, not of this process, so a child launched
+                            while it is on inherits no echo, no line editing and no Ctrl-C — `cat` would take
+                            keys one at a time in silence and could not be interrupted. Handing the terminal
+                            over means handing it over as found. */
+                        If editing, cast terminal's raw-off.
+
+                        /* Launching can fail — the program may not exist, or may not be executable.
+                           That is a failure value, not a crash, so it is handled here and the loop
+                           carries on. */
+                        Try to:
+                            Run cmd with arguments argv.
+                        Done.
+                        In case of failure:
+                            State "cufetsh: {the message of the failure}".
+                        Done.
+
+                        /* Taken back for the next line. A child that changed the terminal and did not change
+                           it back is why this asks again rather than assuming. */
+                        If editing, editing becomes cast terminal's raw-on.
                     Done.
                 Done.
             Done.
         Done.
     Done.
+
+    /* However the loop ended — Leave., end of input, or Ctrl-D — the terminal is handed back the
+       way a program that never touched it would leave one. */
+    If editing, cast terminal's raw-off.
 Done.
