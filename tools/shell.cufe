@@ -10,6 +10,12 @@
         the program name and each argument cross to the child as separate OS-level
         arguments, so nothing is ever re-parsed by /bin/sh and quoting cannot bite.
 
+    - `run` here is the STATEMENT form: the child inherits this terminal. Its output streams as
+        it happens rather than arriving all at once when it exits, and a program that draws —
+        `less`, `vim`, `top` — has a real terminal to ask about. The expression form
+        (`Define r as run …`) hands the child a pipe instead and gives back what it said, which is
+        what you want when the output is DATA and exactly wrong for a shell.
+
     - `run` takes its arguments as a fixed list, so the dispatch below branches on
         how many words were typed rather than building an array. That is the whole
         shape of the program: split the line, look at what you got, choose a call.
@@ -28,12 +34,6 @@ Bind fact to permitted, given (the text name):
     Return false.
 Done.
 
-/* A child's stderr is worth seeing before its stdout — an error explains an empty
-   result. Both arrive already captured, so this is the only place either is shown. */
-Bind void to show, given (the text out, the text err):
-    If the length of err is greater than 0, state err trimmed.
-    If the length of out is greater than 0, state out trimmed.
-Done.
 
 Define running as true.
 While running, repeat:
@@ -76,18 +76,9 @@ While running, repeat:
                        executable. That is a failure value, not a crash, so it is
                        handled here and the loop carries on. */
                     Try to:
-                        If n is 1:
-                            Define r as run cmd.
-                            Cast show on (the output of r, the errors of r).
-                        Done.
-                        If n is 2:
-                            Define r2 as run cmd with arguments (item 2 of parts).
-                            Cast show on (the output of r2, the errors of r2).
-                        Done.
-                        If n is 3:
-                            Define r3 as run cmd with arguments (item 2 of parts, item 3 of parts).
-                            Cast show on (the output of r3, the errors of r3).
-                        Done.
+                        If n is 1, run cmd.
+                        If n is 2, run cmd with arguments (item 2 of parts).
+                        If n is 3, run cmd with arguments (item 2 of parts, item 3 of parts).
                         If n is greater than 3, state "cufetsh: too many arguments".
                     Done.
                     In case of failure:
