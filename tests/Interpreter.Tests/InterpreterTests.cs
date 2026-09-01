@@ -8772,6 +8772,60 @@ public class InterpreterTests
     }
 
     [Fact]
+    public void Signal_SecondInterruptDuringALaunch_DoesNotEndAShell()
+    {
+        // ⚠⚠ The second-press escape exists so a Cufet program can never be unkillable from its own
+        // terminal, and it rested on an assumption written in its own comment: a program that
+        // handles interrupts acknowledges, and so never reaches it. A LAUNCH broke that — a shell
+        // cannot acknowledge anything until the child it is waiting for has gone, so every press
+        // after the first was a "second press" and killed the shell. Measured at a real terminal:
+        // Ctrl-C twice inside `cmd` ended the session.
+        var interp = InterpreterOf("If an interrupt is requested, acknowledge the interrupt.");
+
+        interp.EnterForegroundChild();
+        try
+        {
+            // However many arrive while the child holds the terminal, none is this program's.
+            Assert.True(interp.InterruptArrived());
+            Assert.True(interp.InterruptArrived());
+            Assert.False(interp.InterruptIsPending);
+        }
+        finally { interp.LeaveForegroundChild(); }
+
+        // ★ Outside a launch the escape is exactly as it was: the first press is taken and
+        // recorded, and a second one unanswered is left to the OS.
+        Assert.True(interp.InterruptArrived());
+        Assert.True(interp.InterruptIsPending);
+        Assert.False(interp.InterruptArrived());
+    }
+
+    [Fact]
+    public void Signal_AProgramThatIgnoresInterrupts_IsNotShieldedByALaunch()
+    {
+        // ⚠ The shield is only for a program in charge of its own. One that never mentions
+        // interrupts is stopped by Ctrl-C whether or not it is waiting for a child — otherwise a
+        // script launching something would have become unstoppable.
+        var interp = InterpreterOf("State \"nothing about interrupts\".");
+
+        interp.EnterForegroundChild();
+        try
+        {
+            Assert.True(interp.InterruptArrived());
+            Assert.True(interp.InterruptIsPending);
+        }
+        finally { interp.LeaveForegroundChild(); }
+    }
+
+    /// <summary>An interpreter that has decided its interrupt stance from a real program.</summary>
+    private static Interpreter InterpreterOf(string source)
+    {
+        var program = new TypeChecker().Check(new Parser(new CufetLexer(source).Tokenize()).Parse());
+        var interp  = new Interpreter(new StringWriter());
+        RunOnLargeStack(() => interp.Execute(program));
+        return interp;
+    }
+
+    [Fact]
     public void Signal_ProgramThatIgnoresInterrupts_IsStillUnwoundByALaunch()
     {
         // ⚠ The other half of the same rule, and the half that must not change: a program that

@@ -337,6 +337,12 @@ public sealed partial class Interpreter
             using var proc = Process.Start(psi)
                 ?? throw new InvalidOperationException($"Process.Start returned null for '{program}'");
 
+            // ★★ This form hands the child the TERMINAL, so from here until it exits an interrupt
+            // belongs to the child and not to this program. Only the launching form does this: the
+            // capturing form gives the child a pipe and keeps the terminal for itself.
+            EnterForegroundChild();
+            try
+            {
             // ⚠ Polled rather than blocked, for the same reason the expression form polls: a blocked
             // wait cannot notice Ctrl-C, and the child must be taken down with the program.
             while (!proc.WaitForExit(50))
@@ -356,6 +362,8 @@ public sealed partial class Interpreter
             // `If an interrupt is requested:` could never survive a launch. Ignore interrupts and Ctrl-C
             // behaves as it does everywhere else; handle them and you are in charge of them here too.
             if (_interruptRequested && !_programHandlesInterrupts) throw new InterruptUnwind();
+            }
+            finally { LeaveForegroundChild(); }
         }
         catch (Exception ex) when (ex is Win32Exception or FileNotFoundException
                                     or DirectoryNotFoundException or UnauthorizedAccessException)

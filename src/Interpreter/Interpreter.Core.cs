@@ -45,8 +45,23 @@ public sealed partial class Interpreter
     // for a single-writer / single-reader flag — no lock, no Interlocked, no barrier needed.
     private volatile bool _interruptRequested;
 
+    // ⚠⚠ Non-zero while a launched child HAS THIS TERMINAL. An interrupt arriving then is the
+    // child’s — the terminal signalled it too — so this program neither records it nor counts it
+    // toward the second-press escape below. Without this a shell dies on the second Ctrl-C of any
+    // child, because it cannot acknowledge anything until the child it is waiting for is gone.
+    //
+    // Written on the interpreter thread, read on the signal-dispatch thread; Interlocked because,
+    // unlike the single-writer flag above, a task could be launching one while another finishes.
+    private volatile int _childHasTerminal;
+
+    internal void EnterForegroundChild() => Interlocked.Increment(ref _childHasTerminal);
+    internal void LeaveForegroundChild() => Interlocked.Decrement(ref _childHasTerminal);
+
     // Allow tests to set the interrupt flag directly without synthesizing a real Ctrl-C.
     internal void SimulateInterrupt() => _interruptRequested = true;
+
+    /// <summary>Whether a Ctrl-C is recorded and still unacknowledged. For tests.</summary>
+    internal bool InterruptIsPending => _interruptRequested;
 
     // Whether the program said anything about interrupts — `an interrupt is requested` or
     // `Acknowledge the interrupt.` anywhere in it. Set once from the AST before execution, and read
@@ -519,12 +534,28 @@ public sealed partial class Interpreter
         // program fail under WebAssembly while the front end worked perfectly, which is a
         // confusing shape of bug: type errors reported fine, nothing would run.
         if (!OperatingSystem.IsBrowser())
-            Console.CancelKeyPress += (_, e) =>
-            {
-                if (_interruptRequested) return;   // second press — let it through, and die
-                e.Cancel = true;
-                _interruptRequested = true;
-            };
+            Console.CancelKeyPress += (_, e) => e.Cancel = InterruptArrived();
+    }
+
+    /// <summary>One Ctrl-C. True to keep the process alive; false to let the OS have it.</summary>
+    /// <remarks>
+    /// ★ A method rather than a lambda body so a test can press the key. Synthesising a real
+    /// Ctrl-C is not something a test can do portably, and the alternative — a hook that repeats
+    /// this decision in the test — would assert that the copy is right about nothing.
+    /// </remarks>
+    internal bool InterruptArrived()
+    {
+        // ★★ Not ours to take, and not ours to COUNT. A child holding the terminal was signalled
+        // by that terminal directly; what it does about that is its own answer, and a shell has to
+        // survive as many Ctrl-Cs as anyone cares to press. Only for a program in charge of its own
+        // interrupts — one that never mentions them still stops, launch or no launch.
+        if (_childHasTerminal > 0 && _programHandlesInterrupts) return true;
+
+        // The second press is left alone, so the OS terminates. Taking the kill away is only
+        // defensible while something can still act on the flag.
+        if (_interruptRequested) return false;
+        _interruptRequested = true;
+        return true;
     }
 
     // Flattens statements through Pull...Done scope bodies so that hoisting passes see
