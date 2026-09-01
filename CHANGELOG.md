@@ -167,6 +167,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the first was counted as a second one. While a launched child holds the terminal, an interrupt is
   now neither recorded nor counted by the parent.
 
+  ⚠⚠ **The first version of that shield diverged the backends, and the suite could not have said
+  so.** Not recording the interrupt at all was wider than its own reason: the compiled runtime has
+  no second-press escape, so its handler went on setting the flag while the interpreter had stopped.
+  The same program interrupted at the same moment then answered `an interrupt is requested`
+  differently on the two backends. Only the ESCAPE ever needed narrowing — the flag is recorded
+  either way now.
+
+  ★★ **Measuring it needed a real terminal, and the first attempt to measure it was wrong.** A
+  signal sent to the interpreter from a background process group never arrives — .NET surfaces
+  `Console.CancelKeyPress` only with a controlling terminal — so a harness without a pty compares a
+  delivered signal against an undelivered one and reports a difference that is entirely its own.
+  Under `script -qec` both backends print the same five lines; with the wide shield restored, the
+  interpreter alone prints `flag: clear`. **No test in the suite can press a key, so this whole
+  class of behaviour is outside what the oracle can check.**
+
   ⚠ That narrows a guarantee, deliberately: "a second Ctrl-C always terminates" does not hold while
   a child has the terminal. It is what bash does — bash does not die from Ctrl-C either — but a
   child that ignores the signal and never exits is one the parent waits with.
