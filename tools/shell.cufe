@@ -64,26 +64,20 @@ Done.
    typed the Windows way finds its directory too. */
 Bind number to last-separator, given (the text word):
     Define found as 0.
-    Define at as 1.
-    Define past as (the length of word) + 1.
-    While at is less than past, repeat:
+    For each at in range 1 to the length of word, repeat:
         Define here as the characters from at to at of word.
         If here is "/", found becomes at.
         If here is "\\", found becomes at.
-        Increment at by 1.
     Done.
     Return found.
 Done.
 
 /* Whether a word is a pattern at all. A word with no `*` and no `?` is never looked up. */
 Bind fact to wild, given (the text word):
-    Define at as 1.
-    Define past as (the length of word) + 1.
-    While at is less than past, repeat:
+    For each at in range 1 to the length of word, repeat:
         Define here as the characters from at to at of word.
         If here is "*", return true.
         If here is "?", return true.
-        Increment at by 1.
     Done.
     Return false.
 Done.
@@ -218,15 +212,17 @@ Pull a terminal.
                     /* Everything after the command word is an argument, however many there are. */
                     If cmd is not "cd":
                         Define argv as a series of text.
-                        Define seen as 0.
-                        For each word in parts, repeat:
-                            If seen is greater than 0:
-                                Define standing-for as cast expanded on (word).
+                        
+                        /*  ⚠ Guarded, because `range 2 to 1` is not empty — a range with its start past its end
+                            counts DOWN, so a one-word line would walk indexes 2 and 1 and ask for an argument
+                            that is not there. The guard says the real condition: there is a second word. */
+                        If n is greater than 1:
+                            For each spot in range 2 to n, repeat:
+                                Define standing-for as cast expanded on (item spot of parts).
                                 For each one-name in standing-for, repeat:
                                     Insert one-name into argv.
                                 Done.
                             Done.
-                            Increment seen by 1.
                         Done.
 
                         /*  ⚠ The terminal goes back to normal for the child, and this is not a courtesy.
