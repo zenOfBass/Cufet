@@ -92,6 +92,48 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   editing and no Ctrl-C — `cat` would take keys one at a time in silence and could not be
   interrupted. Handing the terminal to a child means handing it over as found.
 
+- **`chase` — a mutable character buffer, from the `collections` book.** `text` is an immutable
+  value, so building one a piece at a time is quadratic: every join rebuilds the whole string. This
+  is the thing you build IN, crossed to `text` once at the end.
+
+  ```cufet
+  Pull a book on collections.
+      Define out as a chase.
+      Insert "he" into out.
+      Insert "llo" into out.
+      State the number of out.          ← 5
+      State out.                        ← (h, e, l, l, o)
+      State out converted to text.      ← hello
+  Done.
+  ```
+
+  ★★ **RESERVED BY BOOK, which is new here.** A bare `a chase` has no mandatory tail, so nothing in
+  the line itself can tell the type from a variable of that name — and the parser already states
+  the rule that forces: `catalogue` and `atlas` had to be reserved outright for exactly this. What
+  tells them apart instead is that the book introducing it was PULLED. Outside that pull `chase` is
+  an ordinary name, so a word is not spent language-wide for one construct.
+
+  ⚠ The cost, stated plainly: inside a `collections` pull, `Define chase as 5.` is gone. That is
+  stricter than `matrix`, which becomes a type only when `with` follows it.
+
+  ★ **It follows COLLECTION conventions, not text ones** — `Insert`, `the number of`, printing that
+  looks like a collection, comparison by content. No parallel copy of text’s API: the moment it
+  grows one the split stops meaning anything. `converted to text` is an explicit copy, and the
+  buffer lives on independent — not a consuming move, and not a view, since a `text` that changed
+  under you would break the one thing `text` promises.
+
+  ⚠⚠ **Four bytes per character on BOTH backends, spelled `int32_t` rather than `int`.** A C# string
+  is UTF-16 and C text is UTF-8, so if either side had counted its own storage units the two would
+  disagree about what "the second character" means for anything outside ASCII. Both store code
+  points instead.
+
+  ★★ **Three defects the exhaustiveness guard found, and nothing else would have.** Registering the
+  new type surfaced a missing equality arm in the compiler and a `FormatType` falling through to
+  `<unknown>`; chasing the first found that the interpreter’s structural-equality arm matches
+  `List<object>`, which this is not — so a buffer compared by REFERENCE while a series of the same
+  shape compared by content. The oracle separately caught a compiled `State` that computed the line
+  and threw it away, printing blank where the interpreter printed the buffer.
+
 - **`run` takes its arguments as a series, so a program can build a command line it could not
   know in advance.** `with arguments` still accepts a written-out list; it now also accepts one
   expression of type `series of text`.

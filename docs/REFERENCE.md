@@ -1523,6 +1523,48 @@ compare element-wise by value.
 
 ---
 
+### Chase (a mutable character buffer)
+
+`text` is an immutable value, so building one a piece at a time is quadratic — every join rebuilds
+the whole string. A **chase** is its mutable companion: you build in it, then cross to `text` once
+at the end, which turns O(n²) into O(n).
+
+It comes from the `collections` book, and its name is only spent where that book was pulled:
+
+```cufet
+Pull a book on collections.
+    Define out as a chase.
+    Insert "he" into out.
+    Insert "llo" into out.
+
+    State the number of out.          ← 5
+    State out.                        ← (h, e, l, l, o)
+    State out converted to text.      ← hello
+Done.
+```
+
+- **It follows COLLECTION conventions, not text ones.** `Insert`, `the number of`, and printing
+  that looks like a collection. It deliberately grows no parallel copy of text’s API — no
+  `trimmed`, no interpolation holes — because the moment it does, the split stops meaning anything
+  and a reader is back to asking which of the two they are holding.
+- **`Insert` takes a text and appends its characters**, however many. Appending what you just
+  built is the operation a buffer exists for.
+- **`State` prints it as the collection it is** — `(h, e, l, l, o)`, never `hello`. When the text
+  is what you want, `converted to text` says so.
+- **`converted to text` is an explicit COPY.** The buffer lives on, independent. Not a consuming
+  move, and not a view — a `text` that changed under you would break the one thing `text` promises.
+- **Elements are characters, stored four bytes each.** `ö` is one character here, not two bytes,
+  and so is a character outside the basic plane.
+- **Reference-typed and region-allocated**, like a series or a map: it dies with its rabbit.
+- Two chases compare by **content**, as a series does.
+
+⚠ **Outside the pull, `chase` is an ordinary name.** A word spent on one construct is a name a
+writer loses forever, so a type a book introduces only claims its name where that book was asked
+for — `Define chase as 5.` is a perfectly good line in a program that never pulls `collections`.
+The cost is the other direction: inside the pull, that line is gone.
+
+---
+
 ### Catalogue and atlas (heterogeneous collections)
 
 **Catalogue** — a series whose element type is a union: a heterogeneous ordered
