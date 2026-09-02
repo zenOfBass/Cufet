@@ -120,6 +120,13 @@ public sealed partial class Interpreter
 
                 currentInput = stdoutTask.Result;
             }
+            // ⚠ BEFORE the launch-failure catch, and routed somewhere else entirely. A platform with
+            // no processes is not a launch that failed — see CannotRunPrograms. Left uncaught it
+            // reached a playground reader as `Process_PlatformNotSupported`, a .NET resource key.
+            catch (PlatformNotSupportedException)
+            {
+                throw CannotRunPrograms(program, line);
+            }
             catch (Exception ex) when (ex is Win32Exception or FileNotFoundException
                                         or DirectoryNotFoundException or UnauthorizedAccessException)
             {
@@ -207,6 +214,13 @@ public sealed partial class Interpreter
                     pipeExitCode = proc.ExitCode;
 
                 currentInput = stdoutTask.Result;
+            }
+            // ⚠ BEFORE the launch-failure catch, and routed somewhere else entirely. A platform with
+            // no processes is not a launch that failed — see CannotRunPrograms. Left uncaught it
+            // reached a playground reader as `Process_PlatformNotSupported`, a .NET resource key.
+            catch (PlatformNotSupportedException)
+            {
+                throw CannotRunPrograms(program, line);
             }
             catch (Exception ex) when (ex is Win32Exception or FileNotFoundException
                                         or DirectoryNotFoundException or UnauthorizedAccessException)

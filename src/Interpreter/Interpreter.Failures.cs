@@ -301,6 +301,13 @@ public sealed partial class Interpreter
                 ]
             );
         }
+        // ⚠ BEFORE the launch-failure catch, and routed somewhere else entirely. A platform with
+        // no processes is not a launch that failed — see CannotRunPrograms. Left uncaught it
+        // reached a playground reader as `Process_PlatformNotSupported`, a .NET resource key.
+        catch (PlatformNotSupportedException)
+        {
+            throw CannotRunPrograms(program, run.Line);
+        }
         catch (Exception ex) when (ex is Win32Exception or FileNotFoundException
                                     or DirectoryNotFoundException or UnauthorizedAccessException)
         {
@@ -365,6 +372,13 @@ public sealed partial class Interpreter
             }
             finally { LeaveForegroundChild(); }
         }
+        // ⚠ BEFORE the launch-failure catch, and routed somewhere else entirely. A platform with
+        // no processes is not a launch that failed — see CannotRunPrograms. Left uncaught it
+        // reached a playground reader as `Process_PlatformNotSupported`, a .NET resource key.
+        catch (PlatformNotSupportedException)
+        {
+            throw CannotRunPrograms(program, run.Line);
+        }
         catch (Exception ex) when (ex is Win32Exception or FileNotFoundException
                                     or DirectoryNotFoundException or UnauthorizedAccessException)
         {
@@ -374,6 +388,27 @@ public sealed partial class Interpreter
 
     // Maps .NET process-launch exceptions to Cufet failure values at the launch boundary.
     // Host launch-exceptions must not propagate into Cufet — a missing program is recoverable.
+    /// <summary>This environment has no processes at all — not a launch that failed.</summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ A RuntimeException, not a Cufet FAILURE, and the difference is the whole point. A failure
+    /// says <em>this launch did not work</em> and is something a program can handle and carry on
+    /// from; this says <em>no launch can work here</em>, which nothing can handle. Handing it back
+    /// as a failure would invite a shell to loop forever printing one.
+    /// </para>
+    /// <para>
+    /// ★ The same shape as <c>CannotRunForeignSource</c>, deliberately: both are "this program
+    /// cannot run in this environment", both name what is missing, and both say where it would
+    /// work. The playground catches RuntimeException already, so this replaces a raw .NET
+    /// <c>PlatformNotSupportedException</c> reaching a reader as `Process_PlatformNotSupported` —
+    /// an internal resource key, in a language whose whole claim is that its messages are readable.
+    /// </para>
+    /// </remarks>
+    private static RuntimeException CannotRunPrograms(string program, int line) =>
+        new($"This program runs '{program}', which cannot run here (line {line}).\n\n"
+          + "Starting a program needs an operating system with processes. Run this from a "
+          + "terminal, or build it with 'cufet build', to reach one.");
+
     private static FailureUnwind LaunchFailure(string program, Exception ex)
     {
         int w32Code = ex is Win32Exception w32 ? w32.NativeErrorCode : -1;
