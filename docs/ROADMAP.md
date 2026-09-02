@@ -73,8 +73,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
 
 ★ **The REPL is written, and it worked as the instrument.** `tools/repl.cufe` and the `tools/terminal.cufe` module it pulls found four things nothing else had: the oracle could not type-check a multi-file program at all, `cufet check` passed programs that died on an undefined name, a module could carry no types, and a released version can be correct in all nine source places while the installed tool is two releases behind.
 
-1. **A shell, written in Cufet.** `tools/shell.cufe` reads, parses, globs, dispatches, launches with the
-    terminal, changes directory, and takes as many arguments as you type.
+1. **A shell, written in Cufet.** `tools/shell.cufe` reads, parses, globs, dispatches, launches with the terminal, changes directory, and takes as many arguments as you type.
 
     ★ **What is left, in order:** an exit status, which needs a spelling — the launching form
     gives back nothing by design; then pipelines and `<`, which need a pipe built from a count
