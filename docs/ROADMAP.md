@@ -35,8 +35,7 @@ out, and how it travels.
    reaches a file you wrote, beside the one you are running. "Everything is public becomes
    permanent" is a fact about a published package, not about a program only you can run.
 
-   **The trigger is distribution, or a second author** — the package manager below, or somebody else’s book
-   in your program. Not the ability to split your own program across files.
+   **The trigger is distribution, or a second author** — the package manager below, or somebody else’s book in your program. Not the ability to split your own program across files.
 
    ⚠ **Bundled books do not get the file privacy external ones do.** `WithPrelude` splices them
    before the loader runs, so a top-level declaration in `math.cufe` would be global to every
