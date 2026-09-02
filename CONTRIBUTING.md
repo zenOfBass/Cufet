@@ -229,7 +229,7 @@ version-shaped string:
 grep -rEn "0\.[0-9]+\.[0-9]+" --exclude-dir={node_modules,site,bin,obj,.git} --exclude=CHANGELOG.md .
 ```
 
-⚠⚠ **Grep for the shape, not for the outgoing version.** The obvious check — searching for the
+⚠ **Grep for the shape, not for the outgoing version.** The obvious check — searching for the
 version you are replacing — can only find files that were correct last time, so a file that
 drifted once stays invisible forever after. That is not hypothetical: the playground lockfile
 sat at `0.10.0` through seven releases, and every outgoing-version grep from 0.11.0 to 0.17.0
@@ -240,7 +240,7 @@ narrow grep only because they had been right the release before.
 in 0.17.0"* and *"the 0.16.0 arc"*. The grep is a prompt to look, not a list of edits — what it is
 checking for is a version asserted as CURRENT in a place nobody remembered.
 
-⚠⚠ **The tenth place is not a file, and no grep can reach it.** Cufet ships as a .NET global tool,
+⚠ **The tenth place is not a file, and no grep can reach it.** Cufet ships as a .NET global tool,
 so `cufet` on the `PATH` is a *build*, not a line in the tree. Getting all nine right and tagging
 the release leaves the installed command sitting on the old version until it is rebuilt:
 

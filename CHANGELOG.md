@@ -42,7 +42,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   you consult; a module is one you have one of. Declared `and book`, and the spelling at the pull
   must match what the thing is.
 
-  ⚠⚠ **Breaking.** A module pulled with `Pull a book on ‹name›.` must now declare `and book`, or be
+  ⚠ **Breaking.** A module pulled with `Pull a book on ‹name›.` must now declare `and book`, or be
   pulled with the plain form. The bundled books already enforced this half — `Pull math.` has been
   refused since 0.15.0 — but a writer had no way to say which kind theirs was, so the rule could
   not generalise.
@@ -136,7 +136,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   buffer lives on independent — not a consuming move, and not a view, since a `text` that changed
   under you would break the one thing `text` promises.
 
-  ⚠⚠ **Four bytes per character on BOTH backends, spelled `int32_t` rather than `int`.** A C# string
+  ⚠ **Four bytes per character on BOTH backends, spelled `int32_t` rather than `int`.** A C# string
   is UTF-16 and C text is UTF-8, so if either side had counted its own storage units the two would
   disagree about what "the second character" means for anything outside ASCII. Both store code
   points instead.
@@ -215,7 +215,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   moment it launched anything, and the documented `If an interrupt is requested:` pattern could
   never survive a launch.
 
-  ⚠⚠ It showed up as `tools/shell.cufe` EXITING when Ctrl-C stopped a child — the terminal signals
+  ⚠ It showed up as `tools/shell.cufe` EXITING when Ctrl-C stopped a child — the terminal signals
   every process attached to it, so the interrupt arrives at the shell too. A shell that takes that
   as its own quits every time you stop a `ping`.
 
@@ -225,14 +225,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   checkpoint asks. The child is no longer killed on the parent’s behalf either: the terminal
   already signalled it, and what it does about that is its own answer.
 
-  ⚠⚠ **And the second press killed it anyway.** The escape that lets the OS have a process on a
+  ⚠ **And the second press killed it anyway.** The escape that lets the OS have a process on a
   second Ctrl-C rested on an assumption written in its own comment — *a program that handles
   interrupts acknowledges, so it never reaches this path*. A launch is exactly when it cannot: the
   shell has nothing to acknowledge until the child it is WAITING FOR has gone, so every press after
   the first was counted as a second one. While a launched child holds the terminal, an interrupt is
   now neither recorded nor counted by the parent.
 
-  ⚠⚠ **The first version of that shield diverged the backends, and the suite could not have said
+  ⚠ **The first version of that shield diverged the backends, and the suite could not have said
   so.** Not recording the interrupt at all was wider than its own reason: the compiled runtime has
   no second-press escape, so its handler went on setting the flag while the interpreter had stopped.
   The same program interrupted at the same moment then answered `an interrupt is requested`
@@ -307,7 +307,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   showed as `tally in privkit(count: 5)` — the file-privacy rename leaking into output, since
   0.18.0.
 
-  ⚠⚠ **Both backends leaked identically, so the oracle was structurally blind to it.** Agreement
+  ⚠ **Both backends leaked identically, so the oracle was structurally blind to it.** Agreement
   was never the thing that was wrong. Fixed in one shared `DisplayName` both backends call, trimmed
   at the last `" in "` so a carried generic keeps its real name.
 - **`cufet check` said "No problems found" for a program that died on an undefined name.**
@@ -321,7 +321,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   'totally-undefined-name' is not a method on this value.     ← dies
   ```
 
-  ⚠⚠ A free cast of a name bound nowhere handed back a null type and a note saying run time
+  ⚠ A free cast of a name bound nowhere handed back a null type and a note saying run time
   would catch it. The hole was wide — ANY name, so long as the first argument was not an object.
   A checker reporting nothing about a program that cannot run is the one thing this language is
   for.
@@ -356,7 +356,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   versions of a name across files needed no design change. Separate compilation is a different
   feature, buys only build speed, and is deferred.
 
-  ⚠⚠ **A loaded file is lexed at an offset**, because tokens and exceptions carry a line and no
+  ⚠ **A loaded file is lexed at an offset**, because tokens and exceptions carry a line and no
   file. The line then appears twice in an error — the reporter’s header and the prose — and 163
   places in the front end write one into a message, so the resolution is applied to the composed
   message rather than at each of them. A single-file program allocates no block, so nothing it
@@ -436,7 +436,7 @@ another with nothing said.
   combination must have one, and a missing pair is named at the declaration rather than surfacing
   as a `Judge` that fails to cover its union.
 
-  ⚠⚠ Each nested level binds its narrowed subject to a local before descending: `Judge` narrows
+  ⚠ Each nested level binds its narrowed subject to a local before descending: `Judge` narrows
   `it` and nothing else, so the inner one rebinds it and the outer argument's narrowed type would
   otherwise be gone by the time the leaf runs.
 
@@ -732,7 +732,7 @@ another with nothing said.
   nobody else can reach in and alter. A record HOLDING a series is still refused, and the message
   names the offending field rather than blaming the record.
 
-  ⚠⚠ **The hash is the load-bearing part, and the two backends do not agree by construction.** The
+  ⚠ **The hash is the load-bearing part, and the two backends do not agree by construction.** The
   interpreter's map is a Dictionary — it hashes, then compares — while the compiler's is a linear
   scan calling its own `_eq`. Equality here is `ValuesEqual`, the same function `is` uses, so a key
   the language calls equal is a key the map finds; the hash has to be kept in step with it or the
@@ -778,7 +778,7 @@ another with nothing said.
   State cast eval on (5).          → 10
   ```
 
-  ⚠⚠ It was the one place in the language where two readings collapsed into one without a word.
+  ⚠ It was the one place in the language where two readings collapsed into one without a word.
   Everywhere else is a refusal — two overloads on an ordered pair, a name that is both a method
   and a free function, a `Judge` that misses a case of a closed union.
 
@@ -1060,7 +1060,7 @@ it, with `For each` over a stash and a method that can bury.
   read as fifteen and `1234.75` as 123475: wrong arithmetic, wrong output, no error. On a French
   machine the same literal threw a raw FormatException out of the parser.
 
-  ⚠⚠ **The compiler never had the fault** — it emits a literal as raw decimal bits, and C's own
+  ⚠ **The compiler never had the fault** — it emits a literal as raw decimal bits, and C's own
   formatting is locale-independent — so one program printed `1.5` compiled and `15` interpreted.
   A DIVERGENCE, and one no oracle here could have caught: every machine that runs the suite is
   en-US. It was reachable by anyone outside the English-speaking world who typed a decimal point,
@@ -1080,7 +1080,7 @@ it, with `For each` over a stash and a method that can bury.
   whether or not it held a cufet block. It now guards itself the way `Expand` always has. "Does
   nothing" and "walks every node doing nothing" are not the same thing on every platform.
 
-  ⚠⚠ **And underneath it, that rebuild cannot work in a trimmed build at all.** Trimming strips
+  ⚠ **And underneath it, that rebuild cannot work in a trimmed build at all.** Trimming strips
   parameter NAMES, and the front end matches constructor parameters to properties by name.
   Measured on the published assembly: `ObjectDefinition`'s twelve-parameter constructor comes out
   of the linker with four unnamed rows. That reaches everything the front end rewrites — generics

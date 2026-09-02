@@ -70,7 +70,7 @@ These are **not** reserved in the sense of being forbidden; they are consumed by
 the parser before it looks for the next meaningful token. You will never see them
 as identifiers, but that is fine — they read as natural articles.
 
-⚠⚠ **One place where `a`/`an` and `the` are NOT interchangeable: after `is`.**
+⚠ **One place where `a`/`an` and `the` are NOT interchangeable: after `is`.**
 `x is a <type>` and `x is not a <type>` are TYPE TESTS, and only `a`/`an` introduce
 one. `x is the phrase` is an ordinary COMPARISON against the value named `phrase`,
 because a name may be written with its article — which is the house style.
@@ -2854,7 +2854,7 @@ the name falls through to the refusal `Pull` already had, which names what is av
 exist: its statements are the program’s, and the checker and both backends meet one longer
 program. Rings are refused by name; a book pulled by two others is loaded once.
 
-⚠⚠ **Positions.** A loaded file is lexed at an OFFSET into a virtual line space, because tokens,
+⚠ **Positions.** A loaded file is lexed at an OFFSET into a virtual line space, because tokens,
 AST nodes and exceptions carry a line and a column and no FILE — giving them one would touch every
 position in the front end. The reporter maps a virtual line back to its file and line.
 
@@ -2902,7 +2902,7 @@ and the dispatcher's parameter is their union, so nothing callable is unclaimed.
 parameters admit every PAIR and only the pairs someone wrote have a version — so every combination
 of the dispatched types must have one, and the missing one is named at the declaration.
 
-⚠⚠ **Each level binds its narrowed subject to a local before descending.** `Judge` narrows `it`
+⚠ **Each level binds its narrowed subject to a local before descending.** `Judge` narrows `it`
 and nothing else — the subject variable keeps the union — so without the binding the inner `Judge`
 rebinds `it` and the outer argument's narrowed type is gone by the time the leaf calls the version
 that declared it.

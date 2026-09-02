@@ -29,7 +29,7 @@ out, and how it travels.
    helper that never wanted to be a member does not become one. What is left is the member that
    genuinely has to be one — it needs `one`, or it belongs to the type — and is still handed out.
 
-   ⚠⚠ **Still not due, and the reason is worth keeping because it has now been got wrong
+   ⚠ **Still not due, and the reason is worth keeping because it has now been got wrong
    twice.** The loader shipping makes it TRUE that anyone’s book can be depended on, and that
    reads like the trigger — but nothing travels yet. There is no package manager, so loading
    reaches a file you wrote, beside the one you are running. "Everything is public becomes
@@ -337,7 +337,7 @@ indistinguishable from having forgotten.
   resolving them and compiling together. *Blocker:* there is no build-speed problem to solve —
   the whole example corpus is 2,815 lines, and a full build plus 2,782 tests runs in minutes.
 
-  ⚠⚠ **This is the half that carries the collision**, and the loader above does not. Three things
+  ⚠ **This is the half that carries the collision**, and the loader above does not. Three things
   are sound only because the whole program compiles at once: dispatch proves coverage by seeing
   every version of a name, the open-union representation bounds its tag set whole-program, and a
   generic is monomorphized from every filling the program contains. Separate compilation reopens
