@@ -628,6 +628,62 @@ public class ExhaustivenessTests
             "these user-facing messages contain vocabulary only a compiler author knows:\n  "
             + string.Join("\n  ", offenders));
     }
+    /// <summary>
+    /// Every launch the INTERPRETER makes says something readable where processes do not exist.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ A SOURCE scan, because the behaviour cannot run here. `Process.Start` throws
+    /// <c>PlatformNotSupportedException</c> only on a platform without processes — wasm, which is
+    /// what the playground is — and this suite runs on a desktop where it works. So there is no way
+    /// to reach the path at run time, and the structural property is the testable one.
+    /// </para>
+    /// <para>
+    /// ★ What it protects: uncaught, that exception reached a playground reader as
+    /// `Process_PlatformNotSupported` — a .NET RESOURCE KEY, in a language whose whole claim is
+    /// that its messages are readable. Four launch sites had the same gap, so one more added later
+    /// would have it too.
+    /// </para>
+    /// <para>
+    /// ★ src/Interpreter ONLY. The compiler launches gcc, and the compiler is not in the playground
+    /// — a browser that cannot start a process also cannot build one, so that launch has no such
+    /// case to answer for.
+    /// </para>
+    /// <para>
+    /// ⚠ The window is sized to the code, like the stdin guard below it: the furthest of the four
+    /// catches sits 43 lines under its launch, so 90 leaves room for a try body to grow without
+    /// pushing a correct site out of view.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EveryInterpreterProcessLaunch_SaysSoWhereProcessesDoNotExist()
+    {
+        var offenders = new List<string>();
+        var root = FindRepoRoot();
+
+        foreach (var file in Directory.GetFiles(
+                     Path.Combine(root, "src", "Interpreter"), "*.cs", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(root, file).Replace('\\', '/');
+            if (rel.Contains("/obj/") || rel.Contains("/bin/")) continue;
+            var lines = File.ReadAllLines(file);
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (!lines[i].Contains("Process.Start(")) continue;
+                var window = string.Join("\n", lines.Skip(i).Take(90));
+                if (!window.Contains("catch (PlatformNotSupportedException)"))
+                    offenders.Add($"{rel}:{i + 1} does not answer PlatformNotSupportedException");
+            }
+        }
+
+        Assert.True(offenders.Count == 0,
+            "A process launch that does not answer PlatformNotSupportedException leaks a .NET "
+          + "resource key to a playground reader:\n  " + string.Join("\n  ", offenders)
+          + "\n\nRoute it to CannotRunPrograms, which says what is missing and where it "
+          + "would work — the same shape as CannotRunForeignSource.");
+    }
+
 
     // ── Every launcher of a compiled binary must close its stdin ─────────
     //
