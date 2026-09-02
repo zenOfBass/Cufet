@@ -118,29 +118,37 @@ Bind series of hcode to encode, given (the text source, the map from text to hco
     Return chunks.
 Done.
 
-/* Walk each chunk from its top bit; a leaf emits its symbol. Chunks are
-   self-describing via their stored width, so no position arithmetic. */
-Bind text to decode, given (the series of hcode chunks, the hnode root):
-    Define out as "".
-    Define node as root.
-    For each chunk in chunks, repeat:
-        Define pattern as chunk's pattern.
-        Define width as chunk's width.
-        Define pos as 1.
-        While pos is not greater than width, repeat:
-            Define drop as width - pos.
-            Define aligned as pattern shifted right by drop.
-            Define bit as (aligned and 0b1) converted to number.
-            Define kids as node's children.
-            The node becomes the first of kids when bit is 0, otherwise item 2 of kids.
-            If the number of node's children is 0:
-                The out becomes out joined to node's symbol.
-                The node becomes root.
+/*  Walk each chunk from its top bit; a leaf emits its symbol. Chunks are
+    self-describing via their stored width, so no position arithmetic.
+
+    ★★ The decoded message is built in a CHASE rather than a text. `text` is an immutable value,
+    so `out becomes out joined to …` rebuilt the whole message on every symbol — one pass per
+    character, over a message that grows as you go. The buffer is appended to in place and crossed
+    to text once at the end.
+
+    ★ The pull wraps only this function. A `Bind` inside one is a free function like any other, so
+    everything else in the file goes on calling `decode` without knowing where it was written. */
+Pull a book on collections.
+    Bind text to decode, given (the series of hcode chunks, the hnode root):
+        Define out as a chase.
+        Define node as root.
+        For each chunk in chunks, repeat:
+            Define pattern as chunk's pattern.
+            Define width as chunk's width.
+            For each pos in range 1 to width, repeat:
+                Define drop as width - pos.
+                Define aligned as pattern shifted right by drop.
+                Define bit as (aligned and 0b1) converted to number.
+                Define kids as node's children.
+                The node becomes the first of kids when bit is 0, otherwise item 2 of kids.
+                If the number of node's children is 0:
+                    Insert node's symbol into out.
+                    The node becomes root.
+                Done.
             Done.
-            Increment pos by 1.
         Done.
+        Return out converted to text.
     Done.
-    Return out.
 Done.
 
 Bind void to play:
