@@ -10,6 +10,18 @@ public sealed partial class TypeChecker
         if (inferred == null)
             return; // unknown type — runtime catches; skip body to avoid cascading false positives
 
+        // ★ A chase iterates one CHARACTER at a time, each bound as the one-character text a
+        // character is spelled as — the same thing `item n of` gives back.
+        if (inferred is ChaseType)
+        {
+            var chaseIter = forEach.IteratorName ?? "it";
+            EnterScope();
+            Scope[chaseIter] = new TypeInfo(CufetType.Text, forEach.Series, forEach.Line);
+            try { CheckBlock(forEach.Body); }
+            finally { ExitScope(); }
+            return;
+        }
+
         // Map iteration: bind iterator to MappingType pseudo-record (key/value fields).
         if (inferred is MapType mapType)
         {
@@ -203,6 +215,23 @@ public sealed partial class TypeChecker
         var containerType = InferType(seriesSet.Series);
         if (containerType == null) return;
 
+        // ⚠ A chase holds characters, so setting one takes a text — and that it must be exactly
+        // ONE character is a run-time refusal, because a text's length is not known until it
+        // exists. Taking the first character and dropping the rest would be the silent resolution
+        // this language refuses everywhere else.
+        if (containerType is ChaseType)
+        {
+            var setTo = InferType(seriesSet.Value);
+            if (setTo != null && setTo != CufetType.Text)
+                throw TypeError(
+                    $"{FormatExpr(seriesSet.Series)} holds characters",
+                    "A chase is a buffer of characters, so a position can only be set to text",
+                    seriesSet.Line, seriesSet.Column,
+                    $"set a position to a {FormatType(setTo)} value",
+                    "Convert it first: '<value> converted to text'.");
+            return;
+        }
+
         if (containerType is SeriesType seriesType)
         {
             var valueType = InferType(seriesSet.Value);
@@ -304,6 +333,9 @@ public sealed partial class TypeChecker
         if (removeAt.Index != null) CheckIndex(removeAt.Index, removeAt.Line, removeAt.Column);
         var containerType = InferType(removeAt.Series);
         if (containerType == null) return;
+        // A chase removes by position exactly as a series does — it is the collection convention,
+        // and a buffer you cannot take a character out of is not mutable in any useful sense.
+        if (containerType is ChaseType) return;
         if (containerType is not SeriesType)
             throw TypeError(
                 $"{FormatExpr(removeAt.Series)} is not a series",
@@ -403,6 +435,11 @@ public sealed partial class TypeChecker
         if (targetType == null) return null;
 
         if (targetType is SeriesType st) return st.ElementType;
+
+        // ★★ A character out of a buffer is a one-character TEXT, because the language has no
+        // separate character type — `the characters from n to n of` already answers text, and a
+        // second spelling for the same idea would be the parity this type exists to avoid.
+        if (targetType is ChaseType) return CufetType.Text;
 
         if (targetType is RecordType rt)
         {

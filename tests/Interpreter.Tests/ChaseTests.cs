@@ -154,4 +154,96 @@ public class ChaseTests
             "    Insert 42 into out.")));
         Assert.Contains("holds characters", ex.Message);
     }
+
+    // ── Reading, editing, removing, iterating ────────────────────────────
+    //
+    // ★ The collection conventions the type commits to. Each is the same operation a series has,
+    // and each reaches the SAME bounds messages — a second copy for the second collection is how
+    // two things that should read alike drift apart.
+
+    [Fact]
+    public void ItemNOf_GivesAOneCharacterText()
+    {
+        // ⚠ `ö` is at position 2, not 3. The buffer indexes CHARACTERS; indexing bytes would put
+        // it at 3 and land mid-character for anything past it.
+        Assert.Equal("w\nö\nd", Run(InCollections(
+            "    Define out as a chase." + "\n" +
+            "    Insert \"wörld\" into out." + "\n" +
+            "    State item 1 of out." + "\n" +
+            "    State item 2 of out." + "\n" +
+            "    State the last of out.")));
+    }
+
+    [Fact]
+    public void AnItem_CanBeSetInPlace()
+    {
+        Assert.Equal("Hellö", Run(InCollections(
+            "    Define out as a chase." + "\n" +
+            "    Insert \"hello\" into out." + "\n" +
+            "    Item 1 of out becomes \"H\"." + "\n" +
+            "    Item 5 of out becomes \"ö\"." + "\n" +
+            "    State out converted to text.")));
+    }
+
+    [Fact]
+    public void SettingAnItemToMoreThanOneCharacter_IsRefused()
+    {
+        // ⚠⚠ A run-time refusal, because a text's length is not known until it exists — and the
+        // alternative, keeping the first character and dropping the rest, is the silent resolution
+        // this language refuses everywhere else. `Insert` is the one that takes however many.
+        var ex = Assert.Throws<RuntimeException>(() => Run(InCollections(
+            "    Define out as a chase." + "\n" +
+            "    Insert \"hello\" into out." + "\n" +
+            "    Item 1 of out becomes \"ab\".")));
+        Assert.Contains("needs exactly one character", ex.Message);
+    }
+
+    [Fact]
+    public void Remove_TakesACharacterOutByPosition()
+    {
+        Assert.Equal("örld\nörl", Run(InCollections(
+            "    Define out as a chase." + "\n" +
+            "    Insert \"wörld\" into out." + "\n" +
+            "    Remove item 1 from out." + "\n" +
+            "    State out converted to text." + "\n" +
+            "    Remove the last from out." + "\n" +
+            "    State out converted to text.")));
+    }
+
+    [Fact]
+    public void ForEach_BindsEachCharacterAsText()
+    {
+        Assert.Equal("[w][ö][r]", Run(InCollections(
+            "    Define out as a chase." + "\n" +
+            "    Insert \"wör\" into out." + "\n" +
+            "    Define seen as \"\"." + "\n" +
+            "    For each letter in out, repeat:" + "\n" +
+            "        The seen becomes \"{seen}[{letter}]\"." + "\n" +
+            "    Done." + "\n" +
+            "    State seen.")));
+    }
+
+    [Fact]
+    public void ReachingPastTheEnd_SaysWhatASeriesWouldSay()
+    {
+        // ★ The same bounds message a series gives, word for word, because both go through one
+        // resolver. Two collections explaining the same mistake differently is a papercut that
+        // costs nothing to avoid and everything to fix later.
+        var ex = Assert.Throws<RuntimeException>(() => Run(InCollections(
+            "    Define out as a chase." + "\n" +
+            "    Insert \"ab\" into out." + "\n" +
+            "    State item 5 of out.")));
+        Assert.Contains("There's no item 5", ex.Message);
+        Assert.Contains("has 2 items", ex.Message);
+    }
+
+    [Fact]
+    public void UsingTheNameUnpulled_NamesTheBook()
+    {
+        // ⚠ It used to say "'chase' isn't defined" — literally true and useless, because the
+        // writer was never reaching for a variable.
+        var ex = Assert.Throws<TypeException>(() => Run("Define out as a chase."));
+        Assert.Contains("is a type, and this program has not pulled it", ex.Message);
+        Assert.Contains("collections", ex.Message);
+    }
 }

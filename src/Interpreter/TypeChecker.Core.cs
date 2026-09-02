@@ -1341,6 +1341,19 @@ public sealed partial class TypeChecker
     /// this the program checked clean, died at runtime pointing INSIDE the module, and compiled to
     /// a message that blamed the compiler.
     /// </remarks>
+    /// <summary>The book whose types include this name, or null. Asked only when a name failed.</summary>
+    /// <remarks>
+    /// ★ Read off the book table rather than a list of special cases, so a type a future book
+    /// introduces gets the same sentence without anyone remembering to add it.
+    /// </remarks>
+    private static string? BookIntroducing(string name)
+    {
+        foreach (var (bookName, book) in BuiltinBooks)
+            if (book.IntroducedTypes.ContainsKey(name))
+                return bookName;
+        return null;
+    }
+
     private CufetType? NoteUnresolvedName(VariableReference vr)
     {
         NoteModuleNeed(vr.Name);
@@ -1349,12 +1362,27 @@ public sealed partial class TypeChecker
         // arrive later to define this name, so it is a mistake and is refused here rather than at
         // run time. `State mystery.` used to check clean.
         if (!_inFunction)
+        {
+            // ★★ A name that is a TYPE somewhere else is a different mistake, and deserves a
+            // different sentence. `Define out as a chase.` without the pull reads as an undefined
+            // variable — which is literally true and completely unhelpful, because the writer was
+            // never reaching for a variable. Naming the book turns "I have no idea what you meant"
+            // into one line they can act on.
+            if (BookIntroducing(vr.Name) is { } fromBook)
+                throw TypeError(
+                    $"'{vr.Name}' is a type, and this program has not pulled it",
+                    $"The '{fromBook}' book introduces it, and the name means the type only inside that pull",
+                    vr.Line, vr.Column,
+                    $"use '{vr.Name}' outside a '{fromBook}' pull",
+                    $"Wrap it in 'Pull a book on {fromBook}. … Done.'");
+
             throw TypeError(
                 $"'{vr.Name}' isn't defined",
                 "Nothing later in this block can give it a value — a name has to exist before it is used",
                 vr.Line, vr.Column,
                 $"use '{vr.Name}' here",
                 $"Define it first: 'Define {vr.Name} as <value>.' — or check the spelling.");
+        }
 
         // ★★ A detached body defers for exactly ONE kind of name, and only that kind. A pulled
         // module is a capability of the block that uses the body, so `math's pi` inside a method is

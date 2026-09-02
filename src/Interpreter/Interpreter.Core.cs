@@ -904,6 +904,12 @@ public sealed partial class Interpreter
             case SeriesRemoveAtStatement sra:
             {
                 var sraTarget = Evaluate(sra.Series);
+                if (sraTarget is CufetChase sraChase)
+                {
+                    sraChase.RemoveAt(ResolveIndex(sra.Index, sraChase.Count,
+                                                   SeriesDisplayName(sra.Series), sra.Line));
+                    break;
+                }
                 if (sraTarget is not List<object> list)
                     throw new RuntimeException($"Expected a series for 'Remove' on line {sra.Line}.");
                 list.RemoveAt(ResolveIndex(sra.Index, list, SeriesDisplayName(sra.Series), sra.Line));
@@ -940,6 +946,22 @@ public sealed partial class Interpreter
             case SeriesSetStatement ss:
             {
                 var ssTarget = Evaluate(ss.Series);
+                if (ssTarget is CufetChase ssChase)
+                {
+                    var ssName = ss.Series is VariableReference ssVr ? ssVr.Name : "this expression";
+                    int ssAt = ResolveIndex(ss.Index, ssChase.Count, ssName, ss.Line);
+                    var one = new CufetChase();
+                    one.Append((string)Evaluate(ss.Value));
+                    // ⚠ Exactly one character. Taking the first and dropping the rest would be a
+                    // silent resolution, which this language refuses everywhere else — and Insert
+                    // is already the operation that takes however many.
+                    if (one.Count != 1)
+                        throw new RuntimeException(
+                            $"Setting one position needs exactly one character, and \"{(string)Evaluate(ss.Value)}\" is {one.Count}. " +
+                            $"This happened on line {ss.Line}.");
+                    ssChase[ssAt] = one[0];
+                    break;
+                }
                 if (ssTarget is ObjectValue ssOv)
                 {
                     if (ss.Index == null)
@@ -1150,6 +1172,33 @@ public sealed partial class Interpreter
                     break;
                 }
 
+                // ★ A chase iterates as the collection it is, one CHARACTER at a time — each bound
+                // as a one-character text, the same thing `item n of` gives back. Before the
+                // List<object> test, which it fails.
+                if (seriesVal is CufetChase feChase)
+                {
+                    string feDisplay = collectionDisplay ?? "The chase";
+                    int feStart = feChase.Count;
+                    for (int i = 0; i < feStart; i++)
+                    {
+                        if (feChase.Count != feStart)
+                            throw new RuntimeException(
+                                $"{feDisplay} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.");
+                        EnterScope();
+                        Scope[iterKey] = char.ConvertFromUtf32(feChase[i]);
+                        bool feStopped = false;
+                        try { foreach (var st in fe.Body) Execute(st); }
+                        catch (StopException) { feStopped = true; }
+                        catch (SkipException) { }
+                        finally { ExitScope(); }
+                        if (feStopped) break;
+                        if (feChase.Count != feStart)
+                            throw new RuntimeException(
+                                $"{feDisplay} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.");
+                    }
+                    break;
+                }
+
                 if (seriesVal is not List<object> list)
                     throw new RuntimeException($"Expected a series or map for 'for each' loop on line {fe.Line}.");
                 string seriesDisplay = collectionDisplay ?? "The series";
@@ -1207,23 +1256,31 @@ public sealed partial class Interpreter
     };
 
     // Returns 0-based index. indexExpr==null means "last element".
-    private int ResolveIndex(IExpression? indexExpr, List<object> list, string seriesName, int line)
+    private int ResolveIndex(IExpression? indexExpr, List<object> list, string seriesName, int line) =>
+        ResolveIndex(indexExpr, list.Count, seriesName, line);
+
+    /// <summary>Resolves a 1-based index against a COUNT, so a chase reaches the same rules.</summary>
+    /// <remarks>
+    /// ★ Taking the count rather than the list is what lets a buffer share these bounds messages
+    /// word for word. A second copy for the second collection is how the two drift.
+    /// </remarks>
+    private int ResolveIndex(IExpression? indexExpr, int count, string seriesName, int line)
     {
         if (indexExpr == null)
         {
-            if (list.Count == 0)
+            if (count == 0)
                 throw new RuntimeException($"Can't access the last item — '{seriesName}' is empty on line {line}.");
-            return list.Count - 1;
+            return count - 1;
         }
         var raw = Evaluate(indexExpr);
         if (raw is not decimal d)
             throw new RuntimeException($"Series index must be a number on line {line}.");
         var idx = (int)d;
-        if (idx < 1 || idx > list.Count)
+        if (idx < 1 || idx > count)
         {
-            var range = list.Count == 0
+            var range = count == 0
                 ? $"'{seriesName}' is empty"
-                : $"'{seriesName}' has {list.Count} {(list.Count == 1 ? "item" : "items")} (you can reach items 1 through {list.Count})";
+                : $"'{seriesName}' has {count} {(count == 1 ? "item" : "items")} (you can reach items 1 through {count})";
             throw new RuntimeException($"There's no item {idx} — {range}. This happened on line {line}.");
         }
         return idx - 1; // convert to 0-based
@@ -1473,6 +1530,15 @@ public sealed partial class Interpreter
             if (owner == null)
                 throw new RuntimeException($"Object '{ov.TypeName}' has no positional field at position {oidx} (line {sa.Line}).");
             return owner.Value.owner.PositionalFields[owner.Value.idx];
+        }
+
+        // ⚠ Before the List<object> test, which a chase FAILS — it is a List<int>, so without
+        // this it reported "Expected a series" for a perfectly good buffer.
+        if (val is CufetChase chase)
+        {
+            var chaseName = sa.Target is VariableReference cvr ? cvr.Name : "this expression";
+            int at = ResolveIndex(sa.Index, chase.Count, chaseName, sa.Line);
+            return char.ConvertFromUtf32(chase[at]);
         }
 
         if (val is not List<object> list)

@@ -410,4 +410,37 @@ public class PipelineSeriesTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    [Fact]
+    public void Chase_ReadEditRemoveAndIterate_MatchesInterpreter()
+    {
+        // ★ The collection half: reading a character, setting one in place, removing by position,
+        // and iterating. `ö` sits in the middle throughout so that any byte-versus-character
+        // mistake on either side shows as a different answer rather than a subtler one.
+        const string src = """
+            Pull a book on collections.
+                Define out as a chase.
+                Insert "wörld" into out.
+                State item 1 of out.
+                State item 2 of out.
+                State the last of out.
+
+                Item 1 of out becomes "W".
+                State out converted to text.
+
+                Remove item 1 from out.
+                State out converted to text.
+                Remove the last from out.
+                State out converted to text.
+
+                Define seen as "".
+                For each letter in out, repeat:
+                    The seen becomes "{seen}[{letter}]".
+                Done.
+                State seen.
+                State the number of out.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

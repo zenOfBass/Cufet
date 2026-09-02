@@ -1995,6 +1995,40 @@ static const char* cufet_chase_text(CufetChase* c) {
 }
 
 /* Printed as the COLLECTION it is — `(h, e, l, l, o)` — never as the text it will become. */
+/* Sets one position, and REFUSES a text that is not exactly one character.
+
+   ⚠ A length check at run time rather than a type error, because a text's length is not known
+   until it exists. The alternative — taking the first character and dropping the rest — is the
+   silent resolution this language refuses everywhere else; setting one position to "abc" is a
+   mistake, not an abbreviation. Insert is the operation that takes however many. */
+static void cufet_chase_set(CufetChase* c, int index1, const char* one, int line) {
+    CufetChase* scratch = cufet_chase_new();
+    cufet_chase_append(scratch, one);
+    if (scratch->len != 1)
+        cufet_raise(cufet_msgf(
+            "Setting one position needs exactly one character, and \"%s\" is %d. This happened on line %d.",
+            one, scratch->len, line));
+    c->data[index1 - 1] = scratch->data[0];
+}
+
+/* Takes one character out and closes the gap. -1 means the last, matching the series form. */
+static void cufet_chase_remove_at(CufetChase* c, long long index1, const char* name, int line) {
+    int at = (index1 < 0)
+        ? (int)cufet_last_check(c->len, name, line)
+        : (int)cufet_idx_check(index1, c->len, name, line);
+    memmove(&c->data[at - 1], &c->data[at], sizeof(int32_t) * (size_t)(c->len - at));
+    c->len--;
+}
+
+/* One character out, as the one-character TEXT the language calls a character. Four bytes plus a
+   terminator is the most any code point needs. */
+static const char* cufet_chase_at(CufetChase* c, int index1) {
+    char* out = (char*)cufet_arena_alloc(5);
+    char* at = cufet_utf8_put(out, c->data[index1 - 1]);
+    *at = 0;
+    return out;
+}
+
 /* Structural, matching the interpreter: a buffer of the same characters is the same buffer. */
 static int cufet_chase_eq(CufetChase* a, CufetChase* b) {
     if (a == b) return 1;
@@ -5549,6 +5583,18 @@ static void* cufet_pipe_stage(void* argp) {
                 break;
             }
 
+            case SeriesRemoveAtStatement sra when TypeOf(sra.Series) is ChaseType:
+            {
+                _usesChase = true;
+                string chSer = EmitExpr(sra.Series);
+                FlushPreEmits(sb, indent);
+                string chNm = SeriesDisplayName(sra.Series);
+                string chIdx = sra.Index == null ? "-1" : $"cufet_to_int({EmitExpr(sra.Index)})";
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}cufet_chase_remove_at({chSer}, {chIdx}, \"{chNm}\", {sra.Line});");
+                break;
+            }
+
             case SeriesRemoveAtStatement sra:
             {
                 string ser = SeriesStructOf(sra.Series);
@@ -5601,6 +5647,22 @@ static void* cufet_pipe_stage(void* argp) {
                     ? ObjectPositionalIndex(sot.Name, ss.Index)
                     : LiteralIndex(ss.Index) - 1;
                 sb.AppendLine($"{indent}({baseExpr}).p{idx0} = {valExpr};");
+                break;
+            }
+
+            case SeriesSetStatement ss when TypeOf(ss.Series) is ChaseType:
+            {
+                _usesChase = true;
+                string chSer = EmitExpr(ss.Series);
+                FlushPreEmits(sb, indent);
+                string chVal = EmitExpr(ss.Value);
+                FlushPreEmits(sb, indent);
+                string chNm = SeriesDisplayName(ss.Series);
+                string chWhere = ss.Index == null
+                    ? $"cufet_last_check({chSer}->len, \"{chNm}\", {ss.Line})"
+                    : $"cufet_idx_check(cufet_to_int({EmitExpr(ss.Index)}), {chSer}->len, \"{chNm}\", {ss.Line})";
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}cufet_chase_set({chSer}, (int){chWhere}, {chVal}, {ss.Line});");
                 break;
             }
 
@@ -5736,6 +5798,10 @@ static void* cufet_pipe_stage(void* argp) {
 
             case ForEachStatement fe when TypeOf(fe.Series) is MapType:
                 EmitForEachMap(sb, fe, indent);
+                break;
+
+            case ForEachStatement fe when TypeOf(fe.Series) is ChaseType:
+                EmitForEachChase(sb, fe, indent);
                 break;
 
             case ForEachStatement fe:
@@ -6108,6 +6174,41 @@ static void* cufet_pipe_stage(void* argp) {
 
     // For each loop over a materialized series (non-range).
     // cf_ temporaries avoid collisions with user variables.
+    /// <summary>For each character of a chase — each bound as a one-character text.</summary>
+    /// <remarks>
+    /// ★ The same shape as the series loop beside it, differing only in the element: `->data` here
+    /// is code points, and what the body sees has to be the text a character is spelled as.
+    /// </remarks>
+    private void EmitForEachChase(StringBuilder sb, ForEachStatement fe, string indent)
+    {
+        _usesChase = true;
+        var inner      = indent + "    ";
+        var loopIndent = inner  + "    ";
+        int id = _forCounter++;
+        string buf = $"cf_ch{id}";
+        string idx = $"cf_i{id}";
+        string rawName  = fe.IteratorName ?? "it";
+        string iterName = MangleName(rawName);
+
+        string bufExpr = EmitExpr(fe.Series);
+        FlushPreEmits(sb, indent);
+
+        var savedType = _varTypes.TryGetValue(rawName, out var prev) ? prev : null;
+        _varTypes[rawName] = CufetType.Text;
+        _varRabbitDepth[rawName] = _rabbitDepth;
+
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{inner}CufetChase* {buf} = {bufExpr};");
+        sb.AppendLine($"{inner}int {buf}_n = {buf}->len;");
+        sb.AppendLine($"{inner}for (int {idx} = 0; {idx} < {buf}_n; {idx}++) {{");
+        sb.AppendLine($"{loopIndent}const char* {iterName} = cufet_chase_at({buf}, {idx} + 1);");
+        EmitLoopBody(sb, fe.Body, loopIndent);
+        sb.AppendLine($"{inner}}}");
+        sb.AppendLine($"{indent}}}");
+
+        if (savedType != null) _varTypes[rawName] = savedType; else _varTypes.Remove(rawName);
+    }
+
     private void EmitForEachSeries(StringBuilder sb, ForEachStatement fe, string indent)
     {
         var inner      = indent + "    ";
@@ -6772,6 +6873,8 @@ static void* cufet_pipe_stage(void* argp) {
     {
         var tt = TypeOf(sa.Target);
         if (tt is SeriesType st) return st.ElementType;
+        // A character is a one-character text — the language has no separate character type.
+        if (tt is ChaseType) return CufetType.Text;
         if (tt is RecordType rt) return rt.PositionalTypes[LiteralIndex(sa.Index) - 1];
         if (tt is ObjectType ot) return _objectDefs[ot.Name].PositionalTypes[ObjectPositionalIndex(ot.Name, sa.Index)];
         throw new CompilerException("positional access on this type is not yet supported by the compiler.");
@@ -8892,6 +8995,16 @@ static void* cufet_pipe_stage(void* argp) {
 
         string targetExpr = EmitExpr(sa.Target);
         string nm = SeriesDisplayName(sa.Target);
+        // ★ A chase reads through the SAME bounds checks a series does, so an out-of-range message
+        // is word for word the one a series gives. Only the element differs: `->data` here is code
+        // points, and what comes back has to be text.
+        if (tt is ChaseType)
+        {
+            _usesChase = true;
+            return sa.Index == null
+                ? $"cufet_chase_at({targetExpr}, cufet_last_check(({targetExpr})->len, \"{nm}\", {sa.Line}))"
+                : $"cufet_chase_at({targetExpr}, cufet_idx_check(cufet_to_int({EmitExpr(sa.Index)}), ({targetExpr})->len, \"{nm}\", {sa.Line}))";
+        }
         if (sa.Index == null)
             return $"({targetExpr})->data[cufet_last_check(({targetExpr})->len, \"{nm}\", {sa.Line}) - 1]";
         string idxExpr = EmitExpr(sa.Index);
