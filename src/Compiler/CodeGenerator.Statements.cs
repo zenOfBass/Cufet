@@ -2098,9 +2098,17 @@ public sealed partial class CodeGenerator
     // The `run`/pipe success record — (errors: text, exit-code: number, output: text), named fields
     // alphabetical, matching the interpreter's RunResultType exactly. A launch failure is the `or
     // failure`; a command that runs and exits nonzero is a SUCCESS record with that exit-code.
+    // ⚠⚠ Builds its own types rather than reading TText/TNumber, and that is not style. A static
+    // field initialiser referencing another static field of the same PARTIAL class depends on the
+    // order the compiler was handed the files — so after the split this one could have been
+    // initialised before the fields it read, capturing nulls into a record every `run` uses. The
+    // compiler warned (CS8619) and only a CLEAN build showed it; incremental builds skip the file.
     private static readonly RecordType RunResultRecordType = new RecordType(
         Array.Empty<CufetType>(),
-        new (string, CufetType)[] { ("errors", TText), ("exit-code", TNumber), ("output", TText) });
+        new (string, CufetType)[]
+        {
+            ("errors", new TextType()), ("exit-code", new NumberType()), ("output", new TextType()),
+        });
 
     private CufetType MethodReturnType(string objName, string methodName)
     {
