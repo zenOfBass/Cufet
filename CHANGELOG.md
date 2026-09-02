@@ -208,6 +208,41 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   output. Windows structurally cannot see this — it was caught compiling under WSL gcc.
 
 ### Fixed
+- **Running a program in the playground showed `Process_PlatformNotSupported`.** A .NET resource
+  key, reaching a reader of a language whose whole claim is that its messages are readable. A
+  browser has no processes, so `Process.Start` throws `PlatformNotSupportedException`, which none of
+  the four launch sites caught — and the playground only catches Cufet’s own exception types, so it
+  went straight through to JavaScript.
+
+  It now says what is missing and where it would work:
+
+  ```
+  This program runs 'echo', which cannot run here (line 2).
+
+  Starting a program needs an operating system with processes. Run this from a terminal, or
+  build it with 'cufet build', to reach one.
+  ```
+
+  ★★ **A RuntimeException, not a Cufet failure**, and the difference is the whole point. A failure
+  says *this launch did not work* and is something a program handles and carries on from; this says
+  *no launch can work here*, which nothing can handle — handing it back as a failure would invite a
+  shell to loop forever printing one. The same shape as `CannotRunForeignSource`, which already
+  answers "this environment cannot do that" for a missing C toolchain.
+
+  ⚠⚠ **The pipe form needed a second fix, and it was not the catch.** On a platform with no
+  processes it is `new ProcessStartInfo` that throws, not `Process.Start` — and the pipe path built
+  its `ProcessStartInfo` ABOVE the try, where no catch could see it. The standalone form only worked
+  because it happened to build its own inside. So the first fix left pipes leaking, and a guard
+  anchored on `Process.Start` passed the whole time.
+
+  ★ **The guard now measures structure, not proximity.** Inside the try, the `ProcessStartInfo` is
+  indented one level deeper than the `catch`; outside, they are level. A window that merely looked
+  for a nearby catch passed on the broken code twice.
+
+  ★ Measured against the real wasm build, not inferred: all 38 examples were run through the
+  playground’s own `Runtime.Run`, each in a fresh process, and nothing else escapes as a .NET
+  exception.
+
 - **Ctrl-C during a launched program tore down a shell that was handling it.** The `run` family
   unwound on the interrupt flag unconditionally, skipping the rule the statement checkpoint
   states: *handle interrupts and you are in charge of them; ignore them and Ctrl-C behaves the way
