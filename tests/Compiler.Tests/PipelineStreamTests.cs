@@ -188,14 +188,32 @@ public class PipelineStreamTests : PipelineTestBase
                 Define none as a series of text.
                 Define t as run "true" with arguments none.
                 State "empty-exit=" joined to (the exit-code of t converted to text).
-
-                Run "echo" with arguments argv.
             Done.
             In case of failure:
                 State "launch-failed".
             Done.
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
+
+        // ⚠⚠ The LAUNCHING form cannot be compared, and this is a fact about the two HARNESSES
+        // rather than about the backends. It hands the child this program's own stdout: interpreted,
+        // that is the real console and not the TextWriter InterpretRaw injects, so the harness never
+        // sees the line; compiled, CompileRaw captures the binary's stdout and the child inherits
+        // exactly that, so it does. Putting one inside the compared source made the oracle report a
+        // divergence that was never in the language.
+        //
+        // ⚠ It failed only on CI. This test returns early off Linux, so on a Windows machine it is
+        // a no-op that reports as passing — "the filter went green" is not evidence it ran.
+        const string launched = """
+            Try to:
+                Define argv as a series of text with ("hello", "world").
+                Run "echo" with arguments argv.
+            Done.
+            In case of failure:
+                State "launch-failed".
+            Done.
+            """;
+        Assert.Equal("hello world\n", CompileRaw(launched));
     }
 
     [Fact]
