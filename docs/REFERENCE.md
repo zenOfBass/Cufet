@@ -1543,6 +1543,31 @@ Pull a book on collections.
 Done.
 ```
 
+Everything a collection does, it does:
+
+```cufet
+Pull a book on collections.
+    Define out as a chase.
+    Insert "wörld" into out.
+
+    State item 2 of out.              ← ö     (characters, not bytes)
+    Item 1 of out becomes "W".
+    Remove the last from out.
+
+    For each letter in out, repeat:
+        State letter.
+    Done.
+Done.
+```
+
+- **`item n of` gives a one-character text**, and iterating binds each character the same way —
+  the language has no separate character type.
+- **Setting a position takes exactly one character.** `Item 1 of out becomes "ab".` is refused
+  when it runs, because a text’s length is not known before then. Keeping the first character and
+  dropping the rest would be a silent resolution; `Insert` is the operation that takes however
+  many.
+- **Out of range says what a series says**, word for word — both go through one resolver.
+
 - **It follows COLLECTION conventions, not text ones.** `Insert`, `the number of`, and printing
   that looks like a collection. It deliberately grows no parallel copy of text’s API — no
   `trimmed`, no interpolation holes — because the moment it does, the split stops meaning anything

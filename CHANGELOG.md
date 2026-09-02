@@ -116,6 +116,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠ The cost, stated plainly: inside a `collections` pull, `Define chase as 5.` is gone. That is
   stricter than `matrix`, which becomes a type only when `with` follows it.
 
+  ★ **The collection surface is complete**: `Insert`, `item n of`, setting a position in place,
+  `Remove` by position, `For each`, `the number of`, comparison by content, and printing. Reading
+  and setting share the SERIES bounds checks, so an out-of-range message is word for word the one a
+  series gives — a second copy for the second collection is how two things that should read alike
+  drift apart.
+
+  ⚠ Setting a position takes exactly one character, refused when it runs since a text’s length is
+  not known before then. `Insert` is the operation that takes however many.
+
+  ★ **A name that is a type elsewhere now says so.** `Define out as a chase.` without the pull used
+  to report `'chase' isn't defined` — literally true and useless, because the writer was never
+  reaching for a variable. It now names the book, read off the book table rather than a list of
+  special cases, so a type a future book introduces gets the same sentence for free.
+
   ★ **It follows COLLECTION conventions, not text ones** — `Insert`, `the number of`, printing that
   looks like a collection, comparison by content. No parallel copy of text’s API: the moment it
   grows one the split stops meaning anything. `converted to text` is an explicit copy, and the
