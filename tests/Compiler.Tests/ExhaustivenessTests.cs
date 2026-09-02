@@ -341,12 +341,16 @@ public class ExhaustivenessTests
     // over-approximates, and over-approximating is the safe direction here.
     private static readonly HashSet<string> KnownReflectionWalks =
     [
+        // ⚠ Keyed on FILE and member, so moving a walk between files reads as a new one. That is
+        // the guard working: splitting CodeGenerator.cs into partials made three of these look
+        // unaccounted-for, and the right answer was to confirm each is still the same walk and
+        // repoint it — not to loosen the key, which is what makes a walk impossible to lose.
         "Ast.cs: Contains",
         "CodeGenerator.cs: ProgramUsesOpenUnion",
         "CodeGenerator.cs: TaskBodyMayMutate",
-        "CodeGenerator.cs: IsBoundSomewhere",
-        "CodeGenerator.cs: CaptureWriteIsObservable",
-        "CodeGenerator.cs: CollectRefsDefs",
+        "CodeGenerator.Expressions.cs: IsBoundSomewhere",
+        "CodeGenerator.Expressions.cs: CaptureWriteIsObservable",
+        "CodeGenerator.Expressions.cs: CollectRefsDefs",
         // The one walk behind every question StashTransform asks — does this bury, does it return,
         // does a `Stop` escape it, is this name mentioned — and the type checker's burying-function
         // detection calls the same one. Proof it sees inside ConditionArm and JudgeArm:
