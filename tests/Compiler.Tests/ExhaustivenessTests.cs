@@ -670,10 +670,34 @@ public class ExhaustivenessTests
 
             for (int i = 0; i < lines.Length; i++)
             {
-                if (!lines[i].Contains("Process.Start(")) continue;
-                var window = string.Join("\n", lines.Skip(i).Take(90));
-                if (!window.Contains("catch (PlatformNotSupportedException)"))
+                // ⚠⚠ ANCHORED ON ProcessStartInfo, not Process.Start. On a platform with no
+                // processes it is the CONSTRUCTOR that throws, so a site building its psi above
+                // the try leaks even though a catch sits below the launch. This guard anchored on
+                // the launch first, passed, and the pipe path was leaking the whole time.
+                if (!lines[i].Contains("new ProcessStartInfo(")) continue;
+
+                // ⚠⚠ INDENTATION is the check, not proximity. A window below the launch says only
+                // that a catch exists somewhere near — and it did exist, above and below, while the
+                // pipe path was leaking, because the psi sat ABOVE its try where no catch could see
+                // it. Inside the try the psi is indented one level deeper than the catch; outside,
+                // they are level. That difference is the bug, so it is what this measures.
+                int psiIndent = lines[i].Length - lines[i].TrimStart().Length;
+                var below     = lines.Skip(i).Take(90).ToList();
+                var guardLine = below.FirstOrDefault(
+                    l => l.Contains("catch (PlatformNotSupportedException)"));
+
+                if (guardLine is null)
+                {
                     offenders.Add($"{rel}:{i + 1} does not answer PlatformNotSupportedException");
+                    continue;
+                }
+
+                int catchIndent = guardLine.Length - guardLine.TrimStart().Length;
+                if (psiIndent <= catchIndent)
+                    offenders.Add(
+                        $"{rel}:{i + 1} builds its ProcessStartInfo OUTSIDE the try that answers "
+                      + "PlatformNotSupportedException — on a platform with no processes it is the "
+                      + "constructor that throws, so the catch never sees it");
             }
         }
 

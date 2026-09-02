@@ -71,18 +71,23 @@ public sealed partial class Interpreter
             var program = (string)Evaluate(run.Program);
             var args    = RunArguments(run.Args, run.ArgsSeries);
 
-            var psi = new ProcessStartInfo(program)
-            {
-                RedirectStandardInput  = currentInput != null,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                UseShellExecute        = false,
-            };
-            foreach (var arg in args)
-                psi.ArgumentList.Add(arg);
-
+            // ⚠⚠ INSIDE the try, and this is not tidiness. On a platform with no processes it is
+            // `new ProcessStartInfo` that throws, not Process.Start — so with this above the try,
+            // the catch below could never see it and a pipe went on leaking
+            // `Process_PlatformNotSupported` after the standalone form was fixed. The standalone
+            // form only worked because it happened to build its psi inside its own try.
             try
             {
+                var psi = new ProcessStartInfo(program)
+                {
+                    RedirectStandardInput  = currentInput != null,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError  = true,
+                    UseShellExecute        = false,
+                };
+                foreach (var arg in args)
+                    psi.ArgumentList.Add(arg);
+
                 using var proc = Process.Start(psi)
                     ?? throw new RuntimeException($"Failed to start '{program}' (line {line}).");
 
@@ -163,18 +168,23 @@ public sealed partial class Interpreter
             var program = (string)Evaluate(run.Program);
             var args    = RunArguments(run.Args, run.ArgsSeries);
 
-            var psi = new ProcessStartInfo(program)
-            {
-                RedirectStandardInput  = currentInput != null,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                UseShellExecute        = false,
-            };
-            foreach (var arg in args)
-                psi.ArgumentList.Add(arg);
-
+            // ⚠⚠ INSIDE the try, and this is not tidiness. On a platform with no processes it is
+            // `new ProcessStartInfo` that throws, not Process.Start — so with this above the try,
+            // the catch below could never see it and a pipe went on leaking
+            // `Process_PlatformNotSupported` after the standalone form was fixed. The standalone
+            // form only worked because it happened to build its psi inside its own try.
             try
             {
+                var psi = new ProcessStartInfo(program)
+                {
+                    RedirectStandardInput  = currentInput != null,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError  = true,
+                    UseShellExecute        = false,
+                };
+                foreach (var arg in args)
+                    psi.ArgumentList.Add(arg);
+
                 using var proc = Process.Start(psi)
                     ?? throw new RuntimeException($"Failed to start '{program}' (line {line}).");
 
