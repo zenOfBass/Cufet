@@ -27,6 +27,7 @@ public class ExhaustivenessTests
         [typeof(FactType)]            = CufetType.Fact,
         [typeof(VoidType)]            = new VoidType(),
         [typeof(MatrixType)]          = MatrixType.Instance,
+        [typeof(ChaseType)]           = ChaseType.Instance,
         [typeof(RabbitType)]          = new RabbitType(),
         [typeof(AddressType)]         = AddressType.Instance,
         [typeof(MappingType)]         = new MappingType(CufetType.Text, CufetType.Number),

@@ -956,6 +956,13 @@ public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpressio
 // decision rather than something guessed at now.
 public sealed record RunStatement(IExpression Program, IReadOnlyList<IExpression> Args, IExpression? ArgsSeries, int Line, int Column) : IStatement;
 
+// a chase  →  a new, empty mutable character buffer (the `collections` book).
+//
+// ★ No elements in the literal, and no seeding form. A buffer is a thing you FILL, so the one
+// way in is `Insert`; giving it a second, shorter way to start full would be two spellings for
+// one idea before anyone has asked for either.
+public sealed record ChaseLiteral(int Line, int Column) : IExpression;
+
 // Pull a rabbit [as <name>]. ... Done.
 // Opens a Done.-delimited arena scope. Reference-typed values created in the scope live in
 // the rabbit's region; freed at Done. (ExitScope fires destructors.) Name is optional —

@@ -161,6 +161,31 @@ public sealed partial class Interpreter
         public CufetSeries(IEnumerable<object> items) : base(items) { }
     }
 
+    /// <summary>A mutable character buffer — the runtime side of `chase`.</summary>
+    /// <remarks>
+    /// ⚠⚠ CODE POINTS, not chars, and that is not an implementation detail. A C# string is UTF-16,
+    /// so an astral character is two chars and `item 2 of` would land inside one; the compiled side
+    /// stores UTF-32, where it does not. Two backends disagreeing about what "the second character"
+    /// means is precisely the divergence the oracle exists to catch, and storing the same unit here
+    /// is what stops it arising.
+    /// </remarks>
+    internal sealed class CufetChase : List<int>
+    {
+        /// <summary>The characters as ordinary text — the explicit copy `converted to text` makes.</summary>
+        public string AsText() => string.Concat(this.Select(char.ConvertFromUtf32));
+
+        /// <summary>Appends every character of a text. The one way anything gets in.</summary>
+        public void Append(string text)
+        {
+            for (int i = 0; i < text.Length; i++)
+            {
+                int point = char.ConvertToUtf32(text, i);
+                Add(point);
+                if (char.IsHighSurrogate(text[i])) i++;   // the pair was one character
+            }
+        }
+    }
+
     internal sealed class CufetMap : Dictionary<object, object>
     {
         public CufetType? DeclaredKey   { get; init; }
@@ -857,6 +882,13 @@ public sealed partial class Interpreter
             case SeriesInsertStatement sa:
             {
                 var saTarget = Evaluate(sa.Series);
+                // ★ A chase takes the characters of a text, however many there are. Appending what
+                // you just built is the operation a buffer exists for, so it is the one Insert does.
+                if (saTarget is CufetChase chaseTarget)
+                {
+                    chaseTarget.Append((string)Evaluate(sa.Value));
+                    break;
+                }
                 if (saTarget is not List<object> list)
                     throw new RuntimeException($"Expected a series for 'Add' on line {sa.Line}.");
                 var value = BindCopy(Evaluate(sa.Value));   // value types copy on insert (binding is binding)
@@ -1226,9 +1258,15 @@ public sealed partial class Interpreter
         // empty literal, so `a series of text with ()` always knows what it holds.
         SeriesLiteral    sl   => Series(sl.Elements.Select(e => BindCopy(Evaluate(e))), sl.Annotation),
         SeriesAccess     sa   => EvaluateSeriesAccess(sa),
-        SeriesLength     sl   => Evaluate(sl.Series) is List<object> slList
-                                    ? (decimal)slList.Count
-                                    : throw new RuntimeException($"Expected a series for 'the number of' on line {sl.Line}."),
+        SeriesLength     sl   => Evaluate(sl.Series) switch
+                                 {
+                                     // ⚠ Before List<object>, because a chase IS one — it is a
+                                     // List<int> of code points, and the general arm would count
+                                     // the same thing but only by accident of the base class.
+                                     CufetChase chase => (decimal)chase.Count,
+                                     List<object> slList => (decimal)slList.Count,
+                                     _ => throw new RuntimeException($"Expected a series for 'the number of' on line {sl.Line}."),
+                                 },
         RecordLiteral    rl   => (object)new RecordValue(
                                     rl.PositionalFields.Select(Evaluate).ToList(),
                                     rl.NamedFields.Select(f => (f.Name, Evaluate(f.Value))).ToList()),
@@ -1238,7 +1276,8 @@ public sealed partial class Interpreter
         PossessiveAccess pa   => EvaluatePossessiveAccess(pa),
         CastExpression   cast => EvaluateCastExpr(cast),
         TextJoin   tj => EvaluateTextJoin(tj),
-        TextConvert tc => (object)Format(Evaluate(tc.Value)),
+        ChaseLiteral => new CufetChase(),
+        TextConvert tc => (object)ConvertToText(Evaluate(tc.Value)),
         NumberConvert nc => EvaluateNumberConvert(nc),
         BitsConvert bc   => EvaluateBitsConvert(bc),
         // Code points, not .NET's UTF-16 code units — see TextPositions for why the language
@@ -1996,6 +2035,12 @@ public sealed partial class Interpreter
         // them different, which is the one place width must NOT be load-bearing.
         if (a is BitsValue ab && b is BitsValue bb) return ab.Value == bb.Value;
 
+        // ⚠ Before the List<object> arm, which a chase would MISS — it is a List<int>, so it fell
+        // through to reference equality while a series of the same shape compared structurally.
+        // A chase follows collection conventions, so it compares the way a collection does.
+        if (a is CufetChase ca && b is CufetChase cb)
+            return ca.Count == cb.Count && !ca.Where((point, i) => point != cb[i]).Any();
+
         if (a is List<object> la && b is List<object> lb)
         {
             if (la.Count != lb.Count) return false;
@@ -2097,6 +2142,15 @@ public sealed partial class Interpreter
     private static readonly decimal NormalizingDivisor = 1.0000000000000000000000000000m;
     private static decimal NormalizeDecimal(decimal d) => d / NormalizingDivisor;
 
+    /// <summary>What `converted to text` gives back.</summary>
+    /// <remarks>
+    /// ⚠⚠ Not <see cref="Format"/>, for a chase. Format prints a buffer as the collection it is —
+    /// `(h, e, l, l, o)` — which is right for `State buf.` and exactly wrong here: the whole point
+    /// of this conversion is to get `hello` out. Everything else formats the way it prints.
+    /// </remarks>
+    private static string ConvertToText(object val) =>
+        val is CufetChase chase ? chase.AsText() : Format(val);
+
     private static string Format(object val) => val switch
     {
         VoidValue        => "void",
@@ -2107,6 +2161,11 @@ public sealed partial class Interpreter
         decimal d        => NormalizeDecimal(d).ToString(CultureInfo.InvariantCulture),
         BitsValue bv     => bv.ToString(),   // prints in the base it was written in
         List<object> lst => "(" + string.Join(", ", lst.Select(Format)) + ")",
+        // ★★ Printed like the COLLECTION it is, not like the text it will become. `(h, e, l, l, o)`
+        // rather than `hello`, so a reader never mistakes a buffer for a `text` — and if the text
+        // is what you want, `converted to text` is the explicit copy that says so. Above
+        // List<object> would be wrong: this holds code points, which print as numbers.
+        CufetChase chase => "(" + string.Join(", ", chase.Select(char.ConvertFromUtf32)) + ")",
         FunctionValue        => "<function>",
         // ★ An axiom is a callable held as a value, so it prints the way the other callable does.
         // ⚠ Not cosmetic: the value an axiom name holds IS the AxiomLiteral record, so with no arm

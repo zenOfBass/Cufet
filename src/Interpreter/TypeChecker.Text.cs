@@ -36,12 +36,17 @@ public sealed partial class TypeChecker
         if (operand == CufetType.Number || operand == CufetType.Fact || operand == CufetType.Text
             || operand == CufetType.Bits)
             return CufetType.Text;
+        // ★★ A chase converts by an explicit COPY, and this is the whole reason the type pays for
+        // itself: you build in the buffer, and cross to `text` once at the end. The buffer lives on
+        // afterwards, independent — not consumed, and not a view, because a `text` that changed
+        // under you would break the one thing `text` promises.
+        if (operand is ChaseType) return CufetType.Text;
         throw TypeError(
             $"'converted to text' doesn't work on {FormatTypePlural(operand)}",
             null,
             tc.Line, tc.Column,
             $"convert a {FormatType(operand)} to text",
-            "Only numbers, facts and bits can be converted to text.");
+            "Only numbers, facts, bits and a chase can be converted to text.");
     }
 
     private CufetType InferNumberConvert(NumberConvert nc)

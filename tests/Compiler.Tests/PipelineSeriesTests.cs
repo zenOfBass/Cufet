@@ -364,4 +364,50 @@ public class PipelineSeriesTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ── chase: the mutable character buffer ──────────────────────────────
+    //
+    // ★★ UTF-32 in the buffer on BOTH sides, and that is the point of testing it here. The
+    // interpreter stores code points in a List<int> and the compiled side an int array, because a
+    // C# string is UTF-16 and C text is UTF-8 — and if either had counted its own storage units,
+    // the two backends would disagree about what "the second character" means for anything outside
+    // ASCII. `ö` and an emoji are here to make that disagreement impossible to miss.
+    //
+    // ⚠ `State` prints it as a COLLECTION, `converted to text` gives the contents. The first
+    // version of the compiled printer called a function that RETURNED the line instead of writing
+    // it, so a buffer printed as a blank line while the interpreter printed it in full — caught
+    // here, and invisible to anything else.
+
+    [Fact]
+    public void Chase_BuildPrintAndConvert_MatchesInterpreter()
+    {
+        const string src = """
+            Pull a book on collections.
+                Define out as a chase.
+                Insert "he" into out.
+                Insert "llo" into out.
+                Insert " wörld" into out.
+                State the number of out.
+                State out.
+                State out converted to text.
+
+                Define taken as out converted to text.
+                Insert "!" into out.
+                State taken.
+                State out converted to text.
+
+                Define same as a chase.
+                Insert "hello wörld!" into same.
+                State out is same.
+                Insert "?" into same.
+                State out is same.
+
+                Define empty as a chase.
+                State the number of empty.
+                State empty.
+                State empty converted to text.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

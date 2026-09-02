@@ -223,6 +223,9 @@ public enum TokenType
     AtlasKw,     // "atlas"     — heterogeneous map:    value  type is a union
 
     Matrix,    // "matrix"  — type introduced by the 'collections' book
+    Chase,     // "chase"   — mutable character buffer, introduced by the 'collections' book.
+               //             Like Matrix, the lexer never produces this: the parser maps the
+               //             identifier to it contextually, so the word stays a usable name.
 
     // ── Cufet source held as an axiom ─────────────────────────────────────
     Cite,   // "cite"   — in "Cite <name>." : place the declarations a cufet axiom holds

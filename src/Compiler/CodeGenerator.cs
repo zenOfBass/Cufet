@@ -452,6 +452,7 @@ public sealed class CodeGenerator
     // Set when the program uses matrices (the collections book's introduced type), so the matrix
     // runtime is emitted (only then). A matrix is an arena reference type like series/maps.
     private bool _usesMatrix;
+    private bool _usesChase;
     // Set when the program uses the chance book's randomness nodes, so the PRNG runtime is emitted.
     // Per the settled fork: ANY C PRNG + invariant-testing — NOT bit-identity with System.Random
     // (unseeded .NET is xoshiro256**, nondeterministic-by-design; the seeded-port is a documented
@@ -631,6 +632,11 @@ public sealed class CodeGenerator
 #include <sys/stat.h>
 #include <setjmp.h>
 #include <stdarg.h>
+/* ⚠ For int32_t. A chase stores one code point per element and the width is part of what the
+   type PROMISES — four bytes, UTF-32 — so it is spelled exactly rather than left to `int`, which
+   C does not guarantee to be 32 bits even where every target this compiles for happens to make
+   it so. The interpreter stores .NET Int32, and the two have to be the same thing. */
+#include <stdint.h>
 #if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
@@ -1900,6 +1906,119 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
     // Cufet FAILURE with category "dimension-mismatch", not a crash; messages match the interpreter).
     // Element order + the multiply's k-ascending accumulation from 0 replicate Interpreter.Matrix.cs
     // exactly, so results are bit-identical.
+    // ── chase: a mutable character buffer (the `collections` book) ─────────────
+    //
+    // ★★ UTF-32 INSIDE, UTF-8 at the edges. Cufet text is UTF-8, where a character is one to four
+    // bytes, so `item n of` over it would have to walk from the start. Storing code points
+    // fixed-width makes that a subscript, which is the whole reason the type exists — and it is
+    // also what makes the two backends agree, because the interpreter stores code points too. The
+    // cost is 4× memory on a thing you build and discard, which is where that trade is cheapest.
+    //
+    // ⚠ Arena-allocated and never freed by hand: a chase is a reference type that dies with its
+    // rabbit, exactly as a series or a map does.
+    private const string ChaseRuntime =
+"""
+typedef struct { int32_t* data; int len; int cap; } CufetChase;
+
+static CufetChase* cufet_chase_new(void) {
+    CufetChase* c = (CufetChase*)cufet_arena_alloc(sizeof(CufetChase));
+    c->len = 0; c->cap = 16;
+    c->data = (int32_t*)cufet_arena_alloc(sizeof(int32_t) * (size_t)c->cap);
+    return c;
+}
+
+static void cufet_chase_push(CufetChase* c, int32_t point) {
+    if (c->len == c->cap) {
+        int grown = c->cap * 2;
+        int32_t* moved = (int32_t*)cufet_arena_alloc(sizeof(int32_t) * (size_t)grown);
+        memcpy(moved, c->data, sizeof(int32_t) * (size_t)c->len);
+        c->data = moved; c->cap = grown;
+    }
+    c->data[c->len++] = point;
+}
+
+/* Appends every character of a UTF-8 text. A malformed byte is taken as one character rather
+   than rejected: the lexer only ever hands over well-formed text, and a buffer is the wrong
+   place to discover otherwise. */
+static void cufet_chase_append(CufetChase* c, const char* text) {
+    const unsigned char* p = (const unsigned char*)text;
+    while (*p) {
+        int32_t point; int extra;
+        if      (*p < 0x80) { point = *p;        extra = 0; }
+        else if ((*p & 0xE0) == 0xC0) { point = *p & 0x1F; extra = 1; }
+        else if ((*p & 0xF0) == 0xE0) { point = *p & 0x0F; extra = 2; }
+        else if ((*p & 0xF8) == 0xF0) { point = *p & 0x07; extra = 3; }
+        else { point = *p; extra = 0; }
+        p++;
+        for (int i = 0; i < extra && (*p & 0xC0) == 0x80; i++) { point = (point << 6) | (*p & 0x3F); p++; }
+        cufet_chase_push(c, point);
+    }
+}
+
+/* How many bytes one code point needs in UTF-8. */
+static int cufet_utf8_width(int32_t point) {
+    if (point < 0x80) return 1;
+    if (point < 0x800) return 2;
+    if (point < 0x10000) return 3;
+    return 4;
+}
+
+static char* cufet_utf8_put(char* out, int32_t point) {
+    if (point < 0x80) { *out++ = (char)point; return out; }
+    if (point < 0x800) {
+        *out++ = (char)(0xC0 | (point >> 6));
+        *out++ = (char)(0x80 | (point & 0x3F));
+        return out;
+    }
+    if (point < 0x10000) {
+        *out++ = (char)(0xE0 | (point >> 12));
+        *out++ = (char)(0x80 | ((point >> 6) & 0x3F));
+        *out++ = (char)(0x80 | (point & 0x3F));
+        return out;
+    }
+    *out++ = (char)(0xF0 | (point >> 18));
+    *out++ = (char)(0x80 | ((point >> 12) & 0x3F));
+    *out++ = (char)(0x80 | ((point >> 6) & 0x3F));
+    *out++ = (char)(0x80 | (point & 0x3F));
+    return out;
+}
+
+/* The explicit COPY `converted to text` makes. The buffer lives on, independent. */
+static const char* cufet_chase_text(CufetChase* c) {
+    size_t need = 1;
+    for (int i = 0; i < c->len; i++) need += (size_t)cufet_utf8_width(c->data[i]);
+    char* out = (char*)cufet_arena_alloc(need);
+    char* at = out;
+    for (int i = 0; i < c->len; i++) at = cufet_utf8_put(at, c->data[i]);
+    *at = 0;
+    return out;
+}
+
+/* Printed as the COLLECTION it is — `(h, e, l, l, o)` — never as the text it will become. */
+/* Structural, matching the interpreter: a buffer of the same characters is the same buffer. */
+static int cufet_chase_eq(CufetChase* a, CufetChase* b) {
+    if (a == b) return 1;
+    if (!a || !b || a->len != b->len) return 0;
+    for (int i = 0; i < a->len; i++) if (a->data[i] != b->data[i]) return 0;
+    return 1;
+}
+
+static const char* cufet_chase_show(CufetChase* c) {
+    size_t need = 3;
+    for (int i = 0; i < c->len; i++) need += (size_t)cufet_utf8_width(c->data[i]) + 2;
+    char* out = (char*)cufet_arena_alloc(need);
+    char* at = out;
+    *at++ = 40;
+    for (int i = 0; i < c->len; i++) {
+        if (i > 0) { *at++ = 44; *at++ = 32; }
+        at = cufet_utf8_put(at, c->data[i]);
+    }
+    *at++ = 41;
+    *at = 0;
+    return out;
+}
+""";
+
     private const string MatrixRuntime =
 """
 typedef struct { int rows; int cols; CufetDec* data; } CufetMatrix;
@@ -2701,6 +2820,7 @@ static void* cufet_pipe_stage(void* argp) {
         // Their order RELATIVE TO EACH OTHER still matters and is preserved: the signal substrate
         // supplies the interrupt flag the concurrency runtime's channel-wait checks, and the case
         // table calls the decimal helpers in the preamble.
+        if (_usesChase) runtime.AppendLine(ChaseRuntime);
         if (_usesMatrix) runtime.AppendLine(MatrixRuntime);
         if (_usesCase) runtime.AppendLine(CaseRuntime);
         if (_usesChance) runtime.AppendLine(ChanceRuntime);
@@ -3214,6 +3334,7 @@ static void* cufet_pipe_stage(void* argp) {
         MapType m => "M(" + TypeSig(m.KeyType) + "," + TypeSig(m.ValueType) + ")",
         FailureType f => "F(" + TypeSig(f.Inner) + ")",
         MatrixType => "MX",   // one fixed runtime struct (CufetMatrix*) — identity is the type itself
+        ChaseType  => "CH",   // likewise: one struct, and the type is its own identity
         RabbitType => "RB",
         AddressType => "AD",   // one opaque void* — every foreign pointer is the same type here
         FunctionType fn => "Fn(" + string.Join(",", fn.ParameterTypes.Select(TypeSig)) + "->" +
@@ -3395,7 +3516,7 @@ static void* cufet_pipe_stage(void* argp) {
         // No by-value struct to order against. Each of these is a decision, which is the point of
         // listing them rather than letting a fallback answer for them.
         NumberType or BitsType or TextType or FactType or AddressType   // scalars
-          or SeriesType or MapType or MatrixType                        // arena pointers
+          or SeriesType or MapType or MatrixType or ChaseType            // arena pointers
           or ChannelType or TaskHandleType                              // shared runtime pointers
           or ReadableStreamType or WritableStreamType or RabbitType     // FILE*, and a region name
           or UnionType                                                  // the ONE open union struct
@@ -4029,6 +4150,7 @@ static void* cufet_pipe_stage(void* argp) {
             case VoidableType vt: RegisterVoidableStruct(vt); RegisterChanElem(vt.Inner, false); break;
             case FailureType ft: RegisterFailableStruct(ft); RegisterChanElem(ft.Inner, false); break;
             case MatrixType: _usesMatrix = true; break;
+            case ChaseType:  _usesChase  = true; break;
             case RecordType rt:
                 RegisterRecordStruct(rt);
                 foreach (var f in RecordFields(rt)) if (!IsChanPod(f.Type)) RegisterChanElem(f.Type, false);
@@ -4367,6 +4489,7 @@ static void* cufet_pipe_stage(void* argp) {
     {
         NumberType => "number", TextType => "text", FactType => "fact", BitsType => "bits",
         SeriesType => "series", MapType => "map", RecordType => "record", MatrixType => "matrix",
+        ChaseType => "chase",
         StashType s     => $"stash of {FormatTypeName(s.ElementType)}",
         ObjectType o    => ModuleTypeLifting.DisplayName(o.Name),
         VoidType        => "void",
@@ -4432,6 +4555,7 @@ static void* cufet_pipe_stage(void* argp) {
                                          && StaticKindMatches(tm.ValueType, mt.ValueType),
         RecordType => t is RecordType,        // shape-erased (unreachable — see above)
         MatrixType => t is MatrixType,
+        ChaseType => t is ChaseType,
         ObjectType ot => t is ObjectType o2 && o2.Name == ot.Name,   // nominal
         VoidType   => false,                  // a non-voidable value is never void
         // ISA.2b — `is a voidable X` as the TESTED type had NO arm (it fell through to false) while
@@ -4555,6 +4679,8 @@ static void* cufet_pipe_stage(void* argp) {
 
     private string MatrixCType() { _usesMatrix = true; return "CufetMatrix*"; }
 
+    private string ChaseCType() { _usesChase = true; return "CufetChase*"; }
+
     // A +/−/× whose operands are both matrices — routed through the FALLIBLE machinery (dimension
     // mismatch is a Cufet failure the typechecker requires handling for).
     private bool IsMatrixOp(BinaryExpression b) =>
@@ -4621,6 +4747,9 @@ static void* cufet_pipe_stage(void* argp) {
 
     // `a matrix with ((1, 2), (3, 4))` — dimensions are literal-known; elements evaluated row-major
     // (the interpreter's order, so side effects and preemits sequence identically).
+    /// <summary>`a chase` — a new, empty buffer.</summary>
+    private string EmitChaseLiteral() { _usesChase = true; return "cufet_chase_new()"; }
+
     private string EmitMatrixLiteral(MatrixLiteral ml)
     {
         _usesMatrix = true;
@@ -4653,6 +4782,10 @@ static void* cufet_pipe_stage(void* argp) {
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_eq({a}, {b})",
         MapType => $"({a} == {b})",   // maps: reference (pointer) equality, like the interpreter
         MatrixType => $"({a} == {b})",   // matrices: reference equality (interpreter ValuesEqual fallthrough)
+        // ⚠ STRUCTURAL, unlike the two above, and matching the interpreter deliberately. A chase
+        // follows collection conventions, and a series of the same characters compares by content;
+        // a buffer comparing by pointer would be the odd one out in its own family.
+        ChaseType => $"cufet_chase_eq({a}, {b})",
         RabbitType => $"cufet_rabbit_eq({a}, {b})",
         // Two addresses are the same when they are the same pointer — the only question anyone can
         // ask about one without reading through it. The interpreter's ForeignAddress is a record
@@ -4682,6 +4815,13 @@ static void* cufet_pipe_stage(void* argp) {
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr})",
         MapType mt => $"{RegisterMapStruct(mt)}_write({valExpr})",
         MatrixType => $"cufet_mat_write({valExpr})",
+        // ★★ Shown as the COLLECTION it is — `(h, e, l, l, o)` — never as the text it will become.
+        // A reader must never mistake a buffer for a `text`; when the text is what you want,
+        // `converted to text` is the explicit copy that says so.
+        // ⚠ Wrapped in a WRITE. Every other arm here CALLS something that writes; this one
+        // builds a string and hands it back, so bare it computed the line and threw it away —
+        // a blank line where the interpreter printed the buffer. The oracle caught it.
+        ChaseType => $"cufet_write_text(cufet_chase_show({valExpr}))",
         FunctionType => $"printf(\"<function>\")",   // matches the interpreter's Format for a FunctionValue
         AxiomType    => $"printf(\"<axiom>\")",      // and the same for the other kind of callable
         // ★ Never the pointer itself — see the interpreter's Format. Two backends are two
@@ -5376,6 +5516,18 @@ static void* cufet_pipe_stage(void* argp) {
 
             case SeriesInsertStatement sa:
             {
+                // ★ A chase takes the characters of a text, however many. Before SeriesStructOf,
+                // which would refuse a target that is not a series.
+                if (TypeOf(sa.Series) is ChaseType)
+                {
+                    _usesChase = true;
+                    string chaseVal = EmitExpr(sa.Value);
+                    FlushPreEmits(sb, indent);
+                    string chaseTarget = EmitExpr(sa.Series);
+                    FlushPreEmits(sb, indent);
+                    sb.AppendLine($"{indent}cufet_chase_append({chaseTarget}, {chaseVal});");
+                    break;
+                }
                 string ser = SeriesStructOf(sa.Series);
                 // Coerce into the series' ELEMENT type so adding to a catalogue widens into the union.
                 var saElem = (TypeOf(sa.Series) as SeriesType)?.ElementType;
@@ -6494,6 +6646,7 @@ static void* cufet_pipe_stage(void* argp) {
                                : IsArithmeticOp(b.Op) && TypeOf(b.Left) is BitsType ? TBits
                                : IsArithmeticOp(b.Op) ? TNumber : TFact,
         MatrixLiteral         => MatrixType.Instance,
+        ChaseLiteral          => ChaseType.Instance,
         MatrixSized           => MatrixType.Instance,
         MatrixAccess          => TNumber,
         VariableReference vr  => vr.Name == "input" ? new ReadableStreamType(TText)   // `the input` = stdin
@@ -7173,6 +7326,7 @@ static void* cufet_pipe_stage(void* argp) {
         InterruptRequestedExpression => EmitInterruptRequested(),
         SortExpression sort   => EmitSort(sort),
         MatrixLiteral ml      => EmitMatrixLiteral(ml),
+        ChaseLiteral          => EmitChaseLiteral(),
         MatrixSized ms        => EmitMatrixSized(ms),
         MatrixAccess ma       => EmitMatrixAccess(ma),
         RandomNumber rn       => EmitRandomNumber(rn),
@@ -8369,6 +8523,9 @@ static void* cufet_pipe_stage(void* argp) {
         FactType   => $"({EmitExpr(tc.Value)} ? \"true\" : \"false\")",
         TextType   => EmitExpr(tc.Value),
         BitsType   => EmitBitsToText(tc),
+        // ★★ The explicit COPY. UTF-32 in the buffer becomes UTF-8 here, once, at the end — which
+        // is what turns the quadratic build into a linear one. The buffer lives on, independent.
+        ChaseType  => $"cufet_chase_text({EmitExpr(tc.Value)})",
         var t => throw new CompilerException($"'converted to text' of a '{FormatTypeName(t)}' is not yet supported by the compiler.")
     };
 
@@ -9370,6 +9527,7 @@ static void* cufet_pipe_stage(void* argp) {
         // get wrong and no layout to compute.
         AddressType => "void*",
         SeriesType st => RegisterSeriesStruct(st) + "*",   // series are arena pointers (reference type)
+        ChaseType => ChaseCType(),                        // one fixed struct, arena pointer
         RecordType rt => RegisterRecordStruct(rt),
         ObjectType ot => ObjStructName(ot.Name),
         VoidableType vt => RegisterVoidableStruct(vt),

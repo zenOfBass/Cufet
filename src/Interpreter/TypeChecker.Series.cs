@@ -120,6 +120,24 @@ public sealed partial class TypeChecker
         if (add.AfterIndex != null) CheckIndex(add.AfterIndex, add.Line, add.Column);
         var containerType = InferType(add.Series);
         if (containerType == null) return;
+
+        // ★★ A chase takes a TEXT and appends its characters. Not parity with `text` — this is the
+        // collection's own Insert, and a character is spelled as a one-character text because the
+        // language has no separate character type. Requiring exactly one would make the common
+        // case (append what you just built) a runtime length check on a program that reads fine.
+        if (containerType is ChaseType)
+        {
+            var appended = InferType(add.Value);
+            if (appended != null && appended != CufetType.Text)
+                throw TypeError(
+                    $"{FormatExpr(add.Series)} holds characters",
+                    "A chase is a buffer of characters, so what goes in is text",
+                    add.Line, add.Column,
+                    $"insert a {FormatType(appended)} into a chase",
+                    "Convert it first: '<value> converted to text'.");
+            return;
+        }
+
         if (containerType is not SeriesType seriesType)
             throw TypeError(
                 $"{FormatExpr(add.Series)} is not a series",

@@ -23,6 +23,7 @@ public sealed partial class TypeChecker
         var collectionsTypes = new Dictionary<string, CufetType>(StringComparer.OrdinalIgnoreCase)
         {
             ["matrix"] = MatrixType.Instance,
+            ["chase"]  = ChaseType.Instance,
         };
         books["collections"] = new BookType("collections", [], collectionsTypes);
 
@@ -423,6 +424,24 @@ public sealed partial class TypeChecker
     }
 
     // ── Matrix type inference ─────────────────────────────────────────────────
+
+    /// <summary>`a chase` — an empty character buffer, from the `collections` book.</summary>
+    /// <remarks>
+    /// ⚠ Scoped exactly as `matrix` is: the type exists only where the book introducing it was
+    /// pulled. The parser already refuses to read the word as a type outside that pull, so what
+    /// this catches is the other route in — a type ANNOTATION, which is read by lexeme and ungated.
+    /// </remarks>
+    private CufetType InferChaseLiteral(ChaseLiteral lit)
+    {
+        if (!TryLookupScopedType("chase", out _))
+            throw TypeError(
+                "'chase' is not available in this scope",
+                "It is introduced by the 'collections' book",
+                lit.Line, lit.Column,
+                "build a chase without pulling the 'collections' book first",
+                "Wrap it in 'Pull a book on collections. … Done.'");
+        return ChaseType.Instance;
+    }
 
     private CufetType InferMatrixLiteral(MatrixLiteral lit)
     {

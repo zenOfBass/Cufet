@@ -792,6 +792,14 @@ public sealed class Parser
             Advance();
             return MatrixType.Instance;
         }
+        // `chase` likewise. Ungated here on purpose: a type slot cannot hold a variable, so there
+        // is nothing to confuse it with, and a `chase` written without pulling `collections` gets
+        // the checker's "not available in this scope" rather than a parse error about a name.
+        if (IsWord("chase"))
+        {
+            Advance();
+            return ChaseType.Instance;
+        }
         // catalogue [of (A or B)] as a type annotation — series of union type
         if (tok.Type == TokenType.CatalogueKw)
         {
@@ -2026,6 +2034,33 @@ public sealed class Parser
     // Pull a book on <name> [as <local>]. ... Done.
     // Pull books on <n1> [as <l1>], <n2> [as <l2>], and <n3>. ... Done.
     // All forms open a Done.-delimited scope; the pulled thing(s) are live until Done.
+    // Non-zero inside the body of a `Pull a book on collections.`, which is where `chase` is a
+    // TYPE and not an ordinary name.
+    //
+    // ★★ Reserved BY BOOK rather than by the language. A word spent on one construct is a name a
+    // writer loses forever — the rule this file already states about `book` and `books` — and a
+    // type introduced by a book only needs its name where that book was asked for. Outside the
+    // pull, `chase` is a variable like any other.
+    //
+    // ⚠ Stricter than `matrix`, deliberately and with a cost. `matrix` becomes a type only when
+    // `with` follows it, so `Define matrix as 5.` still works inside the pull; `Define chase as 5.`
+    // there does not. What buys that is a bare `a chase` with no mandatory tail — and the parser
+    // comment below states the rule: an optional tail means the word cannot be told from a
+    // variable, and every other type in that position had to be reserved outright.
+    private int _collectionsDepth;
+
+    private static bool NamesCollections(IEnumerable<(string BookName, string LocalName)> books) =>
+        books.Any(b => string.Equals(b.BookName, "collections", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Parses a pull body, with `chase` a type inside it when collections was pulled.</summary>
+    private IReadOnlyList<IStatement> ParsePullBodyFor(IEnumerable<(string BookName, string LocalName)> books)
+    {
+        bool introduces = NamesCollections(books);
+        if (introduces) _collectionsDepth++;
+        try { return ParsePullBody(); }
+        finally { if (introduces) _collectionsDepth--; }
+    }
+
     private IStatement ParsePullStatement()
     {
         var lineTok = Consume(TokenType.Pull); // consume 'Pull'
@@ -2071,7 +2106,7 @@ public sealed class Parser
                 books.Add(ParsePullBookEntry());
             }
             Consume(TokenType.Dot);
-            var pluralBody = ParsePullBody();
+            var pluralBody = ParsePullBodyFor(books);
             return new PullStatement(books, pluralBody, line, col, ViaBookForm: true);
         }
 
@@ -2090,7 +2125,7 @@ public sealed class Parser
             SkipNoise();
             var entry = ParsePullBookEntry();
             Consume(TokenType.Dot);
-            var bookBody = ParsePullBody(); // consumes Done.
+            var bookBody = ParsePullBodyFor([entry]); // consumes Done.
             return new PullStatement([entry], bookBody, line, col, ViaBookForm: true);
         }
 
@@ -3426,6 +3461,14 @@ public sealed class Parser
             case TokenType.Series:
                 baseExpr = ParseSeriesLiteralExpr();
                 break;
+            case TokenType.Chase:
+            {
+                // `a chase` — empty, and there is no other way to build one. Seeding from a text
+                // is what `Insert` is for, and one way in beats two.
+                var chaseTok = Advance();
+                baseExpr = new ChaseLiteral(chaseTok.Line, chaseTok.Column);
+                break;
+            }
             case TokenType.Record:
                 baseExpr = ParseRecordLiteralExpr();
                 break;
@@ -5385,6 +5428,12 @@ public sealed class Parser
         {
             "current"  when PeekAfterCurrent() == TokenType.DirectoryKw => TokenType.CurrentKw,
             "matrix"   when PeekAfterCurrent() == TokenType.With     => TokenType.Matrix,
+            // ⚠ Gated on the PULL, not on a following word. `chase` has no mandatory tail — `a
+            // chase` is the whole of it — so nothing in the line itself can tell it from a
+            // variable of that name. What tells them apart is that the book introducing it was
+            // asked for: inside that pull the word is the type, and outside it is a name like any
+            // other. The cost is real and narrow — `Define chase as 5.` inside the pull is gone.
+            "chase"    when _collectionsDepth > 0                    => TokenType.Chase,
             "randomly" when NextWordIs("shuffled")                   => TokenType.Randomly,
             "random"   when PeekAfterCurrent() is TokenType.NumberKw or TokenType.Item
                             || NextWordIs("guess")                   => TokenType.Random,

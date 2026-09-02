@@ -482,6 +482,30 @@ public sealed class MatrixType : CufetType
     public override int GetHashCode() => typeof(MatrixType).GetHashCode();
 }
 
+/// <summary>A mutable buffer of characters — `text`’s companion, from the `collections` book.</summary>
+/// <remarks>
+/// <para>
+/// ★★ MUTABILITY is the whole distinction, not byte access. `text` is an immutable value, so
+/// building one a piece at a time is quadratic — each join rebuilds the whole string. This is the
+/// thing you build in, converted to `text` once at the end, which is what turns O(n²) into O(n).
+/// </para>
+/// <para>
+/// ★ It follows COLLECTION conventions rather than text ones: Insert, Remove, item n of, the
+/// number of, For each. Treat it like an array. It deliberately grows no parallel copy of text’s
+/// API — the moment it does, the split stops meaning anything and a reader is back to asking
+/// which of the two they are holding.
+/// </para>
+/// <para>
+/// ⚠ Reference-typed and region-allocated, like a series or a map: freed with its rabbit.
+/// </para>
+/// </remarks>
+public sealed class ChaseType : CufetType
+{
+    public static readonly ChaseType Instance = new();
+    public override bool Equals(object? obj) => obj is ChaseType;
+    public override int GetHashCode() => typeof(ChaseType).GetHashCode();
+}
+
 // channel of T — unbounded, buffered, cooperative channel. Reference-typed.
 // Deep-copies values at send; delivery yields if empty-and-open; void if empty-and-closed.
 public sealed class ChannelType : CufetType
@@ -2926,6 +2950,7 @@ public sealed partial class TypeChecker
         FileReadExpression fre                                                                           => InferFileReadExpr(fre),
         RunExpression run                                                                                => InferRunExpr(run),
         MatrixLiteral ml                                                                                 => InferMatrixLiteral(ml),
+        ChaseLiteral cl                                                                                  => InferChaseLiteral(cl),
         MatrixSized   mz                                                                                 => InferMatrixSized(mz),
         MatrixAccess  ma                                                                                 => InferMatrixAccess(ma),
         IsTypeCheck   tc                                                                                 => InferIsTypeCheck(tc),
@@ -3549,6 +3574,7 @@ public sealed partial class TypeChecker
         ExceptionMarkerType                  => "exception",
         BookType bt                          => $"book '{bt.Name}'",
         MatrixType                           => "matrix",
+        ChaseType                            => "chase",
         ChannelType ct                       => $"channel of {FormatType(ct.ElementType)}",
         TaskHandleType tht                   => tht.ResultType != null ? $"task (result: {FormatType(tht.ResultType)})" : "void task",
         UnionType { Cases: null }            => "open union",
