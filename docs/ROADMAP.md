@@ -188,7 +188,7 @@ they are large, not because they are waiting — the order among them means noth
 
    ★ **What a doc comment should be FOR** is worth settling early: the signature already says what
    a thing takes and gives, so a comment that restates it is a second copy that drifts. What is
-   left is *why*, and *what can go wrong*
+   left is *why*, and *what can go wrong*.
 
 ## Ongoing, no fixed slot
 
