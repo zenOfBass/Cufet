@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 
 namespace Cufet.Compiler;
@@ -22,10 +22,29 @@ namespace Cufet.Compiler;
 /// fail a build would trade that away for a few hundred milliseconds.
 /// </para>
 /// <para>
-/// The key is a hash of the runtime source, the gcc identification string, and the flags. Anything
-/// that could change the object changes the key, so upgrading gcc or editing the runtime invalidates
-/// it without anyone remembering to — the failure mode of a stale cache is a mystery bug in
-/// generated code, which is the worst kind to debug and the easiest to prevent.
+/// The key is a hash of the runtime source, the header, the gcc identification string, and the
+/// flags. Editing the runtime or moving to a gcc that reports a different version therefore
+/// invalidates the entry without anyone remembering to.
+/// </para>
+/// <para>
+/// ⚠⚠ It does NOT follow that everything which can change the object is in the key, and this note
+/// used to claim exactly that. MEASURED, 2026-09-02: a suite run under WSL on Arch produced 32
+/// failures, every one an `undefined reference to cufet_dec_lit` and friends — which reads as a
+/// code-generator regression and is not one. `rm -rf ~/.cache/cufet` cured all 32; the rerun was
+/// 861/861. The mechanism is unresolved. What is outside the key is the rest of the toolchain —
+/// glibc, binutils, the system headers — none of which move gcc's version string, and all of
+/// which a rolling distro upgrades together.
+/// </para>
+/// <para>
+/// ⚠ The loud failure above is the lucky one. The quiet failure is an object that still LINKS but
+/// carries an older implementation of a function whose signature never changed — which is what
+/// every bug fix to the C runtime looks like, so the fix would silently not take. Nothing here
+/// detects that; the 861 compiled tests linking this object every run are what would.
+/// </para>
+/// <para>
+/// ★ The cure is to delete the cache, and it is always safe — this is a cache, so an empty one
+/// only costs the runtime compile back. `CUFET_CACHE_DIR` overrides the location; otherwise see
+/// DefaultRoot below.
 /// </para>
 /// </remarks>
 public sealed class RuntimeCache
