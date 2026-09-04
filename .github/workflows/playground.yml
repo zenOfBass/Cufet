@@ -103,6 +103,14 @@ jobs:
         working-directory: playground
         run: node build.mjs --bundle=bin/Release/net10.0-browser/browser-wasm/AppBundle
 
+      # ⚠ BEFORE the upload, so a page that cannot find the files its examples read is never
+      # deployed. The seeding path fails silently by nature — nothing throws, the examples just go
+      # back to reporting `not found`, which reads like the program's fault rather than the page's.
+      # This drives the real wasm build under node, the same way the harness does locally.
+      - name: Test the built playground
+        working-directory: playground
+        run: npm test
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: playground/site
