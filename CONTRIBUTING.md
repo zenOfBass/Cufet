@@ -155,10 +155,23 @@ the load-bearing guarantee tests must stay present and passing:
   that must be rejected, three that must compile and match.
 - Concurrency `join`/`close`/`deep-copy-isolation`, fallibility, map-key constraint.
 
-Some compiler tests are **Linux-only** and early-return elsewhere: anything using POSIX
-features (concurrency, subprocess, signals) can't be built by mingw, and the
-sanitizer runs (ASan/LSan/TSan) are Linux-only too. Run the suite under WSL or Linux
-before claiming a concurrency or memory-safety change is green.
+Some compiler tests are **Linux-only**: anything using POSIX features (concurrency,
+subprocess, signals) can't be built by mingw, and the sanitizer runs (ASan/LSan/TSan) are
+Linux-only too. They carry `[LinuxFact]` and are reported as **skipped** off Linux, so the
+run tells you: on Windows the compiler suite is **778 passed, 83 skipped**; on Linux it is
+**860 passed, 1 skipped** (one Windows-only test, `[WindowsFact]`).
+
+⚠ **A skipped test has not run, so run the suite under WSL or Linux before claiming ANY change
+touching those areas is green** — not only a concurrency or memory-safety one. This instruction
+used to name those two, and the test that slipped through to CI was a **subprocess** test.
+
+```bash
+wsl -e bash -lc "cd /mnt/c/dev/Cufet && dotnet test tests/Compiler.Tests --nologo"
+```
+
+⚠ These used to open with a bare `if (!IsOSPlatform(Linux)) return;`, which xUnit records as a
+PASS — 83 tests reporting green without executing, and the total gave no hint. Do not add a new
+platform gate that way; use the attribute.
 
 A contribution should leave all tests passing and should add tests for any new behavior.
 

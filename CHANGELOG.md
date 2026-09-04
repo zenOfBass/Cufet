@@ -208,6 +208,33 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   output. Windows structurally cannot see this — it was caught compiling under WSL gcc.
 
 ### Fixed
+- **83 tests reported green without ever running.** Every Linux-only compiler test opened with
+  `if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;` — which xUnit records as a
+  **pass**. A Windows run said 861 green with 83 of them never executed, and the total gave no
+  hint. One test sat in that set and had never run once until CI caught it.
+
+  They now carry `[LinuxFact]`, which sets `Skip` from the constructor so xUnit reports them
+  honestly. The same trap existed in the other direction — one Windows-only test silently passing
+  on Linux — and it has `[WindowsFact]`.
+
+  ```
+  Windows   779 passed, 83 skipped, 862 total
+  Linux     861 passed,  1 skipped, 862 total
+  ```
+
+  ★ **No new dependency and no conditional compilation.** `Skip` is read at discovery, so the body
+  never runs and the reason travels with the result. Measured first: xUnit 2.4.2 does NOT honour
+  the dynamic-skip token on a plain `[Fact]`, so that route would have needed a custom runner —
+  setting the property on a `FactAttribute` subclass needs nothing.
+
+  ⚠ **Skipping is not covering**, and the guidance that should have caught this was scoped too
+  narrowly: CONTRIBUTING said to run WSL before claiming a *concurrency or memory-safety* change
+  green, while the gates also cover **subprocess** and **signals** — and the test that slipped
+  through to CI was a subprocess one. Corrected, with the command to run.
+
+  ★ A structural test (`NoTest_GatesItselfWithASilentEarlyReturn`) now fails the day someone
+  writes the old shape again. It strips comments before matching — its first run flagged the
+  documentation that quotes the bad pattern, which is a fair thing for it to have found.
 - **Deep recursion in the playground killed the page and showed nothing at all.** Not an error, not
   the output printed before it — the Mono runtime was gone and the visitor was left with a dead
   editor and whatever they had typed. A .NET `StackOverflowException` cannot be caught, so the
