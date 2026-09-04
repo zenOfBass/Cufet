@@ -1,7 +1,7 @@
-// Assembles the deployable playground into ./site.
+﻿// Assembles the deployable playground into ./site.
 //
 // Three inputs come together here:
-//   1. web/app.js     — the interface, bundled with Monaco by esbuild
+//   1. web/app.ts     — the interface, bundled with Monaco by esbuild
 //   2. web/*          — index.html and the page's own stylesheet, copied
 //   3. the AppBundle  — the .NET runtime and the interpreter, produced by `dotnet publish`
 //
@@ -17,6 +17,7 @@
 // when in fact it was never shipped. The staleness check below is there because that cost a round.
 
 import * as esbuild from 'esbuild';
+import { spawn } from 'node:child_process';
 import { convertTheme, chromeStylesheet } from './build-theme.mjs';
 import { cp, mkdir, rm, readdir, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -43,6 +44,32 @@ await mkdir(out, { recursive: true });
 // visitor but a great deal to the repository and the deploy. Pass --sourcemap when debugging.
 const sourcemap = process.argv.includes('--sourcemap');
 
+// ── Type checking ───────────────────────────────────────────────────────────────────────────
+//
+// ★★ esbuild STRIPS types; it does not check them. It will happily compile a file that says a
+// number is a string. Without this step TypeScript would be documentation with syntax, and the
+// one thing it was adopted for — the postMessage boundary, where a misspelled request kind used
+// to RUN THE PROGRAM instead of failing — would go back to being unenforced.
+//
+// ⚠ It gates the build rather than warning. A type error that only prints is a type error that
+// ships, and the whole point of the strict setting was to be told before the page is built.
+await new Promise((resolveCheck, rejectCheck) => {
+    // ⚠ Node itself, running tsc's entry module — NOT `npx`. On Windows, spawning a `.cmd`
+    // shim without a shell fails with EINVAL (Node blocks it), and going through a shell to
+    // work around that means quoting rules differ per platform for no gain. The binary is a
+    // plain node script, so node can just run it.
+    const tsc = spawn(
+        process.execPath,
+        [join(here, "node_modules", "typescript", "bin", "tsc"), "--noEmit", "--pretty", "false"],
+        { cwd: here, stdio: "inherit" });
+    tsc.on("error", rejectCheck);
+    tsc.on("close", code => code === 0
+        ? resolveCheck()
+        : rejectCheck(new Error(
+            "\n  TypeScript found problems (above). The bundle was NOT built." +
+            "\n  Check without building:  npm run check\n")));
+});
+
 const shared = {
     bundle: true,
     format: 'esm',
@@ -58,7 +85,7 @@ const shared = {
 // app.css. Monaco's styles come out as playground.css and index.html links both.
 await esbuild.build({
     ...shared,
-    entryPoints: [join(here, 'web', 'app.js')],
+    entryPoints: [join(here, 'web', 'app.ts')],
     outfile: join(out, 'playground.js'),
 });
 

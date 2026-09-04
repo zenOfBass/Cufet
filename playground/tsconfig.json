@@ -1,0 +1,35 @@
+{
+  // Type CHECKING only. esbuild does the compiling — it strips types without looking at them, so
+  // without this file TypeScript would be documentation with syntax and nothing would enforce it.
+  // `npm run check` and build.mjs both run `tsc --noEmit`, and the build fails when it does.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    // Honours package exports maps, which Monaco depends on: the specifier
+    // 'monaco-editor/editor/editor.api' is rewritten to './esm/vs/editor/editor.api.js' by the map.
+    // Spelling the esm/vs prefix out resolves to esm/vs/esm/vs/... and fails — see app.ts.
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // worker.js stays JavaScript on purpose — Cufet.Playground.csproj names it in WasmMainJSPath,
+    // so the .NET SDK copies it into the AppBundle by that name, before build.mjs runs at all.
+    // Making it TypeScript would couple the node build into the dotnet publish. `// @ts-check` and
+    // JSDoc get it the same enforcement with none of that, and it shares protocol.ts with the page.
+    "allowJs": true,
+    "checkJs": true,
+
+    "noEmit": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "verbatimModuleSyntax": true
+  },
+
+  // The browser code only. build.mjs, build-theme.mjs and serve.mjs are Node build scripts that
+  // never ship, and converting them would mean the build script needs building.
+  "include": ["web/**/*.ts", "web/**/*.d.ts", "worker.js"]
+}

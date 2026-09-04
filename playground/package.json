@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
+    "check": "tsc --noEmit",
     "serve": "node serve.mjs"
   },
   "dependencies": {
@@ -16,6 +17,7 @@
     "vscode-textmate": "^9.3.2"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.0",
+    "typescript": "^7.0.2"
   }
 }

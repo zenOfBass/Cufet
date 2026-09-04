@@ -1,8 +1,8 @@
 // The playground's user interface.
 //
-// The Cufet side of this page is deliberately thin: main.js boots the .NET runtime, hangs two
-// functions off globalThis.cufet, and fires "cufet-ready". Everything below is the editor and
-// the wiring between it and those two functions.
+// The Cufet side of this page is deliberately thin: the worker boots the .NET runtime and answers
+// three questions over postMessage. Everything below is the editor and the wiring between it and
+// those answers. The wire format itself lives in protocol.ts, shared with the worker.
 //
 // Monaco is imported through editor.api rather than editor.main, which is the entry that brings
 // NO built-in languages with it. That is exactly what this page wants — Cufet is the only
@@ -13,6 +13,9 @@
 import * as monaco from 'monaco-editor/editor/editor.api';
 import { loadWASM, OnigScanner, OnigString } from 'vscode-oniguruma';
 import { Registry, INITIAL, parseRawGrammar } from 'vscode-textmate';
+import type { StateStack } from 'vscode-textmate';
+import { isReady } from './protocol';
+import type { RequestKind, RuntimeAnswer } from './protocol';
 
 // ★ Semantic tokens do not work in standalone Monaco without these next three lines, and NOTHING
 // reports that they are missing. The two facts behind them, both read out of monaco-editor 0.56.0:
@@ -36,10 +39,23 @@ import { IConfigurationService } from 'monaco-editor/platform/configuration/comm
 
 const configuration = StandaloneServices.get(IConfigurationService);
 configuration.updateValue('editor.semanticHighlighting.enabled', true);
-if (configuration.getValue('editor.semanticHighlighting')?.enabled !== true)
+if (configuration.getValue<{ enabled?: unknown } | undefined>('editor.semanticHighlighting')?.enabled !== true)
     console.error('semantic highlighting could not be switched on — names will keep the grammar\'s colours');
 
 const LANGUAGE_ID = 'cufet';
+
+/**
+ * An element the page cannot work without.
+ *
+ * ★ Under `strict`, `getElementById` is `HTMLElement | null` and every use needs an answer for the
+ * null. Asserting it away with `!` would give a `Cannot read properties of null` at some later line
+ * that has nothing to do with the cause; this names the missing id at the moment it is missing.
+ */
+function element<T extends HTMLElement>(id: string): T {
+    const found = document.getElementById(id);
+    if (!found) throw new Error(`the page is missing an element with id "${id}"`);
+    return found as T;
+}
 
 // A first program that shows the language rather than describing it. Taken verbatim from the
 // README's "A taste" section rather than written fresh, so the first thing a visitor runs is a
@@ -113,19 +129,22 @@ monaco.languages.setLanguageConfiguration(LANGUAGE_ID, {
 //
 // All of it is async (a wasm fetch, two JSON fetches), so it deliberately does NOT block the
 // editor from appearing. Monaco renders unhighlighted for a moment, then re-tokenizes.
-async function startHighlighting() {
+async function startHighlighting(): Promise<void> {
     const [wasm, grammarSource, theme] = await Promise.all([
         fetch('./onig.wasm').then(r => r.arrayBuffer()),
         fetch('./cufet.tmLanguage.json').then(r => r.text()),
-        fetch('./cufet-theme.json').then(r => r.json()),
+        // ⚠ A fetched JSON body is `any` by construction — no amount of strictness makes a network
+        // response knowable. It is asserted, not validated: a malformed theme is a build mistake
+        // (build-theme.mjs produces this file), and Monaco rejecting it says so plainly enough.
+        fetch('./cufet-theme.json').then(r => r.json() as Promise<monaco.editor.IStandaloneThemeData>),
     ]);
 
     await loadWASM(wasm);
 
     const registry = new Registry({
         onigLib: Promise.resolve({
-            createOnigScanner: sources => new OnigScanner(sources),
-            createOnigString:  s => new OnigString(s),
+            createOnigScanner: (sources: string[]) => new OnigScanner(sources),
+            createOnigString: (s: string) => new OnigString(s),
         }),
         loadGrammar: scopeName => Promise.resolve(
             scopeName === 'source.cufet'
@@ -144,9 +163,13 @@ async function startHighlighting() {
     monaco.editor.setTheme('arctic-candy-darker');
 
     monaco.languages.setTokensProvider(LANGUAGE_ID, {
-        getInitialState: () => INITIAL,
-        tokenize(line, state) {
-            const result = grammar.tokenizeLine(line, state);
+        // ⚠ Two libraries, two spellings of one idea. vscode-textmate threads a `StateStack`
+        // through tokenizeLine; Monaco threads an `IState`. The objects are the same objects and
+        // both carry clone/equals, but neither package knows about the other, so the handoff is
+        // asserted at exactly these two points and nowhere else.
+        getInitialState: () => INITIAL as unknown as monaco.languages.IState,
+        tokenize(line: string, state: monaco.languages.IState): monaco.languages.ILineTokens {
+            const result = grammar.tokenizeLine(line, state as unknown as StateStack);
             return {
                 // TextMate gives each token the whole stack of scopes that applies to it; Monaco
                 // matches a single string. The INNERMOST scope is the most specific one, and
@@ -154,9 +177,9 @@ async function startHighlighting() {
                 // "comment" still catches "comment.line.double-slash.cufet".
                 tokens: result.tokens.map(t => ({
                     startIndex: t.startIndex,
-                    scopes: t.scopes[t.scopes.length - 1],
+                    scopes: t.scopes[t.scopes.length - 1] ?? '',
                 })),
-                endState: result.ruleStack,
+                endState: result.ruleStack as unknown as monaco.languages.IState,
             };
         },
     });
@@ -195,7 +218,7 @@ async function startHighlighting() {
 }
 
 // Order IS the wire format, and it mirrors SemanticTokenKind in src/Interpreter/SemanticTokens.cs.
-const SEMANTIC_LEGEND = {
+const SEMANTIC_LEGEND: monaco.languages.SemanticTokensLegend = {
     tokenTypes: [
         'entity.name.namespace',    // namespace — a book or its alias
         'entity.name.type',         // type      — an object or interface name
@@ -211,31 +234,39 @@ const SEMANTIC_LEGEND = {
     tokenModifiers: [],
 };
 
-const SEMANTIC_KIND_INDEX = {
+const SEMANTIC_KIND_INDEX: Readonly<Record<string, number>> = {
     namespace: 0, type: 1, parameter: 2, variable: 3, property: 4, function: 5, keyword: 6,
 };
 
-let lastSemanticTokens = { data: new Uint32Array(0) };
+/** One line of the producer's output. Mirrors the JSON written by src/Interpreter/SemanticTokens.cs. */
+interface ProducedToken {
+    kind: string;
+    line: number;
+    column: number;
+    length: number;
+}
+
+let lastSemanticTokens: monaco.languages.SemanticTokens = { data: new Uint32Array(0) };
 
 // Fired whenever the runtime goes from "cannot answer" to "can" — the worker finishing its boot,
 // or a run releasing it. Monaco responds by asking the provider again for every visible model,
 // which is the only way an answer that was unavailable the first time ever reaches the screen.
-const semanticsChanged = new monaco.Emitter();
+const semanticsChanged = new monaco.Emitter<void>();
 
 // Monaco wants one flat array of 5-tuples, each position stated as a delta from the one before it:
 // line relative to the previous token's line, and start column relative to the previous token's
 // column when they share a line. The producer already emits in position order, which is what makes
 // a single pass enough.
-function encodeSemanticTokens(jsonLines) {
-    const data = [];
+function encodeSemanticTokens(jsonLines: string): Uint32Array {
+    const data: number[] = [];
     let prevLine = 0, prevChar = 0;
 
     for (const raw of jsonLines.split('\n')) {
         const text = raw.trim();
         if (!text.startsWith('{')) continue;
 
-        let token;
-        try { token = JSON.parse(text); } catch { continue; }
+        let token: ProducedToken;
+        try { token = JSON.parse(text) as ProducedToken; } catch { continue; }
 
         const index = SEMANTIC_KIND_INDEX[token.kind];
         if (index === undefined) continue;
@@ -250,7 +281,7 @@ function encodeSemanticTokens(jsonLines) {
     return new Uint32Array(data);
 }
 
-const editor = monaco.editor.create(document.getElementById('editor'), {
+const editor = monaco.editor.create(element('editor'), {
     value: STARTER,
     language: LANGUAGE_ID,
     theme: 'vs-dark',   // replaced by Arctic Candy Darker once the theme has been fetched
@@ -275,13 +306,15 @@ const editor = monaco.editor.create(document.getElementById('editor'), {
 // font-loading one, which is exactly why it is worth an explicit line.
 document.fonts.ready.then(() => monaco.editor.remeasureFonts());
 
-const runButton = document.getElementById('run');
-const outputPane = document.getElementById('output');
-const statusText = document.getElementById('status');
+const runButton = element<HTMLButtonElement>('run');
+const outputPane = element('output');
+const statusText = element('status');
 
-function setOutput(text, kind) {
+type OutputKind = 'normal' | 'error' | 'empty';
+
+function setOutput(text: string, kind: OutputKind): void {
     outputPane.textContent = text;
-    outputPane.dataset.kind = kind;
+    outputPane.dataset['kind'] = kind;
 }
 
 // ── The runtime, which lives in a worker ─────────────────────────────────────────────────────
@@ -290,12 +323,12 @@ function setOutput(text, kind) {
 // freeze the page and a non-terminating one would end it. Everything below is the small amount of
 // bookkeeping that buys — a Stop button that always works, because stopping is killing the worker.
 
-let worker = null;
+let worker: Worker | null = null;
 let booted = false;
-let running = null;      // the id of the run in flight, or null
+let running: number | null = null;      // the id of the run in flight, or null
 let nextRunId = 1;
 
-function spawnWorker() {
+function spawnWorker(): void {
     booted = false;
     // A module worker, because the .NET runtime's loader is an ES module. Same-origin, same
     // directory — the runtime resolves _framework/ relative to this script, exactly as it would
@@ -312,40 +345,48 @@ function spawnWorker() {
 // Question-and-answer traffic that is not a program run — the semantic-token requests. Kept in its
 // own map so it never touches `running`, which the Run/Stop button depends on meaning exactly one
 // thing: a program is in flight.
-const asked = new Map();
+const asked = new Map<number, (answer: string | null) => void>();
 
 // Resolves null when the runtime cannot answer — not booted, busy inside a run, or killed by Stop.
 // Null means "no new answer", which the caller reads as "keep what you had".
-function askRuntime(kind, source) {
-    if (!booted || running !== null) return Promise.resolve(null);
+//
+// ★ `worker` is in the guard for the type checker's benefit and states a real invariant: `booted`
+// is only ever set by a message FROM a worker, so the two cannot disagree — but nothing in the
+// types said so, and now something does.
+function askRuntime(kind: RequestKind, source: string): Promise<string | null> {
+    if (!booted || running !== null || !worker) return Promise.resolve(null);
+    const live = worker;
     return new Promise(resolve => {
         const id = nextRunId++;
         asked.set(id, resolve);
-        worker.postMessage({ id, kind, source });
+        live.postMessage({ id, kind, source });
     });
 }
 
 // A terminated worker will never reply, so every question waiting on it has to be let go or the
 // caller waits forever.
-function abandonAsked() {
+function abandonAsked(): void {
     for (const resolve of asked.values()) resolve(null);
     asked.clear();
 }
 
-function onWorkerMessage({ data }) {
-    const answer = asked.get(data.id);
-    if (answer) {
-        asked.delete(data.id);
-        answer(data.ok ? data.result : null);
-        return;
-    }
-
-    if (data.ready) {
+function onWorkerMessage({ data }: MessageEvent<RuntimeAnswer>): void {
+    // ★ The boot notice is separated FIRST, where it used to fall through the id lookup. It carries
+    // no id, so `asked.get(undefined)` missed and it reached the right branch anyway — equivalent,
+    // but only by accident of a lookup that could not match. Now the shape says which is which.
+    if (isReady(data)) {
         booted = true;
         setBusy(false);
         statusText.textContent = 'ready';
         semanticsChanged.fire();
         if (pendingAutoRun) { pendingAutoRun = false; run(); }
+        return;
+    }
+
+    const answer = asked.get(data.id);
+    if (answer) {
+        asked.delete(data.id);
+        answer(data.ok ? data.result : null);
         return;
     }
 
@@ -370,22 +411,22 @@ function onWorkerMessage({ data }) {
 
 // The Run button becomes Stop while a program is in flight. One control, and it is always the
 // thing you want: a runaway program is precisely when a visitor is looking for a way out.
-function setBusy(busy) {
+function setBusy(busy: boolean): void {
     runButton.textContent = busy ? 'Stop' : 'Run';
     runButton.classList.toggle('is-stop', busy);
     runButton.disabled = !busy && !booted;
 }
 
-function run() {
-    if (!booted || running !== null) return;
+function run(): void {
+    if (!booted || running !== null || !worker) return;
     running = nextRunId++;
     setBusy(true);
     statusText.textContent = 'running…';
     worker.postMessage({ id: running, kind: 'run', source: editor.getValue() });
 }
 
-function stop() {
-    if (running === null) return;
+function stop(): void {
+    if (running === null || !worker) return;
     // terminate() is the only thing that can interrupt a synchronous WebAssembly loop from
     // outside. The worker is then unusable, so a fresh one is started immediately and the next
     // Run waits for it — see the comment at the top of worker.js for why it has to be this way.
