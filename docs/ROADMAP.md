@@ -193,7 +193,7 @@ they are large, not because they are waiting — the order among them means noth
 ## Ongoing, no fixed slot
 
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
-vocabulary · design patterns as a book · an in-memory filesystem for the playground
+vocabulary · design patterns as a book
 
 **A logic-gates book** — circuit composition over `bits`: gates as components you wire together,
 rather than the operators `bits` already shipped.

@@ -207,6 +207,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   child does not share, so anything stated before the launch could appear after the child’s own
   output. Windows structurally cannot see this — it was caught compiling under WSL gcc.
 
+### Added
+- **The examples that read a file now run in the playground.** `examples/parsing/config.cufe` and
+  `examples/algorithms/wordfreq.cufe` read files that exist in a checkout and not in a browser, so
+  both met a truthful `not found` and could not demonstrate themselves on the page that exists to
+  demonstrate them. The playground now has those files before a program looks for them —
+  `wordfreq` produces output byte-identical to the CLI's.
+
+  ★★ **Almost nothing had to be built, and that was measured before anything was designed.** There
+  is ALREADY a filesystem in the browser: Emscripten gives the runtime an in-memory one and .NET's
+  File APIs sit on it. A Cufet program can write a file and read it back under wasm today, and
+  listing, appending and existence checks all work. The roadmap called for "an in-memory filesystem
+  for the playground"; what was actually missing was that **it starts empty**.
+
+  ★ Served as ordinary static files rather than embedded in the wasm — so the download every
+  visitor pays for does not move, and changing a text file does not need a `dotnet publish`. The
+  path under `site/` matches the path a program asks for, which makes the manifest a plain list
+  with no mapping table to get wrong.
+
+  ⚠ **Seeded before the runtime reports ready**, which is the whole ordering. The page auto-runs a
+  program the instant it is told the runtime is up; seeding afterwards would leave a window where a
+  program looks for a file still on its way — an example that fails *sometimes*.
+
+  ⚠ Parent directories are created by the HOST placing the file, which is not the language being
+  lenient: Cufet has no directory-creating operation, and `Write` to a path whose directory is
+  missing fails on a real OS exactly as it does here. That agreement is deliberate.
 ### Changed
 - **The playground front end is TypeScript, checked strictly.** Not because the JavaScript was
   buggy — measurably it was not. The playground's bug history is almost entirely C#-side, and its

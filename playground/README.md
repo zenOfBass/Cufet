@@ -21,6 +21,7 @@ web/app.css               the page's own styling (Monaco brings its own)
 _framework/dotnet.d.ts    a declaration ONLY — see the file; no code lives in that directory
 tsconfig.json             strict type checking; the build runs it and fails on an error
 build.mjs                 type-checks, then assembles everything into site/
+site/seed-manifest.json   built: the files the worker places before reporting ready
 serve.mjs                 a local static server for looking at site/
 ```
 
@@ -79,6 +80,13 @@ build in one step, and can also re-enable `InvariantGlobalization` (see the cspr
 - **The type check spawns `node`, not `npx`.** On Windows, spawning the `.cmd` shim without a shell
   fails with `EINVAL`; `tsc`'s bin is a plain node script, so node runs it directly and the same
   line works on every platform.
+- **There is already a filesystem in the browser, and it starts empty.** Emscripten gives the
+  runtime an in-memory one and .NET's File APIs sit on it — a Cufet program can write a file and
+  read it back under wasm, and listing, appending and existence checks all work. Nothing had to be
+  implemented for `config.cufe` and `wordfreq.cufe`; they only needed their files to be there.
+  `build.mjs` copies `examples/assets/` into `site/` at the same relative path a program asks for,
+  and `worker.js` places each one through `Runtime.PlaceFile` **before** posting `ready` — after
+  would be a race, because the page auto-runs a program the moment it is told the runtime is up.
 - **`.nojekyll` is required.** GitHub Pages runs a site through Jekyll by default, and Jekyll
   omits anything whose name starts with an underscore. The runtime is served from `_framework/`.
 - **Monaco's package exports rewrite `./*` to `./esm/vs/*.js`**, so the import specifier is
