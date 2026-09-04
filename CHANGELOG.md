@@ -207,6 +207,35 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   child does not share, so anything stated before the launch could appear after the child’s own
   output. Windows structurally cannot see this — it was caught compiling under WSL gcc.
 
+### Changed
+- **The playground front end is TypeScript, checked strictly.** Not because the JavaScript was
+  buggy — measurably it was not. The playground's bug history is almost entirely C#-side, and its
+  one substantial JS bug (semantic tokens never reaching the screen) had three causes — a Monaco
+  contribution never imported, a setting whose default made `semanticHighlighting: true` inert, and
+  a provider result cached before the runtime could answer. **Types catch none of those.** This is
+  for the code that comes next: a documentation site and an in-browser filesystem are an
+  application with state, and 466 lines is the cheapest this move will ever be.
+
+  ★ **The one thing it does catch today is worth the whole exercise.** The page and the worker talk
+  over `postMessage`, which is untyped in both directions, and the worker picked its entry point
+  with a ternary chain whose fallthrough is `Run` — so a misspelled request kind did not fail, it
+  **ran the visitor's program**. `web/protocol.ts` is now the wire format, imported by both ends,
+  and `askRuntime('token', …)` is a build error.
+
+  ⚠ **esbuild strips types; it does not check them.** It was already a dependency and compiles
+  TypeScript natively, which made the migration cheap — but on its own it would have made the types
+  decorative. `build.mjs` runs `tsc --noEmit` first and refuses to build the bundle on an error.
+
+  ⚠ **`worker.js` stays JavaScript on purpose.** The csproj names it in `WasmMainJSPath`, so
+  `dotnet publish` copies it by that name before the node build runs at all; converting it would
+  make the .NET publish depend on `build.mjs`. It carries `// @ts-check` and JSDoc instead, and is
+  checked against the same `protocol.ts`.
+
+  ★ Verified by stripping types from the new file and diffing against the old one: the only
+  differences are the intended ones — a helper that names a missing element id instead of failing
+  later on null, two `noUncheckedIndexedAccess` guards, `worker` null-checks that state an
+  invariant the types could not see, and the boot notice separated from the reply lookup it used to
+  fall through by accident. The bundle grew 124 bytes on 2.74 MB.
 ### Fixed
 - **Editing an example while the suite ran was reported as a behaviour change.** A full run takes
   several minutes, most of it gcc, and the files under test are ordinary source files sitting open

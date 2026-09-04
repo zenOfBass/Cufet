@@ -11,17 +11,27 @@ browser.
 
 ```
 Cufet.Playground.csproj   the browser-wasm build (NOT Blazor — [JSExport] is the whole need)
-Runtime.cs                the browser-facing surface: Run(source) and Check(source)
-main.js                   the .NET entry point; boots WASM, exposes globalThis.cufet
+Runtime.cs                the browser-facing surface: Run, Check and Tokens, each source text in
+worker.js                 the .NET entry point; boots WASM in a Web Worker and answers requests
 web/index.html            the page
-web/app.js                the editor and the wiring between it and globalThis.cufet
+web/app.ts                the editor, and the wiring between it and the worker
+web/protocol.ts           the page-to-worker wire format, shared by both ends
+web/ambient.d.ts          the edges no package describes (Monaco internals, MonacoEnvironment)
 web/app.css               the page's own styling (Monaco brings its own)
-build.mjs                 assembles everything into site/
+_framework/dotnet.d.ts    a declaration ONLY — see the file; no code lives in that directory
+tsconfig.json             strict type checking; the build runs it and fails on an error
+build.mjs                 type-checks, then assembles everything into site/
 serve.mjs                 a local static server for looking at site/
 ```
 
-`web/app.js` is bundled with Monaco by esbuild; `main.js` is not, because the .NET SDK treats it
-as the app's entry point and copies it verbatim.
+`web/app.ts` is bundled with Monaco by esbuild; `worker.js` is not, because the .NET SDK treats it
+as the app's entry point (`WasmMainJSPath`) and copies it verbatim.
+
+⚠ **`worker.js` is the one browser file that is still JavaScript, and deliberately.** The csproj
+names it in `WasmMainJSPath`, so `dotnet publish` copies it by that name — before `build.mjs` runs
+and knowing nothing about it. Making it TypeScript would make the dotnet publish depend on the node
+build. It carries `// @ts-check` and JSDoc instead, so the same tsconfig checks it against the same
+`protocol.ts` the page uses.
 
 ## Building
 
@@ -57,11 +67,18 @@ build in one step, and can also re-enable `InvariantGlobalization` (see the cspr
 
 ## Notes worth not rediscovering
 
-- **`main.js` is copied from source, not from the AppBundle.** The SDK's copy is verbatim but
-  incrementally cached, so editing `main.js` and republishing can leave a stale copy in the
+- **`worker.js` is copied from source, not from the AppBundle.** The SDK's copy is verbatim but
+  incrementally cached, so editing `worker.js` and republishing can leave a stale copy in the
   bundle. It fails silently: the page loads and behaves like an older version of itself.
 - **The editor worker is bundled as IIFE, not ESM.** Monaco starts it with `new Worker(url)` — a
   *classic* worker — which cannot parse the `export` an ESM bundle ends with.
+- **esbuild strips types; it does not check them.** It will compile a file that says a number is a
+  string. `build.mjs` runs `tsc --noEmit` first and refuses to build the bundle on an error —
+  without that step the types would be documentation with syntax. `npm run check` alone is fine
+  while working.
+- **The type check spawns `node`, not `npx`.** On Windows, spawning the `.cmd` shim without a shell
+  fails with `EINVAL`; `tsc`'s bin is a plain node script, so node runs it directly and the same
+  line works on every platform.
 - **`.nojekyll` is required.** GitHub Pages runs a site through Jekyll by default, and Jekyll
   omits anything whose name starts with an underscore. The runtime is served from `_framework/`.
 - **Monaco's package exports rewrite `./*` to `./esm/vs/*.js`**, so the import specifier is
