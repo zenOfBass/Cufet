@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -84,11 +84,9 @@ public class PipelineLanguageTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Overload_UsedInsideATask_CrossesChannelAndTaskResult()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // An overload called from INSIDE a task body, with the result crossing both a channel and
         // the task-result bridge. This is what caught the forward-declaration ordering bug: the
         // generated task thread functions used to be emitted BEFORE the function forward decls,
@@ -120,11 +118,9 @@ public class PipelineLanguageTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Task_CallsAFreeFunction_ForwardDeclaredBeforeTaskBodies()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The general form of the ordering hole the overload slice uncovered: generated task thread
         // functions used to be emitted BEFORE the free-function forward declarations, so ANY call
         // out of a task body was an implicit declaration (a gcc error). No test covered it.
@@ -278,11 +274,9 @@ public class PipelineLanguageTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Interface_TakingFunctionCalledFromATask()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // An interface-taking function called from inside a task body (specialization emitted for a
         // concrete conformer the task constructs), result crossing the task-result bridge. Two tasks
         // awaited in order → deterministic, so this is a genuine Compile==Interpret oracle test.
@@ -543,11 +537,9 @@ public class PipelineLanguageTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Unmaker_InsideConcurrentTask_FiresOnItsOwnThread()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The unmaker registry is thread-local, so a task-thread block's unmaker fires on that
         // thread (ASan/LSan/TSan clean — verified in WSL).
         const string src = UnmakerHdr + """
@@ -604,11 +596,9 @@ public class PipelineLanguageTests : PipelineTestBase
     // Was Refusal_AwaitInsideTask_ExplainsTheRestriction, asserting a clean refusal. Awaiting
     // inside a task now works, so the test asserts the behaviour instead of the apology — the
     // same conversion every shipped deferral in this suite has had.
-    [Fact]
+    [LinuxFact]
     public void Concurrency_AwaitInsideTask_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         const string src = """
             Pull a rabbit.
                 Have rabbit start a task as inner:
@@ -722,10 +712,9 @@ public class PipelineLanguageTests : PipelineTestBase
     // identical to the interpreter's shared binding — so these oracle-match exactly, unlike the
     // order-dependent concurrency tests. (Linux-only: mingw can't build pthreads.)
 
-    [Fact]
+    [LinuxFact]
     public void TaskCapture_Series_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
         const string src = """
             Define data as a series of number with (1, 2, 3, 4, 5).
             Pull a rabbit.

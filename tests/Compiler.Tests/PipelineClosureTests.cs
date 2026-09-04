@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -132,11 +132,9 @@ public class PipelineClosureTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Closure_LambdaPipeStage_NoCapture()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The unblocked capability: a lambda used as a pipe stage. A stage is a closure value; the
         // pipe runner calls fn(env). A middle lambda stage transforms the stream.
         const string src = """
@@ -155,11 +153,9 @@ public class PipelineClosureTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Closure_LambdaPipeStage_CapturesValue()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // A CAPTURING lambda pipe stage: the env (a value capture — immutable) crosses the thread
         // boundary, shared read-only while the creating scope blocks on the pipe join → TSan-clean.
         const string src = """
@@ -275,11 +271,9 @@ public class PipelineClosureTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Closure_LambdaTextPipeStage()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // A lambda TEXT pipe stage: AnalyzePipes now propagates the element type THROUGH the lambda,
         // so the named consumer after it reads text (not number) — the fix for the lambda-text UAF.
         const string src = """

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -260,11 +260,9 @@ public class PipelineBooksTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Collections_Unique_MemorySafety_ASan()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // unique builds a NEW arena series (like sorted) — must free cleanly at scope exit.
         const string src = """
             Pull a book on collections.
@@ -463,11 +461,9 @@ public class PipelineBooksTests : PipelineTestBase
         Assert.Equal("before", Compile(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Matrix_MemorySafety_ASan()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Matrices + arithmetic results + transposes are all arena allocations — everything frees
         // at Done., zero leaks/UAF.
         const string src = """
@@ -500,11 +496,9 @@ public class PipelineBooksTests : PipelineTestBase
         Assert.Equal(ChanceExpectedPass, Interpret(ChanceInvariantBattery));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Chance_Shuffle_MemorySafety_ASan()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // randomly shuffled builds a NEW arena series (like sorted/unique) — must free cleanly.
         const string src = """
             Pull a book on chance.
@@ -613,11 +607,9 @@ public class PipelineBooksTests : PipelineTestBase
         finally { try { Directory.Delete(dir, recursive: true); } catch { } }
     }
 
-    [Fact]
+    [LinuxFact]
     public void DirectoryContents_MemorySafety_ASan()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The listing's arena strings + array free cleanly at scope exit.
         var dir = Path.Combine(Path.GetTempPath(), "cufet-dirasan-" + Guid.NewGuid().ToString("N")[..8])
                       .Replace('\\', '/');

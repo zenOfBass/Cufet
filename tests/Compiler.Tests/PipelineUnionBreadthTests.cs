@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -325,11 +325,9 @@ public class PipelineUnionBreadthTests : PipelineTestBase
         Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Union_CrossesChannel_TagDispatchDeepCopy()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         const string src = """
             Pull a rabbit.
                 Define ch as a channel of (number or text).
@@ -355,11 +353,9 @@ public class PipelineUnionBreadthTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Union_CrossesChannel_ReferenceCaseIsDeepCopied()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // THE ISOLATION CRUX: the union's live case is an OBJECT holding a SERIES. The producer
         // mutates that series AFTER sending, so a shallow copy would report body-len 4 (or a UAF
         // once the task's arena pops). Deep copy through tag → object → series → text ⇒ 2.
@@ -396,11 +392,9 @@ public class PipelineUnionBreadthTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Union_AsTaskResult_ReferenceCaseAndPodFastPath()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Two awaited union results: one whose live case is a reference type (heap-bridged through
         // the tag dispatch), and one over scalars only — the POD fast path, where every case is
         // arena-pointer-free so the struct copy IS the deep copy (no per-case dispatch emitted).
@@ -436,11 +430,9 @@ public class PipelineUnionBreadthTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void OpenUnion_AsTaskResult_CarriesTheDiscoveredCaseSet()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // An OPEN union crossing the task boundary. Its TypeSig is the constant "U(*)" regardless
         // of the discovered case set, so the deep-copy registry MUST be rebuilt for the real pass —
         // otherwise a discovery iteration's smaller set would be deduped against and the later

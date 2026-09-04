@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,11 +16,9 @@ public class PipelineChannelTests : PipelineTestBase
     // so a linear pipe's output is DETERMINISTIC and matches the interpreter's buffered-sequential
     // order → these ARE true Compile == Interpret oracle tests (the final stage is the only writer).
 
-    [Fact]
+    [LinuxFact]
     public void TaskPipe_TwoStage_ProducerConsumer()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         const string src = """
             Bind void to producer:
               output 1.
@@ -39,11 +37,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void TaskPipe_ConsumerAccumulatesSum()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The consumer drains the whole stream, then prints the aggregate — order-independent (15).
         const string src = """
             Bind void to producer:
@@ -65,11 +61,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void TaskPipe_ThreeStage_MiddleTransforms()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // A middle stage both consumes (from the input) AND produces (to the output) — the value
         // crosses two channel boundaries (producer→doubler→consumer). FIFO preserves order → 2,4,6.
         const string src = """
@@ -93,11 +87,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void TaskPipe_FourStage_TwoMiddleTransforms()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Two middle stages chained (producer → add-ten → double → consumer): 3 channels, 4 threads.
         const string src = """
             Bind void to producer:
@@ -124,11 +116,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void TaskPipe_EmptyProducer_ConsumerBodyNeverRuns()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Producer emits nothing and closes; the consumer's drain loop sees void immediately (zero
         // iterations) and continues to its trailing statement. Close-cascades with an empty stream.
         const string src = """
@@ -145,11 +135,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void TaskPipe_StopInsideConsumer_ExitsEarly()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Stop breaks the consumer's drain loop early — values still in flight remain unreceived in
         // the channel and are freed at teardown (the never-received-bridge free path; see ASan test).
         const string src = """
@@ -171,11 +159,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void TaskPipe_SkipInsideConsumer_SkipsCurrentItem()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         const string src = """
             Bind void to producer:
               output 1.
@@ -193,11 +179,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void TaskPipe_EarlyStop_ASan_FreesPendingBridges()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The consumer stops at item 3, so items 4 and 5 are produced-but-never-received — they sit
         // in the channel as heap-bridges when the pipe tears down. cufet_chan_free must free those
         // pending nodes (close-with-pending), and every stage-thread + channel frees cleanly. The
@@ -225,11 +209,9 @@ public class PipelineChannelTests : PipelineTestBase
     // channel streams FIFO, so the consumer's printed output is deterministic and matches the
     // interpreter's fill-then-drain order → these are true Compile == Interpret oracle tests.
 
-    [Fact]
+    [LinuxFact]
     public void Channel_OfText_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         const string src = """
             Pull a rabbit.
                 Define ch as a channel of text.
@@ -251,11 +233,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Channel_OfObject_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         const string src = """
             Define object person with (the text name, the number age).
             Pull a rabbit.
@@ -278,11 +258,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Channel_OfSeries_DeepCopyIsolation_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The producer mutates the ORIGINAL series after sending; the consumer's arena copy must be
         // unaffected (len=2, not 3). This is the A+B deep-copy isolation, now for a reference element.
         const string src = """
@@ -307,11 +285,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Channel_OfObjectWithSeriesField_DeepCopyIsolation_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The crux of a GENUINELY-deep copy: the element is an object whose field is a series. The
         // producer mutates the inner series after sending; the whole nested structure must cross the
         // boundary arena-independently, so the consumer's copy still reads nums-len=3 (not 4).
@@ -339,11 +315,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Channel_OfMap_DeepCopyIsolation_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         const string src = """
             Pull a rabbit.
                 Define ch as a channel of map from text to number.
@@ -366,11 +340,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void TextPipe_ThreeStage_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The capability channel-of-T unblocks: a text pipe. Producer emits text, a middle stage
         // transforms text→text, consumer prints. Linear pipe + FIFO ⇒ deterministic ⇒ oracle test.
         const string src = """
@@ -394,11 +366,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Channel_OfReference_ASan_DeepCopyFreesAllPaths()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Nested reference elements (series-of-series and map-of-series) cross channels while the
         // producers mutate their originals. Every heap bridge — the whole nested tree — must free on
         // every path (received-and-arena-copied, then the bridge freed; teardown of any pending). The
@@ -503,11 +473,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Interrupt_TightYieldLoop_PreemptivelyStops()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // A non-terminating tight loop with a Yield checkpoint: a delivered SIGINT unwinds it to a
         // clean exit (130) — it prints its pre-loop line but never reaches the post-loop line. This
         // is the true-preemptive interrupt; the invariant is "stops cleanly", not timing.
@@ -522,11 +490,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal("looping", output);
     }
 
-    [Fact]
+    [LinuxFact]
     public void Interrupt_BlockedChannelWait_WakesAndStops()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The flagship: main blocks in a real pthread_cond_wait on an empty channel (something the
         // cooperative interpreter can't truly do). A delivered SIGINT wakes the blocked wait, unwinds
         // to a clean exit (130), and the interrupt teardown frees the channel + arenas. Prints its
@@ -550,11 +516,9 @@ public class PipelineChannelTests : PipelineTestBase
     // Done., which is not a checkpoint. Every case below HUNG INDEFINITELY on Ctrl-C (measured).
     // The 3-second-ish timeouts in these tests are the real assertion: a regression re-hangs.
 
-    [Fact]
+    [LinuxFact]
     public void Interrupt_InsideWorkerTask_UnwindsAndStops()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         var (code, output) = CompileAndInterrupt("""
             Pull a rabbit.
                 Have rabbit start a task:
@@ -571,11 +535,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal("", output);   // never reaches "finished"
     }
 
-    [Fact]
+    [LinuxFact]
     public void Interrupt_WorkerTaskBlockedOnChannel_UnwindsAndStops()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Previously the interrupted recv returned -1, the no-op checkpoint let it fall through as
         // "stream closed", and the task carried on as though it had been handed a value.
         var (code, output) = CompileAndInterrupt("""
@@ -592,11 +554,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal("", output);
     }
 
-    [Fact]
+    [LinuxFact]
     public void Interrupt_NamedTaskPendingAwait_DoesNotDereferenceNull()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // An abandoned task yields NULL instead of a result envelope; the await has to notice
         // rather than hand NULL to arenacopy. ASan-clean in WSL.
         var (code, output) = CompileAndInterrupt("""
@@ -617,11 +577,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal("", output);
     }
 
-    [Fact]
+    [LinuxFact]
     public void Interrupt_InsideWorkerTask_StillRunsDestructors()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The unwind runs the thread's pending unmakers and closes its files before tearing down —
         // both registries are _Thread_local, so a worker only ever touches its own.
         var (code, output) = CompileAndInterrupt(UnmakerHdr + """
@@ -643,11 +601,9 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal("unmake IN-TASK", output);
     }
 
-    [Fact]
+    [LinuxFact]
     public void Subprocess_Run_MemorySafety_ASan_ZeroLeaksAndNoUAF()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Process handles are reaped (waitpid) and fds closed inside the run primitive, so nothing
         // leaks across statements; capture buffers are arena/free-managed. ASan/LSan must be clean.
         const string src = """
@@ -668,14 +624,12 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(expected, actual);
     }
 
-    [Fact]
+    [LinuxFact]
     public void Arena_MemorySafety_ASan_ZeroLeaksAndNoUAF()
     {
         // Validates arena correctness: compiled binary must pass AddressSanitizer
         // (zero leaks, zero use-after-free, zero dangling pointer reads).
         // Skipped on non-Linux where ASan support is unreliable.
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
 
         const string src = """
             Pull a rabbit.
@@ -698,14 +652,12 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(expected, actual);
     }
 
-    [Fact]
+    [LinuxFact]
     public void Text_MemorySafety_ASan_ZeroLeaksAndNoUAF()
     {
         // The string runtime cooperates with the arena: a text-op-heavy Pull block allocates
         // many runtime strings (join/case/substring/replace/convert) that must all free at
         // Done. — zero leaks / UAF. Proves immutable arena strings are memory-clean. Linux-only.
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
 
         const string src = """
             Pull a rabbit.
@@ -723,14 +675,12 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(expected, actual);
     }
 
-    [Fact]
+    [LinuxFact]
     public void Map_MemorySafety_ASan_ZeroLeaksAndNoUAF()
     {
         // The last arena-allocated type: a map with nested reference values (series) plus
         // growth (append past initial capacity). The map, its key/value arrays, and the nested
         // series must all free cleanly at Done. — zero leaks / UAF. Linux-only.
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
 
         const string src = """
             Pull a rabbit.
@@ -751,14 +701,12 @@ public class PipelineChannelTests : PipelineTestBase
         Assert.Equal(expected, actual);
     }
 
-    [Fact]
+    [LinuxFact]
     public void File_ReadResults_MemorySafety_ASan_ZeroLeaksAndNoUAF()
     {
         // File-read results are arena-allocated (the text buffer, the line array, each line string)
         // and must free at Done. — zero leaks / UAF. Proves the OS-error bridge + read results
         // cooperate with the arena, reusing the string/series arena model. Linux-only.
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
 
         var path = Path.Combine(Path.GetTempPath(), "cufet-io-asan-" + Guid.NewGuid().ToString("N") + ".txt")
             .Replace('\\', '/');
@@ -787,14 +735,12 @@ public class PipelineChannelTests : PipelineTestBase
         finally { try { File.Delete(path.Replace('/', Path.DirectorySeparatorChar)); } catch { } }
     }
 
-    [Fact]
+    [LinuxFact]
     public void With_StreamsAndCleanup_MemorySafety_ASan_ZeroLeaksAndNoUAF()
     {
         // Streams + close-on-all-paths inside a Pull: each iteration opens a file, writes, reopens,
         // reads (arena strings + line series), and closes on normal exit — plus arena churn. No
         // leaks / UAF (the FILE* handles all close; the arena frees at Done). Linux-only.
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
 
         var path = Path.Combine(Path.GetTempPath(), "cufet-io-with-asan-" + Guid.NewGuid().ToString("N") + ".txt")
             .Replace('\\', '/');
@@ -820,15 +766,13 @@ public class PipelineChannelTests : PipelineTestBase
         finally { try { File.Delete(path.Replace('/', Path.DirectorySeparatorChar)); } catch { } }
     }
 
-    [Fact]
+    [LinuxFact]
     public void Series_Heterogeneous_MemorySafety_ASan_ZeroLeaksAndNoUAF()
     {
         // Generalized series across element types in one Pull block: a series of text (arena
         // strings from split), a series of records (value structs), and a nested series of series.
         // The whole structure — series bookkeeping plus each element's own allocations — must free
         // cleanly at Done. This is the "generalized series is arena-clean" proof. Linux-only.
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
 
         const string src = """
             Pull a rabbit.

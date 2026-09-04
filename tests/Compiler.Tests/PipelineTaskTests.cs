@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -148,11 +148,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Exception_MemorySafety_ASan()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The registries free exactly-once across the longjmp (no double-close/free; arena pops).
         const string src = """
             Try to:
@@ -168,11 +166,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(Interpret(src), CompileSanitized(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Sort_MemorySafety_ASan()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // `sorted` builds a NEW arena series (non-mutating); it must free cleanly at scope exit.
         const string src = """
             Define nums as a series with (5, 3, 8, 1, 9, 2, 7).
@@ -197,11 +193,9 @@ public class PipelineTaskTests : PipelineTestBase
     // earlier, so the wait graph is a DAG and the front end rejects the forward reference a cycle
     // would require. There is no deadlock case to test because there is no deadlock to have.
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_TwoTasksAwaitTheSameTask_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // THE case the previous design could not express. Both awaiters get their own arena copy
         // of one published envelope; 5*2 + 5*3 = 25.
         const string src = """
@@ -223,11 +217,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_AwaitChainThreeDeep_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         const string src = """
             Pull a rabbit.
                 Have rabbit start a task as one-task:
@@ -247,11 +239,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_AwaitInsideTask_NestedReference_DeepCopies()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The crux: an object holding a series crosses task → task. Arenas are thread-local, so a
         // shallow copy would dangle the moment the producing task pops its arena — which ASan
         // catches. Reading 4 back means the copy went all the way through.
@@ -273,11 +263,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_AwaitInsideTask_TextResult_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         const string src = """
             Pull a rabbit.
                 Have rabbit start a task as maker:
@@ -293,11 +281,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_AwaitInsideTask_FallibleResult_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         const string src = """
             Pull a rabbit.
                 Have rabbit start a task as risky:
@@ -314,11 +300,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_NamedTaskNeverAwaited_StillFreesItsResult()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Ownership moved: the envelope now lives in the box until Done. frees it through the
         // recorded freeenv, rather than being freed at an await that may never happen. A
         // reference-typed result nobody reads must still free deeply — LSan is the real assertion.
@@ -336,11 +320,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_AwaitedResult_Number()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // A named task computes a value and returns it; the awaiter joins, deep-copies the
         // heap-bridged result into itself, and prints it. Deterministic result: 42.
         const string src = """
@@ -356,11 +338,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_DoubleAwait_CachesResult()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Awaiting the same task twice joins it ONCE (guarded by the joined-flag) and reads the
         // cached result the second time — the task body ("task ran") runs exactly once. Proves
         // no double pthread_join (undefined) and no double-free of the result bridge.
@@ -379,11 +359,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_TwoTasks_AwaitBoth()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Two named tasks, each result crosses its own task → awaiter boundary; the awaiter sums
         // them (5 + 10 == 15). Each join synchronizes its own result independently.
         const string src = """
@@ -402,11 +380,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_FallibleTask_HandledAtAwaitSite()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // A task whose result is `number or failure`: the failing path returns a failure, and the
         // awaited result flows through the SAME fallible machinery as a fallible call — `but on
         // failure` supplies the default (99). Reuses slice-6 `cfl_N` end to end.
@@ -423,11 +399,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_NeverAwaitedNamedTask_ASan_FreesResultBridge()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // A named task that returns a value but is NEVER awaited still runs and joins at the
         // rabbit's Done.; the structured teardown captures + frees its heap-bridged result so it
         // does not leak. ASan/LSan must be clean (the free-on-all-paths proof for un-awaited results).
@@ -448,11 +422,9 @@ public class PipelineTaskTests : PipelineTestBase
     // and the await joins → arena-copies into the awaiter → frees the envelope. An await drains the
     // interpreter deterministically, so the awaited VALUE is deterministic ⇒ true Compile==Interpret.
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_AwaitedResult_Text()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         const string src = """
             Pull a rabbit.
                 Have rabbit start a task as greeter:
@@ -466,11 +438,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_AwaitedResult_Series()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The result is a series (reference type). The task's arena is popped after return, so the
         // heap bridge + arena copy must be genuinely deep — a shallow copy would be a use-after-free
         // (ASan would catch it); a clean, correct read proves the deep copy crossed arena-independently.
@@ -487,11 +457,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_AwaitedResult_ObjectWithSeriesField_DeepCopy()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The crux of a GENUINELY-deep result copy: an object whose field is a series. The whole
         // nested structure must cross the task→awaiter boundary and survive the task's arena teardown.
         const string src = """
@@ -509,11 +477,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_AwaitedResult_Map()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         const string src = """
             Pull a rabbit.
                 Have rabbit start a task as maker:
@@ -527,11 +493,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_DoubleAwait_ReferenceResult()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Double-await of a REFERENCE result: the body ("ran") runs exactly once, the join happens
         // once, and the cached arena copy is read on both awaits — no double-join, no double-free.
         const string src = """
@@ -549,11 +513,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_FallibleTask_TextInner_ComposesWithButOnFailure()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // A `text or failure` task result: the wrapper (cfl) composes with the reference inner (text)
         // — the deep-copy family handles the inner T while the failable machinery (5C/6) is untouched.
         const string src = """
@@ -569,11 +531,9 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_NeverAwaitedReferenceResult_ASan_FreesNestedBridge()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // A named task whose REFERENCE result is never awaited: the Done.-join teardown must free the
         // whole heap bridge THROUGH the slot's freeenv (not just the envelope pointer), so the nested
         // series allocations free too. ASan/LSan clean = the free-on-all-paths proof for reference results.

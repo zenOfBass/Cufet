@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using Cufet.Compiler;
 using Cufet.Interpreter;
 using Xunit;
@@ -259,12 +259,11 @@ public class PipelineForeignTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Axiom_ReachesRealPosixCallsWithArguments()
     {
         // ★★ The case this slice exists for: opening, querying and closing a real file through C.
         // None of it was reachable in slice 1, where an axiom could only be a constant expression.
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
 
         const string src = """
             Pull a book on the c-language.
@@ -501,13 +500,12 @@ public class PipelineForeignTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Axiom_ReachesPosixOnlyHeaders()
     {
         // The POSIX branch: sockets (<sys/socket.h>, <netinet/in.h>), polling (<poll.h>) and raw
         // terminal mode (<termios.h>) are the three things ROADMAP item 1 names, and mingw has
         // none of their headers — which is the whole reason the set is guarded.
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
 
         const string src = """
             Pull a book on the c-language.
@@ -526,7 +524,7 @@ public class PipelineForeignTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [WindowsFact]
     public void Axiom_ReachesTheWindowsApiAndWinsock()
     {
         // The Windows branch. `htons`/`ntohs` are the load-bearing half: they live in libc on Linux
@@ -539,7 +537,6 @@ public class PipelineForeignTests : PipelineTestBase
         // interpreter's shim is called inside a .NET host that has already initialised winsock. The
         // backends genuinely disagreed, and neither was wrong. See the note in REFERENCE about
         // process-global C state; a test must not assert across that.
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
 
         const string src = """
             Pull a book on the c-language.

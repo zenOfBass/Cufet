@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -351,11 +351,9 @@ public class PipelineMemoryTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));   // 13 = outer 7 + (3 * 2)
     }
 
-    [Fact]
+    [LinuxFact]
     public void Capture_WriteOnlyAssignment_InTaskBody()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The same gap on the OTHER caller of CollectRefsDefs: a task's captures are the only
         // declarations in its generated thread function, and the task-side capture guard is a TYPE
         // guard that only inspects names already captured — so a missing name never reached it.

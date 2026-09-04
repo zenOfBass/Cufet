@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -125,11 +125,9 @@ public class PipelineStreamTests : PipelineTestBase
     // the same environment, so command resolution matches. Commands stay trivial + deterministic
     // (echo/true/false/cat/printf) so the output is environment-independent.
 
-    [Fact]
+    [LinuxFact]
     public void Subprocess_Run_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Launch-failure vs ran-but-nonzero: `false` is a SUCCESS record with exit-code 1; a
         // nonexistent command is a launch FAILURE (→ but-on-failure / the OS-error bridge).
         const string src = """
@@ -160,11 +158,9 @@ public class PipelineStreamTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Subprocess_RunWithArgumentSeries_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // `with arguments <series>` — the list is decided at RUN time, so the C argv is an arena
         // block sized from the series rather than an array literal. Covers all three emitters that
         // build one: the capturing form, a PIPE STAGE, and the launching statement.
@@ -216,11 +212,9 @@ public class PipelineStreamTests : PipelineTestBase
         Assert.Equal("hello world\n", CompileRaw(launched));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Subprocess_Pipe_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // run X | run Y: stdout → next stdin (buffered-sequential), pipefail exit (rightmost
         // nonzero), aggregated stderr; a stage's launch failure fails the whole pipe.
         const string src = """
@@ -246,11 +240,9 @@ public class PipelineStreamTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Subprocess_BarePipeStatement_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // Bare `run X | run Y.` statement → final stdout goes to stdout (the shell pattern).
         const string src = """
             run "echo" with arguments ("streamed to stdout") | run "cat".
@@ -264,11 +256,9 @@ public class PipelineStreamTests : PipelineTestBase
     // (cooperative → it deadlocks/masks races), so we assert the DETERMINISTIC INVARIANT the
     // parallel result must satisfy regardless of interleaving — not Compile == Interpret.
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_ParallelSum_AggregateInvariant()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // N tasks each send their i into a channel; main collects N and sums. Order-independent:
         // total == 1+2+…+8 == 36, whatever order the threads actually run.
         const string src = """
@@ -292,11 +282,9 @@ public class PipelineStreamTests : PipelineTestBase
         Assert.Equal("36", Compile(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_DeepCopyAtSpawn_ClosesParentMutationRace()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The parent mutates a captured variable AFTER spawning; deep-copy-at-spawn means the task
         // sees its spawn-time snapshot (5), not the parent's later 999. (The cooperative interpreter
         // masks this race and would yield 999 — the divergence true parallelism exposes.)
@@ -315,22 +303,18 @@ public class PipelineStreamTests : PipelineTestBase
         Assert.Equal("5", Compile(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_FanOut_WorkQueue_EachItemProcessedOnce()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The correctness invariant: 20 items each processed exactly once by SOME worker ⇒ the
         // fanned-in sum is 2·(1+…+20) == 420, whatever the (nondeterministic) work distribution.
         // Proves the shared-channel dequeue under N-worker contention never double-delivers or drops.
         Assert.Equal("420", Compile(FanOutWorkQueue));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Concurrency_FanOut_WorkQueue_MemorySafety_ASan()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // The sharpest memory test: N workers contending on one channel + a results channel + a
         // collector series, all under ASan/LSan. close-with-contention wakes every blocked worker
         // (broadcast → void → exit), the structured join reaps all five tasks, every channel/arena

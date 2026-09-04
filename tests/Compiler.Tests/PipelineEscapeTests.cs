@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,10 +13,9 @@ namespace Cufet.Compiler.Tests;
 public class PipelineEscapeTests : PipelineTestBase
 {
 
-    [Fact]
+    [LinuxFact]
     public void TaskCapture_TextAndMap_MatchInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
         const string src = """
             Define label as "hello" joined to " world".
             Define lookup as a map from text to number with ("a": 1, "b": 2).
@@ -30,10 +29,9 @@ public class PipelineEscapeTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void TaskCapture_ObjectAndCatalogue_MatchInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
         const string src = """
             Define object point with (the number x, the number y).
             Define p as a new point { the x 3, the y 4 }.
@@ -54,10 +52,9 @@ public class PipelineEscapeTests : PipelineTestBase
 
     // The crux for a DEEP copy: an object with a series field, inside a series. A shallow bridge
     // would carry pointers into the parent's arena rather than rebuilding in the task's.
-    [Fact]
+    [LinuxFact]
     public void TaskCapture_NestedSeriesOfObjectsWithSeriesFields_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
         const string src = """
             Define object row with (the text label, the series of number cells).
             Define grid as a series of row with ().
@@ -79,10 +76,9 @@ public class PipelineEscapeTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void TaskCapture_TwoTasksCaptureTheSameSeries_MatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
         // Each task gets its own copy, so there is nothing shared to race on (TSan-clean in WSL).
         const string src = """
             Define data as a series of number with (1, 2, 3, 4).
@@ -211,10 +207,9 @@ public class PipelineEscapeTests : PipelineTestBase
     // copy — and with nothing ever looking at either, the two programs print the same thing. So it
     // compiles, and says so rather than refusing. This is the whole point of the severity split: the
     // refusal was never about the write, it was about somebody seeing it.
-    [Fact]
+    [LinuxFact]   // needs pthreads
     public void TaskCapture_DeadWrite_WarnsAndMatchesInterpreter()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;   // needs pthreads
         const string src = """
             Define tally as 0.
             Pull a rabbit.
@@ -292,10 +287,9 @@ public class PipelineEscapeTests : PipelineTestBase
 
     // The guard is about WRITING to a capture, not about captures being unusable: a task reads a
     // captured number freely, and a counter it defines ITSELF is a local, not a capture.
-    [Fact]
+    [LinuxFact]
     public void TaskCapture_ReadingANumberAndCountingLocally_StillWorks()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
         const string src = """
             Define step as 5.
             Pull a rabbit.
@@ -698,11 +692,9 @@ public class PipelineEscapeTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
+    [LinuxFact]
     public void Esc3_ReturnOutOfRabbitInsideTask_DoesNotDriftArenaDepth()
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return;
         // A task body is its own frame with its own thread-local arena stack, so it has the same
         // exit paths — and its result is heap-bridged before the teardown, so the rabbits it
         // returns out of are genuinely reclaimed rather than merged.

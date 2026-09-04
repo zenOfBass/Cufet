@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Cufet.Interpreter;
@@ -544,6 +544,44 @@ public class ExhaustivenessTests
             + "Add it to the rule it belongs to in editors/vscode/syntaxes/cufet.tmLanguage.json "
             + "— or, if it is an article or a preposition, to the rule that deliberately leaves "
             + "those unpainted.");
+    }
+
+    // ★★ A platform gate written as an early return is INVISIBLE: xUnit records it as a PASS, so
+    // the test reports green without executing and the total gives no hint. 83 tests did exactly
+    // that — a Windows run said 861 green with 83 never run, and one of them had never executed
+    // once until CI caught it. `[LinuxFact]`/`[WindowsFact]` set FactAttribute.Skip instead, so the
+    // run says "83 skipped" and the reason travels with the result.
+    //
+    // ⚠ This guards the SHAPE, not today's files: the next person to gate a test by platform gets
+    // told here rather than discovering it the way we did.
+    [Fact]
+    public void NoTest_GatesItselfWithASilentEarlyReturn()
+    {
+        // The gate shape only — `IsOSPlatform` used for a binary extension or a skip list is fine.
+        var gate = new Regex(
+            @"if \(!RuntimeInformation\.IsOSPlatform\([^)]*\)\)[^;]{0,120}return\s*;",
+            RegexOptions.Singleline);
+
+        var offenders = new List<string>();
+        var root = FindRepoRoot();
+        foreach (var file in Directory.GetFiles(Path.Combine(root, "tests"), "*.cs", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(root, file).Replace('\\', '/');
+            if (rel.Contains("/obj/") || rel.Contains("/bin/")) continue;
+            // ⚠ Comments stripped FIRST. PlatformFacts.cs documents the bad shape by quoting it,
+            // and a guard that cannot tell code from the prose describing it flags its own
+            // explanation — which is how this one introduced itself.
+            var code = string.Join("\n", File.ReadAllLines(file)
+                .Where(l => !l.TrimStart().StartsWith("//") && !l.TrimStart().StartsWith("*")));
+            foreach (Match m in gate.Matches(code))
+                offenders.Add(rel + ": " + Regex.Replace(m.Value, @"\s+", " ").Trim());
+        }
+
+        Assert.True(offenders.Count == 0,
+            "A test gates itself on the platform with an early return, which xUnit reports as a "
+            + "PASS — the test claims to be green without ever running. Use [LinuxFact] or "
+            + "[WindowsFact] (tests/Compiler.Tests/PlatformFacts.cs), which report it as SKIPPED:"
+            + Environment.NewLine + string.Join(Environment.NewLine, offenders));
     }
 
     private static IEnumerable<string> SourceFiles()
