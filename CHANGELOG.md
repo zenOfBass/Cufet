@@ -208,6 +208,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   output. Windows structurally cannot see this — it was caught compiling under WSL gcc.
 
 ### Added
+- **The playground has a test, and CI runs it before deploying.** It had none — the front end has
+  no DOM to assert on, and asserting on Monaco would mostly assert on Monaco. What is testable
+  without a browser is the runtime surface the page talks to, and the seeding path above is the
+  part that fails SILENTLY: nothing throws, the examples just go back to reporting `not found`.
+
+  `playground/test/examples.test.mjs` drives the real wasm build under node — no stand-in runtime —
+  seeds from the same manifest `worker.js` reads, and for each example asserts it finds its files;
+  where a pinned `examples/expected/*.expected` exists, it asserts the output matches that too, so
+  the playground is held to the output the language already promises rather than a second
+  expectation that could drift.
+
+  ★ **The set of examples is DERIVED, never listed** — an example counts if its source reads a
+  file, so a new one is covered the day it is written. ⚠ And the derivation can be wrong in exactly
+  the way a list can: the first draft matched only the whole-file reads and silently missed
+  `wordfreq.cufe`, which opens a stream. A test now asserts the derivation matched something at
+  all, because an empty set passes every assertion below it.
+### Added
 - **The examples that read a file now run in the playground.** `examples/parsing/config.cufe` and
   `examples/algorithms/wordfreq.cufe` read files that exist in a checkout and not in a browser, so
   both met a truthful `not found` and could not demonstrate themselves on the page that exists to

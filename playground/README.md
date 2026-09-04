@@ -22,6 +22,7 @@ _framework/dotnet.d.ts    a declaration ONLY — see the file; no code lives in 
 tsconfig.json             strict type checking; the build runs it and fails on an error
 build.mjs                 type-checks, then assembles everything into site/
 site/seed-manifest.json   built: the files the worker places before reporting ready
+test/examples.test.mjs    drives the BUILT wasm under node; run with `npm test`
 serve.mjs                 a local static server for looking at site/
 ```
 
@@ -80,6 +81,10 @@ build in one step, and can also re-enable `InvariantGlobalization` (see the cspr
 - **The type check spawns `node`, not `npx`.** On Windows, spawning the `.cmd` shim without a shell
   fails with `EINVAL`; `tsc`'s bin is a plain node script, so node runs it directly and the same
   line works on every platform.
+- **`npm test` needs a built site.** It drives the real wasm build under node — there is no DOM and
+  no stand-in runtime — so `dotnet publish` and `node build.mjs` come first. It says so if you
+  forget. CI runs it BEFORE the upload, so a page whose examples cannot find their files is never
+  deployed.
 - **There is already a filesystem in the browser, and it starts empty.** Emscripten gives the
   runtime an in-memory one and .NET's File APIs sit on it — a Cufet program can write a file and
   read it back under wasm, and listing, appending and existence checks all work. Nothing had to be
