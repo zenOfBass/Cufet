@@ -1,4 +1,4 @@
-using Cufet.Interpreter;
+﻿using Cufet.Interpreter;
 using Cufet.Lexer;
 using System.Runtime.ExceptionServices;
 using Xunit;
@@ -2263,7 +2263,13 @@ public class InterpreterTests
         var ex = Assert.Throws<RuntimeException>(() =>
             RunOnLargeStack(() => new Interpreter(maxCallDepth: 5).Execute(program)));
         Assert.Contains("loop", ex.Message);
-        Assert.Contains("too many times", ex.Message);
+        Assert.Contains("went deeper than 5 calls", ex.Message);
+        Assert.Contains("(line 2)", ex.Message);   // the recursive call site, not the outer call
+        // ⚠ It states the fact and does NOT diagnose. A depth limit is reached both by a
+        // program with no base case and by a correct one in a smaller host, and the message
+        // cannot tell them apart — so it must not claim to.
+        Assert.DoesNotContain("base case", ex.Message);
+        Assert.DoesNotContain("infinite", ex.Message);
     }
 
     // ── Functions as values — slice 2: functions as parameters ───────────

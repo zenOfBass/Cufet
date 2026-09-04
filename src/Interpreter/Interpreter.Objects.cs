@@ -1,4 +1,4 @@
-namespace Cufet.Interpreter;
+﻿namespace Cufet.Interpreter;
 
 public sealed partial class Interpreter
 {
@@ -64,7 +64,7 @@ public sealed partial class Interpreter
         if (_callDepth > _maxCallDepth)
         {
             _callDepth--;
-            throw new RuntimeException($"Getter '{getter.Name}' called itself too many times (line {line}).");
+            throw TooDeep($"Getter '{getter.Name}'", line);
         }
 
         var saved      = SaveScopes();
@@ -106,7 +106,7 @@ public sealed partial class Interpreter
         {
             _callDepth--;
             _inSetterFor = prevInSetterFor;
-            throw new RuntimeException($"Setter '{setter.Name}' called itself too many times (line {line}).");
+            throw TooDeep($"Setter '{setter.Name}'", line);
         }
 
         var saved      = SaveScopes();

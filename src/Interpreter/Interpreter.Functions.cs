@@ -1,4 +1,4 @@
-namespace Cufet.Interpreter;
+﻿namespace Cufet.Interpreter;
 
 public sealed partial class Interpreter
 {
@@ -64,8 +64,7 @@ public sealed partial class Interpreter
         if (_callDepth > _maxCallDepth)
         {
             _callDepth--;
-            throw new RuntimeException(
-                $"{displayName} called itself too many times (line {line}) — is it missing a base case, or a case that stops the recursion?");
+            throw TooDeep(displayName, line);
         }
 
         // Evaluate args in caller scope before altering env.
@@ -152,8 +151,7 @@ public sealed partial class Interpreter
         if (_callDepth > _maxCallDepth)
         {
             _callDepth--;
-            throw new RuntimeException(
-                $"'{method.Name}' called itself too many times (line {line}) — is it missing a base case?");
+            throw TooDeep($"'{method.Name}'", line);
         }
 
         var paramNames = method.Parameters.Select(p => p.Name).ToList();

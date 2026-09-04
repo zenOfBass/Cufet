@@ -1,4 +1,4 @@
-using Cufet.Lexer;
+﻿using Cufet.Lexer;
 using System.Globalization;
 
 namespace Cufet.Interpreter;
@@ -532,6 +532,31 @@ public sealed partial class Interpreter
 
     private int _callDepth = 0;
     private readonly int _maxCallDepth;
+
+    /// <summary>The one wording for "this went deeper than the interpreter allows".</summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ It states the FACT and stops. The five sites that share it used to diagnose instead —
+    /// "caused infinite recursion", "is it missing a base case?" — and that is a guess about cause
+    /// which is wrong whenever the real cause is a smaller environment. `sudoku.cufe` recurses
+    /// correctly and needs more depth than a browser has; telling its author their working program
+    /// is infinitely recursive is exactly the class of confidently-wrong message this language
+    /// exists to avoid. The depth is in the text because it is the one thing the reader cannot
+    /// otherwise find out, and it differs between hosts.
+    /// </para>
+    /// <para>
+    /// ⚠⚠ The literal `(line N)` fragment is load-bearing beyond reading well: the playground
+    /// scrapes it back out with a regex (LineFromMessage) to underline the right line in the
+    /// editor. Reword around it, never remove it.
+    /// </para>
+    /// <para>
+    /// ★ <paramref name="subject"/> is a whole phrase rather than a bare name, because the sites
+    /// do not all have one: a function is 'loop', a getter is Getter 'width', and an operator
+    /// overload has no name at all and describes itself instead.
+    /// </para>
+    /// </remarks>
+    private RuntimeException TooDeep(string subject, int line) =>
+        new($"{subject} went deeper than {_maxCallDepth} calls (line {line}).");
 
     /// <summary>What runs this program's foreign axioms, or null where nothing can.</summary>
     /// <remarks>See IForeignRunner — set by whoever wires the interpreter to a C toolchain.</remarks>
@@ -2038,9 +2063,8 @@ public sealed partial class Interpreter
         if (_callDepth > _maxCallDepth)
         {
             _callDepth--;
-            throw new RuntimeException(
-                $"The '{oad.LeftTypeName} {OpSymbol(oad.Operator)} {oad.RightTypeName}' overload caused infinite " +
-                $"recursion (line {line}).");
+            throw TooDeep(
+                $"The '{oad.LeftTypeName} {OpSymbol(oad.Operator)} {oad.RightTypeName}' overload", line);
         }
 
         var saved      = SaveScopes();
