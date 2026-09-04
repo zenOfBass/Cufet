@@ -1,4 +1,5 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Cufet.Compiler;
@@ -60,6 +61,89 @@ public class ExampleOracleTests
     // in and travels through git's line-ending conversion, so holding it to the byte would fail on
     // whoever's autocrlf differs. The oracle assertion has no such excuse and compares verbatim.
     private static string Norm(string s) => s.Replace("\r\n", "\n").TrimEnd('\n');
+
+    // ── The corpus must hold still while it is being measured ────────────────
+    //
+    // ★★ This suite compares a program against itself, so it quietly assumes the program does not
+    // change while it runs. It can: a full run takes ~7 minutes, most of it gcc, and the files
+    // under test are ordinary source files sitting open in an editor. One typed character during a
+    // run produced a failure that read as a behaviour change and cost ~20 minutes to diagnose —
+    // the assertion said "the program's behaviour changed", which was true and useless.
+    //
+    // ★ Assets count. Both backends run with the working directory at the repo root, so a program
+    // reading `examples/assets/sample.txt` reads the real file — and an edit landing BETWEEN the
+    // compiled run and the interpreted one produces a divergence that no backend caused. That is
+    // the worst version of this: it accuses the compiler.
+    //
+    // ⚠ `examples/expected/` is deliberately NOT snapshotted. CUFET_EXAMPLE_EXPECTED=1 rewrites
+    // those files during the run, on purpose, and flagging that would be crying wolf at the one
+    // person doing the intended thing.
+    private static readonly IReadOnlyDictionary<string, string> CorpusAtStart = SnapshotCorpus();
+
+    private static IEnumerable<string> CorpusFiles()
+    {
+        foreach (var root in Roots)
+        {
+            if (!Directory.Exists(root)) continue;
+            foreach (var f in Directory.GetFiles(root, "*.cufe", SearchOption.AllDirectories))
+                yield return f;
+        }
+
+        var assets = Path.Combine(ExampleDir, "assets");
+        if (!Directory.Exists(assets)) yield break;
+        foreach (var f in Directory.GetFiles(assets, "*", SearchOption.AllDirectories))
+            yield return f;
+    }
+
+    private static Dictionary<string, string> SnapshotCorpus()
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var f in CorpusFiles()) map[f] = HashOf(f);
+        return map;
+    }
+
+    // An unreadable file hashes to a sentinel rather than throwing: this runs inside a failure
+    // path, and a guard that itself blows up replaces one confusing message with a worse one.
+    private static string HashOf(string path)
+    {
+        try { return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path))); }
+        catch { return "<unreadable>"; }
+    }
+
+    /// <summary>
+    /// Call this the moment an oracle assertion is ABOUT to fail. If the corpus moved under the
+    /// run, this says so and stops; otherwise it returns and the real assertion reports normally.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Hashing is deliberately deferred to the failure path. Verifying on every one of ~38 rows
+    /// would hash the whole corpus ~38 times for a condition that is almost never true, and a
+    /// guard that slows the suite it protects gets removed.
+    ///
+    /// ⚠ It reports the WHOLE corpus, not just this example. A pulled book or an asset changing is
+    /// exactly as capable of producing this failure as the file under test, and naming only the
+    /// latter would send the reader to the wrong file.
+    /// </remarks>
+    private static void FailIfTheCorpusMoved(string file, string what)
+    {
+        var changed = CorpusAtStart.Keys
+            .Where(p => HashOf(p) != CorpusAtStart[p])
+            .Select(p => Path.GetRelativePath(RepoRoot, p).Replace(Path.DirectorySeparatorChar, '/'))
+            .OrderBy(p => p, StringComparer.Ordinal)
+            .ToList();
+
+        if (changed.Count == 0) return;
+
+        throw new Xunit.Sdk.XunitException(
+            $"{file}: {what} — but the corpus CHANGED while this run was in progress, so this "
+            + "result means nothing." + Environment.NewLine + Environment.NewLine
+            + "Changed since the run started:" + Environment.NewLine
+            + string.Join(Environment.NewLine, changed.Select(p => "  " + p))
+            + Environment.NewLine + Environment.NewLine
+            + "A full run takes several minutes and these are ordinary files; saving one in an "
+            + "editor mid-run is enough. Re-run with the corpus left alone before reading anything "
+            + "into this.");
+    }
+
 
     /// <summary>
     /// Examples the COMPILER cannot build on this platform, with the reason. They are not skipped
@@ -275,6 +359,7 @@ public class ExampleOracleTests
             // The one case that needs a human decision, so the failure has to name it. A new
             // concurrency or subprocess example cannot be built under mingw, and a raw gcc error
             // says nothing about what to do next.
+            FailIfTheCorpusMoved(file, "it failed to build");
             throw new Xunit.Sdk.XunitException(
                 $"{file} failed to build.\n" +
                 $"If it uses tasks, channels or subprocesses, it needs POSIX and cannot compile on " +
@@ -287,6 +372,8 @@ public class ExampleOracleTests
         // Interpret — because the two backends are meant to agree on every byte, and a comparison
         // that normalises line endings first cannot see a backend that rewrites them.
         var interpreted = Interpret(program);
+        // ⚠ Before blaming a backend. The two runs happen seconds apart and read real files.
+        if (interpreted != compiled) FailIfTheCorpusMoved(file, "the two backends disagreed");
         Assert.Equal(interpreted, compiled);
 
         // ★ Agreement is not correctness. The comparison above proves the two backends say the same
@@ -308,6 +395,8 @@ public class ExampleOracleTests
         }
 
         var expected = Norm(File.ReadAllText(expectedPath));
+        if (expected != Norm(interpreted))
+            FailIfTheCorpusMoved(file, "it no longer produces its recorded output");
         Assert.True(expected == Norm(interpreted),
             $"{file} no longer produces its recorded output.\n" +
             "Both backends agree, so this is not a divergence — the program's behaviour changed.\n" +
