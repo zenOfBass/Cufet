@@ -208,6 +208,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   output. Windows structurally cannot see this — it was caught compiling under WSL gcc.
 
 ### Fixed
+- **Editing an example while the suite ran was reported as a behaviour change.** A full run takes
+  several minutes, most of it gcc, and the files under test are ordinary source files sitting open
+  in an editor. One typed character during a run produced a failure that said *"Both backends
+  agree, so this is not a divergence — the program's behaviour changed"* — true, useless, and
+  worth about twenty minutes.
+
+  The oracle now hashes the corpus when the run starts, and any assertion about to fail asks
+  first whether the corpus moved. If it did, it says so and names the files instead of blaming
+  the program or a backend.
+
+  ★ **Assets are included, and that is the case that matters most.** Both backends run with the
+  working directory at the repo root, so a program reading `examples/assets/sample.txt` reads the
+  real file — and an edit landing *between* the compiled run and the interpreted one produces a
+  divergence no backend caused. That failure accuses the compiler.
+
+  ⚠ Hashing happens only on the failure path. Checking every row would hash the corpus once per
+  example for a condition that is almost never true, and a guard that slows the suite it protects
+  gets deleted. `examples/expected/` is excluded — `CUFET_EXAMPLE_EXPECTED=1` rewrites those
+  during a run on purpose.
 - **83 tests reported green without ever running.** Every Linux-only compiler test opened with
   `if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;` — which xUnit records as a
   **pass**. A Windows run said 861 green with 83 of them never executed, and the total gave no
