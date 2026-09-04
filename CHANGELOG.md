@@ -208,6 +208,47 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   output. Windows structurally cannot see this — it was caught compiling under WSL gcc.
 
 ### Fixed
+- **Deep recursion in the playground killed the page and showed nothing at all.** Not an error, not
+  the output printed before it — the Mono runtime was gone and the visitor was left with a dead
+  editor and whatever they had typed. A .NET `StackOverflowException` cannot be caught, so the
+  playground's own `catch` never ran.
+
+  The interpreter has always had a call-depth limit, defaulting to 1000, and nobody set it. The CLI
+  never needs to: it runs on a 16 MB thread. A browser gives whatever stack wasm has, and the real
+  stack died long before 1000 — so the limit that exists to make this readable was never reached.
+  The playground now asks for a depth it can survive.
+
+  ★ **MEASURED, not chosen.** A minimal recursive function returns at depth 275 and kills the
+  runtime at 300; a body nesting a few calls inside arithmetic dies between 140 and 150. The
+  ceiling is not one number — it is how many C# frames one Cufet call costs, which varies with the
+  program. Depths 300, 900 and 5000 now print a message instead of killing the page.
+
+  ⚠⚠ **It catches runaway recursion and nothing more, and that is worth stating because the obvious
+  reading is wrong.** `examples/algorithms/sudoku.cufe` still kills the page, and a lower number
+  would not save it: sudoku never reaches that call depth. Its stack goes on nested statement
+  frames *between* calls — loops and conditionals inside the body — which a call count does not
+  see. Covering that means measuring the stack itself rather than proxying it.
+
+  ⚠ **Raising the wasm stack does not work, and was measured rather than assumed.**
+  `-s STACK_SIZE=` was confirmed to reach the emcc link (in `emcc-link.rsp`, via the SDK's own
+  `$(EmccStackSize)`), and **1 MB and 16 MB produce the same ceiling** — so the emscripten stack is
+  not the binding limit and this cannot be fixed from the csproj.
+
+- **A depth limit accused a correct program of infinite recursion.** Five sites said "caused
+  infinite recursion" or "called itself too many times — is it missing a base case?", each with its
+  own wording and no shared constant. They now state the fact and stop:
+
+  ```
+  'solve' went deeper than 200 calls (line 14).
+  ```
+
+  ★★ **The diagnosis was a guess about cause, and it is the wrong guess whenever the real cause is
+  a smaller host.** A limit is reached both by a program with no base case and by a correct one in
+  a browser, and the message cannot tell them apart — so it must not claim to. The depth is in the
+  text because it is the one thing the reader cannot otherwise find out, and it differs by host.
+
+  ★ The name stays, because it says *which* call. The five wordings are now one builder, so the
+  next site cannot invent a sixth.
 - **Running a program in the playground showed `Process_PlatformNotSupported`.** A .NET resource
   key, reaching a reader of a language whose whole claim is that its messages are readable. A
   browser has no processes, so `Process.Start` throws `PlatformNotSupportedException`, which none of
