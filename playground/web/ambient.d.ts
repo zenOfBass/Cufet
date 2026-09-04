@@ -1,4 +1,4 @@
-// The edges of this page that no package describes.
+﻿// The edges of this page that no package describes.
 //
 // ⚠ This file is deliberately a SCRIPT, not a module — it has no top-level import or export. That
 // is what makes the declarations below ambient (global) rather than augmentations of some other
@@ -58,6 +58,8 @@ interface CufetAssemblyExports {
                 Run(source: string): string;
                 Check(source: string): string;
                 Tokens(source: string): string;
+                /** Puts a file where a program can read it. Returns "" on success, else why not. */
+                PlaceFile(path: string, content: string): string;
             };
         };
     };

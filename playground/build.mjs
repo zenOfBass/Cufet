@@ -201,6 +201,43 @@ await cp(join(appBundle, '_framework'), join(out, '_framework'), { recursive: tr
 // it is silent: the page loads and behaves like an older version of itself.
 await cp(join(here, 'worker.js'), join(out, 'worker.js'));
 
+// --- the files the examples read ----------------------------------------------------------------
+//
+// ★★ There IS a filesystem in the browser — Emscripten gives the runtime an in-memory one and
+// .NET's File APIs sit on it. Measured, before any of this was written: a Cufet program can write
+// a file and read it back under wasm, and listing, appending and existence checks all work.
+//
+// It just starts EMPTY. `examples/parsing/config.cufe` and `examples/algorithms/wordfreq.cufe` read
+// files that exist in the repository and not in a browser, so both met a truthful `not found` and
+// could not demonstrate themselves on the page they exist to demonstrate on.
+//
+// ★ Copied as ORDINARY STATIC FILES, not embedded in the wasm. Embedding would put them in the
+// download every visitor pays for, whether or not they run those two examples, and would mean a
+// `dotnet publish` to change a text file. Served like this they are cached separately and the
+// payload does not move.
+//
+// ⚠ The path under site/ MATCHES the path a program asks for, deliberately. An example says
+// `read all from the file "examples/assets/config.txt"` because that is where the file is in a
+// checkout; serving it at the same relative path means the manifest is a plain list and there is
+// no mapping table to get wrong.
+const assetsFrom = join(here, "..", "examples", "assets");
+const assetPaths = [];
+if (existsSync(assetsFrom)) {
+    const assetsTo = join(out, "examples", "assets");
+    await mkdir(assetsTo, { recursive: true });
+    for (const entry of await readdir(assetsFrom, { withFileTypes: true })) {
+        if (!entry.isFile()) continue;
+        await cp(join(assetsFrom, entry.name), join(assetsTo, entry.name));
+        assetPaths.push(`examples/assets/${entry.name}`);
+    }
+}
+
+// The worker reads this at boot and seeds each path before it reports ready. A list rather than a
+// hard-coded set in the worker: build.mjs is what knows which files it copied, and a file added to
+// examples/assets/ should reach the page without anyone editing JavaScript to allow it.
+await writeFile(join(out, "seed-manifest.json"), JSON.stringify(assetPaths, null, 2) + "\n");
+console.log(`seeded:         ${assetPaths.length} file(s) the examples read`);
+
 // --- report ------------------------------------------------------------------------------------
 
 async function totalBytes(dir) {

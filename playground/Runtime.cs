@@ -123,6 +123,49 @@ public static partial class Runtime
         }
     }
 
+    /// <summary>
+    /// Puts a file where a program can read it. Returns "" on success, or a message.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ There is ALREADY a filesystem here, and this was measured before anything was built: a
+    /// Cufet program can write a file and read it back under wasm today, and listing, appending and
+    /// existence checks all work. Emscripten gives the runtime an in-memory filesystem and .NET's
+    /// File APIs sit on it. Nothing had to be implemented.
+    /// </para>
+    /// <para>
+    /// What was missing is that it starts EMPTY. `examples/parsing/config.cufe` reads
+    /// `examples/assets/config.txt`, which exists in the repository and not in a browser, so the
+    /// example met a truthful `not found` and could not demonstrate itself. This is how the host
+    /// puts those files in before a program looks for them.
+    /// </para>
+    /// <para>
+    /// ⚠ The parent directories are created here, and that is NOT the language being lenient — it
+    /// is the HOST placing a file, the same as a checkout having made the directory already.
+    /// Cufet has no directory-creating operation at all, and `Write` to a path whose directory is
+    /// missing fails on a real OS exactly as it does here. That agreement is worth keeping.
+    /// </para>
+    /// <para>
+    /// ★ Failure is REPORTED, never thrown. Seeding runs while the worker boots; a throw there
+    /// would take the runtime down over a missing text file and leave the visitor with a dead page
+    /// instead of a playground that merely cannot run two of the examples.
+    /// </para>
+    /// </remarks>
+    [JSExport]
+    internal static string PlaceFile(string path, string content)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+            File.WriteAllText(path, content);
+            return "";
+        }
+        catch (Exception e)
+        {
+            return e.Message;
+        }
+    }
     private static string JsonString(string s)
     {
         var sb = new System.Text.StringBuilder(s.Length + 16).Append('"');
