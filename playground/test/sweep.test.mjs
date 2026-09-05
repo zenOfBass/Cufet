@@ -46,11 +46,11 @@ const HOST_LEAK = /\b(?:[A-Z][A-Za-z]*_[A-Z][A-Za-z]+|System(?:\.[A-Za-z]+)+Exce
  * fails if one stops being true — a stale skip asserts something false, and is how a suite quietly
  * stops testing what it names.
  */
-const KNOWN_DEATHS = {
-    'sudoku.cufe':
-        'backtracking recursion exhausts the browser stack. The page reports it and recovers; the '
-        + 'program runs fine under `cufet`. See playground/Runtime.cs on maxCallDepth.',
-};
+// ✅ EMPTY, and it was not always. `sudoku.cufe` lived here: its backtracking recursion exhausted
+// the browser stack, killed the wasm runtime, and took the page down with nothing shown. The
+// interpreter now asks the real stack before descending (Interpreter.Core.cs, OutOfStack), so it
+// stops with an ordinary Cufet refusal and the runtime keeps answering.
+const KNOWN_DEATHS = {};
 
 function exampleFiles(dir = join(repoRoot, 'examples')) {
     const found = [];

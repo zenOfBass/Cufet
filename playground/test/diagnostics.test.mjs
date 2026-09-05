@@ -1,4 +1,4 @@
-// The squiggles: that `Check` answers, and that the page actually asks.
+﻿// The squiggles: that `Check` answers, and that the page actually asks.
 //
 // ★★ WHY BOTH HALVES. `Check` was exported when the playground was built and NOTHING EVER CALLED
 // IT — the machinery worked, was tested by nobody, and the page had no squiggles for its entire
@@ -86,4 +86,32 @@ test('the page asks for diagnostics, on boot and on edit', () => {
     assert.match(source, /onDidChangeModelContent/,
         'nothing re-checks when the program changes, so the marks would be from whatever was in the '
         + 'editor at boot');
+});
+
+// ── Running out of stack ─────────────────────────────────────────────────────────────────────
+//
+// ★★ THIS IS THE ONLY PLACE THE STACK GUARD CAN BE TESTED, and that is worth stating plainly.
+// `RuntimeHelpers.TryEnsureSufficientExecutionStack` is effective under Mono/wasm and INERT on
+// CoreCLR — measured with the depth count raised out of the way, the .NET desktop process dies
+// with StackOverflow at every thread size from 1 MB to 64 MB, because the interpreter's frames
+// drop past the reserve between one check and the next. So `dotnet test` cannot cover this at
+// all; if it breaks, only these tests will say so.
+test('deep recursion is refused instead of killing the runtime', () => {
+    const source = `Bind number to down, given (the number n):
+    If n is 0, return 0.
+    Return cast down on (n - 1).
+Done.
+State cast down on (100000).
+`;
+    const output = runtime.Run(source);
+
+    assert.match(output, /ran out of stack/,
+        'a runaway recursion did not produce the stack refusal. If the runtime survived at all, '
+        + 'the guard in Interpreter.Core.cs (OutOfStack) has stopped firing under wasm.');
+    assert.match(output, /\(line \d+\)/, 'the refusal carries no line number');
+
+    // ⚠ The half that matters most. Before the guard, this took the whole runtime down: an
+    // uncatchable StackOverflowException, a dead page, and nothing the visitor had typed.
+    assert.equal(runtime.Run('State "alive".').trim(), 'alive',
+        'the runtime stopped answering after a deep recursion — it was killed rather than refused');
 });
