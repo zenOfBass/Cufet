@@ -10,6 +10,54 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`run <prog> with the terminal` — hand the child the terminal and still get its exit code.** A
+  shell wants to open an editor and then ask whether it saved, and that was unspellable: the
+  expression `run` captures the output through a pipe, so anything that draws cannot start, while
+  the statement `Run` hands over the terminal and returns nothing at all.
+
+  ```cufet
+  Try to:
+      Define outcome as run "vim" with the terminal with arguments ("notes.txt").
+      If the exit-code of outcome is 0:
+          State "editor saved cleanly".
+      Done.
+      Otherwise:
+          State "editor exited with a problem".
+      Done.
+  Done.
+  In case of failure:
+      State "vim is not installed".
+  Done.
+  ```
+
+  ★ **The same `result` record, not a new type.** `output` and `errors` come back `""`, which is
+  honest rather than arbitrary — they are empty *because* they went to the terminal instead of into
+  a pipe. Only `exit-code` carries anything, which is the one thing the statement form cannot give
+  you. A bare number would have split `run`-as-expression into two return shapes a reader has to
+  remember, and an ambient `$?` was refused outright: Cufet has no other implicit-global state.
+
+  ★ **The two modifiers are independent and compose in either order**, including
+  `with arguments <series> with the terminal` — the case expected to fight the parser, because a
+  series expression then sits directly before a `with`, which is also how a record shape is spelled.
+  It parses. Order-freedom cost one loop where the old code had one `if`.
+
+  ⚠ **`terminal` is contextual, never reserved.** Matched by lexeme in the run-modifier slot, the
+  same treatment `at … bits`, the type names, `axiom` and the `random` family get. `Define terminal
+  as 5.` stays legal and the bundled `terminal` module keeps its name.
+
+  ⚠ **Two refusals, both because the alternative is silent.** `Run "vim" with the terminal.` is
+  rejected with a message showing where to put the exit code — accepting it would discard the only
+  thing the modifier is for. And a piped stage cannot say it, because a pipe carries the child's
+  output to the next stage while this sends it to the screen: the same bytes, two places.
+
+  ⚠ The child inherits **this program's own** stdin, stdout and stderr — a terminal when this
+  program has one, a pipe when it does not. `with the terminal` is the right name for the common
+  case; the promise is that the child gets what this program has.
+
+  ⚠ A child killed by a signal reports **128 + the signal number**, so Ctrl-C gives 130. That is
+  not a new rule: both backends already derived it that way, and the compiled runtime's two launch
+  paths now share one `cufet_exit_status` so they cannot drift apart on it.
+
 - **The playground has the examples in it.** 33 of the corpus's 38 programs, in a menu, grouped by the
   folders they already live in — `basics`, `algorithms`, `parsing`, `structures`, `language`,
   `concurrency`, `systems` — which read as an order to meet them in. Picking one loads it into

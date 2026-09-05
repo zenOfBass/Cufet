@@ -502,6 +502,13 @@ instead, so `Define rows as 5.` works even though the collections book uses the 
 and an identifier must start lowercase. Capitalised contextual statement words removed that
 obstacle, and the word is one the code most likely to pull this book will want.
 
+**`terminal`** — contextual on the same terms, recognised only in the modifier slot of a `run`
+expression: `run <prog> with the terminal`. `Define terminal as 5.` stays legal everywhere, and
+the bundled `terminal` module keeps its name — a module is reached through `Pull`, a different
+slot, so the device naming the modifier and the module named after the same device do not clash.
+Reserving the word would have taken an ordinary noun from every program in the language to save
+one lexeme check in one position.
+
 `the rows of x` and `the columns of x` are resolved by the **type of `x`** — a matrix's row or
 column count, or a record's field of that name — exactly as `the key of mapping` already is. The
 parser cannot tell, but a reader never has the ambiguity. On a matrix they are the only two

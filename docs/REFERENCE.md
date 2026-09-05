@@ -3403,8 +3403,54 @@ program works.
 Both wait for the child, and both are fallible for the same reason — the program may not exist —
 so the statement form must be handled too. What it does **not** give back is the result record, so
 there is no exit code to read: a program that runs and exits nonzero is an ordinary outcome the
-statement form does not report. Use the expression form when the output is data or the exit code
-matters.
+statement form does not report.
+
+**`with the terminal` gives the child the terminal AND gives you the exit code back.** It is an
+expression, so it produces the same `result or failure` the plain `run` produces — but the child
+draws on the real screen exactly as under the statement form:
+
+```cufet
+Try to:
+    Define outcome as run "vim" with the terminal with arguments ("notes.txt").
+    If the exit-code of outcome is 0:
+        State "editor saved cleanly".
+    Done.
+    Otherwise:
+        State "editor exited with a problem".
+    Done.
+Done.
+In case of failure:
+    State "vim is not installed".
+Done.
+```
+
+`the output of outcome` and `the errors of outcome` are `""` here, and that is honest rather than
+arbitrary: they are empty **because** they went to the terminal instead of into a pipe. Only
+`the exit-code of outcome` carries anything, which is the whole reason the form exists — it is the
+one thing the statement form cannot give you.
+
+The two modifiers are independent and may be written in either order —
+`run "vim" with the terminal with arguments ("notes.txt")` and
+`run "vim" with arguments ("notes.txt") with the terminal` mean the same thing — and
+`with arguments <series>` composes with it just as it does with the plain form.
+
+> The child inherits **this program's own** stdin, stdout and stderr. That is a terminal when this
+> program has one, and a pipe when it does not — under CI, or when this program's own output is
+> piped somewhere. `with the terminal` is the right name for the common case, but the promise is
+> *the child gets what this program has*.
+
+A run inside a pipe cannot say `with the terminal`: a pipe carries the child's output to the next
+stage, and this sends it to the screen instead, so the two ask for the same bytes. And the
+statement form does not take it — `Run "vim" with the terminal.` is refused, because the modifier
+exists to hand back an exit code and a statement has nowhere to put one.
+
+So there are three forms, and the axis is who is connected to the terminal:
+
+| Form | Position | Terminal | Gives back |
+|---|---|---|---|
+| `run <prog> …` | expression | no — Cufet pipes and captures | `result or failure`, `output`/`errors` filled |
+| `run <prog> with the terminal …` | expression | yes — the child gets it | `result or failure`, `exit-code` only |
+| `Run <prog> …` | statement | yes — the child gets it | nothing; still fallible |
 
 #### Environment variables
 
