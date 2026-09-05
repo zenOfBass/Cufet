@@ -584,6 +584,55 @@ public class ExhaustivenessTests
             + Environment.NewLine + string.Join(Environment.NewLine, offenders));
     }
 
+    // ★★ A version heading with SIX "### Added" sections under it is not a formatting quibble — it
+    // is a changelog that has stopped being readable, and it happened because entries were
+    // PREPENDED to the file rather than merged into the section they belong to. Nothing noticed for
+    // three releases: 0.16.0, 0.17.0 and Unreleased were all duplicated before a person read it and
+    // said so.
+    //
+    // ⚠ Order is checked too. Keep a Changelog fixes it, every clean release in this file already
+    // follows it, and "which section is this entry in" is only a quick question when the sections
+    // are always in the same place.
+    [Fact]
+    public void EveryChangelogVersion_HasEachSectionOnceAndInOrder()
+    {
+        string[] order = ["### Added", "### Changed", "### Deprecated", "### Removed",
+                          "### Fixed", "### Security"];
+
+        var version = "(before any version heading)";
+        var seen = new List<string>();
+        var problems = new List<string>();
+
+        void Close()
+        {
+            var repeated = seen.GroupBy(s => s).Where(g => g.Count() > 1).ToList();
+            foreach (var group in repeated)
+                problems.Add($"{version}: {group.Count()} x '{group.Key}' — merge them into one");
+
+            // ⚠ Only the STANDARD sections are ordered against each other. A shipped release may
+            // carry a one-off of its own — 0.9.0 has "### Test campaign", 0.10.0 has "### Notes" —
+            // and those are the author's record of what happened, not a mistake to be tidied. A
+            // guard that forced them out would be rewriting history to suit itself.
+            var standard = seen.Distinct().Where(order.Contains).ToList();
+            var ranks = standard.Select(s => Array.IndexOf(order, s)).ToList();
+            if (!ranks.SequenceEqual(ranks.OrderBy(r => r)))
+                problems.Add($"{version}: sections out of order — {string.Join(", ", standard)}. "
+                           + $"Expected the order {string.Join(", ", order.Where(standard.Contains))}");
+            seen.Clear();
+        }
+
+        foreach (var line in File.ReadAllLines(Path.Combine(FindRepoRoot(), "CHANGELOG.md")))
+        {
+            if (line.StartsWith("## ["))      { Close(); version = line.Trim(); }
+            else if (line.StartsWith("### ")) seen.Add(line.Trim());
+        }
+        Close();
+
+        Assert.True(problems.Count == 0,
+            "CHANGELOG.md has version sections that repeat or are out of order. A new entry belongs "
+            + "INSIDE the section it fits, not in a fresh one at the top:"
+            + Environment.NewLine + string.Join(Environment.NewLine, problems.Select(p => "  " + p)));
+    }
     private static IEnumerable<string> SourceFiles()
     {
         var root = FindRepoRoot();
