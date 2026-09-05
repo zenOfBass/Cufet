@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "cufet-playground",
   "version": "0.19.0",
   "description": "Browser playground for the Cufet language — the interpreter compiled to WebAssembly.",
