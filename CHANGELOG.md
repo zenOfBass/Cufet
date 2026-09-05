@@ -10,6 +10,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **The playground has the examples in it.** 35 of the corpus's 38 programs, grouped by the
+  folders they already live in — `basics`, `algorithms`, `parsing`, `structures`, `language`,
+  `concurrency`, `systems` — which read as an order to meet them in. Picking one loads it into
+  the editor. The corpus is the best account of what the language can do, and until now none of
+  it was reachable from the page that exists to show the language off.
+
+  ★ **Run still runs the file in the editor**, because that is what `cufet <file>` does. No
+  notion of a "main file" had to be invented: a program's siblings are reached by `Pull`, not by
+  a manifest, so picking a different example is the whole of switching programs. Picking a
+  library and running it gives the *"declares things but never does anything"* refusal for free.
+
+  ★ Multi-file examples work: `ledger.cufe` pulls `bookkeeping.cufe`, which is already placed at
+  boot. Picking does NOT run — reading something and running it are two decisions.
+
+  ⚠ **Three are left out** — `foreign`, `foreign-memory` and `subprocess-pipes` need a C compiler
+  or real processes. They are selected out by scanning for the CONSTRUCT anchored at the start of
+  a line, never the bare word: `examples/language/axioms.cufe` discusses C axioms at length in its
+  opening comment while using none, and a word search drops a working example with nobody the
+  wiser. Measured, the scan picks exactly the three the runtime reports as unable to run here.
+
+  ★★ **And the test holds the scan to that, in both directions** — every listed example must
+  actually run, and every example left off must actually be unable to. The second half is the one
+  no one would check by hand: an over-matching scan just leaves a row out, and the picker still
+  looks fine.
+
 - **The playground shows squiggles.** `Check` has been exported since the playground was built
   and **nothing ever called it** — the machinery worked, and the page had no diagnostics for its
   entire life. The editor now asks on boot, on every edit (debounced), and again once a run

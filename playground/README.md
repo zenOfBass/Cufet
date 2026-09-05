@@ -22,6 +22,7 @@ _framework/dotnet.d.ts    a declaration ONLY — see the file; no code lives in 
 tsconfig.json             strict type checking; the build runs it and fails on an error
 build.mjs                 type-checks, then assembles everything into site/
 site/seed-manifest.json   built: the files the worker places before reporting ready
+site/examples-manifest.json  built: the browsable corpus, grouped, for the picker
 test/examples.test.mjs    seeded files and multi-file pulls, against the BUILT wasm
 test/sweep.test.mjs       all 38 examples: no leaked host vocabulary, no unexpected death
 test/runtime-death.test.mjs  what the runtime throws when a program kills it
@@ -93,6 +94,11 @@ build in one step, and can also re-enable `InvariantGlobalization` (see the cspr
   — the playground could not demonstrate the module system at all. `build.mjs` seeds books by
   BASENAME at the root (a book is found by the name you pull), while assets keep their folders (an
   asset is found by the path you write).
+- **The example list is DERIVED, and the derivation is tested against behaviour.** `build.mjs`
+  copies every example except those needing a terminal, matching the construct anchored at the
+  start of a line rather than the word anywhere — `axioms.cufe` discusses C axioms without using
+  one. `test/examples-list.test.mjs` then checks both directions: everything listed runs, and
+  everything omitted genuinely cannot run here.
 - **There is already a filesystem in the browser, and it starts empty.** Emscripten gives the
   runtime an in-memory one and .NET's File APIs sit on it — a Cufet program can write a file and
   read it back under wasm, and listing, appending and existence checks all work. Nothing had to be
