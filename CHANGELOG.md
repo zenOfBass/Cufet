@@ -130,30 +130,35 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   cause was SRI. It stays because the failure mode it closes is real and was mine to introduce:
   a nicety must never be able to hold the point of the page hostage.
 
-- **The playground's editor waits for its grammar instead of being repainted later.** Reported
-  from a phone: the starter program arrived with every keyword, number and mark in the default
-  foreground, and only the *names* coloured — the semantic layer painting onto a syntactic layer
-  that was not there. It stayed that way. Loading an example fixed it, and so did scrolling.
+- **The playground paints the program as soon as it has a grammar, instead of waiting for the
+  browser to feel idle.** Reported from a phone: the starter program arrived with every keyword,
+  number and mark in the default foreground and only the *names* coloured — the semantic layer
+  painting onto a syntactic layer that was not there. It stayed that way. Loading an example fixed
+  it, and so did scrolling.
 
-  ★ **The editor used to be created first and the tokenizer registered against it afterwards**,
-  on the reasoning that Monaco re-tokenizes when a grammar turns up. It does, but not
-  unconditionally: registering against a model that already exists repaints only the line ranges
-  an attached view has reported by then, and leaves the rest to a background pass inside
-  `requestIdleCallback`. A phone booting a 4.9 MB runtime need never grant an idle slot, which is
-  why waiting did nothing and why scrolling — which reports a visible range — worked.
+  ★ **Registering a tokenizer against a model that already exists does not reliably repaint it.**
+  Monaco repaints synchronously only the line ranges an attached view has already reported, and
+  hands everything else to a background pass inside `requestIdleCallback`. A phone booting a
+  4.9 MB runtime need never grant an idle slot — which is why waiting did nothing, and why
+  scrolling, which reports a range, worked. The page now calls `forceTokenization` once the
+  grammar is registered.
 
-  So the editor is not created until the grammar, the theme and the regex engine are in hand, and
-  its first paint is the right one. The cost is 508 KB landing before the editor appears.
+  ⚠ **`forceTokenization` is not in `monaco.d.ts`.** It is load-bearing inside Monaco but unexposed,
+  so reaching it takes a cast — a deliberate bet on an internal, and the reason `monaco-editor` is
+  pinned to an exact version rather than a range. If a future version moves it, the page says so in
+  the console rather than quietly going back to waiting.
+
+  ⚠⚠ **Building the editor *after* the grammar instead does not fix this**, which was measured by
+  doing it: the model's token store is built before any view is attached, so there is still nothing
+  to paint synchronously and the work still falls to the same idle pass. The tokenizer's presence
+  was never the missing piece — something asking for the lines was. That attempt also turned the
+  editor's `theme: 'vs-dark'` placeholder into an override, because `create` calls `setTheme`
+  whenever the option is a string, and handed the page Monaco's stock palette with Arctic Candy
+  Darker loaded and ignored. Both are recorded at the two lines they would bite again.
 
   ⚠ Measured on Opera for Android; Chrome for Android was never affected, and neither was any
   desktop browser at any window width. A browser that grants the idle slot promptly hid this
   completely, which is the whole reason it survived to be found on a phone.
-
-  ⚠⚠ **The editor is created with no `theme` of its own, and that is not an omission.** Monaco's
-  `create` calls `setTheme` whenever the option is a string, which sets the GLOBAL theme — so the
-  `vs-dark` that sat there as a placeholder became an override the moment the theme was applied
-  first, and the page came back in Monaco's stock palette with Arctic Candy Darker loaded and
-  ignored. `vs-dark` is now set once BEFORE the fetch, as the floor a failure falls back to.
 
 - **Seven files carried a byte-order mark they were never meant to have.** The 0.19.0 version bump
   wrote them through a step that strips a BOM when reading and adds one when writing, so
