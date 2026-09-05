@@ -317,6 +317,89 @@ function setOutput(text: string, kind: OutputKind): void {
     outputPane.dataset['kind'] = kind;
 }
 
+// ── Diagnostics ──────────────────────────────────────────────────────────────────────────────
+//
+// ★★ The SAME front end the VS Code extension calls, reached the same way: `Check` answers one
+// JSON object per line, exactly as `cufet check --json` does, and this parses it exactly as
+// editors/vscode/extension.js does. Two editors, one set of diagnostics, no second opinion to
+// drift out of step with the first.
+//
+// ⚠ The machinery has been exported since the playground was built and nothing ever called it,
+// so the page has never shown a squiggle. That is what this is.
+
+/** One line of Check's output. Mirrors what the CLI emits and what the extension parses. */
+interface Reported {
+    line: number;
+    severity: string;
+    message: string;
+}
+
+/**
+ * Where to draw the mark for a diagnostic on `line`.
+ *
+ * ★ Ported from the extension's `rangeForLine`, and it matters that it agrees: underline the
+ * CODE on the line rather than its leading indentation, and never produce a zero-width range —
+ * a zero-width squiggle is an invisible squiggle. A blank line has nothing to underline, so it
+ * takes in the line break to leave a visible mark.
+ */
+function markerRange(model: monaco.editor.ITextModel, oneBasedLine: number) {
+    const last = model.getLineCount();
+    const line = Math.min(Math.max(oneBasedLine || 1, 1), last);
+    const text = model.getLineContent(line);
+
+    if (text.trim().length > 0)
+        return {
+            startLineNumber: line,
+            startColumn: model.getLineFirstNonWhitespaceColumn(line),
+            endLineNumber: line,
+            endColumn: model.getLineMaxColumn(line),
+        };
+
+    return line < last
+        ? { startLineNumber: line, startColumn: 1, endLineNumber: line + 1, endColumn: 1 }
+        : { startLineNumber: line, startColumn: 1, endLineNumber: line, endColumn: model.getLineMaxColumn(line) };
+}
+
+async function refreshDiagnostics(): Promise<void> {
+    const model = editor.getModel();
+    if (!model) return;
+
+    const answer = await askRuntime('check', model.getValue());
+    // ⚠ null means the runtime could not answer — booting, or busy inside a run. Leaving the
+    // marks alone is right: dropping them for the length of a run would make the editor flicker
+    // clean every time someone pressed Run.
+    if (answer === null) return;
+
+    const markers: monaco.editor.IMarkerData[] = [];
+    for (const raw of answer.split('\n')) {
+        const text = raw.trim();
+        if (!text.startsWith('{')) continue;
+
+        let reported: Reported;
+        try { reported = JSON.parse(text) as Reported; } catch { continue; }
+
+        markers.push({
+            ...markerRange(model, reported.line),
+            message: reported.message,
+            severity: reported.severity === 'warning'
+                ? monaco.MarkerSeverity.Warning
+                : monaco.MarkerSeverity.Error,
+            source: 'cufet',
+        });
+    }
+
+    monaco.editor.setModelMarkers(model, 'cufet', markers);
+}
+
+// ⚠ Debounced, because Check runs the whole front end — lex, parse, type-check, and the loader
+// for any book the program pulls. Asking on every keystroke would queue work the visitor has
+// already invalidated by typing the next character.
+let checkPending: ReturnType<typeof setTimeout> | undefined;
+function scheduleDiagnostics(): void {
+    clearTimeout(checkPending);
+    checkPending = setTimeout(() => { void refreshDiagnostics(); }, 400);
+}
+
 // ── The runtime, which lives in a worker ─────────────────────────────────────────────────────
 //
 // Cufet runs synchronously, so it cannot share a thread with the interface: a slow program would
@@ -379,6 +462,10 @@ function onWorkerMessage({ data }: MessageEvent<RuntimeAnswer>): void {
         setBusy(false);
         statusText.textContent = 'ready';
         semanticsChanged.fire();
+        // ★ The first check of the session. Everything before this answered null, so the starter
+        // program has never been looked at — and a page that greets you with no marks on a
+        // program it has not read is indistinguishable from one that found nothing wrong.
+        scheduleDiagnostics();
         if (pendingAutoRun) { pendingAutoRun = false; run(); }
         return;
     }
@@ -398,6 +485,7 @@ function onWorkerMessage({ data }: MessageEvent<RuntimeAnswer>): void {
     // The worker is answerable again. It refused every token request for the length of the run —
     // and the auto-run on first boot means that refusal covers the page's whole arrival.
     semanticsChanged.fire();
+    scheduleDiagnostics();
 
     if (data.ok) {
         const text = data.result;
@@ -463,6 +551,10 @@ function stop(): void {
     spawnWorker();
     setBusy(false);
 }
+
+// ⚠ On every edit, debounced. `onDidChangeModelContent` fires per keystroke; scheduleDiagnostics
+// collapses a burst of them into one ask once the typing stops.
+editor.onDidChangeModelContent(() => scheduleDiagnostics());
 
 runButton.addEventListener('click', () => (running === null ? run() : stop()));
 

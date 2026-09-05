@@ -82,29 +82,60 @@ public static partial class Runtime
 
     // The same front end the editor extension calls, so the playground's squiggles and the
     // editor's are the same diagnostics from the same code — never a re-implementation that
-    // could drift. One JSON object, or "" when the program is clean.
+    // could drift.
+    //
+    // ★★ One JSON object PER LINE, which is the shape `cufet check --json` already emits and the
+    // VS Code extension already parses (editors/vscode/extension.js, parseDiagnostics). Matching it
+    // means the two editors cannot disagree about what a program's problems are.
+    //
+    // ⚠ No column, deliberately. The CLI emits one and the extension IGNORES it: a squiggle is
+    // drawn from the line's first non-blank character to its end, because a caret under one
+    // character is easy to miss and a zero-width range is invisible. Emitting a field nothing
+    // reads would be inventing surface.
+    //
+    // "" when the program is clean.
     [JSExport]
     internal static string Check(string source)
     {
+        var reported = new System.Text.StringBuilder();
+        IReadOnlyList<Diagnostic> style;
+        var checker = new TypeChecker { SourceDirectory = "." };
+
         try
         {
             var tokens  = new CufetLexer(source).Tokenize();
-            var program = new Parser(tokens).Parse();
-            // See Run: a book in another file is only reachable with a directory to look in.
-            new TypeChecker { SourceDirectory = "." }.Check(program);
-            return "";
+            var parser  = new Parser(tokens);
+            var program = parser.Parse();
+            checker.Check(program);
+            // ⚠ Style is judged only on a program that PARSES AND TYPE-CHECKS, exactly as the CLI
+            // does it. Advising someone on how a line reads while it is still wrong would bury the
+            // thing they actually need to fix.
+            style = Linter.Lint(tokens, parser.StatementStarts, program);
         }
         catch (Exception e) when (e is LexerException or ParseException or TypeException)
         {
-            // Written by hand rather than with JsonSerializer. Reflection-based serialization
-            // needs metadata that trimming removes, so it throws PlatformNotSupported in a
-            // trimmed WASM build — and three fields do not justify a source-generated context,
-            // let alone shipping System.Text.Json to every visitor.
-            return "{\"line\":" + LineOf(e)
-                 + ",\"severity\":\"error\",\"message\":" + JsonString(e.Message) + "}";
+            return Line(LineOf(e), "error", e.Message);
         }
+
+        foreach (var d in checker.Diagnostics.Items)
+            reported.Append(Line(d.Line, d.SeverityName, d.Message));
+        foreach (var d in style)
+            reported.Append(Line(d.Line, d.SeverityName, d.Message));
+        return reported.ToString();
     }
 
+    // Written by hand rather than with JsonSerializer. Reflection-based serialization needs
+    // metadata that trimming removes, so it throws PlatformNotSupported in a trimmed WASM build —
+    // and three fields do not justify a source-generated context, let alone shipping
+    // System.Text.Json to every visitor.
+    // ★ A raw string literal, so not one quote in here is escaped. The previous form was a
+    // chain of "\"line\":" fragments — correct, unreadable, and the exact shape that gets
+    // mangled by any tool that touches this file through a shell.
+    //
+    // ⚠ JsonString already returns its own surrounding quotes, so `message` takes none here.
+    private static string Line(int line, string severity, string message) =>
+        $$"""{"line":{{line}},"severity":"{{severity}}","message":{{JsonString(message)}}}"""
+        + "\n";
     // The name-kind layer the TextMate grammar cannot produce — the same walk `cufet tokens` runs,
     // so the page and the editor colour a name from one source of truth. One JSON object per line,
     // matching the CLI's shape. A program that does not type-check has no reliable kinds to report,
