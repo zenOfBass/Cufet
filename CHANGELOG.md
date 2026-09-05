@@ -191,6 +191,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   per thread because a rabbit runs on its own. Anything else dies exactly as it did before: laying
   a calm Cufet sentence over a genuine bad pointer would be worse than the silence this replaces.
 
+  ⚠ Two things here were settled by running the suite on both platforms rather than by reasoning,
+  and neither was visible on the machine the work was done on. The handler's own small stack is
+  **malloc'd with a pthread-key destructor, not thread-local** — as `_Thread_local` it added 32 KB
+  to every thread's TLS block and produced seven AddressSanitizer failures under WSL, naming that
+  buffer's size exactly. And on Windows, `TerminateProcess` rather than `ExitProcess`, because
+  ExitProcess runs the C runtime's shutdown on the stack that just ran out and faults partway, so
+  the message came out and the program then reported an access violation.
+
 - **The runtime cache verifies the object it hands out instead of trusting the path.** On 2026-09-02
   a suite run under WSL produced 32 failures, every one an `undefined reference to cufet_dec_lit`
   and friends, and `rm -rf ~/.cache/cufet` cured all of them. That reads as a code-generator
@@ -212,6 +220,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠ It uses gcc and nothing else, deliberately: `nm` would be a second tool a person has to install,
   and this cache exists to protect the property that gcc is the only one. It costs one gcc
   invocation per cache **miss** and none on a hit.
+
+  ⚠⚠ **A function inside `#if` is never promised to the linker**, and that rule was learned the
+  hard way within the hour. The stack guard above added a POSIX branch and a Windows branch; the
+  enumerator ignored preprocessor lines, so on Windows the probe asked for a function that build
+  never compiles. Every object failed a check it could not pass, the cache silently stopped
+  working, and the Windows suite went from seven minutes to twenty-nine. A guard that cries wolf is
+  worse than no guard — it disables the thing it was guarding.
 
   ⚠ A note in `RuntimeCache` blamed the rest of the toolchain — glibc, binutils, system headers —
   for sitting outside the key. That was checked and does not hold: every conditional in the runtime
