@@ -34,7 +34,31 @@ let handle = request => { pending.push(request); };
 
 self.onmessage = event => handle(event.data);
 
-const { getAssemblyExports, getConfig } = await dotnet.create();
+// ⚠⚠ INTEGRITY CHECKING IS OFF, and it is not a shortcut — it is the fix for a ten-minute
+// outage after every single deploy. Measured 2026-09-05, from the console of the deployed page:
+//
+//     Failed to find a valid digest in the 'integrity' attribute for resource
+//     '.../Cufet.Interpreter.wasm' ... The resource has been blocked.
+//
+// GitHub Pages serves everything with `Cache-Control: max-age=600`. After a deploy the browser
+// holds the PREVIOUS `dotnet.boot.js` for up to those 600 seconds while fetching the NEW `.wasm`
+// files, so the old manifest's SHA-256 values are checked against new bytes and every one of our
+// assemblies is blocked. 600 seconds is exactly the ten to eleven minutes the page was dead for.
+//
+// ★ Only OUR assemblies ever failed, which is what identified it: the framework ones are
+// byte-identical build to build, so a stale manifest still describes them correctly.
+//
+// ⚠ What this gives up: SRI defends against the HOST serving tampered assemblies. Transport is
+// still authenticated by HTTPS, this page carries no credentials and no user data, and the
+// alternative is a public playground that is reliably broken for ten minutes after every push.
+// Blazor ships the same trade as `BlazorCacheBootResources=false` for the same reason.
+//
+// ★ One line to revert. The other route — keeping SRI and making the manifest uncacheable with a
+// per-build query on `withConfigSrc` — fixes the direction observed here but not the mirror case
+// (a fresh manifest against stale assemblies), and needs a build stamp threaded into this file.
+const { getAssemblyExports, getConfig } = await dotnet
+    .withConfig({ disableIntegrityCheck: true })
+    .create();
 const exports = await getAssemblyExports(getConfig().mainAssemblyName);
 const runtime = exports.Cufet.Playground.Runtime;
 

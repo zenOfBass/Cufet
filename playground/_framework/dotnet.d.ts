@@ -1,4 +1,4 @@
-// ⚠⚠ THIS DIRECTORY HOLDS NO CODE. It exists so that one import can be type-checked, and nothing
+﻿// ⚠⚠ THIS DIRECTORY HOLDS NO CODE. It exists so that one import can be type-checked, and nothing
 // here is ever copied, bundled or served.
 //
 // `worker.js` imports `./_framework/dotnet.js` — the .NET runtime's ES-module loader. That file is
@@ -22,6 +22,20 @@ interface DotnetRuntime {
     getConfig(): { mainAssemblyName: string };
 }
 
-export declare const dotnet: {
+/** Only the config fields this page sets. The real MonoConfig has dozens; see the SDK's own
+  * dotnet.d.ts in bin/ for the full surface. */
+interface DotnetConfig {
+    /**
+     * Turns off SRI checking of assets. Set true — see worker.js for why: GitHub Pages caches
+     * for 600s, so after a deploy a STALE dotnet.boot.js is checked against FRESH assemblies and
+     * blocks every one of ours.
+     */
+    disableIntegrityCheck?: boolean;
+}
+
+interface DotnetHostBuilder {
+    withConfig(config: DotnetConfig): DotnetHostBuilder;
     create(): Promise<DotnetRuntime>;
-};
+}
+
+export declare const dotnet: DotnetHostBuilder;
