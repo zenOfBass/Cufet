@@ -149,6 +149,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   desktop browser at any window width. A browser that grants the idle slot promptly hid this
   completely, which is the whole reason it survived to be found on a phone.
 
+  ⚠⚠ **The editor is created with no `theme` of its own, and that is not an omission.** Monaco's
+  `create` calls `setTheme` whenever the option is a string, which sets the GLOBAL theme — so the
+  `vs-dark` that sat there as a placeholder became an override the moment the theme was applied
+  first, and the page came back in Monaco's stock palette with Arctic Candy Darker loaded and
+  ignored. `vs-dark` is now set once BEFORE the fetch, as the floor a failure falls back to.
+
 - **Seven files carried a byte-order mark they were never meant to have.** The 0.19.0 version bump
   wrote them through a step that strips a BOM when reading and adds one when writing, so
   `editors/vscode/package.json`, both playground manifests and the four `.csproj` files each
