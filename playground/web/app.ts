@@ -317,6 +317,86 @@ function setOutput(text: string, kind: OutputKind): void {
     outputPane.dataset['kind'] = kind;
 }
 
+// ── The examples ─────────────────────────────────────────────────────────────────────────────
+//
+// ★★ The corpus is the best documentation of what the language can do, and none of it was
+// reachable from the page that exists to show the language off. 35 of the 38 are here; the three
+// left out need a terminal (C axioms, launching a program) and `build.mjs` selects them out by
+// scanning for the construct, not the word — `axioms.cufe` discusses C axioms at length while
+// using none.
+
+/** One row of examples-manifest.json, written by build.mjs. */
+interface Example {
+    path: string;
+    group: string;
+    name: string;
+}
+
+const examplePicker = element<HTMLSelectElement>('examples');
+
+// ⚠ Fetched at boot, but only the LIST — a few hundred bytes of names. An example's text is
+// fetched when it is picked. Seeding already sits on the critical path to a usable page, and 35
+// more requests do not belong there.
+async function loadExampleList(): Promise<void> {
+    let examples: Example[];
+    try {
+        const response = await fetch('./examples-manifest.json');
+        if (!response.ok) throw new Error(`examples-manifest.json: ${response.status}`);
+        examples = await response.json() as Example[];
+    } catch (e) {
+        // A nicety. The editor, the runtime and Run are the page; losing the list costs a way in,
+        // not the thing itself, so it stays quiet and disabled rather than shouting.
+        console.warn('the example list could not be loaded:', e);
+        return;
+    }
+
+    let group: HTMLOptGroupElement | null = null;
+    for (const example of examples) {
+        if (!group || group.label !== example.group) {
+            group = document.createElement('optgroup');
+            group.label = example.group;
+            examplePicker.append(group);
+        }
+        const option = document.createElement('option');
+        option.value = example.path;
+        option.textContent = example.name;
+        group.append(option);
+    }
+
+    examplePicker.disabled = false;
+}
+
+// ⚠ The path in the manifest is the path in a checkout, and the path it is served from — the same
+// arrangement the seeded assets use, so there is no mapping to get wrong.
+async function openExample(path: string): Promise<void> {
+    const model = editor.getModel();
+    if (!model) return;
+
+    try {
+        const response = await fetch(`./${path}`);
+        if (!response.ok) throw new Error(`${path}: ${response.status}`);
+        const text = await response.text();
+
+        // ★ setValue, not a patch: this replaces the program wholesale, and the undo stack of the
+        // program before it is not something a reader wants to step back into.
+        model.setValue(text);
+        editor.setPosition({ lineNumber: 1, column: 1 });
+        editor.revealLine(1);
+        editor.focus();
+    } catch (e) {
+        console.warn('could not open the example:', e);
+        setOutput(`Could not load ${path}.`, 'error');
+    }
+}
+
+// ⚠ Picking does NOT run. The visitor chose to read something; running it is a second decision,
+// and one of these prints a partial board and stops on the stack limit. The editor content
+// changing does trigger a re-check, so the squiggles follow along on their own.
+examplePicker.addEventListener('change', () => {
+    const path = examplePicker.value;
+    if (path) void openExample(path);
+});
+
 // ── Diagnostics ──────────────────────────────────────────────────────────────────────────────
 //
 // ★★ The SAME front end the VS Code extension calls, reached the same way: `Check` answers one
@@ -573,3 +653,7 @@ spawnWorker();
 // engine fails to load, say so in the console and leave a working uncoloured editor rather than
 // taking the page down with it.
 startHighlighting().catch(e => console.error('syntax highlighting failed to start:', e));
+
+// Neither of these blocks the runtime, and neither can take the page down: the editor and Run
+// are what the page is for, and both work with no examples and no colour.
+loadExampleList().catch(e => console.error('the example list failed to load:', e));

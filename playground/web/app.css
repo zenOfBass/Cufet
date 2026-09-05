@@ -1,4 +1,4 @@
-/*
+﻿/*
   The playground's own chrome. Monaco brings its own stylesheet for everything inside the editor,
   so this file only styles what surrounds it.
 
@@ -189,6 +189,39 @@ main {
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--faint);
+}
+
+/* The example picker. Sits between the pane's title and its actions: it chooses WHAT the pane
+   holds, which is closer to the title's job than to the Run button's. */
+.examples { display: flex; align-items: center; margin-right: auto; }
+
+#examples {
+    padding: 4px 8px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+#examples:disabled { opacity: 0.4; cursor: default; }
+
+/* The group labels inside the dropdown. A native <optgroup> is drawn by the platform, which
+   ignores most styling — colours are set anyway for the browsers that do honour them. */
+#examples optgroup { background: var(--bg-raised); color: var(--faint); }
+#examples option   { background: var(--bg); color: var(--text); }
+
+/* Visible to a screen reader, not to the eye. The <select> needs a name; the page does not
+   need a second word next to a control that already says "Examples...". */
+.sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px; padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
 }
 
 .actions {

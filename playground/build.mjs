@@ -269,6 +269,60 @@ if (existsSync(examplesDir)) {
 }
 
 await writeFile(join(out, "seed-manifest.json"), JSON.stringify(assetPaths, null, 2) + "\n");
+
+// --- the examples a visitor can browse ----------------------------------------------------------
+//
+// ★★ The corpus IS the documentation of what the language can do, and until now none of it was
+// reachable from the page that exists to show the language off. 38 files, 120 KB in total, already
+// grouped into folders that read as an order to meet them in: basics, then algorithms, parsing,
+// structures, language, concurrency, systems.
+//
+// ⚠ Copied at their repo-relative paths, like the assets and for the same reason: the path a
+// program is fetched from is the path it has in a checkout, so there is no mapping table to get
+// wrong. Their CONTENT is fetched when one is picked, never at boot — seeding is on the critical
+// path to `ready` and 38 more requests do not belong there.
+
+// ⚠⚠ EXCLUDED: what a browser genuinely cannot do. Matched on the CONSTRUCT, anchored at the
+// start of a line, because `examples/language/axioms.cufe` DISCUSSES c-language axioms at length
+// in its opening comment while using none — a bare word search drops a working example from the
+// list and nobody would notice. Measured: this selects exactly the three the runtime reports as
+// unable to run here, and `playground/test/examples.test.mjs` holds the scan to that.
+const NEEDS_A_TERMINAL =
+    /^\s*(?:Pull a book on the c-language\b|Define c-language\b|Run\s+")|\|\s*run\s+"/im;
+
+// ★ The folder is the group, and the order here is the order they are met in. A file in a folder
+// not named here still ships — it lands under its own folder name at the end, so adding one is
+// never silently dropped.
+const GROUP_ORDER = ["basics", "algorithms", "parsing", "structures", "language", "concurrency", "systems"];
+
+const examples = [];
+if (existsSync(examplesDir)) {
+    for (const path of (await cufeFilesUnder(examplesDir)).sort()) {
+        const text = await readFile(path, "utf8");
+        if (NEEDS_A_TERMINAL.test(text)) continue;
+
+        const relative = path.slice(join(here, "..").length + 1).split(/[\\/]/).join("/");
+        const parts = relative.split("/");
+        await mkdir(join(out, ...parts.slice(0, -1)), { recursive: true });
+        await cp(path, join(out, ...parts));
+
+        examples.push({
+            path: relative,
+            group: parts.at(-2) ?? "other",
+            // The bare filename, which is what a person calls it. `.cufe` is noise in a list
+            // where every single row has it.
+            name: parts.at(-1).replace(/\.cufe$/, ""),
+        });
+    }
+
+    examples.sort((a, b) => {
+        const rank = g => { const i = GROUP_ORDER.indexOf(g); return i < 0 ? GROUP_ORDER.length : i; };
+        return rank(a.group) - rank(b.group) || a.group.localeCompare(b.group) || a.name.localeCompare(b.name);
+    });
+}
+
+await writeFile(join(out, "examples-manifest.json"), JSON.stringify(examples, null, 2) + "\n");
+console.log(`examples:       ${examples.length} browsable`);
 console.log(`seeded:         ${assetPaths.length} file(s) the examples read`);
 
 // --- report ------------------------------------------------------------------------------------

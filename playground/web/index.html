@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -37,6 +37,16 @@
     <section class="pane" id="editor-pane">
       <div class="pane-head">
         <h2>Program</h2>
+        <!-- The corpus, browsable. Populated from examples-manifest.json once it arrives, and
+             left disabled until then so it is never an empty control you can operate. A <select>
+             rather than a list of links: it is a choice of one thing, it costs no layout, and it
+             is keyboard- and screen-reader-navigable without any work from us. -->
+        <label class="examples" for="examples">
+          <span class="sr-only">Example</span>
+          <select id="examples" disabled>
+            <option value="">Examples&hellip;</option>
+          </select>
+        </label>
         <div class="actions">
           <span id="status" class="status">loading the runtime&hellip;</span>
           <button id="run" type="button" disabled>Run</button>
