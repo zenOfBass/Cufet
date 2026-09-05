@@ -19,7 +19,7 @@
 import * as esbuild from 'esbuild';
 import { spawn } from 'node:child_process';
 import { convertTheme, chromeStylesheet } from './build-theme.mjs';
-import { cp, mkdir, rm, readdir, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, readdir, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -235,6 +235,39 @@ if (existsSync(assetsFrom)) {
 // The worker reads this at boot and seeds each path before it reports ready. A list rather than a
 // hard-coded set in the worker: build.mjs is what knows which files it copied, and a file added to
 // examples/assets/ should reach the page without anyone editing JavaScript to allow it.
+// ★★ And the BOOKS an example pulls, which is a different placement for a different reason.
+//
+// `Pull a bookkeeping.` reaches `bookkeeping.cufe` in the SOURCE DIRECTORY — beside the program
+// that pulls it. A pasted program has no directory of its own, so the runtime's working directory
+// plays that part and a book belongs at its root, NOT at the path it happens to occupy in a
+// checkout. That is why these are seeded by basename while the assets above keep their folders:
+// an asset is addressed by the path a program writes, a book by the name a program pulls.
+//
+// ⚠ DERIVED from how a module DECLARES itself, anchored at column 0. Matching `and module`
+// anywhere would also catch ledger.cufe, which only mentions the phrase in its opening comment —
+// and seeding the program that does the pulling would be silently pointless.
+const DECLARES_A_MODULE = /^Define object [\w-]+ .*\band (module|book)\b/m;
+
+async function cufeFilesUnder(dir) {
+    const found = [];
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) found.push(...await cufeFilesUnder(path));
+        else if (entry.name.endsWith(".cufe")) found.push(path);
+    }
+    return found;
+}
+
+const examplesDir = join(here, "..", "examples");
+if (existsSync(examplesDir)) {
+    for (const path of await cufeFilesUnder(examplesDir)) {
+        if (!DECLARES_A_MODULE.test(await readFile(path, "utf8"))) continue;
+        const name = path.split(/[\\/]/).pop();
+        await cp(path, join(out, name));
+        assetPaths.push(name);
+    }
+}
+
 await writeFile(join(out, "seed-manifest.json"), JSON.stringify(assetPaths, null, 2) + "\n");
 console.log(`seeded:         ${assetPaths.length} file(s) the examples read`);
 

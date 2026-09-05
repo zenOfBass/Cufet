@@ -24,7 +24,17 @@ public static partial class Runtime
         {
             var tokens  = new CufetLexer(source).Tokenize();
             var program = new Parser(tokens).Parse();
-            program = new TypeChecker().Check(program);
+            // ★★ SourceDirectory is what lets `Pull a ‹name›.` reach ‹name›.cufe — without it the
+            // loader never runs and a book in another file is refused as "there is nothing named
+            // ... to pull". Measured: the playground could not demonstrate the module system at
+            // all, and `examples/language/ledger.cufe` failed on the page that exists to show it.
+            //
+            // ⚠ "." is the runtime's working directory, which is where the worker places seeded
+            // files. A PASTED program has no directory of its own, so "." plays the part of the
+            // one it would live in — its books sit beside it there, exactly as siblings do in a
+            // checkout.
+            var checker = new TypeChecker { SourceDirectory = "." };
+            program = checker.Check(program);
             // All three streams are passed explicitly. Leaving any of them null falls back to
             // Console, and Console.In throws PlatformNotSupported in a browser — there is no
             // stdin to read. Error goes to the same buffer as output so nothing a program
@@ -80,7 +90,8 @@ public static partial class Runtime
         {
             var tokens  = new CufetLexer(source).Tokenize();
             var program = new Parser(tokens).Parse();
-            program = new TypeChecker().Check(program);
+            // See Run: a book in another file is only reachable with a directory to look in.
+            new TypeChecker { SourceDirectory = "." }.Check(program);
             return "";
         }
         catch (Exception e) when (e is LexerException or ParseException or TypeException)
@@ -105,7 +116,8 @@ public static partial class Runtime
         {
             var tokens  = new CufetLexer(source).Tokenize();
             var program = new Parser(tokens).Parse();
-            var checker = new TypeChecker();
+            // See Run. Colouring a name that a loaded book declared needs the same loading.
+            var checker = new TypeChecker { SourceDirectory = "." };
             checker.Check(program);
 
             var sb = new System.Text.StringBuilder();

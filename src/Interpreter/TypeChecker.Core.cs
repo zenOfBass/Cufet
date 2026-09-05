@@ -997,8 +997,11 @@ public sealed partial class TypeChecker
     /// </remarks>
     /// <summary>Where to look for a book that lives in another file. Null loads nothing.</summary>
     /// <remarks>
-    /// ⚠ Set only by the CLI, which is the one caller that knows what file it was handed. A test
-    /// checking a program built from a string has no directory and loads nothing, which is right.
+    /// ⚠ Set by the callers that know where a program's siblings are: the CLI, from the directory
+    /// of the file it was handed, and the playground, as "." — a PASTED program has no directory,
+    /// so the runtime's working directory plays that part and its books sit beside it there.
+    /// A test checking a program built from a string has no directory and loads nothing, which is
+    /// right — and is why the oracle harness sets it deliberately rather than by default.
     /// </remarks>
     public string? SourceDirectory { get; init; }
 

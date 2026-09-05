@@ -99,6 +99,38 @@ test('some example actually reads a file', () => {
         'no example matched the file-reading forms — has the syntax changed? This test is now inert.');
 });
 
+// ★★ And the examples that pull a BOOK from another file, which is the module system — a shipped
+// feature the playground could not demonstrate at all until the runtime was given a source
+// directory to look in. `ledger.cufe` failed on the page that exists to show it off.
+//
+// ⚠ Derived from the SEEDED BOOKS, not from a list: a name counts if a `<name>.cufe` module was
+// placed, and an example counts if it pulls that name. Add a multi-file example and it is covered.
+// ⚠⚠ Read from the MANIFEST FILE, not from `placed`. `placed` is filled in `before()`, which runs
+// AFTER this module body — so deriving from it produced an empty set and every test below simply
+// did not exist. It looked green. This is the second time that shape has bitten in this file, and
+// the guard below is why it was caught at all.
+const seededBooks = JSON.parse(readFileSync(join(site, "seed-manifest.json"), "utf8"))
+    .filter(path => path.endsWith(".cufe"))
+    .map(path => path.replace(/\.cufe$/, ""));
+
+const pullers = exampleFiles().filter(file => {
+    const source = readFileSync(file, "utf8");
+    // ⚠ `\\b`, not `\b`. Inside a TEMPLATE LITERAL a single backslash-b is the
+    // BACKSPACE character, so the pattern quietly looked for a control code, matched nothing, and
+    // the derived set came out empty — green, and testing nothing.
+    return seededBooks.some(book => new RegExp(`Pull (a |books? on )?${book}\\b`).test(source));
+});
+
+test("a seeded book is actually pulled by some example", () => {
+    // The invariant, in both directions: a book is only worth placing if something pulls it, and a
+    // book that IS placed must have coverage. Phrased as an implication so removing the last
+    // multi-file example is not a spurious failure — it just means nothing is seeded either.
+    if (seededBooks.length === 0) return;
+    assert.ok(pullers.length > 0,
+        `books were seeded (${seededBooks.join(", ")}) but no example pulls them — either the pull `
+        + "spelling changed and this derivation is now inert, or build.mjs is seeding files nothing needs.");
+});
+
 for (const file of readers) {
     const name = basename(file);
 
@@ -121,6 +153,24 @@ for (const file of readers) {
 
     test(`${name} produces its recorded output in the playground`, () => {
         assert.equal(norm(runtime.Run(readFileSync(file, 'utf8'))), norm(readFileSync(expected, 'utf8')));
+    });
+}
+
+for (const file of pullers) {
+    const name = basename(file);
+
+    test(`${name} can pull the book it needs`, () => {
+        const output = runtime.Run(readFileSync(file, "utf8"));
+        assert.doesNotMatch(output, /there is nothing named .* to pull/,
+            `${name} could not reach a book in another file. Books placed: ${seededBooks.join(", ") || "(none)"}. `
+            + "Either the book was not seeded, or Runtime.cs stopped setting SourceDirectory.");
+    });
+
+    const expected = join(repoRoot, "examples", "expected", name.replace(/\.cufe$/, ".expected"));
+    if (!existsSync(expected)) continue;
+
+    test(`${name} produces its recorded output across two files`, () => {
+        assert.equal(norm(runtime.Run(readFileSync(file, "utf8"))), norm(readFileSync(expected, "utf8")));
     });
 }
 
