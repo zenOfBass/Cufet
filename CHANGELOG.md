@@ -6,6 +6,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
+## [Unreleased]
+
+### Added
+- **The playground shows squiggles.** `Check` has been exported since the playground was built
+  and **nothing ever called it** — the machinery worked, and the page had no diagnostics for its
+  entire life. The editor now asks on boot, on every edit (debounced), and again once a run
+  releases the runtime.
+
+  ★ **The same diagnostics as the extension, from the same code.** `Check` answers one JSON
+  object per line — the shape `cufet check --json` already emits — and the page parses it exactly
+  as `editors/vscode/extension.js` does, down to the rule for where the mark goes: underline the
+  code on the line rather than its leading indentation, and never draw a zero-width range,
+  because an invisible squiggle is worse than none.
+
+  ★ **Style advice reaches the page for the first time.** The old `Check` returned only the first
+  exception, so the linter's warnings — *this line opens with 'state' — write 'State'* — could
+  not arrive however the page asked. Warnings now come through with `"severity":"warning"`.
+
+  ⚠ **Style is judged only on a program that parses and type-checks**, which is the CLI's rule and
+  its reasoning: advising someone on how a line reads while it is still wrong buries the thing
+  they actually need to fix. A program with both faults reports only the error.
+
+  ⚠ No `column` is emitted, though the CLI has one — the extension ignores it and draws by line,
+  so a field nothing reads would be invented surface.
+
 ## [0.19.0] — 2026-09-04
 ### Added
 - **A module can carry a type, so a type can cross a file boundary.** An object body took only
