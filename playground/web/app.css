@@ -130,6 +130,8 @@ body {
 
 nav {
     display: flex;
+    /* A bordered button sits beside text links now; without this it rides high against them. */
+    align-items: center;
     gap: 16px;
     flex-shrink: 0;
 }
@@ -191,14 +193,16 @@ main {
     color: var(--faint);
 }
 
-/* The example menu, in the far corner of the page. `margin-left: auto` takes the slack the pane
-   head's space-between would otherwise leave, pinning it to the right edge.
+/* The example menu, in the page header beside the links.
 
-   ★ It sits in the OUTPUT pane's head, which is not where it acts — it changes what is in the
-   Program pane. That is deliberate: the top-right corner is where a page's own navigation is
-   looked for, and this is navigation. Beside the editor it read as one more of the editor's
-   controls, competing with Run. */
-.examples { position: relative; margin-left: auto; }
+   ~ It lives there rather than in a pane because it belongs to the PAGE. Stacked on a narrow
+   screen the panes sit one above the other, so a menu in the output pane's head lands halfway
+   down the document -- under the editor, nowhere near where a menu is looked for. In the header
+   it is in the same corner at every width.
+
+   * And it is the LAST thing in the nav, which the panel depends on: the panel is anchored to
+   its RIGHT edge, so from any other position it opens leftward out of a narrow screen. */
+.examples { position: relative; }
 
 /* Quieter than the Run button on purpose. Run is the thing you came to press; this is a way to
    find something to press it on, and two equally loud controls side by side make you choose

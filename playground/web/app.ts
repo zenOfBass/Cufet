@@ -297,7 +297,31 @@ const editor = monaco.editor.create(element('editor'), {
     tabSize: 4,
     renderLineHighlight: 'none',
     padding: { top: 16, bottom: 16 },
+
+    // ⚠ Monaco's gutter defaults reserve a lot of width for things this page does not have, and
+    // on a phone that width comes straight out of the code. Measured against the defaults:
+    //   lineNumbersMinChars  5 -> 3   room for 5 digits, on files of at most a few hundred lines
+    //   lineDecorationsWidth 10 -> 6  the strip between numbers and text; nothing draws in it
+    //   glyphMargin       true -> off a column for breakpoint dots, which this page cannot set
+    // The line numbers stay: they are how a diagnostic's `(line N)` is found by eye.
+    lineNumbersMinChars: 3,
+    lineDecorationsWidth: 6,
+    glyphMargin: false,
 });
+
+// ★ Narrower still where every column counts. Folding earns its keep on `huffmancoding.cufe` at
+// 200-odd lines and costs a gutter it has not earned on a phone, so it is a width question rather
+// than a preference — and `matchMedia` answers it again when the phone is turned sideways.
+const narrow = window.matchMedia('(max-width: 820px)');
+function fitTheGutter(): void {
+    editor.updateOptions({
+        folding: !narrow.matches,
+        lineNumbersMinChars: narrow.matches ? 2 : 3,
+        lineDecorationsWidth: narrow.matches ? 2 : 6,
+    });
+}
+narrow.addEventListener('change', fitTheGutter);
+fitTheGutter();
 
 // Monaco measures character width once, when it is created. With font-display: swap the editor
 // is very likely to be built while a fallback face is still showing, and every column position —

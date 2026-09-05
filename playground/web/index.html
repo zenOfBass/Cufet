@@ -30,6 +30,28 @@
     <nav>
       <a href="https://github.com/zenOfBass/Cufet">GitHub</a>
       <a href="https://github.com/zenOfBass/Cufet/blob/main/REFERENCE.md">Reference</a>
+
+      <!-- The corpus, browsable. In the page HEADER rather than in a pane, because it belongs to
+           the page. Stacked on a narrow screen the panes go one above the other, so a menu in the
+           output pane's head lands halfway down the document, under the editor and nowhere near
+           where a menu is looked for. Here it is in the same corner at every width.
+
+           A disclosure button and a panel rather than a <select>, because a native dropdown reads
+           as a SETTING you are changing and this is navigation. The glyph says it opens, the word
+           says what is behind it. Disabled until the list arrives, so it is never an empty control
+           you can operate. Filled by app.ts from examples-manifest.json. -->
+      <div class="examples" id="examples-menu">
+        <button id="examples-button" type="button" class="menu-button"
+                aria-haspopup="true" aria-expanded="false" aria-controls="examples-panel" disabled>
+          <!-- Three rules, drawn rather than typed: U+2630 is missing from many monospace faces
+               and falls back to a box. aria-hidden — the word beside it already says what it is. -->
+          <svg class="glyph" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false">
+            <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <span>Examples</span>
+        </button>
+        <div id="examples-panel" class="menu-panel" role="menu" hidden></div>
+      </div>
     </nav>
   </header>
 
@@ -47,32 +69,7 @@
     </section>
 
     <section class="pane" id="output-pane">
-      <!-- The corpus, browsable. In the far corner of the page rather than beside the editor:
-           at the top right it reads as navigation for the whole page, which is what it is — a
-           way to go and look at something — instead of a control belonging to the Program pane.
-
-           A disclosure button and a panel rather than a <select>, because a native dropdown
-           reads as a SETTING you are changing. The glyph says it opens, the word says what is
-           behind it, and neither has to be guessed at.
-
-           Disabled until the list arrives, so it is never a control you can operate that has
-           nothing in it. Filled by app.ts from examples-manifest.json. -->
-      <div class="pane-head">
-        <h2>Output</h2>
-        <div class="examples" id="examples-menu">
-          <button id="examples-button" type="button" class="menu-button"
-                  aria-haspopup="true" aria-expanded="false" aria-controls="examples-panel" disabled>
-            <!-- Three rules, drawn rather than typed: the U+2630 character is missing from many
-                 monospace faces and falls back to a box. aria-hidden because the word beside it
-                 already says what this is. -->
-            <svg class="glyph" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false">
-              <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-            </svg>
-            <span>Examples</span>
-          </button>
-          <div id="examples-panel" class="menu-panel" role="menu" hidden></div>
-        </div>
-      </div>
+      <div class="pane-head"><h2>Output</h2></div>
       <pre id="output" data-kind="empty" aria-live="polite">The interpreter is still starting. This page runs Cufet entirely in your browser. Nothing is sent to a server.</pre>
     </section>
   </main>
