@@ -9,6 +9,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 ## [Unreleased]
 
 ### Added
+- **Seeding a file can no longer keep the interpreter from starting.** The worker places the
+  files examples read *before* it reports ready — deliberately, because the page auto-runs the
+  instant it hears that, so seeding afterwards is a race. But that put four network fetches on
+  the critical path to a usable page, and nothing capped them: a stalled request held the Run
+  button dead with no explanation.
+
+  Each fetch is now aborted on a five-second deadline and the whole step is raced against the
+  same one, so a chain of slow-but-not-stalled requests cannot add up either. Past it the worker
+  starts anyway and says in the console what it could not place; the two examples that read files
+  then fail exactly as they did before seeding existed.
+
+  ★ Five seconds is roughly twelve times the healthy case — measured against the deployed site,
+  those four files arrive in about 0.1s each. A nicety must never be able to hold the point of
+  the page hostage.
+
 - **The playground shows squiggles.** `Check` has been exported since the playground was built
   and **nothing ever called it** — the machinery worked, and the page had no diagnostics for its
   entire life. The editor now asks on boot, on every edit (debounced), and again once a run
