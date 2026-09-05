@@ -331,6 +331,17 @@ const editor = monaco.editor.create(element('editor'), {
     // would make this line an OVERRIDE and hand the page Monaco's stock palette with the real
     // theme loaded and ignored. Measured, by doing exactly that.
     theme: 'vs-dark',
+
+    // ⚠ A GUESS, not a measurement, and it comes back out if it does not earn its place. Reported
+    // from Opera for Android: on a cold load the editor takes focus and shows a live cursor, but
+    // the on-screen keyboard never comes up; loading an example or reloading the page cures it.
+    // Monaco 0.56 defaults this to TRUE, which routes input through the experimental EditContext
+    // API instead of the hidden textarea it used for years — and it decides whether to offer that
+    // with `isChrome || isEdge || isNative`, a test Opera passes by being Chromium. So a browser
+    // that may not honour the API is being handed it. False is the long-worn path; the only thing
+    // this page gives up is better IME composition, which it has no call for.
+    editContext: false,
+
     automaticLayout: true,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
