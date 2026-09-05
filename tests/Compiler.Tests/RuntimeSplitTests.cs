@@ -181,18 +181,47 @@ public class RuntimeSplitTests
         //
         // ★ The sabotage is a runtime whose TEXT defines a function and whose OBJECT does not, so
         // gcc exits 0 having produced nothing — which is the one shape a key over the source can
-        // never notice, because the source is exactly what it hashes.
+        // never notice, because the source is exactly what it hashes. A bare C99 `inline`
+        // definition does exactly that: it is an inline definition only, and with no external
+        // definition anywhere the object carries no such symbol.
         var root = Directory.CreateTempSubdirectory("cufet-cache-hollow-");
         try
         {
             string header = "void cufet_promised_but_absent(void);\n";
-            string hollow = "#if 0\nvoid cufet_promised_but_absent(void) { }\n#endif\n";
+            string hollow = "inline void cufet_promised_but_absent(void) { }\n";
 
             Assert.Contains("cufet_promised_but_absent", RuntimeSplit.DefinedFunctions(hollow));
 
             Assert.Null(new RuntimeCache(root.FullName).ObjectFor(hollow, header, new GccInvoker(), []));
         }
         finally { try { root.Delete(recursive: true); } catch { } }
+    }
+
+    [Fact]
+    public void AFunctionInsideAConditional_IsNotPromisedToTheLinker()
+    {
+        // ⚠⚠ THE BUG THIS EXISTS FOR, and it shipped for about an hour. A definition inside
+        // `#if defined(__unix__)` is one THIS BUILD MAY NOT HAVE COMPILED, so enumerating it asks
+        // the linker for a symbol that is legitimately absent — the probe then fails for every
+        // object on the other platform and the cache silently stops working. Measured the day the
+        // stack guard added a POSIX branch and a Windows one: the Windows suite went from seven
+        // minutes to twenty-nine, because all ~800 compiles rebuilt the runtime from scratch.
+        //
+        // ★ A guard that cries wolf is worse than no guard: it disables the thing it guards.
+        var either = """
+            void cufet_always_here(void) { }
+            #if defined(__unix__)
+            void cufet_only_on_unix(void) { }
+            #else
+            void cufet_only_elsewhere(void) { }
+            #endif
+            """;
+
+        var found = RuntimeSplit.DefinedFunctions(either);
+
+        Assert.Contains("cufet_always_here", found);
+        Assert.DoesNotContain("cufet_only_on_unix", found);
+        Assert.DoesNotContain("cufet_only_elsewhere", found);
     }
 
     [Fact]

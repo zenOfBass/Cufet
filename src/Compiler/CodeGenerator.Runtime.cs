@@ -711,9 +711,24 @@ typedef struct { const char* message; const char* category; } CufetFailure;
 /* The guard region sits just BELOW the mapped stack, so the faulting address is a little past the
    low end rather than inside it. */
 #define CUFET_STACK_SLACK 65536
-static _Thread_local char cufet_altstack[CUFET_ALTSTACK];
+/* ⚠⚠ MALLOC'd, not a `_Thread_local` array, and that is not a style preference. MEASURED
+   2026-09-05: as thread-local storage this produced seven AddressSanitizer failures under WSL —
+   `failed to deallocate 0x8000 (32768) bytes`, which is this buffer exactly — because a 32 KB
+   addition to every thread's static TLS block upsets ASan's teardown. On the heap it is an
+   ordinary allocation that ASan understands, and a pthread key hands it back when the thread ends,
+   which covers a task that leaves by returning AND one that leaves by longjmp to its pad. */
+static pthread_key_t cufet_altstack_key;
+static pthread_once_t cufet_altstack_once = PTHREAD_ONCE_INIT;
 static _Thread_local char* cufet_stack_lo = 0;
 static _Thread_local char* cufet_stack_hi = 0;
+static void cufet_drop_altstack(void* block) {
+    /* Unregister BEFORE freeing: a signal arriving during teardown must not land on memory that
+       has just gone back to the allocator. */
+    stack_t off; off.ss_sp = 0; off.ss_size = 0; off.ss_flags = SS_DISABLE;
+    sigaltstack(&off, (stack_t*)0);
+    free(block);
+}
+static void cufet_make_altstack_key(void) { pthread_key_create(&cufet_altstack_key, cufet_drop_altstack); }
 static void cufet_on_segv(int sig, siginfo_t* info, void* ctx) {
     (void)ctx;
     char* at = info ? (char*)info->si_addr : (char*)0;
@@ -727,8 +742,13 @@ static void cufet_on_segv(int sig, siginfo_t* info, void* ctx) {
     signal(sig, SIG_DFL);
 }
 static void cufet_watch_stack(void) {
+    char* block;
     stack_t ss;
-    ss.ss_sp = cufet_altstack; ss.ss_size = CUFET_ALTSTACK; ss.ss_flags = 0;
+    pthread_once(&cufet_altstack_once, cufet_make_altstack_key);
+    block = (char*)malloc(CUFET_ALTSTACK);
+    if (!block) return;                       /* no room for a lifeboat — carry on unguarded */
+    pthread_setspecific(cufet_altstack_key, block);
+    ss.ss_sp = block; ss.ss_size = CUFET_ALTSTACK; ss.ss_flags = 0;
     if (sigaltstack(&ss, (stack_t*)0) != 0) return;
 #if defined(__APPLE__)
     {

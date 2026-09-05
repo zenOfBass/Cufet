@@ -125,13 +125,27 @@ public static class RuntimeSplit
     {
         var names = new List<string>();
         var lines = source.Replace("\r\n", "\n").Split('\n');
-        int i = 0;
+        int i = 0, conditional = 0;
 
         while (i < lines.Length)
         {
             string trimmed = lines[i].TrimStart();
 
-            if (trimmed.StartsWith('#')) { i++; continue; }
+            if (trimmed.StartsWith('#'))
+            {
+                // ⚠⚠ Depth, not just "skip the line". A definition inside `#if defined(__unix__)`
+                // is a definition THIS BUILD MAY NOT HAVE COMPILED, and asking the linker for it
+                // is asking for a symbol that is legitimately absent. MEASURED 2026-09-05, the day
+                // this was written: the stack guard added a POSIX branch and a Windows one, the
+                // probe enumerated both, every object on Windows failed a check it could never
+                // pass, and the cache silently stopped working — a suite that takes seven minutes
+                // took twenty-nine. A guard that cries wolf is worse than no guard, because it
+                // disables the thing it was guarding.
+                if (trimmed.StartsWith("#if", StringComparison.Ordinal)) conditional++;
+                else if (trimmed.StartsWith("#endif", StringComparison.Ordinal) && conditional > 0) conditional--;
+                i++;
+                continue;
+            }
 
             if (trimmed.Length == 0 || trimmed.StartsWith("/*") || trimmed.StartsWith("//"))
             {
@@ -141,6 +155,10 @@ public static class RuntimeSplit
 
             var (construct, next) = TakeConstruct(lines, i);
             i = next;
+
+            // Consumed, then dropped: the scanner still has to walk a conditional construct to find
+            // where it ends, but nothing inside one can be promised to the linker.
+            if (conditional > 0) continue;
 
             string text = construct.Trim();
 
