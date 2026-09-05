@@ -937,7 +937,16 @@ public sealed record WriteToStreamStatement(IExpression Value, IExpression Strea
 //
 // ⚠ `with arguments (args)` is therefore a ONE-element literal list holding a series, not the
 // series form. The checker refuses that by name rather than letting the types quietly decide.
-public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpression> Args, IExpression? ArgsSeries, int Line, int Column) : IExpression;
+// ★★ WithTerminal is a flag on this node rather than a node of its own, because the two forms
+// differ in exactly one thing: who is connected to the terminal. Everything else — the program
+// name, the two argument spellings, the result record, the failure categories, the unhandled-failure
+// check — is identical, so a second node would be a copy that has to be kept in step with this one
+// across every walk that visits it.
+//
+// ⚠ `run <prog> with the terminal` hands the child THIS program's own stdin/stdout/stderr, so the
+// result's `output` and `errors` are empty: they went to the terminal instead of into a pipe. Only
+// `exit-code` carries anything, which is the whole point — the statement form below cannot return it.
+public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpression> Args, IExpression? ArgsSeries, int Line, int Column, bool WithTerminal = false) : IExpression;
 
 // `run <program> [with arguments (…)].` as a STATEMENT — launch it and let it have the terminal.
 //

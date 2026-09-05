@@ -1249,7 +1249,21 @@ static void cufet_wait_for(pid_t pid, int* st) {
 
    ⚠ The exec-status pipe stays. It is the only way to tell "the program does not exist" from "the
    program ran and failed", and a launch failure is a Cufet failure while a nonzero exit is not. */
-static int cufet_run_inherit(const char* program, char* const argv[], CufetFailure* err) {
+/* ★★ ONE derivation of `exit-code`, read by both launch paths, so the capturing form and the
+   terminal form cannot drift apart on what a child's exit means. 128 + the signal number for a
+   child that was KILLED is the universal shell convention — Ctrl-C gives 130 — and it keeps
+   exit-code a plain number with nothing voidable: killed codes are >= 129, ordinary exits are
+   0-128, so a caller who cares can tell which happened.
+
+   ⚠ -1 is the third case: neither exited nor signalled. Reachable in principle (a stopped child
+   reported through a wait this code does not ask for), not in practice here. It is a number a
+   program can see, so it is documented rather than left to be discovered. */
+static int cufet_exit_status(int st) {
+    return WIFEXITED(st) ? WEXITSTATUS(st) : (WIFSIGNALED(st) ? 128 + WTERMSIG(st) : -1);
+}
+/* ⚠ out_exit may be NULL: the launching STATEMENT has nowhere to put an exit code, and says so by
+   not asking for one. The expression form always asks. */
+static int cufet_run_inherit(const char* program, char* const argv[], CufetFailure* err, int* out_exit) {
     /* ⚠⚠ FLUSHED BEFORE THE FORK, and this is not tidiness. The child writes straight to fd 1 while
        anything this program has printed may still be sitting in stdio’s buffer — so without it the
        child’s output OVERTAKES text that was printed first. Measured: `State "before".` then a
@@ -1276,6 +1290,7 @@ static int cufet_run_inherit(const char* program, char* const argv[], CufetFailu
         return 0;
     }
     int st; cufet_wait_for(pid, &st);
+    if (out_exit) *out_exit = cufet_exit_status(st);
     return 1;
 }
 
@@ -1331,7 +1346,7 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
         }
     }
     int st; cufet_wait_for(pid, &st);
-    *out_exit = WIFEXITED(st) ? WEXITSTATUS(st) : (WIFSIGNALED(st) ? 128 + WTERMSIG(st) : -1);
+    *out_exit = cufet_exit_status(st);
     char* os = (char*)cufet_arena_alloc(ol + 1); memcpy(os, ob, ol); os[ol] = '\0';
     char* es = (char*)cufet_arena_alloc(el + 1); memcpy(es, eb, el); es[el] = '\0';
     free(ob); free(eb);

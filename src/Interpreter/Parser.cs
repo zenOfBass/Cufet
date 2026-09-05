@@ -1545,6 +1545,18 @@ public sealed class Parser
             if (left is not RunExpression solo)
                 throw new ParseException(Peek(),
                     "'|' — a pipe stage that is not a `run` must be piped to something");
+            // ⚠ Refused rather than quietly treated as a plain `Run …`. The whole reason to say
+            // `with the terminal` is to get the exit code back, and a statement has nowhere to put
+            // it — so accepting this would silently discard the only thing the modifier is for.
+            // ⚠ The line/column constructor, not the token one: that one frames every message as
+            // "expected X, got Y", which reads as a parser hiccup rather than as the explanation
+            // this needs to be.
+            if (solo.WithTerminal)
+                throw new ParseException(solo.Line, solo.Column,
+                    "'with the terminal' asks for the child's exit code, and a statement has "
+                    + "nowhere to put it. Write `Define <name> as run ... with the terminal.` to "
+                    + "keep the exit code, or `Run ...` on its own to hand over the terminal and "
+                    + "ignore it.");
             SkipNoise();
             Consume(TokenType.Dot);
             return new RunStatement(solo.Program, solo.Args, solo.ArgsSeries, solo.Line, solo.Column);
@@ -3783,14 +3795,36 @@ public sealed class Parser
                 SkipNoise();
                 var runArgs = new List<IExpression>();
                 IExpression? runArgsSeries = null;
-                if (Peek().Type == TokenType.With)
+                bool withTerminal = false;
+                bool saidArguments = false;
+                // ★ A LOOP, not a single `if`. `with the terminal` and `with arguments` are
+                // independent modifiers, so both may appear and either may come first. Saying one
+                // twice is a mistake worth naming rather than quietly taking the last one.
+                while (Peek().Type == TokenType.With)
                 {
                     Advance(); // consume 'with'
                     SkipNoise();
+                    // `terminal` is matched by LEXEME here, not by token type — the same treatment
+                    // `at … bits`, the type names and the `random` family get. Reserving the word
+                    // would take `Define terminal as …` away from every program forever, and would
+                    // collide with the bundled terminal module for nothing.
+                    if (IsWord("terminal"))
+                    {
+                        if (withTerminal)
+                            throw new ParseException(Peek(),
+                                "this run already says 'with the terminal'");
+                        Advance(); // consume 'terminal' (contextual)
+                        withTerminal = true;
+                        continue;
+                    }
                     if (!IsWord("arguments"))
                         throw new ParseException(Peek(),
-                            "expected 'arguments' after 'with' in a run expression");
+                            "expected 'arguments' or 'the terminal' after 'with' in a run expression");
+                    if (saidArguments)
+                        throw new ParseException(Peek(),
+                            "this run already says 'with arguments'");
                     Advance(); // consume 'arguments' (contextual)
+                    saidArguments = true;
                     SkipNoise();
                     // ★★ ONE token decides which form this is. A `(` opens the literal list that
                     // has always been here; anything else is an expression yielding the whole list,
@@ -3824,7 +3858,7 @@ public sealed class Parser
                         runArgsSeries = ParseExprOr();
                     }
                 }
-                baseExpr = new RunExpression(programExpr, runArgs, runArgsSeries, runLine, runCol);
+                baseExpr = new RunExpression(programExpr, runArgs, runArgsSeries, runLine, runCol, withTerminal);
                 break;
             }
             case TokenType.Read:

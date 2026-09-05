@@ -34,6 +34,8 @@ public sealed partial class TypeChecker
     {
         var stages = FlattenPipe(pipe);
 
+        RefuseTerminalInPipe(stages);
+
         // Subprocess branch: all stages are RunExpression nodes.
         if (stages.TrueForAll(s => s is RunExpression))
         {
@@ -144,9 +146,34 @@ public sealed partial class TypeChecker
     // Returns the same FailureType(RunResultType) that a single 'run' expression returns,
     // so all failure-handling surfaces ('but on failure', Try, 'or pass the failure off')
     // work identically. Task pipes in expression position are a static error.
+    /// <summary>A piped stage cannot hand its output to the terminal — it owes it to the next stage.</summary>
+    /// <remarks>
+    /// ⚠⚠ Not a limitation, a contradiction, which is why it is refused rather than resolved. A pipe
+    /// exists to carry one child's output into the next; <c>with the terminal</c> exists to give
+    /// that output to the screen instead. Both asks want the same bytes, so the message names which
+    /// one to drop instead of quietly picking.
+    ///
+    /// ★ One method, called from BOTH pipe positions. It was written inline in the statement path
+    /// first and the expression path went straight past it — <c>run A with the terminal | run B</c>
+    /// as a value was accepted and would have emitted a capture call for a stage that had asked not
+    /// to be captured.
+    /// </remarks>
+    private static void RefuseTerminalInPipe(List<IExpression> stages)
+    {
+        foreach (var stage in stages)
+            if (stage is RunExpression { WithTerminal: true } piped)
+                throw new TypeException(
+                    "a run in a pipe cannot say 'with the terminal' — a pipe carries the program's "
+                    + "output to the next stage, and 'with the terminal' sends it to the screen "
+                    + "instead. Drop 'with the terminal' to pipe it, or run it on its own to watch it.",
+                    piped.Line, piped.Column);
+    }
+
     private CufetType? InferSubprocessPipeExpr(PipeExpression pipe)
     {
         var stages = FlattenPipe(pipe);
+
+        RefuseTerminalInPipe(stages);
 
         if (!stages.TrueForAll(s => s is RunExpression))
             throw TypeError(

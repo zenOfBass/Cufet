@@ -465,7 +465,8 @@ public sealed partial class CodeGenerator
                 EmitRunArgv(prog, runStmt.Args, runStmt.ArgsSeries, $"cf_ra{rid}");
                 FlushPreEmits(sb, indent);
                 sb.AppendLine($"{indent}{{ CufetFailure cf_re{rid};");
-                sb.AppendLine($"{indent}  if (!cufet_run_inherit({prog}, cf_ra{rid}, &cf_re{rid})) {{");
+                // NULL: a statement has nowhere to put an exit code, and says so by not asking.
+                sb.AppendLine($"{indent}  if (!cufet_run_inherit({prog}, cf_ra{rid}, &cf_re{rid}, NULL)) {{");
                 if (_currentTryHandler is { } rh)
                     sb.AppendLine($"{indent}    {FailureGotoBody(rh, $"cf_re{rid}.message", $"cf_re{rid}.category")}");
                 else
@@ -3032,7 +3033,18 @@ public sealed partial class CodeGenerator
 
         var b = new StringBuilder();
         b.Append($"{cfl} {raw} = {{0}}; {{ const char* cf_so{id}; const char* cf_se{id}; int cf_ex{id}; CufetFailure cf_e{id}; ");
-        if (stages.Count == 1)
+        if (stages.Count == 1 && stages[0].WithTerminal)
+        {
+            // ★★ The launching statement's call, asking for the exit code it discards. The child
+            // gets this program's own descriptors, so there is nothing to capture — `output` and
+            // `errors` are empty BECAUSE they went to the terminal, which is the same fact the
+            // interpreter's record states. Only `exit-code` carries anything.
+            b.Append($"(void)cf_so{id}; (void)cf_se{id}; ");
+            b.Append($"if (cufet_run_inherit({progVars[0]}, cf_av{id}_0, &cf_e{id}, &cf_ex{id})) {{ ");
+            b.Append($"{raw}.is_failure = 0; {raw}.val = ({cr}){{ .{fErr} = \"\", .{fExit} = cufet_dec_from_ll(cf_ex{id}), .{fOut} = \"\" }}; ");
+            b.Append($"}} else {{ {raw}.is_failure = 1; {raw}.message = cf_e{id}.message; {raw}.category = cf_e{id}.category; }} ");
+        }
+        else if (stages.Count == 1)
         {
             b.Append($"if (cufet_run_capture({progVars[0]}, cf_av{id}_0, NULL, &cf_so{id}, &cf_se{id}, &cf_ex{id}, &cf_e{id})) {{ ");
             b.Append($"{raw}.is_failure = 0; {raw}.val = ({cr}){{ .{fErr} = cf_se{id}, .{fExit} = cufet_dec_from_ll(cf_ex{id}), .{fOut} = cf_so{id} }}; ");

@@ -252,10 +252,20 @@ public sealed partial class Interpreter
         var args    = RunArguments(run.Args, run.ArgsSeries);
         try
         {
+            // ⚠ Same hazard the launching statement names: the child writes to the same descriptor
+            // this program writes through, so anything still buffered here would arrive after the
+            // child's output rather than before it. Only the terminal form shares a descriptor.
+            if (run.WithTerminal) _out.Flush();
+
             var psi = new ProcessStartInfo(program)
             {
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
+                // ★★ THE WHOLE DIFFERENCE BETWEEN THE TWO EXPRESSION FORMS, in two flags. Capturing
+                // gives the child pipes and keeps the terminal for Cufet, which is why nothing
+                // appears until it exits and why anything that draws cannot start. `with the
+                // terminal` redirects nothing, so the child gets this program's own stdin, stdout
+                // and stderr — a terminal when there is one, and a pipe when there is not.
+                RedirectStandardOutput = !run.WithTerminal,
+                RedirectStandardError  = !run.WithTerminal,
                 UseShellExecute        = false,
             };
             // Each argument added individually — no shell, no injection possible.
@@ -267,9 +277,16 @@ public sealed partial class Interpreter
                 ?? throw new InvalidOperationException($"Process.Start returned null for '{program}'");
 
             // Read stdout and stderr concurrently — sequential reads deadlock when the process
-            // fills one pipe buffer while Cufet is blocked draining the other.
-            var stdoutTask = Task.Run(() => proc.StandardOutput.ReadToEnd());
-            var stderrTask = Task.Run(() => proc.StandardError.ReadToEnd());
+            // fills one pipe buffer while Cufet is blocked draining the other. Nothing to read on
+            // the terminal form: those streams belong to the child, not to a pipe.
+            var stdoutTask = run.WithTerminal ? null : Task.Run(() => proc.StandardOutput.ReadToEnd());
+            var stderrTask = run.WithTerminal ? null : Task.Run(() => proc.StandardError.ReadToEnd());
+
+            // ★ While the child holds the terminal, an interrupt belongs to IT and not to this
+            // program — the same bookkeeping the launching statement does, for the same reason.
+            if (run.WithTerminal) EnterForegroundChild();
+            try
+            {
             // Poll instead of blocking: lets Ctrl-C kill the child tree and unwind.
             // Needed because redirecting stdout/stderr can detach the child from the console
             // process group, preventing Windows from forwarding Ctrl-C automatically.
@@ -285,21 +302,26 @@ public sealed partial class Interpreter
                     break;
                 }
             }
-            Task.WaitAll(stdoutTask, stderrTask);
+            if (stdoutTask != null && stderrTask != null) Task.WaitAll(stdoutTask, stderrTask);
             // ⚠⚠ The rule the statement checkpoint in Interpreter.Core.cs states, which this path used
             // to skip: unwinding unconditionally tore a program down before it could poll, so
             // `If an interrupt is requested:` could never survive a launch. Ignore interrupts and Ctrl-C
             // behaves as it does everywhere else; handle them and you are in charge of them here too.
             if (_interruptRequested && !_programHandlesInterrupts) throw new InterruptUnwind();
 
+            // ⚠ `output` and `errors` are empty on the terminal form, and that is honest rather than
+            // arbitrary: they are empty BECAUSE they went to the terminal instead of into a pipe.
+            // Only `exit-code` carries anything, which is the whole reason the form exists.
             return new RecordValue(
                 [],
                 [
-                    ("errors",    (object)stderrTask.Result),
+                    ("errors",    (object)(stderrTask?.Result ?? "")),
                     ("exit-code", (object)(decimal)proc.ExitCode),
-                    ("output",    (object)stdoutTask.Result),
+                    ("output",    (object)(stdoutTask?.Result ?? "")),
                 ]
             );
+            }
+            finally { if (run.WithTerminal) LeaveForegroundChild(); }
         }
         // ⚠ BEFORE the launch-failure catch, and routed somewhere else entirely. A platform with
         // no processes is not a launch that failed — see CannotRunPrograms. Left uncaught it
