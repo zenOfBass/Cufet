@@ -665,6 +665,129 @@ typedef struct { const char* message; const char* category; } CufetFailure;
 
 """;
 
+    // Running out of stack. Always emitted: any program can recurse, and the thing this replaces is
+    // a program that vanishes without a word. See the block comment inside for why it is CAUGHT
+    // rather than predicted — the short version is that every way of predicting it costs more than
+    // it is worth, and that was measured rather than reasoned.
+    private const string StackGuardRuntime =
+"""
+/* ── Running out of stack ─────────────────────────────────────────────────────────────────────
+   ⚠⚠ A program that recursed past the end of its stack used to VANISH. On Windows: exit code
+   0xC00000FD and not one character on either stream. On Linux: a segfault whose only word,
+   "Segmentation fault", comes from the SHELL rather than from us — and is gone the moment the
+   program is run from anything but an interactive one. The interpreter says what happened; the
+   compiled program said nothing at all.
+
+   ★★ It is CAUGHT rather than PREDICTED, and that was measured rather than reasoned. Any per-call
+   check has to take the address of a local, and gcc will not reuse the frame of a function whose
+   local's address was taken — so any check silently disables tail-call flattening. MEASURED
+   2026-09-05, one self-recursive function, gcc -O2, three ways:
+
+       no check at all    flattened into a loop, ran forever on no stack whatsoever
+       depth counter      segfault — the counter CAUSED the crash it was meant to report
+       headroom check     grew the stack until it tripped — flattening lost
+
+   Both checks turn a program that runs in constant space into one that dies. Asking the operating
+   system AFTERWARDS costs nothing per call, so the generated code is byte-for-byte what it was and
+   gcc keeps flattening whatever it can.
+
+   ⚠ What that costs instead, and it is not nothing: the message cannot name a function or a line,
+   because a signal handler may only call a short list of async-signal-safe things and has no idea
+   which Cufet function it was in — and it cannot be caught by `In case of exception`, which the
+   interpreted form CAN be. That divergence is deliberate; see DESIGN.md.
+
+   ⚠⚠ Only a fault near THIS THREAD'S OWN STACK is reported this way, and the bounds are read per
+   thread because a rabbit runs on its own. Anything else is a genuine bad pointer, and laying a
+   calm Cufet sentence over a real crash would be worse than the silence this replaces. When the
+   bounds cannot be read, the guard is simply not installed: claiming nothing beats guessing. */
+#define CUFET_DEEP_MSG "This program ran out of stack. How deep a program can go depends on where it runs, and this is as far as it could go here.\n"
+#if defined(__unix__) || defined(__APPLE__)
+#include <signal.h>
+#include <unistd.h>
+#include <pthread.h>
+/* The handler needs a stack of its own — the program's has just run out. Per thread, so a rabbit
+   that overflows has somewhere to land too; small, because all it does is write and exit. */
+#define CUFET_ALTSTACK 32768
+/* The guard region sits just BELOW the mapped stack, so the faulting address is a little past the
+   low end rather than inside it. */
+#define CUFET_STACK_SLACK 65536
+static _Thread_local char cufet_altstack[CUFET_ALTSTACK];
+static _Thread_local char* cufet_stack_lo = 0;
+static _Thread_local char* cufet_stack_hi = 0;
+static void cufet_on_segv(int sig, siginfo_t* info, void* ctx) {
+    (void)ctx;
+    char* at = info ? (char*)info->si_addr : (char*)0;
+    if (cufet_stack_lo && at >= cufet_stack_lo - CUFET_STACK_SLACK && at <= cufet_stack_hi) {
+        ssize_t wrote = write(2, CUFET_DEEP_MSG, sizeof(CUFET_DEEP_MSG) - 1);
+        (void)wrote;
+        _exit(1);
+    }
+    /* Not ours. Put the default action back and return onto the faulting instruction, so the
+       process dies exactly as it would have and a core file still says where. */
+    signal(sig, SIG_DFL);
+}
+static void cufet_watch_stack(void) {
+    stack_t ss;
+    ss.ss_sp = cufet_altstack; ss.ss_size = CUFET_ALTSTACK; ss.ss_flags = 0;
+    if (sigaltstack(&ss, (stack_t*)0) != 0) return;
+#if defined(__APPLE__)
+    {
+        char* top = (char*)pthread_get_stackaddr_np(pthread_self());
+        size_t size = pthread_get_stacksize_np(pthread_self());
+        if (top && size) { cufet_stack_hi = top; cufet_stack_lo = top - size; }
+    }
+#elif defined(__GLIBC__)
+    {
+        pthread_attr_t attr; void* addr = 0; size_t size = 0;
+        if (pthread_getattr_np(pthread_self(), &attr) == 0) {
+            if (pthread_attr_getstack(&attr, &addr, &size) == 0 && addr && size) {
+                cufet_stack_lo = (char*)addr;
+                cufet_stack_hi = (char*)addr + size;
+            }
+            pthread_attr_destroy(&attr);
+        }
+    }
+#endif
+    if (!cufet_stack_lo) return;   /* bounds unknown — install nothing rather than guess */
+    {
+        struct sigaction sa; memset(&sa, 0, sizeof(sa));
+        sa.sa_sigaction = cufet_on_segv;
+        sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+        sigaction(SIGSEGV, &sa, (struct sigaction*)0);
+        sigaction(SIGBUS, &sa, (struct sigaction*)0);
+    }
+}
+#elif defined(_WIN32)
+/* ⚠ LEAN_AND_MEAN and NOMINMAX before windows.h, because RuntimeSplit copies preprocessor lines
+   into the HEADER as well — so whatever this drags in is dragged into the generated program too,
+   where a stray `min`/`max` macro would collide with generated code. */
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+static LONG WINAPI cufet_on_overflow(EXCEPTION_POINTERS* info) {
+    if (info && info->ExceptionRecord
+        && info->ExceptionRecord->ExceptionCode == (DWORD)EXCEPTION_STACK_OVERFLOW) {
+        DWORD wrote = 0;
+        WriteFile(GetStdHandle(STD_ERROR_HANDLE), CUFET_DEEP_MSG,
+                  (DWORD)(sizeof(CUFET_DEEP_MSG) - 1), &wrote, (LPOVERLAPPED)0);
+        /* ⚠ TerminateProcess, not ExitProcess. MEASURED: ExitProcess runs the C runtime's shutdown
+           — atexit handlers, stream flushes, DLL detach — on the very stack that just ran out, and
+           faults partway through. The message came out and the program then reported 0xC0000005,
+           an access violation, so a fixed stack overflow looked like a fresh crash. Terminating
+           runs none of that. Nothing is lost: stdout is line-buffered to a console and this path
+           is a program ending badly, not a program ending. */
+        TerminateProcess(GetCurrentProcess(), 1);
+    }
+    return EXCEPTION_CONTINUE_SEARCH;   /* anything else dies as it always did */
+}
+/* One filter for the whole process, so unlike the POSIX side there is nothing per thread. */
+static void cufet_watch_stack(void) { SetUnhandledExceptionFilter(cufet_on_overflow); }
+#else
+static void cufet_watch_stack(void) {}
+#endif
+
+""";
+
     // Text runtime. Text is `const char*` and immutable — every operation allocates a fresh
     // result in the current arena (freed at Done.); literals stay static. Trim/parse are
     // ASCII/invariant (matching the interpreter for ASCII input); CASING IS NOT HERE — it needs a

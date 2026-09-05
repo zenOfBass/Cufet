@@ -1497,6 +1497,12 @@ public sealed partial class CodeGenerator
         // a named task publishes its own result; it is unused by fire-and-forget tasks.
         _taskFns.AppendLine($"struct cufet_targ{tid} {{ cufet_rbox* cf_selfbox; {string.Join(" ", caps.Select(c => $"{CapCType(c)} {MangleName(c)};"))} }};");
         _taskFns.AppendLine($"static void* cufet_task{tid}(void* argp) {{");
+        // ⚠ Per thread, and this is why: a rabbit runs on its OWN stack, with its own bounds and
+        // its own need for somewhere to land when that stack runs out. The handler is installed
+        // process-wide, but the alternate stack and the bounds it compares against are thread-local,
+        // so a worker that overflows without this would fall through to the default and die silently
+        // — exactly the thing being fixed, hidden one level down.
+        _taskFns.AppendLine($"    cufet_watch_stack();");
         _taskFns.AppendLine($"    struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)argp;");
         // The arena must exist before a bridged capture can be copied into it.
         _taskFns.AppendLine($"    cufet_arena_push();");

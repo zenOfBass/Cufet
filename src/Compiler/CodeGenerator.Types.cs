@@ -210,6 +210,11 @@ static const char* cufet_str_lower(const char* s) {
         // ── Runtime: includes + software decimal + print helpers ──────────
         runtime.AppendLine(RuntimePreamble);
 
+        // ⚠ Unconditional, unlike the signal substrate below it: any program at all can recurse
+        // past the end of its stack, and what this replaces is a program that vanishes without a
+        // word. It costs nothing at run time — nothing is emitted into any function.
+        runtime.AppendLine(StackGuardRuntime);
+
         // ── Arena allocator ───────────────────────────────────────────────
         // Pull a rabbit → cufet_arena_push(); body; Done. → cufet_arena_pop().
         // Arena is a tracked-pointer list: every cufet_arena_alloc() registers
@@ -536,6 +541,9 @@ static const char* cufet_str_lower(const char* s) {
             // Before anything is printed. Threads inherit the process's stdout mode, so tasks are
             // covered by this one call. See CUFET_NL for why it is needed at all.
             body.AppendLine("    CUFET_STDOUT_BINARY();");
+            // Before anything can recurse. Nothing else in the program is affected by this call:
+            // it installs a handler and returns, and no generated function carries a check.
+            body.AppendLine("    cufet_watch_stack();");
             // SIGINT landing pad (CONC.E): install the handler + establish main's interrupt pad. On an
             // unhandled interrupt a checkpoint siglongjmps here; we tear down (pop all arenas — nested
             // included — free any live channels, flush) and exit 130 (128+SIGINT). Guarded so a non-signal
