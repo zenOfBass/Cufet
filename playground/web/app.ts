@@ -127,8 +127,20 @@ monaco.languages.setLanguageConfiguration(LANGUAGE_ID, {
 // It also buys the theme. VS Code colour themes are scope→colour rules, so they only mean
 // anything if the tokenizer produces real TextMate scopes. Monarch could not have consumed one.
 //
-// All of it is async (a wasm fetch, two JSON fetches), so it deliberately does NOT block the
-// editor from appearing. Monaco renders unhighlighted for a moment, then re-tokenizes.
+// ⚠⚠ All of it is async — a wasm fetch and two JSON fetches — and it is AWAITED before the editor
+// is created. It did not used to be: the editor appeared at once and Monaco was left to re-tokenize
+// when the grammar turned up. That is a promise Monaco cannot always keep. Registering a tokenizer
+// against a model that already exists repaints synchronously only the line ranges an attached view
+// has reported by then, and hands the rest to a background pass that runs inside
+// `requestIdleCallback` — and a phone booting a 4.9 MB runtime need never grant an idle slot.
+// Measured on Opera for Android: the program stayed in the default foreground indefinitely, keywords
+// and numbers included, while the semantic layer coloured the names on top of nothing. Waiting did
+// not fix it; scrolling did, because scrolling reports a visible range.
+//
+// So the model is not created until its tokenizer exists, and the first paint is the right one. The
+// cost is the 508 KB below landing before the editor appears, and the runtime's own download
+// starting that much later. Correct colours on arrival are worth more than an editor that is on
+// screen a moment sooner and wrong.
 async function startHighlighting(): Promise<void> {
     const [wasm, grammarSource, theme] = await Promise.all([
         fetch('./onig.wasm').then(r => r.arrayBuffer()),
@@ -279,6 +291,18 @@ function encodeSemanticTokens(jsonLines: string): Uint32Array {
     }
 
     return new Uint32Array(data);
+}
+
+// ★ Top-level await, which the bundle supports: build.mjs emits ESM at es2022 and index.html loads
+// it as a module. The whole file below is therefore evaluated with the grammar already registered.
+//
+// ★ Still caught, and for the reason it always was: highlighting is a nicety and running Cufet is
+// the point. If the grammar, the theme or the regex engine fails to load, say so in the console and
+// carry on to build a working uncoloured editor rather than taking the page down with it.
+try {
+    await startHighlighting();
+} catch (e) {
+    console.error('syntax highlighting failed to start:', e);
 }
 
 const editor = monaco.editor.create(element('editor'), {
@@ -712,11 +736,6 @@ let pendingAutoRun = true;
 setBusy(false);
 spawnWorker();
 
-// Highlighting is a nicety; running Cufet is the point. If the grammar, the theme or the regex
-// engine fails to load, say so in the console and leave a working uncoloured editor rather than
-// taking the page down with it.
-startHighlighting().catch(e => console.error('syntax highlighting failed to start:', e));
-
-// Neither of these blocks the runtime, and neither can take the page down: the editor and Run
-// are what the page is for, and both work with no examples and no colour.
+// ⚠ The example list does not block the runtime and cannot take the page down: the editor and Run
+// are what the page is for, and both work with no examples at all.
 loadExampleList().catch(e => console.error('the example list failed to load:', e));
