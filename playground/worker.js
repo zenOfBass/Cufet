@@ -83,11 +83,22 @@ handle = ({ id, kind, source }) => {
 // ★ Failure is swallowed on purpose. Running Cufet is the point and these two files are a nicety;
 // if the manifest or a file cannot be fetched, the page still works and those examples fail
 // exactly as they did before. The console says what happened.
+// ⚠⚠ A DEADLINE, because this sits on the critical path to `ready` and a nicety must never be
+// able to hold the interpreter hostage. Seeding blocks `ready` on purpose — the page auto-runs
+// the instant it hears it, so seeding afterwards is a race — but 'on purpose' is not 'at any
+// cost'. Past this, the worker reports ready anyway and says in the console what it could not
+// place; the two examples that read files then fail exactly as they did before seeding existed.
+//
+// ★ Generous on purpose. Measured against GitHub Pages these are four small files at ~0.1s each,
+// so five seconds is ~12x the healthy case: long enough that a slow connection still gets its
+// files, short enough that nobody sits looking at a dead Run button wondering.
+const SEED_DEADLINE_MS = 5000;
+
 async function placeSeedFiles() {
     /** @type {string[]} */
     let paths = [];
     try {
-        const response = await fetch("./seed-manifest.json");
+        const response = await fetch("./seed-manifest.json", { signal: AbortSignal.timeout(SEED_DEADLINE_MS) });
         if (!response.ok) throw new Error(`seed-manifest.json: ${response.status}`);
         paths = await response.json();
     } catch (e) {
@@ -97,7 +108,7 @@ async function placeSeedFiles() {
 
     await Promise.all(paths.map(async path => {
         try {
-            const file = await fetch(`./${path}`);
+            const file = await fetch(`./${path}`, { signal: AbortSignal.timeout(SEED_DEADLINE_MS) });
             if (!file.ok) throw new Error(`${path}: ${file.status}`);
             const failure = runtime.PlaceFile(path, await file.text());
             if (failure) console.warn(`could not place ${path}:`, failure);
@@ -107,7 +118,17 @@ async function placeSeedFiles() {
     }));
 }
 
-await placeSeedFiles();
+// ⚠ The per-fetch aborts above cap each request; this caps the WHOLE step. Without it, four
+// requests each finishing just inside their own deadline could still add up to a long wait.
+let seeded = false;
+await Promise.race([
+    placeSeedFiles().then(() => { seeded = true; }),
+    new Promise(resolve => setTimeout(resolve, SEED_DEADLINE_MS)),
+]);
+if (!seeded)
+    console.warn(
+        `seeding did not finish within ${SEED_DEADLINE_MS} ms — starting anyway. Examples that `
+        + `read a file may report it as not found.`);
 
 for (const request of pending) handle(request);
 pending.length = 0;

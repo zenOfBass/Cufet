@@ -107,3 +107,25 @@ test('worker.js reports the message and detects the exit', () => {
         'worker.js no longer detects that the runtime EXITED, so the page cannot know to replace the '
         + 'worker and will keep asking a dead runtime');
 });
+
+// ⚠⚠ Seeding sits on the critical path to `ready`: the worker places files BEFORE telling the
+// page it is alive, because the page auto-runs the instant it hears that. Deliberate — and it
+// means a stalled fetch keeps the Run button dead with no explanation. The deadline is what
+// stops a nicety from holding the interpreter hostage, and it is invisible when it works, which
+// is exactly the kind of safeguard that gets tidied away by someone simplifying the function.
+test('seeding cannot block the runtime from becoming ready', () => {
+    const source = readFileSync(join(playground, 'worker.js'), 'utf8');
+
+    assert.match(source, /SEED_DEADLINE_MS/,
+        'worker.js seeds files with no deadline. Seeding blocks `ready`, so a stalled fetch now '
+        + 'holds the Run button dead indefinitely — a text file two examples read must never be '
+        + 'able to do that.');
+
+    assert.match(source, /AbortSignal\.timeout/,
+        'the seed fetches are not aborted on the deadline, so a stalled request is left holding a '
+        + 'socket even after the worker gives up waiting for it');
+
+    assert.match(source, /Promise\.race/,
+        'each fetch may be capped but the whole seeding step is not — four requests each finishing '
+        + 'just inside their own deadline still add up to a long wait before `ready`');
+});
