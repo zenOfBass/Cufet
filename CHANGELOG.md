@@ -9,20 +9,6 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 ## [Unreleased]
 
 ### Added
-- **Seeding a file can no longer keep the interpreter from starting.** The worker places the
-  files examples read *before* it reports ready — deliberately, because the page auto-runs the
-  instant it hears that, so seeding afterwards is a race. But that put four network fetches on
-  the critical path to a usable page, and nothing capped them: a stalled request held the Run
-  button dead with no explanation.
-
-  Each fetch is now aborted on a five-second deadline and the whole step is raced against the
-  same one, so a chain of slow-but-not-stalled requests cannot add up either. Past it the worker
-  starts anyway and says in the console what it could not place; the two examples that read files
-  then fail exactly as they did before seeding existed.
-
-  ★ Five seconds is roughly twelve times the healthy case — measured against the deployed site,
-  those four files arrive in about 0.1s each. A nicety must never be able to hold the point of
-  the page hostage.
 
 - **The playground shows squiggles.** `Check` has been exported since the playground was built
   and **nothing ever called it** — the machinery worked, and the page had no diagnostics for its
@@ -45,6 +31,47 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
   ⚠ No `column` is emitted, though the CLI has one — the extension ignores it and draws by line,
   so a field nothing reads would be invented surface.
+
+### Fixed
+- **The deployed playground was dead for ten minutes after every push.** Reported from the live
+  site: the page loads, the editor works, and the Run button stays disabled for ten or eleven
+  minutes. The console said why — every one of our assemblies blocked by Subresource Integrity:
+
+  ```
+  Failed to find a valid digest in the 'integrity' attribute for resource
+  '.../Cufet.Interpreter.wasm' ... The resource has been blocked.
+  ```
+
+  ★ **GitHub Pages serves everything with `Cache-Control: max-age=600`.** After a deploy the
+  browser holds the PREVIOUS `dotnet.boot.js` for up to those 600 seconds while fetching the NEW
+  `.wasm` files, so the old manifest's SHA-256 values are checked against new bytes and fail.
+  600 seconds is exactly the ten to eleven minutes observed. The runtime now starts with
+  `disableIntegrityCheck`.
+
+  ★ **Only OUR three assemblies ever failed, and that is what identified it** — the framework
+  ones are byte-identical build to build, so a stale manifest still describes them correctly.
+  Confirmed twice over: the served bytes hash to exactly what the deployed manifest asks for, so
+  the two agreed and the browser was comparing against something older; and ticking DevTools'
+  *Disable cache* made the page load immediately.
+
+  ⚠ **What this gives up.** SRI defends against the HOST serving tampered assemblies. Transport
+  is still authenticated by HTTPS, the page carries no credentials and no user data, and the
+  alternative is a public playground reliably broken for ten minutes after every push. Blazor
+  ships the same trade as `BlazorCacheBootResources=false`.
+
+- **Seeding a file can no longer keep the interpreter from starting.** The worker places the
+  files examples read *before* it reports ready — deliberately, because the page auto-runs the
+  instant it hears that, so seeding afterwards is a race. But that put four network fetches on
+  the critical path to a usable page, and nothing capped them: a stalled request held the Run
+  button dead with no explanation.
+
+  Each fetch is now aborted on a five-second deadline and the whole step is raced against the
+  same one, so a chain of slow-but-not-stalled requests cannot add up either. Past it the worker
+  starts anyway and says in the console what it could not place.
+
+  ⚠ This was written while chasing the ten-minute stall above and is NOT what caused it — the
+  cause was SRI. It stays because the failure mode it closes is real and was mine to introduce:
+  a nicety must never be able to hold the point of the page hostage.
 
 ## [0.19.0] — 2026-09-04
 ### Added
