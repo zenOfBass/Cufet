@@ -299,6 +299,13 @@ function encodeSemanticTokens(jsonLines: string): Uint32Array {
 // ★ Still caught, and for the reason it always was: highlighting is a nicety and running Cufet is
 // the point. If the grammar, the theme or the regex engine fails to load, say so in the console and
 // carry on to build a working uncoloured editor rather than taking the page down with it.
+// ⚠ The floor, set BEFORE the theme is fetched rather than passed to `create` below. Monaco's
+// standalone default is the LIGHT `vs` theme, which on this page would be a white editor in a dark
+// frame — so something dark has to be standing before anything can fail. `startHighlighting`
+// replaces it on success; if it throws, whatever it managed to set stays and this is the worst
+// case rather than the outcome.
+monaco.editor.setTheme('vs-dark');
+
 try {
     await startHighlighting();
 } catch (e) {
@@ -308,7 +315,12 @@ try {
 const editor = monaco.editor.create(element('editor'), {
     value: STARTER,
     language: LANGUAGE_ID,
-    theme: 'vs-dark',   // replaced by Arctic Candy Darker once the theme has been fetched
+    // ⚠⚠ NO `theme` here, and it is not an omission. `create` calls `setTheme` whenever this is a
+    // string, which SETS THE GLOBAL THEME — so naming one here would undo the Arctic Candy Darker
+    // that startHighlighting has already applied above. It used to say `vs-dark` and that was
+    // harmless only because the editor was built BEFORE the theme was fetched. Reversing that
+    // order turned a placeholder into an override, and the page came back in Monaco's stock
+    // palette with the real theme loaded and ignored.
     automaticLayout: true,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
