@@ -61,6 +61,12 @@ public sealed partial class Interpreter
                 $"{displayName} expects {func.ParameterNames.Count} argument(s), got {args.Count} (line {line}).");
 
         _callDepth++;
+        // ★ The real limit, asked before descending. See OutOfStack.
+        if (OutOfStack(displayName, line) is { } tooDeep)
+        {
+            _callDepth--;
+            throw tooDeep;
+        }
         if (_callDepth > _maxCallDepth)
         {
             _callDepth--;
@@ -148,6 +154,12 @@ public sealed partial class Interpreter
     private object? ExecuteMethod(ObjectValue receiver, BindStatement method, IReadOnlyList<IExpression> args, int line)
     {
         _callDepth++;
+        // ★ The real limit, asked before descending. See OutOfStack.
+        if (OutOfStack($"'{method.Name}'", line) is { } tooDeep)
+        {
+            _callDepth--;
+            throw tooDeep;
+        }
         if (_callDepth > _maxCallDepth)
         {
             _callDepth--;

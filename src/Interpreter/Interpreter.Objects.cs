@@ -1,4 +1,6 @@
-﻿namespace Cufet.Interpreter;
+﻿using System.Runtime.CompilerServices;
+
+namespace Cufet.Interpreter;
 
 public sealed partial class Interpreter
 {
@@ -61,6 +63,12 @@ public sealed partial class Interpreter
     private object ExecuteGetterMethod(ObjectValue receiver, GetterDeclaration getter, int line)
     {
         _callDepth++;
+        // ★ The real limit, asked before descending. See OutOfStack.
+        if (OutOfStack($"Getter '{getter.Name}'", line) is { } tooDeep)
+        {
+            _callDepth--;
+            throw tooDeep;
+        }
         if (_callDepth > _maxCallDepth)
         {
             _callDepth--;
@@ -102,6 +110,16 @@ public sealed partial class Interpreter
         _inSetterFor = (receiver.TypeName, setter.Name);
 
         _callDepth++;
+        // ★ The real limit, asked before descending. See OutOfStack.
+        if (OutOfStack($"Setter '{setter.Name}'", line) is { } tooDeep)
+        {
+            _callDepth--;
+            // ⚠ The same restore the depth check below performs. A setter marks itself so a
+            // recursive write to its own field bypasses re-dispatch; leaving that mark set on the
+            // way out would make the NEXT write to that field skip the setter entirely.
+            _inSetterFor = prevInSetterFor;
+            throw tooDeep;
+        }
         if (_callDepth > _maxCallDepth)
         {
             _callDepth--;
@@ -264,10 +282,14 @@ public sealed partial class Interpreter
     private void ExecuteUnmake(UnmakerDeclaration ud, ObjectValue receiver)
     {
         _callDepth++;
-        if (_callDepth > _maxCallDepth)
+        // ⚠ Swallowed, not thrown, because an unmaker is infallible — the same answer the depth
+        // check below gives. Refusing here would surface a failure from cleanup, at a point the
+        // program has no way to handle.
+        if (_callDepth > _maxCallDepth
+            || !RuntimeHelpers.TryEnsureSufficientExecutionStack())
         {
             _callDepth--;
-            return; // infallible — swallow instead of throwing
+            return;
         }
 
         var saved      = SaveScopes();

@@ -40,37 +40,27 @@ public static partial class Runtime
             // stdin to read. Error goes to the same buffer as output so nothing a program
             // writes can silently vanish.
             //
-            // ⚠⚠ A depth limit this host can SURVIVE, and it is the difference between a message
-            // and a dead page. The CLI runs the interpreter on a 16 MB thread (RunOnLargeStack) and
-            // never approaches the 1000 default; a browser gives whatever stack wasm has, and the
-            // real stack dies first. A .NET StackOverflowException cannot be caught, so the catch
-            // below never runs, the Mono runtime is gone, and the visitor sees NOTHING — not an
-            // error, not the output printed before it, not the program they typed.
+            // ⚠⚠ NO depth limit of its own any more, and that is the change: the interpreter now
+            // asks the REAL stack whether it can descend (see OutOfStack), so a browser needs no
+            // guess about how deep is survivable.
             //
-            // ★ MEASURED, not chosen: a minimal recursive function returns at depth 275 and kills
-            // the runtime at 300. But the ceiling is not one number — it is however many C# frames
-            // one Cufet call costs, and that varies with the program: a body that nests a few calls
-            // inside arithmetic dies between 140 and 150. 100 sits under both.
+            // ★ What the guess cost: a count cannot know what a call costs, and the cost varies
+            // hugely with the program. Measured here, a minimal recursive function survived depth
+            // 275 while one nesting a few calls inside arithmetic died between 140 and 150 — so
+            // the number picked to be safe for the second (100) refused perfectly good programs
+            // of the first kind, and STILL did not save `examples/algorithms/sudoku.cufe`, which
+            // never reached a call depth of 100 at all. Its stack went on nested statement frames
+            // BETWEEN calls, which a call count cannot see.
             //
-            // ⚠⚠ So this catches RUNAWAY RECURSION and nothing more, and the distinction is worth
-            // stating because the obvious reading is wrong. Measured: depths 300, 900 and 5000 now
-            // print this message instead of killing the page. `examples/algorithms/sudoku.cufe`
-            // still kills it, and lowering the number would not save it — sudoku never reaches a
-            // call depth of 100. Its stack goes on nested Execute frames BETWEEN calls (loops and
-            // conditionals inside the body), and statement nesting is not what this counts.
+            // ★★ Measured after: sudoku now runs further than it ever did here, stops with an
+            // ordinary Cufet refusal, and leaves the runtime answering — where it used to take
+            // the whole page down with nothing shown at all.
             //
-            // ★ The instrument that would cover both is RuntimeHelpers.TryEnsureSufficientExecution-
-            // Stack(), which measures remaining stack rather than proxying it with a call count, and
-            // which was MEASURED to work under wasm here — it reported exhaustion at depth 31,213
-            // without killing the runtime. Using it means checking inside Execute/Evaluate, which is
-            // a change to the interpreter and to the CLI, so it is not folded in here unasked.
-            //
-            // ⚠ Raising the wasm stack was tried and does NOT work. `-s STACK_SIZE=` was verified
-            // to reach the emcc link (in emcc-link.rsp, via the SDK's own $(EmccStackSize)), and
-            // 1MB and 16MB produce the SAME ceiling — so the emscripten stack is not the binding
-            // limit and this cannot be fixed from the csproj.
-            new CufetInterpreter(output, new StringReader(""), output, maxCallDepth: 100)
-                .Execute(program);
+            // All three streams are passed explicitly. Leaving any of them null falls back to
+            // Console, and Console.In throws PlatformNotSupported in a browser — there is no
+            // stdin to read. Error goes to the same buffer as output so nothing a program writes
+            // can silently vanish.
+            new CufetInterpreter(output, new StringReader(""), output).Execute(program);
         }
         catch (Exception e) when (e is LexerException or ParseException or TypeException or RuntimeException)
         {

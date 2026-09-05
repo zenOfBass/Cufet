@@ -1,4 +1,5 @@
-﻿using Cufet.Lexer;
+﻿using System.Runtime.CompilerServices;
+using Cufet.Lexer;
 using System.Globalization;
 
 namespace Cufet.Interpreter;
@@ -555,6 +556,40 @@ public sealed partial class Interpreter
     /// overload has no name at all and describes itself instead.
     /// </para>
     /// </remarks>
+    /// <summary>Refuses to descend when the real stack is nearly gone.</summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ This is the REAL limit; <see cref="TooDeep"/>'s call count is a proxy for it. A count
+    /// cannot know how much stack a call costs, and the cost varies enormously with the program:
+    /// measured in the browser, a minimal recursive function survived depth 275 while one nesting
+    /// a few calls inside arithmetic died between 140 and 150. No single number is right for both,
+    /// which is why the playground had to pick one low enough to refuse legitimate programs.
+    /// </para>
+    /// <para>
+    /// ⚠ A .NET StackOverflowException cannot be caught — it takes the process down. In a browser
+    /// that meant the page died with no message and nothing the visitor had typed survived. This
+    /// asks BEFORE descending, so the answer is an ordinary Cufet refusal.
+    /// </para>
+    /// <para>
+    /// ★ Checked where a CALL happens rather than at every statement, and both were measured on
+    /// `examples/algorithms/sudoku.cufe` — the program that used to kill the page. Per-statement
+    /// works too and costs more: the reserve comfortably covers the handful of frames between one
+    /// call and the next. Calls are also where a line number is already in hand.
+    /// </para>
+    /// <para>
+    /// ⚠ Not a total guarantee. A single enormous expression could exhaust the rest between
+    /// checks, and recursion that never passes through a call site is not seen at all. It covers
+    /// the shape real programs actually have.
+    /// </para>
+    /// </remarks>
+    private RuntimeException? OutOfStack(string subject, int line) =>
+        RuntimeHelpers.TryEnsureSufficientExecutionStack()
+            ? null
+            : new RuntimeException(
+                $"{subject} ran out of stack (line {line}). How deep a program can go depends on "
+                + "where it runs, and this is as far as it could go here — a browser allows far "
+                + "less room than a terminal does.");
+
     private RuntimeException TooDeep(string subject, int line) =>
         new($"{subject} went deeper than {_maxCallDepth} calls (line {line}).");
 
@@ -2060,6 +2095,12 @@ public sealed partial class Interpreter
     private object ExecuteOperatorOverload(OperatorOverloadDeclaration oad, object left, object right, int line)
     {
         _callDepth++;
+        // ★ The real limit, asked before descending. See OutOfStack.
+        if (OutOfStack($"The '{oad.LeftTypeName} {OpSymbol(oad.Operator)} {oad.RightTypeName}' overload", line) is { } tooDeep)
+        {
+            _callDepth--;
+            throw tooDeep;
+        }
         if (_callDepth > _maxCallDepth)
         {
             _callDepth--;
