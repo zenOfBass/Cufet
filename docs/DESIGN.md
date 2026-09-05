@@ -917,7 +917,32 @@ Why the interpreter and the compiler must agree, and what that agreement is stan
   the single worst thing a teaching language can do. Having refused the category, the
   project cannot also claim the latitude that comes with it. The narrow exception is
   behaviour that is genuinely platform-owned — last-ULP `pow`, filesystem enumeration
-  order — where there is no single right answer to converge on.
+  order, **running out of stack** — where there is no single right answer to converge on.
+
+  *Running out of stack, in full, because it is the widest of those exceptions.* The
+  interpreter refuses at a fixed call depth and raises an ordinary exception: `In case of
+  exception` catches it, `Suppress the exception.` continues, and the program exits 0. A
+  compiled program instead runs until the machine's real stack is gone, and then prints
+  that it ran out and exits 1 — uncatchable, and naming no function or line. So the two
+  differ in **how deep**, in **what is said**, and in **whether it can be caught**.
+
+  The depth is the easy part: a compiled program should be allowed the room it actually
+  has rather than be held to a number chosen for an interpreter. The other two are the
+  price of *catching* the overflow rather than *predicting* it, and predicting it was
+  measured and rejected. Any per-call check has to take the address of a local, and gcc
+  will not reuse the frame of a function whose local's address was taken — so a depth
+  counter and a how-much-room-is-left test both disable tail-call flattening. Measured on
+  one self-recursive function at `-O2`: with no check it flattened into a loop and ran
+  forever on no stack at all; with a depth counter it segfaulted; with a headroom check it
+  grew the stack until it tripped. **Either check turns a program that runs in constant
+  space into one that dies.** Refusing to break those programs is worth a coarser message
+  and an uncatchable end, on the grounds that running out of stack is a defect rather than
+  a condition anyone plans around.
+
+  ⚠ What is NOT accepted here is silence, which is what this replaced: a compiled program
+  that overflowed used to exit `0xC00000FD` on Windows with nothing on either stream, and
+  segfault on Linux where the only word — "Segmentation fault" — comes from the shell and
+  vanishes the moment the program is run from anything else.
 
   *What the rule buys.* Every disagreement has a known location and a forced resolution:
   make it precise on both sides, or make the compiler **refuse**. A `CompilerException` is

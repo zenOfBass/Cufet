@@ -160,6 +160,37 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   desktop browser at any window width. A browser that grants the idle slot promptly hid this
   completely, which is the whole reason it survived to be found on a phone.
 
+- **A compiled program that runs out of stack says so, instead of vanishing.** Measured before:
+  on Windows, exit code `0xC00000FD` and not one character on either stream; on Linux, a segfault
+  whose only word — "Segmentation fault" — comes from the *shell* and disappears the moment the
+  program is run from anything but an interactive one. The interpreted form has always explained
+  itself. Now both do, and a compiled program ends with exit 1 like any other Cufet refusal.
+
+  ★★ **It is caught rather than predicted, and that was measured rather than reasoned.** Any
+  per-call check has to take the address of a local, and gcc will not reuse the frame of a function
+  whose local's address was taken — so any check silently disables tail-call flattening. One
+  self-recursive function at `-O2`, three ways:
+
+  | | result |
+  |---|---|
+  | no check at all | flattened into a loop, ran forever on no stack whatsoever |
+  | depth counter | segfault — the counter *caused* the crash it was meant to report |
+  | how-much-room-is-left check | grew the stack until it tripped — flattening lost |
+
+  Both checks turn a program that runs in constant space into one that dies. Asking the operating
+  system afterwards costs nothing per call, so the generated code is byte-for-byte what it was.
+
+  ⚠ **The two backends now differ in three ways here, all deliberate and all written down in
+  DESIGN.md**: how deep they go, what they say, and whether it can be caught. The interpreter
+  refuses at a fixed depth with an ordinary exception that `In case of exception` catches and
+  `Suppress the exception.` continues past; a compiled program uses the room it actually has and
+  then ends, naming no function and no line — a signal handler may only call a short list of
+  async-signal-safe things and has no idea which Cufet function it was in.
+
+  ⚠ Only a fault near the faulting thread's own stack is reported this way, and the bounds are read
+  per thread because a rabbit runs on its own. Anything else dies exactly as it did before: laying
+  a calm Cufet sentence over a genuine bad pointer would be worse than the silence this replaces.
+
 - **The runtime cache verifies the object it hands out instead of trusting the path.** On 2026-09-02
   a suite run under WSL produced 32 failures, every one an `undefined reference to cufet_dec_lit`
   and friends, and `rm -rf ~/.cache/cufet` cured all of them. That reads as a code-generator
