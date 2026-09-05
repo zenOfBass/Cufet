@@ -10,11 +10,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **The playground has the examples in it.** 35 of the corpus's 38 programs, grouped by the
+- **The playground has the examples in it.** 33 of the corpus's 38 programs, in a menu, grouped by the
   folders they already live in — `basics`, `algorithms`, `parsing`, `structures`, `language`,
   `concurrency`, `systems` — which read as an order to meet them in. Picking one loads it into
   the editor. The corpus is the best account of what the language can do, and until now none of
   it was reachable from the page that exists to show the language off.
+
+  ★ **A menu, not a dropdown.** A native `<select>` reads as a setting you are changing; this is
+  navigation — you are going to look at something. So it is a disclosure button carrying three
+  drawn rules and the word *Examples*, opening a grouped panel: the glyph says it opens, the word
+  says what is behind it. Arrow keys walk it, Escape closes it and returns focus to the button,
+  and a click anywhere else dismisses it.
 
   ★ **Run still runs the file in the editor**, because that is what `cufet <file>` does. No
   notion of a "main file" had to be invented: a program's siblings are reached by `Pull`, not by
@@ -24,11 +30,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ★ Multi-file examples work: `ledger.cufe` pulls `bookkeeping.cufe`, which is already placed at
   boot. Picking does NOT run — reading something and running it are two decisions.
 
-  ⚠ **Three are left out** — `foreign`, `foreign-memory` and `subprocess-pipes` need a C compiler
-  or real processes. They are selected out by scanning for the CONSTRUCT anchored at the start of
-  a line, never the bare word: `examples/language/axioms.cufe` discusses C axioms at length in its
+  ⚠ **Four are left out, for two different reasons, because a list of examples promises that the
+  things on it work.** `foreign`, `foreign-memory` and `subprocess-pipes` need a C compiler or
+  real processes, and are selected out by scanning for the CONSTRUCT anchored at the start of a
+  line, never the bare word: `examples/language/axioms.cufe` discusses C axioms at length in its
   opening comment while using none, and a word search drops a working example with nobody the
-  wiser. Measured, the scan picks exactly the three the runtime reports as unable to run here.
+  wiser. Measured, that scan picks exactly the three the runtime reports as unable to run here.
+
+  The other two are behavioural and no scan could see either. `sudoku.cufe` starts fine and cannot
+  FINISH: it needs more stack than a browser has, prints a partial board and stops. `gameoflife.cufe`
+  runs perfectly and finishes — it is left out because it prints one board per generation and the
+  point is watching them ARRIVE. A terminal writes output as it goes; this page buffers a run and
+  paints it once, so the animation becomes a static wall of boards.
+
+  ★★ **An exclusion says whether the runtime can CHECK it.** Three are refused outright and the
+  test fails if they ever stop being refused, so the entry cannot go stale. `gameoflife` is a
+  judgement about presentation that nothing can verify, and it is marked `verifiable: false`
+  rather than dressed up as a fact — with the two smaller things that CAN be held to it: the
+  reason is written down, and the program must still run, so a real breakage cannot hide behind
+  an exclusion made for a different reason.
 
   ★★ **And the test holds the scan to that, in both directions** — every listed example must
   actually run, and every example left off must actually be unable to. The second half is the one
