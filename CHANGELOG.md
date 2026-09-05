@@ -207,6 +207,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   child does not share, so anything stated before the launch could appear after the child’s own
   output. Windows structurally cannot see this — it was caught compiling under WSL gcc.
 
+### Fixed
+- **A program that killed the runtime showed `[object Object]`, and bricked the page.** Reported
+  from the deployed playground on `examples/algorithms/sudoku.cufe`. One symptom, two faults:
+
+  ★ **Emscripten throws an `ExitStatus` object, not an `Error`** — so `String(e)` is literally
+  `"[object Object]"`, while the text sits on `.message`. The worker was doing `String(e)`.
+
+  ⚠⚠ **And the runtime was then gone.** Measured: after such an exit, every later run throws too —
+  while the page kept `booted` true and went on asking a corpse. One deep program made the
+  playground useless until a reload, and nothing said so. The page now replaces the worker, the
+  same recovery Stop already performed, so the next run works.
+
+  The message states the fact and does not diagnose, for the same reason the depth message does: an
+  exit says the runtime is gone, never why. Deep recursion is named as *one known* cause — this
+  page allows far less stack than the command line — without claiming it is the cause this time.
+
+  ★ Both facts the fix rests on are pinned by a test in its own process (killing the runtime
+  poisons everything after it), and a second test guards our own use of them — without it,
+  reverting to `String(e)` brings the bug back with every test still passing.
 ### Added
 - **The playground has a test, and CI runs it before deploying.** It had none — the front end has
   no DOM to assert on, and asserting on Monaco would mostly assert on Monaco. What is testable
