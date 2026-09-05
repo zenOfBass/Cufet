@@ -160,6 +160,33 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   desktop browser at any window width. A browser that grants the idle slot promptly hid this
   completely, which is the whole reason it survived to be found on a phone.
 
+- **The runtime cache verifies the object it hands out instead of trusting the path.** On 2026-09-02
+  a suite run under WSL produced 32 failures, every one an `undefined reference to cufet_dec_lit`
+  and friends, and `rm -rf ~/.cache/cufet` cured all of them. That reads as a code-generator
+  regression and is not one, and it cost most of an hour before the cache was suspected at all.
+
+  ★★ **The mechanism was never identified and these guards do not need it.** What the failure *was*
+  is now measured: a symbol-poor object. An object compiled from empty source is a well-formed
+  936-byte ELF with no defined symbols that the linker accepts without a word, and every runtime
+  call then comes back undefined — that wording exactly. A merely truncated object cannot be it,
+  because `ld` says `file too short` for those. So the entry was a real object built from nothing
+  much, and the whole class is "the object does not define what the program is about to call".
+
+  ★ **That class is checkable directly, and now is, twice.** When an object is built, the cache
+  generates a few lines of C that take the address of every function the runtime defines and asks
+  gcc to link it — an object defining nothing fails there, at the moment it is made. And every time
+  one is reused, its bytes are checked against a SHA-256 recorded when it passed, which covers an
+  object that was good when built and was damaged or replaced afterwards.
+
+  ⚠ It uses gcc and nothing else, deliberately: `nm` would be a second tool a person has to install,
+  and this cache exists to protect the property that gcc is the only one. It costs one gcc
+  invocation per cache **miss** and none on a hit.
+
+  ⚠ A note in `RuntimeCache` blamed the rest of the toolchain — glibc, binutils, system headers —
+  for sitting outside the key. That was checked and does not hold: every conditional in the runtime
+  is `_WIN32`, `__unix__` or `__APPLE__`, none of which a library upgrade can move. The note is
+  corrected rather than left standing as a plausible wrong answer.
+
 - **Seven files carried a byte-order mark they were never meant to have.** The 0.19.0 version bump
   wrote them through a step that strips a BOM when reading and adds one when writing, so
   `editors/vscode/package.json`, both playground manifests and the four `.csproj` files each
