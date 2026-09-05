@@ -7,7 +7,6 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 ---
 
 ## [Unreleased]
-
 ### Added
 - **A module can carry a type, so a type can cross a file boundary.** An object body took only
   `Bind`, `Get` and `Set`, and a loaded file shares nothing but its module — so a type declared in
@@ -207,26 +206,6 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   child does not share, so anything stated before the launch could appear after the child’s own
   output. Windows structurally cannot see this — it was caught compiling under WSL gcc.
 
-### Fixed
-- **A program that killed the runtime showed `[object Object]`, and bricked the page.** Reported
-  from the deployed playground on `examples/algorithms/sudoku.cufe`. One symptom, two faults:
-
-  ★ **Emscripten throws an `ExitStatus` object, not an `Error`** — so `String(e)` is literally
-  `"[object Object]"`, while the text sits on `.message`. The worker was doing `String(e)`.
-
-  ⚠⚠ **And the runtime was then gone.** Measured: after such an exit, every later run throws too —
-  while the page kept `booted` true and went on asking a corpse. One deep program made the
-  playground useless until a reload, and nothing said so. The page now replaces the worker, the
-  same recovery Stop already performed, so the next run works.
-
-  The message states the fact and does not diagnose, for the same reason the depth message does: an
-  exit says the runtime is gone, never why. Deep recursion is named as *one known* cause — this
-  page allows far less stack than the command line — without claiming it is the cause this time.
-
-  ★ Both facts the fix rests on are pinned by a test in its own process (killing the runtime
-  poisons everything after it), and a second test guards our own use of them — without it,
-  reverting to `String(e)` brings the bug back with every test still passing.
-### Added
 - **Every example is swept through the playground before it deploys.** The bug that reached a
   visitor was `Process_PlatformNotSupported` — a .NET resource key, shown by a language whose whole
   claim is readable messages. It was found by sweeping the corpus by hand, and nothing would have
@@ -251,7 +230,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the four launch sites and nothing failed: `subprocess-pipes.cufe` goes through the PIPE path,
   which is separate. With all four disabled the sweep named it — `leaked host vocabulary:
   "Process_PlatformNotSupported"`.
-### Added
+
 - **A book in another file now loads in the playground, so the module system can demonstrate
   itself.** `examples/language/ledger.cufe` — a program written across two files, holding a type
   declared in the other one — failed on the page that exists to show the language off, with *"there
@@ -272,7 +251,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠ This was also a trap waiting for a file UI: without it, letting someone create a `.cufe` file
   and pull it would have answered "there is nothing named ... to pull", which reads as a language
   bug rather than a missing playground feature.
-### Added
+
 - **The playground has a test, and CI runs it before deploying.** It had none — the front end has
   no DOM to assert on, and asserting on Monaco would mostly assert on Monaco. What is testable
   without a browser is the runtime surface the page talks to, and the seeding path above is the
@@ -289,7 +268,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the way a list can: the first draft matched only the whole-file reads and silently missed
   `wordfreq.cufe`, which opens a stream. A test now asserts the derivation matched something at
   all, because an empty set passes every assertion below it.
-### Added
+
 - **The examples that read a file now run in the playground.** `examples/parsing/config.cufe` and
   `examples/algorithms/wordfreq.cufe` read files that exist in a checkout and not in a browser, so
   both met a truthful `not found` and could not demonstrate themselves on the page that exists to
@@ -314,6 +293,50 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠ Parent directories are created by the HOST placing the file, which is not the language being
   lenient: Cufet has no directory-creating operation, and `Write` to a path whose directory is
   missing fails on a real OS exactly as it does here. That agreement is deliberate.
+
+- **A book may live in another file.** `Pull a book on ‹name›.` now resolves a bundled book, then
+  a module defined here, then `‹name›.cufe` beside the file being run:
+
+  ```
+  Pull a book on greeting-kit.
+      State cast greeting-kit's greet on ("world").
+  Done.
+  ```
+
+  ★★ **Not a new mechanism.** `Pull` already resolved a bundled book and a module defined in the
+  same file — and a module is an object claiming the `module` interface, while a book is a module
+  the language ships with. This adds a third place to look for the same object. The namespace, the
+  member access and the scope ending at `Done.` were all decided when modules were.
+
+  ★ **Resolved and compiled TOGETHER**, as one program. That keeps whole-program visibility, which
+  dispatch coverage, the bounded open-union tag set and monomorphization all depend on — so
+  versions of a name across files needed no design change. Separate compilation is a different
+  feature, buys only build speed, and is deferred.
+
+  ⚠ **A loaded file is lexed at an offset**, because tokens and exceptions carry a line and no
+  file. The line then appears twice in an error — the reporter’s header and the prose — and 163
+  places in the front end write one into a message, so the resolution is applied to the composed
+  message rather than at each of them. A single-file program allocates no block, so nothing it
+  prints can change.
+
+  ⚠ A ring of books is refused and the message names the ring. A book pulled by two others loads
+  once. A missing file falls through to the refusal `Pull` already had.
+
+- **A loaded file’s top level belongs to that file.** What it declares beside its module — a
+  helper function, a constant, a type — is reachable inside that file and nowhere else.
+
+  ★★ **No `private` keyword; the file is what hides.** A module’s members are reached through its
+  name because a module is an object, and everything else is the author’s working material. This
+  is the case that already bit once: an overflow-guarded multiply wanted in two places inside
+  `math` was inlined twice, magic constant and all, rather than become a permanent public member.
+
+  ★ Two books may each have a `helper`. Before this both hoisted to program scope and the
+  duplicate-name refusal fired on two declarations in two files a reader never saw together.
+
+  ⚠ Done by renaming to something unwritable — the trick monomorphization and dispatch versions
+  both use — so the checker learns no new scope. The file’s own references are renamed with it,
+  and the rewrite rides on the reflection walk rather than a hand-written list of node kinds.
+
 ### Changed
 - **The playground front end is TypeScript, checked strictly.** Not because the JavaScript was
   buggy — measurably it was not. The playground's bug history is almost entirely C#-side, and its
@@ -343,7 +366,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   later on null, two `noUncheckedIndexedAccess` guards, `worker` null-checks that state an
   invariant the types could not see, and the boot notice separated from the reply lookup it used to
   fall through by accident. The bundle grew 124 bytes on 2.74 MB.
+
 ### Fixed
+- **A program that killed the runtime showed `[object Object]`, and bricked the page.** Reported
+  from the deployed playground on `examples/algorithms/sudoku.cufe`. One symptom, two faults:
+
+  ★ **Emscripten throws an `ExitStatus` object, not an `Error`** — so `String(e)` is literally
+  `"[object Object]"`, while the text sits on `.message`. The worker was doing `String(e)`.
+
+  ⚠⚠ **And the runtime was then gone.** Measured: after such an exit, every later run throws too —
+  while the page kept `booted` true and went on asking a corpse. One deep program made the
+  playground useless until a reload, and nothing said so. The page now replaces the worker, the
+  same recovery Stop already performed, so the next run works.
+
+  The message states the fact and does not diagnose, for the same reason the depth message does: an
+  exit says the runtime is gone, never why. Deep recursion is named as *one known* cause — this
+  page allows far less stack than the command line — without claiming it is the cause this time.
+
+  ★ Both facts the fix rests on are pinned by a test in its own process (killing the runtime
+  poisons everything after it), and a second test guards our own use of them — without it,
+  reverting to `String(e)` brings the bug back with every test still passing.
+
 - **Editing an example while the suite ran was reported as a behaviour change.** A full run takes
   several minutes, most of it gcc, and the files under test are ordinary source files sitting open
   in an editor. One typed character during a run produced a failure that said *"Both backends
@@ -593,50 +636,6 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   because of the hole — a "Calling:" block tagged as a runnable program while calling functions
   declared in a different block, and a lambda example calling an `apply` that was never declared
   anywhere. The doc fence gate caught both the moment the checker started looking.
-
-### Added
-- **A book may live in another file.** `Pull a book on ‹name›.` now resolves a bundled book, then
-  a module defined here, then `‹name›.cufe` beside the file being run:
-
-  ```
-  Pull a book on greeting-kit.
-      State cast greeting-kit's greet on ("world").
-  Done.
-  ```
-
-  ★★ **Not a new mechanism.** `Pull` already resolved a bundled book and a module defined in the
-  same file — and a module is an object claiming the `module` interface, while a book is a module
-  the language ships with. This adds a third place to look for the same object. The namespace, the
-  member access and the scope ending at `Done.` were all decided when modules were.
-
-  ★ **Resolved and compiled TOGETHER**, as one program. That keeps whole-program visibility, which
-  dispatch coverage, the bounded open-union tag set and monomorphization all depend on — so
-  versions of a name across files needed no design change. Separate compilation is a different
-  feature, buys only build speed, and is deferred.
-
-  ⚠ **A loaded file is lexed at an offset**, because tokens and exceptions carry a line and no
-  file. The line then appears twice in an error — the reporter’s header and the prose — and 163
-  places in the front end write one into a message, so the resolution is applied to the composed
-  message rather than at each of them. A single-file program allocates no block, so nothing it
-  prints can change.
-
-  ⚠ A ring of books is refused and the message names the ring. A book pulled by two others loads
-  once. A missing file falls through to the refusal `Pull` already had.
-
-- **A loaded file’s top level belongs to that file.** What it declares beside its module — a
-  helper function, a constant, a type — is reachable inside that file and nowhere else.
-
-  ★★ **No `private` keyword; the file is what hides.** A module’s members are reached through its
-  name because a module is an object, and everything else is the author’s working material. This
-  is the case that already bit once: an overflow-guarded multiply wanted in two places inside
-  `math` was inlined twice, magic constant and all, rather than become a permanent public member.
-
-  ★ Two books may each have a `helper`. Before this both hoisted to program scope and the
-  duplicate-name refusal fired on two declarations in two files a reader never saw together.
-
-  ⚠ Done by renaming to something unwritable — the trick monomorphization and dispatch versions
-  both use — so the checker learns no new scope. The file’s own references are renamed with it,
-  and the rewrite rides on the reflection walk rather than a hand-written list of node kinds.
 
 ## [0.18.0] — 2026-08-30
 
@@ -1163,7 +1162,6 @@ kept in a series, held in an object field, run wherever it lands. Coroutines fin
 it, with `For each` over a stash and a method that can bury.
 
 ### Added
-
 - **A `cufet` block can hold VALUES, and that is where `Cite` earns its keep.** A type belongs to
   the program wherever it is written, so citing a block of objects places nothing a plain
   declaration would not have. A value lands at the site that cited it — so one block, cited twice,
@@ -1311,8 +1309,104 @@ it, with `For each` over a stash and a method that can bury.
   expanded by the parser, which runs before anything is cited. A conformer writing its own method
   works.
 
-### Fixed
+### Changed
+- **The playground drops ICU, and its download is 35% smaller** — 4.38 MB compressed down to
+  2.86 MB, a saving of 1.52 MB. The note that deferred this estimated "roughly 200 KB"; it counted
+  the two `.dat` files and missed that linking ICU out shrinks the native runtime as well.
 
+  ★ It had been deferred for two reasons and both had expired. The first was that it could not be
+  built locally, because the emscripten relink it forces cannot handle a space in the build path
+  — the checkout moved to a space-free path, so the blocker was the PATH, never the flag. The
+  second was that it "changes culture-sensitive formatting", which turned out to be pointing at
+  the number-literal fault above rather than at a risk: with parsing and printing pinned to the
+  invariant culture, there is nothing culture-sensitive left for it to change.
+
+- **The reference is split, and the four long docs moved into `docs/`.** Books have their own
+  document now: [BOOKS.md](docs/BOOKS.md) holds `math`, `collections`, `chance`, `matrix`, and
+  foreign source — because `Pull a book on the c-language.` is the same construct as `Pull a book
+  on math.`, so a language book is documented where books are. `Pull` itself stays in REFERENCE:
+  pulling is a module mechanism one level above books. REFERENCE, GRAMMAR, DESIGN and ROADMAP now
+  live under `docs/`; README, CHANGELOG, CONTRIBUTING, LICENSE and NOTICE stay at the root. **Any
+  link to the old top-level paths needs updating.**
+
+- **A bundled book is pulled as a book.** `Pull math.` is refused; write
+  `Pull a book on math.` (or `Pull books on math, and collections.`). The plain
+  `Pull <name>.` form is for a module you defined. Programs using the old spelling must change.
+
+  ```
+  That doesn't work: 'math' is a book, so it is pulled as one.
+  The plain form is for a module you defined; a book is a library the language ships.
+    Write 'Pull a book on math.' — or 'Pull books on math, and <other>.' for several at once.
+  ```
+
+  ⚠ **This reverses something 0.16.0 shipped, and it was never a decision.** The general
+  `Pull <module>` branch swallowed bundled names on its way past, and a test then pinned the
+  accident — it was called `ABookIsPulledByTheSameFormAsAModule` and its note called the plain form
+  "the point of the whole exercise". Pulling *is* one mechanism and asks the same question
+  everywhere; what it should not do is hide which KIND of thing is being pulled. A library the
+  language ships and an object you wrote are not the same thing, and the noun is what reads besides:
+  *a book on math* is English, *a math* is not.
+
+  ★ Also corrected in GRAMMAR and REFERENCE: a book was described as conforming "by CONSTRUCTION
+  (its members are native)". **That stopped being true in 0.16.0** — `math` has no native part left
+  and `collections`'s only native piece is the `matrix` type. What makes something a book is that it
+  is a **library**, not how it is implemented.
+
+- **A body resolves the names it can see where it is WRITTEN — plus any MODULE its caller
+  pulled.** Deferring an unresolved name in a function or method body exists for one reason: a
+  pulled module is a capability of the block that uses the body, which is what lets a module's
+  method say `math's pi` and leave `math` to whoever pulls it. That reason only ever covered module
+  names. It was applied to *every* name, so a plain typo was indistinguishable from a capability and
+  waited until the line ran to say so:
+
+  ```
+  Bind number to sneaky:
+      Return borrowed + 1.        ← `borrowed` is a local of the CALLER
+  Done.
+  ```
+
+  That is dynamic scoping, it checked clean, and nothing ever wanted it. It is a static error now.
+  The lexical half of the rule was already in force — a body using a top-level constant declared
+  further down was refused, with a message recommending closures — so this finishes a rule the
+  error messages already assumed.
+
+  ★ **"Module" means DECLARED**: a bundled book, or an object marked `and module`. An **alias is
+  not one**. `Pull math as m.` makes `m` an ordinary name in that block, so a body written inside
+  the pull still sees it; a body written outside does not. Measured before choosing: no aliased
+  pull exists anywhere in the prelude or the examples, and both aliased-pull tests declare their
+  function inside the pull. The one shape this removes worked only while every caller happened to
+  pick the same alias — rename it at one call site and the function breaks with nothing to point at.
+
+  ⚠ **Known gap, now bounded.** A module's needs are checked at its pull but are not transitively
+  closed: a module reaching `math` only through a free function it calls is still missed, as is a
+  function reached through a variable rather than by name. That surface used to be every name; it is
+  now module names only.
+
+- **One ownership story: every nonlocal exit releases the same four things, through one place.**
+  A jump out of a block has to run unmakers, close files, pop exception pads and pop rabbit arenas —
+  always those four, always in that order. That was written out longhand at **nine** sites, with
+  four parallel per-loop stacks feeding them and two handler records carrying four loose cleanup
+  fields each. Nothing checked that the nine agreed, and twice they did not: `FailureGotoBody`'s own
+  comment records the first time (*"three of the four were already out of step when arenas were
+  added"*), and `Suppress` was the second — see below.
+
+  There is now one `CleanupPoint` — a mark taken where a jump will land — and one `UnwindTo(point)`:
+
+  ```
+  _loopExits.Add(HereCleanup());                          // was three Adds and a conditional fourth
+  sb.AppendLine($"{indent}{UnwindTo(LoopExit)}break;");   // was four nested calls
+  ```
+
+  ★ The invariant is structural now rather than remembered: a new kind of releasable thing is one
+  field on `CleanupPoint` and one term in `UnwindTo`, and every site gets it, because no site spells
+  the parts out any more.
+
+  ⚠ It also removed a shape that could not be right: the four per-loop stacks were pushed at three
+  different places, and the unmaker one only when the program had unmakers — so they could hold
+  **different lengths**. Nothing indexed them together, so nothing had gone wrong yet. One list of
+  marks cannot have that shape.
+
+### Fixed
 - **A number literal meant different things on different machines — silently.** The interpreter
   parsed literals and printed numbers with the AMBIENT culture, so on a German machine `1.5` was
   read as fifteen and `1234.75` as 123475: wrong arithmetic, wrong output, no error. On a French
@@ -1809,106 +1903,6 @@ it, with `For each` over a stash and a method that can bury.
   ★ Also fixed by the same recursion: a burying function nested inside an **ordinary** method was
   not rewritten either, and its `bury` survived to a backend.
 
-### Changed
-
-- **The playground drops ICU, and its download is 35% smaller** — 4.38 MB compressed down to
-  2.86 MB, a saving of 1.52 MB. The note that deferred this estimated "roughly 200 KB"; it counted
-  the two `.dat` files and missed that linking ICU out shrinks the native runtime as well.
-
-  ★ It had been deferred for two reasons and both had expired. The first was that it could not be
-  built locally, because the emscripten relink it forces cannot handle a space in the build path
-  — the checkout moved to a space-free path, so the blocker was the PATH, never the flag. The
-  second was that it "changes culture-sensitive formatting", which turned out to be pointing at
-  the number-literal fault above rather than at a risk: with parsing and printing pinned to the
-  invariant culture, there is nothing culture-sensitive left for it to change.
-
-- **The reference is split, and the four long docs moved into `docs/`.** Books have their own
-  document now: [BOOKS.md](docs/BOOKS.md) holds `math`, `collections`, `chance`, `matrix`, and
-  foreign source — because `Pull a book on the c-language.` is the same construct as `Pull a book
-  on math.`, so a language book is documented where books are. `Pull` itself stays in REFERENCE:
-  pulling is a module mechanism one level above books. REFERENCE, GRAMMAR, DESIGN and ROADMAP now
-  live under `docs/`; README, CHANGELOG, CONTRIBUTING, LICENSE and NOTICE stay at the root. **Any
-  link to the old top-level paths needs updating.**
-
-- **A bundled book is pulled as a book.** `Pull math.` is refused; write
-  `Pull a book on math.` (or `Pull books on math, and collections.`). The plain
-  `Pull <name>.` form is for a module you defined. Programs using the old spelling must change.
-
-  ```
-  That doesn't work: 'math' is a book, so it is pulled as one.
-  The plain form is for a module you defined; a book is a library the language ships.
-    Write 'Pull a book on math.' — or 'Pull books on math, and <other>.' for several at once.
-  ```
-
-  ⚠ **This reverses something 0.16.0 shipped, and it was never a decision.** The general
-  `Pull <module>` branch swallowed bundled names on its way past, and a test then pinned the
-  accident — it was called `ABookIsPulledByTheSameFormAsAModule` and its note called the plain form
-  "the point of the whole exercise". Pulling *is* one mechanism and asks the same question
-  everywhere; what it should not do is hide which KIND of thing is being pulled. A library the
-  language ships and an object you wrote are not the same thing, and the noun is what reads besides:
-  *a book on math* is English, *a math* is not.
-
-  ★ Also corrected in GRAMMAR and REFERENCE: a book was described as conforming "by CONSTRUCTION
-  (its members are native)". **That stopped being true in 0.16.0** — `math` has no native part left
-  and `collections`'s only native piece is the `matrix` type. What makes something a book is that it
-  is a **library**, not how it is implemented.
-
-- **A body resolves the names it can see where it is WRITTEN — plus any MODULE its caller
-  pulled.** Deferring an unresolved name in a function or method body exists for one reason: a
-  pulled module is a capability of the block that uses the body, which is what lets a module's
-  method say `math's pi` and leave `math` to whoever pulls it. That reason only ever covered module
-  names. It was applied to *every* name, so a plain typo was indistinguishable from a capability and
-  waited until the line ran to say so:
-
-  ```
-  Bind number to sneaky:
-      Return borrowed + 1.        ← `borrowed` is a local of the CALLER
-  Done.
-  ```
-
-  That is dynamic scoping, it checked clean, and nothing ever wanted it. It is a static error now.
-  The lexical half of the rule was already in force — a body using a top-level constant declared
-  further down was refused, with a message recommending closures — so this finishes a rule the
-  error messages already assumed.
-
-  ★ **"Module" means DECLARED**: a bundled book, or an object marked `and module`. An **alias is
-  not one**. `Pull math as m.` makes `m` an ordinary name in that block, so a body written inside
-  the pull still sees it; a body written outside does not. Measured before choosing: no aliased
-  pull exists anywhere in the prelude or the examples, and both aliased-pull tests declare their
-  function inside the pull. The one shape this removes worked only while every caller happened to
-  pick the same alias — rename it at one call site and the function breaks with nothing to point at.
-
-  ⚠ **Known gap, now bounded.** A module's needs are checked at its pull but are not transitively
-  closed: a module reaching `math` only through a free function it calls is still missed, as is a
-  function reached through a variable rather than by name. That surface used to be every name; it is
-  now module names only.
-
-- **One ownership story: every nonlocal exit releases the same four things, through one place.**
-  A jump out of a block has to run unmakers, close files, pop exception pads and pop rabbit arenas —
-  always those four, always in that order. That was written out longhand at **nine** sites, with
-  four parallel per-loop stacks feeding them and two handler records carrying four loose cleanup
-  fields each. Nothing checked that the nine agreed, and twice they did not: `FailureGotoBody`'s own
-  comment records the first time (*"three of the four were already out of step when arenas were
-  added"*), and `Suppress` was the second — see below.
-
-  There is now one `CleanupPoint` — a mark taken where a jump will land — and one `UnwindTo(point)`:
-
-  ```
-  _loopExits.Add(HereCleanup());                          // was three Adds and a conditional fourth
-  sb.AppendLine($"{indent}{UnwindTo(LoopExit)}break;");   // was four nested calls
-  ```
-
-  ★ The invariant is structural now rather than remembered: a new kind of releasable thing is one
-  field on `CleanupPoint` and one term in `UnwindTo`, and every site gets it, because no site spells
-  the parts out any more.
-
-  ⚠ It also removed a shape that could not be right: the four per-loop stacks were pushed at three
-  different places, and the unmaker one only when the program had unmakers — so they could hold
-  **different lengths**. Nothing indexed them together, so nothing had gone wrong yet. One list of
-  marks cannot have that shape.
-
-### Fixed
-
 - **An error message could print `<unknown>`.** `the text at <a name that resolves to nothing>`
   reported *"reads through a foreign address, and this is a `<unknown>`"* — the discard arm of the
   type formatter, in front of a reader. The name-resolution pass answers null for a name it cannot
@@ -2282,7 +2276,6 @@ it, with `For each` over a stash and a method that can bury.
   having a member read off it. It says `'square-root' can't be read from a number — it has no such
   member` now, which points at the program.
 
-
 ## [0.16.0] — 2026-08-20
 
 **Everything pullable is an object.** A book is a module, a rabbit is a module, and a writer's
@@ -2292,7 +2285,6 @@ in one line of it; and all three pass as `module` values by *inheritance*, becau
 checker asks which kind arrived.
 
 ### Added
-
 - **The whole `math` book is written in Cufet, transcendentals included — and the libm
   caveat is retired.** Slice 3 of the 0.16.0 arc is complete. `square-root`, `log`, `exp` and
   `power` are computed on the decimal itself, in `Prelude/math.cufe`; nothing in either bundled
@@ -2337,181 +2329,6 @@ checker asks which kind arrived.
     through a `Pull`, so a book that is never pulled is dropped whole; that one line is back to
     210 bytes. The pull sites are collected by the type checker as it resolves them, so there is
     no separate AST walk to keep in step.
-
-### Fixed
-
-- **★ Stating a book printed a C# class name.** `State math.` gave
-  `Cufet.Interpreter.Interpreter+BookValue` interpreted, while the compiler printed `math()` —
-  a divergence and internal vocabulary shown to a reader, in one. `Format` had no arm for a
-  book, so it fell through to `val.ToString()`.
-
-  A module now prints as the object it is, everywhere: `math()`, `greeting-kit()`. There is
-  never anything inside the parentheses, because a module with fields is refused at the pull.
-
-  ⚠ **The same fallthrough leaked `MatrixValue` once before** — there is a comment recording it
-  three lines away. Twice is a pattern: a catch-all that ends in `ToString()` turns every type
-  nobody remembered into a host type name printed at the user.
-
-- **`is` on a rabbit or a function value emitted C that gcc refused.** Both type-checked and
-  ran interpreted, so `Pull a rabbit as hopper. … State hopper is grace.` printed `false` and
-  then would not build — *invalid operands to binary ==*.
-
-  The cause was the shape of the emitter rather than a missing type. Equality sent records,
-  objects and series to `EqCall` and let a **catch-all** handle everything else with `==`, on
-  the assumption that what was left were facts and maps. Anything else the checker permitted
-  arrived at `==` applied to a C struct. `EqCall` even had a correct rabbit arm — nothing
-  reached it, because a direct `is` never went there.
-
-  All equality now goes through `EqCall`, the one place that knows how each type compares, and
-  whose default arm refuses by name. ⚠ **The catch-all was the bug**: it assumed what was left
-  instead of saying it, so every type added since had joined it silently. A type nobody has
-  taught it now fails loudly instead of miscompiling.
-
-- **A bundled book's code could collide with names in the program that used it.** The prelude
-  is prepended to the program, and a method body imports the top-level functions and constants
-  around it — so a book's own local shared a scope with the writer's names. A program declaring
-  `Bind number to total` broke `log`, whose running sum is called `total`, with *'total' is
-  already defined*.
-
-  A book's Cufet layer now imports nothing from the writer's top level, on both backends. That
-  is the rule rather than a renaming: a book is written without sight of the program that pulls
-  it, so nothing in the program should be able to reach inside it. ⚠ The failure was invisible
-  until the books were written in Cufet — native members had no Cufet scope to collide with.
-
-- **A compiled division left its quotient in the wrong form, and it hid behind printing.**
-  `cufet_div` always reduced to scale 28 and never stripped the trailing zeros, so `11 / 10`
-  was carried as `1.1000…0` where .NET leaves `1.1`. Both backends *printed* `1.1` — the
-  formatter strips trailing zeros too — so the difference was invisible until some later
-  operation on that value overflowed at one scale and not the other. Found by exactly that
-  route: `power of (1.1, 3)` worked with a literal and failed with a computed `11 / 10`.
-
-  A quotient is now left in minimal form, matching the oracle. ⚠ **Worth remembering as a
-  shape:** a divergence that the printer normalises away is invisible to every output-comparing
-  test in the suite, and only becomes visible when it changes whether something *fails*.
-
-### Changed
-
-- **The arc's finish line: a writer's object, a rabbit and a book are all `module` VALUES.**
-  `given (the module m)` accepts all three on identical terms, on both backends — and they pass
-  by **inheritance**, not by any decision made about them. A module is an object, an object is
-  first class, so a module is first class. Nothing in the checker asks which *kind* of module
-  arrived, which is the whole of what this arc was for.
-
-  A book reaching that point took one change with a long run-up: **a pulled book binds at its
-  Cufet layer** — an ordinary object — rather than at `BookType`. That is only honest because
-  slices 1–3 moved every book member into Cufet first, so the layer *is* the book; a `BookType`
-  is not an object, so conformance had nothing to inherit from. `chance` gained a layer of its
-  own (`Prelude/chance.cufe`, carrying nothing, because its whole surface is syntax rather than
-  members) so that no book is left outside the rule.
-
-  ⚠ One thing this quietly fixed: `IsChancePulled` looked for a `BookType` in scope, so once the
-  layer was what got bound it found nothing and every `a random number` would have refused
-  itself. It asks by name over either shape now.
-
-- **★ A writer's own module reaches inside a function written in its pull, as a book always
-  could.** A pulled module is a lexical *capability*, not a local — it is in scope for everything
-  written in that block. Both backends decided that by asking "is this a book", so a book
-  survived into a detached body and a writer's module was dropped: interpreted it failed with
-  *'kit' isn't defined*, and the checker refused it before anyone noticed the backends disagreed.
-
-  They ask whether the binding came from a `Pull` now, which is what was meant all along. The
-  asymmetry had been invisible because the only modules anyone wrote were bundled books.
-
-- **A rabbit is an object, defined in Cufet — and a rabbit now passes as a `module` value.**
-  Slice 4 of the 0.16.0 arc, which carried slice 5's headline with it: `given (the module m)`
-  accepts a rabbit, a book, and a writer's own object on identical terms, on both backends. That
-  was never a separate decision — a module is an object, an object is first class, so a module is
-  first class **by inheritance**, and making the rabbit an object is what let the inheritance
-  happen.
-
-  Its definition lives in `Prelude/rabbit.cufe` and is one line: `Define object rabbit with ()
-  and module.` That became possible only once `rabbit` stopped being a reserved word, and it is
-  deliberately contentless — a rabbit has no fields, and its verbs are the language's floor
-  rather than methods with Cufet bodies. `bury` suspends the function around it, which is a
-  rewrite of that function rather than a call, so the compiler provides it exactly as it provides
-  `If`; when the compiler is itself written in Cufet, that provision moves with it.
-
-  - **`given (the rabbit r)` needs no special case anywhere.** `rabbit` is an identifier naming
-    an object type, so it resolves down the same path as `person` or `stack of number` — the
-    parser arm that produced a marker type is deleted rather than rerouted.
-  - **`State hopper.` prints `rabbit()`**, not `<rabbit hopper>`. It used to print its
-    *binding's* name, which nothing else in the language does — `Define x as 5. State x.` prints
-    `5`, not `x`.
-  - **Four ways to get a rabbit without its region are refused**: `a new rabbit { }`, redefining
-    the name, `unto rabbit`, and `Pull a book on rabbit.` **`Pull` is the only constructor**, and
-    for a rabbit that is load-bearing rather than tidy — pulling is what opens the region, so any
-    other route hands back a rabbit standing on no ground.
-  - The compiler binds a rabbit as the ordinary object struct the prelude already makes it
-    declare. That is also what unblocked passing one to an interface parameter: monomorphization
-    specialises on a concrete object type, and a marker type was not one.
-
-- **`book` and `books` are no longer reserved words either.** `For each book in books,
-  repeat:` is a line this language could not write — in a program about a library, which is the
-  first thing anyone would try. Both words are ordinary identifiers now, and a writer may even
-  define a module named `book` and pull it with `Pull book.`
-
-  They appear in exactly **one** spelling, `Pull a book on <name>.`, and a word spent on a
-  single construct is a name every writer loses forever. The `on` is what makes them decidable
-  without reserving anything: `Pull a book on math.` and `Pull book.` differ in their *second*
-  token, so one look settles which is meant. Both book spellings still read exactly as before.
-
-  ⚠ The two book branches had to move **ahead of** the general `Pull <module>` form in the
-  parser. That branch is gated on an identifier, and `book` is one now — it would otherwise
-  swallow the word as a module's name and then meet `on` where it wanted a `.`
-
-- **`rabbit` is no longer a reserved word.** It is a module's *name*, and no other module's
-  name is reserved — `math`, `collections` and `chance` are ordinary identifiers and always
-  were. What the books reserve is grammar (`book`, `books`, `on`), never identity; the rabbit
-  was the one module whose own name was a keyword, and that was the last thing making it a
-  privileged builtin rather than a module that ships in the box.
-
-  `Pull rabbit.` now works, so the general form `Pull <name> [as <alias>]` reaches a rabbit on
-  exactly the terms it reaches a book or a writer's own module. A writer may also use `rabbit`
-  for their own names.
-
-  ⚠ **Nothing else changed**: the word is still recognised where the parser needs it — pulling a
-  rabbit opens a region, and `Have rabbit …` addresses the enclosing one — but *recognising a
-  name is not reserving a word*. The whole suite passed unchanged, which is the proof.
-
-- **★ A rabbit is never compared.** `hopper is grace` used to type-check, interpret to `false`,
-  and emit C that gcc rejected. It is refused now, in the shared front end so both backends
-  refuse alike — including `hopper is hopper`, since the refusal is about what a rabbit *is*
-  rather than about which two you named.
-
-  A rabbit denotes a region with a lifetime of its own, not a value that can match another.
-  Refusing makes no claim and can become an answer the day something needs to tell rabbits
-  apart; answering could not be taken back.
-
-- **`math`'s two multi-word members are hyphenated — `square-root` and
-  `absolute-value`.** `math's square root of (144)` is now `math's square-root of (144)`.
-
-  The decision behind it is not about spelling. A book could name a member something a writer
-  **cannot** name a member on their own module, because an identifier holds no spaces — one more
-  way a bundled book was a privileged category, which is exactly what the 0.16.0 arc exists to
-  delete. Hyphenated compounds are also what every multi-word name in Cufet already looks like
-  (`add-edge`, `grand-total`, `parse-factor`, `how-many`); `square root` was the outlier.
-
-  Three things fall out of it, and they are the reason it was worth doing:
-
-  - **`absolute-value` is written in Cufet now**, since it is finally spellable. The whole of
-    `math` is Cufet except `square-root`, `log` and `power` — the three double-backed
-    transcendentals, which are the arc's remaining numerics work.
-  - **The parser stopped guessing.** A possessive member name is ONE token again. It used to
-    accumulate consecutive identifiers after `'s` — a greedy lookahead that existed solely to
-    spell those two names, and that decided how much to swallow by scanning ahead. It is the
-    same family as the `IsNamedAccessPattern` fragility the roadmap tracks, removed rather than
-    bounded.
-  - **~25 lines of dead C runtime are gone.** `cufet_math_floor`, `_ceiling`, `_round` and
-    `_abs` had no call site left once those members became Cufet; they were still being emitted.
-    The math runtime is now just the decimal↔double bridge the three transcendentals need.
-
-  Sweeping the docs for the rename also turned up a sample that had **never** been valid —
-  GRAMMAR showed `Define r as the square-root of 16.`, with no possessive, which is not how a
-  book member is reached. Corrected, and the doc-block baseline regenerated: it now pins **190**
-  samples, up from 186, the rest being blocks that had been checking clean since the generics
-  docs landed without ever being recorded.
-
-### Added
 
 - **★ `math` is half in Cufet: `floor`, `ceiling`, `round`, and decimal-precise `pi` and `e`.**
   The start of slice 3 of the 0.16.0 arc. The three rounding members are pure decimal
@@ -2592,57 +2409,6 @@ checker asks which kind arrived.
     own corrected helper — the old ones were left because unlowered stashes refuse loudly. The
     prelude is the first thing they miss silently, so five `unique` tests failed the moment it
     landed; every helper now runs the returned program.
-
-### Changed
-
-- **★ Compiled programs are optimized.** `build` passes `-O2`. Until now it passed no `-O` flag at
-  all, so "compiles to a native binary" was delivering an unoptimized one.
-
-  **Always on, with no opt-out** — the Go answer rather than the Rust one. There is no debug build
-  and no `--release`, because the common failure of the opt-in design is someone benchmarking the
-  default build, getting a bad number, and concluding the language is slow. Nothing is lost by
-  having no flag: `emit-c` already hands over the source, and anyone who wants `-O0` — stepping
-  through generated C in a debugger, triaging a suspected miscompilation — needs that source
-  anyway. Measured cost to the test suite: 17 seconds.
-
-  ⚠ `-O2` is what turns latent undefined behaviour into a wrong answer, so it ships with sanitizer
-  coverage rather than on its own:
-
-  - The sanitized test harness now compiles with `-fsanitize=address,undefined` and
-    `-fno-sanitize-recover=undefined`, so a UBSan finding **aborts** instead of printing to stderr
-    and letting a stdout-comparing test pass.
-  - **Every example now runs under ASan + UBSan + LeakSanitizer on Linux**, as part of the oracle
-    test that already built and ran them — so it costs no extra compiles. The examples are the only
-    realistic programs the suite has; the other sanitized tests are small and aimed at features
-    somebody already suspected.
-
-  Both were clean on first run (Linux gcc 16.1.1), including the three POSIX-only examples that
-  cannot build under mingw at all.
-
-- **★ The C runtime is its own translation unit, not 950 lines pasted into every file.** `emit-c`
-  now writes three files — your program, plus `cufet-runtime.c` and `cufet-runtime.h` beside it —
-  and they still compile anywhere with `gcc out.c cufet-runtime.c -o program`.
-
-  The point is readability and a missing rule, in that order. Emitted C was measured at **79% runtime
-  for a typical example and 98.9% for a small one** (`fibonacci`: 578 bytes of program in a 51 KB
-  file); `huffmancoding` went from 72 KB to 22 KB. And because a single file had to define every
-  runtime symbol above its first use, the emitter carried an ordering rule per block — the direct
-  cause of three "symbol emitted above its own declaration" defects in one session, each fixed by
-  moving code rather than by fixing a rule. The fixed runtime is now emitted before anything
-  generated, unconditionally, and that class is gone.
-
-  `build` compiles the runtime once and caches the object under the user cache directory
-  (`CUFET_CACHE_DIR` overrides; keyed by the runtime source, the gcc version and the flags, so a
-  compiler upgrade invalidates it). **The cache is never required** — if it cannot be written the
-  runtime is compiled alongside the program, so `gcc` remains the only thing anyone must install.
-  Measured saving is ~150 ms of gcc's ~500 ms; the remaining ~220 ms is link overhead that caching
-  cannot touch.
-
-  Also fixed in passing: `build` wrote its intermediate `<name>.c` beside the source and deleted it
-  afterwards, which destroyed a hand-written `<name>.c` if one existed. It uses a temporary
-  directory now.
-
-### Added
 
 - **A METHOD can leave a blank, so a book can be written in Cufet.** A module's members are
   methods, so generic free functions were not enough on their own:
@@ -2917,7 +2683,223 @@ checker asks which kind arrived.
   the parser, so the type checker, interpreter and code generator never learn the feature exists —
   no vtable, no type tag, nothing relaxed.
 
+### Changed
+- **The arc's finish line: a writer's object, a rabbit and a book are all `module` VALUES.**
+  `given (the module m)` accepts all three on identical terms, on both backends — and they pass
+  by **inheritance**, not by any decision made about them. A module is an object, an object is
+  first class, so a module is first class. Nothing in the checker asks which *kind* of module
+  arrived, which is the whole of what this arc was for.
+
+  A book reaching that point took one change with a long run-up: **a pulled book binds at its
+  Cufet layer** — an ordinary object — rather than at `BookType`. That is only honest because
+  slices 1–3 moved every book member into Cufet first, so the layer *is* the book; a `BookType`
+  is not an object, so conformance had nothing to inherit from. `chance` gained a layer of its
+  own (`Prelude/chance.cufe`, carrying nothing, because its whole surface is syntax rather than
+  members) so that no book is left outside the rule.
+
+  ⚠ One thing this quietly fixed: `IsChancePulled` looked for a `BookType` in scope, so once the
+  layer was what got bound it found nothing and every `a random number` would have refused
+  itself. It asks by name over either shape now.
+
+- **★ A writer's own module reaches inside a function written in its pull, as a book always
+  could.** A pulled module is a lexical *capability*, not a local — it is in scope for everything
+  written in that block. Both backends decided that by asking "is this a book", so a book
+  survived into a detached body and a writer's module was dropped: interpreted it failed with
+  *'kit' isn't defined*, and the checker refused it before anyone noticed the backends disagreed.
+
+  They ask whether the binding came from a `Pull` now, which is what was meant all along. The
+  asymmetry had been invisible because the only modules anyone wrote were bundled books.
+
+- **A rabbit is an object, defined in Cufet — and a rabbit now passes as a `module` value.**
+  Slice 4 of the 0.16.0 arc, which carried slice 5's headline with it: `given (the module m)`
+  accepts a rabbit, a book, and a writer's own object on identical terms, on both backends. That
+  was never a separate decision — a module is an object, an object is first class, so a module is
+  first class **by inheritance**, and making the rabbit an object is what let the inheritance
+  happen.
+
+  Its definition lives in `Prelude/rabbit.cufe` and is one line: `Define object rabbit with ()
+  and module.` That became possible only once `rabbit` stopped being a reserved word, and it is
+  deliberately contentless — a rabbit has no fields, and its verbs are the language's floor
+  rather than methods with Cufet bodies. `bury` suspends the function around it, which is a
+  rewrite of that function rather than a call, so the compiler provides it exactly as it provides
+  `If`; when the compiler is itself written in Cufet, that provision moves with it.
+
+  - **`given (the rabbit r)` needs no special case anywhere.** `rabbit` is an identifier naming
+    an object type, so it resolves down the same path as `person` or `stack of number` — the
+    parser arm that produced a marker type is deleted rather than rerouted.
+  - **`State hopper.` prints `rabbit()`**, not `<rabbit hopper>`. It used to print its
+    *binding's* name, which nothing else in the language does — `Define x as 5. State x.` prints
+    `5`, not `x`.
+  - **Four ways to get a rabbit without its region are refused**: `a new rabbit { }`, redefining
+    the name, `unto rabbit`, and `Pull a book on rabbit.` **`Pull` is the only constructor**, and
+    for a rabbit that is load-bearing rather than tidy — pulling is what opens the region, so any
+    other route hands back a rabbit standing on no ground.
+  - The compiler binds a rabbit as the ordinary object struct the prelude already makes it
+    declare. That is also what unblocked passing one to an interface parameter: monomorphization
+    specialises on a concrete object type, and a marker type was not one.
+
+- **`book` and `books` are no longer reserved words either.** `For each book in books,
+  repeat:` is a line this language could not write — in a program about a library, which is the
+  first thing anyone would try. Both words are ordinary identifiers now, and a writer may even
+  define a module named `book` and pull it with `Pull book.`
+
+  They appear in exactly **one** spelling, `Pull a book on <name>.`, and a word spent on a
+  single construct is a name every writer loses forever. The `on` is what makes them decidable
+  without reserving anything: `Pull a book on math.` and `Pull book.` differ in their *second*
+  token, so one look settles which is meant. Both book spellings still read exactly as before.
+
+  ⚠ The two book branches had to move **ahead of** the general `Pull <module>` form in the
+  parser. That branch is gated on an identifier, and `book` is one now — it would otherwise
+  swallow the word as a module's name and then meet `on` where it wanted a `.`
+
+- **`rabbit` is no longer a reserved word.** It is a module's *name*, and no other module's
+  name is reserved — `math`, `collections` and `chance` are ordinary identifiers and always
+  were. What the books reserve is grammar (`book`, `books`, `on`), never identity; the rabbit
+  was the one module whose own name was a keyword, and that was the last thing making it a
+  privileged builtin rather than a module that ships in the box.
+
+  `Pull rabbit.` now works, so the general form `Pull <name> [as <alias>]` reaches a rabbit on
+  exactly the terms it reaches a book or a writer's own module. A writer may also use `rabbit`
+  for their own names.
+
+  ⚠ **Nothing else changed**: the word is still recognised where the parser needs it — pulling a
+  rabbit opens a region, and `Have rabbit …` addresses the enclosing one — but *recognising a
+  name is not reserving a word*. The whole suite passed unchanged, which is the proof.
+
+- **★ A rabbit is never compared.** `hopper is grace` used to type-check, interpret to `false`,
+  and emit C that gcc rejected. It is refused now, in the shared front end so both backends
+  refuse alike — including `hopper is hopper`, since the refusal is about what a rabbit *is*
+  rather than about which two you named.
+
+  A rabbit denotes a region with a lifetime of its own, not a value that can match another.
+  Refusing makes no claim and can become an answer the day something needs to tell rabbits
+  apart; answering could not be taken back.
+
+- **`math`'s two multi-word members are hyphenated — `square-root` and
+  `absolute-value`.** `math's square root of (144)` is now `math's square-root of (144)`.
+
+  The decision behind it is not about spelling. A book could name a member something a writer
+  **cannot** name a member on their own module, because an identifier holds no spaces — one more
+  way a bundled book was a privileged category, which is exactly what the 0.16.0 arc exists to
+  delete. Hyphenated compounds are also what every multi-word name in Cufet already looks like
+  (`add-edge`, `grand-total`, `parse-factor`, `how-many`); `square root` was the outlier.
+
+  Three things fall out of it, and they are the reason it was worth doing:
+
+  - **`absolute-value` is written in Cufet now**, since it is finally spellable. The whole of
+    `math` is Cufet except `square-root`, `log` and `power` — the three double-backed
+    transcendentals, which are the arc's remaining numerics work.
+  - **The parser stopped guessing.** A possessive member name is ONE token again. It used to
+    accumulate consecutive identifiers after `'s` — a greedy lookahead that existed solely to
+    spell those two names, and that decided how much to swallow by scanning ahead. It is the
+    same family as the `IsNamedAccessPattern` fragility the roadmap tracks, removed rather than
+    bounded.
+  - **~25 lines of dead C runtime are gone.** `cufet_math_floor`, `_ceiling`, `_round` and
+    `_abs` had no call site left once those members became Cufet; they were still being emitted.
+    The math runtime is now just the decimal↔double bridge the three transcendentals need.
+
+  Sweeping the docs for the rename also turned up a sample that had **never** been valid —
+  GRAMMAR showed `Define r as the square-root of 16.`, with no possessive, which is not how a
+  book member is reached. Corrected, and the doc-block baseline regenerated: it now pins **190**
+  samples, up from 186, the rest being blocks that had been checking clean since the generics
+  docs landed without ever being recorded.
+
+- **★ Compiled programs are optimized.** `build` passes `-O2`. Until now it passed no `-O` flag at
+  all, so "compiles to a native binary" was delivering an unoptimized one.
+
+  **Always on, with no opt-out** — the Go answer rather than the Rust one. There is no debug build
+  and no `--release`, because the common failure of the opt-in design is someone benchmarking the
+  default build, getting a bad number, and concluding the language is slow. Nothing is lost by
+  having no flag: `emit-c` already hands over the source, and anyone who wants `-O0` — stepping
+  through generated C in a debugger, triaging a suspected miscompilation — needs that source
+  anyway. Measured cost to the test suite: 17 seconds.
+
+  ⚠ `-O2` is what turns latent undefined behaviour into a wrong answer, so it ships with sanitizer
+  coverage rather than on its own:
+
+  - The sanitized test harness now compiles with `-fsanitize=address,undefined` and
+    `-fno-sanitize-recover=undefined`, so a UBSan finding **aborts** instead of printing to stderr
+    and letting a stdout-comparing test pass.
+  - **Every example now runs under ASan + UBSan + LeakSanitizer on Linux**, as part of the oracle
+    test that already built and ran them — so it costs no extra compiles. The examples are the only
+    realistic programs the suite has; the other sanitized tests are small and aimed at features
+    somebody already suspected.
+
+  Both were clean on first run (Linux gcc 16.1.1), including the three POSIX-only examples that
+  cannot build under mingw at all.
+
+- **★ The C runtime is its own translation unit, not 950 lines pasted into every file.** `emit-c`
+  now writes three files — your program, plus `cufet-runtime.c` and `cufet-runtime.h` beside it —
+  and they still compile anywhere with `gcc out.c cufet-runtime.c -o program`.
+
+  The point is readability and a missing rule, in that order. Emitted C was measured at **79% runtime
+  for a typical example and 98.9% for a small one** (`fibonacci`: 578 bytes of program in a 51 KB
+  file); `huffmancoding` went from 72 KB to 22 KB. And because a single file had to define every
+  runtime symbol above its first use, the emitter carried an ordering rule per block — the direct
+  cause of three "symbol emitted above its own declaration" defects in one session, each fixed by
+  moving code rather than by fixing a rule. The fixed runtime is now emitted before anything
+  generated, unconditionally, and that class is gone.
+
+  `build` compiles the runtime once and caches the object under the user cache directory
+  (`CUFET_CACHE_DIR` overrides; keyed by the runtime source, the gcc version and the flags, so a
+  compiler upgrade invalidates it). **The cache is never required** — if it cannot be written the
+  runtime is compiled alongside the program, so `gcc` remains the only thing anyone must install.
+  Measured saving is ~150 ms of gcc's ~500 ms; the remaining ~220 ms is link overhead that caching
+  cannot touch.
+
+  Also fixed in passing: `build` wrote its intermediate `<name>.c` beside the source and deleted it
+  afterwards, which destroyed a hand-written `<name>.c` if one existed. It uses a temporary
+  directory now.
+
 ### Fixed
+- **★ Stating a book printed a C# class name.** `State math.` gave
+  `Cufet.Interpreter.Interpreter+BookValue` interpreted, while the compiler printed `math()` —
+  a divergence and internal vocabulary shown to a reader, in one. `Format` had no arm for a
+  book, so it fell through to `val.ToString()`.
+
+  A module now prints as the object it is, everywhere: `math()`, `greeting-kit()`. There is
+  never anything inside the parentheses, because a module with fields is refused at the pull.
+
+  ⚠ **The same fallthrough leaked `MatrixValue` once before** — there is a comment recording it
+  three lines away. Twice is a pattern: a catch-all that ends in `ToString()` turns every type
+  nobody remembered into a host type name printed at the user.
+
+- **`is` on a rabbit or a function value emitted C that gcc refused.** Both type-checked and
+  ran interpreted, so `Pull a rabbit as hopper. … State hopper is grace.` printed `false` and
+  then would not build — *invalid operands to binary ==*.
+
+  The cause was the shape of the emitter rather than a missing type. Equality sent records,
+  objects and series to `EqCall` and let a **catch-all** handle everything else with `==`, on
+  the assumption that what was left were facts and maps. Anything else the checker permitted
+  arrived at `==` applied to a C struct. `EqCall` even had a correct rabbit arm — nothing
+  reached it, because a direct `is` never went there.
+
+  All equality now goes through `EqCall`, the one place that knows how each type compares, and
+  whose default arm refuses by name. ⚠ **The catch-all was the bug**: it assumed what was left
+  instead of saying it, so every type added since had joined it silently. A type nobody has
+  taught it now fails loudly instead of miscompiling.
+
+- **A bundled book's code could collide with names in the program that used it.** The prelude
+  is prepended to the program, and a method body imports the top-level functions and constants
+  around it — so a book's own local shared a scope with the writer's names. A program declaring
+  `Bind number to total` broke `log`, whose running sum is called `total`, with *'total' is
+  already defined*.
+
+  A book's Cufet layer now imports nothing from the writer's top level, on both backends. That
+  is the rule rather than a renaming: a book is written without sight of the program that pulls
+  it, so nothing in the program should be able to reach inside it. ⚠ The failure was invisible
+  until the books were written in Cufet — native members had no Cufet scope to collide with.
+
+- **A compiled division left its quotient in the wrong form, and it hid behind printing.**
+  `cufet_div` always reduced to scale 28 and never stripped the trailing zeros, so `11 / 10`
+  was carried as `1.1000…0` where .NET leaves `1.1`. Both backends *printed* `1.1` — the
+  formatter strips trailing zeros too — so the difference was invisible until some later
+  operation on that value overflowed at one scale and not the other. Found by exactly that
+  route: `power of (1.1, 3)` worked with a literal and failed with a computed `11 / 10`.
+
+  A quotient is now left in minimal form, matching the oracle. ⚠ **Worth remembering as a
+  shape:** a divergence that the printer normalises away is invisible to every output-comparing
+  test in the suite, and only becomes visible when it changes whether something *fails*.
 
 - **An object used as a series element brings its own field types.** This interprets and would not
   compile — no generics involved:
@@ -3120,25 +3102,7 @@ checker asks which kind arrived.
   whole, and invariant rules leave the Turkish pair `ı`/`İ` alone rather than picking a locale.
 
 ## [0.15.0] — 2026-08-12
-
-### Changed
-
-- **★ `Add <x> to <series>` is now `Insert <x> into <series>`.** There is no alias.
-
-  ```
-  Insert 100 into scores.
-  Insert 100 into the start of scores.
-  Insert 100 after the second item of scores.
-  ```
-
-  `Add 1 to tally.` read as arithmetic when the elements were numbers, and `insert` is the verb
-  that actually covers all four positional forms. `into` rather than `to` because `in` is an
-  expression operator (`in uppercase`) — with `in` as the separator, `Insert word in uppercase in
-  words.` would have no readable boundary. `add` is a free identifier again; `insert` and `into`
-  are now reserved.
-
 ### Added
-
 - **★ A bits value's width is data.** Read it with `the width of p`; state one with
   `<value> at <n> bits`.
 
@@ -3343,8 +3307,22 @@ checker asks which kind arrived.
   interpreter suite instead of failing it. That is its own verdict — not caught, since nothing
   reports, but not silent either. In CI it looks like a hang, not a failure.
 
-### Fixed
+### Changed
+- **★ `Add <x> to <series>` is now `Insert <x> into <series>`.** There is no alias.
 
+  ```
+  Insert 100 into scores.
+  Insert 100 into the start of scores.
+  Insert 100 after the second item of scores.
+  ```
+
+  `Add 1 to tally.` read as arithmetic when the elements were numbers, and `insert` is the verb
+  that actually covers all four positional forms. `into` rather than `to` because `in` is an
+  expression operator (`in uppercase`) — with `in` as the separator, `Insert word in uppercase in
+  words.` would have no readable boundary. `add` is a free identifier again; `insert` and `into`
+  are now reserved.
+
+### Fixed
 - **A top-level `Define`d lambda could not be called from a function or a method when compiled**
   — `'doubler': unresolved call`, while the interpreter ran it. It was emitted as a local of `main`,
   so no other function could reach it. Now hoisted to file scope like a shared constant. Aliases
@@ -3421,7 +3399,6 @@ had been quietly disagreeing. The language gained verbatim text and a writable m
 cell; most of the work went underneath.
 
 ### Added
-
 - **Verbatim text — `<<...>>`.** A second spelling for a text literal in which **nothing** is
   interpreted: no escape sequences, and no interpolation holes.
 
@@ -3591,7 +3568,6 @@ cell; most of the work went underneath.
   with an empty case set, and gcc rejects it.
 
 ### Changed
-
 - **★ CI now runs the whole suite on Linux — `.github/workflows/full-suite.yml`.**
 
   **73 of the 549 compiler tests — 13% — have never run automatically.** They open with
@@ -3685,7 +3661,6 @@ cell; most of the work went underneath.
   failure, exception and book — used to be reported as `'value'`.
 
 ### Fixed
-
 - **★ A task never captured a variable it used only inside an `If` or `Judge` arm.** The emitted C
   said `cv_<name> undeclared` and gcc refused it.
 
@@ -4036,7 +4011,6 @@ and a linter that names what a pass over the source can decide and stays quiet w
 cannot.
 
 ### Added
-
 - **`Judge` — an exhaustive case construct.** Dispatch on what a value *is*, with coverage the
   compiler can prove:
 
@@ -4126,7 +4100,6 @@ cannot.
   no codegen change, and `check --native` and the compiled binary agree by construction.
 
 ### Changed
-
 - **The linter now reads the AST as well as the token stream.** Its first rule judges how a line
   looks before it means anything, which tokens answer; the rules after it judge shape — one loop
   inside another, a statement ordered after a statement — which they cannot. `Linter.Lint` takes the
@@ -4147,7 +4120,6 @@ cannot.
   reports that as a warning and still exits 0, so it is caught before `build`.
 
 ### Fixed
-
 - **A value passed to a union-typed parameter did not compile.** Widening a narrower value into a
   voidable, union or failable is the language's one implicit coercion, and it was applied at every
   slot except one: a call argument emitted the raw expression instead of coercing to the
@@ -4305,7 +4277,6 @@ One new language feature: a type may be written in front of the name. `Define th
 as 42.` — and with it, a union-typed variable became expressible at all.
 
 ### Added
-
 **Explicit typing**
 
 - **`Define the text name as "Nathan".`** — a type may be written between the article and the name,
@@ -4479,7 +4450,6 @@ as 42.` — and with it, a union-typed variable became expressible at all.
   clean** on every one.
 
 ### Fixed
-
 - **A voidable no longer nests, and the annotation that nested one no longer miscompiled.**
   `voidable voidable T` is now simply `voidable T` — there is one absent value, so a second layer of
   "or nothing" adds no state a program could observe.
@@ -4538,7 +4508,6 @@ And there is one new type. `bits` is the first full value type since failures, a
 built entirely in this release: literals, gates, shifts, arithmetic, and conversions.
 
 ### Added
-
 **A browser playground**
 
 - **[`playground/`](playground/)** — the interpreter compiled to `browser-wasm` and served as a
@@ -4748,7 +4717,6 @@ built entirely in this release: literals, gates, shifts, arithmetic, and convers
   not be read.
 
 ### Changed
-
 - **Comments are now `//` and `/* ... */`, replacing `[[ ... ]]`.** Two things drove this. The
   first is that Cufet had **no line comment at all** — every passing note, every temporarily
   disabled line, paid for an opening *and* a closing delimiter. That is friction on every line of
@@ -4788,7 +4756,6 @@ built entirely in this release: literals, gates, shifts, arithmetic, and convers
 ---
 
 ### Fixed
-
 - **Equality on bits compared base and width as well as value**, so `0xFF = 0x00FF` came back
   `false` when the two are the same pattern written two ways. Both backends were affected; the
   runtime representation is a value struct on each side and default structural equality took
@@ -4826,7 +4793,6 @@ of them was wrong — that discipline surfaced and closed roughly a dozen latent
 language itself, several of which predated the compiler entirely.
 
 ### Added
-
 **Comments — `[[ ... ]]`**
 - `[[` opens a comment; the first `]]` closes it. Everything between is stripped by
   the lexer before tokenisation — dots, keywords, newlines, and any Cufet syntax inside
@@ -4925,7 +4891,6 @@ language itself, several of which predated the compiler entirely.
   `return`, `Stop`, failure propagation, and exception unwind.
 
 ### Changed
-
 - **Record and object fields now print in sorted order** in both backends. Previously the
   construction order was observable, so two structurally-equal records could print
   differently.
@@ -4949,7 +4914,6 @@ language itself, several of which predated the compiler entirely.
   the host type name.
 
 ### Fixed
-
 Latent language and soundness bugs surfaced by holding the two backends against each other:
 
 - **Series indexing was unchecked in compiled code** — out-of-bounds was undefined
@@ -5035,7 +4999,6 @@ Latent language and soundness bugs surfaced by holding the two backends against 
   types fell back to `number` for reference results.
 
 ### Notes
-
 - Some compiler tests are Linux-only: POSIX features (concurrency, subprocess, signals)
   cannot be built by mingw, and the sanitizer runs are Linux-only.
 - Compiled concurrent programs are genuinely parallel, so the interpreter's deterministic
@@ -5051,7 +5014,6 @@ All test findings are resolved. The interpreter-era language is now
 complete — native backend is the next era.
 
 ### Added
-
 **★ Cooperative concurrency core ★ — the headline**
 - **Scheduler (`CufetScheduler`)** — cooperative, C# async/await, custom
   `SynchronizationContext`. All continuations routed to a single per-thread FIFO
@@ -5119,7 +5081,6 @@ complete — native backend is the next era.
   testing; wired into `ParseCorePrimary`.
 
 ### Changed
-
 - Test count: 1187 interpreter + 140 lexer (1327 total). New tests live in dedicated
   files: `SchedulerTests`, `TaskSpawnTests`, `ChannelTests`, `TaskResultTests`,
   `YieldTests`, `PipeTests`, `ComparisonUnificationTests`, `BooleanLiteralTests`,
@@ -5131,7 +5092,6 @@ complete — native backend is the next era.
 - README.md / REFERENCE.md: bumped to 0.9.0.
 
 ### Test campaign (five test, every finding resolved)
-
 | Program | Finding | Resolution |
 |---|---|---|
 | `parallelsum` | Top-level function can't read top-level `Define` data | Educational runtime error explaining the scoping rule |
@@ -5154,7 +5114,6 @@ three-hole adversarial soundness arc, and ships matrix arithmetic as the first
 exercise of operator overloading.
 
 ### Added
-
 **Eagér type resolution — ObjectType placeholder leak killed**
 - Parser-created `ObjectType` shells (used in annotations) no longer leak into
   type inference. `ResolveParamType` is now fully recursive (recurses into
@@ -5244,7 +5203,6 @@ exercise of operator overloading.
   (matrix inversion deferred; will be a named `collections` function if added).
 
 ### Changed
-
 - Test count: 1003 interpreter + 140 lexer (1143 total).
 - ROADMAP.md: operator overloading and matrix arithmetic moved from Planned to
   What's built; chance and Pull mechanism documented in What's built; soundness
@@ -5256,9 +5214,7 @@ exercise of operator overloading.
 ---
 
 ## [0.7.0] — 2026-06-23
-
 ### Added
-
 - **Operator overloading** — user-defined `+`, `-`, `*`, etc. for object types;
   fallible overloads (`T or failure`) supported; strict-fallible rule enforced
   at call sites.
@@ -5288,9 +5244,7 @@ exercise of operator overloading.
 ---
 
 ## [0.6.0] — 2026-06-21
-
 ### Added
-
 - **Union types and narrowing** — `(A or B or C)` closed unions; `is a <type>` /
   `is not a <type>` runtime type tests; in-branch narrowing; narrowing by elimination
   in `Otherwise`; open unions (`catalogue`, `atlas`); `catalogue` (heterogeneous
@@ -5318,9 +5272,7 @@ exercise of operator overloading.
 ---
 
 ## [0.5.0] — 2026-06-20
-
 ### Added
-
 - **File I/O** — `read all from the file <path>`, `read all lines from the file
   <path>`, `write … to the file <path>.`, `append … to the file <path>.`; failure
   categories `"not-found"`, `"permission-denied"`, `"disk-error"`.
