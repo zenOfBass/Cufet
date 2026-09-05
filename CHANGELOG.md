@@ -130,6 +130,34 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   cause was SRI. It stays because the failure mode it closes is real and was mine to introduce:
   a nicety must never be able to hold the point of the page hostage.
 
+- **The playground's editor waits for its grammar instead of being repainted later.** Reported
+  from a phone: the starter program arrived with every keyword, number and mark in the default
+  foreground, and only the *names* coloured — the semantic layer painting onto a syntactic layer
+  that was not there. It stayed that way. Loading an example fixed it, and so did scrolling.
+
+  ★ **The editor used to be created first and the tokenizer registered against it afterwards**,
+  on the reasoning that Monaco re-tokenizes when a grammar turns up. It does, but not
+  unconditionally: registering against a model that already exists repaints only the line ranges
+  an attached view has reported by then, and leaves the rest to a background pass inside
+  `requestIdleCallback`. A phone booting a 4.9 MB runtime need never grant an idle slot, which is
+  why waiting did nothing and why scrolling — which reports a visible range — worked.
+
+  So the editor is not created until the grammar, the theme and the regex engine are in hand, and
+  its first paint is the right one. The cost is 508 KB landing before the editor appears.
+
+  ⚠ Measured on Opera for Android; Chrome for Android was never affected, and neither was any
+  desktop browser at any window width. A browser that grants the idle slot promptly hid this
+  completely, which is the whole reason it survived to be found on a phone.
+
+- **Seven files carried a byte-order mark they were never meant to have.** The 0.19.0 version bump
+  wrote them through a step that strips a BOM when reading and adds one when writing, so
+  `editors/vscode/package.json`, both playground manifests and the four `.csproj` files each
+  gained three bytes at the front. `JSON.parse` refuses a BOM outright, which took the VS Code
+  extension down with `Unexpected token '﻿', "﻿{ "name"... is not valid JSON`.
+
+  ⚠ Every one of the seven now differs from its 0.18.0 form by the version number and nothing
+  else. The encoding was never a decision — it was a tool's default leaking into the tree.
+
 ## [0.19.0] — 2026-09-04
 ### Added
 - **A module can carry a type, so a type can cross a file boundary.** An object body took only
