@@ -85,6 +85,12 @@ build in one step, and can also re-enable `InvariantGlobalization` (see the cspr
   no stand-in runtime — so `dotnet publish` and `node build.mjs` come first. It says so if you
   forget. CI runs it BEFORE the upload, so a page whose examples cannot find their files is never
   deployed.
+- **A pasted program's "directory" is `"."`.** `Runtime.cs` sets `SourceDirectory = "."` on every
+  `TypeChecker` it builds, which is what lets `Pull a ‹name›.` reach `‹name›.cufe`. Without it the
+  loader never runs and a book in another file is refused as *"there is nothing named ... to pull"*
+  — the playground could not demonstrate the module system at all. `build.mjs` seeds books by
+  BASENAME at the root (a book is found by the name you pull), while assets keep their folders (an
+  asset is found by the path you write).
 - **There is already a filesystem in the browser, and it starts empty.** Emscripten gives the
   runtime an in-memory one and .NET's File APIs sit on it — a Cufet program can write a file and
   read it back under wasm, and listing, appending and existence checks all work. Nothing had to be

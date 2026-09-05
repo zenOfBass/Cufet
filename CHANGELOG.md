@@ -227,6 +227,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   poisons everything after it), and a second test guards our own use of them — without it,
   reverting to `String(e)` brings the bug back with every test still passing.
 ### Added
+- **A book in another file now loads in the playground, so the module system can demonstrate
+  itself.** `examples/language/ledger.cufe` — a program written across two files, holding a type
+  declared in the other one — failed on the page that exists to show the language off, with *"there
+  is nothing named 'bookkeeping' to pull."* It now runs, and matches its recorded output exactly.
+
+  ★ The cause was one missing property. `SourceDirectory` is what lets the loader reach
+  `‹name›.cufe`; the CLI sets it from the directory of the file it was handed, and the playground
+  set nothing, so the loader never ran. It is now `"."` — a PASTED program has no directory of its
+  own, so the runtime's working directory plays that part and its books sit beside it there,
+  exactly as siblings do in a checkout.
+
+  ⚠ **Books are seeded by basename, assets keep their folders**, and the difference is not an
+  inconsistency: an asset is addressed by the path a program *writes* (`examples/assets/config.txt`,
+  relative to a checkout root), a book by the name a program *pulls*. Which file is a book is
+  derived from how it declares itself, anchored at column 0 — matching `and module` anywhere would
+  also catch `ledger.cufe`, which only mentions the phrase in its opening comment.
+
+  ⚠ This was also a trap waiting for a file UI: without it, letting someone create a `.cufe` file
+  and pull it would have answered "there is nothing named ... to pull", which reads as a language
+  bug rather than a missing playground feature.
+### Added
 - **The playground has a test, and CI runs it before deploying.** It had none — the front end has
   no DOM to assert on, and asserting on Monaco would mostly assert on Monaco. What is testable
   without a browser is the runtime surface the page talks to, and the seeding path above is the
