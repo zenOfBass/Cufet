@@ -1,4 +1,4 @@
-// The playground's user interface.
+﻿// The playground's user interface.
 //
 // The Cufet side of this page is deliberately thin: the worker boots the .NET runtime and answers
 // three questions over postMessage. Everything below is the editor and the wiring between it and
@@ -403,6 +403,28 @@ function onWorkerMessage({ data }: MessageEvent<RuntimeAnswer>): void {
         const text = data.result;
         setOutput(text.length ? text : '(no output)', text.length ? 'normal' : 'empty');
         statusText.textContent = `ran in ${Math.round(data.elapsed)} ms`;
+    } else if (data.fatal) {
+        // ⚠⚠ The runtime EXITED — it will answer nothing further, and every later run throws too.
+        // Measured with sudoku.cufe: before this, the page reported the failure, left `booted`
+        // true, and kept talking to a corpse, so one deep program bricked the playground until a
+        // reload. Replacing the worker is the same recovery Stop already performs.
+        //
+        // ★ It states the fact and does not diagnose, for the same reason the depth message does:
+        // an exit says the runtime is gone, never why. Deep recursion is ONE known cause and is
+        // named as such — the page allows far less stack than the command line does — without
+        // claiming it is the cause this time.
+        setOutput(
+            `The runtime stopped while running this program, and the page has started a fresh one. `
+            + `Anything the program had printed is gone.\n\n`
+            + `This is not a Cufet error — the runtime ended, which it cannot report on from the `
+            + `inside. One known cause is going deeper than this page's stack allows, which is much `
+            + `smaller than the cufet command line's, so a program that runs there can still stop `
+            + `the runtime here.\n\n(${data.error})`,
+            'error');
+        statusText.textContent = 'the runtime stopped — restarting';
+        abandonAsked();
+        spawnWorker();
+        setBusy(false);
     } else {
         setOutput(data.error, 'error');
         statusText.textContent = 'the runtime failed';

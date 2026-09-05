@@ -50,7 +50,21 @@ handle = ({ id, kind, source }) => {
     } catch (e) {
         // Run and Check both turn Cufet-level errors into ordinary return values, so anything
         // caught here is the runtime itself failing — worth reporting rather than swallowing.
-        self.postMessage({ id, ok: false, error: String(e) });
+        //
+        // ⚠⚠ Emscripten throws an `ExitStatus` OBJECT, not an Error, and `String(e)` on it is
+        // literally "[object Object]" — which is what a visitor saw, in red, on running
+        // sudoku.cufe. The text is on `.message` ("Program terminated with exit(1)").
+        //
+        // ⚠ `.status` being a number is the runtime saying it has EXITED. Measured: every later
+        // run then throws too, so the page must replace this worker rather than keep asking a
+        // corpse. Reported rather than decided here — the worker cannot restart itself.
+        const thrown = /** @type {{ message?: unknown, status?: unknown }} */ (e);
+        self.postMessage({
+            id,
+            ok: false,
+            error: String(thrown?.message ?? e),
+            fatal: typeof thrown?.status === "number",
+        });
     }
 };
 

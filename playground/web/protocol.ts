@@ -1,4 +1,4 @@
-// The page-to-worker wire format, written once and shared by both ends.
+﻿// The page-to-worker wire format, written once and shared by both ends.
 //
 // ★★ This is the reason the playground is TypeScript at all. The two halves talk over
 // `postMessage`, which is `any` in both directions, and the protocol was previously spelled out
@@ -37,6 +37,15 @@ export interface RuntimeFailure {
     id: number;
     ok: false;
     error: string;
+
+    /**
+     * The runtime EXITED and will answer nothing further — the page has to replace the worker.
+     *
+     * ⚠⚠ Measured: `examples/algorithms/sudoku.cufe` exhausts the browser stack, and after that
+     * every later run throws too. Without this the page reported a failure, left `booted` true, and
+     * went on talking to a corpse — one deep program bricked the playground until a reload.
+     */
+    fatal: boolean;
 }
 
 /**
