@@ -6,7 +6,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
-## [Unreleased]
+## [0.19.0] — 2026-09-04
 ### Added
 - **A module can carry a type, so a type can cross a file boundary.** An object body took only
   `Bind`, `Get` and `Set`, and a loaded file shares nothing but its module — so a type declared in
