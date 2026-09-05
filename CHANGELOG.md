@@ -16,11 +16,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the editor. The corpus is the best account of what the language can do, and until now none of
   it was reachable from the page that exists to show the language off.
 
-  ★ **A menu, not a dropdown.** A native `<select>` reads as a setting you are changing; this is
-  navigation — you are going to look at something. So it is a disclosure button carrying three
-  drawn rules and the word *Examples*, opening a grouped panel: the glyph says it opens, the word
-  says what is behind it. Arrow keys walk it, Escape closes it and returns focus to the button,
-  and a click anywhere else dismisses it.
+  ★ **A menu, not a dropdown, and it lives in the page header.** A native `<select>` reads as a
+  setting you are changing; this is navigation — you are going to look at something. So it is a
+  disclosure button carrying three drawn rules and the word *Examples*, opening a grouped panel:
+  the glyph says it opens, the word says what is behind it. Arrow keys walk it, Escape closes it
+  and returns focus to the button, and a click anywhere else dismisses it.
+
+  ⚠ It sits in the header rather than in a pane **because of what a narrow screen does**: stacked,
+  the panes go one above the other, so a menu belonging to a pane lands halfway down the document
+  under the editor. In the header it is in the same corner at every width. It is also the last
+  thing in the nav, which the panel depends on — the panel is anchored to its right edge, so from
+  anywhere else it opens leftward off a phone.
+
+  ★ **The editor's gutter is narrower**, which is a phone fix that helps everywhere. Monaco
+  reserves width for five digits of line number, a decorations strip nothing draws in, and a
+  glyph margin for breakpoints this page cannot set — and on a phone that width comes straight
+  out of the code. Narrower still below 820px, where folding's gutter costs more than folding is
+  worth; `matchMedia` answers again when the phone is turned sideways.
 
   ★ **Run still runs the file in the editor**, because that is what `cufet <file>` does. No
   notion of a "main file" had to be invented: a program's siblings are reached by `Pull`, not by
