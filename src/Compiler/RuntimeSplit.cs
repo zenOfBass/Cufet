@@ -95,6 +95,95 @@ public static class RuntimeSplit
         return (header.ToString(), source.ToString());
     }
 
+    /// <summary>
+    /// Every function the <paramref name="source"/> half defines — which is exactly the set a
+    /// compiled runtime object must export for a generated program to link against it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ This exists so <see cref="RuntimeCache"/> can ASK THE LINKER whether an object it is
+    /// about to reuse really defines the runtime, instead of trusting that a file at the right
+    /// path is the right file. A content-addressed key cannot see contents: it proves what the
+    /// object was BUILT FROM and says nothing about what it turned out to hold.
+    /// </para>
+    /// <para>
+    /// ⚠⚠ MEASURED 2026-09-05, which is what makes this worth its weight: an object compiled from
+    /// EMPTY source is a perfectly well-formed 936-byte ELF with zero defined symbols, and the
+    /// linker accepts it without a word — the program then fails with `undefined reference to
+    /// cufet_dec_lit` and friends, which reads as a code-generator regression and is not one. A
+    /// merely TRUNCATED object is caught already, because `ld` says `file too short` instead. So
+    /// that exact wording identifies the symbol-poor case and nothing else.
+    /// </para>
+    /// <para>
+    /// ⚠ Functions only. The source half exports variables too, but a name is far harder to read
+    /// out of `const cufet_u256 CUFET_DEC_MAX = {…}` than out of a prototype — and the failure
+    /// this guards against is an object that defines NOTHING, which the first function catches.
+    /// Widening it would buy nothing and add a second shape to get wrong.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<string> DefinedFunctions(string source)
+    {
+        var names = new List<string>();
+        var lines = source.Replace("\r\n", "\n").Split('\n');
+        int i = 0;
+
+        while (i < lines.Length)
+        {
+            string trimmed = lines[i].TrimStart();
+
+            if (trimmed.StartsWith('#')) { i++; continue; }
+
+            if (trimmed.Length == 0 || trimmed.StartsWith("/*") || trimmed.StartsWith("//"))
+            {
+                (_, i) = TakeComment(lines, i);
+                continue;
+            }
+
+            var (construct, next) = TakeConstruct(lines, i);
+            i = next;
+
+            string text = construct.Trim();
+
+            // ⚠ `static` is skipped, and that is the point rather than an oversight. This answers
+            // "what may a generated PROGRAM call", and a program can only call what the derived
+            // header declares — which is never a static. Emit strips `static` from everything it
+            // exports, so nothing real is lost here; what is excluded is a helper private to the
+            // runtime, and naming one in the probe would ask the linker for a symbol that is
+            // deliberately not there.
+            if (text.StartsWith("static ", StringComparison.Ordinal)) continue;
+
+            // The same test Emit uses to tell a function body from an aggregate initializer: a
+            // body's brace follows the parameter list's `)`, an initializer's follows `=`.
+            int brace = IndexOfTopLevel(text, '{');
+            if (brace < 0 || LastNonSpaceBefore(text, brace) != ')') continue;
+
+            string? name = FunctionNameOf(text[..brace]);
+            if (name != null) names.Add(name);
+        }
+
+        return names;
+    }
+
+    // The identifier immediately before the top-level `(` — `void cufet_dec_lit(const char *s, …)`
+    // gives `cufet_dec_lit`. Narrow on purpose, like the rest of this file: it reads the shapes
+    // this runtime uses and returns null rather than a guess for anything else.
+    private static string? FunctionNameOf(string prototype)
+    {
+        int paren = IndexOfTopLevel(prototype, '(');
+        if (paren <= 0) return null;
+
+        int end = paren - 1;
+        while (end >= 0 && char.IsWhiteSpace(prototype[end])) end--;
+
+        int start = end;
+        while (start >= 0 && (prototype[start] == '_' || char.IsLetterOrDigit(prototype[start]))) start--;
+        start++;
+
+        if (start > end) return null;
+        string name = prototype[start..(end + 1)];
+        return char.IsDigit(name[0]) ? null : name;
+    }
+
     // A comment or run of blank lines, returned whole so a block comment is never split down the
     // middle by the construct scanner.
     private static (string Text, int Next) TakeComment(string[] lines, int start)

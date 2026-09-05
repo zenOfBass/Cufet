@@ -154,6 +154,108 @@ public class RuntimeSplitTests
     }
 
     [Fact]
+    public void TheRuntimesFunctions_AreReadableOutOfItsSource()
+    {
+        // The probe below can only ask about names it knows, so an extractor that quietly finds
+        // nothing would turn the whole guard into a no-op that still reports green.
+        var (_, runtime, _) = Split("""State 1.""");
+        var functions = RuntimeSplit.DefinedFunctions(runtime);
+
+        Assert.True(functions.Count > 50, $"only {functions.Count} runtime functions were found");
+        Assert.Contains("cufet_dec_lit", functions);
+
+        // Every name must be something a C compiler would accept, or the generated probe will not
+        // compile and the guard will refuse every object it is ever shown.
+        foreach (var name in functions)
+            Assert.Matches("^[A-Za-z_][A-Za-z0-9_]*$", name);
+    }
+
+    [Fact]
+    public void TheCache_RefusesToStoreAnObjectThatDoesNotDefineWhatItShould()
+    {
+        // ⚠⚠ The failure this closes. MEASURED 2026-09-05: an object with no defined symbols is a
+        // well-formed 936-byte ELF that the linker takes without a word, and every runtime call
+        // then comes back `undefined reference to cufet_dec_lit` and friends — which is what a
+        // poisoned cache looked like for most of an hour, read the whole time as a code-generator
+        // regression. A truncated object cannot be that failure: `ld` says `file too short`.
+        //
+        // ★ The sabotage is a runtime whose TEXT defines a function and whose OBJECT does not, so
+        // gcc exits 0 having produced nothing — which is the one shape a key over the source can
+        // never notice, because the source is exactly what it hashes.
+        var root = Directory.CreateTempSubdirectory("cufet-cache-hollow-");
+        try
+        {
+            string header = "void cufet_promised_but_absent(void);\n";
+            string hollow = "#if 0\nvoid cufet_promised_but_absent(void) { }\n#endif\n";
+
+            Assert.Contains("cufet_promised_but_absent", RuntimeSplit.DefinedFunctions(hollow));
+
+            Assert.Null(new RuntimeCache(root.FullName).ObjectFor(hollow, header, new GccInvoker(), []));
+        }
+        finally { try { root.Delete(recursive: true); } catch { } }
+    }
+
+    [Fact]
+    public void TheCache_RefusesAnObjectThatChangedAfterItWasBuilt()
+    {
+        // The linker probe runs when an object is BUILT. Nothing it can say covers an object that
+        // was good then and was damaged or replaced afterwards, which is why the bytes are stamped
+        // and checked on every reuse.
+        var root = Directory.CreateTempSubdirectory("cufet-cache-stamp-");
+        try
+        {
+            var (header, runtime, _) = Split("""State "hi".""");
+            var gcc = new GccInvoker();
+
+            string? built = new RuntimeCache(root.FullName).ObjectFor(runtime, header, gcc, []);
+            Assert.NotNull(built);
+
+            var bytes = File.ReadAllBytes(built!);
+            File.WriteAllBytes(built!, bytes[..(bytes.Length / 2)]);   // damaged, stamp left alone
+
+            string? answer = new RuntimeCache(root.FullName).ObjectFor(runtime, header, gcc, []);
+            Assert.NotNull(answer);
+            Assert.Equal(bytes.Length, new FileInfo(answer!).Length);  // rebuilt, not handed back
+            Assert.NotEmpty(SymbolsExercisedBy(answer!, header, runtime, gcc));
+        }
+        finally { try { root.Delete(recursive: true); } catch { } }
+    }
+
+    /// <summary>The runtime functions an object actually defines, asked of the linker.</summary>
+    private static IReadOnlyList<string> SymbolsExercisedBy(string objectPath, string header,
+                                                            string runtime, GccInvoker gcc)
+    {
+        var found = new List<string>();
+        var work = Directory.CreateTempSubdirectory("cufet-symcheck-");
+        try
+        {
+            File.WriteAllText(Path.Combine(work.FullName, RuntimeSplit.HeaderFileName), header);
+            foreach (var name in RuntimeSplit.DefinedFunctions(runtime).Take(3))
+            {
+                // ⚠ An external pointer INITIALIZED with the address, not `&f != 0` inside main.
+                // The latter is folded to 1 at -O2 — a function address is never null — so the
+                // relocation never reaches the linker and the link succeeds against an object
+                // that defines nothing. Measured: it made this helper report symbols that were
+                // not there. Static initializer data cannot be folded away like that.
+                string c = Path.Combine(work.FullName, "one.c");
+                File.WriteAllText(c,
+                    $"#include \"{RuntimeSplit.HeaderFileName}\"\n"
+                    + "typedef void (*probe_fn)(void);\n"
+                    + $"probe_fn probe_target = (probe_fn)&{name};\n"
+                    + "int main(void) { return probe_target != 0; }\n");
+                try
+                {
+                    gcc.Compile([c, objectPath], Path.Combine(work.FullName, "one" + (OperatingSystem.IsWindows() ? ".exe" : "")), []);
+                    found.Add(name);
+                }
+                catch (CompilerException) { }
+            }
+            return found;
+        }
+        finally { try { work.Delete(recursive: true); } catch { } }
+    }
+
+    [Fact]
     public void TheCache_IsInvalidatedByTheCompilerItIsKeyedOn()
     {
         // Upgrading gcc in place leaves the path identical while the object it emits changes, so the

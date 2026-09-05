@@ -27,24 +27,41 @@ namespace Cufet.Compiler;
 /// invalidates the entry without anyone remembering to.
 /// </para>
 /// <para>
-/// ⚠⚠ It does NOT follow that everything which can change the object is in the key, and this note
-/// used to claim exactly that. MEASURED, 2026-09-02: a suite run under WSL on Arch produced 32
-/// failures, every one an `undefined reference to cufet_dec_lit` and friends — which reads as a
-/// code-generator regression and is not one. `rm -rf ~/.cache/cufet` cured all 32; the rerun was
-/// 861/861. The mechanism is unresolved. What is outside the key is the rest of the toolchain —
-/// glibc, binutils, the system headers — none of which move gcc's version string, and all of
-/// which a rolling distro upgrades together.
+/// ⚠⚠ A key proves what an object was BUILT FROM and says nothing about what it turned out to
+/// HOLD. MEASURED, 2026-09-02: a suite run under WSL on Arch produced 32 failures, every one an
+/// `undefined reference to cufet_dec_lit` and friends — which reads as a code-generator regression
+/// and is not one. `rm -rf ~/.cache/cufet` cured all 32; the rerun was 861/861. **The mechanism
+/// was never identified**, and two guards below close the class without needing it.
 /// </para>
 /// <para>
-/// ⚠ The loud failure above is the lucky one. The quiet failure is an object that still LINKS but
-/// carries an older implementation of a function whose signature never changed — which is what
-/// every bug fix to the C runtime looks like, so the fix would silently not take. Nothing here
-/// detects that; the 861 compiled tests linking this object every run are what would.
+/// ★★ What the failure WAS is known, measured 2026-09-05 by building the shapes and linking them:
+/// a symbol-poor object. An object compiled from empty source is a well-formed 936-byte ELF with
+/// zero defined symbols that links without a word, and every runtime call then comes back
+/// undefined — that is the reported wording exactly. A merely truncated object cannot be it: `ld`
+/// says `file too short` for those. So the entry was a real object built from nothing much.
 /// </para>
 /// <para>
-/// ★ The cure is to delete the cache, and it is always safe — this is a cache, so an empty one
-/// only costs the runtime compile back. `CUFET_CACHE_DIR` overrides the location; otherwise see
-/// DefaultRoot below.
+/// ⚠ An earlier version of this note blamed the rest of the toolchain — glibc, binutils, the
+/// system headers — for being outside the key. That has been checked and does not hold: every
+/// conditional in the runtime is `_WIN32`, `__unix__` or `__APPLE__`, so nothing a library upgrade
+/// touches can change which functions the object defines.
+/// </para>
+/// <para>
+/// ★ So the object is verified rather than assumed, twice, and neither check needs to know the
+/// cause. <see cref="DefinesTheRuntime"/> asks the LINKER, when the object is built, whether it
+/// really defines the runtime. <see cref="IsIntact"/> asks, every time one is reused, whether it
+/// is still the bytes that passed. Between them, an object that does not define what a program is
+/// about to call cannot be handed out — however it got that way.
+/// </para>
+/// <para>
+/// ⚠ Neither catches the quiet failure: an object that still links but carries an older
+/// implementation of a function whose signature never changed, which is what every bug fix to the
+/// C runtime looks like. The key does close that one, since a changed runtime source is a changed
+/// key; the 861 compiled tests linking this object every run are the backstop.
+/// </para>
+/// <para>
+/// ★ Deleting the cache is still always safe — this is a cache, so an empty one only costs the
+/// runtime compile back. `CUFET_CACHE_DIR` overrides the location; otherwise see DefaultRoot below.
 /// </para>
 /// </remarks>
 public sealed class RuntimeCache
@@ -98,9 +115,11 @@ public sealed class RuntimeCache
         string dir = Path.Combine(_root, key);
         string objPath = Path.Combine(dir, "cufet-runtime.o");
 
+        string stampPath = objPath + ".sha256";
+
         try
         {
-            if (File.Exists(objPath)) return objPath;
+            if (IsIntact(objPath, stampPath)) return objPath;
 
             // Build into a private temporary directory and MOVE the finished object into place, so
             // two builds racing cannot leave a half-written .o that later builds would link.
@@ -115,9 +134,17 @@ public sealed class RuntimeCache
                 string staged = Path.Combine(staging, "cufet-runtime.o");
                 gcc.CompileObject(cPath, staged, flags);
 
-                // Another build may have finished first — its object is equally valid, so losing
-                // the race is not an error.
-                if (!File.Exists(objPath)) File.Move(staged, objPath, overwrite: false);
+                // ⚠ gcc exiting 0 is not the same as gcc having produced a runtime. Ask the linker.
+                if (!DefinesTheRuntime(staged, staging, runtimeSource, gcc, flags)) return null;
+
+                // ★ overwrite: true, where this used to step aside for whoever finished first. Two
+                // builds of one key produce byte-identical objects — MEASURED: gcc is deterministic
+                // for this source, which uses no __DATE__, __TIME__ or __FILE__ — so there is no
+                // race to lose. What overwriting buys is that a verified-good object always
+                // replaces one that failed the check above, which is how a poisoned entry heals
+                // instead of being stepped around forever.
+                File.Move(staged, objPath, overwrite: true);
+                File.WriteAllText(stampPath, HashOfFile(objPath));
                 return File.Exists(objPath) ? objPath : null;
             }
             finally
@@ -132,6 +159,94 @@ public sealed class RuntimeCache
         catch
         {
             return null;   // unwritable, full, racing — none of which should fail a build
+        }
+    }
+
+    /// <summary>
+    /// Whether a cached object is the one that was built here — present, and still byte-for-byte
+    /// what it was when it passed its checks.
+    /// </summary>
+    /// <remarks>
+    /// ★ The key proves what an object was BUILT FROM. This proves what it still CONTAINS, which
+    /// is the half a content-addressed path cannot reach: nothing about hashing the source notices
+    /// a file that was damaged, replaced or half-written afterwards. An entry that fails is not
+    /// deleted — it is simply not trusted, and the build below overwrites it with a good one.
+    ///
+    /// ⚠ An entry written before this existed has no stamp and so never matches, which costs one
+    /// runtime compile each and then heals itself. That is the right trade for a cache.
+    /// </remarks>
+    private static bool IsIntact(string objPath, string stampPath)
+    {
+        if (!File.Exists(objPath) || !File.Exists(stampPath)) return false;
+        return string.Equals(File.ReadAllText(stampPath).Trim(), HashOfFile(objPath),
+                             StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string HashOfFile(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Asks the linker whether a freshly built object really defines the runtime, by linking a
+    /// generated file that takes the address of every function the runtime source defines.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ This is the check the cache key cannot make. MEASURED 2026-09-05: an object compiled
+    /// from empty source is a well-formed 936-byte ELF with zero defined symbols, and `ld` links
+    /// it without a word — the program then fails with `undefined reference to cufet_dec_lit` and
+    /// friends, which is exactly the failure that once cost most of an hour reading it as a
+    /// code-generator regression. Taking an address forces the linker to resolve the symbol, so
+    /// an object that defines nothing fails here, at the moment it is built, instead of in every
+    /// build that reuses it afterwards.
+    /// </para>
+    /// <para>
+    /// ★ It costs one gcc invocation per cache MISS and none on a hit — sixteen across a whole
+    /// suite run, against the ~415 ms the cache saves each time it hits.
+    /// </para>
+    /// <para>
+    /// ★★ It uses gcc and nothing else, which is the point. `nm` would be a second tool a person
+    /// has to have installed, and the property this cache exists to protect is that gcc remains
+    /// the only one.
+    /// </para>
+    /// <para>
+    /// ⚠ A failure returns false rather than throwing, and the caller then compiles the runtime
+    /// alongside the program as if there were no cache at all. A cache that cannot vouch for
+    /// itself must step aside, never fail a build — the same rule the rest of this class follows.
+    /// </para>
+    /// </remarks>
+    private static bool DefinesTheRuntime(string objectPath, string staging, string runtimeSource,
+                                          GccInvoker gcc, IReadOnlyList<string> flags)
+    {
+        var functions = RuntimeSplit.DefinedFunctions(runtimeSource);
+        if (functions.Count == 0) return false;   // a runtime that defines nothing is not a runtime
+
+        var probe = new StringBuilder();
+        probe.AppendLine("/* Generated by cufet — asks the linker whether the cached runtime object is real. */");
+        probe.AppendLine($"#include \"{RuntimeSplit.HeaderFileName}\"");
+        // ⚠ External linkage, not static. A static table nothing reads is one the optimiser is
+        // entitled to delete, taking every relocation — and the whole point of this file — with it.
+        probe.AppendLine("typedef void (*cufet_probe_fn)(void);");
+        probe.AppendLine("cufet_probe_fn cufet_probe_table[] = {");
+        foreach (var name in functions)
+            probe.AppendLine($"    (cufet_probe_fn)&{name},");
+        probe.AppendLine("};");
+        probe.AppendLine("int main(void) { return cufet_probe_table[0] != 0; }");
+
+        string probePath = Path.Combine(staging, "cufet-cache-probe.c");
+        File.WriteAllText(probePath, probe.ToString());
+        string probeBinary = Path.Combine(staging, "cufet-cache-probe" + (OperatingSystem.IsWindows() ? ".exe" : ""));
+
+        try
+        {
+            gcc.Compile([probePath, objectPath], probeBinary, flags);
+            return true;
+        }
+        catch (CompilerException)
+        {
+            return false;
         }
     }
 
