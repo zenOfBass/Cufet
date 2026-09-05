@@ -22,7 +22,9 @@ _framework/dotnet.d.ts    a declaration ONLY — see the file; no code lives in 
 tsconfig.json             strict type checking; the build runs it and fails on an error
 build.mjs                 type-checks, then assembles everything into site/
 site/seed-manifest.json   built: the files the worker places before reporting ready
-test/examples.test.mjs    drives the BUILT wasm under node; run with `npm test`
+test/examples.test.mjs    seeded files and multi-file pulls, against the BUILT wasm
+test/sweep.test.mjs       all 38 examples: no leaked host vocabulary, no unexpected death
+test/runtime-death.test.mjs  what the runtime throws when a program kills it
 serve.mjs                 a local static server for looking at site/
 ```
 

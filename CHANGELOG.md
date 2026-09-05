@@ -227,6 +227,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   poisons everything after it), and a second test guards our own use of them — without it,
   reverting to `String(e)` brings the bug back with every test still passing.
 ### Added
+- **Every example is swept through the playground before it deploys.** The bug that reached a
+  visitor was `Process_PlatformNotSupported` — a .NET resource key, shown by a language whose whole
+  claim is readable messages. It was found by sweeping the corpus by hand, and nothing would have
+  caught the next one. Now 38 examples run through the real wasm build on every CI run, in about
+  half a minute.
+
+  ★ **The assertions are deliberately weak, and that is the design.** Most examples cannot produce
+  their command-line output in a browser and should not be expected to — `foreign.cufe` says it
+  cannot run C here, the subprocess and task examples have no processes. Holding them to the CLI
+  would mean a second set of browser-specific expectations to drift, so the sweep asks only what is
+  true of every example: **no leaked host vocabulary, and no unexpected death.** Exact output is
+  still compared where a `.expected` exists.
+
+  ⚠ One process per example — a program that kills the runtime poisons it for everything after,
+  which is how the first hand-run reported seven "leaks" that were all echoes of one crash.
+
+  ⚠ `sudoku.cufe` is the single known death, listed with its reason, and the suite **fails if it
+  ever stops dying** — a stale skip makes the suite assert something false, and nobody goes looking
+  for skips that have started passing.
+
+  ★ Verified by reintroducing the original bug at its real site. The first attempt disabled two of
+  the four launch sites and nothing failed: `subprocess-pipes.cufe` goes through the PIPE path,
+  which is separate. With all four disabled the sweep named it — `leaked host vocabulary:
+  "Process_PlatformNotSupported"`.
+### Added
 - **A book in another file now loads in the playground, so the module system can demonstrate
   itself.** `examples/language/ledger.cufe` — a program written across two files, holding a type
   declared in the other one — failed on the page that exists to show the language off, with *"there
