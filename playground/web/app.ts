@@ -127,20 +127,44 @@ monaco.languages.setLanguageConfiguration(LANGUAGE_ID, {
 // It also buys the theme. VS Code colour themes are scope→colour rules, so they only mean
 // anything if the tokenizer produces real TextMate scopes. Monarch could not have consumed one.
 //
-// ⚠⚠ All of it is async — a wasm fetch and two JSON fetches — and it is AWAITED before the editor
-// is created. It did not used to be: the editor appeared at once and Monaco was left to re-tokenize
-// when the grammar turned up. That is a promise Monaco cannot always keep. Registering a tokenizer
-// against a model that already exists repaints synchronously only the line ranges an attached view
-// has reported by then, and hands the rest to a background pass that runs inside
-// `requestIdleCallback` — and a phone booting a 4.9 MB runtime need never grant an idle slot.
-// Measured on Opera for Android: the program stayed in the default foreground indefinitely, keywords
-// and numbers included, while the semantic layer coloured the names on top of nothing. Waiting did
-// not fix it; scrolling did, because scrolling reports a visible range.
-//
-// So the model is not created until its tokenizer exists, and the first paint is the right one. The
-// cost is the 508 KB below landing before the editor appears, and the runtime's own download
-// starting that much later. Correct colours on arrival are worth more than an editor that is on
-// screen a moment sooner and wrong.
+// All of it is async (a wasm fetch, two JSON fetches), so it deliberately does NOT block the
+// editor from appearing. Monaco renders unhighlighted for a moment, then re-tokenizes — but only
+// if something asks it to, which is what tokenizeEverythingNow is for.
+
+/**
+ * Tokenize the whole program NOW, rather than whenever the browser next feels idle.
+ *
+ * ⚠⚠ **Registering a tokenizer against a model that already exists does NOT reliably repaint it.**
+ * Monaco repaints synchronously only the line ranges an attached view has already reported, and
+ * hands everything else to a background pass that runs inside `requestIdleCallback`. Measured on
+ * Opera for Android: on a cold load that idle slot never came, and the program sat in the default
+ * foreground — keywords, numbers and marks alike — with only the semantic layer's names coloured
+ * on top of nothing. Waiting did not help. Scrolling did, because scrolling reports a range.
+ *
+ * ★ **Building the editor AFTER the grammar instead does not fix this**, and that was measured too
+ * rather than reasoned: the model's token store is built before any view is attached to it, so
+ * there is still nothing to paint synchronously and the work still falls to the same idle pass.
+ * The tokenizer's PRESENCE was never the missing piece — something asking for the lines was.
+ *
+ * ⚠ `forceTokenization` is load-bearing inside Monaco and is NOT in `monaco.d.ts`, so reaching it
+ * takes a cast. That is a bet on an internal, and it is why `monaco-editor` is pinned to an exact
+ * version in package.json rather than a range — the bet is only ever re-taken deliberately. If a
+ * future version moves it, this says so in the console instead of quietly going back to waiting.
+ */
+function tokenizeEverythingNow(model: monaco.editor.ITextModel): void {
+    const reachable = model as unknown as
+        { tokenization?: { forceTokenization?(lineNumber: number): void } };
+
+    if (typeof reachable.tokenization?.forceTokenization !== 'function') {
+        console.error(
+            'monaco no longer exposes forceTokenization — the first paint is back to whenever the '
+            + 'browser next goes idle, which some browsers never do while the runtime is booting');
+        return;
+    }
+
+    reachable.tokenization.forceTokenization(model.getLineCount());
+}
+
 async function startHighlighting(): Promise<void> {
     const [wasm, grammarSource, theme] = await Promise.all([
         fetch('./onig.wasm').then(r => r.arrayBuffer()),
@@ -195,6 +219,11 @@ async function startHighlighting(): Promise<void> {
             };
         },
     });
+
+    // ⚠⚠ And then paint what is already on screen, because registering a tokenizer against a model
+    // that ALREADY EXISTS does not reliably do it. See tokenizeEverythingNow.
+    const model = editor.getModel();
+    if (model) tokenizeEverythingNow(model);
 
     // The layer the grammar cannot reach. A regex cannot tell a variable from a function from a
     // type in an English-like syntax, so this asks the real front end, in the worker, what each
@@ -293,34 +322,15 @@ function encodeSemanticTokens(jsonLines: string): Uint32Array {
     return new Uint32Array(data);
 }
 
-// ★ Top-level await, which the bundle supports: build.mjs emits ESM at es2022 and index.html loads
-// it as a module. The whole file below is therefore evaluated with the grammar already registered.
-//
-// ★ Still caught, and for the reason it always was: highlighting is a nicety and running Cufet is
-// the point. If the grammar, the theme or the regex engine fails to load, say so in the console and
-// carry on to build a working uncoloured editor rather than taking the page down with it.
-// ⚠ The floor, set BEFORE the theme is fetched rather than passed to `create` below. Monaco's
-// standalone default is the LIGHT `vs` theme, which on this page would be a white editor in a dark
-// frame — so something dark has to be standing before anything can fail. `startHighlighting`
-// replaces it on success; if it throws, whatever it managed to set stays and this is the worst
-// case rather than the outcome.
-monaco.editor.setTheme('vs-dark');
-
-try {
-    await startHighlighting();
-} catch (e) {
-    console.error('syntax highlighting failed to start:', e);
-}
-
 const editor = monaco.editor.create(element('editor'), {
     value: STARTER,
     language: LANGUAGE_ID,
-    // ⚠⚠ NO `theme` here, and it is not an omission. `create` calls `setTheme` whenever this is a
-    // string, which SETS THE GLOBAL THEME — so naming one here would undo the Arctic Candy Darker
-    // that startHighlighting has already applied above. It used to say `vs-dark` and that was
-    // harmless only because the editor was built BEFORE the theme was fetched. Reversing that
-    // order turned a placeholder into an override, and the page came back in Monaco's stock
-    // palette with the real theme loaded and ignored.
+    // ⚠ Replaced by Arctic Candy Darker once the theme has been fetched. It reads as a placeholder
+    // and it is one, but only because the editor is built BEFORE the theme is applied: `create`
+    // calls `setTheme` whenever this option is a string, so building the editor after the fetch
+    // would make this line an OVERRIDE and hand the page Monaco's stock palette with the real
+    // theme loaded and ignored. Measured, by doing exactly that.
+    theme: 'vs-dark',
     automaticLayout: true,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
@@ -748,6 +758,11 @@ let pendingAutoRun = true;
 setBusy(false);
 spawnWorker();
 
-// ⚠ The example list does not block the runtime and cannot take the page down: the editor and Run
-// are what the page is for, and both work with no examples at all.
+// Highlighting is a nicety; running Cufet is the point. If the grammar, the theme or the regex
+// engine fails to load, say so in the console and leave a working uncoloured editor rather than
+// taking the page down with it.
+startHighlighting().catch(e => console.error('syntax highlighting failed to start:', e));
+
+// Neither of these blocks the runtime, and neither can take the page down: the editor and Run
+// are what the page is for, and both work with no examples and no colour.
 loadExampleList().catch(e => console.error('the example list failed to load:', e));
