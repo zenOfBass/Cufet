@@ -332,17 +332,18 @@ interface Example {
     name: string;
 }
 
-const examplePicker = element<HTMLSelectElement>('examples');
+const menuButton = element<HTMLButtonElement>('examples-button');
+const menuPanel = element('examples-panel');
 
 // ⚠ Fetched at boot, but only the LIST — a few hundred bytes of names. An example's text is
-// fetched when it is picked. Seeding already sits on the critical path to a usable page, and 35
-// more requests do not belong there.
+// fetched when it is picked. Seeding already sits on the critical path to a usable page, and
+// thirty-odd more requests do not belong there.
 async function loadExampleList(): Promise<void> {
     let examples: Example[];
     try {
         const response = await fetch('./examples-manifest.json');
         if (!response.ok) throw new Error(`examples-manifest.json: ${response.status}`);
-        examples = await response.json() as Example[];
+        ({ examples } = await response.json() as { examples: Example[] });
     } catch (e) {
         // A nicety. The editor, the runtime and Run are the page; losing the list costs a way in,
         // not the thing itself, so it stays quiet and disabled rather than shouting.
@@ -350,21 +351,65 @@ async function loadExampleList(): Promise<void> {
         return;
     }
 
-    let group: HTMLOptGroupElement | null = null;
+    let group = '';
     for (const example of examples) {
-        if (!group || group.label !== example.group) {
-            group = document.createElement('optgroup');
-            group.label = example.group;
-            examplePicker.append(group);
+        if (example.group !== group) {
+            group = example.group;
+            const heading = document.createElement('h3');
+            heading.textContent = group;
+            menuPanel.append(heading);
         }
-        const option = document.createElement('option');
-        option.value = example.path;
-        option.textContent = example.name;
-        group.append(option);
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.textContent = example.name;
+        item.dataset['path'] = example.path;
+        item.setAttribute('role', 'menuitem');
+        item.addEventListener('click', () => { closeMenu(); void openExample(example.path); });
+        menuPanel.append(item);
     }
 
-    examplePicker.disabled = false;
+    menuButton.disabled = false;
 }
+
+/** Every item, in the order they appear — what the arrow keys walk. */
+const menuItems = (): HTMLButtonElement[] =>
+    Array.from(menuPanel.querySelectorAll('button'));
+
+function openMenu(): void {
+    menuPanel.hidden = false;
+    menuButton.setAttribute('aria-expanded', 'true');
+    menuItems()[0]?.focus();
+}
+
+// ★ Focus goes back to the button. Closing a menu and leaving focus nowhere strands a keyboard
+// reader at the top of the document, which is the most common way this control is got wrong.
+function closeMenu(): void {
+    if (menuPanel.hidden) return;
+    menuPanel.hidden = true;
+    menuButton.setAttribute('aria-expanded', 'false');
+    menuButton.focus();
+}
+
+menuButton.addEventListener('click', () => (menuPanel.hidden ? openMenu() : closeMenu()));
+
+// Escape from anywhere inside, and arrows to walk it — what a menu is expected to do.
+menuPanel.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { closeMenu(); return; }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+
+    event.preventDefault();
+    const items = menuItems();
+    const here = items.indexOf(document.activeElement as HTMLButtonElement);
+    const step = event.key === 'ArrowDown' ? 1 : -1;
+    // Wraps, because a list this long is easier to reach the end of by going up from the top.
+    items[(here + step + items.length) % items.length]?.focus();
+});
+
+// ⚠ Anywhere outside closes it. Without this the panel survives a click on the editor and sits
+// over the code the visitor just went back to reading.
+document.addEventListener('pointerdown', event => {
+    if (!menuPanel.hidden && !element('examples-menu').contains(event.target as Node)) closeMenu();
+});
 
 // ⚠ The path in the manifest is the path in a checkout, and the path it is served from — the same
 // arrangement the seeded assets use, so there is no mapping to get wrong.
@@ -389,14 +434,8 @@ async function openExample(path: string): Promise<void> {
     }
 }
 
-// ⚠ Picking does NOT run. The visitor chose to read something; running it is a second decision,
-// and one of these prints a partial board and stops on the stack limit. The editor content
-// changing does trigger a re-check, so the squiggles follow along on their own.
-examplePicker.addEventListener('change', () => {
-    const path = examplePicker.value;
-    if (path) void openExample(path);
-});
-
+// ⚠ Opening does NOT run. The visitor chose to read something; running it is a second decision.
+// The editor content changing triggers a re-check, so the squiggles follow along on their own.
 // ── Diagnostics ──────────────────────────────────────────────────────────────────────────────
 //
 // ★★ The SAME front end the VS Code extension calls, reached the same way: `Check` answers one

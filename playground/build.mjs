@@ -287,6 +287,32 @@ await writeFile(join(out, "seed-manifest.json"), JSON.stringify(assetPaths, null
 // in its opening comment while using none — a bare word search drops a working example from the
 // list and nobody would notice. Measured: this selects exactly the three the runtime reports as
 // unable to run here, and `playground/test/examples.test.mjs` holds the scan to that.
+// ⚠⚠ And the ones a SCAN CANNOT SEE, because the reason is behavioural rather than textual.
+//
+// ★ Why exclude at all: a list of examples PROMISES that the things on it work. A refusal is
+// honest when someone wrote the program themselves; it is a broken promise when the page handed
+// it to them.
+//
+// `verifiable: true` means the RUNTIME can confirm the claim — it refuses the program, and
+// test/examples-list.test.mjs fails if it ever stops refusing, so the entry cannot go stale.
+// `verifiable: false` is a JUDGEMENT the runtime cannot check, and is marked as such rather
+// than dressed up as a fact.
+const EXCLUDED = {
+    'sudoku.cufe': {
+        verifiable: true,
+        why: 'its backtracking recursion needs more stack than a browser has. It prints a partial '
+           + 'board and stops with the stack refusal — honest, but a demonstration of the limit '
+           + 'rather than of the language. It runs to completion under `cufet`.',
+    },
+    'gameoflife.cufe': {
+        verifiable: false,
+        why: 'it prints one board per generation and the point is watching them ARRIVE. A terminal '
+           + 'shows output as it is written; this page buffers a run and paints it once, so the '
+           + 'animation becomes a static wall of boards. Nothing refuses it — the output is just '
+           + 'no longer the thing the example is about. Revisit if output ever streams.',
+    },
+};
+
 const NEEDS_A_TERMINAL =
     /^\s*(?:Pull a book on the c-language\b|Define c-language\b|Run\s+")|\|\s*run\s+"/im;
 
@@ -300,6 +326,7 @@ if (existsSync(examplesDir)) {
     for (const path of (await cufeFilesUnder(examplesDir)).sort()) {
         const text = await readFile(path, "utf8");
         if (NEEDS_A_TERMINAL.test(text)) continue;
+        if (Object.hasOwn(EXCLUDED, path.split(/[\\/]/).pop())) continue;
 
         const relative = path.slice(join(here, "..").length + 1).split(/[\\/]/).join("/");
         const parts = relative.split("/");
@@ -321,7 +348,8 @@ if (existsSync(examplesDir)) {
     });
 }
 
-await writeFile(join(out, "examples-manifest.json"), JSON.stringify(examples, null, 2) + "\n");
+await writeFile(join(out, "examples-manifest.json"), JSON.stringify(
+    { examples, excluded: EXCLUDED }, null, 2) + "\n");
 console.log(`examples:       ${examples.length} browsable`);
 console.log(`seeded:         ${assetPaths.length} file(s) the examples read`);
 

@@ -37,16 +37,26 @@
     <section class="pane" id="editor-pane">
       <div class="pane-head">
         <h2>Program</h2>
-        <!-- The corpus, browsable. Populated from examples-manifest.json once it arrives, and
-             left disabled until then so it is never an empty control you can operate. A <select>
-             rather than a list of links: it is a choice of one thing, it costs no layout, and it
-             is keyboard- and screen-reader-navigable without any work from us. -->
-        <label class="examples" for="examples">
-          <span class="sr-only">Example</span>
-          <select id="examples" disabled>
-            <option value="">Examples&hellip;</option>
-          </select>
-        </label>
+        <!-- The corpus, browsable. A disclosure button and a panel rather than a <select>: a
+             native dropdown reads as a SETTING you are changing, and this is navigation — you
+             are going to look at something. The glyph says "this opens", the word says what is
+             behind it, and neither has to be guessed at.
+
+             Disabled until the list arrives, so it is never a control you can operate that has
+             nothing in it. Filled by app.ts from examples-manifest.json. -->
+        <div class="examples" id="examples-menu">
+          <button id="examples-button" type="button" class="menu-button"
+                  aria-haspopup="true" aria-expanded="false" aria-controls="examples-panel" disabled>
+            <!-- Three rules, drawn rather than typed: the ☰ character is missing from a lot of
+                 monospace faces and falls back to a box. aria-hidden because the word beside it
+                 already says what this is. -->
+            <svg class="glyph" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false">
+              <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+            <span>Examples</span>
+          </button>
+          <div id="examples-panel" class="menu-panel" role="menu" hidden></div>
+        </div>
         <div class="actions">
           <span id="status" class="status">loading the runtime&hellip;</span>
           <button id="run" type="button" disabled>Run</button>

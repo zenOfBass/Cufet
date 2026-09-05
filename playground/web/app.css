@@ -191,30 +191,83 @@ main {
     color: var(--faint);
 }
 
-/* The example picker. Sits between the pane's title and its actions: it chooses WHAT the pane
-   holds, which is closer to the title's job than to the Run button's. */
-.examples { display: flex; align-items: center; margin-right: auto; }
+/* The example menu. Sits between the pane's title and its actions: it chooses WHAT the pane
+   holds, which is nearer the title's job than the Run button's. */
+.examples { position: relative; margin-right: auto; }
 
-#examples {
-    padding: 4px 8px;
+/* Quieter than the Run button on purpose. Run is the thing you came to press; this is a way to
+   find something to press it on, and two equally loud controls side by side make you choose
+   between them. */
+.menu-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 10px;
     border: 1px solid var(--line);
     border-radius: 5px;
     background: var(--bg);
-    color: var(--text);
-    font: inherit;
+    color: var(--muted);
     font-size: 12px;
-    cursor: pointer;
+    font-weight: 500;
 }
 
-#examples:disabled { opacity: 0.4; cursor: default; }
+.menu-button:hover:not(:disabled) { color: var(--text); border-color: var(--faint); filter: none; }
+.menu-button[aria-expanded='true'] { color: var(--text); border-color: var(--accent); }
+.menu-button .glyph { flex: none; }
 
-/* The group labels inside the dropdown. A native <optgroup> is drawn by the platform, which
-   ignores most styling — colours are set anyway for the browsers that do honour them. */
-#examples optgroup { background: var(--bg-raised); color: var(--faint); }
-#examples option   { background: var(--bg); color: var(--text); }
+/* Sized against the pane rather than the viewport, and scrollable: 33 examples in seven groups
+   is more than fits, and a menu that runs off the bottom of a pane is a menu with a hidden end. */
+.menu-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 20;
+    min-width: 230px;
+    max-height: min(60vh, 420px);
+    overflow-y: auto;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--bg-raised);
+    box-shadow: 0 10px 28px #0008;
+}
 
-/* Visible to a screen reader, not to the eye. The <select> needs a name; the page does not
-   need a second word next to a control that already says "Examples...". */
+.menu-panel h3 {
+    margin: 8px 8px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--faint);
+}
+.menu-panel h3:first-child { margin-top: 2px; }
+
+/* A button, not a link: nothing is navigated to and no URL changes. */
+.menu-panel button {
+    display: block;
+    width: 100%;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 400;
+    text-align: left;
+}
+
+/* :focus-visible as well as :hover — the panel is arrow-key navigable, and a keyboard reader
+   needs to see where they are just as much as a mouse one does. */
+.menu-panel button:hover,
+.menu-panel button:focus-visible {
+    background: var(--accent);
+    color: var(--accent-text);
+    outline: none;
+    filter: none;
+}
+
+/* Visible to a screen reader, not to the eye. */
 .sr-only {
     position: absolute;
     width: 1px; height: 1px;
@@ -223,7 +276,6 @@ main {
     clip-path: inset(50%);
     white-space: nowrap;
 }
-
 .actions {
     display: flex;
     align-items: center;
