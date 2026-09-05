@@ -156,11 +156,8 @@ they are large, not because they are waiting — the order among them means noth
 2. **Documentation comments, and generated pages for a book.** What a reader gets when they pull a
    book somebody else wrote.
 
-   **★ It shares its one blocker with editor hover, which is the argument for doing that blocker
-   sooner than either feature alone would justify.** Comments are consumed inside the lexer's
-   `SkipWhitespace` and never become tokens, so nothing downstream can see them. Teaching the lexer
-   to carry them as **trivia** unblocks doc comments and editor hover at once — two features
-   behind one change to the shared front end.
+   ★ The input exists: the lexer carries comments as trivia on the token that follows them
+   (`Token.Leading`), so a doc comment is already reachable from the declaration it sits above.
 
    ★ Cufet makes this unusually cheap in two ways. A signature is **already English**, so a page's
    declaration line is the declaration, with no rendering of types into prose. And a book is an
