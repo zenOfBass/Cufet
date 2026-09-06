@@ -939,6 +939,23 @@ Why the interpreter and the compiler must agree, and what that agreement is stan
   and an uncatchable end, on the grounds that running out of stack is a defect rather than
   a condition anyone plans around.
 
+  ⚠⚠ **That measurement was of gcc's willingness, and it was not ours to rely on.** Emitted
+  C returns a number through a hidden pointer — `CufetDec` is 24 bytes — so the callee's
+  result is copied into the caller's slot *after the call comes back*, and `return f(x)` is
+  therefore not a tail call at all. Measured 2026-09-06: `__attribute__((musttail))` on that
+  shape is refused outright — *"cannot tail-call: return value used after call"* — while the
+  same function returning a fact is accepted and loops with no optimiser at all. A recent gcc
+  at `-O2` sees through the copy and jumps anyway; an older one does not, so the same program
+  ran in constant space on one machine and died on another.
+
+  **The compiler now emits the loop itself.** A `return <call to this same function>`, where
+  nothing has to run between the call and the return, becomes an assignment to the parameters
+  and a jump to the top of the function — no call, so no frame. It holds at every `-O` level
+  and on mingw, which is why the test that pins it is no longer Linux-only. The reasoning above
+  is unchanged and still decides the general case: a per-call check would still take a local's
+  address, and gcc's own flattening of every shape this rewrite does not cover still depends on
+  it not being there.
+
   ⚠ What is NOT accepted here is silence, which is what this replaced: a compiled program
   that overflowed used to exit `0xC00000FD` on Windows with nothing on either stream, and
   segfault on Linux where the only word — "Segmentation fault" — comes from the shell and

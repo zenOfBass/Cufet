@@ -254,6 +254,34 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   no narrowing to restore.
 
 ### Fixed
+- **Tail recursion runs in constant space, on every compiler and every optimisation level.** A
+  `Return cast <this same function> on (…)` — where nothing has to run between the call and the
+  return — is now emitted as an assignment to the parameters and a jump to the top of the function.
+  No call, so no stack frame. A 50,000-deep accumulator that previously exhausted the stack now
+  costs one frame.
+
+  ★★ **It was CI that found this, and the test was right.** `TailRecursion_IsStillFlattenedIntoALoop`
+  passed on a machine with gcc 16 and failed on GitHub's older gcc, with nothing changed between
+  them. The test was asserting that *gcc* flattened the self-call — someone else's optimiser — and
+  it happened to.
+
+  ⚠⚠ **The generated C never asked for a tail call.** A number comes back through a hidden pointer,
+  because `CufetDec` is 24 bytes, so the callee's result is copied into the caller's slot *after the
+  call returns*. Measured: `__attribute__((musttail))` on that shape is refused outright — *"cannot
+  tail-call: return value used after call"* — while the same function returning a fact is accepted
+  and loops at `-O0`. A new enough gcc saw through the copy and jumped anyway; an older one could
+  not, so the same program ran forever on one machine and died on another.
+
+  ⚠ **Applies to a direct self-call only, and only when nothing must run first** — no unmakers to
+  run, no files to close, no exception frame or rabbit arena to leave. That is asked of the
+  generated cleanup itself rather than guessed at, so the rewrite happens exactly where the ordinary
+  path would have emitted a bare `return f(x);`. A program that uses unmakers anywhere keeps
+  ordinary recursion, because the unmaker frame is emitted program-wide.
+
+  ★ **The test that pins it is no longer Linux-only.** It was gated because mingw did not flatten
+  this; the flattening is now the compiler's own, so it holds on Windows too — and a regression goes
+  red on any machine that runs the suite instead of waiting for CI.
+
 - **The deployed playground was dead for ten minutes after every push.** Reported from the live
   site: the page loads, the editor works, and the Run button stays disabled for ten or eleven
   minutes. The console said why — every one of our assemblies blocked by Subresource Integrity:
