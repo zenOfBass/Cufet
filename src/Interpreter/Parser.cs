@@ -3797,6 +3797,7 @@ public sealed class Parser
                 IExpression? runArgsSeries = null;
                 bool withTerminal = false;
                 bool saidArguments = false;
+                IExpression? runInput = null;
                 // ★ A LOOP, not a single `if`. `with the terminal` and `with arguments` are
                 // independent modifiers, so both may appear and either may come first. Saying one
                 // twice is a mistake worth naming rather than quietly taking the last one.
@@ -3817,9 +3818,21 @@ public sealed class Parser
                         withTerminal = true;
                         continue;
                     }
+                    if (IsWord("input"))
+                    {
+                        if (runInput != null)
+                            throw new ParseException(Peek(),
+                                "this run already says 'with input'");
+                        Advance(); // consume 'input' (contextual)
+                        SkipNoise();
+                        // ParseExprOr, matching the program name and the argument series: a trailing
+                        // 'but on failure' belongs to the run, not to the text being fed in.
+                        runInput = ParseExprOr();
+                        continue;
+                    }
                     if (!IsWord("arguments"))
                         throw new ParseException(Peek(),
-                            "expected 'arguments' or 'the terminal' after 'with' in a run expression");
+                            "expected 'arguments', 'input' or 'the terminal' after 'with' in a run expression");
                     if (saidArguments)
                         throw new ParseException(Peek(),
                             "this run already says 'with arguments'");
@@ -3858,7 +3871,7 @@ public sealed class Parser
                         runArgsSeries = ParseExprOr();
                     }
                 }
-                baseExpr = new RunExpression(programExpr, runArgs, runArgsSeries, runLine, runCol, withTerminal);
+                baseExpr = new RunExpression(programExpr, runArgs, runArgsSeries, runLine, runCol, withTerminal, runInput);
                 break;
             }
             case TokenType.Read:

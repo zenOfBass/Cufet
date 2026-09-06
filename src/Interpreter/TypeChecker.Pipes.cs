@@ -167,6 +167,17 @@ public sealed partial class TypeChecker
                     + "output to the next stage, and 'with the terminal' sends it to the screen "
                     + "instead. Drop 'with the terminal' to pipe it, or run it on its own to watch it.",
                     piped.Line, piped.Column);
+
+        // ⚠ The same shape one step along: every stage after the first is ALREADY being fed, by the
+        // stage before it. `with input` on one of those is two sources for one stdin. The first
+        // stage is fed by nobody, so it may say it — which is exactly how `cmd < file | other` is
+        // written.
+        for (int i = 1; i < stages.Count; i++)
+            if (stages[i] is RunExpression { Input: not null } fed)
+                throw new TypeException(
+                    "only the first stage of a pipe can say 'with input' — every later stage is "
+                    + "already fed by the one before it, and a program has only one stdin.",
+                    fed.Line, fed.Column);
     }
 
     private CufetType? InferSubprocessPipeExpr(PipeExpression pipe)

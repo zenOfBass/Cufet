@@ -946,7 +946,12 @@ public sealed record WriteToStreamStatement(IExpression Value, IExpression Strea
 // ⚠ `run <prog> with the terminal` hands the child THIS program's own stdin/stdout/stderr, so the
 // result's `output` and `errors` are empty: they went to the terminal instead of into a pipe. Only
 // `exit-code` carries anything, which is the whole point — the statement form below cannot return it.
-public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpression> Args, IExpression? ArgsSeries, int Line, int Column, bool WithTerminal = false) : IExpression;
+// ⚠ `Input` is `run <prog> with input <text>` — the child's stdin, fed from a text value. It is a
+// field rather than a flag because it carries one, and it exists because there was NO way for a
+// program to supply a child's stdin: the only path was to be a later stage of a `|` pipeline, which
+// a program cannot build from a list it read at run time. With it, a shell writes its own pipeline
+// as a loop and `<` is a file read, neither of which needs anything else from the language.
+public sealed record RunExpression(IExpression Program, IReadOnlyList<IExpression> Args, IExpression? ArgsSeries, int Line, int Column, bool WithTerminal = false, IExpression? Input = null) : IExpression;
 
 // `run <program> [with arguments (…)].` as a STATEMENT — launch it and let it have the terminal.
 //

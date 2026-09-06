@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -250,6 +250,9 @@ public sealed partial class Interpreter
     {
         var program = (string)Evaluate(run.Program);
         var args    = RunArguments(run.Args, run.ArgsSeries);
+        // Evaluated out here beside the program and the arguments, not inside the try: a fault while
+        // working out WHAT to feed the child is the program's own, not a launch that failed.
+        var inputText = run.Input == null ? null : (string)Evaluate(run.Input);
         try
         {
             // ⚠ Same hazard the launching statement names: the child writes to the same descriptor
@@ -266,6 +269,10 @@ public sealed partial class Interpreter
                 // and stderr — a terminal when there is one, and a pipe when there is not.
                 RedirectStandardOutput = !run.WithTerminal,
                 RedirectStandardError  = !run.WithTerminal,
+                // ⚠ Only redirected when there is something to write. Left alone, the child reads
+                // whatever this program reads — which is what every form did before `with input`,
+                // and what a pipeline's FIRST stage still does when nothing feeds it.
+                RedirectStandardInput  = run.Input != null,
                 UseShellExecute        = false,
             };
             // Each argument added individually — no shell, no injection possible.
@@ -275,6 +282,16 @@ public sealed partial class Interpreter
 
             using var proc = Process.Start(psi)
                 ?? throw new InvalidOperationException($"Process.Start returned null for '{program}'");
+
+            // ⚠ Written and CLOSED before the reads start. A child that reads to end-of-input — the
+            // ordinary case, and every stage of a pipeline — never sees one if the descriptor stays
+            // open, so it waits forever while this program waits for its output. Closing is what
+            // ends the exchange.
+            if (run.Input != null)
+            {
+                proc.StandardInput.Write(inputText);
+                proc.StandardInput.Close();
+            }
 
             // Read stdout and stderr concurrently — sequential reads deadlock when the process
             // fills one pipe buffer while Cufet is blocked draining the other. Nothing to read on

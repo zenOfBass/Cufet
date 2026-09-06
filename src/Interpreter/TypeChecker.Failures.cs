@@ -330,6 +330,30 @@ public sealed partial class TypeChecker
 
         CheckRunArguments(run.Args, run.ArgsSeries, run.Line, run.Column);
 
+        if (run.Input != null)
+        {
+            // ⚠⚠ A contradiction, not a limitation. `with the terminal` gives the child the real
+            // keyboard; `with input` types for it. Both asks are about the same descriptor, so the
+            // refusal names which one to drop rather than quietly letting one win.
+            if (run.WithTerminal)
+                throw TypeError(
+                    "a run cannot say both 'with the terminal' and 'with input'",
+                    null, run.Line, run.Column,
+                    "give the child the keyboard and type for it at the same time",
+                    "'with the terminal' hands the child the real keyboard; 'with input' feeds it "
+                    + "text instead. Drop 'with the terminal' to feed it, or drop 'with input' to "
+                    + "let someone type.");
+
+            var inputType = InferType(run.Input);
+            if (inputType != null && inputType != CufetType.Text)
+                throw TypeError(
+                    "the input fed to a program must be text",
+                    null, run.Line, run.Column,
+                    $"feed a {FormatType(inputType)} to a program",
+                    "A child reads bytes, so 'with input' takes text. Convert it first if you have "
+                    + "something else.");
+        }
+
         if (_inTryBlock)
             return RunResultType;
 

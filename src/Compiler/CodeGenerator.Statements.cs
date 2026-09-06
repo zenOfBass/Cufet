@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Cufet.Interpreter;
 using Cufet.Lexer;
 
@@ -3029,6 +3029,12 @@ public sealed partial class CodeGenerator
             _preEmits.Add($"const char* {pg} = {EmitExpr(stages[s].Program)};");
             EmitRunArgv(pg, stages[s].Args, stages[s].ArgsSeries, $"cf_av{id}_{s}");
             progVars.Add(pg);
+            // ⚠ NULL when nothing feeds this stage, which is not the same as feeding it "". NULL
+            // leaves the child reading whatever this program reads; "" hands it an immediate
+            // end-of-input. `with input ""` must mean the second, so the distinction is carried.
+            _preEmits.Add(stages[s].Input == null
+                ? $"const char* cf_in{id}_{s} = NULL;"
+                : $"const char* cf_in{id}_{s} = {EmitExpr(stages[s].Input!)};");
         }
 
         var b = new StringBuilder();
@@ -3046,13 +3052,13 @@ public sealed partial class CodeGenerator
         }
         else if (stages.Count == 1)
         {
-            b.Append($"if (cufet_run_capture({progVars[0]}, cf_av{id}_0, NULL, &cf_so{id}, &cf_se{id}, &cf_ex{id}, &cf_e{id})) {{ ");
+            b.Append($"if (cufet_run_capture({progVars[0]}, cf_av{id}_0, cf_in{id}_0, &cf_so{id}, &cf_se{id}, &cf_ex{id}, &cf_e{id})) {{ ");
             b.Append($"{raw}.is_failure = 0; {raw}.val = ({cr}){{ .{fErr} = cf_se{id}, .{fExit} = cufet_dec_from_ll(cf_ex{id}), .{fOut} = cf_so{id} }}; ");
             b.Append($"}} else {{ {raw}.is_failure = 1; {raw}.message = cf_e{id}.message; {raw}.category = cf_e{id}.category; }} ");
         }
         else
         {
-            b.Append($"const char* cf_cur{id} = NULL; const char* cf_eagg{id} = \"\"; int cf_code{id} = 0; int cf_ok{id} = 1; ");
+            b.Append($"const char* cf_cur{id} = cf_in{id}_0; const char* cf_eagg{id} = \"\"; int cf_code{id} = 0; int cf_ok{id} = 1; ");
             for (int s = 0; s < stages.Count; s++)
             {
                 b.Append($"if (cf_ok{id}) {{ if (cufet_run_capture({progVars[s]}, cf_av{id}_{s}, cf_cur{id}, &cf_so{id}, &cf_se{id}, &cf_ex{id}, &cf_e{id})) {{ ");

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.ComponentModel;
 
 namespace Cufet.Interpreter;
@@ -63,7 +63,12 @@ public sealed partial class Interpreter
 
     private void ExecuteSubprocessPipe(List<IExpression> stages, int line)
     {
-        string? currentInput = null;
+        // ⚠ The FIRST stage may say `with input`, and every later one may not — the checker refuses
+        // that, because a later stage is already fed by the one before it and a program has one
+        // stdin. Seeding the carried value from it is the whole of `cmd < file | other`.
+        string? currentInput = stages.Count > 0 && stages[0] is RunExpression { Input: not null } fed
+            ? (string)Evaluate(fed.Input!)
+            : null;
 
         foreach (var stage in stages)
         {
@@ -158,7 +163,12 @@ public sealed partial class Interpreter
 
     private object EvaluateSubprocessPipeExpr(List<IExpression> stages, int line)
     {
-        string? currentInput    = null;
+        // ⚠ The FIRST stage may say `with input`, and every later one may not — the checker refuses
+        // that, because a later stage is already fed by the one before it and a program has one
+        // stdin. Seeding the carried value from it is the whole of `cmd < file | other`.
+        string? currentInput = stages.Count > 0 && stages[0] is RunExpression { Input: not null } fed
+            ? (string)Evaluate(fed.Input!)
+            : null;
         var    stderrAgg        = new System.Text.StringBuilder();
         int    pipeExitCode     = 0; // rightmost non-zero (bash pipefail semantics)
 
