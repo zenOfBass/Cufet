@@ -2091,7 +2091,7 @@ public sealed partial class TypeChecker
                 // The rule is conservative on purpose: a judgement that dispatches on a tag AND on
                 // a value has to answer what happens when both could match, and no program has
                 // needed to ask. Relaxing this later takes nothing back.
-                bool valueJudgement = judge.Arms[0].IsValueArm;
+                bool valueJudgement = judge.Arms.Count > 0 && judge.Arms[0].IsValueArm;
                 foreach (var arm in judge.Arms)
                 {
                     if (arm.IsValueArm == valueJudgement) continue;

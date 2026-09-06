@@ -453,7 +453,7 @@ public static class StashTransform
                     // closed-union demand below: there is no narrowing to restore on resuming into
                     // it, because none of the arms narrowed on the way past.
                     IExpression? elseGuard = null;
-                    if (judge.OtherwiseBody != null && !judge.Arms[0].IsValueArm)
+                    if (judge.OtherwiseBody != null && !(judge.Arms.Count > 0 && judge.Arms[0].IsValueArm))
                     {
                         _facts.Locals.TryGetValue((_factsKey, ItName), out var subjectType);
                         if (subjectType is not UnionType { Cases: { } subjectCases })
