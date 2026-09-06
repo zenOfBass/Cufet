@@ -174,6 +174,27 @@ they are large, not because they are waiting — the order among them means noth
    a thing takes and gives, so a comment that restates it is a second copy that drifts. What is
    left is *why*, and *what can go wrong*.
 
+3. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
+   runs the real interpreter in the browser, loads the corpus, shows squiggles and survives a
+   runaway program. What it does not do is teach anybody anything — the only way in is
+   `REFERENCE.md`, which is over four thousand lines and is a reference rather than a way in.
+
+   ★ **The vehicle already exists**, which is what makes this an arc rather than a wish: a tutorial
+   whose examples RUN, in the page, against the same front end that compiles them, is a playground
+   with prose around it. Nothing new has to be built to execute a lesson.
+
+   **Two decisions, both open:**
+
+   - **What the site IS.** Generated pages, hand-written lessons, or REFERENCE reorganised — and
+     where it lives, which lands on the same deferred `docs/`-folder and GitHub-Pages question
+     item 2 above already carries. Both should be answered once.
+   - **What a tutorial teaches first.** Cufet's shape is unusual enough that the ordinary tour
+     (variables, loops, functions) may not be the right one. Rabbits and failure-as-a-value are
+     what make it different, and they are not chapter nine.
+
+   ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
+   is worse than no lesson, and this project has the machinery to catch that already.
+
 ## Ongoing, no fixed slot
 
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
