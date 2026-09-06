@@ -454,7 +454,7 @@ comes *from* C and goes *back* to C, so Cufet never makes one, and there is no l
 answer because a struct is C's idea and struct work happens in C.
 
 ⚠ **An address may only be held inside a rabbit, and cannot outlive one.** That block already means
-region-scoped memory work, so it is also where a pointer's lifetime is answerable for — the arena
+region-scoped memory work, so it is also where a pointer's lifetime is answered for — the rabbit
 that knows when the region dies is what knows when the pointer dies. Holding one outside a rabbit
 is a static error, and so is putting one somewhere that outlasts the block: an address obeys the
 same escape rule as a series or a map, so inserting one into a series declared outside the rabbit
