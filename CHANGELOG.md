@@ -10,6 +10,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **The shell pipes and redirects: `sort < names | uniq | head -2`.** `tools/shell.cufe` splits a
+  line on `|`, pulls a `<` and its filename out as the input to the whole line, and walks the
+  segments handing each one's output to the next — an ordinary loop, because `run … with input`
+  made one possible.
+
+  ⚠ **A piped or redirected line goes the CAPTURING way, and job control does not reach it.** Each
+  stage runs to completion before the next starts, so nothing streams and such a line cannot be
+  suspended: `yes | head -1` would not finish. That is the shape Cufet's pipelines already have, and
+  closing it means real concurrent pipes — a language question rather than a shell one. A single
+  command with no redirect still takes the shell's own fork, which is where `vim` and `less` live.
+
+  ⚠ The first stage of an unredirected pipeline is fed `""` — an immediate end of input rather than
+  the keyboard. Reading the terminal there would eat the shell's own next line.
+
 - **The shell has job control: `&`, `jobs`, `fg`, `bg`, and Ctrl-Z.** `tools/shell.cufe` now forks
   each job into its own process group and hands the terminal to whichever group is in front.
 

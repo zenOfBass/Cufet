@@ -70,26 +70,7 @@ out, and how it travels.
 
 The ordering is not ceremonial: this tier's real blocker is stated below as **ergonomic rather than capability**, and the only way to find ergonomic blockers is to write large Cufet programs. They are the instrument as much as they are the goal — better to meet the gaps one program at a time than to meet all of them at once inside a compiler.
 
-1. **A shell, written in Cufet.** `tools/shell.cufe` reads, parses, globs, dispatches, launches,
-    changes directory, backgrounds with `&`, and lists, resumes and foregrounds jobs.
-
-    ★ **Job control landed through axioms, and the language needed nothing.** Each job is forked
-    into its own process group and the terminal is handed to whichever group is in the foreground —
-    `setpgid`, `tcsetpgrp`, `waitpid(WUNTRACED)` and `kill(-pgid, …)`, all reachable from the axiom
-    header set already. State is polled once per prompt rather than caught with SIGCHLD, so nothing
-    contends with Cufet's own signal machinery.
-
-    ⚠ **What has not been exercised is Ctrl-Z and the terminal handover**, because both need a real
-    terminal and a person at it — the harness has no tty. Everything they rest on is verified:
-    stopped jobs are remembered, `fg` and `bg` resume, `tcgetpgrp` answers under a pty.
-
-    ⚠ `fg` and `bg` are BARE — they take the most recent job. `fg 2` wants a position parsed out of
-    text, which is a fallible read nothing has needed yet.
-
-    ★ **The editing is the book’s, not the shell’s.** Arrows, Home/End, Ctrl-U and history live in
-    `tools/terminal.cufe` and are pulled by both programs. The shell writes no editing code.
-
-2. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+1. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
@@ -108,7 +89,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     compiler becoming Cufet is what makes every last part of the language Cufet-written. The
     arc above deliberately did not borrow this promise; this item owns it.
 
-3. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
+2. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
     rather than in *Deferred* because its blocker is now a numbered item above, which is the one rule that section states about itself.
 
     Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and
