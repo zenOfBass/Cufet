@@ -487,6 +487,12 @@ Pull a book on the c-language.
                             If the number of jobs is greater than 0:
                                 Define chosen as item (the number of jobs) of jobs.
                                 State the name of chosen.
+                                /*  ⚠⚠ RAW MODE OFF FIRST, for the same reason the launch does it: raw mode clears
+                                    ISIG, so a job resumed while it is on gets a terminal that sends no signals and
+                                    cannot be stopped again. Both places that hand the terminal over must do this —
+                                    fixing only the launch left `fg` un-suspendable, which is how it was found. */
+                                If editing, cast terminal's raw-off.
+
                                 Cast give-terminal-to on (the pid of chosen).
                                 Cast signal-job on (the pid of chosen, cast continue-signal).
 
@@ -497,6 +503,7 @@ Pull a book on the c-language.
 
                                 Define settled as cast wait-for-foreground on (the pid of chosen).
                                 Cast take-terminal-back.
+                                If editing, editing becomes cast terminal's raw-on.
                                 If settled is 1:
                                     State "".
                                     State "[stopped] {the name of chosen}".
@@ -582,6 +589,17 @@ Pull a book on the c-language.
                                     If fed is false:
                                         /*  The argv the child will see: the command word as typed, and every later word expanded into
                                             the names it stands for. */
+                                        /*  ⚠⚠ THE TERMINAL GOES BACK TO NORMAL FOR THE CHILD, and this is not a courtesy. Raw
+                                            mode is a property of the TERMINAL, not of this process, so a child launched while it
+                                            is on inherits no echo, no line editing and — because raw mode clears ISIG — NO SIGNALS
+                                            AT ALL. `cat` would take keys one at a time in silence, and Ctrl-C and Ctrl-Z would
+                                            arrive as bytes nobody reads.
+
+                                            ⚠ Deleted once, by the rewrite that added job control, and the symptom was Ctrl-Z doing
+                                            nothing: with ISIG cleared the terminal never sent SIGTSTP, so there was no stop for
+                                            `wait-for-foreground` to see. */
+                                        If editing, cast terminal's raw-off.
+
                                         Pull a rabbit.
                                             Define words as cast words-new.
                                             If words is void, state "cufetsh: out of memory".
@@ -624,6 +642,10 @@ Pull a book on the c-language.
                                                 Done.
                                             Done.
                                         Done.
+
+                                        /*  Asked for again rather than assumed: a child that changed the terminal and did not
+                                            change it back is why this re-reads the answer. */
+                                        If editing, editing becomes cast terminal's raw-on.
                                     Done.
                                 Done.
 
