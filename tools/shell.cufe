@@ -35,7 +35,12 @@
 
     Run it interpreted, or compile it — `cufet build tools/shell.cufe` produces
     a native binary with no managed runtime under it. The subprocess machinery is
-    POSIX, so a compiled shell needs Linux, macOS, or WSL. */
+    POSIX, so a COMPILED shell needs Linux, macOS, or WSL.
+
+    ⚠ Interpreted, it runs on Windows too, with one thing missing: stop and resume. Process groups
+    and SIGTSTP have no Windows equivalent, so Ctrl-Z and `bg` are not available there — launching,
+    `&`, `jobs`, `fg`, pipes and `<` all are. The split is in the `jobs-support` axiom below and
+    nowhere else. */
 
 
 /*  Does a name fit a pattern? `*` stands for any run of characters including none, `?` for
@@ -202,82 +207,151 @@ Pull a book on the c-language.
         taking it back are both writes to the terminal's foreground group, and a process that is not
         already in the foreground gets SIGTTOU for doing that — which stops the shell, at the exact
         moment it was trying to take control back. Ignoring it is what every shell does and why. */
-    Define c-language number ignore-terminal-stops as [({
-        signal(SIGTTOU, SIG_IGN);
-        signal(SIGTTIN, SIG_IGN);
-        0;
-    })].
+    /*  ⚠⚠ THE PLATFORM SPLIT LIVES IN ONE PLACE, and this is the shape `tools/terminal.cufe`
+        already uses: a resultless `-support` axiom carrying the C, with the callable axioms as
+        one-liners into it. Job control is POSIX — process groups and SIGTSTP have no Windows
+        equivalent — but LAUNCHING is not, and writing the POSIX calls straight into the axioms
+        made `cufet tools/shell.cufe` fail on Windows before the shell could print a prompt.
 
-    /*  Launch, in the job-control shape: the child gets a process group of its own, named after its
-        own pid, and the terminal is handed to that group when the job is to run in the foreground.
+        ★ What Windows gets: launching, background jobs, `jobs`, and `fg`. What it cannot have is
+        stop and resume, because there is no SIGTSTP to send — `bg` and Ctrl-Z say so rather than
+        pretending. */
+    Define c-language jobs-support as [#if defined(_WIN32)
+        #include <process.h>
+        #include <windows.h>
 
-        ★ setpgid is called in BOTH parent and child, deliberately. Whichever runs first wins and the
-        other is a harmless no-op — and doing it in only one leaves a window where the shell has
-        already tried to give the terminal to a group that does not exist yet. */
-    Define c-language number launch, given (the address vec, the fact foreground), as [({
-        char** v = (char**)the vec;
-        pid_t kid = (v && v[0]) ? fork() : (pid_t)-1;
-        if (kid == 0) {
-            setpgid(0, 0);
-            if (the foreground) tcsetpgrp(0, getpid());
-            /*  The child inherits the shell's ignored signals otherwise, and a program that cannot
-                be stopped or interrupted is not what anyone typed. */
-            signal(SIGTTOU, SIG_DFL);
-            signal(SIGTTIN, SIG_DFL);
-            signal(SIGINT,  SIG_DFL);
-            signal(SIGQUIT, SIG_DFL);
-            signal(SIGTSTP, SIG_DFL);
-            execvp(v[0], v);
-            _exit(127);
+        /*  ⚠ A HANDLE where POSIX has a pid. Windows handle values are documented as 32-bit
+            significant for interop, which is what makes this cast the ordinary practice rather
+            than a gamble — but it IS a handle, so it is closed when the job is reaped. */
+        static int cufet_shell_ignore_stops(void) { return 0; }
+        static int cufet_shell_launch(char** words, int foreground) {
+            intptr_t child;
+            if (!words || !words[0]) return -1;
+            child = _spawnvp(_P_NOWAIT, words[0], (const char* const*)words);
+            (void)foreground;
+            return child == -1 ? -1 : (int)child;
         }
-        if (kid > 0) {
-            setpgid(kid, kid);
-            if (the foreground) tcsetpgrp(0, kid);
+        static int cufet_shell_wait(int child) {
+            int status = 0;
+            /* 0 finished - 1 stopped, which cannot happen here - -1 gone */
+            return _cwait(&status, (intptr_t)child, 0) == -1 ? -1 : 0;
         }
-        (int)kid;
-    })].
+        static int cufet_shell_poll(int child) {
+            HANDLE handle = (HANDLE)(intptr_t)child;
+            DWORD answer = WaitForSingleObject(handle, 0);
+            if (answer == WAIT_TIMEOUT) return 0;
+            CloseHandle(handle);
+            return answer == WAIT_OBJECT_0 ? 1 : -1;
+        }
+        static int cufet_shell_signal(int child, int which) {
+            /*  Continue is a no-op success: nothing was ever stopped. Anything else ends it,
+                because terminating is the only signal Windows has. */
+            if (which == 0) return 0;
+            {
+                HANDLE handle = (HANDLE)(intptr_t)child;
+                return TerminateProcess(handle, 1) ? 0 : -1;
+            }
+        }
+        static int cufet_shell_stop_signal(void) { return -1; }
+        static int cufet_shell_continue_signal(void) { return 0; }
+        static int cufet_shell_terminal_back(void) { return 0; }
+        static int cufet_shell_terminal_to(int group) { (void)group; return 0; }
+        #else
+        #include <unistd.h>
+        #include <signal.h>
+        #include <sys/wait.h>
 
-    /*  The terminal comes back to the shell's own group. Called after every foreground job settles,
-        however it settled — finished, killed, or stopped. */
-    Define c-language number take-terminal-back as [(int)tcsetpgrp(0, getpgrp())].
+        /*  ⚠⚠ SIGTTOU IGNORED, and the shell stops itself without it. Handing the terminal to a job
+            and taking it back are both writes to the terminal's foreground group, and a process not
+            already in front is stopped for doing that — at the exact moment it was reclaiming
+            control. Ignoring it is what every shell does and why. */
+        static int cufet_shell_ignore_stops(void) {
+            signal(SIGTTOU, SIG_IGN);
+            signal(SIGTTIN, SIG_IGN);
+            return 0;
+        }
+
+        /*  ★ setpgid is called in BOTH parent and child on purpose. Whichever runs first wins and
+            the other is a harmless no-op — doing it in only one leaves a window where the shell has
+            already handed the terminal to a group that does not exist yet. */
+        static int cufet_shell_launch(char** words, int foreground) {
+            pid_t child;
+            if (!words || !words[0]) return -1;
+            child = fork();
+            if (child == 0) {
+                setpgid(0, 0);
+                if (foreground) tcsetpgrp(0, getpid());
+                /*  The child inherits the shell's ignored signals otherwise, and a program that
+                    cannot be stopped or interrupted is not what anyone typed. */
+                signal(SIGTTOU, SIG_DFL);
+                signal(SIGTTIN, SIG_DFL);
+                signal(SIGINT,  SIG_DFL);
+                signal(SIGQUIT, SIG_DFL);
+                signal(SIGTSTP, SIG_DFL);
+                execvp(words[0], words);
+                _exit(127);
+            }
+            if (child > 0) {
+                setpgid(child, child);
+                if (foreground) tcsetpgrp(0, child);
+            }
+            return (int)child;
+        }
+
+        /*  WUNTRACED is what makes Ctrl-Z visible: without it a stopped child looks exactly like one
+            still running, and the shell waits forever for a job already parked.
+            0 finished - 1 stopped - -1 nothing to wait for */
+        static int cufet_shell_wait(int child) {
+            int status = 0;
+            pid_t seen = waitpid((pid_t)child, &status, WUNTRACED);
+            return seen < 0 ? -1 : (WIFSTOPPED(status) ? 1 : 0);
+        }
+
+        /*  ★ Asked about ONE job, because only one number crosses back from an axiom and the shell
+            already knows which it asked about.
+            0 running - 1 finished - 2 stopped - 3 continued - -1 gone */
+        static int cufet_shell_poll(int child) {
+            int status = 0;
+            pid_t seen = waitpid((pid_t)child, &status, WNOHANG | WUNTRACED | WCONTINUED);
+            if (seen == 0) return 0;
+            if (seen < 0)  return -1;
+            if (WIFSTOPPED(status))   return 2;
+            if (WIFCONTINUED(status)) return 3;
+            return 1;
+        }
+
+        /*  To the GROUP, not the process. A job is everything the command started, and a program
+            that forked helpers should stop and resume with them. */
+        static int cufet_shell_signal(int group, int which) {
+            return (int)kill(-(pid_t)group, which);
+        }
+        static int cufet_shell_stop_signal(void) { return SIGTSTP; }
+        static int cufet_shell_continue_signal(void) { return SIGCONT; }
+        static int cufet_shell_terminal_back(void) { return (int)tcsetpgrp(0, getpgrp()); }
+        static int cufet_shell_terminal_to(int group) { return (int)tcsetpgrp(0, (pid_t)group); }
+        #endif].
+
+    Define c-language number ignore-terminal-stops as [cufet_shell_ignore_stops()].
+
+    Define c-language number launch, given (the address vec, the fact foreground),
+        as [cufet_shell_launch((char**)the vec, (int)the foreground)].
+
+    Define c-language number take-terminal-back as [cufet_shell_terminal_back()].
 
     Define c-language number give-terminal-to, given (the number pgid),
-        as [(int)tcsetpgrp(0, (pid_t)(int)the pgid)].
+        as [cufet_shell_terminal_to((int)the pgid)].
 
-    /*  Wait for a foreground job to settle. WUNTRACED is what makes Ctrl-Z visible here: without it
-        a stopped child looks exactly like one that is still running, and the shell hangs forever
-        waiting for a job the user has already parked.
+    Define c-language number wait-for-foreground, given (the number pid),
+        as [cufet_shell_wait((int)the pid)].
 
-        0 finished · 1 stopped · -1 nothing to wait for */
-    Define c-language number wait-for-foreground, given (the number pid), as [({
-        int st = 0;
-        pid_t got = waitpid((pid_t)(int)the pid, &st, WUNTRACED);
-        (int)(got < 0 ? -1 : (WIFSTOPPED(st) ? 1 : 0));
-    })].
+    Define c-language number poll-job, given (the number pid),
+        as [cufet_shell_poll((int)the pid)].
 
-    /*  ★ Asked about ONE job, because only one number crosses back and the shell already knows which
-        pid it asked about. `waitpid(-1, ...)` would need to return the pid as well as the state, and
-        encoding two answers into one number to save a loop over a handful of jobs is a worse trade
-        than the loop.
-
-        0 still running · 1 finished · 2 stopped · 3 continued · -1 gone */
-    Define c-language number poll-job, given (the number pid), as [({
-        int st = 0;
-        pid_t got = waitpid((pid_t)(int)the pid, &st, WNOHANG | WUNTRACED | WCONTINUED);
-        (int)(got == 0 ? 0
-              : got < 0 ? -1
-              : WIFSTOPPED(st) ? 2
-              : WIFCONTINUED(st) ? 3
-              : 1);
-    })].
-
-    /*  To the GROUP, not the process. A job is everything the command started, and a program that
-        forked helpers should stop and resume with them rather than leaving them behind. */
     Define c-language number signal-job, given (the number pgid, the number sig),
-        as [(int)kill(-(pid_t)(int)the pgid, (int)the sig)].
+        as [cufet_shell_signal((int)the pgid, (int)the sig)].
 
-    Define c-language number stop-signal     as [SIGTSTP].
-    Define c-language number continue-signal as [SIGCONT].
+    Define c-language number stop-signal     as [cufet_shell_stop_signal()].
+    Define c-language number continue-signal as [cufet_shell_continue_signal()].
 
     Cast ignore-terminal-stops.
 
