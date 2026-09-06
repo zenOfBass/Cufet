@@ -227,6 +227,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
   ⚠ No `column` is emitted, though the CLI has one — the extension ignores it and draws by line,
   so a field nothing reads would be invented surface.
+- **`Judge` arms can name a VALUE, not only a type.** `It is "cd"`, `It is "fg" or "bg"`,
+  `It is -1` — the header states `where it is` once, and each arm completes it with a constant
+  instead of a noun. Arm values are literals (number, text, a bit pattern, `true`/`false`), because
+  a case has to be a fixed thing you can read beside the others.
+
+  ★★ **The trigger was `tools/shell.cufe`, and it has been rewritten to use this.** Its command
+  dispatch was four `If cmd is "…"` blocks, each setting a mutable `builtin` flag whose only job was
+  to let a fifth block mean "none of the above". The flag is gone: the four are arms and the fifth is
+  the `Otherwise`. That flag is the signature of a construct being routed around, which is the
+  trigger this entry sat behind on the roadmap — nothing had wanted to judge a value until the
+  shell did.
+
+  ⚠ **`Otherwise` is required, and always will be.** No set of values can be proved to exhaust a
+  type, so a value judgement defaults its coverage rather than proving it. That requirement is the
+  whole of what it buys over an `If` chain, which can silently do nothing.
+
+  ⚠ **One kind of arm per judgement.** Mixing a type arm with a value arm is refused: a judgement
+  dispatching on a tag *and* on a value would have to answer what happens when both could match,
+  and nothing has needed to ask. Refusing it now takes nothing back later.
+
+  ★ **A value arm narrows nothing**, and that is what makes it cheap everywhere. Matching `"cd"`
+  says nothing about the subject's type that its declaration did not, so `it` reads at the subject's
+  own type — which is why a value judgement works on a subject that is not a closed union, why the
+  native backend needs no tag to dispatch on, and why a `bury` inside one is a plain resumption with
+  no narrowing to restore.
 
 ### Fixed
 - **The deployed playground was dead for ten minutes after every push.** Reported from the live

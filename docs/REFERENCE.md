@@ -559,6 +559,51 @@ Done.
 A **grouped** arm narrows only as far as the group: an arm covering two cases cannot
 know which one arrived, so `it` is the sub-union it names and must be tested again
 before type-specific use.
+**An arm may name a value instead of a type.** Where a type arm completes the header
+with a noun, a value arm says `It is` again and completes it with a constant:
+
+```cufet
+Define command as "bg".
+
+Judge command, where it is:
+    It is "cd", state "change directory".
+    It is "fg" or "bg", state "job control: {it}".
+    Otherwise, state "run {it}".
+Done.
+```
+```output
+job control: bg
+```
+
+`Otherwise` is **required** in a value judgement and always will be: no set of values
+can be proved to exhaust a type, so its coverage is defaulted rather than proved. That
+requirement is the whole of what a value judgement buys over a chain of `If`s — the
+chain can silently do nothing.
+
+A value arm **narrows nothing**. Matching `"cd"` says nothing about the subject's type
+that its declaration did not, so `it` reads at the subject's own type throughout the
+arm — which is why a value judgement works on a subject that is not a union at all.
+
+**Arm values are literals**: a number (`-1` included), text, a bit pattern, `true` or
+`false`. Not an expression, and not an interpolated string. An arm is a case, and a
+case has to be a fixed thing you can read beside the others.
+
+**One kind of arm per judgement.** A judgement that dispatched on a tag *and* on a
+value would have to answer what happens when both could match, so mixing is refused:
+
+```cufet-refused
+Define command as "cd".
+
+Judge command, where it is:
+    It is "cd", state "change directory".
+    A text, state "some words".
+    Otherwise, state "something else".
+Done.
+```
+```
+That doesn't work: this judgement mixes arms that match a type with arms that match a value.
+```
+
 
 > **The subject may be an expression.** Narrowing is variable-level, so `If` cannot
 > narrow a value produced by an expression — you have to name it first. `Judge` names
@@ -720,7 +765,7 @@ same programs.
 
 | Shape | Why |
 | --- | --- |
-| `Bury` inside the `Otherwise` of a judgement on a **non-union** subject | The leftover cases have to be named to resume into them, and only a closed union says what they are. |
+| `Bury` inside the `Otherwise` of a judgement whose arms name **types** over a **non-union** subject | The leftover cases have to be named to resume into them, and only a closed union says what they are. ⚠ A judgement whose arms name VALUES is exempt: it narrowed nothing on the way past, so there is nothing to restore. |
 | A nested `Judge` inside a burying body | The inner one rebinds `it` at a narrower type, and one name holds one type here. Bind the inner subject to a name of its own. |
 | `Bury` inside `Try to` or a rabbit block | A handler and a region are context a resumption cannot restore. |
 | `Bury` inside `For each` over a map | Resuming means counting back to where the loop was, and a map's entries have no position to count to. Loop over a series. |

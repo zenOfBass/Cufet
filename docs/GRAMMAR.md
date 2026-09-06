@@ -248,25 +248,34 @@ comma on. And a **lambda**, because it appears inside argument lists where the c
 separator: `cast apply on (10, a function given (the number x), x * 2)` could not be read. A lambda
 body is always `Done.`-terminated.
 
-**`Judge <subject>, where it is:` — coverage is total, by proof or by default.** Arms are bare
-cases (`A num-node`, `A number or a text`), taking the comma form for one statement or a colon and
-`Done.` for a block. The subject is evaluated **once** and bound to `it`, which is **narrowed**
-inside each arm.
+**`Judge <subject>, where it is:` — coverage is total, by proof or by default.** An arm names
+either a **type** (`A num-node`, `A number or a text`) or a **value** (`It is "cd"`,
+`It is "fg" or "bg"`), taking the comma form for one statement or a colon and `Done.` for a
+block. The subject is evaluated **once** and bound to `it`.
 
-- **Closed-union subject** → exhaustiveness is *proved*; `Otherwise` is optional and a missing
-  case is a static error.
-- **Any other subject** → `Otherwise` is **required**. Control can never fall off the end.
-- **A grouped arm does not narrow** — an arm covering two cases cannot know which arrived, so `it`
-  stays the union there.
+- **Closed-union subject, type arms** → exhaustiveness is *proved*; `Otherwise` is optional and a
+  missing case is a static error.
+- **Any other subject, or any value arm** → `Otherwise` is **required**. No set of values can be
+  proved to exhaust a type, so a value judgement always defaults its coverage. Control can never
+  fall off the end.
+- **One kind of arm per judgement.** Mixing a type arm with a value arm is refused: a judgement
+  dispatching on a tag *and* on a value would have to say what happens when both could match.
+- **A type arm narrows `it`** to its case. **A value arm narrows nothing** — matching `"cd"` says
+  nothing about the type that the subject's declaration did not — so `it` reads at the subject's
+  own type there.
+- **A grouped type arm does not narrow** — an arm covering two cases cannot know which arrived, so
+  `it` stays the union there.
+- **An arm's values are literals**: number (`-1` included), text, bits, `true`/`false`. Not an
+  expression, and not an interpolated string — a case has to be a fixed thing on the page.
 - **The subject may be an expression.** Narrowing is variable-level, so `If` cannot narrow one;
   binding to `it` is what makes it possible here.
 - **Nothing may follow `Otherwise`** — a later arm could never run.
 - A judgement whose arms all return counts as returning for the every-path-returns rule.
 
-⚠ **Native backend: closed unions only.** A `Judge` over a non-union subject type-checks and
-interprets, and the compiler **refuses it cleanly** — value arms would compare values rather than
-dispatch on a tag, and that is not built. `Descend.` (explicit fall-through) is reserved and not
-yet accepted.
+⚠ **Native backend: TYPE arms need a closed union.** A `Judge` whose arms name types over a
+non-union subject type-checks and interprets, and the compiler **refuses it cleanly** — there is no
+tag to dispatch on. Value arms have no such limit: they compare, on either backend, using the same
+equality `is` uses. `Descend.` (explicit fall-through) is reserved and not yet accepted.
 
 ### Functions and objects
 
@@ -1801,7 +1810,7 @@ rather than a judgement-specific one. Bind the inner subject to a name of its ow
 | Shape | Why |
 |---|---|
 | `Return` anywhere in the body | A burying function finishes by reaching its end; the stash reports that with `void`. Two ways to say "spent" is one too many. |
-| `Bury` inside the `Otherwise` of a judgement on a **non-union** subject | The leftover cases have to be named to resume into them, and only a closed union lists what they are. |
+| `Bury` inside the `Otherwise` of a judgement whose arms name **types** over a **non-union** subject | The leftover cases have to be named to resume into them, and only a closed union lists what they are. ⚠ A judgement whose arms name VALUES is exempt: it narrowed nothing on the way past, so there is nothing to restore. |
 | `Bury` inside `Try to` or `Pull a rabbit` | A handler and a region are context a resumption cannot restore. |
 | `Bury` inside `For each` over a **map** | Resuming counts back to where the loop was, and a map's entries have no position to count to. Loop over a series, or use `While`. |
 | `Define a shadow` anywhere in the body | Every scope in the body flattens into one, so the shadow would land on the name it was written to hide. |

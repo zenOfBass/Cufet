@@ -304,14 +304,11 @@ indistinguishable from having forgotten.
   never a value** — `Define maybe as any of (1,2,3).` would import Raku-style junctions, whose
   threading order is explicitly undefined and therefore incompatible with no-divergence.
 
-- **`Judge` value arms and `Descend.`** The construct ships — closed-union subjects, `or`
-  grouping, `it` narrowed per arm, `Otherwise`, and coverage proved or defaulted so control can
-  never fall off the end. Two pieces of the decided design are unbuilt: **value arms** (`It is 1`,
-  `It is "red"`), which the native backend refuses cleanly because they compare values rather than
-  dispatch on a tag; and **`Descend.`**, explicit fall-through, whose keyword is reserved and whose
-  typing rule is already settled — *a fall-through target is checked under the union of every path
-  that can reach it*. *Blocker:* no use case has demanded either. Grouping with `or` covers what
-  C-style fall-through is overwhelmingly used for, and nothing has yet wanted to judge a value.
+- **`Descend.` — explicit fall-through in a `Judge`.** The keyword is reserved and the typing rule
+  is settled: *a fall-through target is checked under the union of every path that can reach it*.
+  *Blocker:* no use case has demanded it. Grouping with `or` covers what C-style fall-through is
+  overwhelmingly used for, and the shell — the program that finally wanted to judge a value —
+  wanted a default, not a fall-through.
 
 - **A no-op statement.** An `Otherwise` arm meaning "ignore the rest" has to say something real,
   because Cufet has none — `pass` exists only in `or pass the failure off`. *Blocker:* it may not
