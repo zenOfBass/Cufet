@@ -51,6 +51,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   terminal over and taking it back are both writes to the foreground group, and a process not
   already in front is stopped for doing that — at the exact moment it was reclaiming control.
 
+  ⚠⚠ **Interpreted, the shell still runs on Windows — with stop and resume missing.** Process groups
+  and SIGTSTP have no Windows equivalent, so Ctrl-Z and `bg` are unavailable there while launching,
+  `&`, `jobs`, `fg`, pipes and `<` all work. The split lives in one `jobs-support` axiom, following
+  the shape `tools/terminal.cufe` already used for `isatty` and raw mode. Writing the POSIX calls
+  straight into the axioms made `cufet tools/shell.cufe` fail on Windows with a gcc error about
+  `SIGTTOU` before the shell could print a prompt.
+
   ⚠ Ctrl-Z and the terminal handover are **not exercised by any test**, because both need a real
   terminal and a person at it. What they rest on is verified: stopped jobs are remembered, `fg` and
   `bg` resume, and `tcgetpgrp` answers under a pty. `fg` and `bg` are bare — they take the most
