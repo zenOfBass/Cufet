@@ -537,8 +537,11 @@ public sealed partial class TypeChecker
         if (type is not AddressType && type is not VoidableType { Inner: AddressType }) return;
         throw TypeError(
             $"'{name}' holds a foreign address, and one can only be held inside a rabbit",
+            // ⚠ "the rabbit", not "the arena". An arena is how this is built and a reader has no
+            // way to know the word; a rabbit is what they wrote. The sentence already says
+            // "region" correctly two clauses earlier, which is what made the slip visible.
             "a rabbit block is where region-scoped memory work happens, so it is also where a "
-          + "pointer's lifetime is answerable for — the arena that knows when the region dies is "
+          + "pointer's lifetime is answered for — the rabbit that knows when the region dies is "
           + "what knows when the pointer dies",
             line, column,
             "hold a foreign address outside a rabbit",
