@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Xunit;
 
 namespace Cufet.Compiler.Tests;
@@ -54,8 +54,8 @@ public class StackExhaustionTests : PipelineTestBase
         Assert.Equal(1, exitCode);
     }
 
-    [LinuxFact]
-    public void TailRecursion_IsStillFlattenedIntoALoop()
+    [Fact]
+    public void TailRecursion_RunsInConstantSpace()
     {
         // ★★ THE PROPERTY THE WHOLE DESIGN EXISTS TO PROTECT, and the reason the guard catches the
         // overflow rather than predicting it. Any per-call check — a depth counter, or a test of how
@@ -65,16 +65,91 @@ public class StackExhaustionTests : PipelineTestBase
         // a headroom check grew the stack until it tripped. Either check takes a program that runs in
         // constant space and makes it die.
         //
-        // ⚠ Linux only, and that is not squeamishness — mingw does NOT flatten this, measured: the
-        // same program overflows on Windows. Asserting it there would pin an accident that is not
-        // true on the platform it names.
+        // ⚠⚠ THIS USED TO BE LINUX-ONLY, AND WAS ASSERTING SOMEONE ELSE'S WORK. It asked whether gcc
+        // flattened the self-call, which gcc did on a recent version at -O2 and did not on an older
+        // one — so it passed locally and went red on CI with nothing changed. MEASURED 2026-09-06:
+        // `__attribute__((musttail))` on the number-returning form is REFUSED — "cannot tail-call:
+        // return value used after call" — because CufetDec comes back through a hidden pointer and
+        // the callee's result is copied into the caller's slot. The generated C never asked for a
+        // tail call at all; a new enough optimiser was quietly rescuing it.
+        //
+        // The compiler now emits the loop itself, so this holds at every -O level and on mingw too —
+        // which is why the gate is gone. What it pins is OURS: reintroduce a per-call guard, or lose
+        // the rewrite, and this goes red on any machine that runs the suite.
         var (exitCode, _, _) = RunToDeath(CompileToBinary(TailRecursive), TimeSpan.FromSeconds(3));
 
         Assert.True(exitCode == StillRunning,
             $"the tail-recursive program ended with exit code {exitCode}; it should still be looping, "
-            + "which means something now consumes a stack frame per call — check for a per-call guard.");
+            + "which means something now consumes a stack frame per call — check for a per-call guard, "
+            + "or for a return that no longer qualifies for the self-call rewrite.");
     }
 
+    [Fact]
+    public void TailRecursion_DeeperThanTheInterpreterAllows_StillComputes()
+    {
+        // ★ What the rewrite BUYS, stated as a number. 50,000 deep is past the interpreter's fixed
+        // call-depth limit and — before the rewrite — past what a compiled program's real stack had
+        // on Windows. It is now a loop, so it costs one frame.
+        //
+        // ⚠ NOT an oracle test, and cannot be: the interpreter refuses this at depth 1000 while the
+        // compiled program answers it. That divergence is deliberate and documented in DESIGN.md.
+        const string src = """
+            Bind number to summing, given (the number count, the number carried):
+                If count is 0, return carried.
+                Return cast summing on (count - 1, carried + count).
+            Done.
+            State cast summing on (50000, 0).
+            """;
+        Assert.Equal("1250025000", CompileRaw(src).Trim());
+    }
+
+    [Fact]
+    public void TheSelfCallRewrite_ComputesEveryArgumentBeforeAssigningAny()
+    {
+        // ⚠ The one way a parameter-reassignment rewrite goes silently wrong: `cast f on (back, front)`
+        // reads BOTH parameters, so assigning `front` first would feed the new `front` to the argument
+        // that wanted the old one. Through the oracle, because the interpreter's ordinary recursion is
+        // the definition of the right answer here.
+        const string src = """
+            Bind number to swapper, given (the number front, the number back):
+                If front is 0, return back.
+                Return cast swapper on (back - 1, front).
+            Done.
+            State cast swapper on (3, 5).
+            State cast swapper on (7, 2).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void TheSelfCallRewrite_StandsAsideWhenSomethingMustRunFirst()
+    {
+        // ⚠⚠ A self-call inside a Try that catches an EXCEPTION must not become a jump. That Try
+        // pushes a setjmp buffer onto a runtime stack and pops it on the way out; jumping to the top
+        // of the function would skip the pop and push another next time round, walking
+        // `cufet_exc_bufs` off its end. The oracle would not reliably catch that — four iterations
+        // overflow nothing — so the condition is pinned here directly.
+        const string guarded = """
+            Bind number to risky, given (the number rounds, the number carried):
+                If rounds is 0, return carried.
+                Try to:
+                    Return cast risky on (rounds - 1, carried + 1).
+                Done.
+                In case of exception:
+                    Return carried.
+                Done.
+                Return carried.
+            Done.
+            State cast risky on (4, 0).
+            """;
+
+        // ★ The positive control is what makes the negative mean anything. Rename the label and the
+        // DoesNotContain below would pass while testing nothing at all.
+        Assert.Contains("goto cf_tj", GenerateC(TailRecursive));
+        Assert.DoesNotContain("goto cf_tj", GenerateC(guarded));
+
+        Assert.Equal(InterpretRaw(guarded), CompileRaw(guarded));
+    }
     /// <summary>Reported when a program was still running when its time ran out.</summary>
     private const int StillRunning = int.MinValue;
 

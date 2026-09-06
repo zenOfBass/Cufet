@@ -372,6 +372,13 @@ public sealed partial class CodeGenerator
                     }
                     break;
                 }
+                // ★★ `return <a call to myself>` becomes a JUMP to the top of this function, when
+                // nothing has to run between the call coming back and the return. See _tailSelf for
+                // why this is not left to gcc.
+                if (ret.RunsAxiom is null && ret.Value is CastExpression selfCall
+                    && TryEmitSelfTailCall(sb, selfCall, indent))
+                    break;
+
                 if (ret.Value == null)
                     sb.AppendLine($"{indent}{UnwindTo(FrameExit)}return;");
                 else
@@ -2340,7 +2347,27 @@ public sealed partial class CodeGenerator
 
         sb.AppendLine($"{(cName == null ? EmitFunctionSignature(bind) : EmitSpecFunctionSignature(bind, cName))} {{");
         var savedFrame = EnterFrame(sb, "    ");
-        EmitBlock(sb, bind.Body, "    ");
+
+        // ★ A plain free function only. A specialization (cName) routes its own self-calls through
+        // EmitSpecializedCall, and an interface-taking function is monomorphized — in both, the name
+        // written in the source does not name the C function being emitted, so a "call to myself"
+        // test on it would be wrong.
+        var savedTail = _tailSelf;
+        var savedTailUsed = _tailSelfUsed;
+        _tailSelf = cName == null && !_ifaceFuncs.ContainsKey(bind.Name)
+            ? (bind.Name, $"cf_tj{_freshId++}", bind.Parameters)
+            : null;
+        _tailSelfUsed = false;
+
+        // ⚠ The body is emitted ASIDE, because whether the label is needed is only known once every
+        // return in it has been emitted — and the label has to come before them.
+        var bodyText = new StringBuilder();
+        EmitBlock(bodyText, bind.Body, "    ");
+        if (_tailSelfUsed) sb.AppendLine($"    {_tailSelf!.Value.Label}: ;");
+        sb.Append(bodyText);
+
+        _tailSelf = savedTail;
+        _tailSelfUsed = savedTailUsed;
         ExitFrame(savedFrame);
         sb.AppendLine("}");
         sb.AppendLine();
@@ -2350,6 +2377,59 @@ public sealed partial class CodeGenerator
         _currentReturnType = savedRet;
         _excOpen = savedExcOpen;
         _currentPipeInputElem = savedPipeIn;
+    }
+
+    /// <summary>
+    /// A `return <self-call>` rewritten as a jump to the top of this function. False when it is not
+    /// one, or not safely one — the caller then emits the ordinary return.
+    /// </summary>
+    /// <remarks>
+    /// ⚠⚠ THE WHOLE CONDITION IS "NOTHING RUNS AFTER THE CALL", and it is asked of the generated
+    /// STRING rather than guessed at: if <c>UnwindTo(FrameExit, …)</c> is empty, the ordinary path
+    /// would emit a bare `return f(x);` and the jump is exactly equivalent. If it is not empty —
+    /// unmakers to run, files to close, an exception frame or a rabbit's arena to pop — then work
+    /// happens between the call and the return, this was never a tail call, and gcc could not have
+    /// flattened it either.
+    ///
+    /// ⚠ Conservative in one way worth knowing: <c>UnwindTo</c> is non-empty for EVERY return in a
+    /// program that uses unmakers anywhere, because the frame's unmaker base is emitted program-wide
+    /// rather than per-function. Such a program keeps ordinary recursion. Narrowing that is a
+    /// separate question about the unmaker frame, not about tail calls.
+    ///
+    /// ★ Every argument is computed into a temporary BEFORE any parameter is overwritten. A call
+    /// evaluates its arguments against the OLD parameters, so assigning them one at a time would let
+    /// `cast f on (b, a)` read a value this same statement had already replaced.
+    /// </remarks>
+    private bool TryEmitSelfTailCall(StringBuilder sb, CastExpression call, string indent)
+    {
+        if (_tailSelf is not { } self) return false;
+        if (_closureSelf is not null) return false;          // a nested Bind calls itself another way
+        if (call.Function is not VariableReference vr || vr.Name != self.Name) return false;
+        if (call.Args.Count != self.Params.Count) return false;
+
+        // The same test EmitCall makes before emitting a direct free-function call: a local holding
+        // a function shadows the name, and then this is not a call to us at all.
+        if (!_funcReturnTypes.ContainsKey(vr.Name) || _varTypes.ContainsKey(vr.Name)) return false;
+
+        var retType = _currentReturnType ?? TypeOf(call);
+        if (UnwindTo(FrameExit, ReturnCarriesArenaData(retType)).Length > 0) return false;
+
+        var argExprs = EmitArgsAsParams(vr.Name, call.Args).ToList();
+        FlushPreEmits(sb, indent);
+
+        var temps = new List<string>();
+        for (int i = 0; i < argExprs.Count; i++)
+        {
+            string temp = $"cf_tl{_freshId++}";
+            temps.Add(temp);
+            sb.AppendLine($"{indent}{EmitCType(self.Params[i].Type)} {temp} = {argExprs[i]};");
+        }
+        for (int i = 0; i < temps.Count; i++)
+            sb.AppendLine($"{indent}{MangleName(self.Params[i].Name)} = {temps[i]};");
+
+        sb.AppendLine($"{indent}goto {self.Label};");
+        _tailSelfUsed = true;
+        return true;
     }
 
     // C function names: methods cm_, getters cg_, setters cst_ (cst_ avoids the cs_ series-temp prefix).

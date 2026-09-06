@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Cufet.Interpreter;
 using Cufet.Lexer;
 
@@ -506,6 +506,24 @@ public sealed partial class CodeGenerator
     // The declared return type of the function/method/getter currently being emitted, so a
     // `return <T>` in a `voidable T` body widens the value into the voidable struct.
     private CufetType? _currentReturnType;
+
+    // ── Self-tail-call elimination ────────────────────────────────────────────────────────────
+    //
+    // ★★ WE EMIT THE LOOP OURSELVES rather than hoping gcc does. `return f(x);` in the generated C
+    // is NOT a tail call when f returns a number: CufetDec is 24 bytes, so it comes back through a
+    // hidden pointer and the callee's result is COPIED into the caller's slot after the call. A
+    // recent gcc at -O2 can see through that copy and jump anyway; an older one cannot, and the
+    // program that should run in constant space dies instead.
+    //
+    // ⚠ MEASURED 2026-09-06, and it is what settled this: `__attribute__((musttail))` on the
+    // number-returning form is REFUSED by gcc — *"cannot tail-call: return value used after
+    // call"* — while the same shape returning a fact is accepted and loops at -O0. So the shape we
+    // hand gcc never asked for a tail call; relying on the optimiser to rescue it made the property
+    // depend on the user's toolchain, and CI on an older gcc is where that surfaced.
+    //
+    // Set while a function that may loop back on itself is being emitted; null everywhere else.
+    private (string Name, string Label, IReadOnlyList<(CufetType Type, string Name)> Params)? _tailSelf;
+    private bool _tailSelfUsed;
 
     // Flow-narrowed variables: inside an `is not void` branch a voidable variable is treated
     // as its inner T (reads emit `.val`), matching the interpreter's variable-level narrowing.
