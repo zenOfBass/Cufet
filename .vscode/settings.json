@@ -1,0 +1,15 @@
+{
+    // Point the C# extension straight at the solution instead of letting it discover projects.
+    //
+    // There is one solution and eight projects, so discovery has an unambiguous answer — but the
+    // extension re-derives it, and every re-derivation reads the `obj/` directories that a
+    // `dotnet build` or `dotnet test` is busy rewriting. Whoever arrives second loses: usually the
+    // extension, which then reports "There were problems loading project <name>.csproj"; sometimes
+    // the build, which fails with "the process cannot access ...GeneratedMSBuildEditorConfig
+    // .editorconfig because it is being used by another process". Both have happened here.
+    //
+    // ⚠ This reduces how often that race is entered. It cannot end it — two processes writing one
+    // `obj/` will always be able to collide, and a suite run rewrites every test project's. While a
+    // build is in flight the editor's view of the tree is not authoritative; the terminal's is.
+    "dotnet.defaultSolution": "Cufet.sln"
+}
