@@ -1,7 +1,11 @@
 /*  A simplified command shell, read-eval-loop over standard input.
 
     Anything on your PATH is launched, with as many arguments as you type. `Leave.` on a line by
-    itself exits; so does end of input. `cd` is the one built-in.
+    itself exits; so does end of input. A trailing `&` runs a command in the background.
+
+    The built-ins are `cd`, `jobs`, `fg` and `bg` — built in for the same reason every shell builds
+    them in: a child process cannot change its parent's directory, and it cannot reach its parent's
+    job table either.
 
     Arrows, Home/End, Ctrl-U and a history of what you typed all come from `tools/terminal.cufe`,
     which the REPL uses too. Not one line of editing is written here — that is the whole reason
@@ -13,11 +17,14 @@
         the program name and each argument cross to the child as separate OS-level
         arguments, so nothing is ever re-parsed by /bin/sh and quoting cannot bite.
 
-    - `Run` here is the STATEMENT form: the child inherits this terminal. Its output streams as
-        it happens rather than arriving all at once when it exits, and a program that draws —
-        `less`, `vim`, `top` — has a real terminal to ask about. The expression form
-        (`Define r as run …`) hands the child a pipe instead and gives back what it said, which is
-        what you want when the output is DATA and exactly wrong for a shell.
+    - Launching is the shell's OWN, not Cufet's `Run`, and that is the one place this drops out of
+        the language into C. A shell needs each job in its own process group and the terminal handed
+        to whichever group is in the foreground; `Run` deliberately does neither. Without that there
+        is no Ctrl-Z, no `bg`, and no `fg` — a job could be started and never parked.
+
+        ⚠ This is not a gap in Cufet. `run … with the terminal` is right for a program that opens an
+        editor and reads its exit code; a shell is the special case underneath it. Correct layering,
+        and the axiom block below is where it happens.
 
     - The arguments are a SERIES, not a written-out list. A shell cannot know how many arguments
         it will be handed until it has read the line, so a list fixed when the shell was compiled
@@ -154,125 +161,411 @@ Bind series of text to expanded, given (the text word):
 Done.
 
 
-Pull a terminal.
-    /* Prompts are for somebody typing. Piped or redirected, they would land in the output. */
-    Define asking as cast terminal's interactive.
+/*  Job control needs what a shell needs and a program does not: a child in its OWN process group,
+    and the terminal handed to whichever group is in the foreground. Cufet's own `Run` deliberately
+    does neither — it launches, waits, and hands the terminal over wholesale — so a shell that wants
+    to suspend and resume has to own the machinery itself. That is what this block is.
 
-    /* Raw mode is asked for, never assumed. A pipe, a redirect, or a machine without termios all
-       say no, and the answer is believed — the reader falls back to letting the terminal collect
-       the line, which is what this shell did before it had an editor at all. */
-    Define editing as false.
-    If asking, editing becomes cast terminal's raw-on.
+    ⚠ This is the ONE place the shell drops out of Cufet, and it is on purpose. `run … with the
+    terminal` remains right for a program that wants to open an editor and read its exit code; a
+    shell is the special case that needs setpgid and tcsetpgrp underneath. Correct layering rather
+    than a gap in the language.
 
-    /* Everything typed, in order, for the up arrow to walk back through. */
-    Define past as a series of text.
+    ★ A series cannot cross into an axiom — only a number, a fact, a voidable number, a voidable
+    address and a voidable text do. So argv is BUILT on the C side through a held address, one word
+    at a time. The address lives in a rabbit and is freed when that rabbit ends, which is why every
+    launch below opens one. */
+Pull a book on the c-language.
 
-    Define running as true.
-    While running, repeat:
-        If asking, cast terminal's put on ("cufetsh$ ").
+    Define c-language number words-free, given (the address vec), as [({
+        char** v = (char**)the vec;
+        if (v) { for (int i = 0; v[i]; i++) free(v[i]); free(v); }
+        0;
+    })].
 
-        Define raw as cast terminal's typed on (editing, past).
+    /*  64 slots and a NULL terminator's worth of room. A command line longer than that is not a
+        command line, and refusing at a ceiling beats scribbling past the end of the vector. */
+    Define c-language voidable address words-new as [(void*)calloc(64, sizeof(char*))],
+        and free it with words-free.
 
-        /* Void means end of input — the user closed the stream instead of saying Leave. */
-        If raw is void, the running becomes false.
-        If raw is not void:
-            Define line as raw trimmed.
+    /*  ⚠ strdup, because the bytes belong to Cufet and the child is exec'd after this returns.
+        Pointing argv at memory Cufet may reuse is the kind of bug that works until it does not. */
+    Define c-language number words-add, given (the address vec, the text word), as [({
+        char** v = (char**)the vec;
+        int at = 0;
+        while (at < 62 && v[at]) at++;
+        v[at] = strdup(the word);
+        at + 1;
+    })].
 
-            /* Remembered whether or not it worked. Recalling a line to fix it is most of what a
-               history is for, and the line that failed is the one you most want back. */
-            If the length of line is greater than 0, insert line into past.
+    /*  ⚠⚠ SIGTTOU IGNORED, and the shell stops itself without it. Handing the terminal to a job and
+        taking it back are both writes to the terminal's foreground group, and a process that is not
+        already in the foreground gets SIGTTOU for doing that — which stops the shell, at the exact
+        moment it was trying to take control back. Ignoring it is what every shell does and why. */
+    Define c-language number ignore-terminal-stops as [({
+        signal(SIGTTOU, SIG_IGN);
+        signal(SIGTTIN, SIG_IGN);
+        0;
+    })].
 
-            If line is "Leave.", running becomes false.
-            If line is not "Leave.":
-                /* A blank line is not an error; it is just nothing to do. */
-                If the length of line is greater than 0:
-                    Define parts as line split by " ".
-                    Define cmd   as the first of parts.
-                    Define n     as the number of parts.
+    /*  Launch, in the job-control shape: the child gets a process group of its own, named after its
+        own pid, and the terminal is handed to that group when the job is to run in the foreground.
 
-                    /* `cd` is the shell's own, not a program to launch. A child process cannot change
-                       its parent's directory, which is why every real shell builds this one in. With
-                       it, `pwd` finally reports somewhere you chose. A bad path is a
-                       failure value, so a typo costs you a line of output and not the session. */
-                    If cmd is "cd":
-                        Try to:
-                            If n is 1:
-                                Define home as the environment variable "HOME" but void is "".
-                                If the length of home is 0, home becomes the environment variable "USERPROFILE" but void is "/".
-                                The current directory becomes home.
-                            Done.
-                            If n is 2, the current directory becomes item 2 of parts.
-                            If n is greater than 2, state "cufetsh: cd: too many arguments".
-                        Done.
-                        In case of failure:
-                            State "cufetsh: cd: {the message of the failure}".
-                        Done.
-                    Done.
+        ★ setpgid is called in BOTH parent and child, deliberately. Whichever runs first wins and the
+        other is a harmless no-op — and doing it in only one leaves a window where the shell has
+        already tried to give the terminal to a group that does not exist yet. */
+    Define c-language number launch, given (the address vec, the fact foreground), as [({
+        char** v = (char**)the vec;
+        pid_t kid = (v && v[0]) ? fork() : (pid_t)-1;
+        if (kid == 0) {
+            setpgid(0, 0);
+            if (the foreground) tcsetpgrp(0, getpid());
+            /*  The child inherits the shell's ignored signals otherwise, and a program that cannot
+                be stopped or interrupted is not what anyone typed. */
+            signal(SIGTTOU, SIG_DFL);
+            signal(SIGTTIN, SIG_DFL);
+            signal(SIGINT,  SIG_DFL);
+            signal(SIGQUIT, SIG_DFL);
+            signal(SIGTSTP, SIG_DFL);
+            execvp(v[0], v);
+            _exit(127);
+        }
+        if (kid > 0) {
+            setpgid(kid, kid);
+            if (the foreground) tcsetpgrp(0, kid);
+        }
+        (int)kid;
+    })].
 
-                    /* Everything after the command word is an argument, however many there are. */
-                    If cmd is not "cd":
-                        Define argv as a series of text.
-                        
-                        /*  ⚠ Guarded, because `range 2 to 1` is not empty — a range with its start past its end
-                            counts DOWN, so a one-word line would walk indexes 2 and 1 and ask for an argument
-                            that is not there. The guard says the real condition: there is a second word. */
+    /*  The terminal comes back to the shell's own group. Called after every foreground job settles,
+        however it settled — finished, killed, or stopped. */
+    Define c-language number take-terminal-back as [(int)tcsetpgrp(0, getpgrp())].
+
+    Define c-language number give-terminal-to, given (the number pgid),
+        as [(int)tcsetpgrp(0, (pid_t)(int)the pgid)].
+
+    /*  Wait for a foreground job to settle. WUNTRACED is what makes Ctrl-Z visible here: without it
+        a stopped child looks exactly like one that is still running, and the shell hangs forever
+        waiting for a job the user has already parked.
+
+        0 finished · 1 stopped · -1 nothing to wait for */
+    Define c-language number wait-for-foreground, given (the number pid), as [({
+        int st = 0;
+        pid_t got = waitpid((pid_t)(int)the pid, &st, WUNTRACED);
+        (int)(got < 0 ? -1 : (WIFSTOPPED(st) ? 1 : 0));
+    })].
+
+    /*  ★ Asked about ONE job, because only one number crosses back and the shell already knows which
+        pid it asked about. `waitpid(-1, ...)` would need to return the pid as well as the state, and
+        encoding two answers into one number to save a loop over a handful of jobs is a worse trade
+        than the loop.
+
+        0 still running · 1 finished · 2 stopped · 3 continued · -1 gone */
+    Define c-language number poll-job, given (the number pid), as [({
+        int st = 0;
+        pid_t got = waitpid((pid_t)(int)the pid, &st, WNOHANG | WUNTRACED | WCONTINUED);
+        (int)(got == 0 ? 0
+              : got < 0 ? -1
+              : WIFSTOPPED(st) ? 2
+              : WIFCONTINUED(st) ? 3
+              : 1);
+    })].
+
+    /*  To the GROUP, not the process. A job is everything the command started, and a program that
+        forked helpers should stop and resume with them rather than leaving them behind. */
+    Define c-language number signal-job, given (the number pgid, the number sig),
+        as [(int)kill(-(pid_t)(int)the pgid, (int)the sig)].
+
+    Define c-language number stop-signal     as [SIGTSTP].
+    Define c-language number continue-signal as [SIGCONT].
+
+    Cast ignore-terminal-stops.
+
+
+    Pull a terminal.
+        /* Prompts are for somebody typing. Piped or redirected, they would land in the output. */
+        Define asking as cast terminal's interactive.
+
+        /* Raw mode is asked for, never assumed. A pipe, a redirect, or a machine without termios all
+           say no, and the answer is believed — the reader falls back to letting the terminal collect
+           the line, which is what this shell did before it had an editor at all. */
+        Define editing as false.
+        If asking, editing becomes cast terminal's raw-on.
+
+        /* Everything typed, in order, for the up arrow to walk back through. */
+        Define past as a series of text.
+
+        /*  Everything launched and not yet finished. A job is a pid, the line that started it, and
+            whether it is running or stopped — and it lives HERE rather than in C, because an address
+            cannot outlive its rabbit while this has to outlive every launch.
+
+            ★ The pid doubles as the process-group id, because `launch` puts each child in a group
+            named after itself. One number, two jobs, and no second table to keep in step. */
+        Define jobs as a series of records like (the number pid, the text name, the number stopped).
+
+        Define running as true.
+        While running, repeat:
+            /*  ⚠ Polled here, once per prompt, rather than caught with a SIGCHLD handler. A handler
+                would mean an axiom installing one alongside Cufet's own signal machinery, for news
+                that is only ever read at the prompt anyway — which is where bash effectively
+                reports it too.
+
+                ★ Asked job by job. Only one number crosses back from an axiom, and the shell already
+                knows which pid it asked about, so `waitpid(-1, ...)` would have to encode two answers
+                into one number to save a loop over a handful of jobs. */
+            Define surviving as a series of records like (the number pid, the text name, the number stopped).
+            For each job in jobs, repeat:
+                Define news as cast poll-job on (the pid of job).
+                If news is 0, insert job into surviving.
+                If news is 2, insert a record with (the pid (the pid of job), the name (the name of job), the stopped 1) into surviving.
+                If news is 3, insert a record with (the pid (the pid of job), the name (the name of job), the stopped 0) into surviving.
+                If news is 1, state "[done] {the name of job}".
+                If news is less than 0, state "[done] {the name of job}".
+            Done.
+            The jobs becomes surviving.
+
+            If asking, cast terminal's put on ("cufetsh$ ").
+
+            Define raw as cast terminal's typed on (editing, past).
+
+            /* Void means end of input — the user closed the stream instead of saying Leave. */
+            If raw is void, the running becomes false.
+            If raw is not void:
+                Define line as raw trimmed.
+
+                /* Remembered whether or not it worked. Recalling a line to fix it is most of what a
+                   history is for, and the line that failed is the one you most want back. */
+                If the length of line is greater than 0, insert line into past.
+
+                If line is "Leave.", running becomes false.
+                If line is not "Leave.":
+                    /* A blank line is not an error; it is just nothing to do. */
+                    If the length of line is greater than 0:
+                        Define parts as line split by " ".
+                        Define cmd   as the first of parts.
+                        Define n     as the number of parts.
+
+                        /*  A trailing `&` is not an argument, it is a request. Shortening the count
+                            rather than rebuilding the series is what keeps it out of argv: everything
+                            below counts up to `n`, so moving `n` back one word removes it everywhere
+                            at once.
+
+                            ⚠ Guarded on a second word, because a line that is only `&` has no command
+                            to background and would otherwise leave `cmd` holding the ampersand. */
+                        Define builtin as false.
+                        Define background as false.
                         If n is greater than 1:
-                            For each spot in range 2 to n, repeat:
-                                Define standing-for as cast expanded on (item spot of parts).
-                                For each one-name in standing-for, repeat:
-                                    Insert one-name into argv.
+                            If (item n of parts) is "&":
+                                background becomes true.
+                                The n becomes n - 1.
+                            Done.
+                        Done.
+
+                        /* `cd` is the shell's own, not a program to launch. A child process cannot change
+                           its parent's directory, which is why every real shell builds this one in. With
+                           it, `pwd` finally reports somewhere you chose. A bad path is a
+                           failure value, so a typo costs you a line of output and not the session. */
+                        If cmd is "cd":
+                            builtin becomes true.
+                            Try to:
+                                If n is 1:
+                                    Define home as the environment variable "HOME" but void is "".
+                                    If the length of home is 0, home becomes the environment variable "USERPROFILE" but void is "/".
+                                    The current directory becomes home.
+                                Done.
+                                If n is 2, the current directory becomes item 2 of parts.
+                                If n is greater than 2, state "cufetsh: cd: too many arguments".
+                            Done.
+                            In case of failure:
+                                State "cufetsh: cd: {the message of the failure}".
+                            Done.
+                        Done.
+
+                        /*  ★ `jobs`, `fg` and `bg` are the shell's own for the same reason `cd` is: a
+                            child process cannot change its parent's job table any more than it can
+                            change its parent's directory. Every real shell builds these in, and this
+                            is why.
+
+                            The argument is a POSITION in the list, not a pid — `fg 2` is the second
+                            job, which is what is on screen when you typed `jobs`. Bare `fg` and `bg`
+                            take the last one, the way they do everywhere. */
+                        If cmd is "jobs":
+                            builtin becomes true.
+                            Define spot as 1.
+                            For each job in jobs, repeat:
+                                Define how as "running".
+                                If (the stopped of job) is 1, how becomes "stopped".
+                                State "[{spot}] {how}  {the name of job}".
+                                The spot becomes spot + 1.
+                            Done.
+                            If the number of jobs is 0, state "cufetsh: no jobs".
+                        Done.
+
+                        If cmd is "fg":
+                            builtin becomes true.
+                            /*  ⚠ The terminal FIRST, then SIGCONT. A job woken while the shell still owns the
+                                terminal writes into a foreground group that is not its own and takes SIGTTOU for
+                                it — stopping again, immediately, for trying to do the thing it was just told to. */
+                            /*  ★ Bare only, taking the most recent job. `fg 2` wants a POSITION parsed out of text,
+                                which is a fallible read this does not need yet — the list is short and the last one
+                                is nearly always the one meant. */
+                            If the number of jobs is 0, state "cufetsh: fg: no jobs".
+                            If the number of jobs is greater than 0:
+                                Define chosen as item (the number of jobs) of jobs.
+                                State the name of chosen.
+                                Cast give-terminal-to on (the pid of chosen).
+                                Cast signal-job on (the pid of chosen, cast continue-signal).
+
+                                Define left as a series of records like (the number pid, the text name, the number stopped).
+                                For each other-job in jobs, repeat:
+                                    If (the pid of other-job) is not (the pid of chosen), insert other-job into left.
+                                Done.
+
+                                Define settled as cast wait-for-foreground on (the pid of chosen).
+                                Cast take-terminal-back.
+                                If settled is 1:
+                                    State "".
+                                    State "[stopped] {the name of chosen}".
+                                    Insert a record with (the pid (the pid of chosen), the name (the name of chosen), the stopped 1) into left.
+                                Done.
+                                The jobs becomes left.
+                            Done.
+                        Done.
+
+                        If cmd is "bg":
+                            builtin becomes true.
+                            /*  No terminal, and that is the whole difference from `fg`. A background job that is
+                                handed the terminal will read from it, and two things reading one keyboard is how
+                                a shell loses characters. */
+                            /*  ★ Bare only, taking the most recent job. `fg 2` wants a POSITION parsed out of text,
+                                which is a fallible read this does not need yet — the list is short and the last one
+                                is nearly always the one meant. */
+                            If the number of jobs is 0, state "cufetsh: bg: no jobs".
+                            If the number of jobs is greater than 0:
+                                Define chosen as item (the number of jobs) of jobs.
+                                State the name of chosen.
+                                Cast signal-job on (the pid of chosen, cast continue-signal).
+
+                                Define left as a series of records like (the number pid, the text name, the number stopped).
+                                For each other-job in jobs, repeat:
+                                    If (the pid of other-job) is not (the pid of chosen), insert other-job into left.
+                                Done.
+
+                                Insert a record with (the pid (the pid of chosen), the name (the name of chosen), the stopped 0) into left.
+                                The jobs becomes left.
+                            Done.
+                        Done.
+
+                        /* Everything after the command word is an argument, however many there are. */
+                        If builtin is false:
+                            Define argv as a series of text.
+                        
+                            /*  ⚠ Guarded, because `range 2 to 1` is not empty — a range with its start past its end
+                                counts DOWN, so a one-word line would walk indexes 2 and 1 and ask for an argument
+                                that is not there. The guard says the real condition: there is a second word. */
+                            If n is greater than 1:
+                                For each spot in range 2 to n, repeat:
+                                    Define standing-for as cast expanded on (item spot of parts).
+                                    For each one-name in standing-for, repeat:
+                                        Insert one-name into argv.
+                                    Done.
                                 Done.
                             Done.
-                        Done.
 
-                        /*  ⚠ The terminal goes back to normal for the child, and this is not a courtesy.
-                            Raw mode is a property of the TERMINAL, not of this process, so a child launched
-                            while it is on inherits no echo, no line editing and no Ctrl-C — `cat` would take
-                            keys one at a time in silence and could not be interrupted. Handing the terminal
-                            over means handing it over as found. */
-                        If editing, cast terminal's raw-off.
+                            /*  ⚠ The terminal goes back to normal for the child, and this is not a courtesy.
+                                Raw mode is a property of the TERMINAL, not of this process, so a child launched
+                                while it is on inherits no echo, no line editing and no Ctrl-C — `cat` would take
+                                keys one at a time in silence and could not be interrupted. Handing the terminal
+                                over means handing it over as found. */
+                            If editing, cast terminal's raw-off.
 
-                        /* Launching can fail — the program may not exist, or may not be executable.
-                           That is a failure value, not a crash, so it is handled here and the loop
-                           carries on. */
-                        Try to:
-                            Run cmd with arguments argv.
-                        Done.
-                        In case of failure:
-                            State "cufetsh: {the message of the failure}".
-                        Done.
+                            /*  ⚠⚠ NOT `Run`, and every job goes this way — background and foreground
+                                alike. A second launch path would mean half the jobs could be suspended
+                                and half could not, which is worse than none of them being able to.
 
-                        /*  ⚠⚠ DO NOT DELETE THIS LINE BECAUSE IT LOOKS LIKE IT DOES NOTHING. Mentioning interrupts
-                            ANYWHERE in a program is what puts that program in charge of its own — a program that
-                            never mentions them is stopped by Ctrl-C, which is right for a script and fatal for a
-                            shell. The mention is the opt-in; the poll is what it is spelled with.
+                                ★ The rabbit is what owns the argv vector: an address cannot be held
+                                outside one, and this is the block it lives and dies in. One per launch.
+
+                                ⚠ A launch failure is the CHILD's news, not the parent's. fork succeeds
+                                and execvp fails, so there is nothing for the shell to catch — the child
+                                exits 127, the way every shell has reported `command not found` since
+                                the beginning. Cufet's own `Run` uses a close-on-exec pipe to turn that
+                                back into a failure value; this shell reads the status instead, which is
+                                one fewer moving part for the same answer.
+                            */
+                            Pull a rabbit.
+                                Define words as cast words-new.
+                                If words is void, state "cufetsh: out of memory".
+                                If words is not void:
+                                    Cast words-add on (words, cmd).
+                                    For each one-word in argv, repeat:
+                                        Cast words-add on (words, one-word).
+                                    Done.
+
+                                    Define kid as cast launch on (words, background is false).
+                                    If kid is less than 1, state "cufetsh: could not start {cmd}".
+                                    If kid is greater than 0:
+                                        /*  A backgrounded job is remembered and not waited for — that is
+                                            the whole of `&`. The prompt comes straight back, and the poll
+                                            at the top of the next line is what notices it finishing. */
+                                        If background:
+                                            Insert a record with (the pid kid, the name line, the stopped 0) into jobs.
+                                            State "[{the number of jobs}] {kid}".
+                                        Done.
+
+                                        If background is false:
+                                            Define settled as cast wait-for-foreground on (kid).
+
+                                            /*  Taken back before anything is printed. The shell writing to
+                                                a terminal whose foreground group is still the child's is the
+                                                thing SIGTTOU exists to punish. */
+                                            Cast take-terminal-back.
+
+                                            /*  ⚠ A stopped job is REMEMBERED, or Ctrl-Z would park a program
+                                                where nothing could ever reach it again. This is the line that
+                                                makes suspending reversible. */
+                                            If settled is 1:
+                                                State "".
+                                                Insert a record with (the pid kid, the name line, the stopped 1) into jobs.
+                                                State "[{the number of jobs}] stopped  {line}".
+                                            Done.
+                                        Done.
+                                    Done.
+                                Done.
+                            Done.
+
+                            /*  ⚠⚠ DO NOT DELETE THIS LINE BECAUSE IT LOOKS LIKE IT DOES NOTHING. Mentioning interrupts
+                                ANYWHERE in a program is what puts that program in charge of its own — a program that
+                                never mentions them is stopped by Ctrl-C, which is right for a script and fatal for a
+                                shell. The mention is the opt-in; the poll is what it is spelled with.
                         
-                            ★ It is usually a no-op, and that is correct. While a launched child holds the
-                            terminal the interrupt is the CHILD’s, so nothing is recorded here for this line to
-                            find. It earns its place when a Ctrl-C lands anywhere else — at the prompt with the
-                            line editor unavailable, say — where it stops that from ending the session. */
-                        If an interrupt is requested:
-                            /*  The terminal echoed `^C` where the cursor happened to be, and nothing has ended the
-                                line since — so the next prompt would be drawn onto the end of it. One blank line
-                                puts it back at the left, which is the whole of what bash does here.
+                                ★ It is usually a no-op, and that is correct. While a launched child holds the
+                                terminal the interrupt is the CHILD’s, so nothing is recorded here for this line to
+                                find. It earns its place when a Ctrl-C lands anywhere else — at the prompt with the
+                                line editor unavailable, say — where it stops that from ending the session. */
+                            If an interrupt is requested:
+                                /*  The terminal echoed `^C` where the cursor happened to be, and nothing has ended the
+                                    line since — so the next prompt would be drawn onto the end of it. One blank line
+                                    puts it back at the left, which is the whole of what bash does here.
                         
-                                ★ It knows because the flag is RECORDED during a child now. Reading the child’s exit
-                                status would be the other way to know, and is a language question with no spelling
-                                yet — this needs none of it. */
-                            State "".
-                            Acknowledge the interrupt.
-                        Done.
+                                    ★ It knows because the flag is RECORDED during a child now. Reading the child’s exit
+                                    status would be the other way to know, and is a language question with no spelling
+                                    yet — this needs none of it. */
+                                State "".
+                                Acknowledge the interrupt.
+                            Done.
 
-                        /* Taken back for the next line. A child that changed the terminal and did not change
-                           it back is why this asks again rather than assuming. */
-                        If editing, editing becomes cast terminal's raw-on.
+                            /* Taken back for the next line. A child that changed the terminal and did not change
+                               it back is why this asks again rather than assuming. */
+                            If editing, editing becomes cast terminal's raw-on.
+                        Done.
                     Done.
                 Done.
             Done.
         Done.
-    Done.
 
-    /* However the loop ended — Leave., end of input, or Ctrl-D — the terminal is handed back the
-       way a program that never touched it would leave one. */
-    If editing, cast terminal's raw-off.
+        /* However the loop ended — Leave., end of input, or Ctrl-D — the terminal is handed back the
+           way a program that never touched it would leave one. */
+        If editing, cast terminal's raw-off.
+    Done.
 Done.
