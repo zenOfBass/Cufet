@@ -843,7 +843,13 @@ public sealed partial class Interpreter
 
                 foreach (var arm in judge.Arms)
                 {
-                    if (!arm.Cases.Any(c => RuntimeIsType(subject, c))) continue;
+                    // ★ A value arm compares with the SAME equality `is` uses, rather than a rule
+                    // of its own. `It is 1` has to mean what `it is 1` means, and the way to
+                    // guarantee that is to call the thing the operator calls.
+                    bool matched = arm.IsValueArm
+                        ? arm.Values!.Any(v => ValuesEqual(subject, Evaluate(v)))
+                        : arm.Cases.Any(c => RuntimeIsType(subject, c));
+                    if (!matched) continue;
                     EnterScope();
                     try
                     {

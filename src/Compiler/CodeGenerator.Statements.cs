@@ -958,6 +958,15 @@ public sealed partial class CodeGenerator
     private void EmitJudge(StringBuilder sb, JudgeStatement judge, string indent)
     {
         var subjType = TypeOf(judge.Subject);
+
+        // The checker has already refused a judgement that mixes the two kinds, so the first arm
+        // speaks for all of them.
+        if (judge.Arms.Count > 0 && judge.Arms[0].IsValueArm)
+        {
+            EmitValueJudge(sb, judge, indent, subjType);
+            return;
+        }
+
         if (subjType is not UnionType subjUnion || subjUnion.Cases == null)
             throw new CompilerException(
                 "a Judge over something that is not a closed union cannot be compiled yet — its " +
@@ -1033,6 +1042,73 @@ public sealed partial class CodeGenerator
                 : null;
             EmitNarrowedBlock(sb, narrow, judge.OtherwiseBody, body,
                               left.Count > 1 ? ("it", left) : null);
+        }
+
+        sb.AppendLine($"{inner}}}");
+        sb.AppendLine($"{indent}}}");
+
+        if (hadIt) _varTypes["it"] = prevIt!; else _varTypes.Remove("it");
+        if (hadItNarrow) _narrowedVars["it"] = prevItNarrow; else _narrowedVars.Remove("it");
+        if (hadItCases)  _armCases["it"]     = prevItCases!;  else _armCases.Remove("it");
+    }
+
+    // A VALUE judgement is an ordinary if/else-if chain over `it`, and that is the whole of it.
+    // There is no tag to switch on, and — because a value arm narrows nothing — none of the
+    // narrowing machinery the type path above has to carry.
+    private void EmitValueJudge(StringBuilder sb, JudgeStatement judge, string indent, CufetType subjType)
+    {
+        string subjExpr = EmitExpr(judge.Subject);
+        FlushPreEmits(sb, indent);
+
+        string inner  = indent + "    ";
+        string body   = inner + "    ";
+        string itName = MangleName("it");
+
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{inner}{EmitCType(subjType)} {itName} = {subjExpr};");
+
+        // ⚠⚠ `it` is REBOUND here and the side tables are keyed by NAME, so an enclosing
+        // judgement's narrowing of `it` has to be dropped or it is composed onto this one's
+        // accesses. Nothing in a value arm narrows — but a value judgement nested inside a TYPE
+        // judgement's arm inherits that arm's `.val.cN` unless it is cleared, which is the defect
+        // the type path documents, reached from the other side. It could only ever show up as a
+        // DIVERGENCE: the interpreter shadows `it` properly, so no interpreter test can go red.
+        bool hadIt = _varTypes.TryGetValue("it", out var prevIt);
+        _varTypes["it"] = subjType;
+        bool hadItNarrow = _narrowedVars.TryGetValue("it", out var prevItNarrow);
+        _narrowedVars.Remove("it");
+        bool hadItCases = _armCases.TryGetValue("it", out var prevItCases);
+        _armCases.Remove("it");
+
+        string keyword = "if";
+        foreach (var arm in judge.Arms)
+        {
+            // ★ The test is the `is` operator's OWN emission, built from the same node the front
+            // end would build for `it is <value>`. Every type's equality comes along with it —
+            // text by strcmp, numbers by cufet_cmp, facts as ints — and cannot drift from what the
+            // interpreter does, because both sides are calling the tested pair.
+            var tests = arm.Values!.Select(v => EmitExpr(new BinaryExpression(
+                new VariableReference("it", arm.Line, arm.Column),
+                TokenType.Equal, v, arm.Line, arm.Column))).ToList();
+
+            // An arm's test runs only when the earlier arms failed, so a preliminary step could not
+            // be hoisted above the chain without changing when it runs. Arm values are literals
+            // today, so nothing reaches this — it is here because the day one does not, silence
+            // would emit the step in the wrong place.
+            if (_preEmits.Count > 0)
+                throw new CompilerException(
+                    "this value in a judgement arm needs a preliminary step — Define it before the "
+                  + "Judge and name the variable in the arm.");
+
+            sb.AppendLine($"{inner}{keyword} ({string.Join(" || ", tests)}) {{");
+            EmitNarrowedBlock(sb, null, arm.Body, body);
+            keyword = "} else if";
+        }
+
+        if (judge.OtherwiseBody != null)
+        {
+            sb.AppendLine($"{inner}}} else {{");
+            EmitNarrowedBlock(sb, null, judge.OtherwiseBody, body);
         }
 
         sb.AppendLine($"{inner}}}");

@@ -1,4 +1,4 @@
-using Cufet.Interpreter;
+﻿using Cufet.Interpreter;
 using Xunit;
 using CufetLexer = Cufet.Lexer.Lexer;
 
@@ -1110,6 +1110,47 @@ public class StashMachineTests
 
                 Define flat as a new plain { the held 42 }.
                 State cast ticks on (flat).
+            Done.
+            """));
+    }
+
+    /// <summary>
+    /// A bury inside a VALUE arm, and inside the `Otherwise` of a value judgement.
+    /// </summary>
+    /// <remarks>
+    /// ★ A value arm splits more cheaply than a type arm, not less. The BINDING still has to be
+    /// restored — `it` is read after the resume here, and it comes back from its slot — but there
+    /// is no NARROWING to restore, because matching a value told the arm nothing about the type
+    /// that its declaration had not already said.
+    ///
+    /// ⚠ That is also why this reaches the `Otherwise` at all. A type judgement's `Otherwise` may
+    /// only hold a bury when the subject is a closed union, because the leftover cases have to be
+    /// nameable to resume into them. A value judgement has no leftover cases to name, so the
+    /// demand does not apply — and applying it anyway refused this program.
+    /// </remarks>
+    [Fact]
+    public void ABuryInsideAValueJudgement_KeepsTheBinding()
+    {
+        Assert.Equal("builtin\njob control\nlaunch ls", Run("""
+            Bind number to router, given (the rabbit helper, the series of text commands):
+                For each command in commands, repeat:
+                    Judge command, where it is:
+                        It is "cd", have helper bury "builtin".
+                        It is "fg" or "bg", have helper bury "job control".
+                        Otherwise, have helper bury "launch {it}".
+                    Done.
+                Done.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define source as cast router on (hopper, a series of text with ("cd", "bg", "ls")).
+                Repeat:
+                    Define next as unbury source.
+                    If next is void:
+                        Stop.
+                    Done.
+                    State next.
+                Until false.
             Done.
             """));
     }

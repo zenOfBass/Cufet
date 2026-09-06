@@ -2083,10 +2083,63 @@ public sealed partial class TypeChecker
                 // returns null once nothing is left. For a subject that is NOT a union it
                 // returns the type unchanged, which is exactly what makes `Otherwise` mandatory
                 // there — coverage can never be proved for a type with no enumerable cases.
+                // ⚠ ONE KIND OF ARM PER JUDGEMENT. Refused here rather than in the parser because
+                // the offending arm is the one whose kind differs from the first, and only a pass
+                // that has seen them all knows which that is — a parser refusing at the second arm
+                // blames whichever was written second, which is as often the innocent one.
+                //
+                // The rule is conservative on purpose: a judgement that dispatches on a tag AND on
+                // a value has to answer what happens when both could match, and no program has
+                // needed to ask. Relaxing this later takes nothing back.
+                bool valueJudgement = judge.Arms[0].IsValueArm;
+                foreach (var arm in judge.Arms)
+                {
+                    if (arm.IsValueArm == valueJudgement) continue;
+                    throw TypeError(
+                        "this judgement mixes arms that match a type with arms that match a value",
+                        valueJudgement
+                            ? "The first arm matches a value, so every arm in this judgement has to"
+                            : "The first arm matches a type, so every arm in this judgement has to",
+                        arm.Line, arm.Column,
+                        "match a type and a value in one judgement",
+                        "Split it into two judgements, or test the odd case with an 'If' inside the "
+                      + "arm it belongs to.");
+                }
+
+                // ★ A value arm removes NOTHING from what is left to cover. Values are not cases of
+                // a type, so no set of them can ever be proved to exhaust one — which is what makes
+                // `Otherwise` mandatory for a value judgement, by the same machinery that makes it
+                // mandatory for any subject that is not a closed union.
                 CufetType? remaining = subjectType;
 
                 foreach (var arm in judge.Arms)
                 {
+                    if (arm.IsValueArm)
+                    {
+                        foreach (var value in arm.Values!)
+                        {
+                            var valueType = InferType(value);
+                            if (valueType == null || subjectType == null) continue;
+                            if (IsAssignable(subjectType, valueType)) continue;
+                            throw TypeError(
+                                $"this arm names {FormatType(valueType)} where the subject is "
+                              + $"{FormatType(subjectType)}",
+                                $"An arm names a value the subject could be, and "
+                              + $"{FormatType(valueType)} is never {FormatType(subjectType)}",
+                                arm.Line, arm.Column,
+                                "match a value of a different type",
+                                "Name a value the subject could actually be.");
+                        }
+
+                        // No narrowing: `it` reads at the subject's own type. Matching a value tells
+                        // an arm nothing a type arm's tag would have told it.
+                        EnterScope();
+                        if (subjectType != null)
+                            Scope["it"] = new TypeInfo(subjectType, judge.Subject, arm.Line);
+                        try { CheckBlock(arm.Body); } finally { ExitScope(); }
+                        continue;
+                    }
+
                     foreach (var oneCase in arm.Cases)
                     {
                         // RemoveFromUnion collapses a two-case union to the bare survivor, and
@@ -2118,6 +2171,19 @@ public sealed partial class TypeChecker
                     EnterScope();
                     Scope["it"] = new TypeInfo(remaining ?? subjectType!, judge.Subject, judge.Line);
                     try { CheckBlock(judge.OtherwiseBody); } finally { ExitScope(); }
+                }
+                else if (remaining != null && valueJudgement)
+                {
+                    // ⚠ Not "does not cover X" — the arms of a value judgement never covered
+                    // anything, and telling the author a type is left over sends them looking for a
+                    // missing case that could not exist. What is missing is the Otherwise.
+                    throw TypeError(
+                        "this judgement has no 'Otherwise'",
+                        $"No set of values can be proved to exhaust {FormatType(remaining)}, so a "
+                      + "judgement that matches values has to say what happens to the rest",
+                        judge.Line, judge.Column,
+                        "leave the remaining values unhandled",
+                        "End it with 'Otherwise, ...'.");
                 }
                 else if (remaining != null)
                 {

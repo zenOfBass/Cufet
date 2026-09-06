@@ -1341,6 +1341,31 @@ public sealed class Parser
             }
 
             var armTok = Peek();
+
+            // A VALUE arm says `It is` again, completing the header's sentence a second time;
+            // a TYPE arm completes it with a bare noun (`A circle`). That is the whole
+            // discriminator, and it needs no lookahead past the first token.
+            if (Peek().Type == TokenType.It)
+            {
+                Advance();
+                SkipNoise();
+                Consume(TokenType.Is);
+                SkipNoise();
+                var values = new List<IExpression> { ParseArmValue() };
+                SkipNoise();
+                // `It is "fg" or "bg"` — the `It is` is said once, the way an arm's type cases
+                // repeat the article and not the subject.
+                while (Peek().Type == TokenType.Or)
+                {
+                    Advance();
+                    SkipNoise();
+                    values.Add(ParseArmValue());
+                    SkipNoise();
+                }
+                arms.Add(new JudgeArm([], ParseIfBody(), armTok.Line, armTok.Column, values));
+                continue;
+            }
+
             var cases  = new List<CufetType>();
             SkipNoise();
             cases.Add(ParseTypeAnnotation());
@@ -1365,6 +1390,51 @@ public sealed class Parser
             throw new ParseException(tok, "at least one case in a Judge");
 
         return new JudgeStatement(subject, arms, otherwise, tok.Line, tok.Column);
+    }
+
+    // The constants a value arm may name.
+    //
+    // ★ LITERALS ONLY, deliberately. An arm is a case, and a case has to be a fixed thing the
+    // reader can see beside the others — an expression here would make the arms order-dependent
+    // on side effects and would let two arms name the same value with nothing on the page saying
+    // so. A `String` token is also a guarantee of its own: an interpolated string arrives as
+    // InterpolOpen, so it cannot reach this and a case can never depend on a variable.
+    private IExpression ParseArmValue()
+    {
+        var tok = Peek();
+
+        // `-1` is a unary minus over a literal everywhere else in the grammar. An arm wants the
+        // constant itself, so the sign is folded in here rather than carried as an operator no
+        // back end would want to evaluate per arm.
+        if (tok.Type == TokenType.Minus)
+        {
+            Advance();
+            SkipNoise();
+            var digits = Peek();
+            if (digits.Type != TokenType.Number) throw new ParseException(digits, "a number after '-'");
+            Advance();
+            return new NumberLiteral(-decimal.Parse(digits.Lexeme, CultureInfo.InvariantCulture));
+        }
+
+        switch (tok.Type)
+        {
+            case TokenType.Number:
+                Advance();
+                return new NumberLiteral(decimal.Parse(tok.Lexeme, CultureInfo.InvariantCulture));
+            case TokenType.String:
+                Advance();
+                return new StringLiteral(tok.Lexeme);
+            case TokenType.Bits:
+                return ParseBitsLiteral(Advance());
+            case TokenType.TrueKw:
+                Advance();
+                return new BooleanLiteral(true, tok.Line, tok.Column);
+            case TokenType.FalseKw:
+                Advance();
+                return new BooleanLiteral(false, tok.Line, tok.Column);
+        }
+
+        throw new ParseException(tok, "a number, some text, a bit pattern or a fact after 'It is'");
     }
 
     private WhileStatement ParseWhileStatement()

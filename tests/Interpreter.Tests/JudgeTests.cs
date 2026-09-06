@@ -1,4 +1,4 @@
-using Cufet.Interpreter;
+﻿using Cufet.Interpreter;
 using Xunit;
 using CufetLexer = Cufet.Lexer.Lexer;
 
@@ -174,5 +174,163 @@ public class JudgeTests
             "    Done.\n" +
             "Done.\n" +
             "State cast size-of on (\"hello\")."));
+    }
+
+    // ── Value arms ────────────────────────────────────────────────────────
+    //
+    // An arm that names a VALUE rather than a type. It buys no expressiveness — an `Otherwise if`
+    // chain says the same thing — so what these pin is the two properties that make it worth
+    // having: `Otherwise` is MANDATORY, because no set of values can be proved to exhaust a type;
+    // and an arm cannot name a value the subject could never be. A chain of `If`s can silently do
+    // nothing and can silently compare a number against text; this cannot do either.
+
+    [Fact]
+    public void AValueArm_MatchesTheValue()
+    {
+        Assert.Equal("change directory", Run("""
+            Define command as "cd".
+            Judge command, where it is:
+                It is "cd", state "change directory".
+                Otherwise, state "something else".
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AValueArm_GroupsWithOr()
+    {
+        // The `It is` is said once, the way a type arm repeats the article and not the subject.
+        Assert.Equal("job control", Run("""
+            Define command as "bg".
+            Judge command, where it is:
+                It is "fg" or "bg", state "job control".
+                Otherwise, state "something else".
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AValueArm_FallsToOtherwise()
+    {
+        Assert.Equal("run ls", Run("""
+            Define command as "ls".
+            Judge command, where it is:
+                It is "cd", state "change directory".
+                Otherwise, state "run {it}".
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AValueJudgement_WithoutOtherwise_IsRefused()
+    {
+        // ★ The refusal that makes value arms worth having at all.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define command as "cd".
+            Judge command, where it is:
+                It is "cd", state "change directory".
+            Done.
+            """));
+        Assert.Contains("no 'Otherwise'", ex.Message);
+        // ⚠ NOT the type-arm wording. Telling the author that `text` is left over sends them
+        // looking for a missing case that could not exist — no arm here ever covered a type.
+        Assert.DoesNotContain("does not cover", ex.Message);
+    }
+
+    [Fact]
+    public void AValueArm_OfTheWrongType_IsRefused()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define command as "cd".
+            Judge command, where it is:
+                It is 3, state "three".
+                Otherwise, state "something else".
+            Done.
+            """));
+        Assert.Contains("number", ex.Message);
+        Assert.Contains("text", ex.Message);
+    }
+
+    [Fact]
+    public void MixingTypeArmsAndValueArms_IsRefused()
+    {
+        // Refused on purpose, not because it is hard: a judgement dispatching on a tag AND on a
+        // value has to answer what happens when both could match, and nothing has needed to ask.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define command as "cd".
+            Judge command, where it is:
+                It is "cd", state "change directory".
+                A text, state "some words".
+                Otherwise, state "something else".
+            Done.
+            """));
+        Assert.Contains("mixes arms", ex.Message);
+    }
+
+    [Fact]
+    public void MixingTheOtherWayRound_IsAlsoRefused()
+    {
+        // The rule is about the judgement, not about which kind happened to come first.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Define command as "cd".
+            Judge command, where it is:
+                A text, state "some words".
+                It is "cd", state "change directory".
+                Otherwise, state "something else".
+            Done.
+            """));
+        Assert.Contains("mixes arms", ex.Message);
+    }
+
+    [Fact]
+    public void AValueArm_NamesALiteral_AndNothingElse()
+    {
+        // An arm is a case, and a case has to be a fixed thing the reader can see beside the
+        // others. An expression here would make the arms order-dependent on side effects and would
+        // let two arms name the same value with nothing on the page saying so.
+        var ex = Assert.Throws<ParseException>(() => Run("""
+            Define command as "cd".
+            Define other as "bg".
+            Judge command, where it is:
+                It is other, state "the same".
+                Otherwise, state "something else".
+            Done.
+            """));
+        Assert.Contains("after 'It is'", ex.Message);
+    }
+
+    [Fact]
+    public void AValueArm_TakesNumbersNegativesAndFacts()
+    {
+        // `-1` is folded into the constant rather than carried as a unary minus, so an arm holds a
+        // value and not an expression to evaluate once per judgement.
+        Assert.Equal("interrupted\nyes", Run("""
+            Define code as 0 - 1.
+            Judge code, where it is:
+                It is 0, state "fine".
+                It is -1, state "interrupted".
+                Otherwise, state "exit {it}".
+            Done.
+            Define flag as true.
+            Judge flag, where it is:
+                It is true, state "yes".
+                Otherwise, state "no".
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AValueArm_DoesNotNarrowIt()
+    {
+        // ★ `it` reads at the subject's own type throughout. Matching "cd" says nothing about the
+        // type that the subject's declaration did not, which is why a value judgement works on a
+        // subject that is not a union at all — and why it costs the back ends no narrowing.
+        Assert.Equal("cd is 2 long", Run("""
+            Define command as "cd".
+            Judge command, where it is:
+                It is "cd", state "{it} is {the length of it} long".
+                Otherwise, state "something else".
+            Done.
+            """));
     }
 }

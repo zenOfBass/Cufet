@@ -1,4 +1,4 @@
-using Cufet.Lexer;
+﻿using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
 
@@ -537,6 +537,10 @@ public sealed class SemanticTokenizer
                     // all, and stops at the ':' that opens the body.
                     var arms = Cursor.At(_tokens, arm.Line, arm.Column);
                     foreach (var oneCase in arm.Cases) EmitAnnotationNames(arms, oneCase);
+                    // A value arm names constants rather than types, so there is no annotation to
+                    // colour — but they are walked anyway, so the day an arm may hold something
+                    // with a name in it, that name is not silently left uncoloured.
+                    foreach (var value in arm.Values ?? []) Walk(value);
                     WalkNested(arm.Body);
                 }
                 WalkNested(judge.OtherwiseBody);

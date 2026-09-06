@@ -169,14 +169,28 @@ public sealed record IfStatement(
     IReadOnlyList<IStatement>? ElseBody
 ) : IStatement;
 
-// One arm of a Judge. `Cases` holds every type the arm matches — `An add-node or a mul-node`
-// gives two — because grouping is how the common use of C-style fall-through is served.
+// One arm of a Judge. An arm matches EITHER types or values, never both: `Cases` non-empty is a
+// type arm, `Values` non-empty is a value arm. Mixing the two in one judgement is refused — see
+// the checker — because a judgement that dispatches on a tag and on a value at once has to answer
+// what happens when both could match, and nothing has needed to ask.
+//
+// Each holds every alternative the arm matches, because grouping is how the common use of C-style
+// fall-through is served: `An add-node or a mul-node` for types, `It is "fg" or "bg"` for values.
+//
+// ★ A VALUE ARM NARROWS NOTHING. Matching "cd" says nothing about the subject's type that its own
+// declaration did not, so `it` reads at the subject's type throughout the arm. That is why value
+// arms cost the back ends none of the narrowing machinery type arms need, and why they work on a
+// subject that is not a union at all.
 public sealed record JudgeArm(
     IReadOnlyList<CufetType> Cases,
     IReadOnlyList<IStatement> Body,
     int Line,
-    int Column
-);
+    int Column,
+    IReadOnlyList<IExpression>? Values = null
+)
+{
+    public bool IsValueArm => Values is { Count: > 0 };
+}
 
 // Judge <subject>, where it is:
 //     A num-node, ...

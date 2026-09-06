@@ -1,4 +1,4 @@
-using Cufet.Lexer;
+﻿using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
 
@@ -427,12 +427,33 @@ public static class StashTransform
                         return test;
                     }
 
+                    // ★ A VALUE arm splits more cheaply than a type arm, not less. Its DISPATCH is
+                    // a disjunction of equalities — the same thing the front ends emit for
+                    // `it is <value>`. Its GUARD is nothing at all: a guard exists to restore
+                    // narrowing after a resume, and a value arm narrowed nothing to restore.
+                    IExpression ArmTest(JudgeArm arm)
+                    {
+                        if (!arm.IsValueArm) return AnyOf(arm.Cases, arm);
+                        IExpression Eq(IExpression v) =>
+                            new BinaryExpression(Var(ItName), TokenType.Equal, v, arm.Line, arm.Column);
+                        IExpression test = Eq(arm.Values![0]);
+                        for (int i = 1; i < arm.Values.Count; i++)
+                            test = new BinaryExpression(test, TokenType.Or, Eq(arm.Values[i]),
+                                                        arm.Line, arm.Column);
+                        return test;
+                    }
+
+                    IExpression? ArmGuard(JudgeArm arm) => arm.IsValueArm ? null : AnyOf(arm.Cases, arm);
+
                     // The `Otherwise` is reached for whatever the arms did not take, and that
                     // leftover is statable the same way — as a disjunction of the cases still
                     // standing. It needs the subject's own case list, which is why the checker
                     // records `it` at its WIDEST type.
+                    // ⚠ A VALUE judgement's Otherwise needs no guard and so is not held to the
+                    // closed-union demand below: there is no narrowing to restore on resuming into
+                    // it, because none of the arms narrowed on the way past.
                     IExpression? elseGuard = null;
-                    if (judge.OtherwiseBody != null)
+                    if (judge.OtherwiseBody != null && !judge.Arms[0].IsValueArm)
                     {
                         _facts.Locals.TryGetValue((_factsKey, ItName), out var subjectType);
                         if (subjectType is not UnionType { Cases: { } subjectCases })
@@ -453,12 +474,12 @@ public static class StashTransform
 
                     SetExit(cur, [new IfStatement(
                         [.. judge.Arms.Select((arm, i) =>
-                            new ConditionArm(AnyOf(arm.Cases, arm), [SetStep(entries[i])]))],
+                            new ConditionArm(ArmTest(arm), [SetStep(entries[i])]))],
                         [SetStep(otherwise)])]);
 
                     for (int i = 0; i < judge.Arms.Count; i++)
                         SetExit(EmitGuarded(judge.Arms[i].Body, entries[i], loop,
-                                            AnyOf(judge.Arms[i].Cases, judge.Arms[i])),
+                                            ArmGuard(judge.Arms[i])),
                                 [SetStep(after)]);
 
                     SetExit(EmitGuarded(judge.OtherwiseBody ?? [], otherwise, loop, elseGuard), [SetStep(after)]);

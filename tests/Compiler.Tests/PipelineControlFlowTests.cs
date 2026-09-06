@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -401,6 +401,126 @@ public class PipelineControlFlowTests : PipelineTestBase
                 Stop.
             Until false.
             State value.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ── Judge, value arms ─────────────────────────────────────────────────
+    //
+    // A value arm compares rather than dispatching on a tag, so the two back ends reach it by
+    // different roads: the interpreter calls the same equality `is` calls, and the compiler emits
+    // the same C the `is` operator emits. These pin that the roads meet.
+
+    [Fact]
+    public void JudgeValueArms_OnText_MatchesInterpreter()
+    {
+        const string src = """
+            Define command as "bg".
+            Judge command, where it is:
+                It is "cd", state "change directory".
+                It is "fg" or "bg", state "job control: {it}".
+                Otherwise, state "run {it}".
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void JudgeValueArms_ReachingOtherwise_MatchesInterpreter()
+    {
+        const string src = """
+            Define command as "ls".
+            Judge command, where it is:
+                It is "cd", state "change directory".
+                It is "fg" or "bg", state "job control".
+                Otherwise, state "run {it}".
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void JudgeValueArms_OnNumbersAndFacts_MatchesInterpreter()
+    {
+        // A negative arm value is folded into the constant, so this also pins that the two back
+        // ends read `-1` the same way rather than one of them carrying a unary minus.
+        const string src = """
+            Bind text to name-of, given (the number code):
+                Judge code, where it is:
+                    It is 0, return "fine".
+                    It is -1, return "interrupted".
+                    Otherwise, return "exit {it}".
+                Done.
+            Done.
+            State cast name-of on (0 - 1).
+            State cast name-of on (0).
+            State cast name-of on (7).
+            Define flag as false.
+            Judge flag, where it is:
+                It is true, state "on".
+                Otherwise, state "off".
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void JudgeValueArms_InsideATypeArm_MatchesInterpreter()
+    {
+        // ⚠⚠ THE REGRESSION THIS FILE EXISTS FOR. `it` is rebound by the inner judgement, but the
+        // compiler's narrowing tables are keyed by NAME — so without clearing them the outer arm's
+        // `.val.c0` is composed onto the inner `it`, reaching for a member of a type that has none.
+        // The interpreter shadows `it` properly, so nothing but the oracle can see this.
+        const string src = """
+            Define object number-literal with (the number value).
+            Define object text-literal with (the text value).
+
+            Bind text to describe, given (the (number-literal or text-literal) node):
+                Judge node, where it is:
+                    A number-literal:
+                        Define held as it.
+                        Judge held's value, where it is:
+                            It is 1, return "the number one".
+                            It is 2 or 3, return "a small number".
+                            Otherwise, return "the number {held's value}".
+                        Done.
+                    Done.
+                    A text-literal:
+                        Define held as it.
+                        Judge held's value, where it is:
+                            It is "yes", return "an agreement".
+                            Otherwise, return "the words {held's value}".
+                        Done.
+                    Done.
+                Done.
+                Return "unreachable".
+            Done.
+
+            State cast describe on (a new number-literal { the value 1 }).
+            State cast describe on (a new number-literal { the value 3 }).
+            State cast describe on (a new number-literal { the value 9 }).
+            State cast describe on (a new text-literal { the value "yes" }).
+            State cast describe on (a new text-literal { the value "no" }).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void JudgeValueArms_EveryArmReturns_MatchesInterpreter()
+    {
+        // A value judgement is total only through its `Otherwise`, so the return-path analysis has
+        // to count that arm or the function reads as able to fall off its end.
+        const string src = """
+            Bind text to name-of, given (the number code):
+                Judge code, where it is:
+                    It is 0, return "fine".
+                    It is 1 or 2, return "a small problem".
+                    Otherwise, return "exit {code}".
+                Done.
+            Done.
+            State cast name-of on (0).
+            State cast name-of on (2).
+            State cast name-of on (9).
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
