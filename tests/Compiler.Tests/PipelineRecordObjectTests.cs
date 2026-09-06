@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -1144,6 +1144,70 @@ public class PipelineRecordObjectTests : PipelineTestBase
                 Done.
             Done.
             """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void NamedAccess_MeansWhatTheOPERANDsTypeSaysItMeans()
+    {
+        // ★★ ONE SYNTAX, SEVEN MEANINGS, chosen by the type of the thing on the right. `the rows of`
+        // is a matrix's row count or a record's field called `rows`; `the message of` is a failure's,
+        // an exception's, or a field somebody named `message`. The parser cannot tell them apart and
+        // is not asked to — the checker resolves it where the type is known.
+        //
+        // ⚠⚠ THE FAILURE THIS GUARDS is a dispatch that matches on the NAME before the type. Every
+        // one of these words is an ordinary noun somebody will want as a field, and a checker that
+        // reached for the built-in meaning first would quietly hand back the wrong thing rather than
+        // refusing — the worst shape a bug can take in a language whose argument is its messages.
+        //
+        // ⚠ Before this, `rows`, `columns` and `value` were pinned as record fields somewhere and
+        // `message`, `category`, `key` and `width` were not — so half the switch was resting on
+        // nothing. They are all here now, each beside the built-in meaning it has to stay clear of.
+        const string src = """
+            Pull a book on collections.
+                Define grid as a matrix with 2 by 3 filled with 0.
+                Define mine as a record with (the rows "a few", the columns "several",
+                                              the message "hand-written", the category "mine",
+                                              the key "spare", the value "kept", the width "narrow").
+
+                State the rows of grid.
+                State the rows of mine.
+                State the columns of grid.
+                State the columns of mine.
+                State the message of mine.
+                State the category of mine.
+                State the key of mine.
+                State the value of mine.
+                State the width of mine.
+
+                Define tagged as 0b1011 at 8 bits.
+                State the width of tagged.
+
+                Try to:
+                    State 1 / 0.
+                Done.
+                In case of exception:
+                    State the message of the exception.
+                    Suppress the exception.
+                Done.
+
+                Try to:
+                    Define gone as read all from the file "no-such-file-here-zzz".
+                    State gone.
+                Done.
+                In case of failure:
+                    State the category of the failure but void is "none".
+                Done.
+            Done.
+            """;
+
+        // The record's own answers, never the built-in ones — and the built-in ones where there is
+        // no field to shadow them.
+        Assert.Equal(
+            "2\na few\n3\nseveral\nhand-written\nmine\nspare\nkept\nnarrow\n8\n"
+            + "Division by zero on line 21.\nnot-found",
+            Interpret(src));
+
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 }
