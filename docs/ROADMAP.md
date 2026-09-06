@@ -112,33 +112,42 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
 All need a design session before they can be ordered against anything. They are here because
 they are large, not because they are waiting — the order among them means nothing yet.
 
-1. **Rabbits as actors.** Not a new mechanism so much as a NAME for what the region model already
-   bought. A rabbit today owns an isolated arena, owns the tasks it spawns and joins them at
-   `Done.`, shares nothing mutable across threads, and has escape rules the compiler enforces —
-   isolated heap, owned lifetime, supervised children, no shared state. That is the actor
-   invariant, and the expensive part of it (the escape analysis) is built and shipping. No VM.
+1. **Rabbits as actors.** A rabbit already owns an isolated arena, owns and joins the tasks it
+   spawns, shares nothing mutable across threads, and has escape rules the compiler enforces —
+   that is the actor invariant, and the expensive part of it is shipping. What is left is failure,
+   supervision, and the framing itself: naming this in DESIGN is part of the work, not a write-up
+   of it.
 
-   **★ One piece stands on its own: failure is not isolated.** A task that raises with no local
-   `Try` tears down the whole program. (The two backends at least clean up identically on the way
-   out now — the destructor divergence there was a separate defect, and it is closed.) "Let it
-   crash" wants the inverse of the whole behaviour: the child's
-   region dies, the parent is told, the program continues. The mechanism is already there — a
-   rabbit's region dying IS "that actor's state is gone" — it is simply not wired to failure.
+   **Settled:**
 
-   **The fork that decides how big the rest is:** a rabbit's lifetime is **lexical** (`Pull …
-   Done.` opens, joins, frees) and an actor supervisor's is usually **dynamic** — it outlives the
-   children it restarts. If "the block restarts its child in place, until it succeeds or gives up"
-   is enough, this is small work on machinery that exists. If supervisors must outlive their
-   scope, it reopens the region model's central rule, and that is the same "which restriction?"
-   question the rabbit control-flow arc already carries.
+   - **Lexical supervision only** — restart in place, within the block. Dynamic supervisors park
+     with the region-lifetime arc, and a toggle between the two lifetimes is rejected: two rules
+     means every escape question gets asked twice.
+   - **"Let it crash" is task-fault → region death → the parent is told.** An awaited task reports
+     through `the awaited result of`, which becomes `T or failure`. ⚠ **Breaking** — every awaiter
+     comes under the unhandled-failure check. That is the feature, but decide it rather than
+     discover it.
+   - **An unawaited task surfaces at the rabbit's `Done.`** The rabbit is the real supervisor; it
+     already joins everything it spawned. Without this a fire-and-forget fault is swallowed, which
+     is worse than today's teardown rather than better.
+   - **Identity is the rabbit's name, and the send surface is `Have <rabbit> …`** — a shape that
+     already exists for other reasons. The mailbox mechanism is later.
+   - **A restartable body must acquire its own resources**, so a re-run re-acquires into a fresh
+     region. Parallel to the destructor ownership rule.
 
-   ⚠ **Restart needs re-runnable bodies.** Re-running a body means resources are REACQUIRED, not
-   merely re-entered, and the language has no notion of that today.
+   **Open:**
 
-   ⚠ Identity and a mailbox are the other missing half — today channels are wired by hand, where an
-   actor is addressable and has one inbox. ★ The surface may already read for it: `Have <rabbit> …`
-   is a message-send shape that exists for other reasons (`Have hopper bury n.`,
-   `Have hopper start a task`).
+   - ⚠ **How narrow the restart check is.** The capture set is already computed and typed — the
+     compiler builds it to pass values across the thread boundary — so the rule is a filter over a
+     list that exists: refuse a captured RESOURCE (a type with an unmaker, an address, an open
+     file), never a captured `number` or `text`. Anything wider is a rule wider than its reason.
+   - Restart policy: how many attempts, and what giving up does.
+   - The mailbox itself.
+
+   ★ **The compiled side is closer than it looks.** Every task function already establishes a
+   per-thread landing pad for interrupts (`CUFET_SETJMP(cufet_thread_top)`), so isolating a fault
+   is a second pad of the same shape rather than new machinery. Today a worker with no handler runs
+   its unmakers and calls `exit(1)`, taking the process with it.
 
 2. **Documentation comments, and generated pages for a book.** What a reader gets when they pull a
    book somebody else wrote.
@@ -199,6 +208,37 @@ they are large, not because they are waiting — the order among them means noth
 
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary · design patterns as a book
+
+**Composition modes for rabbits** — `sequential` / `parallel` / `responsive`, an optional adjective
+in the type-annotation slot: `Pull a responsive rabbit as dispatcher.` The mode governs how a
+rabbit's TASKS compose, never its ordinary statements, which stay sequential imperative code.
+
+- ★ **`responsive` is the only new capability, and the gap is real:** `the delivery from <channel>`
+  blocks on ONE channel, so nothing today can wait on several and take whichever arrives first.
+  Occam's ALT, Go's select — and how an actor-rabbit would read a mailbox.
+- **`parallel` is the default**, which is what a task-spawning rabbit already does. All three stay
+  sayable: a default is a voiceable choice, not an inferred silence. A rabbit that spawns no tasks
+  has no mode at all.
+- **One discipline per rabbit.** Mixed needs nest, as composition does everywhere else here.
+- ⚠ Inherit the existing concurrency caveat rather than restating it: cooperative interpreted, real
+  threads compiled, no interleaving promised.
+
+Open: whether `sequential` and `parallel` are thin labels over the join behaviour that exists, or
+need machinery of their own. `responsive` is the real build — a guarded multi-input wait. The
+mailbox and message-send surface are separate, later work.
+
+**A set** — membership without a value. ★ *The trigger has arrived:* `dijkstra.cufe` declares
+`a map from text to number`, writes `1` into it, and never reads the value — only
+`has a key for`. That is a set with a placeholder stapled on.
+
+- **Decide first:** a built-in beside `series` and `map` (`a set of text`), or a `collections`
+  member. Dijkstra's line reads built-in-shaped.
+
+**Exponent literals** — `6.022e23` on `number`. A lexer feature; today `1.5e3` fails with
+`expected Dot, got Identifier "e3"`.
+
+- ⚠ **Notation, not scientific RANGE.** Capped by decimal (~7.9e28), so `1e50` stays
+  unrepresentable. Anything wider is floats, which decimal was chosen over.
 
 **A logic-gates book** — circuit composition over `bits`: gates as components you wire together,
 rather than the operators `bits` already shipped.
