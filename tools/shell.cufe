@@ -426,7 +426,6 @@ Pull a book on the c-language.
 
                             ⚠ Guarded on a second word, because a line that is only `&` has no command
                             to background and would otherwise leave `cmd` holding the ampersand. */
-                        Define builtin as false.
                         Define background as false.
                         If n is greater than 1:
                             If (item n of parts) is "&":
@@ -435,297 +434,295 @@ Pull a book on the c-language.
                             Done.
                         Done.
 
-                        /* `cd` is the shell's own, not a program to launch. A child process cannot change
-                           its parent's directory, which is why every real shell builds this one in. With
-                           it, `pwd` finally reports somewhere you chose. A bad path is a
-                           failure value, so a typo costs you a line of output and not the session. */
-                        If cmd is "cd":
-                            builtin becomes true.
-                            Try to:
-                                If n is 1:
-                                    Define home as the environment variable "HOME" but void is "".
-                                    If the length of home is 0, home becomes the environment variable "USERPROFILE" but void is "/".
-                                    The current directory becomes home.
-                                Done.
-                                If n is 2, the current directory becomes item 2 of parts.
-                                If n is greater than 2, state "cufetsh: cd: too many arguments".
-                            Done.
-                            In case of failure:
-                                State "cufetsh: cd: {the message of the failure}".
-                            Done.
-                        Done.
-
-                        /*  ★ `jobs`, `fg` and `bg` are the shell's own for the same reason `cd` is: a
-                            child process cannot change its parent's job table any more than it can
-                            change its parent's directory. Every real shell builds these in, and this
-                            is why.
-
-                            The argument is a POSITION in the list, not a pid — `fg 2` is the second
-                            job, which is what is on screen when you typed `jobs`. Bare `fg` and `bg`
-                            take the last one, the way they do everywhere. */
-                        If cmd is "jobs":
-                            builtin becomes true.
-                            Define spot as 1.
-                            For each job in jobs, repeat:
-                                Define how as "running".
-                                If (the stopped of job) is 1, how becomes "stopped".
-                                State "[{spot}] {how}  {the name of job}".
-                                The spot becomes spot + 1.
-                            Done.
-                            If the number of jobs is 0, state "cufetsh: no jobs".
-                        Done.
-
-                        If cmd is "fg":
-                            builtin becomes true.
-                            /*  ⚠ The terminal FIRST, then SIGCONT. A job woken while the shell still owns the
-                                terminal writes into a foreground group that is not its own and takes SIGTTOU for
-                                it — stopping again, immediately, for trying to do the thing it was just told to. */
-                            /*  ★ Bare only, taking the most recent job. `fg 2` wants a POSITION parsed out of text,
-                                which is a fallible read this does not need yet — the list is short and the last one
-                                is nearly always the one meant. */
-                            If the number of jobs is 0, state "cufetsh: fg: no jobs".
-                            If the number of jobs is greater than 0:
-                                Define chosen as item (the number of jobs) of jobs.
-                                State the name of chosen.
-                                /*  ⚠⚠ RAW MODE OFF FIRST, for the same reason the launch does it: raw mode clears
-                                    ISIG, so a job resumed while it is on gets a terminal that sends no signals and
-                                    cannot be stopped again. Both places that hand the terminal over must do this —
-                                    fixing only the launch left `fg` un-suspendable, which is how it was found. */
-                                If editing, cast terminal's raw-off.
-
-                                Cast give-terminal-to on (the pid of chosen).
-                                Cast signal-job on (the pid of chosen, cast continue-signal).
-
-                                Define left as a series of records like (the number pid, the text name, the number stopped).
-                                For each other-job in jobs, repeat:
-                                    If (the pid of other-job) is not (the pid of chosen), insert other-job into left.
-                                Done.
-
-                                Define settled as cast wait-for-foreground on (the pid of chosen).
-                                Cast take-terminal-back.
-                                If editing, editing becomes cast terminal's raw-on.
-                                If settled is 1:
-                                    State "".
-                                    State "[stopped] {the name of chosen}".
-                                    Insert a record with (the pid (the pid of chosen), the name (the name of chosen), the stopped 1) into left.
-                                Done.
-                                The jobs becomes left.
-                            Done.
-                        Done.
-
-                        If cmd is "bg":
-                            builtin becomes true.
-                            /*  No terminal, and that is the whole difference from `fg`. A background job that is
-                                handed the terminal will read from it, and two things reading one keyboard is how
-                                a shell loses characters. */
-                            /*  ★ Bare only, taking the most recent job. `fg 2` wants a POSITION parsed out of text,
-                                which is a fallible read this does not need yet — the list is short and the last one
-                                is nearly always the one meant. */
-                            If the number of jobs is 0, state "cufetsh: bg: no jobs".
-                            If the number of jobs is greater than 0:
-                                Define chosen as item (the number of jobs) of jobs.
-                                State the name of chosen.
-                                Cast signal-job on (the pid of chosen, cast continue-signal).
-
-                                Define left as a series of records like (the number pid, the text name, the number stopped).
-                                For each other-job in jobs, repeat:
-                                    If (the pid of other-job) is not (the pid of chosen), insert other-job into left.
-                                Done.
-
-                                Insert a record with (the pid (the pid of chosen), the name (the name of chosen), the stopped 0) into left.
-                                The jobs becomes left.
-                            Done.
-                        Done.
-
-                        /* Everything after the command word is an argument, however many there are. */
-                        If builtin is false:
-                            /*  ⚠ A REDIRECT IS PULLED OUT FIRST, before anything is split on `|`. `<` binds to the whole
-                                line's input rather than to one stage, so finding it once here beats finding it again inside
-                                every segment — and it is what makes `sort < names | head` mean what it looks like. */
-                            Define carried as "".
-                            Define fed     as false.
-                            Define broken  as false.
-                            Define kept    as a series of text.
-                            Define skipping as 0.
-                            
-                            For each spot in range 1 to n, repeat:
-                                If skipping is greater than 0, the skipping becomes skipping - 1.
-                                If skipping is 0:
-                                    Define word as item spot of parts.
-                                    If word is "<":
-                                        /*  The filename is the next word, and it is consumed with the `<` — both are the
-                                            redirect, and neither is an argument to anything. */
-                                        If spot is n, state "cufetsh: expected a file after <".
-                                        If spot is n, the broken becomes true.
-                                        If spot is less than n:
-                                            Try to:
-                                                The carried becomes read all from the file (item (spot + 1) of parts).
-                                                The fed becomes true.
-                                            Done.
-                                            In case of failure:
-                                                State "cufetsh: {the message of the failure}".
-                                                The broken becomes true.
-                                            Done.
-                                            The skipping becomes 1.
-                                        Done.
+                        Judge cmd, where it is:
+                            /* `cd` is the shell's own, not a program to launch. A child process cannot change
+                               its parent's directory, which is why every real shell builds this one in. With
+                               it, `pwd` finally reports somewhere you chose. A bad path is a
+                               failure value, so a typo costs you a line of output and not the session. */
+                            It is "cd":
+                                Try to:
+                                    If n is 1:
+                                        Define home as the environment variable "HOME" but void is "".
+                                        If the length of home is 0, home becomes the environment variable "USERPROFILE" but void is "/".
+                                        The current directory becomes home.
                                     Done.
-                                    If word is not "<", insert word into kept.
+                                    If n is 2, the current directory becomes item 2 of parts.
+                                    If n is greater than 2, state "cufetsh: cd: too many arguments".
+                                Done.
+                                In case of failure:
+                                    State "cufetsh: cd: {the message of the failure}".
                                 Done.
                             Done.
-                            
-                            /*  How many commands the line holds. Counted rather than split into a series of series, which
-                                the walk below does not need — it runs each segment as it reaches the `|`. */
-                            Define crossings as 0.
-                            For each word in kept, repeat:
-                                If word is "|", the crossings becomes crossings + 1.
+
+                            /*  ★ `jobs`, `fg` and `bg` are the shell's own for the same reason `cd` is: a
+                                child process cannot change its parent's job table any more than it can
+                                change its parent's directory. Every real shell builds these in, and this
+                                is why.
+
+                                The argument is a POSITION in the list, not a pid — `fg 2` is the second
+                                job, which is what is on screen when you typed `jobs`. Bare `fg` and `bg`
+                                take the last one, the way they do everywhere. */
+                            It is "jobs":
+                                Define spot as 1.
+                                For each job in jobs, repeat:
+                                    Define how as "running".
+                                    If (the stopped of job) is 1, how becomes "stopped".
+                                    State "[{spot}] {how}  {the name of job}".
+                                    The spot becomes spot + 1.
+                                Done.
+                                If the number of jobs is 0, state "cufetsh: no jobs".
                             Done.
+
+                            It is "fg":
+                                /*  ⚠ The terminal FIRST, then SIGCONT. A job woken while the shell still owns the
+                                    terminal writes into a foreground group that is not its own and takes SIGTTOU for
+                                    it — stopping again, immediately, for trying to do the thing it was just told to. */
+                                /*  ★ Bare only, taking the most recent job. `fg 2` wants a POSITION parsed out of text,
+                                    which is a fallible read this does not need yet — the list is short and the last one
+                                    is nearly always the one meant. */
+                                If the number of jobs is 0, state "cufetsh: fg: no jobs".
+                                If the number of jobs is greater than 0:
+                                    Define chosen as item (the number of jobs) of jobs.
+                                    State the name of chosen.
+                                    /*  ⚠⚠ RAW MODE OFF FIRST, for the same reason the launch does it: raw mode clears
+                                        ISIG, so a job resumed while it is on gets a terminal that sends no signals and
+                                        cannot be stopped again. Both places that hand the terminal over must do this —
+                                        fixing only the launch left `fg` un-suspendable, which is how it was found. */
+                                    If editing, cast terminal's raw-off.
+
+                                    Cast give-terminal-to on (the pid of chosen).
+                                    Cast signal-job on (the pid of chosen, cast continue-signal).
+
+                                    Define left as a series of records like (the number pid, the text name, the number stopped).
+                                    For each other-job in jobs, repeat:
+                                        If (the pid of other-job) is not (the pid of chosen), insert other-job into left.
+                                    Done.
+
+                                    Define settled as cast wait-for-foreground on (the pid of chosen).
+                                    Cast take-terminal-back.
+                                    If editing, editing becomes cast terminal's raw-on.
+                                    If settled is 1:
+                                        State "".
+                                        State "[stopped] {the name of chosen}".
+                                        Insert a record with (the pid (the pid of chosen), the name (the name of chosen), the stopped 1) into left.
+                                    Done.
+                                    The jobs becomes left.
+                                Done.
+                            Done.
+
+                            It is "bg":
+                                /*  No terminal, and that is the whole difference from `fg`. A background job that is
+                                    handed the terminal will read from it, and two things reading one keyboard is how
+                                    a shell loses characters. */
+                                /*  ★ Bare only, taking the most recent job. `fg 2` wants a POSITION parsed out of text,
+                                    which is a fallible read this does not need yet — the list is short and the last one
+                                    is nearly always the one meant. */
+                                If the number of jobs is 0, state "cufetsh: bg: no jobs".
+                                If the number of jobs is greater than 0:
+                                    Define chosen as item (the number of jobs) of jobs.
+                                    State the name of chosen.
+                                    Cast signal-job on (the pid of chosen, cast continue-signal).
+
+                                    Define left as a series of records like (the number pid, the text name, the number stopped).
+                                    For each other-job in jobs, repeat:
+                                        If (the pid of other-job) is not (the pid of chosen), insert other-job into left.
+                                    Done.
+
+                                    Insert a record with (the pid (the pid of chosen), the name (the name of chosen), the stopped 0) into left.
+                                    The jobs becomes left.
+                                Done.
+                            Done.
+
+                            /* Everything after the command word is an argument, however many there are. */
+                            Otherwise:
+                                /*  ⚠ A REDIRECT IS PULLED OUT FIRST, before anything is split on `|`. `<` binds to the whole
+                                    line's input rather than to one stage, so finding it once here beats finding it again inside
+                                    every segment — and it is what makes `sort < names | head` mean what it looks like. */
+                                Define carried as "".
+                                Define fed     as false.
+                                Define broken  as false.
+                                Define kept    as a series of text.
+                                Define skipping as 0.
                             
-                            /*  ★★ ONE command, no redirect — the shell's OWN fork, and the only path with job control on it.
-                                A piped or redirected line goes the capturing way below, where output arrives when the child
-                                exits. That is a real difference and it is why the fork path is kept for the common case:
-                                `vim` and `less` are typed far more often than `sort | head`. */
-                            If broken is false:
-                                If crossings is 0:
-                                    If fed is false:
-                                        /*  The argv the child will see: the command word as typed, and every later word expanded into
-                                            the names it stands for. */
-                                        /*  ⚠⚠ THE TERMINAL GOES BACK TO NORMAL FOR THE CHILD, and this is not a courtesy. Raw
-                                            mode is a property of the TERMINAL, not of this process, so a child launched while it
-                                            is on inherits no echo, no line editing and — because raw mode clears ISIG — NO SIGNALS
-                                            AT ALL. `cat` would take keys one at a time in silence, and Ctrl-C and Ctrl-Z would
-                                            arrive as bytes nobody reads.
-
-                                            ⚠ Deleted once, by the rewrite that added job control, and the symptom was Ctrl-Z doing
-                                            nothing: with ISIG cleared the terminal never sent SIGTSTP, so there was no stop for
-                                            `wait-for-foreground` to see. */
-                                        If editing, cast terminal's raw-off.
-
-                                        Pull a rabbit.
-                                            Define words as cast words-new.
-                                            If words is void, state "cufetsh: out of memory".
-                                            If words is not void:
-                                                For each spot in range 1 to (the number of kept), repeat:
-                                                    If spot is 1, cast words-add on (words, item 1 of kept).
-                                                    If spot is greater than 1:
-                                                        Define standing-for as cast expanded on (item spot of kept).
-                                                        For each one-name in standing-for, repeat:
-                                                            Cast words-add on (words, one-name).
-                                                        Done.
-                                                    Done.
+                                For each spot in range 1 to n, repeat:
+                                    If skipping is greater than 0, the skipping becomes skipping - 1.
+                                    If skipping is 0:
+                                        Define word as item spot of parts.
+                                        If word is "<":
+                                            /*  The filename is the next word, and it is consumed with the `<` — both are the
+                                                redirect, and neither is an argument to anything. */
+                                            If spot is n, state "cufetsh: expected a file after <".
+                                            If spot is n, the broken becomes true.
+                                            If spot is less than n:
+                                                Try to:
+                                                    The carried becomes read all from the file (item (spot + 1) of parts).
+                                                    The fed becomes true.
                                                 Done.
-                                                
-                                                Define kid as cast launch on (words, background is false).
-                                                If kid is less than 1, state "cufetsh: could not start {cmd}".
-                                                If kid is greater than 0:
-                                                    /*  A backgrounded job is remembered and not waited for — that is the whole of `&`. The
-                                                        poll at the top of the next line is what notices it finishing. */
-                                                    If background:
-                                                        Insert a record with (the pid kid, the name line, the stopped 0) into jobs.
-                                                        State "[{the number of jobs}] {kid}".
-                                                    Done.
-                                                    
-                                                    If background is false:
-                                                        Define settled as cast wait-for-foreground on (kid).
-                                                    
-                                                        /*  Taken back before anything is printed. The shell writing to a terminal whose
-                                                            foreground group is still the child's is what SIGTTOU exists to punish. */
-                                                        Cast take-terminal-back.
-                                                    
-                                                        /*  ⚠ A stopped job is REMEMBERED, or Ctrl-Z would park a program where nothing could
-                                                            reach it again. This line is what makes suspending reversible. */
-                                                        If settled is 1:
-                                                            State "".
-                                                            Insert a record with (the pid kid, the name line, the stopped 1) into jobs.
-                                                            State "[{the number of jobs}] stopped  {line}".
-                                                        Done.
-                                                    Done.
+                                                In case of failure:
+                                                    State "cufetsh: {the message of the failure}".
+                                                    The broken becomes true.
                                                 Done.
+                                                The skipping becomes 1.
                                             Done.
                                         Done.
-
-                                        /*  Asked for again rather than assumed: a child that changed the terminal and did not
-                                            change it back is why this re-reads the answer. */
-                                        If editing, editing becomes cast terminal's raw-on.
+                                        If word is not "<", insert word into kept.
                                     Done.
                                 Done.
+                            
+                                /*  How many commands the line holds. Counted rather than split into a series of series, which
+                                    the walk below does not need — it runs each segment as it reaches the `|`. */
+                                Define crossings as 0.
+                                For each word in kept, repeat:
+                                    If word is "|", the crossings becomes crossings + 1.
+                                Done.
+                            
+                                /*  ★★ ONE command, no redirect — the shell's OWN fork, and the only path with job control on it.
+                                    A piped or redirected line goes the capturing way below, where output arrives when the child
+                                    exits. That is a real difference and it is why the fork path is kept for the common case:
+                                    `vim` and `less` are typed far more often than `sort | head`. */
+                                If broken is false:
+                                    If crossings is 0:
+                                        If fed is false:
+                                            /*  The argv the child will see: the command word as typed, and every later word expanded into
+                                                the names it stands for. */
+                                            /*  ⚠⚠ THE TERMINAL GOES BACK TO NORMAL FOR THE CHILD, and this is not a courtesy. Raw
+                                                mode is a property of the TERMINAL, not of this process, so a child launched while it
+                                                is on inherits no echo, no line editing and — because raw mode clears ISIG — NO SIGNALS
+                                                AT ALL. `cat` would take keys one at a time in silence, and Ctrl-C and Ctrl-Z would
+                                                arrive as bytes nobody reads.
 
-                                /*  ⚠⚠ A PIPE OR A REDIRECT GOES THE CAPTURING WAY, and job control does not reach it. Each
-                                    stage runs to completion and its output is handed to the next, so nothing streams and a
-                                    piped line cannot be suspended. `yes | head -1` would not finish. That is the shape Cufet's
-                                    pipelines already have — the runtime feeds a child's input from TEXT — and closing it means
-                                    real concurrent pipes, which is a language question rather than a shell one.
+                                                ⚠ Deleted once, by the rewrite that added job control, and the symptom was Ctrl-Z doing
+                                                nothing: with ISIG cleared the terminal never sent SIGTSTP, so there was no stop for
+                                                `wait-for-foreground` to see. */
+                                            If editing, cast terminal's raw-off.
 
-                                    ★ A sentinel `|` is appended so the loop has one copy of the run instead of two: every
-                                    segment now ends on a bar, including the last. */
-                                If crossings is greater than 0:
-                                    Define walk as kept.
-                                    Insert "|" into walk.
-                                    Define stage as a series of text.
-
-                                    For each word in walk, repeat:
-                                        If word is not "|", insert word into stage.
-                                        If word is "|":
-                                            If broken is false:
-                                                If the number of stage is 0, state "cufetsh: nothing to run between the bars".
-                                                If the number of stage is 0, the broken becomes true.
-                                                If the number of stage is greater than 0:
-                                                    Define head as item 1 of stage.
-                                                    Define rest as a series of text.
-                                                    /*  ⚠ Guarded, because `range 2 to 1` counts DOWN rather than being empty — the same
-                                                        trap the argument loop above names. */
-                                                    If the number of stage is greater than 1:
-                                                        For each spot in range 2 to (the number of stage), repeat:
-                                                            Define standing-for as cast expanded on (item spot of stage).
+                                            Pull a rabbit.
+                                                Define words as cast words-new.
+                                                If words is void, state "cufetsh: out of memory".
+                                                If words is not void:
+                                                    For each spot in range 1 to (the number of kept), repeat:
+                                                        If spot is 1, cast words-add on (words, item 1 of kept).
+                                                        If spot is greater than 1:
+                                                            Define standing-for as cast expanded on (item spot of kept).
                                                             For each one-name in standing-for, repeat:
-                                                                Insert one-name into rest.
+                                                                Cast words-add on (words, one-name).
                                                             Done.
                                                         Done.
                                                     Done.
-
-                                                    Try to:
-                                                        /*  ⚠ The FIRST stage of an unredirected pipeline is fed "", which is an
-                                                            immediate end of input rather than the keyboard. A shell would let it read
-                                                            what you type; reading the terminal here would eat the shell's own next
-                                                            line, so the honest v1 is to say there is nothing rather than steal it. */
-                                                        Define step as run head with arguments rest with input carried.
-                                                        The carried becomes the output of step.
-                                                        Cast terminal's put on (the errors of step).
-                                                    Done.
-                                                    In case of failure:
-                                                        State "cufetsh: {the message of the failure}".
-                                                        The broken becomes true.
+                                                
+                                                    Define kid as cast launch on (words, background is false).
+                                                    If kid is less than 1, state "cufetsh: could not start {cmd}".
+                                                    If kid is greater than 0:
+                                                        /*  A backgrounded job is remembered and not waited for — that is the whole of `&`. The
+                                                            poll at the top of the next line is what notices it finishing. */
+                                                        If background:
+                                                            Insert a record with (the pid kid, the name line, the stopped 0) into jobs.
+                                                            State "[{the number of jobs}] {kid}".
+                                                        Done.
+                                                    
+                                                        If background is false:
+                                                            Define settled as cast wait-for-foreground on (kid).
+                                                    
+                                                            /*  Taken back before anything is printed. The shell writing to a terminal whose
+                                                                foreground group is still the child's is what SIGTTOU exists to punish. */
+                                                            Cast take-terminal-back.
+                                                    
+                                                            /*  ⚠ A stopped job is REMEMBERED, or Ctrl-Z would park a program where nothing could
+                                                                reach it again. This line is what makes suspending reversible. */
+                                                            If settled is 1:
+                                                                State "".
+                                                                Insert a record with (the pid kid, the name line, the stopped 1) into jobs.
+                                                                State "[{the number of jobs}] stopped  {line}".
+                                                            Done.
+                                                        Done.
                                                     Done.
                                                 Done.
                                             Done.
-                                            The stage becomes a series of text.
+
+                                            /*  Asked for again rather than assumed: a child that changed the terminal and did not
+                                                change it back is why this re-reads the answer. */
+                                            If editing, editing becomes cast terminal's raw-on.
                                         Done.
                                     Done.
 
-                                    /*  `put`, not `State` — the captured output already ends in whatever newline the program
-                                        wrote, and State would add a second. */
-                                    If broken is false, cast terminal's put on (carried).
-                                Done.
+                                    /*  ⚠⚠ A PIPE OR A REDIRECT GOES THE CAPTURING WAY, and job control does not reach it. Each
+                                        stage runs to completion and its output is handed to the next, so nothing streams and a
+                                        piped line cannot be suspended. `yes | head -1` would not finish. That is the shape Cufet's
+                                        pipelines already have — the runtime feeds a child's input from TEXT — and closing it means
+                                        real concurrent pipes, which is a language question rather than a shell one.
 
-                                /*  A redirect with no pipe still needs running, and the loop above never fires for it. */
-                                If crossings is 0:
-                                    If fed:
-                                        Define head as item 1 of kept.
-                                        Define rest as a series of text.
-                                        If the number of kept is greater than 1:
-                                            For each spot in range 2 to (the number of kept), repeat:
-                                                Define standing-for as cast expanded on (item spot of kept).
-                                                For each one-name in standing-for, repeat:
-                                                    Insert one-name into rest.
+                                        ★ A sentinel `|` is appended so the loop has one copy of the run instead of two: every
+                                        segment now ends on a bar, including the last. */
+                                    If crossings is greater than 0:
+                                        Define walk as kept.
+                                        Insert "|" into walk.
+                                        Define stage as a series of text.
+
+                                        For each word in walk, repeat:
+                                            If word is not "|", insert word into stage.
+                                            If word is "|":
+                                                If broken is false:
+                                                    If the number of stage is 0, state "cufetsh: nothing to run between the bars".
+                                                    If the number of stage is 0, the broken becomes true.
+                                                    If the number of stage is greater than 0:
+                                                        Define head as item 1 of stage.
+                                                        Define rest as a series of text.
+                                                        /*  ⚠ Guarded, because `range 2 to 1` counts DOWN rather than being empty — the same
+                                                            trap the argument loop above names. */
+                                                        If the number of stage is greater than 1:
+                                                            For each spot in range 2 to (the number of stage), repeat:
+                                                                Define standing-for as cast expanded on (item spot of stage).
+                                                                For each one-name in standing-for, repeat:
+                                                                    Insert one-name into rest.
+                                                                Done.
+                                                            Done.
+                                                        Done.
+
+                                                        Try to:
+                                                            /*  ⚠ The FIRST stage of an unredirected pipeline is fed "", which is an
+                                                                immediate end of input rather than the keyboard. A shell would let it read
+                                                                what you type; reading the terminal here would eat the shell's own next
+                                                                line, so the honest v1 is to say there is nothing rather than steal it. */
+                                                            Define step as run head with arguments rest with input carried.
+                                                            The carried becomes the output of step.
+                                                            Cast terminal's put on (the errors of step).
+                                                        Done.
+                                                        In case of failure:
+                                                            State "cufetsh: {the message of the failure}".
+                                                            The broken becomes true.
+                                                        Done.
+                                                    Done.
                                                 Done.
+                                                The stage becomes a series of text.
                                             Done.
                                         Done.
-                                        Try to:
-                                            Define step as run head with arguments rest with input carried.
-                                            Cast terminal's put on (the output of step).
-                                            Cast terminal's put on (the errors of step).
-                                        Done.
-                                        In case of failure:
-                                            State "cufetsh: {the message of the failure}".
+
+                                        /*  `put`, not `State` — the captured output already ends in whatever newline the program
+                                            wrote, and State would add a second. */
+                                        If broken is false, cast terminal's put on (carried).
+                                    Done.
+
+                                    /*  A redirect with no pipe still needs running, and the loop above never fires for it. */
+                                    If crossings is 0:
+                                        If fed:
+                                            Define head as item 1 of kept.
+                                            Define rest as a series of text.
+                                            If the number of kept is greater than 1:
+                                                For each spot in range 2 to (the number of kept), repeat:
+                                                    Define standing-for as cast expanded on (item spot of kept).
+                                                    For each one-name in standing-for, repeat:
+                                                        Insert one-name into rest.
+                                                    Done.
+                                                Done.
+                                            Done.
+                                            Try to:
+                                                Define step as run head with arguments rest with input carried.
+                                                Cast terminal's put on (the output of step).
+                                                Cast terminal's put on (the errors of step).
+                                            Done.
+                                            In case of failure:
+                                                State "cufetsh: {the message of the failure}".
+                                            Done.
                                         Done.
                                     Done.
                                 Done.
