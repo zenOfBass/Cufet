@@ -72,13 +72,12 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
 
 1. **A shell, written in Cufet.** `tools/shell.cufe` reads, parses, globs, dispatches, launches with the terminal, changes directory, and takes as many arguments as you type.
 
-    ★ **What is left, in order:** an exit status, which needs a spelling — the launching form
-    gives back nothing by design; then pipelines and `<`, which need a pipe built from a count
-    known at run time and a way to feed a child’s stdin.
-
-    ★ **Job control is last and is not sized.** Process groups and signalling need a way to name a
-    running child, and the language has none. Not a language feature when it comes — it is the
-    "call a C function" family, and axioms reach it.
+    ★ **Job control is what is left, and it is not sized.** The easy half is already reachable — a
+    task can hold a blocking `run`, and `the awaited result of` reads as `fg`. The hard half is
+    **terminal ownership**: a background job must not hold the terminal, `fg` is the act of giving
+    it back, and Ctrl-Z needs SIGTSTP and process groups. Nothing prevents two children holding the
+    terminal today — `_childHasTerminal` counts them rather than refusing. Not a language feature
+    when it comes: it is the "call a C function" family, and axioms reach it.
 
     ★ **The editing is the book’s, not the shell’s.** Arrows, Home/End, Ctrl-U and history live in
     `tools/terminal.cufe` and are pulled by both programs. The shell writes no editing code.

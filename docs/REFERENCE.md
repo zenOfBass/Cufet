@@ -3444,6 +3444,57 @@ stage, and this sends it to the screen instead, so the two ask for the same byte
 statement form does not take it — `Run "vim" with the terminal.` is refused, because the modifier
 exists to hand back an exit code and a statement has nowhere to put one.
 
+**`with input <text>` feeds the child's standard input.** Without it a child reads whatever this
+program reads; with it, it reads the text you give it and then sees end of input:
+
+```cufet
+Try to:
+    Define shouted as run "tr" with arguments ("a-z", "A-Z") with input "hello there".
+    State the output of shouted.
+Done.
+In case of failure:
+    State "tr is not installed".
+Done.
+```
+
+`with input ""` and no `with input` at all are **different**: the first hands the child an
+immediate end of input, the second leaves it reading from wherever this program reads. A child
+asked to count what it is given must see nothing rather than wait for a keyboard.
+
+Two things follow from it that were previously unwritable. **A redirect is a file read:**
+
+```cufet-fragment
+Define body as read all from the file "notes.txt" or pass the failure off.
+Define counted as run "wc" with arguments ("-l") with input body.
+```
+
+**And a pipeline whose length is not known until the program runs** is an ordinary loop — which is
+what `run A | run B` cannot be, because that is written into the source:
+
+```cufet
+Define stages as a series of text with ("sort", "uniq", "head").
+Try to:
+    Define carried as "delta
+alpha
+charlie
+bravo
+".
+    For each stage in the stages, repeat:
+        Define step as run stage with input carried.
+        The carried becomes the output of step.
+    Done.
+    State carried.
+Done.
+In case of failure:
+    State "one of them is missing".
+Done.
+```
+
+Only the **first** stage of a written `|` pipeline may say `with input` — every later stage is
+already fed by the one before it, and a program has one standard input. And a run cannot say both
+`with input` and `with the terminal`: one hands the child the real keyboard, the other types for
+it.
+
 So there are three forms, and the axis is who is connected to the terminal:
 
 | Form | Position | Terminal | Gives back |

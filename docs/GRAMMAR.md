@@ -509,6 +509,12 @@ slot, so the device naming the modifier and the module named after the same devi
 Reserving the word would have taken an ordinary noun from every program in the language to save
 one lexeme check in one position.
 
+**`input`** — the same, in the same slot: `run <prog> with input <text>`. ⚠ Note that `input` is
+already **bound** at global scope to this program's own standard input stream, which is a different
+thing from being reserved. The modifier neither takes that name nor shadows it: the two are the
+same noun with different owners, and the value written straight after the modifier is what says
+whose is whose.
+
 `the rows of x` and `the columns of x` are resolved by the **type of `x`** — a matrix's row or
 column count, or a record's field of that name — exactly as `the key of mapping` already is. The
 parser cannot tell, but a reader never has the ambiguity. On a matrix they are the only two

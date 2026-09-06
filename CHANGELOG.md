@@ -10,6 +10,44 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`run <prog> with input <text>` — feed a child's standard input, and a shell can write its own
+  pipelines.** There was no way at all for a program to supply a child's stdin: the only path was to
+  be a later stage of a `|` pipeline, and a pipeline is written into the source. A shell cannot
+  write one — it learns how many commands there are when someone types them.
+
+  ★★ **It needed no new stream kind, because a Cufet pipeline was never OS pipes.**
+  `cufet_run_capture` takes stdin as *text* and writes it to a temporary file, so `run A | run B`
+  already runs A to completion and feeds its output to B. One modifier was the whole gap, and both
+  outstanding shell features fall out of it. A redirect is a file read:
+
+  ```cufet
+  Define body as read all from the file "notes.txt".
+  Define counted as run "wc" with arguments ("-l") with input body.
+  ```
+
+  and a pipeline whose length is not known until it runs is an ordinary loop:
+
+  ```cufet
+  Define stages as a series of text with ("sort", "uniq", "head").
+  Define carried as body.
+  For each stage in the stages, repeat:
+      Define step as run stage with input carried.
+      The carried becomes the output of step.
+  Done.
+  ```
+
+  ⚠ **`with input ""` and no `with input` are different**, and the difference is load-bearing: the
+  first hands the child an immediate end of input, the second leaves it reading wherever this
+  program reads. A child asked to count what it is given must see nothing rather than wait.
+
+  ⚠ Only the **first** stage of a written `|` may say it — every later one is already fed, and a
+  program has one standard input. And it cannot be said with `with the terminal`: one hands the
+  child the real keyboard, the other types for it.
+
+  ⚠ `input` is not a free word — it is already **bound** at global scope to this program's own
+  standard input stream, which is different from being reserved. The modifier neither takes that
+  name nor shadows it.
+
 - **`run <prog> with the terminal` — hand the child the terminal and still get its exit code.** A
   shell wants to open an editor and then ask whether it saved, and that was unspellable: the
   expression `run` captures the output through a pipe, so anything that draws cannot start, while
