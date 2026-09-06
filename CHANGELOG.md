@@ -10,6 +10,38 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **The shell has job control: `&`, `jobs`, `fg`, `bg`, and Ctrl-Z.** `tools/shell.cufe` now forks
+  each job into its own process group and hands the terminal to whichever group is in front.
+
+  ★★ **The language needed nothing, and that is the finding.** `setpgid`, `tcsetpgrp`,
+  `waitpid(WUNTRACED)` and `kill(-pgid, …)` are all reachable from the axiom header set as it
+  already stands, and were measured working on both backends before a line of the shell changed —
+  including `fork` from inside the CLR, which was the risk that could have sunk the approach.
+
+  ⚠ **A series cannot cross into an axiom**, so argv is built on the C side through a held address,
+  one word at a time. That is what addresses are for. It carries a constraint worth knowing: an
+  address cannot outlive its rabbit, so the vector is per-launch — and the job table, which must
+  outlive every launch, is ordinary Cufet records.
+
+  ⚠ **The shell no longer uses `Run`, and that is correct layering rather than a gap.** A shell
+  needs each job in its own process group and the terminal moved between them; `Run` deliberately
+  does neither. `run … with the terminal` remains right for its real audience — a program opening
+  an editor and reading its exit code. The shell is the special case underneath it.
+
+  ★ **State is polled once per prompt, not caught with SIGCHLD.** A handler would mean an axiom
+  installing one beside Cufet's own signal machinery, for news that is only ever read at the prompt
+  anyway. And it asks about one job at a time, because only one number crosses back from an axiom
+  and the shell already knows which pid it asked about.
+
+  ⚠ **SIGTTOU and SIGTTIN are ignored by the shell**, without which it stops itself: handing the
+  terminal over and taking it back are both writes to the foreground group, and a process not
+  already in front is stopped for doing that — at the exact moment it was reclaiming control.
+
+  ⚠ Ctrl-Z and the terminal handover are **not exercised by any test**, because both need a real
+  terminal and a person at it. What they rest on is verified: stopped jobs are remembered, `fg` and
+  `bg` resume, and `tcgetpgrp` answers under a pty. `fg` and `bg` are bare — they take the most
+  recent job.
+
 - **`run <prog> with input <text>` — feed a child's standard input, and a shell can write its own
   pipelines.** There was no way at all for a program to supply a child's stdin: the only path was to
   be a later stage of a `|` pipeline, and a pipeline is written into the source. A shell cannot
