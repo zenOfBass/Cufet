@@ -458,106 +458,182 @@ Pull a book on the c-language.
 
                         /* Everything after the command word is an argument, however many there are. */
                         If builtin is false:
-                            Define argv as a series of text.
-                        
-                            /*  ⚠ Guarded, because `range 2 to 1` is not empty — a range with its start past its end
-                                counts DOWN, so a one-word line would walk indexes 2 and 1 and ask for an argument
-                                that is not there. The guard says the real condition: there is a second word. */
-                            If n is greater than 1:
-                                For each spot in range 2 to n, repeat:
-                                    Define standing-for as cast expanded on (item spot of parts).
-                                    For each one-name in standing-for, repeat:
-                                        Insert one-name into argv.
+                            /*  ⚠ A REDIRECT IS PULLED OUT FIRST, before anything is split on `|`. `<` binds to the whole
+                                line's input rather than to one stage, so finding it once here beats finding it again inside
+                                every segment — and it is what makes `sort < names | head` mean what it looks like. */
+                            Define carried as "".
+                            Define fed     as false.
+                            Define broken  as false.
+                            Define kept    as a series of text.
+                            Define skipping as 0.
+                            
+                            For each spot in range 1 to n, repeat:
+                                If skipping is greater than 0, the skipping becomes skipping - 1.
+                                If skipping is 0:
+                                    Define word as item spot of parts.
+                                    If word is "<":
+                                        /*  The filename is the next word, and it is consumed with the `<` — both are the
+                                            redirect, and neither is an argument to anything. */
+                                        If spot is n, state "cufetsh: expected a file after <".
+                                        If spot is n, the broken becomes true.
+                                        If spot is less than n:
+                                            Try to:
+                                                The carried becomes read all from the file (item (spot + 1) of parts).
+                                                The fed becomes true.
+                                            Done.
+                                            In case of failure:
+                                                State "cufetsh: {the message of the failure}".
+                                                The broken becomes true.
+                                            Done.
+                                            The skipping becomes 1.
+                                        Done.
                                     Done.
+                                    If word is not "<", insert word into kept.
                                 Done.
                             Done.
-
-                            /*  ⚠ The terminal goes back to normal for the child, and this is not a courtesy.
-                                Raw mode is a property of the TERMINAL, not of this process, so a child launched
-                                while it is on inherits no echo, no line editing and no Ctrl-C — `cat` would take
-                                keys one at a time in silence and could not be interrupted. Handing the terminal
-                                over means handing it over as found. */
-                            If editing, cast terminal's raw-off.
-
-                            /*  ⚠⚠ NOT `Run`, and every job goes this way — background and foreground
-                                alike. A second launch path would mean half the jobs could be suspended
-                                and half could not, which is worse than none of them being able to.
-
-                                ★ The rabbit is what owns the argv vector: an address cannot be held
-                                outside one, and this is the block it lives and dies in. One per launch.
-
-                                ⚠ A launch failure is the CHILD's news, not the parent's. fork succeeds
-                                and execvp fails, so there is nothing for the shell to catch — the child
-                                exits 127, the way every shell has reported `command not found` since
-                                the beginning. Cufet's own `Run` uses a close-on-exec pipe to turn that
-                                back into a failure value; this shell reads the status instead, which is
-                                one fewer moving part for the same answer.
-                            */
-                            Pull a rabbit.
-                                Define words as cast words-new.
-                                If words is void, state "cufetsh: out of memory".
-                                If words is not void:
-                                    Cast words-add on (words, cmd).
-                                    For each one-word in argv, repeat:
-                                        Cast words-add on (words, one-word).
-                                    Done.
-
-                                    Define kid as cast launch on (words, background is false).
-                                    If kid is less than 1, state "cufetsh: could not start {cmd}".
-                                    If kid is greater than 0:
-                                        /*  A backgrounded job is remembered and not waited for — that is
-                                            the whole of `&`. The prompt comes straight back, and the poll
-                                            at the top of the next line is what notices it finishing. */
-                                        If background:
-                                            Insert a record with (the pid kid, the name line, the stopped 0) into jobs.
-                                            State "[{the number of jobs}] {kid}".
-                                        Done.
-
-                                        If background is false:
-                                            Define settled as cast wait-for-foreground on (kid).
-
-                                            /*  Taken back before anything is printed. The shell writing to
-                                                a terminal whose foreground group is still the child's is the
-                                                thing SIGTTOU exists to punish. */
-                                            Cast take-terminal-back.
-
-                                            /*  ⚠ A stopped job is REMEMBERED, or Ctrl-Z would park a program
-                                                where nothing could ever reach it again. This is the line that
-                                                makes suspending reversible. */
-                                            If settled is 1:
-                                                State "".
-                                                Insert a record with (the pid kid, the name line, the stopped 1) into jobs.
-                                                State "[{the number of jobs}] stopped  {line}".
+                            
+                            /*  How many commands the line holds. Counted rather than split into a series of series, which
+                                the walk below does not need — it runs each segment as it reaches the `|`. */
+                            Define crossings as 0.
+                            For each word in kept, repeat:
+                                If word is "|", the crossings becomes crossings + 1.
+                            Done.
+                            
+                            /*  ★★ ONE command, no redirect — the shell's OWN fork, and the only path with job control on it.
+                                A piped or redirected line goes the capturing way below, where output arrives when the child
+                                exits. That is a real difference and it is why the fork path is kept for the common case:
+                                `vim` and `less` are typed far more often than `sort | head`. */
+                            If broken is false:
+                                If crossings is 0:
+                                    If fed is false:
+                                        /*  The argv the child will see: the command word as typed, and every later word expanded into
+                                            the names it stands for. */
+                                        Pull a rabbit.
+                                            Define words as cast words-new.
+                                            If words is void, state "cufetsh: out of memory".
+                                            If words is not void:
+                                                For each spot in range 1 to (the number of kept), repeat:
+                                                    If spot is 1, cast words-add on (words, item 1 of kept).
+                                                    If spot is greater than 1:
+                                                        Define standing-for as cast expanded on (item spot of kept).
+                                                        For each one-name in standing-for, repeat:
+                                                            Cast words-add on (words, one-name).
+                                                        Done.
+                                                    Done.
+                                                Done.
+                                                
+                                                Define kid as cast launch on (words, background is false).
+                                                If kid is less than 1, state "cufetsh: could not start {cmd}".
+                                                If kid is greater than 0:
+                                                    /*  A backgrounded job is remembered and not waited for — that is the whole of `&`. The
+                                                        poll at the top of the next line is what notices it finishing. */
+                                                    If background:
+                                                        Insert a record with (the pid kid, the name line, the stopped 0) into jobs.
+                                                        State "[{the number of jobs}] {kid}".
+                                                    Done.
+                                                    
+                                                    If background is false:
+                                                        Define settled as cast wait-for-foreground on (kid).
+                                                    
+                                                        /*  Taken back before anything is printed. The shell writing to a terminal whose
+                                                            foreground group is still the child's is what SIGTTOU exists to punish. */
+                                                        Cast take-terminal-back.
+                                                    
+                                                        /*  ⚠ A stopped job is REMEMBERED, or Ctrl-Z would park a program where nothing could
+                                                            reach it again. This line is what makes suspending reversible. */
+                                                        If settled is 1:
+                                                            State "".
+                                                            Insert a record with (the pid kid, the name line, the stopped 1) into jobs.
+                                                            State "[{the number of jobs}] stopped  {line}".
+                                                        Done.
+                                                    Done.
+                                                Done.
                                             Done.
                                         Done.
                                     Done.
                                 Done.
-                            Done.
 
-                            /*  ⚠⚠ DO NOT DELETE THIS LINE BECAUSE IT LOOKS LIKE IT DOES NOTHING. Mentioning interrupts
-                                ANYWHERE in a program is what puts that program in charge of its own — a program that
-                                never mentions them is stopped by Ctrl-C, which is right for a script and fatal for a
-                                shell. The mention is the opt-in; the poll is what it is spelled with.
-                        
-                                ★ It is usually a no-op, and that is correct. While a launched child holds the
-                                terminal the interrupt is the CHILD’s, so nothing is recorded here for this line to
-                                find. It earns its place when a Ctrl-C lands anywhere else — at the prompt with the
-                                line editor unavailable, say — where it stops that from ending the session. */
-                            If an interrupt is requested:
-                                /*  The terminal echoed `^C` where the cursor happened to be, and nothing has ended the
-                                    line since — so the next prompt would be drawn onto the end of it. One blank line
-                                    puts it back at the left, which is the whole of what bash does here.
-                        
-                                    ★ It knows because the flag is RECORDED during a child now. Reading the child’s exit
-                                    status would be the other way to know, and is a language question with no spelling
-                                    yet — this needs none of it. */
-                                State "".
-                                Acknowledge the interrupt.
-                            Done.
+                                /*  ⚠⚠ A PIPE OR A REDIRECT GOES THE CAPTURING WAY, and job control does not reach it. Each
+                                    stage runs to completion and its output is handed to the next, so nothing streams and a
+                                    piped line cannot be suspended. `yes | head -1` would not finish. That is the shape Cufet's
+                                    pipelines already have — the runtime feeds a child's input from TEXT — and closing it means
+                                    real concurrent pipes, which is a language question rather than a shell one.
 
-                            /* Taken back for the next line. A child that changed the terminal and did not change
-                               it back is why this asks again rather than assuming. */
-                            If editing, editing becomes cast terminal's raw-on.
+                                    ★ A sentinel `|` is appended so the loop has one copy of the run instead of two: every
+                                    segment now ends on a bar, including the last. */
+                                If crossings is greater than 0:
+                                    Define walk as kept.
+                                    Insert "|" into walk.
+                                    Define stage as a series of text.
+
+                                    For each word in walk, repeat:
+                                        If word is not "|", insert word into stage.
+                                        If word is "|":
+                                            If broken is false:
+                                                If the number of stage is 0, state "cufetsh: nothing to run between the bars".
+                                                If the number of stage is 0, the broken becomes true.
+                                                If the number of stage is greater than 0:
+                                                    Define head as item 1 of stage.
+                                                    Define rest as a series of text.
+                                                    /*  ⚠ Guarded, because `range 2 to 1` counts DOWN rather than being empty — the same
+                                                        trap the argument loop above names. */
+                                                    If the number of stage is greater than 1:
+                                                        For each spot in range 2 to (the number of stage), repeat:
+                                                            Define standing-for as cast expanded on (item spot of stage).
+                                                            For each one-name in standing-for, repeat:
+                                                                Insert one-name into rest.
+                                                            Done.
+                                                        Done.
+                                                    Done.
+
+                                                    Try to:
+                                                        /*  ⚠ The FIRST stage of an unredirected pipeline is fed "", which is an
+                                                            immediate end of input rather than the keyboard. A shell would let it read
+                                                            what you type; reading the terminal here would eat the shell's own next
+                                                            line, so the honest v1 is to say there is nothing rather than steal it. */
+                                                        Define step as run head with arguments rest with input carried.
+                                                        The carried becomes the output of step.
+                                                        Cast terminal's put on (the errors of step).
+                                                    Done.
+                                                    In case of failure:
+                                                        State "cufetsh: {the message of the failure}".
+                                                        The broken becomes true.
+                                                    Done.
+                                                Done.
+                                            Done.
+                                            The stage becomes a series of text.
+                                        Done.
+                                    Done.
+
+                                    /*  `put`, not `State` — the captured output already ends in whatever newline the program
+                                        wrote, and State would add a second. */
+                                    If broken is false, cast terminal's put on (carried).
+                                Done.
+
+                                /*  A redirect with no pipe still needs running, and the loop above never fires for it. */
+                                If crossings is 0:
+                                    If fed:
+                                        Define head as item 1 of kept.
+                                        Define rest as a series of text.
+                                        If the number of kept is greater than 1:
+                                            For each spot in range 2 to (the number of kept), repeat:
+                                                Define standing-for as cast expanded on (item spot of kept).
+                                                For each one-name in standing-for, repeat:
+                                                    Insert one-name into rest.
+                                                Done.
+                                            Done.
+                                        Done.
+                                        Try to:
+                                            Define step as run head with arguments rest with input carried.
+                                            Cast terminal's put on (the output of step).
+                                            Cast terminal's put on (the errors of step).
+                                        Done.
+                                        In case of failure:
+                                            State "cufetsh: {the message of the failure}".
+                                        Done.
+                                    Done.
+                                Done.
+                            Done.
                         Done.
                     Done.
                 Done.
