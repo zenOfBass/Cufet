@@ -6,7 +6,24 @@
     Everything in it goes through C, because these are the parts of a terminal that are not in any
     language: they are calls, and axioms are how Cufet makes a call.  */
 
-Define object terminal with () and module:
+/// What a program uses to hold a conversation with whoever is at the keyboard.
+///
+/// Cue them with `put`, hear the answer with `typed`, and ask `interactive` first if it matters
+/// whether anybody is there at all. `raw-on` and `raw-off` bracket the stretch where the keys
+/// arrive one at a time instead of a line at a time.
+///
+/// ⚠ **This is the whole of what `terminal` hands out.** Everything else in it — key decoding,
+/// redrawing the line, measuring a shared prefix — is how the line editor works, not something to
+/// call from outside.
+Define prompter as an interface for {
+    The void function put, given (the text letters),
+    The fact function interactive,
+    The fact function raw-on,
+    The void function raw-off,
+    The voidable text function typed, given (the fact editing, the series of text past)
+}.
+
+Define object terminal with () and prompter and module:
     /*  Write without a newline. `State` always ends a line, which is right for a program saying
         something and wrong for a prompt — a prompt has to leave the cursor sitting after it.
 
