@@ -43,6 +43,7 @@ deliberate differences are marked where they arise and summarised under
     - [Range](#range)
     - [Series (collections)](#series-collections)
     - [Maps](#maps)
+    - [Sets](#sets)
     - [Records](#records)
     - [Catalogue and atlas (heterogeneous collections)](#catalogue-and-atlas-heterogeneous-collections)
     - [Bit patterns (`bits`)](#bit-patterns-bits)
@@ -1501,6 +1502,62 @@ Otherwise, state "Sorry, no entry.".
 ```
 
 ---
+
+### Sets
+
+Membership without a value — the things you have seen, rather than what each one maps to.
+
+**Type:** `a set of text`. Needs `Pull a book on collections.` in scope, the same as `matrix`.
+
+```cufet
+Pull a book on collections.
+    Define seen as a set of text.
+    Insert "adam" into seen.
+    Insert "zoe" into seen.
+    Insert "adam" into seen.        ← already there; nothing happens
+    State the number of seen.
+    If seen has "zoe", state "zoe is known".
+Done.
+```
+```output
+2
+zoe is known
+```
+
+**A set holds each thing once.** `Insert` means *after this, the value is in there* — inserting
+what is already present is not an error and not a second copy. That is the whole difference from a
+series.
+
+**It iterates in insertion order**, and the same order on both backends:
+
+```cufet
+Pull a book on collections.
+    Define seen as a set of text with ("zoe", "adam").
+    Insert "mira" into seen.
+    For each name in seen, repeat:
+        State name.
+    Done.
+Done.
+```
+```output
+zoe
+adam
+mira
+```
+
+★★ **A set is a map with the value removed**, and it is stored as exactly that: the element keyed to
+itself. So what may be an element, how elements compare, and the iteration order are the map's
+answers already — see **Maps** above for which types may be a key.
+
+Three refusals, each naming the word it wants rather than the type it got:
+
+- `the size of <set>` → *write `the number of`*. A set reads as a collection of things, so it takes
+  the series spelling.
+- `<map> has X` → *write `has a key for`*. A set holds things; a map holds keys.
+- `Insert X after the first item of <set>` → a set has no positions.
+
+⚠ **There is no removal.** Nothing has needed to take something back out yet, and a spelling
+invented without a caller is one that has to be lived with.
 
 ### Records
 

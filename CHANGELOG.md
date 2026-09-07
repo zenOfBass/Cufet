@@ -418,6 +418,42 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `Define … permanently.` at a book's file scope made **every program on earth** look like it had
   something to run, and `cufet build` stopped refusing a file that only declares. The question is
   about what the author wrote, so the prelude is now subtracted before it is asked.
+- **`a set of T` — membership without a value.** Needs `Pull a book on collections.` in scope, the
+  same as `matrix`.
+
+  ```
+  Define seen as a set of text.
+  Insert "adam" into seen.
+  If seen has "adam", state "known".
+  For each name in seen, repeat: … Done.
+  ```
+
+  ★ **The trigger was `dijkstra.cufe`**, which declared `a map from text to number`, wrote `1` into
+  it and never read the value — a set with a placeholder stapled on. It is now a set, and it is the
+  only program in the corpus that was doing this.
+
+  ★★ **A set is a MAP WITH THE VALUE REMOVED, and is stored as exactly that** — the element keyed to
+  itself, on both backends. Which types may be an element, how they compare, and that iteration
+  follows **insertion order** are the map's answers already, so none of it was decided twice. That
+  order was measured on both backends before any of this was written, because a set whose order
+  differed between them would be an oracle divergence waiting rather than a feature.
+
+  ⚠ **Not sugar over a map, and the difference matters.** There is no unit type to put in the value
+  slot, so sugar would have to store a placeholder number — exactly the workaround being replaced —
+  and every message would name a value nobody wrote. `SetType` is its own type at the type level and
+  a map only underneath.
+
+  **`Insert` is idempotent**, which is what a set means: inserting what is already there is not an
+  error and not a second copy. ⚠ And it takes no position — `Insert X after the first item of <set>`
+  is refused, because a set has no positions.
+
+  ★ Three refusals name the WORD they want rather than the type they got: `the size of <set>` says
+  write `the number of`; `<map> has X` says write `has a key for`; and the reverse.
+
+  ⚠ **There is no removal.** Nothing in the corpus takes anything back out of a set, and a spelling
+  invented without a caller is one that has to be lived with. Adding it later is free; taking it
+  away would not be.
+
 ### Fixed
 - **A module's refusal leaked the loader's lifted name.** The first version of the message above
   said *"'terminal' declares 'prompter in terminal'"* — a synthesized name nobody wrote, produced by

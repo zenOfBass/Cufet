@@ -1247,6 +1247,32 @@ Insert 1 into (x + y).   ← TYPE ERROR: (x + y) is not a series
 | `the size of expr` | read |
 | `For each pair in expr, repeat:` | read |
 
+### Set operations
+
+Every form below needs `Pull a book on collections.` in scope, the same as `matrix` — that is what
+puts the `set` type there.
+
+| Syntax | Read or mutate? |
+|---|---|
+| `a set of T` / `a set of T with (a, b, c)` | build |
+| `Insert V into expr.` | mutate |
+| `expr has V` | read |
+| `the number of expr` | read |
+| `For each name in expr, repeat:` | read |
+
+★★ **A set is a map with the value removed**, and is stored as exactly that: the element keyed to
+itself. Which types may be an element, how they compare, and that iteration follows **insertion
+order on both backends** are the map's answers already.
+
+- **`Insert` is idempotent.** Inserting what is already there is not an error and not a second copy
+  — a set holds each thing once, which is what makes it a set.
+- ⚠ **No position.** `Insert V after the first item of <set>` is refused: a set has no positions.
+- ⚠ **`the number of`, not `the size of`.** A set reads as a collection of things, so it takes the
+  series spelling. Writing `the size of` is refused with the word it wants.
+- ⚠ **`has`, not `has a key for`.** A set holds things rather than keys. Asking a map with the bare
+  form is refused with the words it wants, and the other way round.
+- **There is no removal.** Nothing has needed to take something back out yet.
+
 ### Collections book — matrix operations
 
 Every form below needs `Pull a book on collections.` in scope, because that is what puts the

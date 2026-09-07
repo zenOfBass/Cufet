@@ -169,13 +169,6 @@ Open: whether `sequential` and `parallel` are thin labels over the join behaviou
 need machinery of their own. `responsive` is the real build — a guarded multi-input wait. The
 mailbox and message-send surface are separate, later work.
 
-**A set** — membership without a value. ★ *The trigger has arrived:* `dijkstra.cufe` declares
-`a map from text to number`, writes `1` into it, and never reads the value — only
-`has a key for`. That is a set with a placeholder stapled on.
-
-- **Decide first:** a built-in beside `series` and `map` (`a set of text`), or a `collections`
-  member. Dijkstra's line reads built-in-shaped.
-
 **Exponent literals** — `6.022e23` on `number`. A lexer feature; today `1.5e3` fails with
 `expected Dot, got Identifier "e3"`.
 
