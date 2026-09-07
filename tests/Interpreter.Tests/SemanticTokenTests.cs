@@ -1,4 +1,4 @@
-using Cufet.Interpreter;
+﻿using Cufet.Interpreter;
 using Xunit;
 using CufetLexer = Cufet.Lexer.Lexer;
 
@@ -510,5 +510,118 @@ public class SemanticTokenTests
 
         Assert.Contains(tokens, t => t.Line == 2 && t.Column == 18);   // `shapes`, outside
         Assert.DoesNotContain(tokens, t => t.Line == 3);               // inside the brackets
+    }
+
+    // ── Documentation on a token ─────────────────────────────────────────
+    //
+    // What hover reads. The doc travels on USAGES as well as declarations, because hovering a call
+    // is the case that matters — and it is what keeps name resolution out of the editor.
+
+    [Fact]
+    public void ADocumentedFunction_CarriesItsDocAtTheDeclaration()
+    {
+        var docs = Classify("""
+            /// Adds two numbers together.
+            Bind number to summed, given (the number left, the number right):
+                Return left + right.
+            Done.
+            State cast summed on (1, 2).
+            """).Where(t => t.Doc is not null).ToList();
+
+        Assert.Equal(2, docs.Count);   // the declaration and the call
+        Assert.All(docs, d => Assert.Equal("Adds two numbers together.", d.Doc));
+    }
+
+    [Fact]
+    public void ADocumentedFunction_CarriesItsDocAtEveryUse()
+    {
+        // ★ The point of the whole slice. An editor asking "what is under my cursor" gets an answer
+        // without resolving the name itself, so hover can never disagree with the colours.
+        var call = Assert.Single(Classify("""
+            /// Adds two numbers together.
+            Bind number to summed, given (the number left, the number right):
+                Return left + right.
+            Done.
+            State cast summed on (1, 2).
+            """).Where(t => t.Doc is not null && !t.Modifiers.HasFlag(SemanticTokenModifier.Declaration)));
+
+        Assert.Equal(5, call.Line);
+        Assert.Equal("Adds two numbers together.", call.Doc);
+    }
+
+    [Fact]
+    public void ConsecutiveDocLines_ReadAsOneBlock()
+    {
+        var first = Classify("""
+            /// Adds two numbers together.
+            /// Neither is widened.
+            Bind number to summed, given (the number left, the number right):
+                Return left + right.
+            Done.
+            """).First(t => t.Doc is not null);
+
+        Assert.Equal("Adds two numbers together.\nNeither is widened.", first.Doc);
+    }
+
+    [Fact]
+    public void ADocumentedType_CarriesItsDoc()
+    {
+        var docs = Classify("""
+            /** Holds a point on a grid. */
+            Define object point with (the number across, the number down).
+            Define here as a new point { the across 1, the down 2 }.
+            """).Where(t => t.Doc is not null).ToList();
+
+        Assert.Equal(2, docs.Count);
+        Assert.All(docs, d => Assert.Equal("type", SemanticTokenLegend.NameOf(d.Kind)));
+        Assert.All(docs, d => Assert.Equal("Holds a point on a grid.", d.Doc));
+    }
+
+    [Fact]
+    public void AnOrdinaryComment_IsNotDocumentation()
+    {
+        // ⚠ The carve-out that makes the markers worth having. If this leaked, every note anyone
+        // ever left themselves would appear in a hover card.
+        Assert.Empty(Classify("""
+            // Adds two numbers together.
+            /* And a block one too. */
+            Bind number to summed, given (the number left, the number right):
+                Return left + right.
+            Done.
+            State cast summed on (1, 2).
+            """).Where(t => t.Doc is not null));
+    }
+
+    [Fact]
+    public void AVariableSharingADocumentedFunctionsName_DoesNotBorrowItsDoc()
+    {
+        // ⚠ The table is keyed by NAME, so this is the collision it could have. Restricting the
+        // lookup to functions and types is what stops a local answering for one — a wrong hover is
+        // worse than a missing one.
+        var docs = Classify("""
+            /// Adds two numbers together.
+            Bind number to summed, given (the number left, the number right):
+                Return left + right.
+            Done.
+            Bind number to other, given (the number summed):
+                Return summed.
+            Done.
+            """).Where(t => t.Doc is not null).ToList();
+
+        // The parameter is called `summed` too. Only the function may answer for the name.
+        Assert.Single(docs);
+        Assert.Equal("function", SemanticTokenLegend.NameOf(docs[0].Kind));
+        Assert.True(docs[0].Modifiers.HasFlag(SemanticTokenModifier.Declaration));
+    }
+
+    [Fact]
+    public void AnUndocumentedProgram_CarriesNoDocAtAll()
+    {
+        Assert.Empty(Classify("""
+            Bind number to summed, given (the number left, the number right):
+                Return left + right.
+            Done.
+            State cast summed on (1, 2).
+            """).Where(t => t.Doc is not null));
     }
 }

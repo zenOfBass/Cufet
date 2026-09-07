@@ -1,4 +1,4 @@
-using Cufet.Compiler;
+﻿using Cufet.Compiler;
 using Cufet.Interpreter;
 using Cufet.Lexer;
 using System.Runtime.ExceptionServices;
@@ -313,15 +313,28 @@ static void Tokens(string[] rest)
         return;
     }
 
+    // ⚠ `doc` is OMITTED rather than emitted as null, and that is not tidiness: nearly every token
+    // has none, and a null field on each would be most of this stream. A reader that does not know
+    // the field is unaffected either way — the extension already ignores what it does not expect.
     foreach (var t in semantic)
-        Console.Out.WriteLine(JsonSerializer.Serialize(new
-        {
-            line      = t.Line,
-            column    = t.Column,
-            length    = t.Length,
-            kind      = SemanticTokenLegend.NameOf(t.Kind),
-            modifiers = SemanticTokenLegend.NamesOf(t.Modifiers),
-        }));
+        Console.Out.WriteLine(t.Doc is null
+            ? JsonSerializer.Serialize(new
+            {
+                line      = t.Line,
+                column    = t.Column,
+                length    = t.Length,
+                kind      = SemanticTokenLegend.NameOf(t.Kind),
+                modifiers = SemanticTokenLegend.NamesOf(t.Modifiers),
+            })
+            : JsonSerializer.Serialize(new
+            {
+                line      = t.Line,
+                column    = t.Column,
+                length    = t.Length,
+                kind      = SemanticTokenLegend.NameOf(t.Kind),
+                modifiers = SemanticTokenLegend.NamesOf(t.Modifiers),
+                doc       = t.Doc,
+            }));
 
     Environment.Exit(0);
 }

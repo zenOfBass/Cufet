@@ -63,12 +63,17 @@ public static class SemanticTokenLegend
 
 // Line and Column are 1-based and match the positions the lexer and the AST already carry.
 // Length is measured in characters of the name as it was written.
+// <c>Doc</c> is the documentation comment of whatever this name REFERS TO — present on a usage as
+// well as on the declaration, because hovering a call is the case that matters and an editor
+// should not have to resolve the name itself to answer it. Null when the name has no doc comment,
+// which is nearly always, and the field is then left out of the JSON entirely.
 public sealed record SemanticToken(
     int                   Line,
     int                   Column,
     int                   Length,
     SemanticTokenKind     Kind,
-    SemanticTokenModifier Modifiers = SemanticTokenModifier.None);
+    SemanticTokenModifier Modifiers = SemanticTokenModifier.None,
+    string?               Doc       = null);
 
 // Walks a CHECKED program and reports the kind of every name occurrence it can place precisely.
 //
@@ -103,6 +108,13 @@ public sealed class SemanticTokenizer
     // `'s` binds to the word immediately before it and nothing else can be in between.
     private readonly HashSet<(int Line, int Column)> _possessiveStarts;
 
+    // What each documented name is documented AS — filled once, before the walk. Keyed by the name
+    // as written, which is the approximation this makes and the one worth knowing: two functions
+    // with the same name in different modules would share an entry. Nothing in the corpus does that
+    // today, and the fix when something does is to key on the resolved declaration rather than to
+    // rebuild this.
+    private readonly Dictionary<string, string> _docs = new(StringComparer.Ordinal);
+
     private SemanticTokenizer(IReadOnlyList<Token> tokens, TypeChecker checker)
     {
         _tokens  = tokens;
@@ -119,6 +131,7 @@ public sealed class SemanticTokenizer
         Program program, IReadOnlyList<Token> tokens, TypeChecker checker)
     {
         var tokenizer = new SemanticTokenizer(tokens, checker);
+        tokenizer.CollectDocs(program);
         tokenizer.WalkBlock(program.Statements);
         return tokenizer._out
             .OrderBy(t => t.Line)
@@ -137,7 +150,78 @@ public sealed class SemanticTokenizer
     {
         if (line <= 0 || column <= 0 || length <= 0) return;
         if (_possessiveStarts.Contains((line, column + length))) length += 2;
-        _out.Add(new SemanticToken(line, column, length, kind, modifiers));
+        _out.Add(new SemanticToken(line, column, length, kind, modifiers, DocFor(line, column, kind)));
+    }
+
+    // ★ FUNCTIONS AND TYPES ONLY, which is what keeps the name-keyed table honest. Those are the
+    // names a doc comment is written for, and they are the ones whose spelling is unique enough for
+    // a name to identify them. A local variable that happens to share a function's name would
+    // otherwise carry that function's documentation on hover, which is a wrong answer rather than a
+    // missing one.
+    private string? DocFor(int line, int column, SemanticTokenKind kind)
+    {
+        if (kind is not (SemanticTokenKind.Function or SemanticTokenKind.Type)) return null;
+        if (_docs.Count == 0) return null;
+        var token = TokenAt(line, column);
+        return token is not null && _docs.TryGetValue(token.Lexeme, out var doc) ? doc : null;
+    }
+
+    // The token that starts exactly here. A name occurrence always does — the producer places every
+    // span from the token list in the first place — so an exact match is the right test, and a
+    // near-miss should stay unanswered rather than pick up a neighbour's documentation.
+    private Token? TokenAt(int line, int column)
+    {
+        int lo = 0, hi = _tokens.Count - 1;
+        while (lo <= hi)
+        {
+            int mid = (lo + hi) / 2;
+            var t = _tokens[mid];
+            int order = t.Line != line ? t.Line.CompareTo(line) : t.Column.CompareTo(column);
+            if (order == 0) return t;
+            if (order < 0) lo = mid + 1; else hi = mid - 1;
+        }
+        return null;
+    }
+
+    // ── Documentation comments ────────────────────────────────────────────
+    //
+    // A declaration's doc comment is the LEADING TRIVIA of the keyword that opens it, and both
+    // `Bind` and `Define` position their AST node on exactly that keyword — so the node's own
+    // position is the lookup, with no re-lexing and no searching.
+    private void CollectDocs(Program program)
+    {
+        foreach (var statement in AstSearch.EveryStatement(program.Statements))
+        {
+            var (name, line, column) = statement switch
+            {
+                BindStatement b   => (b.Name, b.Line, b.Column),
+                ObjectDefinition o => (o.Name, o.Line, o.Column),
+                _                 => (null, 0, 0),
+            };
+            if (name is null) continue;
+
+            string? doc = DocTextAt(line, column);
+            // ⚠ FIRST WINS, matching the shadowing rule everywhere else here — and the linter
+            // already reports a definition a later one replaces, so a name with two docs is a
+            // program that has been told about it.
+            if (doc is not null) _docs.TryAdd(name, doc);
+        }
+    }
+
+    // Every doc comment leading the token at this position, joined. Consecutive `///` lines are
+    // separate comments and read as one block; an ordinary comment among them is skipped rather
+    // than ending the run, so a note to yourself between two documented lines costs nothing.
+    private string? DocTextAt(int line, int column)
+    {
+        var token = TokenAt(line, column);
+        if (token is null) return null;
+
+        var parts = token.Leading
+            .Where(c => c.Kind is CommentKind.DocLine or CommentKind.DocBlock)
+            .Select(c => c.Text.Trim())
+            .Where(t => t.Length > 0)
+            .ToList();
+        return parts.Count == 0 ? null : string.Join("\n", parts);
     }
 
     // Emits at a name's own node position — used where the node already points at the name.
