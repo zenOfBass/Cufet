@@ -17,52 +17,17 @@ version, and 1.0.0 will mark the point at which the language is considered stabl
 
 ## Shipping a book, strictly in this order
 
-The `module` interface, the loader that reaches a module in another file, and the types a module
-carries are all shipped — so a program can be split across files and a type can cross between
-them. What is left is what happens once a module is worth handing to someone else: what you hand
-out, and how it travels.
+The `module` interface, the loader that reaches a module in another file, the types a module
+carries, and **what a module hands out** are all shipped — a program can be split across files, a
+type can cross between them, and a module that declares an interface offers only what that
+interface declares. What is left is how a book TRAVELS.
 
-1. **What a module exports.** Every MEMBER is public API, permanently. A module author has no way
-   to say *this is my helper, do not call it* about a method.
-
-   ★ **Half of it is already gone.** A loaded file’s top level is private to that file, so a
-   helper that never wanted to be a member does not become one. What is left is the member that
-   genuinely has to be one — it needs `one`, or it belongs to the type — and is still handed out.
-
-   ⚠ **Still not due, and the reason is worth keeping because it has now been got wrong
-   twice.** The loader shipping makes it TRUE that anyone’s book can be depended on, and that
-   reads like the trigger — but nothing travels yet. There is no package manager, so loading
-   reaches a file you wrote, beside the one you are running. "Everything is public becomes
-   permanent" is a fact about a published package, not about a program only you can run.
-
-   **The trigger is distribution, or a second author** — the package manager below, or somebody else’s book in your program. Not the ability to split your own program across files.
-
-   ⚠ **Bundled books do not get the file privacy external ones do.** `WithPrelude` splices them
+1. **Bundled books do not get the file privacy external ones do.** `WithPrelude` splices them
    before the loader runs, so a top-level declaration in `math.cufe` would be global to every
-   Cufet program. Latent today — the bundled books open straight with their module and declare
-   nothing beside it — but it is why `guarded-times` had nowhere to go and was inlined twice,
-   magic constant and all, while an external book’s author now has somewhere to put it. Whatever
-   this item decides, the two kinds of book should agree.
-
-   ★ **No new concept is needed, and this is the part worth keeping.** Measured 2026-08-15: an
-   interface already restricts what is reachable through it. So export control is binding the
-   pulled name at a declared interface rather than at the object type.
-
-   ```
-   Define greeter as an interface for { The text function greet }.
-   Define object greeting-kit with () and greeter and module: ... Done.
-
-   Pull greeting-kit.
-       State cast greeting-kit's greet on ().    ← in `greeter`, so reachable
-       State cast greeting-kit's helper on ().   ← refused, by machinery that exists today
-   Done.
-   ```
-
-   ⚠ **A module IS an object, and an object exposes its methods** — so exposing everything is the
-   consistent behaviour, not an accidental default. That is the argument against requiring an
-   export surface, and it is why the interface form is a positive declaration of what you hand out
-   rather than a marker on what you keep. Whether a module with no declared interface then exports
-   everything or nothing is the one real decision left.
+   Cufet program. Latent today — all four bundled books open straight with their module and declare
+   nothing beside it — but it is why `guarded-times` had nowhere to go and was inlined twice, magic
+   constant and all, while an external book's author now has somewhere to put it. **The two kinds
+   of book should agree.**
 
 2. **A package manager for books.**
 

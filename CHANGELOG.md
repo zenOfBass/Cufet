@@ -349,7 +349,44 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   in paragraphs rendered as one run-on block. Invisible in the JSON, wrong in the only place it is
   ever read.
 
+- **A module hands out what its interface declares.** Every member used to be public API,
+  permanently — a module author had no way to say *this is my helper, do not call it*. Declaring an
+  interface now says what you offer, and only that is reachable from outside.
+
+  ```
+  Define object greeting-kit with () and greeter and module: ...
+
+  Pull greeting-kit.
+      State cast greeting-kit's greet on ().     ← in `greeter`, so reachable
+      State cast greeting-kit's helper on ().    ← refused
+  Done.
+  ```
+
+  ★ **Declaring nothing hands out everything**, and that is a decision rather than a default: a
+  module IS an object, and an object exposes its methods. The interface is a positive declaration of
+  what you offer rather than a marker on what you keep — which is why no module written before this
+  changed meaning. Measured: not one module in the corpus conformed to a non-marker interface, so
+  nothing existing was affected.
+
+  ⚠ **`one` is inside; everything else is outside.** A helper has to stay reachable from the thing it
+  helps, or the feature would forbid the use it exists to allow. ★ That rule also closes a hole a
+  name-based check would have left wide open: a module pulled under an ALIAS is still restricted,
+  where "is the target spelled like the module?" would have let `kit's helper` straight through.
+
+  ★ **`terminal` is the first module to hide anything**, and it is why this was worth doing: eleven
+  members, of which the shell and the REPL use five. The other six — key decoding, redrawing the
+  line, measuring a shared prefix — are how the line editor works, and were reachable by anyone.
+  It now declares `prompter` and hands out those five.
+
+  ⚠ The refusal names what IS available, because "no" without "instead" is half an answer.
+
 ### Fixed
+- **A module's refusal leaked the loader's lifted name.** The first version of the message above
+  said *"'terminal' declares 'prompter in terminal'"* — a synthesized name nobody wrote, produced by
+  the book loader's file-privacy rename. `ModuleTypeLifting.DisplayName` exists for exactly this, and
+  its own remarks record that the same leak shipped once before unnoticed; a new message is a new
+  chance to forget it.
+
 - **Tail recursion runs in constant space, on every compiler and every optimisation level.** A
   `Return cast <this same function> on (…)` — where nothing has to run between the call and the
   return — is now emitted as an assignment to the parameters and a jump to the top of the function.

@@ -1407,6 +1407,33 @@ Pull greeting-kit as kit.
 Any object conforming to `module` (`Define object greeting-kit with () and module:`). The
 article is noise, so `Pull a greeting-kit.` is the same statement.
 
+**What a module hands out.** A module that declares an interface offers **only what that interface
+declares**; a module that declares none offers everything.
+
+```cufet-fragment
+Define greeter as an interface for { The text function greet }.
+
+Define object greeting-kit with () and greeter and module:
+    Bind text to greet: Return cast one's helper on (). Done.
+    Bind text to helper: Return "hello". Done.
+Done.
+
+Pull greeting-kit.
+    State cast greeting-kit's greet on ().     ← in `greeter`, so reachable
+    State cast greeting-kit's helper on ().    ← refused: not part of what it hands out
+Done.
+```
+
+- **Declaring nothing hands out everything**, and that is a decision rather than a default: a
+  module IS an object and an object exposes its methods. The interface is a positive declaration of
+  what you offer, not a marker on what you keep — so no module written before this changed meaning.
+- **`module` and `book` are markers, not surfaces.** They declare no methods and say what a thing
+  IS rather than what it offers, so conforming to them alone restricts nothing.
+- **`one` is inside; everything else is outside.** A helper stays reachable from the thing it helps.
+  ⚠ That includes a module pulled under an ALIAS — `kit's helper` is refused exactly as
+  `greeting-kit's helper` is.
+- Several interfaces may be declared, and the surface is their union.
+
 ★ **This is not a fourth form — it is the form the others are special cases of.** `Pull a
 rabbit.` was always `Pull <name>`:
 
