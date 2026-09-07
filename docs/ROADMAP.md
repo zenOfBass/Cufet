@@ -24,7 +24,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
 
    ★ **A shell script in Cufet is ALREADY a Cufet program.** `run … with the terminal`,
    `run … with input`, pipes and `<` all ship, and the shell already runs non-interactively —
-   `printf 'hostname\nLeave.\n' | cufet tools/shell.cufe` works today. So this is not a new
+   `printf 'hostname\nExit.\n' | cufet tools/shell.cufe` works today. So this is not a new
    execution model. It is the handful of things a program needs in order to BE a script.
 
    **What is left: the shell's own machinery, handed out as a book.** `matches`, `wild`,

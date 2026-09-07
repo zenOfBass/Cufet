@@ -85,6 +85,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ★ `run <prog> with arguments (…)` is unaffected. One word now points both ways — what a child
   is handed, and what this program was handed — and the two positions never compete.
 
+### Changed
+
+- **The shell and the REPL quit on `Exit.` rather than `Leave.`** One word for one idea: the
+  statement a script ends itself with is now also the line you type to end an interactive session.
+
+  ⚠ **Breaking for anyone with the old word in their fingers.** `Leave.` is no longer special in
+  either tool — it is an ordinary line, which in the shell means "run a program called `Leave.`"
+  and in the REPL means a line appended to the session.
+
+  ★ **This reverses a deliberate choice, and the reason is worth keeping.** `tools/repl.cufe` used
+  to record that its quit word was *"the REPL's own word rather than Cufet, so it is only heard
+  when nothing is half typed"* — chosen precisely so it could never be confused with something you
+  meant to evaluate. Now that `Exit.` is a real statement, the two readings agree instead of
+  competing: the session IS the program, so ending it is what the line already meant.
+
+  ★ **The half-typed guard is what keeps that true**, and it was already there. `Exit.` is only
+  heard as a quit when nothing is open; inside a construct it is an ordinary line, appended like
+  any other. Measured: typing `State "one".`, then `If 1 is 1:`, `Exit.`, `Done.`, `State "after".`
+  prints `one` and nothing else — the session now describes a program that exits inside the `If`,
+  and replay honours it rather than second-guessing it.
+
 ## [0.20.0] — 2026-09-07
 
 ### Added
