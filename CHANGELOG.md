@@ -8,6 +8,41 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+- **`the arguments` — a program can read what it was invoked with.** A `series of text`, and the
+  first slice of *the shell, scriptable in Cufet*.
+
+  ```cufet-fragment
+  For each arg in the arguments, repeat:
+      State arg.
+  Done.
+  ```
+
+  `cufet greet.cufe alice bob` and a compiled `./greet alice bob` both print `alice` then `bob`.
+
+  ★★ **The program's own name is not in it, and cannot be.** Those two invocations disagree about
+  the head — `cufet` against `./greet`, with the script path present in one and absent in the
+  other — so there is no definition of argument zero the two backends could share. It is left out
+  rather than defined differently on each side, which is the only reason the line above says the
+  same thing both ways.
+
+  ★ **A series, never a `voidable`.** The environment is a keyed lookup, so an unset name is
+  `void`; arguments are a sequence, and none of them is an EMPTY series. The two read alike and
+  are not the same shape, so the naming does not pretend they are. Cufet parses no flags either:
+  `--name value` is two arguments and what they mean is the program's business.
+
+  ⚠⚠ **`arguments` is now RESERVED, and no variable or field may be called that.** It is the only
+  word in this area that is reserved rather than contextual, and the reason is that it has no
+  tail: `the arguments` is the whole phrase, while `the current directory` is promoted only
+  because `directory` must follow. `the X` is already how a variable named `X` may be written, so
+  the accessor and an ordinary name are the same spelling in the same position — and separating
+  them by whether such a variable is in scope would make a line's meaning depend on the scope
+  above it, which is what `Pull math.` is refused to avoid. Nothing in the tree used the name.
+
+  ★ `run <prog> with arguments (…)` is unaffected. One word now points both ways — what a child
+  is handed, and what this program was handed — and the two positions never compete.
+
 ## [0.20.0] — 2026-09-07
 
 ### Added

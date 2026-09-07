@@ -421,6 +421,7 @@ therefore a character-wise match.
 | `contents` | ContentsKw |
 | `directory` | DirectoryKw |
 | `path` | PathKw |
+| `arguments` | Arguments |
 | `environment` | EnvironmentKw |
 | `interrupt` | InterruptKw |
 | `acknowledge` | AcknowledgeKw |
@@ -544,6 +545,12 @@ Worth having: `current` is a far more tempting variable name than the alternativ
   `a random number/item/guess` and `randomly shuffled` each have a required next word.
   **`catalogue` and `atlas` have optional tails** — `a catalogue` alone is valid — so nothing
   separates them from a variable of that name. They stay reserved.
+  **`arguments` has no tail at all** — `the arguments` is the whole phrase — so it is the same
+  case one step further. `the X` is already how a variable named `X` may be written, which puts
+  the accessor and an ordinary name in the same spelling and the same position; telling them
+  apart by whether such a variable happens to be in scope would make a line's meaning depend on
+  the scope above it, which is what `Pull math.` is refused to avoid. It stays reserved, and the
+  cost is that no variable and no field may be called `arguments`.
 - A **statement-initial** word may be written with a capital even though it is not reserved.
   `Output 7.` and `output 7.` are the same statement, so a contextual word does not force a
   statement to break the capitalise-the-first-word convention. This costs nothing: an identifier

@@ -3632,6 +3632,42 @@ So there are three forms, and the axis is who is connected to the terminal:
 | `run <prog> with the terminal …` | expression | yes — the child gets it | `result or failure`, `exit-code` only |
 | `Run <prog> …` | statement | yes — the child gets it | nothing; still fallible |
 
+#### Program arguments
+
+`the arguments` is what this program was invoked with — a `series of text`:
+
+```cufet
+Pull a book on collections.
+    Define seen as a set of text.
+    For each arg in the arguments, repeat:
+        Insert arg into seen.
+    Done.
+    State the number of the arguments.
+Done.
+```
+```output
+0
+```
+
+Run as `cufet greet.cufe alice bob`, that prints `2`. A compiled `./greet alice bob` prints `2`
+as well, and that agreement is what shapes the rest of the rule.
+
+- ★★ **The program's own name is not among them, and cannot be.** `cufet greet.cufe alice bob`
+  and `./greet alice bob` disagree about the head — `cufet` against `./greet`, with the script
+  path present in one and absent in the other. There is no definition of argument zero the two
+  could share, so it is left out rather than defined differently on each side.
+- ★ **A series, never a `voidable`.** No arguments is an EMPTY series, so a program can walk
+  them without asking whether they are there. This is where they differ from the environment:
+  a lookup can miss, a sequence can only be short.
+- **They arrive as written.** Cufet does not parse flags — `--name value` is two arguments, and
+  what they mean is the program's business.
+- Read-only.
+
+⚠ **`arguments` is a reserved word**, so it cannot name a variable or a field. It is the one
+word in this area that is reserved rather than contextual: `the arguments` stands alone with
+nothing after it to key on, and `the X` is already how a variable named `X` may be written — so
+the two would be the same spelling in the same position.
+
 #### Environment variables
 
 `the environment variable "NAME"` reads a process environment variable by name,

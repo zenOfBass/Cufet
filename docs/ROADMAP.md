@@ -27,13 +27,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
    `printf 'hostname\nLeave.\n' | cufet tools/shell.cufe` works today. So this is not a new
    execution model. It is the handful of things a program needs in order to BE a script.
 
-   ⚠⚠ **Blocker: a Cufet program cannot read its own arguments.** `cufet script.cufe one two`
-   silently drops `one two`, and `src/App/Program.cs` already records why the CLI declines to
-   refuse it — *"that spelling is exactly where program arguments would arrive if they are ever
-   added, and the shell on the roadmap will want them."* That is the first slice, and it is a
-   LANGUAGE feature rather than a shell one.
-
-   **Then, in order:**
+   **In order:**
 
    - **An exit status the program chooses.** A script that cannot say it failed is not one a
      caller can build on.
