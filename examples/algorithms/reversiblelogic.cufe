@@ -1,0 +1,165 @@
+/*  Reversible logic — gates that throw nothing away, and a two-bit adder built from them.
+
+    An ordinary AND gate takes two wires in and gives one out, so the inputs cannot be
+    recovered afterwards: the gate destroys information. A REVERSIBLE gate has as many
+    wires out as in and merely permutes them, so every state has exactly one predecessor.
+    Three of them are enough to build anything — NOT, controlled-NOT, and the
+    doubly-controlled NOT that Toffoli showed is universal on its own.
+
+    ★★ Every gate here is its OWN inverse, so the undoing circuit is not a second circuit.
+    It is this one, walked backwards. That is what the program checks: drive the adder
+    forwards, drive the same gates in the opposite order, and the register must be the one
+    it started with, bit for bit.
+
+    ⚠ Reversibility is not free. The adder answers in three wires and leaves two more
+    holding values nobody asked for. They cannot be dropped — dropping them is precisely
+    the information loss the gates exist to avoid — and carrying them is what makes the
+    run backwards possible at all.
+*/
+
+// The register is a `bits` value and a wire is one of its digits, counted from the LEFT as
+// printed: wire 1 of `0b10000000` is the one that is set. The width is read off the value
+// rather than fixed, so the same three gates drive a register of any size.
+//
+//     wire     1    2    3    4    5    6    7    8
+//              a0   a1   b0   b1   c0   c1   c2   ·
+//
+// `a` and `b` are the two-bit numbers being added, low bit first. `c0`, `c1` and `c2` start
+// at zero and end holding the answer — c0 the low bit of the sum, c1 the high one, c2 the
+// carry out. Wire 8 is never touched.
+
+Define object flip with (the number target).
+Define object flip-if with (the number control, the number target).
+Define object flip-if-both with (the number left-control, the number right-control, the number target).
+
+Bind bits to wire-mask, given (the bits register, the number wire):
+    Define span as the width of register.
+    Return 0b1 shifted left by (span - wire).
+Done.
+
+Bind fact to wire-set, given (the bits register, the number wire):
+    Return (register and cast wire-mask on (register, wire)) is not 0b0.
+Done.
+
+// The register is always the LEFT operand, which is what keeps the result eight digits
+// wide: a mask built by shifting `0b1` carries only the width it grew into.
+Bind bits to flip-wire, given (the bits register, the number wire):
+    Return register xor cast wire-mask on (register, wire).
+Done.
+
+Bind number to wire-value, given (the bits register, the number wire):
+    If cast wire-set on (register, wire), return 1.
+    Return 0.
+Done.
+
+// A closed union of three, so the Judge needs no Otherwise — the checker can see every
+// gate is covered, and adding a fourth kind would make this arm list fail to compile
+// rather than silently ignore it.
+Bind bits to apply, given (the (flip or flip-if or flip-if-both) gate, the bits register):
+    Judge gate, where it is:
+        A flip, return cast flip-wire on (register, the target of it).
+        A flip-if:
+            If cast wire-set on (register, the control of it),
+                return cast flip-wire on (register, the target of it).
+            Return register.
+        Done.
+        A flip-if-both:
+            Define left-on as cast wire-set on (register, the left-control of it).
+            Define right-on as cast wire-set on (register, the right-control of it).
+            If left-on and right-on, return cast flip-wire on (register, the target of it).
+            Return register.
+        Done.
+    Done.
+Done.
+
+// ⚠ There is no standalone reversal for a series. `in reverse` only modifies `sorted`, and
+// sorting a circuit would destroy the very thing that makes it a circuit — its order. So the
+// undoing pass is built by hand, prepending each gate as it goes.
+Bind catalogue of (flip or flip-if or flip-if-both) to undoing, given (the catalogue of (flip or flip-if or flip-if-both) circuit):
+    Define backwards as a catalogue of (flip or flip-if or flip-if-both).
+    For each gate in circuit, repeat:
+        Insert gate into the start of backwards.
+    Done.
+    Return backwards.
+Done.
+
+Bind bits to drive, given (the catalogue of (flip or flip-if or flip-if-both) circuit, the bits register):
+    Define current as register.
+    For each gate in circuit, repeat:
+        The current becomes cast apply on (gate, current).
+    Done.
+    Return current.
+Done.
+
+/*  One reversible full adder, four gates:
+
+        Toffoli(left, right -> c-out)   carry-out ^= left and right
+        CNOT(left -> right)             right becomes left xor right
+        Toffoli(right, c-in -> c-out)   carry-out ^= (left xor right) and carry-in
+        CNOT(right -> carry-in)         carry-in becomes left xor right xor carry-in — the sum
+
+    ★ The carry-in wire ends up holding the SUM, and the carry-out wire holds the carry.
+    That is what lets stages chain without any extra wires: the carry-out of one stage is
+    the carry-in of the next, so a wire is a carry on the way in and a sum bit on the way
+    out. The left wire survives untouched; the right one is left holding `left xor right`,
+    and that is the garbage. */
+Bind catalogue of (flip or flip-if or flip-if-both) to full-adder, given (the number left-wire, the number right-wire, the number carry-in, the number carry-out):
+    Return a catalogue of (flip or flip-if or flip-if-both) with (
+        a new flip-if-both { the left-control left-wire, the right-control right-wire, the target carry-out },
+        a new flip-if { the control left-wire, the target right-wire },
+        a new flip-if-both { the left-control right-wire, the right-control carry-in, the target carry-out },
+        a new flip-if { the control right-wire, the target carry-in }).
+Done.
+
+Bind catalogue of (flip or flip-if or flip-if-both) to two-bit-adder:
+    Define circuit as a catalogue of (flip or flip-if or flip-if-both).
+    For each gate in cast full-adder on (1, 3, 5, 6), repeat: Insert gate into circuit. Done.
+    For each gate in cast full-adder on (2, 4, 6, 7), repeat: Insert gate into circuit. Done.
+    Return circuit.
+Done.
+
+// Wires 1 and 2 carry `a`, wires 3 and 4 carry `b`, low bit first.
+Bind bits to load, given (the number first-number, the number second-number):
+    Define register as 0b00000000.
+    If first-number % 2 is 1, register becomes cast flip-wire on (register, 1).
+    If first-number is 2 or first-number is 3, register becomes cast flip-wire on (register, 2).
+    If second-number % 2 is 1, register becomes cast flip-wire on (register, 3).
+    If second-number is 2 or second-number is 3, register becomes cast flip-wire on (register, 4).
+    Return register.
+Done.
+
+Pull a rabbit.
+    Define circuit as cast two-bit-adder.
+    Define backwards as cast undoing on (circuit).
+
+    State "  a  b   sum  undone".
+    For each first-number in range 0 to 3, repeat:
+        For each second-number in range 0 to 3, repeat:
+            Define loaded as cast load on (first-number, second-number).
+            Define finished as cast drive on (circuit, loaded).
+
+            Define low as cast wire-value on (finished, 5).
+            Define high as cast wire-value on (finished, 6).
+            Define carry as cast wire-value on (finished, 7).
+            Define total as low + (high * 2) + (carry * 4).
+
+            Define restored as cast drive on (backwards, finished).
+            Define undone as "no".
+            If restored is loaded, undone becomes "yes".
+
+            State "  {first-number converted to text}  {second-number converted to text}     {total converted to text}  {undone}".
+        Done.
+    Done.
+
+    // The same run, wire by wire. Wires 3 and 4 come back holding `a0 xor b0` and
+    // `a1 xor b1` — nobody asked for either, and the circuit cannot be undone without them.
+    Define loaded as cast load on (2, 3).
+    Define finished as cast drive on (circuit, loaded).
+    State "".
+    State "2 + 3, wire by wire".
+    State "  before    {loaded converted to text}".
+    State "  after     {finished converted to text}".
+    State "  sum       {cast wire-value on (finished, 5) converted to text} then {cast wire-value on (finished, 6) converted to text}, carry {cast wire-value on (finished, 7) converted to text}".
+    State "  garbage   wire 3 is {cast wire-value on (finished, 3) converted to text}, wire 4 is {cast wire-value on (finished, 4) converted to text}".
+    State "  reversed  {cast drive on (backwards, finished) converted to text}".
+Done.
