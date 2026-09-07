@@ -1,0 +1,166 @@
+/*  Four design patterns, and what is left of them once functions are values.
+
+    A pattern is an answer to a question the language asks. Half the classic catalogue
+    answers questions Cufet does not ask, so those are not in this file — writing them
+    here would mean writing around the language instead of in it:
+
+        Visitor       exists because most languages cannot dispatch on a type.
+                      `Judge` over a closed union does it, and checks the arms are
+                      complete — see `examples/language/dispatch.cufe`.
+        Null Object   exists to dodge a null. `voidable` will not hand you one, and
+                      narrowing makes the check the compiler's business.
+        Singleton     is `permanently`.
+        Iterator      is a stash — see `examples/language/stashes.cufe`.
+
+    The four below survive, because each one arranges behaviour rather than working
+    around a missing feature. Underneath they are one idea wearing four hats: a
+    function is a value, so it can be stored, passed, wrapped, and kept in a list.
+
+        Command     a function stored in an object, with a name attached to it
+        Strategy    a function taken as a parameter, so the caller picks the rule
+        Decorator   a function taken and a NEW one handed back, wrapping the old
+        Observer    a series of functions, every one of them called in turn
+
+    ★ The thing to watch is the type. `the number function apply given (the number)` is a
+    field holding a function from a number to a number, and `void function given (the text)`
+    is one taking text and answering nothing. These are checked exactly as every other type
+    is, so handing over the wrong shape of function is refused where it is written rather
+    than discovered halfway through a checkout.
+*/
+
+// ── Command: the action, with a name on it ──────────────────────────────────────────────
+
+// A charge knows what it is called and what it does to a running total. That is the entire
+// pattern — the ACTION is data, so a bill is an ordinary series that can be built, held,
+// reordered and printed like any other series.
+Define object charge with (the text label, the number function apply given (the number)).
+
+Bind number to gift-wrap, given (the number total): Return total + 2.50. Done.
+Bind number to loyalty, given (the number total): Return total - 5. Done.
+Bind number to sales-tax, given (the number total): Return total * 1.10. Done.
+
+// ── Strategy: the caller picks the rule ─────────────────────────────────────────────────
+
+// Three postage rules with one shape between them. Nothing here knows about the others, and
+// the checkout below knows about none of them — it takes whichever one it is handed.
+Bind number to flat-postage, given (the number total): Return 4.95. Done.
+Bind number to collected, given (the number total): Return 0. Done.
+Bind number to free-over-fifty, given (the number total):
+    If total is greater than 50, return 0.
+    Return 4.95.
+Done.
+
+// ── Decorator: a rule in, a different rule out ──────────────────────────────────────────
+
+/*  Both of these take a postage rule and hand back another one of the same type, so a
+    decorated rule is accepted anywhere a bare one is and can be decorated again. The
+    returned function is a CLOSURE: `limited` is declared inside `capped-at` and captures
+    both `ceiling` and `inner`, which outlive the call that made it.
+
+    ★ Note what is NOT here — no interface to implement, no wrapper class holding a
+    reference to the thing it wraps, and nothing for the wrapped rule to know about. The
+    pattern is what is left after a language stops needing an object to carry a function. */
+Bind number function given (the number) to capped-at, given (the number ceiling, the number function inner given (the number)):
+    Bind number to limited, given (the number total):
+        Define asked as cast inner on (total).
+        If asked is greater than ceiling, return ceiling.
+        Return asked.
+    Done.
+    Return limited.
+Done.
+
+Bind number function given (the number) to announced, given (the text name, the number function inner given (the number)):
+    Bind number to telling, given (the number total):
+        Define answer as cast inner on (total).
+        State "      ({name} asks {answer converted to text})".
+        Return answer.
+    Done.
+    Return telling.
+Done.
+
+// ── Observer: a list of functions, all of them called ───────────────────────────────────
+
+/*  Two watchers with nothing to do with each other. One reports every step; the other stays
+    quiet until the total passes a threshold. Neither knows the checkout exists, and the
+    checkout knows only that it was handed some watchers.
+
+    ⚠⚠ `watcher` is a WRAPPER AROUND A FUNCTION, and it should not have to exist. The type
+    this wants is `the series of void function watchers given (the text)` — a plain series of
+    functions, which `Define` accepts and `For each` walks. It cannot be written as a
+    parameter, a field or a return type: in those positions the `function` after a base type
+    is read as "a function RETURNING that base type", so `series of ... function` means a
+    function returning a series, and the refusal describes a type nobody asked for —
+
+        Change the value to a series of numbers function given (number).
+
+    So a series of functions can be built and iterated but cannot cross a declaration
+    boundary, and one object per function is the way across. This is the one piece of
+    ceremony in the file, and it is the exact ceremony the Decorator note above says the
+    language does not need — put here rather than hidden, because a wrapper that exists only
+    to carry a function is the signature of something being routed around. */
+Define object watcher with (the void function tell given (the text)).
+
+Bind void to narrate, given (the text note): State "    {note}". Done.
+Bind void to flag-large, given (the text note):
+    If note contains "*", State "    ^ over fifty".
+Done.
+
+// ── The checkout, which knows none of the above by name ─────────────────────────────────
+
+Bind number to check-out, given (
+        the number subtotal,
+        the series of charge bill,
+        the number function postage-rule given (the number),
+        the series of watcher watchers):
+    Define running as subtotal.
+    For each step in bill, repeat:
+        The running becomes cast the apply of step on (running).
+        Define mark as "" when running is not greater than 50, otherwise " *".
+        For each listener in watchers, repeat:
+            Cast the tell of listener on ("{the label of step} -> {running converted to text}{mark}").
+        Done.
+    Done.
+    Return running + cast postage-rule on (running).
+Done.
+
+Pull a rabbit.
+    // The bill is built once and reused. Because a charge is a value, the same series drives
+    // every checkout below — only the postage rule changes.
+    Define bill as a series of charge with (
+        a new charge { the label "gift wrap", the apply gift-wrap },
+        a new charge { the label "loyalty  ", the apply loyalty },
+        a new charge { the label "sales tax", the apply sales-tax }).
+
+    Define watchers as a series of watcher with (
+        a new watcher { the tell narrate },
+        a new watcher { the tell flag-large }).
+
+    Define quiet as a series of watcher.
+
+    // Watched, so the steps are visible. `quiet` below is the same parameter with nothing in
+    // it — no watcher is a perfectly good number of watchers.
+    State "40.00, watched step by step".
+    State "  total, flat postage     {cast check-out on (40, bill, flat-postage, watchers) converted to text}".
+
+    // The same bill and the same checkout under each rule. Only the argument changes.
+    State "".
+    State "the same bill, one rule at a time".
+    State "  collected               {cast check-out on (40, bill, collected, quiet) converted to text}".
+    State "  free over fifty, 40.00  {cast check-out on (40, bill, free-over-fifty, quiet) converted to text}".
+    State "  free over fifty, 60.00  {cast check-out on (60, bill, free-over-fifty, quiet) converted to text}".
+    State "  flat, 60.00             {cast check-out on (60, bill, flat-postage, quiet) converted to text}".
+
+    // Watched again at 60.00, where the second watcher finally has something to say.
+    State "".
+    State "60.00, watched — the second watcher only speaks over fifty".
+    State "  total, free over fifty  {cast check-out on (60, bill, free-over-fifty, watchers) converted to text}".
+
+    // A decorated rule is a rule: same slot, and one can wrap the other. The line the wrapper
+    // prints comes from the DECORATOR, not from a watcher — `quiet` is empty here.
+    State "".
+    State "the same flat rule, wrapped".
+    Define capped as cast capped-at on (3, flat-postage).
+    Define loud as cast announced on ("capped flat", capped).
+    State "  capped at 3.00          {cast check-out on (40, bill, capped, quiet) converted to text}".
+    State "  and announced           {cast check-out on (40, bill, loud, quiet) converted to text}".
+Done.

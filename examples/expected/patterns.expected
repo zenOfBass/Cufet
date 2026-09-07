@@ -1,0 +1,25 @@
+40.00, watched step by step
+    gift wrap -> 42.5
+    loyalty   -> 37.5
+    sales tax -> 41.25
+  total, flat postage     46.2
+
+the same bill, one rule at a time
+  collected               41.25
+  free over fifty, 40.00  46.2
+  free over fifty, 60.00  63.25
+  flat, 60.00             68.2
+
+60.00, watched — the second watcher only speaks over fifty
+    gift wrap -> 62.5 *
+    ^ over fifty
+    loyalty   -> 57.5 *
+    ^ over fifty
+    sales tax -> 63.25 *
+    ^ over fifty
+  total, free over fifty  63.25
+
+the same flat rule, wrapped
+  capped at 3.00          44.25
+      (capped flat asks 3)
+  and announced           44.25
