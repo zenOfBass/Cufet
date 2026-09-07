@@ -1,4 +1,4 @@
-using Cufet.Lexer;
+﻿using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
 
@@ -809,6 +809,48 @@ public sealed partial class TypeChecker
         return objType;
     }
 
+    /// <summary>Whether this possessive reads a member from INSIDE the thing that owns it.</summary>
+    private static bool IsOwnReceiver(IExpression target) =>
+        target is VariableReference { Name: "one" };
+
+    /// <summary>
+    /// The member names a module hands out, or null when it hands out everything.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ `module` and `book` are MARKERS, not surfaces. They declare no methods and say what a
+    /// thing IS rather than what it offers, so conforming to them alone restricts nothing — which
+    /// is what keeps every module written before this unchanged.
+    /// </remarks>
+    private HashSet<string>? HandsOutOnly(ObjectType ot)
+    {
+        var declared = DeclaredSurfaces(ot);
+        if (declared.Count == 0) return null;
+
+        var surface = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var name in declared)
+            if (_interfaceDefs.TryGetValue(name, out var def))
+                foreach (var method in def.Methods)
+                    surface.Add(method.MethodName);
+        return surface;
+    }
+
+    private List<string> DeclaredSurfaces(ObjectType ot)
+    {
+        var canonical = _objectDefs.TryGetValue(ot.Name, out var current) ? current : null;
+        var conformed = canonical?.ConformedInterfaces ?? [];
+        return [.. conformed.Where(i =>
+            !string.Equals(i, ModuleInterface, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(i, BookInterface,   StringComparison.OrdinalIgnoreCase))];
+    }
+
+    private string DescribeSurface(ObjectType ot)
+    {
+        var names = DeclaredSurfaces(ot);
+        return names.Count == 1
+            ? $"'{names[0]}'"
+            : string.Join(" and ", names.Select(n => $"'{n}'"));
+    }
+
     private CufetType? InferPossessiveAccess(PossessiveAccess poss)
     {
         var targetType = InferType(poss.Target);
@@ -851,6 +893,28 @@ public sealed partial class TypeChecker
                 null, poss.Line, poss.Column,
                 $"use 's on a {FormatType(targetType)}",
                 "Only objects and books support the possessive 's syntax.");
+
+        // ★★ A MODULE HANDS OUT WHAT ITS INTERFACE DECLARES, and nothing else.
+        //
+        // Declaring no interface hands out everything — a module IS an object and an object exposes
+        // its methods, so that is the consistent behaviour rather than an accidental default. The
+        // interface is a POSITIVE declaration of what you offer, not a marker on what you keep.
+        //
+        // ⚠ `one` is the exemption, and it is the whole of it: inside a module's own body a member
+        // is reached through `one`, and a helper has to stay reachable from the thing it helps.
+        // Everywhere else is outside — including a module pulled under an ALIAS, which a check on
+        // the module's own name would have let straight through.
+        if (!IsOwnReceiver(poss.Target) && HandsOutOnly(ot) is { } surface
+            && !surface.Contains(poss.Member))
+            throw TypeError(
+                $"'{poss.Member}' is not part of what '{ot.Name}' hands out",
+                $"'{ot.Name}' declares {DescribeSurface(ot)}, and only what that declares is "
+              + "reachable from outside",
+                poss.Line, poss.Column,
+                $"reach '{poss.Member}' on a {ot.Name} from outside it",
+                surface.Count > 0
+                    ? $"Available: {string.Join(", ", surface.OrderBy(m => m).Select(m => $"'{m}'"))}."
+                    : $"'{ot.Name}' hands out nothing at all.");
 
         // Methods first, then getters (field-syntax), then fields.
         var methodSig = FindMethodInOtOrPromoted(ot, poss.Member);
