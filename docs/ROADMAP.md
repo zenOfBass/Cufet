@@ -321,17 +321,7 @@ indistinguishable from having forgotten.
   checked and invalidate on mutation, which is unsound against mutable maps unless done very
   carefully. "Name your lookups" covers the need meanwhile.
 
-### Types and objects
-
-- **A cursor for scanning a `chase`.** *Blocker: no demonstrated need.* The buffer ships with bare
-  indexing — `item n of`, `For each` — and `huffmancoding` was rewritten onto it without wanting
-  anything else. A cursor would only pay for itself in a program that scans BACK AND FORTH, and
-  the five text processors that hand-roll their own scanning (`recursivedescent`, `json`, `config`,
-  `markov`, `wordfreq`) have not been moved onto it yet.
-
-  **The trigger:** the first of those that ends up carrying its own position variable around just
-  to read a buffer. That is the shape a cursor replaces, and until one appears there is nothing to
-  design against.
+### Types and object
 
 - **Reference-semantics opt-in.** Objects and map values are value-typed. An explicit way to
   ask for shared semantics has no syntax. *Blocker:* its own design session; it interacts with
