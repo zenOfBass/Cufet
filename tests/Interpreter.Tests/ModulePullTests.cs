@@ -1,4 +1,4 @@
-using Cufet.Interpreter;
+﻿using Cufet.Interpreter;
 using Xunit;
 using CufetLexer = Cufet.Lexer.Lexer;
 
@@ -912,5 +912,117 @@ public class ModulePullTests
                 State cast f on ().
             Done.
             """));
+    }
+
+    // ── What a module hands out ──────────────────────────────────────────
+    //
+    // ★ A module that DECLARES an interface hands out what that interface declares, and nothing
+    // else. Declaring none hands out everything — a module IS an object and an object exposes its
+    // methods, so exposing everything is the consistent behaviour rather than an accidental
+    // default. The interface is a positive declaration of what you offer, not a marker on what you
+    // keep, which is why no module written before this changed meaning.
+
+    private const string WithSurface = """
+        Define greeter as an interface for { The text function greet }.
+
+        Define object greeting-kit with () and greeter and module:
+            Bind text to greet:
+                Return cast one's helper on ().
+            Done.
+            Bind text to helper:
+                Return "hello".
+            Done.
+        Done.
+        """;
+
+    [Fact]
+    public void AMemberInTheDeclaredInterface_IsReachable()
+    {
+        Assert.Equal("hello", Run(WithSurface + """
+
+            Pull greeting-kit.
+                State cast greeting-kit's greet on ().
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AMemberOutsideTheDeclaredInterface_IsRefused()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(WithSurface + """
+
+            Pull greeting-kit.
+                State cast greeting-kit's helper on ().
+            Done.
+            """));
+
+        Assert.Contains("'helper' is not part of what 'greeting-kit' hands out", ex.Message);
+        // The message says what IS available, because "no" without "instead" is half an answer.
+        Assert.Contains("'greet'", ex.Message);
+    }
+
+    [Fact]
+    public void AHelperIsStillReachableFromInsideTheModule()
+    {
+        // ★ `greet` calls `helper` through `one`, so the test above proves this too — but stated on
+        // its own because it is the rule, not a side effect: a helper has to stay reachable from
+        // the thing it helps, or the feature would forbid the very use it exists to allow.
+        Assert.Equal("hello", Run(WithSurface + """
+
+            Pull greeting-kit.
+                State cast greeting-kit's greet on ().
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void AnAliasDoesNotEscapeTheDeclaredSurface()
+    {
+        // ⚠⚠ THE HOLE A NAME-BASED CHECK WOULD HAVE LEFT. Testing "is the target spelled like the
+        // module?" passes `kit's helper` straight through. The rule is instead that `one` is inside
+        // and everything else is outside, which an alias cannot get around.
+        var ex = Assert.Throws<TypeException>(() => Run(WithSurface + """
+
+            Pull greeting-kit as kit.
+                State cast kit's helper on ().
+            Done.
+            """));
+
+        Assert.Contains("is not part of what 'greeting-kit' hands out", ex.Message);
+    }
+
+    [Fact]
+    public void AModuleDeclaringNoInterface_HandsOutEverything()
+    {
+        // Every module written before this feature declares no interface, so this is the case that
+        // has to keep working — and it is a decision rather than a compromise.
+        Assert.Equal("everything", Run("""
+            Define object plain-kit with () and module:
+                Bind text to anything:
+                    Return "everything".
+                Done.
+            Done.
+
+            Pull plain-kit.
+                State cast plain-kit's anything on ().
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void TheRefusalDoesNotLeakTheLoadersLiftedName()
+    {
+        // ⚠⚠ An interface a module CARRIES is renamed by the loader for file privacy — `prompter`
+        // becomes `prompter in terminal`. That synthesized name is not one anybody wrote, and the
+        // first version of this message printed it. ModuleTypeLifting.DisplayName exists for
+        // exactly this, and its own remarks record that the leak shipped once already unnoticed.
+        var ex = Assert.Throws<TypeException>(() => Run(WithSurface + """
+
+            Pull greeting-kit.
+                State cast greeting-kit's helper on ().
+            Done.
+            """));
+
+        Assert.DoesNotContain(" in ", ex.Message);
     }
 }

@@ -843,9 +843,13 @@ public sealed partial class TypeChecker
             !string.Equals(i, BookInterface,   StringComparison.OrdinalIgnoreCase))];
     }
 
+    // ⚠⚠ THROUGH DisplayName, or the loader's file-privacy rename leaks: an interface a module
+    // CARRIES is lifted to `prompter in terminal`, and that is a synthesized name no one wrote.
+    // Measured on the first run of this message, which said "'terminal' declares 'prompter in
+    // terminal'" — the exact leak that helper's own remarks warn shipped once already.
     private string DescribeSurface(ObjectType ot)
     {
-        var names = DeclaredSurfaces(ot);
+        var names = DeclaredSurfaces(ot).Select(ModuleTypeLifting.DisplayName).ToList();
         return names.Count == 1
             ? $"'{names[0]}'"
             : string.Join(" and ", names.Select(n => $"'{n}'"));
