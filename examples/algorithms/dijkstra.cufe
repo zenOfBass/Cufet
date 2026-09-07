@@ -30,7 +30,7 @@ Done.
 Bind map from text to number to dijkstra, given (the map from text to series of edge adj, 
                                                  the text source):
     Define dist as a map from text to number.
-    Define visited as a map from text to number.
+    Define visited as a set of text.
     Define pq as a series of pq-entry.
 
     In dist, the entry for source becomes 0.
@@ -41,8 +41,8 @@ Bind map from text to number to dijkstra, given (the map from text to series of 
         Define current as cast extract-min on pq.
         Define current-dist as (the entry for current in dist) but void is 0.
 
-        If visited has a key for current, Skip.
-        In visited, the entry for current becomes 1.
+        If visited has current, Skip.
+        Insert current into visited.
 
         Define edge-list as (the entry for current in adj) but void is empty-edges.
         For each e in edge-list, repeat:
@@ -51,7 +51,7 @@ Bind map from text to number to dijkstra, given (the map from text to series of 
             Define stored as the entry for neighbor in dist.
             If alt is less than (stored but void is alt + 1):
                 In dist, the entry for neighbor becomes alt.
-                If not (visited has a key for neighbor), 
+                If not (visited has neighbor), 
                 insert a new pq-entry { the pq-name neighbor, the pq-dist alt } into pq.
             Done.
         Done.
