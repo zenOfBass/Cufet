@@ -174,6 +174,22 @@ they are large, not because they are waiting — the order among them means noth
      (variables, loops, functions) may not be the right one. Rabbits and failure-as-a-value are
      what make it different, and they are not chapter nine.
 
+   ★ **A REPL page, and it is the cheapest thing on this entry.** `tools/repl.cufe` already
+   answers the question a REPL usually poses — how to keep state across evaluations — and answers
+   it by REPLAY: it accumulates the typed lines, re-runs the whole program each time, and shows
+   only what the new run said that the previous one had not. *"The old output is a prefix of the
+   new one — the same program, with a line on the end."*
+
+   That model gets SIMPLER in the browser. The native REPL needs a scratch file and a subprocess;
+   `Runtime.Run(source)` already takes a whole program and hands back its output, statelessly — so
+   the two things wasm does not have are the two things a web REPL does not need.
+
+   ⚠ **Replay means side effects repeat**, and a page invites longer sessions than a terminal does.
+   Every `State` runs again on every line — the delta hides that for output, but a fifty-line
+   session re-runs fifty lines on the fifty-first, and anything that reads input or does real work
+   does it again. The native REPL carries the same cost and it is accepted there; write it down
+   rather than rediscover it.
+
    ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
    is worse than no lesson, and this project has the machinery to catch that already.
 
