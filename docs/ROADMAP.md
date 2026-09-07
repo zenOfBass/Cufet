@@ -149,41 +149,30 @@ they are large, not because they are waiting — the order among them means noth
    is a second pad of the same shape rather than new machinery. Today a worker with no handler runs
    its unmakers and calls `exit(1)`, taking the process with it.
 
-2. **Documentation comments, and generated pages for a book.** What a reader gets when they pull a
-   book somebody else wrote.
+2. **Generated pages for a book.** What a reader gets when they pull a book somebody else wrote.
+   Doc comments and hover are built; pages are the half that is not.
 
-   ★ **Doc comments and HOVER are built.** `///` and `/** … */` lex as documentation, and
-   `cufet tokens --json` carries each name's doc — on usages as well as declarations — so the
-   editor shows it with no name resolution of its own. What is left is PAGES.
-
-   ★ Cufet makes this unusually cheap in two ways. A signature is **already English**, so a page's
-   declaration line is the declaration, with no rendering of types into prose. And a book is an
-   object, so "what is in it" is a member list the checker already has. ★ The delivery pattern
-   exists too: `cufet tokens --json` already answers per-name questions over JSON for the editor,
-   and hover is the same data arriving one step earlier than pages do.
+   ★ Cheap here for two reasons. A signature is **already English**, so a page's declaration line
+   IS the declaration, with no rendering of types into prose. And a book is an object, so "what is
+   in it" is a member list the checker already has.
 
    ⚠ **Ordered by value, not blocked** — say it precisely, per the warning at the top of this file.
    Nothing stops generating a page for one `.cufe` today. But pages are worth most when there are
    books by other people to read, and the loader and the package manager are both still below
-   ("Shipping a book"). A generator is a tool with little to point at until then.
+   ("Shipping a book").
 
    **Two forks, both real:**
 
    - **Output format**, which lands on the deferred `docs/`-folder and GitHub-Pages question — if
      Pages ever publishes from `docs/`, that folder IS the site and generated pages belong to it.
-   - **Do the BUNDLED books get generated pages?** REFERENCE documents `math`, `collections` and
-     `chance` by hand today. Generating them too is two places telling one story, which this
-     project has a rule about. Either generated pages are for USER books only, or that part of
-     REFERENCE becomes generated. Decide before building, not after.
+   - **Do the BUNDLED books get generated pages?** ⚠ No longer hypothetical: `docs/BOOKS.md`
+     describes their members in prose, and since 2026-09-07 the books carry `///` in their own
+     source saying the same things. **The two places already exist.** Either generated pages are for
+     USER books only, or BOOKS.md's member descriptions become generated from the source.
 
    ⚠ **Whatever is generated must be pinned and tested**, the way the doc-block fence tags and
    `examples/expected/` already are — generated output that nothing checks is the same staleness
    in a new place, and a hand-edited "generated" page is the second lying copy immediately.
-
-   ★ **What a doc comment should be FOR** is worth settling early: the signature already says what
-   a thing takes and gives, so a comment that restates it is a second copy that drifts. What is
-   left is *why*, and *what can go wrong*.
-
 3. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
    runs the real interpreter in the browser, loads the corpus, shows squiggles and survives a
    runaway program. What it does not do is teach anybody anything — the only way in is

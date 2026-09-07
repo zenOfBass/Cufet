@@ -319,6 +319,36 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠ `doc` is omitted from the JSON rather than emitted as null. Nearly every token has none, and a
   null field on each would be most of the stream.
 
+- **The bundled books are documented, and hover shows it.** `math`, `collections`, `chance` and
+  `rabbit` now carry `///` documentation on the module and on every member, and an editor shows it
+  wherever the name is used — at the `Pull`, and at each `‹book›'s ‹member›`.
+
+  ⚠⚠ **A bundled book's documentation is read from its OWN source, against its OWN tokens.** The
+  prelude is lexed and parsed separately by the checker, so its declarations carry the prelude's line
+  numbers — looking those positions up in the program's token list finds another file's word, or
+  nothing. Documenting a bundled book used to produce silence for exactly this reason, and the fault
+  was invisible: the comment was there, the mechanism ran, and the answer was empty.
+
+  ★★ **Member documentation is keyed by OWNER, not by name.** `math` has a member called `round`;
+  so might your program. Measured, by removing the owner lookup: a program with its own `round`
+  calling `math's round` was handed *its own* documentation on the book's function — a confidently
+  wrong hover card, which is worse than none. Getters are qualified for the same reason and answer
+  **only** through an owner: `amount`, `note`, `share`, `pi` are too ordinary to speak for
+  themselves.
+
+  ★ **`rabbit` is a book like any other and now reads as one.** `Pull a rabbit as hopper.` emitted no
+  token for `rabbit` at all, so it was the one pulled book that could be neither coloured nor asked
+  about. It is a namespace like `math`, because that is what it is.
+
+  ⚠ **An alias still answers nothing.** `Pull greeting-kit as kit.` — the table is keyed by the name
+  declared and an alias is a different word, so hovering it is a miss rather than a wrong answer.
+  Pinned by a test, so it cannot start answering in silence.
+
+- **A blank `///` line is a paragraph break.** It used to be dropped, which joined every paragraph
+  with a single newline — and a single newline in Markdown is ordinary whitespace, so a doc written
+  in paragraphs rendered as one run-on block. Invisible in the JSON, wrong in the only place it is
+  ever read.
+
 ### Fixed
 - **Tail recursion runs in constant space, on every compiler and every optimisation level.** A
   `Return cast <this same function> on (…)` — where nothing has to run between the call and the

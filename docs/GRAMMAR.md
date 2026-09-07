@@ -822,6 +822,31 @@ Two carve-outs, both so an ordinary comment cannot become documentation by accid
   doc comment — the same hole C# and Rust carve.
 - **`/**/` is an empty ordinary comment**, not a doc comment that never closes.
 
+**What a doc comment attaches to.** The declaration below it — and an editor shows it wherever that
+name is used, not only where it was declared.
+
+| Documented | Reached by |
+|---|---|
+| A function | its name, at the declaration and at every call |
+| A type | its name, wherever it is written |
+| A book or module | its name, at `Pull` and at every `‹book›'s ‹member›` |
+| A method of a book | **through its owner** — `math's round` |
+| A getter of a book | **through its owner** — `math's pi` |
+
+⚠ **A member is found through its owner, never by its bare name alone.** `math` has a member called
+`round`; so might your program. Qualifying is what stops one being handed the other's documentation
+— a hover card with the *wrong* text is worse than none, so where the owner is unknown the answer
+is silence.
+
+⚠ **An alias does not answer.** `Pull greeting-kit as kit.` — hovering `kit` finds nothing, because
+the name written is not the name declared.
+
+⚠ **A blank `///` line is a paragraph break**, and is kept. Everything else about the content is
+Markdown and is passed through untouched.
+
+★ The **bundled books carry their own documentation**, read from their own source — so `math`,
+`collections`, `chance` and `rabbit` answer in any program that pulls them.
+
 A doc block **nests** exactly as `/* ... */` does. On its continuation lines a leading `*` — with
 the whitespace before it and one space after — is removed; everything past that is kept, so a
 nested list or an indented code block survives. That is the only place the lexer touches a
