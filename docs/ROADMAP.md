@@ -15,15 +15,6 @@ Where Cufet is going.
 Cufet is pre-1.0 and may still change. Versioning is semantic: feature arcs bump the minor
 version, and 1.0.0 will mark the point at which the language is considered stable.
 
-## Shipping a book
-
-The `module` interface, the loader that reaches a module in another file, the types a module
-carries, and **what a module hands out** are all shipped — a program can be split across files, a
-type can cross between them, and a module that declares an interface offers only what that
-interface declares. What is left is how a book TRAVELS.
-
-1. **A package manager for books.**
-
 ## Cufet in Cufet
 
 The ordering is not ceremonial: this tier's real blocker is stated below as **ergonomic rather than capability**, and the only way to find ergonomic blockers is to write large Cufet programs. They are the instrument as much as they are the goal — better to meet the gaps one program at a time than to meet all of them at once inside a compiler.
@@ -131,6 +122,7 @@ they are large, not because they are waiting — the order among them means noth
    ⚠ **Whatever is generated must be pinned and tested**, the way the doc-block fence tags and
    `examples/expected/` already are — generated output that nothing checks is the same staleness
    in a new place, and a hand-edited "generated" page is the second lying copy immediately.
+
 3. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
    runs the real interpreter in the browser, loads the corpus, shows squiggles and survives a
    runaway program. What it does not do is teach anybody anything — the only way in is
@@ -156,6 +148,8 @@ they are large, not because they are waiting — the order among them means noth
 
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary · design patterns as a book
+
+**A package manager for books.**
 
 **Composition modes for rabbits** — `sequential` / `parallel` / `responsive`, an optional adjective
 in the type-annotation slot: `Pull a responsive rabbit as dispatcher.` The mode governs how a
@@ -293,7 +287,7 @@ indistinguishable from having forgotten.
   program. It is why `guarded-times` had nowhere to go and was inlined twice, magic constant and
   all, while an external book's author now has somewhere to put it. **The two kinds of book should
   agree**, and the trigger is the first bundled book that wants a helper at file scope.
-  
+
 - **A cursor for scanning a `chase`.** *Blocker: no demonstrated need.* The buffer ships with bare
   indexing — `item n of`, `For each` — and `huffmancoding` was rewritten onto it without wanting
   anything else. A cursor would only pay for itself in a program that scans BACK AND FORTH, and
