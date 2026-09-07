@@ -1175,8 +1175,20 @@ public sealed record Program(IReadOnlyList<IStatement> Statements);
 /// </remarks>
 public static class Runnable
 {
-    public static bool NothingToRun(Program program) =>
-        program.Statements.All(IsDeclaration);
+    /// <summary>
+    /// Whether the program declares things and does nothing.
+    /// </summary>
+    /// <remarks>
+    /// ⚠⚠ <paramref name="spliced"/> is what the BUNDLED BOOKS contributed, and subtracting it is
+    /// not optional. `Check` hands back the program with the prelude in it, and this question is
+    /// about what the author wrote. It only ever looked right because the prelude happened to hold
+    /// nothing but declarations — the first `Define … permanently.` at a book's file scope made
+    /// every program on earth look like it had something to run.
+    /// </remarks>
+    public static bool NothingToRun(Program program, IReadOnlyCollection<IStatement>? spliced = null) =>
+        program.Statements
+            .Where(s => spliced is null || !spliced.Contains(s))
+            .All(IsDeclaration);
 
     private static bool IsDeclaration(IStatement statement) => statement
         is ObjectDefinition

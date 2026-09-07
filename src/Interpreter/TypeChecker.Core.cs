@@ -1243,6 +1243,14 @@ public sealed partial class TypeChecker
     // guard is off (everything there was already admitted once).
     private readonly HashSet<IStatement> _preludeStatements = new(ReferenceEqualityComparer.Instance);
 
+    /// <summary>The statements this check spliced in from the bundled books, by reference.</summary>
+    /// <remarks>
+    /// ⚠ A caller asking a question about what the AUTHOR wrote has to subtract these. `Check`
+    /// hands back the program with the prelude in it, and "does this file do anything" is not a
+    /// question about the prelude — see Runnable.NothingToRun.
+    /// </remarks>
+    public IReadOnlyCollection<IStatement> PreludeStatements => _preludeStatements;
+
     // Bundled books this program actually pulls, filled by ResolveModule as it resolves each
     // pull site. What it is for is DropUnpulledLayers, below.
     private readonly HashSet<string> _pulledBooks = new(StringComparer.OrdinalIgnoreCase);
