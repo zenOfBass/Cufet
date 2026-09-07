@@ -13,4 +13,15 @@
 // the one thing pulling a rabbit does that pulling another module does not, and it is why the
 // parser still recognises the name.
 
+/// A region you can **bury** work in and **unbury** it from later.
+///
+/// `Pull a rabbit as hopper.` opens one, and it closes at the matching `Done.` — that is the one
+/// thing pulling a rabbit does that pulling any other module does not.
+///
+/// ★ Its verbs are the language's floor rather than methods you could have written: `bury`
+/// suspends the function around it, which is a REWRITE of that function rather than a call. That
+/// is why there is nothing to list here — a rabbit has no members and no fields.
+///
+/// ⚠ **An address cannot outlive its rabbit.** Anything reaching into the region dies with it, so
+/// what you carry out has to be a value rather than a pointer into what was just reclaimed.
 Define object rabbit with () and module.
