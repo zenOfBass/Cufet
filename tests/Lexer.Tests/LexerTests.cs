@@ -796,13 +796,17 @@ public class LexerTests
         Assert.Equal(TokenType.Run, tokens[0].Type);
     }
 
+    // ⚠⚠ This test used to assert the OPPOSITE, and its inversion is the whole cost of
+    // `the arguments`. 'arguments' was contextual, matched by lexeme inside a run expression, and
+    // usable as a variable or a field. It is reserved now because `the arguments` has no tail to
+    // promote it on — `the X` is already how a variable named X may be written, so the accessor
+    // and an ordinary name would be one spelling in one position.
     [Fact]
-    public void ArgumentsIsIdentifier()
+    public void ArgumentsIsKeyword()
     {
-        // 'arguments' is a contextual word parsed by lexeme inside run expressions — not reserved.
         var tokens = LexTokens("arguments");
         Assert.Single(tokens);
-        Assert.Equal(TokenType.Identifier, tokens[0].Type);
+        Assert.Equal(TokenType.Arguments, tokens[0].Type);
     }
 
     [Fact]

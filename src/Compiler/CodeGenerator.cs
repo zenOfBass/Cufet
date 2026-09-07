@@ -884,6 +884,20 @@ public sealed partial class CodeGenerator
     // GetEnvironmentVariable-null→void). getenv's storage is stable here (Cufet has no setenv).
     // `the current directory` → voidable text. NULL only when getcwd cannot answer, which mirrors
     // the interpreter turning the equivalent exception into void.
+    // `the arguments` → a series of text holding argv[1..argc-1]. A fresh series each time it is
+    // read, so a program that mutates what it got cannot corrupt the next read — the interpreter
+    // builds a fresh one too.
+    private string EmitProgramArguments()
+    {
+        string ser = RegisterSeriesStruct(new SeriesType(TText));
+        int id = _freshId++;
+        _preEmits.Add($"{ser}* cf_args{id} = {ser}_new();");
+        // From 1: argument zero is the program's own name, which the two backends cannot agree on.
+        _preEmits.Add($"for (int cf_ai{id} = 1; cf_ai{id} < cufet_argc; cf_ai{id}++) "
+                    + $"{ser}_append(cf_args{id}, (const char*)cufet_argv[cf_ai{id}]);");
+        return $"cf_args{id}";
+    }
+
     private string EmitCurrentDirectory()
     {
         string cvd = RegisterVoidableStruct(new VoidableType(TText));

@@ -41,11 +41,9 @@ else if (args.Length >= 2 && args[0].Equals("check", StringComparison.OrdinalIgn
 else if (args.Length >= 2 && args[0].Equals("tokens", StringComparison.OrdinalIgnoreCase))
     Tokens(args[1..]);
 else
-    // ⚠ Deliberately NOT refused here, unlike every verb above. `cufet script.cufe one two` drops
-    // `one two` today because the language has no way to read them — but that spelling is exactly
-    // where program arguments would arrive if they are ever added, and the shell on the roadmap
-    // will want them. Refusing it now would have to be un-refused later, so the silence stays until
-    // there is something to do with them.
+    // ⚠ Deliberately NOT refused here, unlike every verb above: `cufet script.cufe one two` hands
+    // `one two` to the program as `the arguments`. This comment used to say the silence was kept
+    // because refusing the spelling would have to be un-refused later — which is what happened.
     Interpret(args);
 
 static string Version() =>
@@ -521,7 +519,16 @@ static void Interpret(string[] args)
         // Handed in rather than reached for: the interpreter is the layer the compiler is built on,
         // and an environment with no toolchain (the playground's wasm build) has to be able to say
         // so rather than fail to start.
-        var interpreter = new Interpreter { ForeignRunner = new GccForeignRunner() };
+        // ★ `cufet script.cufe one two` — everything after the script path is the program's own,
+        // and the script path itself is NOT among them. A compiled `./script one two` sees the same
+        // two, which is the whole reason argument zero is left out: `cufet` and `./script` are not
+        // the same word and no definition of it would survive the oracle.
+        // ⚠ Reading from stdin there is no script path to skip, and args is empty either way.
+        var interpreter = new Interpreter
+        {
+            ForeignRunner    = new GccForeignRunner(),
+            ProgramArguments = args.Length > 0 ? args[1..] : [],
+        };
         RunOnLargeStack(() => interpreter.Execute(program));
         // 128 + SIGINT, the convention every shell already understands.
         if (interpreter.WasInterrupted) Environment.Exit(130);

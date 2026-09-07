@@ -537,7 +537,11 @@ static const char* cufet_str_lower(const char* s) {
             // A global arena is pushed so series created at top level (outside an
             // explicit Pull) are safely tracked and freed at program exit. The shared constants
             // were registered before any body was emitted (see above); main only ASSIGNS them.
-            body.AppendLine("int main(void) {");
+            // ⚠ argc/argv rather than (void): `the arguments` reads them, and they can only be
+            // had here. Unused by a program that never asks — the assignment below is what keeps
+            // the two file-scope statics from drawing an unused warning.
+            body.AppendLine("int main(int argc, char** argv) {");
+            body.AppendLine("    cufet_argc = argc; cufet_argv = argv;");
             // Before anything is printed. Threads inherit the process's stdout mode, so tasks are
             // covered by this one call. See CUFET_NL for why it is needed at all.
             body.AppendLine("    CUFET_STDOUT_BINARY();");

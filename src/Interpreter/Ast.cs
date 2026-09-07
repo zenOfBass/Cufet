@@ -899,6 +899,20 @@ public sealed record EnvironmentVariableExpression(IExpression Name, int Line, i
 // the current directory  →  voidable text. Void only in the pathological case where the process
 // has no working directory to report — the directory was deleted out from under it. Voidable
 // rather than plain text to match `the environment variable`, which asks the OS the same way.
+/// <summary>`the arguments` — this program's own arguments, a `series of text`.</summary>
+/// <remarks>
+/// ★★ The program's own name is NOT in it, and cannot be. `cufet script.cufe one two` and
+/// `./script one two` must hand the same program the same arguments, and they disagree about the
+/// head — `cufet` against `./script`, with the script path present in one and absent in the
+/// other. There is no definition of argument zero the two backends could share, so it is left
+/// out rather than defined differently on each side.
+///
+/// ★ A series, never a voidable. The environment is a keyed lookup, so a name that is not set is
+/// `void`; arguments are a sequence, and none of them is an EMPTY series. The two read alike and
+/// are not the same shape.
+/// </remarks>
+public sealed record ProgramArgumentsExpression(int Line, int Column) : IExpression;
+
 public sealed record CurrentDirectoryExpression(int Line, int Column) : IExpression;
 
 // The current directory becomes <path>.  →  a FALLIBLE statement, like `write ... to ...`:

@@ -3916,7 +3916,9 @@ public sealed class Parser
             {
                 // run <program>                              → result or failure
                 // run <program> with arguments (<arg>, ...) → result or failure
-                // "arguments" is contextual (not a reserved keyword) — checked by lexeme.
+                // "arguments" is a reserved keyword — it also spells `the arguments`, this
+                // program's own. One word, two directions: what a child is handed, and what
+                // this program was handed. The positions never compete.
                 // Arguments are passed directly to the OS; no shell is invoked.
                 var runLineTok = Advance(); // consume 'run'
                 var runLine = runLineTok.Line;
@@ -3963,13 +3965,13 @@ public sealed class Parser
                         runInput = ParseExprOr();
                         continue;
                     }
-                    if (!IsWord("arguments"))
+                    if (Peek().Type != TokenType.Arguments)
                         throw new ParseException(Peek(),
                             "expected 'arguments', 'input' or 'the terminal' after 'with' in a run expression");
                     if (saidArguments)
                         throw new ParseException(Peek(),
                             "this run already says 'with arguments'");
-                    Advance(); // consume 'arguments' (contextual)
+                    Advance(); // consume 'arguments'
                     saidArguments = true;
                     SkipNoise();
                     // ★★ ONE token decides which form this is. A `(` opens the literal list that
@@ -4150,6 +4152,15 @@ public sealed class Parser
                 SkipNoise();
                 // ParseExprOr so that 'but void is' (parsed one level above) stays outside the name.
                 baseExpr = new EnvironmentVariableExpression(ParseExprOr(), envLine, envCol);
+                break;
+            }
+            case TokenType.Arguments:
+            {
+                // 'the arguments' — this program's own, a series of text. The article is already
+                // consumed as noise, and nothing follows: `arguments` is reserved precisely
+                // because there is no second word to promote it on.
+                var argTok = Advance();   // consume 'arguments'
+                baseExpr = new ProgramArgumentsExpression(argTok.Line, argTok.Column);
                 break;
             }
             case TokenType.CurrentKw:

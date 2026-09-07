@@ -321,7 +321,7 @@
         {
           "comment": "Built-in accessors and nouns.",
           "name": "support.function.builtin.cufet",
-          "match": "(?<![\\w-])(?i:length|size|position|characters|end|item|key|entry|contents|directory|path|environment|interrupt|delivery|awaited|category|file|range)(?![\\w-])"
+          "match": "(?<![\\w-])(?i:length|size|position|characters|end|item|key|entry|contents|directory|path|environment|arguments|interrupt|delivery|awaited|category|file|range)(?![\\w-])"
         },
         {
           "name": "constant.language.boolean.cufet",

@@ -66,6 +66,96 @@ public class CommandLineTests
         return path;
     }
 
+    // ── Program arguments ─────────────────────────────────────────────────
+    //
+    // ★★ These have to live HERE rather than in an interpreter test, because the thing under test
+    // is the CLI's own slicing: `args[1..]` in Program.cs. An interpreter test would set
+    // ProgramArguments by hand and pass no matter what the CLI did with the command line — which
+    // is the whole defect these guard against.
+
+    [Fact]
+    public void TheArguments_AreWhatFollowedTheScriptPath()
+    {
+        string file = WriteProgram("For each arg in the arguments, repeat: State arg. Done.\n");
+        try
+        {
+            var (exit, output, _) = Run(file, "one", "two");
+            Assert.Equal(0, exit);
+            Assert.Equal(["one", "two"], output.ReplaceLineEndings("\n").TrimEnd('\n').Split('\n'));
+        }
+        finally { File.Delete(file); }
+    }
+
+    // ⚠ The script path is argument ZERO's business and is never handed out. `cufet script.cufe`
+    // and a compiled `./script` disagree about the head — `cufet` against `./script`, with the
+    // path present in one and absent in the other — so there is no definition of it the two
+    // backends could share. Leaving it out is what makes them agree.
+    [Fact]
+    public void TheArguments_DoNotIncludeTheScriptPath()
+    {
+        string file = WriteProgram("State the number of the arguments.\n");
+        try
+        {
+            Assert.Equal("0", Run(file).Out.Trim());
+            Assert.Equal("1", Run(file, "only").Out.Trim());
+        }
+        finally { File.Delete(file); }
+    }
+
+    // ★ None is an EMPTY series, never void — arguments are a sequence, not the environment's
+    // keyed lookup. A program can walk them without asking whether they are there.
+    [Fact]
+    public void TheArguments_AreAnEmptySeriesWhenThereAreNone()
+    {
+        string file = WriteProgram(
+            "If the number of the arguments is 0, State \"none\".\n" +
+            "For each arg in the arguments, repeat: State arg. Done.\n");
+        try
+        {
+            var (exit, output, _) = Run(file);
+            Assert.Equal(0, exit);
+            Assert.Equal("none", output.Trim());
+        }
+        finally { File.Delete(file); }
+    }
+
+    // ★★ The oracle, end to end and through the real CLI: the SAME program handed the SAME
+    // arguments must answer the same both ways. `cufet script.cufe a b` against `./script a b` is
+    // exactly where argument zero would have diverged if it were included.
+    [Fact]
+    public void TheArguments_AgreeBetweenInterpretedAndCompiled()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            && !RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+
+        string file = WriteProgram(
+            "State the number of the arguments.\n" +
+            "For each arg in the arguments, repeat: State arg. Done.\n");
+        string exe = Path.ChangeExtension(file, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "");
+        try
+        {
+            string interpreted = Run(file, "alpha", "beta").Out.ReplaceLineEndings("\n");
+
+            var (buildExit, _, buildErr) = Run("build", file);
+            Assert.True(buildExit == 0, "build failed: " + buildErr);
+
+            var psi = new ProcessStartInfo(exe) { RedirectStandardOutput = true, WorkingDirectory = RepoRoot };
+            psi.ArgumentList.Add("alpha");
+            psi.ArgumentList.Add("beta");
+            using var p = Process.Start(psi)!;
+            string compiled = p.StandardOutput.ReadToEnd().ReplaceLineEndings("\n");
+            p.WaitForExit(60_000);
+
+            Assert.Equal("2\nalpha\nbeta\n", interpreted);
+            Assert.Equal(interpreted, compiled);
+        }
+        finally
+        {
+            File.Delete(file);
+            if (File.Exists(exe)) File.Delete(exe);
+        }
+    }
+
     // ── What it refuses ───────────────────────────────────────────────────
 
     [Fact]

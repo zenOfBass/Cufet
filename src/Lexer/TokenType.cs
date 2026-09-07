@@ -256,6 +256,17 @@ public enum TokenType
                   // so `Define current as 0.` keeps working.
                   //                 "exists" is contextual (lexeme-checked), not reserved
 
+    // ── Program arguments ─────────────────────────────────────────────────────────
+    Arguments,     // "arguments"  — "the arguments" (this program's own, a series of text), and
+                   //                the argument list of `run <prog> with arguments (…)`.
+                   // ⚠ RESERVED, unlike every other word in this region. `the arguments` stands
+                   // alone with nothing after it to key on, so contextual promotion has nothing
+                   // to see — `the X` is already how a variable named X may be written, and the
+                   // two are the same spelling in the same position. Resolving that by whether a
+                   // variable happens to be in scope is the scope-dependent meaning the language
+                   // refuses elsewhere. The cost, stated plainly: no variable and no object
+                   // field may be called `arguments` any more — nothing in the tree was.
+
     // ── Environment ───────────────────────────────────────────────────────────────
     EnvironmentKw, // "environment" — in "the environment variable <name>"; read-only OS env access
                    //                 "variable" is contextual (lexeme-checked), not reserved

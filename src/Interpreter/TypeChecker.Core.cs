@@ -3165,6 +3165,7 @@ public sealed partial class TypeChecker
         // Voidable for the same reason the environment variable is: the answer comes from the OS
         // and the OS is allowed to have none. Void only when the directory was removed underneath
         // the process, which is rare enough that nobody writes for it and real enough to not lie.
+        ProgramArgumentsExpression                                                                       => new SeriesType(CufetType.Text),
         CurrentDirectoryExpression                                                                       => new VoidableType(CufetType.Text),
         DirectoryContentsExpression   dce                                                                => InferDirectoryContents(dce),
         PathCheckExpression           pce                                                                => InferPathCheck(pce),

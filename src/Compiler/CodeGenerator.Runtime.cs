@@ -661,6 +661,14 @@ static CufetBits cufet_bits_from_number(CufetDec d, char base_, int line) {
 
 /* A caught failure (in an In-case-of-failure handler) — T-agnostic, so one handler works
    regardless of which fallible call's T produced the failure. category NULL = absent. */
+/* The process's own arguments, behind `the arguments`. Set once at the top of main.
+   ★ argv's storage lives as long as the process, exactly as getenv's does, so the series
+   points straight at it and copies nothing.
+   ⚠ Element zero is never handed out: `cufet script.cufe one two` and `./script one two` must
+   give the same program the same arguments, and they disagree about the head. */
+static int    cufet_argc = 0;
+static char** cufet_argv = 0;
+
 typedef struct { const char* message; const char* category; } CufetFailure;
 
 """;

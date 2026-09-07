@@ -347,6 +347,7 @@ public sealed class Lexer
             "contents"    => TokenType.ContentsKw,
             "directory"   => TokenType.DirectoryKw,
             "path"        => TokenType.PathKw,
+            "arguments"   => TokenType.Arguments,
             "environment" => TokenType.EnvironmentKw,
             "interrupt"   => TokenType.InterruptKw,
             "acknowledge" => TokenType.AcknowledgeKw,

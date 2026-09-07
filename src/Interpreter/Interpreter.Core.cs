@@ -624,6 +624,16 @@ public sealed partial class Interpreter
     /// <remarks>See IForeignRunner — set by whoever wires the interpreter to a C toolchain.</remarks>
     public IForeignRunner? ForeignRunner { get; set; }
 
+    /// <summary>What `the arguments` answers — this program's own arguments, without its name.</summary>
+    /// <remarks>
+    /// ⚠ Set by whoever invoked the interpreter, and EMPTY by default. A host that forgets to
+    /// set it gives a program an empty series rather than a crash, which is the same answer a
+    /// program invoked with no arguments gets — so a forgotten wiring looks exactly like the
+    /// ordinary case. `CommandLineTests` is what holds `cufet script.cufe one two` to passing
+    /// them through; nothing inside the interpreter can tell the difference.
+    /// </remarks>
+    public IReadOnlyList<string> ProgramArguments { get; set; } = [];
+
     public Interpreter(TextWriter? output = null, TextReader? input = null, TextWriter? error = null, int maxCallDepth = 1000)
     {
         _out = output ?? Console.Out;
@@ -1508,6 +1518,7 @@ public sealed partial class Interpreter
         MatrixAccess  ma      => EvaluateMatrixAccess(ma),
         IsTypeCheck   tc      => EvaluateIsTypeCheck(tc),
         EnvironmentVariableExpression env => EvaluateEnvVar(env),
+        ProgramArgumentsExpression => EvaluateProgramArguments(),
         CurrentDirectoryExpression => EvaluateCurrentDirectory(),
         DirectoryContentsExpression   dce => EvaluateDirectoryContents(dce),
         PathCheckExpression           pce => EvaluatePathCheck(pce),
@@ -1565,6 +1576,11 @@ public sealed partial class Interpreter
         var value = System.Environment.GetEnvironmentVariable(name);
         return value ?? (object)VoidValue.Instance;
     }
+
+    // `the arguments` → a series of text, never voidable: no arguments is an EMPTY series. A
+    // fresh series each time, so a program that mutates what it reads cannot corrupt the next read.
+    private object EvaluateProgramArguments() =>
+        new CufetSeries(ProgramArguments.Cast<object>()) { DeclaredElement = CufetType.Text };
 
     // `the current directory` → voidable text. Void is the pathological case only: the process's
     // working directory was deleted while it was running, which POSIX getcwd reports as an error

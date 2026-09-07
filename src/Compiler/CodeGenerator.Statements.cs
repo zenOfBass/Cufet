@@ -2106,6 +2106,7 @@ public sealed partial class CodeGenerator
         RandomItem ri         => new VoidableType(((SeriesType)TypeOf(ri.Series)).ElementType),   // void on empty
         RandomlyShuffled rs   => TypeOf(rs.Series),             // element-type-preserving, like sorted
         EnvironmentVariableExpression => new VoidableType(TText),   // void when unset
+        ProgramArgumentsExpression    => new SeriesType(TText),     // never voidable — none is EMPTY
         CurrentDirectoryExpression    => new VoidableType(TText),   // void when there is none to report
         IsTypeCheck           => TFact,
         // `unbury s` is `cast s on ()`, and a stash lowers to a closure — so its type is simply
@@ -2799,6 +2800,7 @@ public sealed partial class CodeGenerator
         RandomItem ri         => EmitRandomItem(ri),
         RandomlyShuffled rs   => EmitRandomlyShuffled(rs),
         EnvironmentVariableExpression env => EmitEnvVar(env),
+        ProgramArgumentsExpression        => EmitProgramArguments(),
         CurrentDirectoryExpression        => EmitCurrentDirectory(),
         IsTypeCheck tc        => EmitIsTypeCheck(tc),
         DirectoryContentsExpression dce =>
