@@ -152,9 +152,9 @@ they are large, not because they are waiting — the order among them means noth
 2. **Documentation comments, and generated pages for a book.** What a reader gets when they pull a
    book somebody else wrote.
 
-   ★ **The input is built.** `///` and `/** … */` lex as documentation, carried as trivia on the
-   token that follows (`Token.Leading`), content Markdown. What is left is a consumer: hover first,
-   pages after.
+   ★ **Doc comments and HOVER are built.** `///` and `/** … */` lex as documentation, and
+   `cufet tokens --json` carries each name's doc — on usages as well as declarations — so the
+   editor shows it with no name resolution of its own. What is left is PAGES.
 
    ★ Cufet makes this unusually cheap in two ways. A signature is **already English**, so a page's
    declaration line is the declaration, with no rendering of types into prose. And a book is an

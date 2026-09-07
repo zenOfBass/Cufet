@@ -1,12 +1,16 @@
 # Cufet for Visual Studio Code
 
-Syntax highlighting and error squiggles for [Cufet](../../README.md).
+Syntax highlighting, error squiggles, and documentation on hover for [Cufet](../../README.md).
 
-Two pieces, both small:
+Three pieces, all small:
 
 - **A TextMate grammar** (`syntaxes/cufet.tmLanguage.json`) — pure data, no code.
 - **A checker** (`extension.js`) — runs `cufet check --json` on the file you are editing and turns
-  what it says into squiggles. About 200 lines of dependency-free JavaScript.
+  what it says into squiggles. Dependency-free JavaScript.
+- **The front end's own answers** — `cufet tokens --json` supplies the name kinds a grammar cannot
+  know (is this word a variable, a function, a type?) and the documentation comment behind whatever
+  is under your cursor. ★ Neither is re-derived here: the extension does no parsing and no name
+  resolution of its own, so what it shows cannot drift from what the compiler thinks.
 
 ## Installing
 

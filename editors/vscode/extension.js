@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 // Error squiggles for Cufet.
 //
@@ -240,6 +240,61 @@ function encodeModifiers(names) {
     return bits;
 }
 
+// ── Hover ─────────────────────────────────────────────────────────────────
+//
+// The documentation comment of whatever the word under the cursor refers to.
+//
+// ★ There is no name resolution here, and that is the point. `cufet tokens --json` already answers
+// positionally and already carries each name's doc — on USAGES as well as declarations — so hover
+// is a lookup in a stream this extension reads anyway. An editor-side resolver would be a second
+// implementation of scoping that could disagree with the colours; this cannot.
+//
+// ⚠ Its own scratch prefix. The semantic-tokens request may be in flight at the same moment, and
+// two requests writing one scratch file is exactly what the prefix exists to prevent.
+const hoverProvider = {
+    provideHover(document, position) {
+        const command = resolveExecutable();
+        const { target, cleanup } = materialize(document, 'hover');
+
+        return new Promise(resolve => {
+            cp.execFile(command, ['tokens', '--json', target],
+                { timeout: CHECK_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 },
+                (error, stdout) => {
+                    cleanup();
+
+                    // A file that does not type-check has no reliable names to answer about, the
+                    // same rule the semantic tokens follow. Saying nothing is right: a hover card
+                    // built from a stale parse is worse than none.
+                    if (error && !stdout.trim()) { resolve(null); return; }
+
+                    const line = position.line + 1;
+                    const column = position.character + 1;
+
+                    for (const rawLine of stdout.split(/\r?\n/)) {
+                        const text = rawLine.trim();
+                        if (!text.startsWith('{')) continue;
+
+                        let token;
+                        try { token = JSON.parse(text); } catch { continue; }
+                        if (!token.doc || token.line !== line) continue;
+                        // Half-open: the column one past the end belongs to whatever follows.
+                        if (column < token.column || column >= token.column + token.length) continue;
+
+                        // ⚠ NOT a trusted MarkdownString. Trusted markdown may embed command links,
+                        // and this content comes out of somebody's source file — including a file
+                        // pulled from a book you did not write.
+                        const range = new vscode.Range(
+                            token.line - 1, token.column - 1,
+                            token.line - 1, token.column - 1 + token.length);
+                        resolve(new vscode.Hover(new vscode.MarkdownString(token.doc), range));
+                        return;
+                    }
+                    resolve(null);
+                });
+        });
+    },
+};
+
 // ── Commands ──────────────────────────────────────────────────────────────
 
 const quoteIfNeeded = value => /\s/.test(value) ? `"${value}"` : value;
@@ -301,7 +356,9 @@ function activate(context) {
         vscode.commands.registerCommand('cufet.build', () => runInTerminal('Cufet build', ['build'])),
 
         vscode.languages.registerDocumentSemanticTokensProvider(
-            { language: LANGUAGE }, semanticTokensProvider, SEMANTIC_LEGEND)
+            { language: LANGUAGE }, semanticTokensProvider, SEMANTIC_LEGEND),
+
+        vscode.languages.registerHoverProvider({ language: LANGUAGE }, hoverProvider)
     );
 
     // Documents already open when the extension activates never fire onDidOpenTextDocument,

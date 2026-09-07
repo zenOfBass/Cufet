@@ -295,6 +295,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠ **Nothing reads them yet.** This is the input half; hover is the consumer, and generated pages
   after that.
 
+- **Hover shows a name's documentation, in the editor.** Put the cursor on a function or a type —
+  at a call as readily as at its declaration — and the `///` or `/** … */` comment above its
+  declaration comes back as rendered Markdown.
+
+  ★★ **The editor does no name resolution, and that is the design.** `cufet tokens --json` already
+  answers positionally, so each name occurrence now carries the documentation of whatever it REFERS
+  to — usages included. Hover is a lookup in a stream the extension already reads. An editor-side
+  resolver would be a second implementation of scoping that could disagree with the colours; this
+  one cannot, because it is the same answer arriving on the same token.
+
+  ⚠ **Functions and types only**, and the restriction is load-bearing rather than a limit of effort.
+  The doc table is keyed by the name as written, so a parameter that happens to share a documented
+  function's name would otherwise answer for it — and a hover card with the wrong documentation is
+  worse than none.
+
+  ⚠ `doc` is omitted from the JSON rather than emitted as null. Nearly every token has none, and a
+  null field on each would be most of the stream.
+
 ### Fixed
 - **Tail recursion runs in constant space, on every compiler and every optimisation level.** A
   `Return cast <this same function> on (…)` — where nothing has to run between the call and the
