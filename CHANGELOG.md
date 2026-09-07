@@ -292,8 +292,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   one space is kept, so a nested list or an indented code block is still the author's. Ordinary
   block comments are untouched, exactly as before.
 
-  ⚠ **Nothing reads them yet.** This is the input half; hover is the consumer, and generated pages
-  after that.
+  ★ **The feature has an example.** `examples/language/documentation.cufe` documents a small
+  bill-splitting pair, and says what a doc comment is FOR: the signature is already English, so what
+  is left worth writing is *why*, and *what can go wrong*. Its own file header is an ordinary `//`,
+  because `///` documents a DECLARATION — something you can call, construct or pull — and a file is
+  not one of those.
+
+  ⚠ **Generated pages are still unbuilt.** Hover reads these today; pages wait on there being other
+  people's books worth pointing at.
 
 - **Hover shows a name's documentation, in the editor.** Put the cursor on a function or a type —
   at a call as readily as at its declaration — and the `///` or `/** … */` comment above its
