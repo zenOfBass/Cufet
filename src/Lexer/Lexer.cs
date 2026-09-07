@@ -822,9 +822,17 @@ public sealed class Lexer
         int line = _line, column = ColumnAt(_pos);
         Advance(); // consume the first '/'
         Advance(); // consume the second
+
+        // A THIRD slash documents; a FOURTH takes it back. `////////` is a divider somebody drew,
+        // and a divider quietly becoming public documentation is the one way this marker misfires —
+        // so four or more is an ordinary comment, as it is in C# and Rust.
+        bool doc = Peek() == '/' && Next() != '/';
+        if (doc) Advance();
+
         int from = _pos;
         while (!AtEnd() && Peek() != '\n') Advance();
-        _pending.Add(new Comment(CommentKind.Line, _source[from.._pos], line, column));
+        _pending.Add(new Comment(doc ? CommentKind.DocLine : CommentKind.Line,
+                                 _source[from.._pos], line, column));
     }
 
     // Consumes a /* ... */ comment.
@@ -848,6 +856,13 @@ public sealed class Lexer
         int depth = 1;
         Advance(); // consume '/'
         Advance(); // consume '*'
+
+        // ⚠ `/**/` IS AN EMPTY ORDINARY COMMENT, not a doc comment nobody closed. One character of
+        // lookahead past the second star is the whole difference, and getting it wrong turns a
+        // harmless empty comment into an unterminated-comment error at the end of the file.
+        bool doc = Peek() == '*' && Next() != '/';
+        if (doc) Advance();
+
         int from = _pos;
         while (true)
         {
@@ -870,13 +885,47 @@ public sealed class Lexer
                 // pair, and an inner opener is something its author typed on purpose.
                 if (--depth == 0)
                 {
-                    _pending.Add(new Comment(CommentKind.Block, _source[from..(_pos - 2)],
+                    string inside = _source[from..(_pos - 2)];
+                    _pending.Add(new Comment(doc ? CommentKind.DocBlock : CommentKind.Block,
+                                             doc ? StripContinuationStars(inside) : inside,
                                              startLine, startCol));
                     return;
                 }
             }
             else Advance();
         }
+    }
+
+    // The leading '*' the Javadoc habit puts down the left edge of a `/** … */`, removed.
+    //
+    // ⚠⚠ THIS IS NOT PRETTIFYING, and it is the one place the lexer touches a comment's inside. A
+    // doc comment's content is MARKDOWN, where `  * more text` is a BULLET LIST ITEM — so keeping
+    // the star would not preserve what the author wrote, it would silently render their paragraph
+    // as a list. People arriving from Java or C# type that column from muscle memory and the
+    // failure is invisible in the source.
+    //
+    // ★ Whitespace, ONE star, and at most one space after it. Everything past that survives, so
+    // indentation the author meant — a nested list, an indented code block — is still theirs. The
+    // indentation BEFORE the star goes with it: keeping it would push a deeply indented comment's
+    // text past four columns and turn the whole doc into a code block.
+    //
+    // ⚠ The first line is never touched: it sits after the opener, where no star is written.
+    // Ordinary block comments never reach here at all.
+    private static string StripContinuationStars(string inside)
+    {
+        var lines = inside.Split('\n');
+        for (int i = 1; i < lines.Length; i++)
+        {
+            string line = lines[i];
+            int at = 0;
+            while (at < line.Length && (line[at] == ' ' || line[at] == '\t')) at++;
+            if (at >= line.Length || line[at] != '*') continue;
+
+            int rest = at + 1;
+            if (rest < line.Length && line[rest] == ' ') rest++;
+            lines[i] = line[rest..];
+        }
+        return string.Join('\n', lines);
     }
 
     private char Peek() => _source[_pos];

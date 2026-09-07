@@ -1,4 +1,4 @@
-namespace Cufet.Lexer;
+﻿namespace Cufet.Lexer;
 
 /// <summary>Which spelling a comment was written with.</summary>
 public enum CommentKind
@@ -8,6 +8,21 @@ public enum CommentKind
 
     /// <summary><c>/* … */</c>, which nests.</summary>
     Block,
+
+    /// <summary><c>/// to the end of the line</c> — documentation.</summary>
+    /// <remarks>
+    /// ⚠ FOUR or more slashes is an ordinary <see cref="Line"/> comment, not this. A row of
+    /// slashes is a divider somebody drew, and a divider silently becoming public documentation is
+    /// the one way this marker can go wrong. C# and Rust both carve the same hole.
+    /// </remarks>
+    DocLine,
+
+    /// <summary><c>/** … */</c> — documentation, and it nests exactly as <see cref="Block"/> does.</summary>
+    /// <remarks>
+    /// ⚠ <c>/**/</c> is an EMPTY ORDINARY comment, not a doc comment that never closes. Telling
+    /// them apart needs one character of lookahead past the second star.
+    /// </remarks>
+    DocBlock,
 }
 
 /// <summary>
@@ -32,6 +47,14 @@ public enum CommentKind
 /// block comment keeps its line breaks and its indentation, because how to present those is the
 /// reader's question and not the lexer's, and stripping them here would be a decision nothing
 /// downstream could undo.
+/// </para>
+/// <para>
+/// ★★ THE ONE EXCEPTION, and it is a marker rather than presentation: a <see cref="CommentKind.DocBlock"/>
+/// drops the leading <c>*</c> that the Javadoc habit puts at the start of each continuation line.
+/// A doc comment's content is MARKDOWN, and <c>  * more text</c> is a bullet list item there — so
+/// leaving it would not be preserving what the author wrote, it would be rendering a paragraph as
+/// a list. Whitespace, one <c>*</c>, and at most one space after it; everything past that is kept,
+/// so indentation the author meant (a nested list, an indented code block) survives.
 /// </para>
 /// <para>
 /// ⚠ A comment written after code on the same line attaches to the token that FOLLOWS it, which is

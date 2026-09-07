@@ -1,4 +1,4 @@
-using Cufet.Lexer;
+﻿using Cufet.Lexer;
 using Xunit;
 
 namespace Cufet.Lexer.Tests;
@@ -387,5 +387,120 @@ public class CommentTests
         var carried = Assert.Single(all[0].Leading);
         Assert.Equal(11, carried.Line);     // 1 + 10
         Assert.Equal(5,  carried.Column);   // first line, so the column shifts too
+    }
+
+    // ── Documentation comments ───────────────────────────────────────────
+    //
+    // `///` and `/** … */`. The tests that matter most are the CARVE-OUTS: a marker that quietly
+    // swallows an ordinary comment is worse than no marker, because nothing in the source looks
+    // wrong.
+
+    [Fact]
+    public void ThreeSlashes_AreADocComment()
+    {
+        var carried = Assert.Single(LexTokens("/// Splits a line.\nfoo")[0].Leading);
+        Assert.Equal(CommentKind.DocLine, carried.Kind);
+        Assert.Equal(" Splits a line.", carried.Text);
+    }
+
+    [Fact]
+    public void FourSlashes_AreAnOrdinaryComment()
+    {
+        // ⚠ A divider somebody drew. If this became documentation the whole row of slashes would
+        // land in a generated page, and nothing in the source would look wrong.
+        var carried = Assert.Single(LexTokens("//////////\nfoo")[0].Leading);
+        Assert.Equal(CommentKind.Line, carried.Kind);
+    }
+
+    [Fact]
+    public void TwoSlashes_AreStillAnOrdinaryComment()
+    {
+        var carried = Assert.Single(LexTokens("// just a note\nfoo")[0].Leading);
+        Assert.Equal(CommentKind.Line, carried.Kind);
+    }
+
+    [Fact]
+    public void SlashStarStar_IsADocBlock()
+    {
+        var carried = Assert.Single(LexTokens("/** Splits a line. */\nfoo")[0].Leading);
+        Assert.Equal(CommentKind.DocBlock, carried.Kind);
+        Assert.Equal(" Splits a line. ", carried.Text);
+    }
+
+    [Fact]
+    public void AnEmptyBlockComment_IsNotADocComment()
+    {
+        // ⚠⚠ `/**/` closes itself. Reading the second star as a doc opener leaves the comment
+        // unterminated, and the file fails to lex with an error pointing at a comment that is fine.
+        var carried = Assert.Single(LexTokens("/**/\nfoo")[0].Leading);
+        Assert.Equal(CommentKind.Block, carried.Kind);
+        Assert.Equal("", carried.Text);
+    }
+
+    [Fact]
+    public void AnOrdinaryBlockComment_StaysOrdinary()
+    {
+        var carried = Assert.Single(LexTokens("/* just a note */\nfoo")[0].Leading);
+        Assert.Equal(CommentKind.Block, carried.Kind);
+    }
+
+    [Fact]
+    public void ADocBlock_DropsTheLeadingStarsOnContinuationLines()
+    {
+        // ★ The content is MARKDOWN, where `  * more text` is a bullet. Keeping the star would
+        // render a paragraph as a list.
+        var carried = Assert.Single(LexTokens("/** Summary.\n  * More text.\n  */\nfoo")[0].Leading);
+        Assert.Equal(CommentKind.DocBlock, carried.Kind);
+        Assert.Contains("More text.", carried.Text);
+        Assert.DoesNotContain("* More", carried.Text);
+    }
+
+    [Fact]
+    public void ADocBlock_KeepsIndentationWrittenAfterTheStar()
+    {
+        // ⚠ Only the star and one space go. A nested list or an indented code block is the author's
+        // markdown and has to survive — which is why this strips a marker rather than trimming.
+        var carried = Assert.Single(LexTokens("/** Items:\n  *   - one\n  *     - nested\n  */\nfoo")[0].Leading);
+        // ⚠ EXACT LINES, not Contains. "  *   - one" contains "  - one" as a substring, so a
+        // Contains check here passed whether or not the star was stripped — measured, by removing
+        // the stripping and watching this test stay green while its neighbours went red.
+        var lines = carried.Text.Split('\n');
+        Assert.Equal("  - one", lines[1]);
+        Assert.Equal("    - nested", lines[2]);
+    }
+
+    [Fact]
+    public void ADocBlock_LeavesALineWithNoStarAlone()
+    {
+        var carried = Assert.Single(LexTokens("/** Summary.\nplain line\n*/\nfoo")[0].Leading);
+        Assert.Contains("plain line", carried.Text);
+    }
+
+    [Fact]
+    public void AnOrdinaryBlockComment_KeepsItsStars()
+    {
+        // The stripping is a DocBlock rule. An ordinary comment's inside is still untouched, which
+        // is what the Comment record has always promised.
+        var carried = Assert.Single(LexTokens("/* Summary.\n  * still mine\n  */\nfoo")[0].Leading);
+        Assert.Equal(CommentKind.Block, carried.Kind);
+        Assert.Contains("* still mine", carried.Text);
+    }
+
+    [Fact]
+    public void ADocBlock_NestsLikeAnOrdinaryOne()
+    {
+        var carried = Assert.Single(LexTokens("/** outer /* inner */ still outer */\nfoo")[0].Leading);
+        Assert.Equal(CommentKind.DocBlock, carried.Kind);
+        Assert.Contains("still outer", carried.Text);
+    }
+
+    [Fact]
+    public void ADocComment_RidesTheTokenThatFollowsIt()
+    {
+        // The whole point: a doc comment is reachable from the declaration it sits above, with no
+        // change to the parser at all.
+        var tokens = LexTokens("/// What this does.\nBind number to size:");
+        Assert.Equal("Bind", tokens[0].Lexeme);
+        Assert.Equal(CommentKind.DocLine, Assert.Single(tokens[0].Leading).Kind);
     }
 }
