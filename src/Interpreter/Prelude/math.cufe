@@ -25,7 +25,11 @@ Define object math with () and module:
         Return x - fraction.
     Done.
 
-    // To the nearest whole number, halves rounding away from zero.
+    /// To the nearest whole number, **halves rounding away from zero**.
+    ///
+    /// That is the schoolbook rule, not the banker's one: `0.5` gives `1` and `-0.5` gives `-1`,
+    /// where banker's rounding would give `0` for both. It matters when you are summing many
+    /// rounded values, because this rule drifts upward and banker's does not.
     Bind number to round, given (the number x):
         If x is less than 0, return cast one's ceiling on (x - 0.5).
         Return cast one's floor on (x + 0.5).

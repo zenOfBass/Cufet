@@ -6,8 +6,19 @@
 // only implementation of that member, and anything not defined here (today only the matrix TYPE
 // itself) is still the native book's, reached through the same pulled name.
 
+/// Working with a **series** and a **matrix** — the operations that are the same every time you
+/// write them.
+///
+/// ★ Everything here hands back a NEW value. Nothing in this book changes what you gave it, so a
+/// series can be passed to any of these and still be the series you had.
 Define object collections with () and module:
-    // Smallest value; the first of ties is kept, and an empty series has no smallest.
+    /// The smallest value, or **void for an empty series**.
+    ///
+    /// An empty series has no smallest — there is no number to return and no sensible stand-in, so
+    /// this says so rather than inventing a zero. `but void is` is how you supply a fallback.
+    ///
+    /// **The first of equal values is the one kept**, which matters only if you are comparing
+    /// records by one field and expecting a particular tie to survive.
     Bind voidable number to minimum, given (the series of number xs):
         If the number of xs is 0, return void.
         Define best as the first of xs.
@@ -17,7 +28,9 @@ Define object collections with () and module:
         Return best.
     Done.
 
-    // Largest value; the first of ties is kept, and an empty series has no largest.
+    /// The largest value, or **void for an empty series** — the mirror of `minimum`, with the same
+    /// two answers to the same two questions: nothing to return for an empty series, and the first
+    /// of equal values is the one kept.
     Bind voidable number to maximum, given (the series of number xs):
         If the number of xs is 0, return void.
         Define best as the first of xs.
@@ -27,8 +40,13 @@ Define object collections with () and module:
         Return best.
     Done.
 
-    // Exact-decimal mean: one running sum, then one division — no float drift, so the average
-    // of (0.1, 0.2, 0.3) is exactly 0.2. An empty series has no average.
+    /// The mean, **exactly** — or void for an empty series.
+    ///
+    /// One running sum and then one division, all in decimal, so there is no float drift to
+    /// accumulate: the average of `(0.1, 0.2, 0.3)` is exactly `0.2` and not `0.19999999999999998`.
+    /// That is the whole reason to reach for this rather than summing by hand.
+    ///
+    /// ⚠ It is a MEAN. A series with one wild value has a mean that describes none of it.
     Bind voidable number to average, given (the series of number xs):
         If the number of xs is 0, return void.
         Define sum as 0.
@@ -38,8 +56,10 @@ Define object collections with () and module:
         Return sum / (the number of xs).
     Done.
 
-    // Columns become rows. The dimensions are bound to names first — the sized form wants a
-    // simple expression on each side of `by`.
+    /// Columns become rows.
+    ///
+    /// A `2 by 3` matrix comes back `3 by 2`, and the original is untouched. Transposing twice
+    /// gives you back what you started with.
     Bind matrix to transpose, given (the matrix m):
         Define height as the rows of m.
         Define width as the columns of m.
@@ -52,8 +72,14 @@ Define object collections with () and module:
         Return flipped.
     Done.
 
-    // First-occurrence dedup, element-type-preserving: works on a series of anything `is` can
-    // compare, and hands back a new series — the one given is untouched.
+    /// The same series with **later duplicates dropped**, in the order they first appeared.
+    ///
+    /// Works on a series of anything `is` can compare, and keeps the element type — a series of
+    /// text comes back a series of text. The series you gave is untouched.
+    ///
+    /// ⚠ **It compares every kept value against every candidate**, so it costs more the longer the
+    /// series and the more distinct values it holds. Fine for a list you can read; think twice for
+    /// one you cannot.
     Bind series of element to unique, given (the series of element xs):
         Define kept as a series of element.
         For each candidate in xs, repeat:
