@@ -412,6 +412,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   bundled book the way the editor does**, so the whole suite stayed green while the extension put
   a squiggle on `math.cufe`; there is now a test that checks each one on its own.
 
+  ⚠⚠ **It also exposed a latent flaw in "there is nothing to run".** That check asks whether every
+  statement is a declaration — of the CHECKED program, which has the prelude spliced into it. It
+  only ever looked right because the bundled books held nothing but declarations, so the first
+  `Define … permanently.` at a book's file scope made **every program on earth** look like it had
+  something to run, and `cufet build` stopped refusing a file that only declares. The question is
+  about what the author wrote, so the prelude is now subtracted before it is asked.
 ### Fixed
 - **A module's refusal leaked the loader's lifted name.** The first version of the message above
   said *"'terminal' declares 'prompter in terminal'"* — a synthesized name nobody wrote, produced by
