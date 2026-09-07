@@ -5,6 +5,11 @@
 // — the arc's remaining pure-decimal numerics work, and the only members left that are not
 // written here.
 
+// ★ FILE SCOPE, and private to this file the way an external book's top level is. These are how
+// the series below are ARRANGED, not anything a caller of `math` would want — and before a bundled
+// book had file privacy, `log 2` was written out three times because there was nowhere to put it.
+Define log-two as 0.6931471805599453094172321215 permanently.
+Define log-ten as 2.3025850929940456840179914547 permanently.
 /// Numbers beyond the operators — rounding, roots, logarithms, and the two constants.
 ///
 /// ★ **Everything here is exact decimal, with no `double` anywhere.** That is why both backends
@@ -141,8 +146,8 @@ Define object math with () and module:
         Done.
 
         Return 2 * total
-             + tens * 2.3025850929940456840179914547
-             + twos * 0.6931471805599453094172321215.
+             + tens * log-ten
+             + twos * log-two.
     Done.
 
     /// **e** raised to a power — or **void when the answer is too large to hold**.
@@ -156,8 +161,8 @@ Define object math with () and module:
 
         // z = doublings * log 2 + rest, so what the series has to handle is at most half a
         // log 2 — and the rest of the answer is a power of two, which is exact.
-        Define doublings as cast one's round on (z / 0.6931471805599453094172321215).
-        Define rest as z - doublings * 0.6931471805599453094172321215.
+        Define doublings as cast one's round on (z / log-two).
+        Define rest as z - doublings * log-two.
 
         // exp(rest) = 1 + rest + rest^2/2 + rest^3/6 + ..., each term the one before it times
         // rest over the next whole number.
