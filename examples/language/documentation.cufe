@@ -1,0 +1,71 @@
+// Documentation comments — `///` and `/** ... */`.
+//
+// An ordinary comment is a note to whoever opens the file. A DOCUMENTATION comment is written for
+// whoever USES the thing below it, and tooling can find it: an editor shows it when you rest the
+// cursor on a name, at a call as readily as at the declaration.
+//
+// ★ THIS header is an ordinary comment on purpose. `///` documents a DECLARATION — something you
+// can call, construct or pull — and a file is not one of those. Its module is, and its functions
+// and types are.
+//
+// ★ WHAT TO PUT IN ONE. A Cufet signature is already English: `Bind number to summed, given (the
+// number left, the number right)` says what it takes and what it gives back, in words, with no
+// types to translate. A doc comment that repeats that is a second copy of the truth, and second
+// copies drift. What is left over — and what is worth writing — is WHY, and WHAT CAN GO WRONG.
+//
+// The content is Markdown.
+
+/// Splits a bill evenly, rounding nothing.
+///
+/// **The remainder is not lost.** Money divided three ways rarely divides three ways, so the
+/// answer here carries full decimal precision rather than a rounded currency amount — deciding
+/// who absorbs the last penny is a question about people, not about arithmetic, and it is
+/// deliberately left to the caller.
+///
+/// **Raises when `people` is 0.** Division by zero is a catchable *exception*, not a failure
+/// value — so a caller that might be handed zero has to wrap this in a `Try` and `Suppress` it
+/// to carry on, while one that cannot need not think about it. None of that is visible in the
+/// signature, which is exactly the kind of thing a doc comment is for.
+Bind number to each-share, given (the number bill, the number people):
+    Return bill / people.
+Done.
+
+/** A tally of how a bill was split.
+  *
+  * The star column down the left is the Javadoc habit; it is stripped, because the content is
+  * Markdown and `  * text` would otherwise read as a **bullet list**.
+  *
+  * Two things worth knowing, because both are guessable the wrong way:
+  * - `share` is exact, not rounded to pennies
+  * - `people` is how many the bill was split BETWEEN, not how many were at the table
+  */
+Define object tally with (the number share, the number people).
+
+/// Works out a split, or says why it could not.
+///
+/// ★ The interesting half of the documentation is what goes wrong: a bill split zero ways is a
+/// question with no answer, and this is where the program says so rather than dying.
+Bind text to described, given (the number bill, the number people):
+    Define answer as "".
+    Try to:
+        Define share as cast each-share on (bill, people).
+        Define worked as a new tally { the share share, the people people }.
+        The answer becomes "{the people of worked} people owe {the share of worked} each".
+    Done.
+    In case of exception:
+        The answer becomes "a bill cannot be split {people} ways".
+        Suppress the exception.
+    Done.
+    Return answer.
+Done.
+
+// Ordinary comments still do what they always did, and this is one. Nothing below it is
+// documented, and nothing shows it to a reader who did not open this file.
+Bind number to doubled, given (the number value):
+    Return value * 2.
+Done.
+
+State cast described on (100, 4).
+State cast described on (100, 3).
+State cast described on (100, 0).
+State cast doubled on (21).
