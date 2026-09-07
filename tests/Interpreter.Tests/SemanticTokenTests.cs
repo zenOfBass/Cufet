@@ -624,4 +624,94 @@ public class SemanticTokenTests
             State cast summed on (1, 2).
             """).Where(t => t.Doc is not null));
     }
+
+    // ── Documentation on a book ──────────────────────────────────────────
+    //
+    // ★ A module needed no new collection at all: it IS an object, so its declaration is an
+    // ObjectDefinition and its methods are ordinary BindStatements inside it. Only the emit-side
+    // kind test stood between a documented book and an answer.
+
+    private const string DocumentedBook = """
+        /// Adds up money, exactly.
+        Define object takings with () and module:
+            /// One charge on a bill.
+            Define object charge with (the text note, the number amount).
+
+            /// Adds every charge together.
+            Bind number to total, given (the series of charge charges):
+                Define sum as 0.
+                For each item in charges, repeat:
+                    Increment sum by item's amount.
+                Done.
+                Return sum.
+            Done.
+        Done.
+
+        Pull takings.
+            Define bill as a series of charge with (a new charge { the note "tea", the amount 2.5 }).
+            State cast takings's total on (bill).
+        Done.
+        """;
+
+    [Fact]
+    public void ADocumentedBook_AnswersWhereItIsPulled()
+    {
+        // `Pull takings.` and `takings's total` — the two places the book's own name appears, and
+        // the first thing a reader meets. Selected by KIND rather than by line: a line number here
+        // pins the shape of the test fixture, not the behaviour being tested.
+        var books = Classify(DocumentedBook)
+            .Where(t => t.Kind == SemanticTokenKind.Namespace).ToList();
+
+        Assert.Equal(2, books.Count);
+        Assert.All(books, b => Assert.Equal("Adds up money, exactly.", b.Doc));
+    }
+
+    [Fact]
+    public void ADocumentedBook_AnswersAtAPossessiveUse()
+    {
+        // `takings's total` — the book half of the possessive carries the BOOK's doc, and the
+        // member half carries the METHOD's. Two different cards on one expression, which is the
+        // whole reason this is worth a test of its own.
+        var all = Classify(DocumentedBook).ToList();
+        int callLine = all.Where(t => t.Kind == SemanticTokenKind.Namespace).Max(t => t.Line);
+        var line = all.Where(t => t.Line == callLine).ToList();
+
+        var book   = Assert.Single(line.Where(t => t.Kind == SemanticTokenKind.Namespace));
+        var method = Assert.Single(line.Where(t => t.Kind == SemanticTokenKind.Function));
+
+        Assert.Equal("Adds up money, exactly.", book.Doc);
+        Assert.Equal("Adds every charge together.", method.Doc);
+    }
+
+    [Fact]
+    public void ADocumentedMemberOfABook_AnswersAtItsDeclaration()
+    {
+        var docs = Classify(DocumentedBook).Where(t => t.Doc is not null).ToList();
+
+        Assert.Contains(docs, d => d.Doc == "One charge on a bill.");
+        Assert.Contains(docs, d => d.Doc == "Adds every charge together.");
+    }
+
+    [Fact]
+    public void ABookPulledUnderAnAlias_DoesNotAnswerAtTheAlias()
+    {
+        // ⚠ A KNOWN MISS, pinned so it cannot change in silence. The doc table is keyed by the name
+        // as WRITTEN, and an alias is a different word — so hovering it answers nothing rather than
+        // answering wrongly, which is the right way round to fail. Closing it means keying on the
+        // resolved declaration, which is what the whole name-keyed approximation eventually wants.
+        //
+        // ★ If this test starts failing, the alias began answering: good news, and this test should
+        // become the assertion that it does.
+        var aliased = DocumentedBook
+            .Replace("Pull takings.", "Pull takings as till.")
+            .Replace("cast takings's total", "cast till's total");
+
+        var namespaces = Classify(aliased)
+            .Where(t => t.Kind == SemanticTokenKind.Namespace)
+            .ToList();
+
+        // The declared name still answers where it is written; the alias does not.
+        Assert.Contains(namespaces, t => t.Doc == "Adds up money, exactly.");
+        Assert.Equal(2, namespaces.Count(t => t.Doc is null));
+    }
 }

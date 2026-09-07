@@ -153,14 +153,25 @@ public sealed class SemanticTokenizer
         _out.Add(new SemanticToken(line, column, length, kind, modifiers, DocFor(line, column, kind)));
     }
 
-    // ★ FUNCTIONS AND TYPES ONLY, which is what keeps the name-keyed table honest. Those are the
-    // names a doc comment is written for, and they are the ones whose spelling is unique enough for
-    // a name to identify them. A local variable that happens to share a function's name would
-    // otherwise carry that function's documentation on hover, which is a wrong answer rather than a
-    // missing one.
+    // ★ FUNCTIONS, TYPES AND BOOKS ONLY, which is what keeps the name-keyed table honest. Those are
+    // the names a doc comment is written for, and they are the ones whose spelling is unique enough
+    // for a name to identify them. A local variable or a parameter that happens to share a
+    // function's name would otherwise carry that function's documentation on hover, which is a
+    // wrong answer rather than a missing one.
+    //
+    // ★ A BOOK needs nothing else: a module IS an object, so its declaration is an ObjectDefinition
+    // that CollectDocs already reads, and its methods are ordinary BindStatements inside it. Only
+    // this test stood between a documented book and an answer — which is why `Pull takings.` and
+    // `takings's total` were the two names in a documented module that said nothing.
+    //
+    // ⚠ An ALIAS answers nothing. `Pull greeting-kit as kit.` puts `kit` on the page and the table
+    // is keyed by the declared name, so hovering the alias is a miss rather than a wrong answer.
+    // Fixing it means keying on the resolved declaration, which is the same change the whole
+    // name-keyed approximation eventually wants.
     private string? DocFor(int line, int column, SemanticTokenKind kind)
     {
-        if (kind is not (SemanticTokenKind.Function or SemanticTokenKind.Type)) return null;
+        if (kind is not (SemanticTokenKind.Function or SemanticTokenKind.Type
+                         or SemanticTokenKind.Namespace)) return null;
         if (_docs.Count == 0) return null;
         var token = TokenAt(line, column);
         return token is not null && _docs.TryGetValue(token.Lexeme, out var doc) ? doc : null;
