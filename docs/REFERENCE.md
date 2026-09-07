@@ -617,6 +617,8 @@ That doesn't work: this judgement mixes arms that match a type with arms that ma
 > ```
 
 - Nothing may follow the `Otherwise` arm; an arm after the default could never run.
+- An arm naming what an earlier arm already covers is legal and dead — the first match wins.
+  The linter reports it; it is not refused, because the meaning is not in doubt.
 - A judgement whose arms all return counts as returning, so it satisfies the
   every-path-returns rule on its own.
 - There is no no-op statement, so an arm that means "ignore this case" still has to

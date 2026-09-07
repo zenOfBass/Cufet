@@ -270,6 +270,9 @@ block. The subject is evaluated **once** and bound to `it`.
 - **The subject may be an expression.** Narrowing is variable-level, so `If` cannot narrow one;
   binding to `it` is what makes it possible here.
 - **Nothing may follow `Otherwise`** — a later arm could never run.
+- **An arm an earlier arm already covers is legal, and dead** — the first match wins, the same
+  rule an `Otherwise if` chain follows. ⚠ The linter reports it, because nothing in the text
+  says the second body can never run. Advice, not a refusal.
 - A judgement whose arms all return counts as returning for the every-path-returns rule.
 
 ⚠ **Native backend: TYPE arms need a closed union.** A `Judge` whose arms name types over a

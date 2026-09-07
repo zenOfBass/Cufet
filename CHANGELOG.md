@@ -253,6 +253,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   native backend needs no tag to dispatch on, and why a `bury` inside one is a plain resumption with
   no narrowing to restore.
 
+- **The linter reports a `Judge` arm that can never run.** An arm naming what an earlier arm
+  already named is dead — the first match wins — and until now nothing said so. Both kinds of arm,
+  because they fail identically: `A number` twice and `It is "cd"` twice are one mistake with two
+  spellings. A grouped arm counts as having taken everything it names, so `A number or a text`
+  followed by `A text` is reported too, and two bit patterns written in different bases are one
+  value.
+
+  ★ **Advice, not a refusal, and deliberately.** The meaning is not in doubt and the first-match
+  rule is the one an `Otherwise if` chain already follows, so refusing it would break programs to
+  say something a warning says just as well. What earns the warning is that `Judge` is the
+  construct whose promise is that its arms are the cases you thought about — and it already refuses
+  an arm written *after* `Otherwise` on exactly these grounds.
+
+  ⚠ **This was never specific to value arms.** Duplicate TYPE arms have always been accepted in
+  silence; the value arms added in this release simply inherited it. Measured across the 41 programs
+  in `examples/` and `tools/`: no dead arm anywhere, so nothing in the corpus changes.
+
 ### Fixed
 - **Tail recursion runs in constant space, on every compiler and every optimisation level.** A
   `Return cast <this same function> on (…)` — where nothing has to run between the call and the
