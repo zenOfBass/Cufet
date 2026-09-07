@@ -765,10 +765,12 @@ public class SemanticTokenTests
                 State cast round on (1).
                 State cast math's round on (1.6).
             Done.
-            """).Where(t => t.Doc is not null).ToList();
+            """).Where(t => t.Doc is not null && t.Kind == SemanticTokenKind.Function).ToList();
 
         // The two bare uses are the program's own; the possessive one is the book's. Stated as a
-        // DIFFERENCE rather than as the book's text, so rewording `math` cannot break this.
+        // DIFFERENCE rather than as the book's text, and narrowed to FUNCTION tokens — otherwise
+        // documenting the `math` module itself adds namespace cards and breaks a test about
+        // members. (It did exactly that.)
         Assert.Equal(2, docs.Count(d => d.Doc == "MY round, which does nothing at all."));
         Assert.Single(docs.Where(d => d.Doc != "MY round, which does nothing at all."));
     }
@@ -788,5 +790,55 @@ public class SemanticTokenTests
 
         Assert.NotEmpty(mine);
         Assert.All(mine, d => Assert.Equal("MY round, which does nothing at all.", d.Doc));
+    }
+
+    [Fact]
+    public void ABlankDocLine_IsAParagraphBreak()
+    {
+        // ⚠⚠ A single newline in Markdown is ordinary whitespace, not a paragraph break. Dropping
+        // the empty `///` lines joined every paragraph into one run-on block — which looked fine in
+        // the JSON and wrong in the only place it is ever read, the rendered hover card.
+        var doc = Classify("""
+            /// The first paragraph.
+            ///
+            /// The second paragraph.
+            Bind number to summed, given (the number left, the number right):
+                Return left + right.
+            Done.
+            """).First(t => t.Doc is not null).Doc;
+
+        Assert.Equal("The first paragraph.\n\nThe second paragraph.", doc);
+    }
+
+    [Fact]
+    public void BlankDocLinesAtTheEnds_AreTrimmed()
+    {
+        // A blank line means nothing at either end, so it goes — only the ones between paragraphs
+        // are load-bearing.
+        var doc = Classify("""
+            ///
+            /// The only paragraph.
+            ///
+            Bind number to summed, given (the number left, the number right):
+                Return left + right.
+            Done.
+            """).First(t => t.Doc is not null).Doc;
+
+        Assert.Equal("The only paragraph.", doc);
+    }
+
+    [Fact]
+    public void APulledRabbit_AnswersAsTheBookItIs()
+    {
+        // ★ `rabbit` names a module the prelude declares, and the word is on the page — but it used
+        // to produce no token at all, so it was the one pulled book a reader could neither see
+        // coloured nor ask about.
+        var book = Classify("""
+            Pull a rabbit as hopper.
+                State "inside".
+            Done.
+            """).Single(t => t.Kind == SemanticTokenKind.Namespace);
+
+        Assert.NotNull(book.Doc);
     }
 }

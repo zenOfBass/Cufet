@@ -175,8 +175,14 @@ public sealed class SemanticTokenizer
     private string? DocFor(int line, int column, SemanticTokenKind kind)
     {
         if (kind is not (SemanticTokenKind.Function or SemanticTokenKind.Type
-                         or SemanticTokenKind.Namespace)) return null;
+                         or SemanticTokenKind.Namespace or SemanticTokenKind.Property)) return null;
         if (_docs.Count == 0) return null;
+
+        // ⚠⚠ A PROPERTY ANSWERS ONLY THROUGH ITS OWNER, never by its bare name. Field and getter
+        // names are the most ordinary words in any program — `amount`, `note`, `share`, `pi` — so a
+        // bare lookup would hand one object's documentation to another's field of the same name
+        // constantly rather than rarely. Qualified or silent.
+        bool ownerOnly = kind is SemanticTokenKind.Property;
 
         var token = TokenIn(_tokens, line, column);
         if (token is null) return null;
@@ -189,7 +195,7 @@ public sealed class SemanticTokenizer
             if (owner is not null && _docs.TryGetValue(owner + "." + token.Lexeme, out var owned))
                 return owned;
 
-        return _docs.TryGetValue(token.Lexeme, out var doc) ? doc : null;
+        return !ownerOnly && _docs.TryGetValue(token.Lexeme, out var doc) ? doc : null;
     }
 
     // The name that owns this one through a possessive — the `math` of `math's round`.
@@ -289,11 +295,17 @@ public sealed class SemanticTokenizer
     {
         var every = AstSearch.EveryStatement(statements).ToList();
 
-        var ownerOf = new Dictionary<BindStatement, string>(ReferenceEqualityComparer.Instance);
+        var ownerOf = new Dictionary<IStatement, string>(ReferenceEqualityComparer.Instance);
         foreach (var statement in every)
             if (statement is ObjectDefinition od)
-                foreach (var method in od.Methods)
-                    ownerOf[method] = od.Name;
+            {
+                foreach (var method in od.Methods) ownerOf[method] = od.Name;
+                // ★ A GETTER is documented the same way and for the same reason — `math's pi` is a
+                // name someone reads, and `pi` is a constant with a story (which precision, and
+                // why that one). It is qualified like a method because a bare `pi` is far too
+                // ordinary a word to answer for.
+                foreach (var getter in od.Getters) ownerOf[getter] = od.Name;
+            }
 
         foreach (var statement in every)
         {
@@ -301,6 +313,10 @@ public sealed class SemanticTokenizer
             {
                 BindStatement b => (ownerOf.TryGetValue(b, out var owner) ? owner + "." + b.Name : b.Name,
                                     b.Line, b.Column),
+                // ⚠ A getter answers ONLY through its owner, so an unowned one is not worth storing:
+                // its bare name would never be looked up.
+                GetterDeclaration g when ownerOf.TryGetValue(g, out var gowner)
+                    => (gowner + "." + g.Name, g.Line, g.Column),
                 // ★ A TYPE keeps its bare name even when it is declared inside a module, because
                 // that is how it is written in use: `a new charge { … }`, never `takings's charge`.
                 ObjectDefinition o => (o.Name, o.Line, o.Column),
@@ -327,8 +343,15 @@ public sealed class SemanticTokenizer
         var parts = token.Leading
             .Where(c => c.Kind is CommentKind.DocLine or CommentKind.DocBlock)
             .Select(c => c.Text.Trim())
-            .Where(t => t.Length > 0)
             .ToList();
+
+        // ⚠⚠ AN EMPTY `///` LINE IS KEPT, because it is a PARAGRAPH BREAK. Dropping empties
+        // joined two paragraphs with a single newline, and a single newline in Markdown is
+        // ordinary whitespace — so every doc written in paragraphs rendered as one run-on block.
+        // Only the ends are trimmed, where a blank line means nothing.
+        while (parts.Count > 0 && parts[0].Length == 0) parts.RemoveAt(0);
+        while (parts.Count > 0 && parts[^1].Length == 0) parts.RemoveAt(parts.Count - 1);
+
         return parts.Count == 0 ? null : string.Join("\n", parts);
     }
 
@@ -671,13 +694,21 @@ public sealed class SemanticTokenizer
                 break;
 
             case PullRabbitStatement pr:
+            {
                 EnterScope();
-                EmitFound(Cursor.At(_tokens, pr.Line, pr.Column), pr.Name,
+                // ★ `rabbit` IS A BOOK NAME and is emitted as one, the same as `math` in
+                // `Pull a book on math.` — it names a module the prelude declares, and the word is
+                // right there on the page. Without this it was the one pulled book a reader could
+                // neither see coloured nor ask about.
+                var cursor = Cursor.At(_tokens, pr.Line, pr.Column);
+                EmitFound(cursor, "rabbit", SemanticTokenKind.Namespace);
+                EmitFound(cursor, pr.Name,
                         SemanticTokenKind.Variable, SemanticTokenModifier.Declaration);
                 Bind(pr.Name, SemanticTokenKind.Variable);
                 WalkBlock(pr.Body);
                 ExitScope();
                 break;
+            }
 
             case LaunchTaskStatement lt:
                 // The task's name is bound in the ENCLOSING scope, not the task body — that is
