@@ -8,6 +8,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-09-07
+
 ### Added
 
 - **The shell pipes and redirects: `sort < names | uniq | head -2`.** `tools/shell.cufe` splits a
@@ -455,6 +457,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   away would not be.
 
 ### Fixed
+
 - **A module's refusal leaked the loader's lifted name.** The first version of the message above
   said *"'terminal' declares 'prompter in terminal'"* — a synthesized name nobody wrote, produced by
   the book loader's file-privacy rename. `ModuleTypeLifting.DisplayName` exists for exactly this, and
@@ -640,6 +643,42 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
   ⚠ Every one of the seven now differs from its 0.18.0 form by the version number and nothing
   else. The encoding was never a decision — it was a tool's default leaking into the tree.
+
+- **A series of functions can now be passed, held in a field, and returned.** `a series of number
+  function given (the number)` could be DEFINED and walked with `For each`, and nothing else. In
+  every other position it was refused — with `void` a parse error naming the token, and otherwise
+  a mismatch describing a type nobody had written:
+
+  ```
+  Change the value to a series of numbers function given (number).
+  ```
+
+  ★★ **Two implementations of one clause, which is how they drifted.** The series LITERAL parser
+  knew about function element types and the series ANNOTATION parser did not, so the same words
+  meant different things either side of a `Define`. They now share one `ParseElementType`, and a
+  type that can be built can be declared.
+
+  ★ **No new spelling was needed — both readings already had one, and the NAME is what divides
+  them:**
+
+  ```
+  the series of number function make given (the number)   a function RETURNING a series
+  the series of number function given (the number) ops    a SERIES of functions
+  ```
+
+  A function element type states its own `given`, so its name has nowhere to go but after the whole
+  type; a function-typed parameter puts its name straight after `function`. One token of lookahead
+  separates them, so **nothing that parsed before this changed meaning** — the fix is purely
+  additive. ⚠ The cost is that a function element type must carry its `given` clause wherever a
+  name follows it. In a literal nothing follows, so there it stays optional.
+
+  ★ **Found by writing a program rather than by a test.** An Observer *is* a series of functions,
+  and `examples/language/patterns.cufe` — written to exercise function values — is the first
+  program in the corpus to pass one anywhere. The unit tests covered function values well (15
+  declarations in `PipelineClosureTests`, 49 in `InterpreterTests`) but the oracle only compares
+  whole programs, and no whole program had ever asked one to cross a boundary. `REFERENCE`
+  documented the type with exactly a `Define` and a `For each` — the only two positions where it
+  worked — so the docs were not wrong either, just never shown crossing.
 
 ## [0.19.0] — 2026-09-04
 ### Added

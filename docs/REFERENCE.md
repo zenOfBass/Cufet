@@ -1,6 +1,6 @@
 ﻿# Cufet Language Reference
 
-The complete reference for Cufet `0.19.0`. For a quick introduction and taste of
+The complete reference for Cufet `0.20.0`. For a quick introduction and taste of
 the language, see [README.md](../README.md). For the reasoning behind the
 design, see [DESIGN.md](DESIGN.md); for what comes next, see [ROADMAP.md](ROADMAP.md). For reserved words, sharp edges,
 and the constraints worth knowing before you hit them, see [GRAMMAR.md](GRAMMAR.md). The books
@@ -2811,6 +2811,31 @@ Done.
 A series whose element type is a function type. All the usual series operations
 apply — access, add, remove, for-each — and any accessed element can be `Cast`
 directly.
+It can also be **passed, held in a field, and returned**. The type is spelled exactly as above,
+with the parameter or field name after the whole type rather than inside it:
+
+```cufet-fragment
+Bind number to apply-all, given (the series of number function given (the number) ops, the number seed):
+    Define acc as seed.
+    For each op in ops, repeat: The acc becomes cast op on (acc). Done.
+    Return acc.
+Done.
+
+Define object bell with (the series of void function given (the text) ringers).
+
+Bind series of number function given (the number) to the-ops:
+    Return a series of number function given (the number) with (double, triple).
+Done.
+```
+
+⚠ **Where the name sits is what tells two readings apart**, and both are real:
+
+- `the series of number function make given (the number)` — a parameter taking a function that
+  RETURNS a series of numbers. The name sits straight after `function`.
+- `the series of number function given (the number) ops` — a parameter taking a SERIES of
+  functions. The function type states its own `given`, so the name follows the whole type.
+
+
 
 #### Closures
 

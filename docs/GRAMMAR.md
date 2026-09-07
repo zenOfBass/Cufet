@@ -2004,6 +2004,37 @@ An ordinary function-valued field works the same way — `the number function tw
 given (a number)`. ⚠ The field NAME sits between `function` and `given`, the same
 order a function-typed parameter uses; `void` is legal there only as the return
 type (`the void function log`), never as a field type on its own.
+**A series of functions crosses a declaration boundary too, and where the NAME sits says which
+type is meant.** `series of T function` has two readings, and both are real:
+
+| Written | Means |
+|---|---|
+| `the series of number function make given (the number)` | a function RETURNING a series of numbers |
+| `the series of number function given (the number) ops` | a SERIES of functions |
+
+The `given` clause is the divider. A function element type states its own clause, so the name has
+nowhere left to go but after the whole type; a function-typed parameter puts its name straight
+after `function` instead. ⚠ **A function element type must therefore carry its `given` clause
+wherever a name follows it.** In a series LITERAL nothing follows the type, so there the clause
+stays optional — `a series of number function with (twice)` is a series of functions that take
+nothing.
+
+```cufet
+Bind number to twice, given (the number n): Return n * 2. Done.
+Bind number to thrice, given (the number n): Return n * 3. Done.
+
+Bind number to apply-all, given (the series of number function given (the number) ops, the number seed):
+    Define acc as seed.
+    For each op in ops, repeat: The acc becomes cast op on (acc). Done.
+    Return acc.
+Done.
+
+State cast apply-all on (a series of number function given (the number) with (twice, thrice), 5).
+```
+```output
+30
+```
+
 
 ### ★ Foreign source — an `axiom` in `[ ... ]`
 
