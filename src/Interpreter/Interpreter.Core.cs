@@ -365,6 +365,15 @@ public sealed partial class Interpreter
         public ReturnException(object? value) { Value = value; }
     }
 
+    // `Exit.` — unwinds to Execute, which records the status for the CLI to leave with.
+    // ★ An ordinary exception, which is the whole design: every `ExitScope` sits in a `finally`,
+    // so each open block's unmakers run on the way out without a single site knowing about this.
+    private sealed class ExitUnwind : Exception
+    {
+        public int Status { get; }
+        public ExitUnwind(int status) { Status = status; }
+    }
+
     // Thrown at statement-dispatch checkpoints when _interruptRequested is true.
     // Unwinds the call stack to the REPL top level; never escapes to the user.
     private sealed class InterruptUnwind : Exception { }
@@ -708,6 +717,11 @@ public sealed partial class Interpreter
     // interrupted run from a completed one.
     public bool WasInterrupted { get; private set; }
 
+    /// <summary>The status an `Exit` chose, or null when the program ran to its end.</summary>
+    /// <remarks>Null rather than 0 so the CLI can tell "chose 0" from "never said" — they exit
+    /// the same way, but only one of them should override an interrupt.</remarks>
+    public int? ExitStatus { get; private set; }
+
     public void Execute(Program program)
     {
         // ★ BEFORE anything runs, and before the scheduler exists. Every axiom is compiled here so
@@ -719,6 +733,12 @@ public sealed partial class Interpreter
         try
         {
             _scheduler.Run(() => { ExecuteCore(program); return Task.CompletedTask; });
+        }
+        catch (ExitUnwind e)
+        {
+            // Nothing further runs. Every block between here and the `Exit` has already had its
+            // unmakers run by its own `finally`, which is why this catch does no cleanup itself.
+            ExitStatus = e.Status;
         }
         catch (InterruptUnwind)
         {
@@ -974,6 +994,19 @@ public sealed partial class Interpreter
                     if (b) break;
                 }
                 break;
+            }
+
+            case ExitStatement ex:
+            {
+                if (ex.Status is null) throw new ExitUnwind(0);
+                var raw = Convert.ToDecimal(Evaluate(ex.Status));
+                // ⚠ The literal case was refused at check time; this is the computed one, and it
+                // raises rather than truncating for the same reason — the OS keeps the low eight
+                // bits, so 256 would leave with 0 from a line that meant otherwise.
+                if (raw != decimal.Truncate(raw) || raw < 0 || raw > 255)
+                    throw new RuntimeException(
+                        $"an exit status must be a whole number from 0 to 255 (line {ex.Line}).");
+                throw new ExitUnwind((int)raw);
             }
 
             case StopStatement:

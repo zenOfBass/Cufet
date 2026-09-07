@@ -226,6 +226,17 @@ public sealed record RepeatUntilStatement(
 ) : IStatement;
 
 public sealed record StopStatement() : IStatement;
+
+/// <summary>`Exit.` / `Exit with <number>.` — end the program with a chosen status.</summary>
+/// <remarks>
+/// ★ Status is null for the bare form, which means 0 — the same answer falling off the end gives.
+/// ★★ It UNWINDS rather than abandons. Every open block's unmakers run and its files close, on
+/// both backends: the interpreter gets it free because `ExitScope` sits in a `finally`, and the
+/// compiler runs `cufet_run_unmakers_to(0)` before `exit()`, which is what the fault path already
+/// does. A destructor that stopped firing because a program chose to leave early would be exactly
+/// the divergence the runtime's own comment records having been caught once before.
+/// </remarks>
+public sealed record ExitStatement(IExpression? Status, int Line, int Column) : IStatement;
 public sealed record SkipStatement() : IStatement;
 
 // IteratorName == null → bare-it loop; element is bound to "it"

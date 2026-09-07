@@ -257,6 +257,11 @@ public enum TokenType
                   //                 "exists" is contextual (lexeme-checked), not reserved
 
     // ── Program arguments ─────────────────────────────────────────────────────────
+    Exit,          // "exit"       — "Exit." / "Exit with <number>." — the status this program
+                   //                chooses. Reads with `the exit-code of` a child's run result:
+                   //                one word, two directions. `exit-code` is a single identifier
+                   //                to the lexer, so reserving `exit` leaves that field alone.
+
     Arguments,     // "arguments"  — "the arguments" (this program's own, a series of text), and
                    //                the argument list of `run <prog> with arguments (…)`.
                    // ⚠ RESERVED, unlike every other word in this region. `the arguments` stands

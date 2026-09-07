@@ -386,6 +386,24 @@ static int cufet_cmp(CufetDec a, CufetDec b) {
     int c = u256_cmp(ca, cb);
     return a.sign ? -c : c;
 }
+
+/* `Exit.` / `Exit with N.` — end the program with a chosen status.
+   ★★ This mirrors the ending of cufet_raise exactly, minus the message: this thread's pending
+   unmakers run BEFORE exit(), so choosing to leave early is not the one way out that skips a
+   destructor. exit() flushes and closes what the C runtime owns, which is why files need no
+   separate pass here — the same note cufet_raise carries a few lines up.
+   ⚠ The range is checked HERE because a computed status is only known now; a literal one was
+   already refused by the type checker. The message names no value on purpose — the two backends
+   format a fractional number through different code, and a message that quoted it could differ
+   in a digit while being right about everything that matters. */
+static void cufet_exit(CufetDec status, int line) {
+    int n = cufet_to_int(status);
+    if (cufet_cmp(cufet_dec_from_ll(n), status) != 0 || n < 0 || n > 255)
+        cufet_raise(cufet_msgf("an exit status must be a whole number from 0 to 255 (line %d).", line));
+    cufet_run_unmakers_to(0);
+    exit(n);
+}
+
 /* Minimal form, the way .NET leaves a decimal DIVISION: 11/10 is 1.1 at scale 1, not
    1.1000...0 at scale 28. Trailing zeros are invisible when printed (cufet_format_number
    strips them too), so a difference here hides until some LATER operation on the value

@@ -156,6 +156,115 @@ public class CommandLineTests
         }
     }
 
+    // ── The exit status a program chooses ─────────────────────────────────
+    //
+    // ★★ Here rather than in an interpreter test for the same reason the argument tests are: the
+    // thing under test is that `cufet script.cufe` LEAVES with the status, which only the real
+    // process can show. An interpreter test could read `ExitStatus` and pass while the CLI
+    // returned 0 to the shell — which is the defect, not the check.
+
+    [Fact]
+    public void Exit_LeavesWithTheStatusItNames()
+    {
+        string file = WriteProgram("State \"before\".\nExit with 3.\nState \"after\".\n");
+        try
+        {
+            var (exit, output, _) = Run(file);
+            Assert.Equal(3, exit);
+            Assert.Equal("before", output.Trim());   // nothing after the Exit runs
+        }
+        finally { File.Delete(file); }
+    }
+
+    [Fact]
+    public void ABareExit_IsStatusZero()
+    {
+        string file = WriteProgram("State \"a\".\nExit.\nState \"b\".\n");
+        try
+        {
+            var (exit, output, _) = Run(file);
+            Assert.Equal(0, exit);
+            Assert.Equal("a", output.Trim());
+        }
+        finally { File.Delete(file); }
+    }
+
+    // ★ A status past 255 is refused rather than truncated. POSIX keeps the low eight bits, so
+    // `Exit with 256.` would leave with 0 — success, from a line that plainly meant otherwise.
+    // Exit 1 here is CUFET refusing the program, not the program's own answer.
+    [Fact]
+    public void AStatusOutsideZeroToTwoFiveFive_IsRefusedRatherThanTruncated()
+    {
+        string file = WriteProgram("Exit with 256.\n");
+        try
+        {
+            var (exit, _, err) = Run(file);
+            Assert.Equal(1, exit);
+            Assert.Contains("0 to 255", err);
+        }
+        finally { File.Delete(file); }
+    }
+
+    // ⚠ A fractional status and an out-of-range one are different mistakes and get different
+    // sentences. One message covering both told someone who wrote 2.5 about the low eight bits.
+    [Fact]
+    public void AFractionalStatus_SaysItIsNotWholeRatherThanOutOfRange()
+    {
+        string file = WriteProgram("Exit with 2.5.\n");
+        try
+        {
+            var (exit, _, err) = Run(file);
+            Assert.Equal(1, exit);
+            Assert.Contains("whole number", err);
+            Assert.DoesNotContain("eight bits", err);
+        }
+        finally { File.Delete(file); }
+    }
+
+    // ★★ The oracle. `cufet script.cufe` and `./script` must agree on BOTH halves — what was
+    // printed and what was left with. The status is the half no output comparison would catch.
+    [Fact]
+    public void Exit_AgreesBetweenInterpretedAndCompiled()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            && !RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+
+        string file = WriteProgram(
+            "Define object conn with (the text name).\n" +
+            "Bind unmaking a conn to disconnect: State \"closing {one's name}\". Done.\n" +
+            "Pull a rabbit.\n" +
+            "    Define held as a new conn { the name \"held\" }.\n" +
+            "    State \"working\".\n" +
+            "    Exit with 7.\n" +
+            "    State \"never reached\".\n" +
+            "Done.\n");
+        string exe = Path.ChangeExtension(file, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "");
+        try
+        {
+            var (iExit, iOut, _) = Run(file);
+
+            var (buildExit, _, buildErr) = Run("build", file);
+            Assert.True(buildExit == 0, "build failed: " + buildErr);
+
+            var psi = new ProcessStartInfo(exe) { RedirectStandardOutput = true, WorkingDirectory = RepoRoot };
+            using var p = Process.Start(psi)!;
+            string cOut = p.StandardOutput.ReadToEnd();
+            p.WaitForExit(60_000);
+
+            // ★ Leaving UNWINDS: the rabbit's destructor still fires, on both backends. A chosen
+            // exit that skipped it would be the one way out of a program that loses a destructor.
+            Assert.Equal("working\nclosing held\n", iOut.ReplaceLineEndings("\n"));
+            Assert.Equal(iOut.ReplaceLineEndings("\n"), cOut.ReplaceLineEndings("\n"));
+            Assert.Equal(7, iExit);
+            Assert.Equal(iExit, p.ExitCode);
+        }
+        finally
+        {
+            File.Delete(file);
+            if (File.Exists(exe)) File.Delete(exe);
+        }
+    }
+
     // ── What it refuses ───────────────────────────────────────────────────
 
     [Fact]

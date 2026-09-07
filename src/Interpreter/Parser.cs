@@ -110,6 +110,7 @@ public sealed class Parser
             TokenType.Judge      => ParseJudgeStatement(),
             TokenType.While      => ParseWhileStatement(),
             TokenType.Repeat     => ParseRepeatUntilStatement(),
+            TokenType.Exit       => ParseExitStatement(tok),
             TokenType.Stop       => ParseStopStatement(tok),
             TokenType.Skip       => ParseSkipStatement(tok),
             TokenType.Item       => ParseSeriesSetStatement(),
@@ -1536,6 +1537,24 @@ public sealed class Parser
         if (stmts.Count == 0)
             throw new ParseException(Peek(), "at least one statement in repeat-until body");
         return stmts;
+    }
+
+    // `Exit.` — status 0. `Exit with <number>.` — the status named.
+    // ⚠ No loop-depth rule, unlike `Stop`: leaving is not a loop's business and is legal wherever
+    // a statement is, including inside a function or a rabbit. The unwinding is what makes that safe.
+    private ExitStatement ParseExitStatement(Token tok)
+    {
+        Advance();   // consume 'Exit'
+        SkipNoise();
+        IExpression? status = null;
+        if (Peek().Type == TokenType.With)
+        {
+            Advance(); SkipNoise();
+            status = ParseExpression();
+            SkipNoise();
+        }
+        Consume(TokenType.Dot);
+        return new ExitStatement(status, tok.Line, tok.Column);
     }
 
     private StopStatement ParseStopStatement(Token tok)

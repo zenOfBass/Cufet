@@ -177,6 +177,43 @@ public sealed partial class TypeChecker
     // 'The current directory becomes <path>.' — only the operand needs checking. Like a file
     // write, this is a fallible STATEMENT rather than a fallible value: it is caught by an
     // enclosing Try, and aborts with its message when there is none.
+    // `Exit with <n>.` — the status must be a number, and a LITERAL one must be a status a process
+    // can actually carry.
+    //
+    // ★ 0–255 because that is what POSIX carries: a wider number is truncated to its low eight
+    // bits by the operating system, so `Exit with 256.` would leave with 0 — success, from a line
+    // that plainly meant failure. Refusing beats a silent resolution, which is the same call the
+    // `bits` narrowing rule makes.
+    //
+    // ⚠ Only a literal is caught here. A computed status is checked where it runs, in the class
+    // dividing by zero is in — the checker cannot know it, and a `voidable` status would force an
+    // unwrap on every exit line.
+    private void CheckExit(ExitStatement ex)
+    {
+        if (ex.Status is null) return;
+        var t = InferType(ex.Status);
+        if (t is not NumberType)
+            throw TypeError($"an exit status must be a number, not {(t is null ? "void" : FormatType(t))}",
+                            null, ex.Line, ex.Column,
+                            "exit with something that is not a number",
+                            "Write 'Exit with 1.' — a whole number from 0 to 255.");
+        if (ex.Status is not NumberLiteral { Value: var v }) return;
+        // ★ Two different mistakes, two different sentences. A fractional status is a category
+        // error; a status past 255 is a number the operating system would quietly reinterpret.
+        // One message covering both told someone who wrote 2.5 about the low eight bits.
+        if (v != decimal.Truncate(v))
+            throw TypeError($"{v} is not an exit status — a status is a whole number",
+                            null, ex.Line, ex.Column,
+                            "exit with a status that is not whole",
+                            "Statuses run from 0 to 255 with nothing in between.");
+        if (v < 0 || v > 255)
+            throw TypeError($"{v} is not an exit status — they run from 0 to 255",
+                            null, ex.Line, ex.Column,
+                            "exit with a status outside 0 to 255",
+                            "The operating system keeps only the low eight bits, so a wider "
+                            + "number would leave with something else entirely.");
+    }
+
     private void CheckCurrentDirectorySet(CurrentDirectorySetStatement cd)
     {
         var pathType = InferType(cd.Path);

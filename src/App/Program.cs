@@ -530,6 +530,16 @@ static void Interpret(string[] args)
             ProgramArguments = args.Length > 0 ? args[1..] : [],
         };
         RunOnLargeStack(() => interpreter.Execute(program));
+        // ⚠ An `Exit` wins over an interrupt, and the order here is the whole of that rule: a
+        // program that chose its status said so deliberately, and reporting 130 instead would
+        // hide it. A program that chose 0 still exits 0 — ExitStatus is null-when-unsaid rather
+        // than 0-when-unsaid so the two cases stay distinguishable here.
+        //
+        // ★ This is what makes `cufet script.cufe` and a compiled `./script` agree. It also
+        // makes 1 and 2 ambiguous from outside — they are cufet's own codes for a type error and
+        // a bad command line — which is true of every interpreter and is documented rather than
+        // worked around.
+        if (interpreter.ExitStatus is { } chosen) Environment.Exit(chosen);
         // 128 + SIGINT, the convention every shell already understands.
         if (interpreter.WasInterrupted) Environment.Exit(130);
     }

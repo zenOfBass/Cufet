@@ -2602,6 +2602,9 @@ public sealed partial class TypeChecker
                         "suppress an exception outside an exception handler",
                         "Move 'Suppress the exception.' inside an 'In case of exception' block.");
                 break;
+            case ExitStatement ex:
+                CheckExit(ex);
+                break;
             case CurrentDirectorySetStatement cd:
                 CheckCurrentDirectorySet(cd);
                 break;

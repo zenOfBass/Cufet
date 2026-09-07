@@ -922,6 +922,15 @@ public sealed partial class CodeGenerator
                 break;
             }
 
+            // ⚠ No UnwindTo here, unlike Stop and Skip. Those jump to a point INSIDE this program
+            // and must hand the arenas back on the way; this one ends the process, and
+            // cufet_exit runs the whole thread's unmakers before it does.
+            case ExitStatement ex:
+                sb.AppendLine(ex.Status is null
+                    ? $"{indent}cufet_exit(cufet_dec_from_ll(0), {ex.Line});"
+                    : $"{indent}cufet_exit({EmitExpr(ex.Status)}, {ex.Line});");
+                break;
+
             case StopStatement:
                 sb.AppendLine($"{indent}{UnwindTo(LoopExit)}break;");
                 break;
