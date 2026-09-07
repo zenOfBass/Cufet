@@ -775,9 +775,11 @@ State 0xFF and 0x0F = 0x0F.   // type error, not a wrong answer
 
 Keeping bit patterns out of `number` closes that footgun for free.
 
-### Comments — `//` and `/* ... */`
+### Comments — `//`, `/* ... */`, and the documentation forms `///` and `/** ... */`
 
-The lexer strips both forms before tokenizing — comment content produces no tokens and is never parsed.
+Comment content never becomes a token and is never parsed. It is **not discarded**, though: the
+lexer carries each comment as trivia on the token that follows it, which is what lets a doc comment
+be found from the declaration it sits above without the parser knowing comments exist.
 
 ```cufet
 // to the end of the line
@@ -799,6 +801,32 @@ needs no terminator and may end at end-of-file.
 A `/*` inside a `//` comment does not open a block, and a `//` inside a block comment is just
 text. Comment markers inside a string literal are text — strings are consumed whole before
 whitespace-skipping ever looks at them.
+
+**`///` and `/** ... */` are documentation**, read by tooling rather than only by whoever opens the
+file. A doc comment's content is **Markdown**.
+
+```cufet
+/// Splits a line on the separator.
+Define first-word as "cufet".
+
+/** Fails when the separator is empty.
+  * The star column is the Javadoc habit and is stripped, because
+  * Markdown would read it as a bullet list.
+  */
+Define second-word as "shell".
+```
+
+Two carve-outs, both so an ordinary comment cannot become documentation by accident:
+
+- **Four or more slashes is an ordinary comment.** `////////` is a divider somebody drew, not a
+  doc comment — the same hole C# and Rust carve.
+- **`/**/` is an empty ordinary comment**, not a doc comment that never closes.
+
+A doc block **nests** exactly as `/* ... */` does. On its continuation lines a leading `*` — with
+the whitespace before it and one space after — is removed; everything past that is kept, so a
+nested list or an indented code block survives. That is the only place the lexer touches a
+comment's inside, and it is removing a marker rather than reformatting: left in, `  * more text`
+is a Markdown **bullet**, so keeping it would render a paragraph as a list.
 
 ---
 

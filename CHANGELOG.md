@@ -270,6 +270,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   silence; the value arms added in this release simply inherited it. Measured across the 41 programs
   in `examples/` and `tools/`: no dead arm anywhere, so nothing in the corpus changes.
 
+- **Documentation comments: `///` and `/** … */`.** Read as documentation rather than as a note to
+  whoever opens the file, and carried on the declaration below them by the trivia the lexer already
+  keeps. A doc comment's content is **Markdown** — not an XML tag vocabulary, because the signature
+  is already English and the docs this project writes are already Markdown.
+
+  ★ **Nothing downstream had to change.** Comments ride on the following token, so the parser still
+  cannot notice that comments exist, and no `SkipNoise` site is involved.
+
+  ⚠ **Two carve-outs, so an ordinary comment cannot become documentation by accident.** Four or more
+  slashes stays an ordinary comment — `////////` is a divider somebody drew, and a divider quietly
+  landing in a generated page is the one way this marker misfires. And `/**/` stays an empty
+  ordinary comment rather than a doc comment nobody closed, which otherwise fails the whole file
+  with an unterminated-comment error pointing at a comment that is fine. Both spellings were unused
+  across the corpus (measured: 0 occurrences of each), so nothing existing changes meaning.
+
+  ⚠ **A doc block drops the leading `*` on its continuation lines**, along with the whitespace before
+  it and one space after. This is the only place the lexer touches a comment's inside, and it
+  removes a marker rather than reformatting: the content is Markdown, where `  * more text` is a
+  **bullet list item**, so keeping the star would render a paragraph as a list. Anything past that
+  one space is kept, so a nested list or an indented code block is still the author's. Ordinary
+  block comments are untouched, exactly as before.
+
+  ⚠ **Nothing reads them yet.** This is the input half; hover is the consumer, and generated pages
+  after that.
+
 ### Fixed
 - **Tail recursion runs in constant space, on every compiler and every optimisation level.** A
   `Return cast <this same function> on (…)` — where nothing has to run between the call and the
