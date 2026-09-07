@@ -380,6 +380,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
   ⚠ The refusal names what IS available, because "no" without "instead" is half an answer.
 
+- **A bundled book has its own file scope, private to it.** `math`, `collections`, `chance` and
+  `rabbit` are now given the same file-privacy rename the loader has always applied to an external
+  book — a top-level name in `math.cufe` becomes `log-two in math`, which cannot collide with
+  anything a program declares and cannot be written by one. **The two kinds of book agree.**
+
+  ★ **`log 2` is written once instead of three times.** That constant appeared twice in `exp` and
+  once in `log`, 28 digits each, because a bundled book had nowhere to put a helper — the roadmap
+  entry had recorded exactly that cost.
+
+  ⚠⚠ **The blocker was not what the roadmap said it was.** Privacy was only half: a bundled book's
+  bodies imported **nothing** from the top level, so its own file scope was invisible whether
+  private or not. That guard was written for a real bug — the prelude is prepended to the writer's
+  program, and a program declaring `Bind number to total` broke `log`, whose running sum is called
+  `total`. It is now narrowed from "import nothing" to "import your own", which is safe **only
+  because** the names are privatised: a name with a space in it is one no program can write, so
+  importing it can collide with nothing. The two halves do not work apart.
+
+  ⚠ Its own top-level DATA stays hidden, exactly as a writer's does. Bodies see functions and
+  `permanently` constants; the rule about not reading mutable top-level state is not a privilege a
+  book opts out of.
+
+  ★ The prelude is now parsed **per book** rather than as one concatenated blob, which is what makes
+  a per-book rename possible at all — and it means an error inside a bundled book reports a line in
+  the file that wrote it.
+
 ### Fixed
 - **A module's refusal leaked the loader's lifted name.** The first version of the message above
   said *"'terminal' declares 'prompter in terminal'"* — a synthesized name nobody wrote, produced by

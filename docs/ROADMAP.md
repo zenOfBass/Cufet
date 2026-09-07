@@ -281,13 +281,6 @@ indistinguishable from having forgotten.
 
 ### Types and objects
 
-- **Bundled books do not get the file privacy external ones do.** *Blocker: latent — no bundled
-  book declares anything beside its module, so nothing has hit it.* `WithPrelude` splices them
-  before the loader runs, so a top-level declaration in `math.cufe` would be global to every Cufet
-  program. It is why `guarded-times` had nowhere to go and was inlined twice, magic constant and
-  all, while an external book's author now has somewhere to put it. **The two kinds of book should
-  agree**, and the trigger is the first bundled book that wants a helper at file scope.
-
 - **A cursor for scanning a `chase`.** *Blocker: no demonstrated need.* The buffer ships with bare
   indexing — `item n of`, `For each` — and `huffmancoding` was rewritten onto it without wanting
   anything else. A cursor would only pay for itself in a program that scans BACK AND FORTH, and
