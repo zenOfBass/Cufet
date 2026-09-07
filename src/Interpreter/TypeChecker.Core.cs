@@ -1251,6 +1251,10 @@ public sealed partial class TypeChecker
     // writer's top-level names. See the note in CheckMethodBody.
     private bool _checkingBookLayer;
 
+    // Which bundled book that layer belongs to, so its bodies can import ITS OWN top-level names
+    // and no others. Null except while a book layer is being checked.
+    private string? _bookLayerName;
+
     // The module whose body is being checked, and what each module's bodies REACH FOR without
     // defining. A module's dependencies come from the block it is USED in, not the one it is
     // written in, so an unresolved name here is not an error — it is a requirement on the caller.
@@ -2957,6 +2961,52 @@ public sealed partial class TypeChecker
     //
     // ⚠ Callers must save _hiddenTopLevelData before calling and restore it in their finally — a
     // nested body must not inherit an outer body's hidden set after the outer scope is restored.
+    /// <summary>
+    /// A bundled book's own file-scope names, and nothing else the top level holds.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ THE WHOLE TOP LEVEL USED TO BE REFUSED HERE, and the reason was real: the prelude is
+    /// prepended to the writer's program, so a book's method body could see the WRITER's functions
+    /// — and a program declaring <c>Bind number to total</c> broke <c>log</c>, whose running sum is
+    /// called <c>total</c>. The book was written without sight of the program, so nothing in the
+    /// program should reach it.
+    /// </para>
+    /// <para>
+    /// ★ What changed is that a bundled book's own top-level names are now PRIVATISED, the same as
+    /// an external book's — <c>log-two</c> in <c>math.cufe</c> becomes <c>log-two in math</c>. That
+    /// name has a space in it and cannot be written, so importing it can collide with nothing a
+    /// program could ever declare. The guard could stop refusing everything and start refusing
+    /// everything that is not the book's own.
+    /// </para>
+    /// <para>
+    /// ⚠ Suffix-matched, because the rename is what carries the ownership. There is no separate
+    /// table to fall out of step with the names themselves.
+    /// </para>
+    /// </remarks>
+    private void ImportOwnBookNames(
+        (List<Dictionary<string, TypeInfo>> V, List<Dictionary<string, CufetType>> T) saved,
+        string? book)
+    {
+        if (book is null) return;
+        string owned = " in " + book;
+
+        foreach (var scope in saved.V)
+            foreach (var (k, v) in scope)
+                if (k.EndsWith(owned, StringComparison.Ordinal)
+                    && (v.Type is FunctionType || v.Permanent))
+                    Scope[k] = v;
+
+        // Its own top-level DATA is still hidden, exactly as a writer's own is — the rule about
+        // bodies not reading mutable top-level state is not a book privilege to opt out of.
+        _hiddenTopLevelData = saved.V
+            .SelectMany(scope => scope)
+            .Where(kv => kv.Key.EndsWith(owned, StringComparison.Ordinal)
+                      && kv.Value.Type is not FunctionType && !kv.Value.Permanent)
+            .Select(kv => kv.Key)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
     private void ImportTopLevelVisible(
         (List<Dictionary<string, TypeInfo>> V, List<Dictionary<string, CufetType>> T) saved)
     {

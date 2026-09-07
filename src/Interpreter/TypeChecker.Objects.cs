@@ -386,10 +386,12 @@ public sealed partial class TypeChecker
         // that can be told what is missing.
         var prevModule   = _checkingModuleName;
         _checkingModuleName = IsModuleConformer(od.ConformedInterfaces) ? od.Name : null;
+        var prevLayerName = _bookLayerName;
         if (isBookLayer)
         {
             EnterScope();
             _checkingBookLayer = true;
+            _bookLayerName     = od.Name;
             foreach (var (typeName, typeObj) in layerBook!.IntroducedTypes)
                 RegisterScopedType(typeName.ToLowerInvariant(), typeObj);
         }
@@ -415,6 +417,7 @@ public sealed partial class TypeChecker
         finally
         {
             _checkingBookLayer  = prevLayer;
+            _bookLayerName      = prevLayerName;
             _checkingModuleName = prevModule;
             if (isBookLayer) ExitScope();
         }
@@ -486,7 +489,11 @@ public sealed partial class TypeChecker
         // they happened to use. A program declaring `Bind number to total` broke `log`, whose
         // running sum is called `total`. That is not a name clash to dodge by renaming: the book
         // was written without sight of the program, so nothing in the program should reach it.
+        // ★ A bundled book's layer imports ITS OWN file-scope names rather than nothing at all.
+        // Safe only because those names are privatised — see ImportOwnBookNames for the bug the
+        // blanket refusal was written for, and why the rename retires it.
         if (!_checkingBookLayer) ImportTopLevelVisible(saved);
+        else ImportOwnBookNames(saved, _bookLayerName);
         Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), selfLine, IsParameter: true);
         foreach (var (type, name) in method.Parameters)
             Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), method.Line, IsParameter: true);

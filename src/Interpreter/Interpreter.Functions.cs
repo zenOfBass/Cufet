@@ -181,6 +181,10 @@ public sealed partial class Interpreter
         // and without it a book's local collides with any name the writer used for a function.
         if (!BuiltinBookValues.ContainsKey(receiver.TypeName))
             ImportTopLevelVisible(saved.Scopes);
+        else
+            // ★ Its OWN file scope, which it could not see at all before those names were made
+            // private. Keeps step with the checker — see TypeChecker.ImportOwnBookNames.
+            ImportOwnBookNames(saved.Scopes, receiver.TypeName);
 
         for (int i = 0; i < paramNames.Count; i++)
             Scope[paramNames[i]] = argValues[i];

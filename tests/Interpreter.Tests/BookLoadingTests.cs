@@ -1,4 +1,4 @@
-using Cufet.Interpreter;
+﻿using Cufet.Interpreter;
 using Xunit;
 using CufetLexer = Cufet.Lexer.Lexer;
 
@@ -257,5 +257,79 @@ public class BookLoadingTests : IDisposable
         // The control. With no book to load the statements come back as the very same list, and a
         // message with a large number in it is left alone because no block was ever allocated.
         Assert.Equal("100003", Run("State 100003."));
+    }
+
+    // ── A bundled book's own file scope ──────────────────────────────────
+    //
+    // ★ Two changes that only work together. A bundled book's top level is now PRIVATISED the same
+    // way an external book's is — `log-two` in `math.cufe` becomes `log-two in math` — and because
+    // that name has a space in it and can never be written, a book's bodies may now import their
+    // own file scope. Before, they imported NOTHING from the top level, because the prelude is
+    // prepended to the writer's program and a book's local would otherwise collide with any name
+    // the writer used.
+
+    [Fact]
+    public void ABundledBooksFileScope_IsReachableFromItsOwnMethods()
+    {
+        // `math`'s `log` and `exp` both read `log-two`, declared once at the file's top level. If a
+        // book could not see its own file scope, neither would compute at all.
+        Assert.Equal("2.0794415416798359282516963645", Run("""
+            Pull a book on math.
+                State cast math's log on (8) but void is 0.
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ABundledBooksFileScope_IsNotReachableFromAProgram()
+    {
+        // ⚠ Private means private. The constant is renamed, so the name a writer would have to type
+        // is not a name they can type.
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Pull a book on math.
+                State log-two.
+            Done.
+            """));
+
+        Assert.Contains("log-two", ex.Message);
+    }
+
+    [Fact]
+    public void AProgramsOwnNameCannotReachIntoABundledBook()
+    {
+        // ★★ THE BUG THE BLANKET REFUSAL WAS WRITTEN FOR, kept fixed by the narrowing rather than
+        // by the refusal. `math`'s `log` keeps its running sum in a local called `total`; a program
+        // declaring a FUNCTION of that name used to break it, because the book's body could see the
+        // writer's top level. Now it imports only its own, so the two cannot meet.
+        Assert.Equal("2.0794415416798359282516963645\n200", Run("""
+            Bind number to total, given (the number x):
+                Return x * 100.
+            Done.
+
+            Pull a book on math.
+                State cast math's log on (8) but void is 0.
+            Done.
+            State cast total on (2).
+            """));
+    }
+
+    [Fact]
+    public void AnExternalBooksFileScope_WorksTheSameWay()
+    {
+        // The two kinds of book agree, which is the whole point of the change. An external book
+        // could always do this; a bundled one could not.
+        Assert.Equal("42", Run("""
+            Define secret-number as 42 permanently.
+
+            Define object helperkit with () and module:
+                Bind number to answer:
+                    Return secret-number.
+                Done.
+            Done.
+
+            Pull helperkit.
+                State cast helperkit's answer on ().
+            Done.
+            """));
     }
 }

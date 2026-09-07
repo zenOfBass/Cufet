@@ -115,6 +115,20 @@ public sealed partial class Interpreter
     // UndefinedVariableMessage can teach instead of misdirecting with "isn't defined".
     //
     // ⚠ Callers must save _hiddenTopLevelData before calling and restore it in their finally.
+    // A bundled book's OWN file-scope names, and nothing else — the runtime mirror of
+    // TypeChecker.ImportOwnBookNames, where the reasoning lives. A book's top level is privatised
+    // to `<name> in <book>`, which has a space in it and so can never be a name a writer wrote:
+    // importing it can collide with nothing, which is what let the blanket refusal be narrowed.
+    private void ImportOwnBookNames(List<Dictionary<string, object>> savedScopes, string book)
+    {
+        string owned = " in " + book;
+        foreach (var scope in savedScopes)
+            foreach (var (k, v) in scope)
+                if (k.EndsWith(owned, StringComparison.Ordinal)
+                    && (v is FunctionValue || _permanentTopLevel.Contains(k)))
+                    Scope[k] = v;
+    }
+
     private void ImportTopLevelVisible(List<Dictionary<string, object>> savedScopes)
     {
         foreach (var scope in savedScopes)
